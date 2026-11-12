@@ -55,15 +55,23 @@ struct UpdatesTabView: View {
                     detail: prefs.updater == nil ? "This build does not look for updates" : "Last checked: \(updateCheckedText(prefs.last, now: Date()))",
                     first: true
                 ) {
-                    Button("Check now") { prefs.checkNow() }
+                    Button { prefs.checkNow() } label: { Label("Check now", systemImage: "arrow.clockwise") }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).disabled(prefs.canCheck == false)
                 }
             }
             SettingsGroup(title: "Engine") {
                 SettingsTabRow(title: "Engine and chat host", detail: engine.line, first: true) {
-                    if engine == .running { ProgressView().controlSize(.small) }
-                    if engine.canRetry {
-                        Button("Try again") { ChatHostStarter.shared.retryUpgrade() }.buttonStyle(SecondaryCapsuleButtonStyle())
+                    HStack(spacing: 10) {
+                        switch engine {
+                        case .running: ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Updating")
+                        case .upToDate, .updated: StatusMark(symbol: "checkmark", color: .green, label: "Up to date")
+                        case .failed: StatusMark(symbol: "xmark", color: .orange, label: "Failed")
+                        case .unknown: EmptyView()
+                        }
+                        if engine.canRetry {
+                            Button { ChatHostStarter.shared.retryUpgrade() } label: { Label("Try again", systemImage: "arrow.clockwise") }
+                                .buttonStyle(SecondaryCapsuleButtonStyle())
+                        }
                     }
                 }
                 if let notice = engine.notice {

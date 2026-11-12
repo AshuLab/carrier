@@ -47,22 +47,20 @@ struct ReposTabView: View {
             }
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 12) {
-                    if rows.isEmpty == false {
-                        VStack(alignment: .leading, spacing: 2) {
-                            ForEach(rows) { row in
-                                RepoRowView(row: row, engine: engine, selected: row.name == chosen?.name) {
-                                    removing = row.name
-                                }
-                                .onTapGesture {
-                                    selection = row.name
-                                    roleSelection = RepoRoleSelection()
-                                }
+                    // the list and, as its last row, the way to add one; the card is there with no repo too
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(rows) { row in
+                            RepoRowView(row: row, engine: engine, selected: row.name == chosen?.name) {
+                                removing = row.name
+                            }
+                            .onTapGesture {
+                                selection = row.name
+                                roleSelection = RepoRoleSelection()
                             }
                         }
-                        .padding(8).background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+                        AddRepoRow { adding = true }.disabled(unreadable)
                     }
-                    Button { adding = true } label: { Label("Add repo…", systemImage: "plus") }
-                        .controlSize(.small).disabled(unreadable)
+                    .padding(8).settingsCard()
                 }
                 .frame(width: 270)
                 detail(chosen)
@@ -127,13 +125,14 @@ struct ReposTabView: View {
                     }
                     Spacer(minLength: 8)
                     if let url = status.gitHubURL {
-                        Button("Open on GitHub") { NSWorkspace.shared.open(url) }.buttonStyle(HoverTextButtonStyle(tint: nil))
-                    }
-                    if status.canRevealClone {
-                        Button("Reveal clone") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: status.clonePath)]) }
+                        Button { NSWorkspace.shared.open(url) } label: { Label("Open on GitHub", systemImage: "arrow.up.right.square").labelStyle(.titleAndIcon) }
                             .buttonStyle(HoverTextButtonStyle(tint: nil))
                     }
-                    Button(doctor.state == .running ? "Checking…" : "Check again", action: runDoctor)
+                    if status.canRevealClone {
+                        Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: status.clonePath)]) } label: { Label("Reveal clone", systemImage: "folder").labelStyle(.titleAndIcon) }
+                            .buttonStyle(HoverTextButtonStyle(tint: nil))
+                    }
+                    Button(action: runDoctor) { Label(doctor.state == .running ? "Checking…" : "Check again", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
                         .buttonStyle(HoverTextButtonStyle(tint: nil)).disabled(doctor.state == .running)
                 }
                 RepoStatusCard(row: row, status: status)
@@ -144,7 +143,7 @@ struct ReposTabView: View {
                 )
                 if let roles {
                     RepoRolesCard(
-                        rows: roles.rows, editing: $roleSelection.editing, profiles: roles.profiles, accounts: declaredAccounts(providersJSON: providersData), refusal: refusal,
+                        rows: roles.rows, editing: $roleSelection.editing, profiles: roles.profiles, accounts: declaredAccounts(providersJSON: providersData), icons: accountIcons(providersJSON: providersData), refusal: refusal,
                         save: { role, fields in saveRole(fields, role: role, repo: row.name) }, openAgents: openAgents
                     )
                 }
@@ -260,8 +259,9 @@ private struct RepoStatusCard: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 9).frame(minHeight: 34)
-        .overlay(alignment: .top) { Divider().opacity(first ? 0 : 1) }
+        // taller than the chip of Epics makes a row, so a row with the chip and one without are the same height
+        .padding(.vertical, 9).frame(minHeight: 40)
+        .overlay(alignment: .top) { if first == false { SettingsDivider() } }
         .accessibilityElement(children: .combine)
     }
 }
@@ -275,12 +275,7 @@ private struct RepoChecksCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("READY FOR CARRIER").font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary)
-                Spacer(minLength: 8)
-                if checking { ProgressView().controlSize(.small) }
-            }
-            .padding(.horizontal, 14).padding(.top, 8)
+            Text("Ready for Carrier").sectionLabel().padding(.horizontal, 14).padding(.top, 8)
             SettingsTabCard {
                 ForEach(Array(checks.rows.enumerated()), id: \.element.id) { index, row in
                     HStack(alignment: .top, spacing: 10) {
@@ -293,11 +288,12 @@ private struct RepoChecksCard: View {
                         }
                     }
                     .padding(.vertical, 8).frame(minHeight: 36)
-                    .overlay(alignment: .top) { Divider().opacity(index == 0 ? 0 : 1) }
+                    .overlay(alignment: .top) { if index > 0 { SettingsDivider() } }
                     .accessibilityElement(children: .combine)
                 }
             }
-            if let note = checks.note { Text(note).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14) }
+            // while the doctor runs each row says so itself, so the note under the card would say it twice
+            if let note = checks.note, checking == false { Text(note).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14) }
         }
     }
 
@@ -305,22 +301,25 @@ private struct RepoChecksCard: View {
     @ViewBuilder private func checkText(_ row: RepoCheckRow) -> some View {
         let text = VStack(alignment: .leading, spacing: 1) {
             Text(row.title).fontWeight(.medium)
-            if let detail = row.detail { Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            if let detail = row.status == .waiting && checking ? "Checking…" : row.detail { Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             if let fix = row.fix, row.status != .ok { Text("Fix: \(fix)").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
-        let copyable = row.status == .ok ? nil : [row.detail, row.fix].compactMap { $0 }.joined(separator: "\n")
+        let copyable = row.status == .ok || row.status == .waiting ? nil : [row.detail, row.fix].compactMap { $0 }.joined(separator: "\n")
         if let copyable, copyable.isEmpty == false { text.copyOnHover(copyable) } else { text }
     }
 
     private func mark(_ status: RepoCheckRow.Status) -> some View {
+        // a row still waiting while the doctor runs turns instead of showing the grey dots
+        if status == .waiting && checking {
+            return AnyView(ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Checking"))
+        }
         let (symbol, color, label): (String, Color, String) = switch status {
         case .ok: ("checkmark", .green, "Ready")
         case .warn: ("exclamationmark", .yellow, "Warning")
         case .fail: ("xmark", .orange, "Failed")
         case .waiting: ("ellipsis", .gray, "Waiting")
         }
-        return Image(systemName: symbol).font(.scaled(9, weight: .heavy)).foregroundStyle(.white)
-            .frame(width: 16, height: 16).background(Circle().fill(color)).accessibilityLabel(label)
+        return AnyView(StatusMark(symbol: symbol, color: color, label: label))
     }
 }
 
@@ -331,6 +330,8 @@ private struct RepoRolesCard: View {
     @Binding var editing: AgentRole?
     let profiles: [String]
     let accounts: [String]
+    /// the icon of each account, by its harness
+    let icons: [String: String]
     /// why the doctor refused the config after the last save
     let refusal: String?
     let save: (AgentRole, RoleFields?) -> RoleSave
@@ -339,22 +340,22 @@ private struct RepoRolesCard: View {
     @State private var problem: String?
 
     var body: some View {
-        SettingsGroup(title: "Who works here") {
-            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                SettingsTabRow(title: row.title, detail: row.isOwn ? "Default: \(row.inherited.text)" : row.value.text, first: index == 0) {
-                    HStack(spacing: 8) {
-                        Text(row.isOwn ? row.value.text : "Same as everywhere").font(.caption).foregroundStyle(row.isOwn ? Color.primary : Color.secondary)
-                            .lineLimit(2).multilineTextAlignment(.trailing)
-                        Button("Change") { editing = row.role }.controlSize(.small).disabled(editing == row.role)
-                        if row.isOwn { Button("Reset") { finish(save(row.role, nil)) }.controlSize(.small) }
-                    }
+        VStack(alignment: .leading, spacing: 14) {
+            SettingsGroup(title: "Who works here") {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    roleRow(row, first: index == 0)
+                    if editing == row.role { form(row) }
                 }
-                if editing == row.role { form(row) }
+                if let note = signatureNote(rows) { Text(note).font(.caption).foregroundStyle(.secondary).padding(.vertical, 8) }
+                if let refusal { Text(refusal).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
+                if editing == nil, let problem { Text(problem).font(.caption).foregroundStyle(.orange).padding(.vertical, 8) }
             }
-            SettingsTabRow(title: "Defaults", detail: "Every repo follows the roles of Agents unless it has its own") { Button("Open Agents", action: openAgents).controlSize(.small) }
-            if let note = signatureNote(rows) { Text(note).font(.caption).foregroundStyle(.secondary).padding(.vertical, 8) }
-            if let refusal { Text(refusal).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
-            if editing == nil, let problem { Text(problem).font(.caption).foregroundStyle(.orange).padding(.vertical, 8) }
+            // the roles of Agents are another page's: its own item, not a row of this group
+            SettingsTabCard {
+                SettingsTabRow(title: "Defaults", detail: "Every repo follows the roles of Agents unless it has its own", first: true) {
+                    Button("Open Agents", action: openAgents).controlSize(.small)
+                }
+            }
         }
         // the form opens from Change here or from a failed sign check above; either way it starts from the role's own fields
         .onChange(of: editing) { _, role in
@@ -362,6 +363,33 @@ private struct RepoRolesCard: View {
             draft = row.own
             problem = nil
         }
+    }
+
+    /// A role: the mark of its provider, its name and what it is set to, with a label on each part; on the right whether it follows the global
+    /// roles or has its own, Reset when it has, and the chevron, which sits in a slot of its own and turns down while the form is open.
+    private func roleRow(_ row: RepoRoleRow, first: Bool) -> some View {
+        let open = editing == row.role
+        return HStack(spacing: 12) {
+            RoleTile(provider: row.value.provider, icons: icons)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.title).fontWeight(.medium)
+                roleSummary(row.value).font(.caption).lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            Text(row.isOwn ? "Own settings" : "Same as everywhere").font(.caption).foregroundStyle(row.isOwn ? Color.themeAccent : Color.secondary)
+            if row.isOwn { Button("Reset") { finish(save(row.role, nil)) }.controlSize(.small) }
+            Button { editing = row.role } label: {
+                Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).rotationEffect(.degrees(open ? 90 : 0))
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(HoverTextButtonStyle(tint: nil)).disabled(open)
+            .accessibilityLabel("Change \(row.title)").help("Change \(row.title)")
+        }
+        .padding(.vertical, 12).frame(minHeight: 56)
+        .overlay(alignment: .top) { if first == false { SettingsDivider() } }
+        // the whole row opens the form; Reset keeps its own click
+        .contentShape(Rectangle()).onTapGesture { if open == false { editing = row.role } }
+        .animation(.easeOut(duration: 0.15), value: open)
     }
 
     private func finish(_ result: RoleSave) {
@@ -383,21 +411,22 @@ private struct RepoRolesCard: View {
                 spacer
                 choice("Provider", $draft.provider, options: accounts, inherited: row.inherited.provider)
                 field("Model") {
-                    TextField(row.inherited.model ?? "Model", text: Binding(get: { draft.model ?? "" }, set: { draft.model = $0 })).textFieldStyle(.roundedBorder)
+                    TextField(row.inherited.model ?? "Model", text: Binding(get: { draft.model ?? "" }, set: { draft.model = $0 })).settingsField()
                 }
                 choice("Effort", $draft.effort, options: roleEfforts, inherited: row.inherited.effort)
                 spacer
-                field("Persona name") { TextField(row.inherited.persona?.name ?? "Name", text: persona(\.name)).textFieldStyle(.roundedBorder) }
+                field("Persona name") { TextField(row.inherited.persona?.name ?? "Name", text: persona(\.name)).settingsField() }
                 field("Persona prompt", top: true) {
-                    TextField(row.inherited.persona?.prompt ?? "Prompt", text: persona(\.prompt), axis: .vertical).lineLimit(3...8).textFieldStyle(.roundedBorder)
+                    TextField(row.inherited.persona?.prompt ?? "Prompt", text: persona(\.prompt), axis: .vertical).lineLimit(3...8).settingsField()
                 }
             }
             if let problem { Text(problem).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
             HStack(spacing: 8) {
                 Spacer()
-                Button("Cancel") { editing = nil }
-                Button("Save") { finish(save(row.role, draft)) }.buttonStyle(PrimaryCapsuleButtonStyle())
+                Button { editing = nil } label: { Label("Cancel", systemImage: "xmark") }
+                Button { finish(save(row.role, draft)) } label: { Label("Save", systemImage: "checkmark") }.buttonStyle(PrimaryCapsuleButtonStyle())
             }
+            .padding(.top, 10)
         }
         .padding(.vertical, 14)
         .writingToolsBehavior(.disabled)
@@ -434,6 +463,32 @@ private struct RepoRolesCard: View {
                 draft.persona = next
             }
         )
+    }
+}
+
+/// The last row of the repo list: a dashed tile of the size of the repos' own with a plus, and the words, in the row's shape.
+private struct AddRepoRow: View {
+    let add: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: add) {
+            HStack(spacing: 10) {
+                Image(systemName: "plus").font(.scaled(13, weight: .semibold))
+                    .frame(width: ProjectIcon.size, height: ProjectIcon.size)
+                    .overlay(RoundedRectangle(cornerRadius: ProjectIcon.radius, style: .continuous).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 3])).opacity(0.5))
+                Text("Add repo…")
+                Spacer(minLength: 4)
+            }
+            .foregroundStyle(hovering ? Color.primary : Color.secondary)
+            .padding(.horizontal, 8).padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 9).fill(Color.secondary.opacity(hovering ? 0.12 : 0)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .help("Watch another repository")
     }
 }
 
@@ -478,17 +533,17 @@ private struct RepoRowView: View {
 
     /// The same items in the row's menu and in its right-click menu.
     @ViewBuilder private func actions(clone: String, cloned: Bool) -> some View {
-        Button { if let url = row.gitHubURL { NSWorkspace.shared.open(url) } } label: { Label("Open on GitHub", systemImage: "arrow.up.right.square") }
+        Button { if let url = row.gitHubURL { NSWorkspace.shared.open(url) } } label: { Label("Open on GitHub", systemImage: "arrow.up.right.square").labelStyle(.titleAndIcon) }
         Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: clone)]) } label: {
-            Label(cloned ? "Reveal clone in Finder" : "Reveal clone in Finder (not cloned yet)", systemImage: "folder")
+            Label(cloned ? "Reveal clone in Finder" : "Reveal clone in Finder (not cloned yet)", systemImage: "folder").labelStyle(.titleAndIcon)
         }
         .disabled(cloned == false)
         Button {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(row.name, forType: .string)
-        } label: { Label("Copy owner/name", systemImage: "doc.on.doc") }
+        } label: { Label("Copy owner/name", systemImage: "doc.on.doc").labelStyle(.titleAndIcon) }
         Divider()
-        Button(role: .destructive, action: remove) { Label("Stop watching…", systemImage: "trash") }
+        Button(role: .destructive, action: remove) { Label("Stop watching…", systemImage: "trash").labelStyle(.titleAndIcon) }
     }
 
     /// The owner dim, the name in bold.
@@ -551,25 +606,35 @@ private struct AddReposSheet: View {
     @State private var loadingMore = false
     @State private var query = ""
     @State private var selected: Set<String> = []
+    @State private var visibility = RepoVisibility.all
+    @State private var owner: String?
+    @State private var hideWatched = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Add repos from GitHub").font(.headline)
-                Text("The repos your gh login can push to. Archived ones are left out.").font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Add repos from GitHub").font(.title3.weight(.semibold))
+                Text("The repos your gh login can push to. Archived ones are left out.").font(.callout).foregroundStyle(.secondary)
             }
-            if let list, list.blocked == false { TextField("Search", text: $query).textFieldStyle(.roundedBorder) }
+            .padding(.bottom, 2)
+            if let list, list.blocked == false {
+                VStack(alignment: .leading, spacing: 10) {
+                    TextField("Search repos", text: $query).settingsField(icon: "magnifyingglass")
+                    filters(list)
+                }
+            }
             content
             if let list, list.blocked == false, list.hasMore { loadMore(list) }
             HStack {
                 Text(selected.isEmpty ? "" : "\(selected.count) selected").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
-                Button(selected.count > 1 ? "Add \(selected.count) repos" : "Add repo") { add(chosen) }
+                Button { dismiss() } label: { Label("Cancel", systemImage: "xmark") }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
+                Button { add(chosen) } label: { Label(selected.count > 1 ? "Add \(selected.count) repos" : "Add repo", systemImage: "plus") }
                     .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(selected.isEmpty).keyboardShortcut(.defaultAction)
             }
         }
-        .padding(18).frame(width: 520, height: 500)
+        .padding(22).frame(width: 560, height: 580)
         .onAppear {
             DispatchQueue.global().async {
                 let loaded = loadAvailableRepos(socketPath: controlSocketPath())
@@ -593,13 +658,36 @@ private struct AddReposSheet: View {
         }
     }
 
+    /// Visibility as chips that exclude each other, the owner as a pop-up when there is more than one, and whether the ones already watched show.
+    private func filters(_ list: AvailableReposList) -> some View {
+        let owners = list.repos.reduce(into: [String]()) { found, repo in
+            let name = String(repo.name.split(separator: "/").first ?? "")
+            if found.contains(name) == false { found.append(name) }
+        }
+        return HStack(spacing: 6) {
+            FilterChip(title: "All", on: visibility == .all) { visibility = .all }
+            FilterChip(title: "Private", icon: "lock", on: visibility == .onlyPrivate) { visibility = visibility == .onlyPrivate ? .all : .onlyPrivate }
+            FilterChip(title: "Public", icon: "globe", on: visibility == .onlyPublic) { visibility = visibility == .onlyPublic ? .all : .onlyPublic }
+            Spacer(minLength: 8)
+            if owners.count > 1 {
+                NativePopUp(
+                    items: ["All owners"] + owners,
+                    selection: Binding(get: { owner.flatMap { owners.firstIndex(of: $0) }.map { $0 + 1 } ?? 0 }, set: { owner = $0 == 0 ? nil : owners[$0 - 1] })
+                )
+                .accessibilityLabel("Owner").frame(width: 130)
+            }
+            FilterChip(title: "Hide watched", icon: hideWatched ? "eye.slash" : "eye", on: hideWatched) { hideWatched.toggle() }
+        }
+    }
+
     private func loadMore(_ list: AvailableReposList) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Partial list: \(list.repos.count) repos so far, and there are more. Search only looks at these.").font(.caption).foregroundStyle(.secondary)
             if let problem = list.problem, let text = availableReposMessage(problem) {
                 Text("\(text.title). \(text.detail)").font(.caption).foregroundStyle(.red)
             }
-            Button(loadingMore ? "Loading…" : "Load more") { loadNextPage() }.buttonStyle(SecondaryCapsuleButtonStyle()).disabled(loadingMore)
+            Button { loadNextPage() } label: { Label(loadingMore ? "Loading…" : "Load more", systemImage: "arrow.down.circle") }
+                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(loadingMore)
         }
     }
 
@@ -612,59 +700,68 @@ private struct AddReposSheet: View {
         switch list {
         case nil:
             VStack(spacing: 8) {
-                ForEach(0..<5, id: \.self) { _ in RoundedRectangle(cornerRadius: 9).fill(Color.secondary.opacity(0.12)).frame(height: 34) }
+                ForEach(0..<5, id: \.self) { _ in RoundedRectangle(cornerRadius: 9).fill(Color.secondary.opacity(0.12)).frame(height: 46) }
                 Spacer(minLength: 0)
             }
             .frame(maxHeight: .infinity).accessibilityLabel("Loading your repos")
         case let list? where list.blocked == false:
-            let groups = repoGroups(list.repos, watched: watched, selected: selected, query: query)
+            let groups = repoGroups(list.repos, watched: watched, selected: selected, query: query, visibility: visibility, owner: owner, hideWatched: hideWatched)
             if groups.isEmpty {
-                message("No repo matches “\(query)”", "Only repos your gh login can push to are listed.")
+                message(
+                    "magnifyingglass", query.isEmpty ? "No repo matches the filters" : "No repo matches “\(query)”",
+                    "Only repos your gh login can push to are listed, and the filters narrow them."
+                )
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
+                    LazyVStack(alignment: .leading, spacing: 2) {
                         ForEach(groups) { group in
-                            Text(group.owner.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary).padding(.top, 10).padding(.bottom, 2)
+                            Text(group.owner).sectionLabel().padding(.horizontal, 8).padding(.top, 10).padding(.bottom, 2)
                             ForEach(group.choices) { choice in choiceRow(choice) }
                         }
                     }
-                    .padding(.horizontal, 10)
+                    .padding(8)
                 }
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.07)))
+                .settingsCard()
             }
         case let list?:
             let text = list.problem.flatMap(availableReposMessage)
-            message(text?.title ?? "", text?.detail ?? "")
+            message("exclamationmark.triangle", text?.title ?? "", text?.detail ?? "")
         }
     }
 
+    /// A repo to choose, in the shape of the repo list: its tile, the owner dim and the name bold, when it was pushed under them, `private` as a chip
+    /// and a round mark at the right that fills when it is chosen. A repo already watched shows the mark filled and quiet, and cannot be chosen.
     private func choiceRow(_ choice: RepoChoice) -> some View {
-        HStack {
-            Toggle(isOn: Binding(
-                get: { choice.watched || selected.contains(choice.name) },
-                set: { if $0 { selected.insert(choice.name) } else { selected.remove(choice.name) } }
-            )) {
+        let on = choice.watched || selected.contains(choice.name)
+        let parts = choice.name.split(separator: "/", maxSplits: 1).map(String.init)
+        var owner = AttributedString(parts.count == 2 ? parts[0] + "/" : "")
+        owner.foregroundColor = Color.secondary
+        var name = AttributedString(parts.last ?? choice.name)
+        name.font = Font.body.weight(.semibold)
+        return Button {
+            if selected.contains(choice.name) { selected.remove(choice.name) } else { selected.insert(choice.name) }
+        } label: {
+            HStack(spacing: 10) {
+                ProjectIcon(name: parts.last ?? choice.name, colorKey: projectColorKey(choice.name))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(choice.name).fontWeight(.medium).lineLimit(1).truncationMode(.middle)
+                    Text(owner + name).lineLimit(1).truncationMode(.middle)
                     if choice.detail.isEmpty == false { Text(choice.detail).font(.caption).foregroundStyle(.secondary) }
                 }
+                Spacer(minLength: 8)
+                if choice.isPrivate { RepoChip(text: "private", tint: .gray) }
+                Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.scaled(17))
+                    .foregroundStyle(choice.watched ? Color.secondary : on ? Color.themeAccent : Color.secondary.opacity(0.6))
             }
-            .toggleStyle(.checkbox).disabled(choice.disabled)
-            Spacer(minLength: 8)
-            if choice.isPrivate {
-                Text("private").font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary)
-                    .padding(.horizontal, 7).padding(.vertical, 1).background(Capsule().fill(Color.secondary.opacity(0.15)))
-            }
+            .padding(.horizontal, 8).padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 9).fill(selected.contains(choice.name) ? Color.secondary.opacity(0.18) : .clear))
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 6).opacity(choice.disabled ? 0.5 : 1)
+        .buttonStyle(.plain).disabled(choice.disabled).opacity(choice.disabled ? 0.55 : 1)
+        .accessibilityElement(children: .combine).accessibilityValue(on ? "selected" : "not selected")
     }
 
-    private func message(_ title: String, _ detail: String) -> some View {
-        VStack(spacing: 6) {
-            Text(title).fontWeight(.semibold)
-            Text(detail).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.07)))
+    private func message(_ icon: String, _ title: String, _ detail: String) -> some View {
+        EmptyStateView(icon: icon, title: title, line: detail)
+            .settingsCard()
     }
 }

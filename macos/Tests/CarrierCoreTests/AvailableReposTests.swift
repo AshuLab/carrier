@@ -154,3 +154,13 @@ private let available = [
     #expect(line("2025-10-22T12:00:00Z") == "pushed 1 y ago" && line("2025-08-22T12:00:00Z") == "pushed 1 y 2 mo ago")
     #expect(line("2020-07-22T12:00:00Z") == "pushed 6 y 3 mo ago")
 }
+
+@Test func theFiltersNarrowTheListByVisibilityOwnerAndWatched() {
+    func names(_ groups: [RepoGroup]) -> [String] { groups.flatMap(\.choices).map(\.name) }
+    #expect(names(repoGroups(available, watched: [], selected: [], query: "", visibility: .onlyPrivate, now: now)) == ["AshuLab/carrier"])
+    #expect(names(repoGroups(available, watched: [], selected: [], query: "", visibility: .onlyPublic, now: now)) == ["vemec/encaja", "AshuLab/docs", "acme/web", "other/Web"])
+    #expect(names(repoGroups(available, watched: [], selected: [], query: "", owner: "AshuLab", now: now)) == ["AshuLab/carrier", "AshuLab/docs"])
+    #expect(names(repoGroups(available, watched: ["AshuLab/carrier"], selected: [], query: "", owner: "AshuLab", hideWatched: true, now: now)) == ["AshuLab/docs"])
+    // they combine with the search
+    #expect(names(repoGroups(available, watched: [], selected: [], query: "web", visibility: .onlyPublic, owner: "acme", now: now)) == ["acme/web"])
+}

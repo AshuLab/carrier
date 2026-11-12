@@ -9,6 +9,12 @@ public struct OptionScale: Equatable, Identifiable {
     public let title: String
     public let steps: [OptionRow.Choice]
 
+    public init(id: String, title: String, steps: [OptionRow.Choice]) {
+        self.id = id
+        self.title = title
+        self.steps = steps
+    }
+
     public var index: Int { steps.firstIndex { $0.ticked } ?? 0 }
     public var current: OptionRow.Choice? { steps.first { $0.ticked } }
     /// An option with two values is a switch, not a slider: the second (the freer) is "on".

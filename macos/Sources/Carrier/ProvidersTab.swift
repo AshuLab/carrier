@@ -25,7 +25,7 @@ struct ProvidersTabView: View {
         VStack(alignment: .leading, spacing: 14) {
             if let note = store.outcome.note {
                 Text(note).font(.callout).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+                    .settingsCard()
             }
             if let page {
                 HStack(alignment: .top, spacing: 14) {
@@ -61,7 +61,7 @@ struct ProvidersTabView: View {
                 ) { selected = server.id }
             }
         }
-        .padding(8).background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+        .padding(8).settingsCard()
     }
 
     /// The name of what is chosen with its actions on the same line, as text: Update acts on this tool and Check again on all of them. The pill
@@ -82,7 +82,7 @@ struct ProvidersTabView: View {
 
     /// A small uppercase label over a group of the list, as the groups of a page have.
     private func listLabel(_ title: String) -> some View {
-        Text(title.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.top, 4).padding(.bottom, 2)
+        Text(title).sectionLabel().padding(.horizontal, 8).padding(.top, 4).padding(.bottom, 2)
     }
 
     @ViewBuilder private func detail(_ page: ProvidersPage) -> some View {
@@ -98,7 +98,7 @@ struct ProvidersTabView: View {
                 }
                 if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
                 switch tool.status {
-                case .missing: note("Not installed on this Mac.")
+                case .missing: EmptyStateView(icon: "arrow.down.circle", title: "\(tool.title) is not installed", line: "Not found on this Mac, so there are no accounts to show.").frame(minHeight: 260)
                 case .foundNotAdded:
                     VStack(alignment: .leading, spacing: 8) {
                         note("Found on this Mac and not added as an account yet.")
@@ -110,6 +110,7 @@ struct ProvidersTabView: View {
                 default:
                     SettingsGroup(title: "Accounts") {
                         ForEach(Array(tool.accounts.enumerated()), id: \.element.id) { index, account in
+                            let edit = { store.dismissProblem(); adding = nil; editing = account.name }
                             SettingsTabRow(
                                 title: account.title, detail: account.usedBy, first: index == 0, note: tool.id == "agy" ? nil : account.configDir ?? "This Mac's login"
                             ) {
@@ -122,10 +123,15 @@ struct ProvidersTabView: View {
                                     if account.state == .ready, account.uses.isEmpty {
                                         Button("Use in an agent…", action: openAgents).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Agents to pick \(account.name) for a role")
                                     }
-                                    Button("Edit") { store.dismissProblem(); adding = nil; editing = account.name }
-                                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(editing == account.name).help("Edit \(account.name)")
+                                    Button(action: edit) {
+                                        Image(systemName: "chevron.right").font(.scaled(11, weight: .bold))
+                                    }
+                                    .buttonStyle(HoverTextButtonStyle(tint: nil)).disabled(editing == account.name)
+                                    .accessibilityLabel("Edit \(account.name)").help("Edit \(account.name)")
                                 }
                             }
+                            // the whole row opens the editor; the buttons inside keep their own clicks
+                            .contentShape(Rectangle()).onTapGesture { if editing != account.name { edit() } }
                         }
                     }
                     if let account = tool.accounts.first(where: { $0.name == editing }) {
@@ -142,9 +148,9 @@ struct ProvidersTabView: View {
             VStack(alignment: .leading, spacing: 10) {
                 titleRow(server.title, update: nil)
                 if server.running == false {
-                    note("Not running: nothing answers. Start \(server.title) to see its models.")
+                    EmptyStateView(icon: "server.rack", title: "\(server.title) is not running", line: "Nothing answers. Start \(server.title) to see its models.").frame(minHeight: 260)
                 } else if server.models.isEmpty {
-                    note("Running, with no model loaded.")
+                    EmptyStateView(icon: "cube", title: "No model loaded", line: "\(server.title) is running, with no model loaded.").frame(minHeight: 260)
                 } else {
                     SettingsGroup(title: "Models") {
                         ForEach(Array(server.models.enumerated()), id: \.offset) { index, model in
@@ -173,7 +179,7 @@ struct ProvidersTabView: View {
 
     private func note(_ text: String) -> some View {
         Text(text).font(.callout).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+            .settingsCard()
     }
 
     /// "2.1.3 (Claude Code) · /opt/homebrew/bin/claude", whatever of the two there is.

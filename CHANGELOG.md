@@ -6,8 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Settings > Agents chooses a role's model in a panel, as the chat's message box does, and nobody types a model name any more: the providers that can work as tabs (a signed-out one is left out unless the role already uses it), a search over their models (a name the list lacks can be used as typed), the reasoning slider, and a note that a role has full access because epics run on their own. The steps of "When it runs out of tokens" use the same panel, with "Default model" as the first choice and, for the second step, "No second step". A role's list on the left shows the provider's mark, the model and the reasoning.
+- The dialog that adds repos from GitHub has filters (all, private, public; one owner; hide the ones already watched) and a search with a magnifying glass.
+- `docs/macos-ui.md` is the guide to how the Mac app is drawn: the buttons, the line between rows, fields, selects, rows that open a form, lists, menus and empty states, with the mistakes already made. `AGENTS.md` points to it.
+
+### Changed
+
+- Settings pages share one design. Selects are the Mac's own pop-up in the neutral colour and not the violet menu; text fields have a quiet fill and the theme's accent as their ring; the line between two rows is lighter; buttons that do something have an icon (Save, Cancel, Remove, Add, Reset, Check again, Open on GitHub, Send a test and the others); a row that opens an editor shows a chevron and opens when clicked anywhere on it (Providers' accounts, Repos' roles). Settings closes with an ✕ at the top right, or Esc: the Done button and the foot are gone.
+- Providers: empty states for a tool that is not installed or a server that is not running; the editor of an account has more room between its fields, and Auto-compact after is a choice (Use default, auto, 100,000 to 1,000,000 tokens) in place of a text.
+- Repos: a role shows the mark of its provider and its settings with a label on each (Identity, Account, Model, Effort); Defaults is an item of its own under the roles; Add repo is the last row of the list; the cards of Ready for Carrier turn a spinner each while the doctor runs, and the note under them is gone; the form of a role, the search and the dialog that adds repos use the new fields and rows; the menu of a repo and the buttons over its page have icons.
+- Keybindings shows each shortcut as a key cap, with the theme's accent and "Press the keys…" while it waits; Updates shows the state of the engine with a mark (a check, a cross or a spinner); a Persona prompt in Agents is a text area the width of the card.
+
 ### Fixed
 
+- Settings > Providers opens with the tools already listed, since the Mac is looked at when the app opens and not when the page does.
+- The row "Tool output" in Settings > Chat was missing its line, and the pop-ups of a row switched off (Quiet hours, From and Until) did not look off.
 - The release waits about 8 minutes (it waited 1) for npm to serve a version it has just been given before it takes the formula's checksum, so it no longer stops at that step while npm is still validating.
 
 ## [0.3.0] - 2026-11-12

@@ -1,0 +1,269 @@
+import CarrierCore
+import SwiftUI
+
+/// The models each provider offers, for the Agents page's picker: asked of the chat host (the same list the message box shows) and kept in the
+/// app's offer store, so the picker has them as soon as it opens.
+@MainActor @Observable final class ModelCatalog {
+    static let shared = ModelCatalog()
+
+    private(set) var agents: [ChatAgent] = []
+    private(set) var offers: [String: [ModelOption]] = [:]
+    private(set) var loading = false
+
+    /// What the provider with this harness offers; nil while nothing says (no host, or none asked yet).
+    func models(forHarness harness: String) -> [ModelOption]? {
+        chatAgent(forHarness: harness, among: agents).flatMap { offers[$0] }
+    }
+
+    func load() async {
+        guard loading == false else { return }
+        loading = true
+        defer { loading = false }
+        let host = SocketChatHost()
+        guard let found = try? await host.agents() else { return }
+        agents = found
+        for agent in found where agent.found {
+            if let kept = AgentOfferStore.shared.offer(agent.name) { offers[agent.name] = modelOptions(kept) }
+        }
+        for agent in found where agent.found {
+            if let offer = try? await AgentOfferStore.shared.refresh(agent.name, host: host) { offers[agent.name] = modelOptions(offer) }
+        }
+    }
+}
+
+/// What a choice in the picker asks for.
+enum ModelPick {
+    /// an account and, with it, the model: they change together, since a model belongs to one provider
+    case account(String, model: String?)
+    /// a level of reasoning; "" is the CLI's own
+    case effort(String)
+    case none
+}
+
+/// The model of a role, or of a step of its failover, as a pill with the provider's mark, the model and the reasoning; it opens the panel the
+/// chat's message box has: the providers that can work as tabs, a search, the models and the reasoning slider. A role runs on its own, so the
+/// panel says its access is full, where the chat lets the person choose it.
+struct ModelPickerButton: View {
+    let provider: String?
+    let model: String?
+    var effort: String?
+    let accounts: [PickerAccount]
+    let catalog: ModelCatalog
+    var showsEffort = true
+    /// A step may name no model and take the account's own: the first row of the list says so, and so does the pill.
+    var allowsDefaultModel = false
+    /// Set for a step that may be taken away (the second): the row at the foot that does it.
+    var noneTitle: String?
+    var placeholder = "Choose…"
+    let pick: (ModelPick) -> Void
+
+    @State private var open = false
+    @State private var viewing: String?
+    @State private var query = ""
+
+    private var current: PickerAccount? { accounts.first { $0.name == provider } }
+    /// The tab shown: the one the person went to, else the role's own account, else the first.
+    private var shownName: String? { viewing ?? provider ?? accounts.first?.name }
+
+    var body: some View {
+        Button {
+            viewing = nil
+            query = ""
+            open.toggle()
+        } label: { pill }
+            .buttonStyle(PopUpButtonStyle())
+            .popover(isPresented: $open, arrowEdge: .bottom) { panel }
+            .help("Provider, model and reasoning").accessibilityLabel("Provider, model and reasoning")
+            .accessibilityValue([provider, modelText, effortText].compactMap { $0 }.joined(separator: ", "))
+    }
+
+    // MARK: the pill
+
+    private var modelText: String? {
+        guard provider != nil else { return nil }
+        guard let model else { return allowsDefaultModel ? "Default model" : nil }
+        return current.flatMap { catalog.models(forHarness: $0.harness) }?.first { $0.id == model }.map { $0.label.replacingOccurrences(of: " (recommended)", with: "") } ?? model
+    }
+
+    private var effortText: String? {
+        guard showsEffort, provider != nil else { return nil }
+        return effortSteps.first { $0.id == (effort ?? "") }?.label
+    }
+
+    private var pill: some View {
+        HStack(spacing: 8) {
+            if let current { ProviderMark(name: current.icon, size: 14) }
+            HStack(spacing: 5) {
+                // whose model it is first (two logins of one provider have one mark), then the model, then how hard it thinks
+                if let provider {
+                    Text(provider).foregroundStyle(.secondary).lineLimit(1)
+                    Text("·").foregroundStyle(.secondary)
+                }
+                Text(modelText ?? (provider == nil ? placeholder : "No model")).lineLimit(1)
+                if let effortText {
+                    Text("·").foregroundStyle(.secondary)
+                    Text(effortText).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            // the chevrons at the right edge, as the Mac's pop-up has them, whatever the words take
+            Spacer(minLength: 6)
+            Image(systemName: "chevron.up.chevron.down").font(.scaled(9, weight: .semibold)).foregroundStyle(.secondary)
+        }
+        // a width of its own, as the pop-ups of the other rows have, and long words are cut
+        .frame(width: 210, alignment: .leading)
+    }
+
+    // MARK: the panel
+
+    private var panel: some View {
+        VStack(spacing: 0) {
+            tabs
+            search
+            list
+            if showsEffort {
+                ScaleRow(
+                    scale: OptionScale(id: "effort", title: "Reasoning", steps: effortSteps.map {
+                        OptionRow.Choice(id: $0.id, label: $0.label, ticked: $0.id == (effort ?? ""), detail: $0.detail)
+                    }),
+                    color: { _, _ in Color.themeAccent },
+                    commit: { index in if effortSteps.indices.contains(index) { pick(.effort(effortSteps[index].id)) } }
+                )
+                accessNote
+            }
+            if let noneTitle, provider != nil {
+                Button { pick(.none); open = false } label: { Label(noneTitle, systemImage: "xmark").labelStyle(.titleAndIcon).frame(maxWidth: .infinity, alignment: .leading) }
+                    .buttonStyle(HoverTextButtonStyle(tint: nil)).padding(.horizontal, 12).padding(.vertical, 10)
+                    .overlay(alignment: .top) { Divider() }
+            }
+        }
+        .frame(width: 380, height: showsEffort ? 580 : 440)
+        .writingToolsBehavior(.disabled)
+        .task { await catalog.load() }
+    }
+
+    /// Only the providers that can work, one tab each; the tab is the account (two logins of one provider are two tabs, told apart by their
+    /// names), and a dot marks the one the role has now.
+    private var tabs: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 2) {
+                ForEach(accounts) { account in
+                    let on = account.name == shownName
+                    Button { viewing = account.name; query = "" } label: {
+                        VStack(spacing: 3) {
+                            ProviderMark(name: account.icon, size: 18)
+                            Text(account.name).font(.scaled(10, weight: .medium)).lineLimit(1)
+                        }
+                        .frame(minWidth: 54).padding(.horizontal, 6).padding(.vertical, 6)
+                        .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, 8) } }
+                        .overlay(alignment: .topTrailing) {
+                            if account.name == provider { Circle().fill(Color.themeAccent).frame(width: 6, height: 6).padding(.top, 5).padding(.trailing, 7) }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).opacity(account.ready ? (on ? 1 : 0.7) : 0.4)
+                    .help(account.ready ? account.name : "\(account.name) is not signed in")
+                    .accessibilityLabel(account.name).accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 12).padding(.top, 4)
+        }
+        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private var search: some View {
+        TextField("Search models", text: $query).settingsField(icon: "magnifyingglass")
+            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 2)
+    }
+
+    private var viewed: PickerAccount? { accounts.first { $0.name == shownName } }
+
+    @ViewBuilder private var list: some View {
+        if let viewed {
+            let options = catalog.models(forHarness: viewed.harness)
+            let needle = query.trimmingCharacters(in: .whitespaces)
+            let shown = (options ?? []).filter { needle.isEmpty || $0.label.localizedCaseInsensitiveContains(needle) || $0.id.localizedCaseInsensitiveContains(needle) }
+            let isCurrent = viewed.name == provider
+            // a model the file names that the provider does not list stays, so what is written is seen
+            let custom = isCurrent ? model.flatMap { model in (options ?? []).contains { $0.id == model } ? nil : model } : nil
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    if allowsDefaultModel, needle.isEmpty {
+                        row(title: "Default model", detail: "No model is named: \(viewed.name) runs the one it uses by default.", ticked: isCurrent && model == nil) { pick(.account(viewed.name, model: nil)) }
+                    }
+                    if let custom, needle.isEmpty || custom.localizedCaseInsensitiveContains(needle) {
+                        row(title: custom, detail: "Named in the file; not in the provider's list", ticked: true) { pick(.account(viewed.name, model: custom)) }
+                    }
+                    ForEach(shown) { option in
+                        row(title: option.label, detail: option.detail, ticked: isCurrent && option.id == model) { pick(.account(viewed.name, model: option.id)) }
+                    }
+                    // a model the list does not have can still be used: the search words are taken as its name
+                    if needle.isEmpty == false, (options ?? []).contains(where: { $0.id.lowercased() == needle.lowercased() }) == false, needle != custom {
+                        row(title: "Use “\(needle)”", detail: "Take what you typed as the exact model name", ticked: false) { pick(.account(viewed.name, model: needle)) }
+                    }
+                    if options == nil {
+                        Text(catalog.loading ? "Looking for models…" : "The chat host did not list this provider's models. Type the model's name in the search to use it.")
+                            .font(.scaled(12)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(16)
+                    } else if shown.isEmpty && needle.isEmpty && allowsDefaultModel == false && custom == nil {
+                        Text("No models listed").font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(16)
+                    }
+                }
+                .padding(.horizontal, 8).padding(.vertical, 8)
+            }
+            .frame(maxHeight: .infinity)
+        } else {
+            Text("No provider is signed in. Sign one in on the Providers page.").font(.scaled(12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, maxHeight: .infinity).padding(20)
+        }
+    }
+
+    private func row(title: String, detail: String?, ticked: Bool, action: @escaping () -> Void) -> some View {
+        HoverRow(action: action, fill: ticked ? Color.themeAccent.opacity(0.18) : nil) { _ in
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.scaled(13, weight: .medium)).lineLimit(1)
+                    if let detail { Text(detail).font(.scaled(11.5)).foregroundStyle(.secondary).lineLimit(2) }
+                }
+                Spacer(minLength: 8)
+                if ticked { ChosenMark() }
+            }
+            .padding(.horizontal, 10).padding(.vertical, 7)
+        }
+    }
+
+    /// A role is an autonomous task: nobody is there to approve a change, so its access is full and not a choice.
+    private var accessNote: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("ACCESS").font(.scaled(11, weight: .semibold)).tracking(0.6).foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Label("Full access", systemImage: "lock.open").labelStyle(.titleAndIcon).font(.scaled(13, weight: .semibold)).foregroundStyle(.orange)
+            }
+            Text("Epics run on their own, so a role never waits for someone to approve a change: it can edit files and run commands.")
+                .font(.scaled(12)).foregroundStyle(.primary.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, panelMargin).padding(.vertical, 14)
+        .overlay(alignment: .top) { Divider() }
+    }
+}
+
+/// A button drawn like the pop-up of the other rows (`NativePopUp`): a small rounded rectangle on a quiet fill, not a capsule, so it sits with them.
+/// Only the picker uses it: the chat's message box keeps its own pill.
+private struct PopUpButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
+
+    private struct Face: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isEnabled) private var enabled
+        @State private var hovered = false
+
+        var body: some View {
+            configuration.label
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(configuration.isPressed ? 0.18 : hovered ? 0.13 : 0.09)))
+                .opacity(enabled ? 1 : 0.5)
+                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .onHover { hovered = $0 }
+                .animation(.easeOut(duration: 0.12), value: hovered)
+        }
+    }
+}

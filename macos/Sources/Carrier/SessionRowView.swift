@@ -36,9 +36,13 @@ struct SessionRowView: View {
         }
     }
 
+    /// While the session waits for the person, the word takes the place of the time at the top right (`ageOrStopwatch`); with the time
+    /// switched off it is the second line's, where it has always been.
+    private func waitsAtTop(_ content: SessionRowContent) -> Bool { row.state == .waiting && content.age != nil }
+
     @ViewBuilder private func detail(_ content: SessionRowContent) -> some View {
-        if row.state == .waiting {
-            Text("Waiting for you").fontWeight(.medium).foregroundStyle(Self.attention)
+        if row.state == .waiting && waitsAtTop(content) == false {
+            Text("Needs you").fontWeight(.medium).foregroundStyle(Self.attention)
         } else {
             switch (content.workspace, content.place) {
             case (let workspace?, let placed?): Text("\(workspace) · \(place(placed))").foregroundStyle(.secondary)
@@ -49,10 +53,12 @@ struct SessionRowView: View {
         }
     }
 
-    /// The time at the top right: the age of the last activity, or how long the turn has run while the session works (a stopwatch that
-    /// ticks each second, in the colour of the ring).
+    /// The time at the top right: the age of the last activity, "Needs you" while the session waits for a permission or an answer, or how
+    /// long the turn has run while the session works (a stopwatch that ticks each second, in the colour of the ring).
     @ViewBuilder private func ageOrStopwatch(_ content: SessionRowContent) -> some View {
-        if content.age != nil, let since = WorkingClock.shared.since(row) {
+        if waitsAtTop(content) {
+            Text("Needs you").fontWeight(.medium).foregroundStyle(Self.attention)
+        } else if content.age != nil, let since = WorkingClock.shared.since(row) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text(workingElapsed(Int(context.date.timeIntervalSince(since)))).foregroundStyle(Color.thought)
             }

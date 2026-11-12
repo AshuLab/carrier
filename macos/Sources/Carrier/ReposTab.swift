@@ -50,7 +50,7 @@ struct ReposTabView: View {
                     if rows.isEmpty == false {
                         VStack(alignment: .leading, spacing: 2) {
                             ForEach(rows) { row in
-                                RepoRowView(row: row, onlyOne: draft.count == 1, engine: engine, selected: row.name == chosen?.name) {
+                                RepoRowView(row: row, engine: engine, selected: row.name == chosen?.name) {
                                     removing = row.name
                                 }
                                 .onTapGesture {
@@ -439,7 +439,6 @@ private struct RepoRolesCard: View {
 
 private struct RepoRowView: View {
     let row: RepoRow
-    let onlyOne: Bool
     let engine: String
     let selected: Bool
     let remove: () -> Void
@@ -489,7 +488,7 @@ private struct RepoRowView: View {
             NSPasteboard.general.setString(row.name, forType: .string)
         } label: { Label("Copy owner/name", systemImage: "doc.on.doc") }
         Divider()
-        Button(role: .destructive, action: remove) { Label("Stop watching…", systemImage: "trash") }.disabled(onlyOne)
+        Button(role: .destructive, action: remove) { Label("Stop watching…", systemImage: "trash") }
     }
 
     /// The owner dim, the name in bold.

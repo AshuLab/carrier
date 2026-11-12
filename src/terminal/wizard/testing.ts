@@ -66,6 +66,7 @@ export const quietUi = (scripted: Answers = {}) => {
     note: (message, title) => void notes.push({ message, title }),
     warn: (m) => asked.push(`warn:${m}`),
     check: () => {},
+    busy: (_message, work) => work(),
     text: async ({ message, defaultValue }) => {
       asked.push(message);
       const answer = getAnswer(message);
@@ -78,10 +79,10 @@ export const quietUi = (scripted: Answers = {}) => {
       const answer = getAnswer(message);
       return (typeof answer === 'string' ? answer : (initialValue ?? options[0]!.value)) as never;
     },
-    confirm: async (message) => {
+    confirm: async (message, initialValue) => {
       asked.push(message);
       const answer = getAnswer(message);
-      return typeof answer === 'boolean' ? answer : message === 'Save it?'; // the final recap is accepted unless a test declines it
+      return typeof answer === 'boolean' ? answer : (initialValue ?? true); // Enter, like a person would
     },
     multiselect: async ({ message, options, initialValues }) => {
       asked.push(message);

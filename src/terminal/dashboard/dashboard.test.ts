@@ -36,6 +36,13 @@ const snap = (over: Partial<PanelSnapshot> = {}): PanelSnapshot => ({
 });
 const plain = (s: PanelSnapshot, columns = 80) => renderDashboard(s, { columns, color: false }).join('\n');
 
+test('with no repos, idle says so instead of asking for a label in a repo that is not there', () => {
+  const out = plain(snap({ repos: 0 }));
+  expect(out).toContain('watching 0 repos ·');
+  expect(out).toContain('No repos are watched yet');
+  expect(out).not.toContain('Mark an epic');
+});
+
 test('idle: it says what it is doing and what to do, instead of a bare header', () => {
   expect(plain(snap())).toMatchInlineSnapshot(`
     " ◆ CARRIER ───────────────────────────────────────────────────────── up 2h 14m

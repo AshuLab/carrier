@@ -10,7 +10,7 @@ export async function askIdentity(ui: Ui, role: 'author' | 'reviewer' | 'lead re
   for (;;) {
     const options: Option<string>[] = [
       ...forge.agents.map((a) => ({ value: `forge:${a.name}`, label: a.name, hint: a.label && a.label !== a.name ? a.label : 'Agent Forge bot' })),
-      { value: 'gh', label: 'My own gh login', hint: login },
+      { value: 'gh', label: 'My own gh login', hint: login === undefined ? 'acts as you' : `${login} · acts as you` },
     ];
     const canAdd = interactive && deps.which('agent-forge');
     if (options.length === 1 && !canAdd) {

@@ -2,19 +2,13 @@
 
 <p align="center">
   An autonomous epic orchestrator that runs on your machine.<br />
-  It watches your GitHub repos for epics marked ready, has one AI agent implement them with <code>ship</code>, has a second agent with a different identity review the final PR, and hands you an epic that is ready to test.
+  Mark an epic as ready on GitHub. One AI agent builds it, a second one reviews it, and you get an epic ready to test.
 </p>
 
 <p align="center">
   <img alt="Node.js 22+" src="https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-ESM-3178c6?logo=typescript&logoColor=white" />
-  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-better--sqlite3-003b57?logo=sqlite&logoColor=white" />
-  <img alt="Drizzle ORM" src="https://img.shields.io/badge/Drizzle-ORM-c5f74f?logo=drizzle&logoColor=black" />
-  <img alt="Zod" src="https://img.shields.io/badge/Zod-validation-3e67b1?logo=zod&logoColor=white" />
-  <img alt="Vitest" src="https://img.shields.io/badge/Vitest-tests-6e9f18?logo=vitest&logoColor=white" />
-  <img alt="pnpm" src="https://img.shields.io/badge/pnpm-12-f69220?logo=pnpm&logoColor=white" />
-  <img alt="Claude" src="https://img.shields.io/badge/Claude-CLI-d97757?logo=anthropic&logoColor=white" />
-  <img alt="Codex" src="https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white" />
+  <img alt="Swift 6.2" src="https://img.shields.io/badge/Swift-6.2-F05138?logo=swift&logoColor=white" />
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue" />
 </p>
 
 <p align="center">
@@ -23,229 +17,54 @@
 
 > **Status:** first version, macOS only, built for personal use. Agents run as the regular `claude`, `codex` and `agy` CLIs with **your permissions** and no isolation. Read [Security](#security) before pointing it at anything you care about.
 
-## What it does
+## Install
 
-Carrier is a long-running process: a terminal app, or in the background with `carrier start`. You start it from any folder with a JSON config; it polls the repos you list and, for every epic labelled `solve:epic:ready`, drives the whole loop without supervision:
-
-1. **Pick up.** Each interval it registers new ready epics in arrival order, and when a slot is free it takes the oldest one and relabels it `solve:epic:running`.
-2. **Ship.** An _author_ agent (Claude Code, Codex or Antigravity) runs [Solve](https://github.com/AshuLab/skills)'s `ship` on the epic inside a managed clone. Carrier then checks the final integration PR against GitHub: it exists, is open, references the epic, and its head is the expected commit.
-3. **Review.** A _reviewer_ agent with a **different GitHub identity** reviews that PR in a separate checkout. If it asks for changes, the author gets a fix turn and the reviewer goes again, up to `maxReviews` rounds.
-4. **Hand-off.** The epic ends as `solve:epic:ready-for-test` (a conclusive review on the current head) or `solve:epic:needs-human` (stopped, with the reason shown in the terminal). Carrier never merges the final PR — you test it and decide.
-
-It is built to survive interruptions: SQLite is the source of truth and labels are its mirror, technical failures are retried by a new execution that first verifies the real state (no duplicate PRs, comments or commits), `Ctrl+C` stops the agents but keeps sessions and work, and a restart reconciles against GitHub before continuing.
-
-## What's included
-
-- **Setup** — `carrier init` (guided, or all flags) writes the config; `carrier doctor` checks it and the machine; `carrier schema` prints the config's JSON Schema.
-- **Run without a terminal** — `carrier start --config <path>` launches Carrier as a detached run (its own session, its output in `<folder>/engine/logs/start.log`) and returns once the control socket answers, within 15 seconds; in a Carrier folder where Carrier already runs it says so, does nothing and exits 0, and if it does not come up it prints the end of the log and exits 1. `carrier stop`, `pause`, `resume` and `check` do from any terminal what the panel's `Ctrl+C`, `p` and `r` do (`check` looks at GitHub now) and confirm in one line: exit 0 on success (`stop` also when none runs), 1 when no Carrier runs (or answers), 2 when it speaks another protocol. See [ADR 0010](docs/adr/0010-carrier-runs-in-the-background-as-a-detached-process.md).
-- **Status** — `carrier status` prints the panel of the running Carrier once, from any terminal; exit 0 it runs, 1 it is not running, 2 it speaks another protocol. `carrier watch` attaches the live panel to it with the same keys as the foreground one, except `q` (and `Ctrl+C`) only leave: Carrier keeps running. It exits 1 when none runs or when the Carrier it watches stops. Both show each epic's stage history (running, needing you, or ready for test), asked over the socket; a Carrier that does not list `sessions` in its hello is drawn from the snapshot alone, and an epic whose request fails is drawn without it.
-- **Restart a stopped epic** — `carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose. In a terminal and without flags it asks for each role, with the current option preselected and the role that failed marked; without a terminal it keeps the current options. The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session. It prints one line and exits 0; a refusal prints the engine's reason and exits 1 (so does no Carrier running), a malformed argument or another protocol exits 2.
-- **Chat host** — `carrier chat --workspace <folder> [--agent <name>]` opens a conversation (it prints the answer as it streams; `/quit` leaves and the session stays open), `carrier chat --list [--archived]`, `--archive`, `--unarchive` and `--delete <id>` (deleting leaves nothing of the session; a working one is refused) talk to the chat host, a process of its own that keeps everything in `<folder>/chat/` (the Carrier folder, `~/.carrier` or `CARRIER_HOME`), and starts it detached when none answers. It needs no engine config: with nothing but the Carrier folder it starts, its optional settings are in `<folder>/chat/chat.json` ([configuration](docs/configuration.md#chat-configuration)), and it reads the accounts its agents name from `<folder>/providers.json`, the file the engine reads too. It ends by itself a minute after the last client leaves, or at once with `carrier chat --stop`. The engine and the host run side by side and neither's stop touches the other. `carrier chat-host` runs it in the foreground. See [ADR 0013](docs/adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md) and [the spec](docs/specs/chat-host.md).
-- **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, agent option and persona; an epic is shared when author and reviewer resolve to the same account, derived from the roles, with no key for it.
-- **Polling and queue** — FIFO across repos with pagination, rate-limit and outage handling; one instance per Carrier folder (an exclusive SQLite lock released by the OS on death).
-- **Scheduler** — atomic reservation, configurable concurrency, label management (`running`, `ready-for-test`, `needs-human` are created in each repo if missing).
-- **Stages** — ship, review and fix loops with a typed caller result (`completed`, `changes_requested`, `needs_human`) imported idempotently in a single transaction.
-- **Failure handling** — execution retries with session resume, per-execution timeouts (or `unlimited`), Forge authentication errors that stop only the affected profile, repos removed from config, and a stop rule when the final PR is merged or the epic is closed.
-- **Agent runners** — real adapters for the Claude, Codex and Antigravity (`agy`) CLIs (cloud models, or local ones from LM Studio or Ollama through Claude and Codex) as child processes (session id, resume, output capture, stop, orphan detection), with per-execution credentials and the bot's git identity.
-- **Workspaces** — managed clones in `<folder>/engine/repos/`, and a separate detached checkout for the reviewer in `<folder>/engine/reviews/`; an epic's worktree is found with git, wherever it is.
-- **Terminal panel** — a dependency-free ANSI dashboard: uptime, repos watched and the next check, slots, a card per running epic (stage chain, review round, blockers, time in stage, last activity, links, errors), the queue, epics that need you and the ones ready for test, a hint when it is idle, and below it the epics that ended inside the finished window: DONE (merged) and CANCELLED (closed without a merge, with the stored reason), ten each and a `+N more` line; plain lines when there is no TTY. On a terminal it reads keys; a row is always selected (highlighted), each running card shows a `now` line of what its agent is doing (three lines when selected), and the footer lists only the keys that apply: `↑`/`↓` (or `j`/`k`) select, `enter` opens the PR or issue, `l` shows the agent's output, `r` checks GitHub now, `p` pauses or resumes taking new epics, `?` lists them, `q` quits like `Ctrl+C` (stops Carrier; in `watch` it only leaves).
-- **Logging** — [`@ashulab/universal-logger`](https://github.com/AshuLab/universal-logger) to files, with token redaction, and 30-day retention of logs and sessions.
-- **Tests** — unit tests with fakes and a temp SQLite; gated integration tests with real tools.
-
-## Tech stack
-
-| Layer | Technology |
-|-------|-----------|
-| Runtime | Node.js 22+ for the package (compiled to `dist/`); 26 to work on it, where TypeScript runs via native type stripping. ESM |
-| Language | TypeScript (strict) |
-| State | SQLite via `better-sqlite3`, schema and migrations with Drizzle ORM + Drizzle Kit |
-| Validation | Zod (config, caller result, GitHub responses) |
-| Logging | `@ashulab/universal-logger` |
-| GitHub access | `gh` CLI, authenticated per profile through Agent Forge (GitHub Apps) |
-| Identities | [Agent Forge](https://github.com/AshuLab/agent-forge) bot profiles, or your own `gh` login |
-| Agents | Claude Code, Codex and Antigravity (`agy`) CLIs, headless; their models from the cloud or from LM Studio / Ollama |
-| Workflow | [Solve](https://github.com/AshuLab/skills) skills (`ship`, `code-review`, ...) |
-| Terminal UI | `@clack/prompts` for `init` and `doctor`; plain ANSI escape sequences for the panel |
-| Testing | Vitest (unit and gated integration) |
-| Package manager | pnpm 12 |
-
-## Repository structure
-
-```text
-carrier/
-├── src/
-│   ├── terminal/       # everything a terminal user sees; a web UI would be a sibling of this folder
-│   │   ├── cli/        #   the command line: args, commands/ (run, start, stop/pause/resume/check, status, watch, init, doctor, schema), the control-socket client, config file, the wiring of the real engine, Ctrl+C
-│   │   ├── prompts/    #   the terminal contract (`Ui`) and its clack implementation: prompts, spinners, check lines
-│   │   ├── wizard/     #   `carrier init`: the flow, what it asks (questions/), what it needs from the machine (deps), the recap
-│   │   └── dashboard/  #   the panel: renderers (dashboard, plain), keys and their state, agent-output tail, each epic's stage history
-│   ├── status/         # what Carrier is doing right now, read from SQLite (the view any front-end draws)
-│   ├── control/        # the control socket: snapshot, pause/resume, check, stop, sessions, events, epic, files, availableRepos (a page at a time), resumeEpic
-│   ├── doctor/         # the checks of `carrier doctor` and the remedy for each failure
-│   ├── config/         # config schema, the accounts' `providers.json`, defaults, loading/merging, per-repo resolution, JSON Schema, default path
-│   ├── orchestration/  # engine: polling, scheduler, stages, retries, restart, final-PR rules, ports + fakes
-│   ├── execution/      # AgentRunner/Workspaces ports, caller result parsing and idempotent import
-│   ├── harnesses/      # Claude, Codex and Antigravity runners, credentials, local providers, orphan detection
-│   ├── integrations/   # GitHub through Agent Forge (`gh` via execFile)
-│   ├── prompts/        # author and reviewer prompts (what the agents are told, not terminal prompts)
-│   ├── storage/        # SQLite schema, migrations, lock, executions, events, retention
-│   ├── logging/        # universal-logger integration
-│   └── format/         # duration formatting
-├── macos/              # the native app: a client of the control socket (see its README)
-└── docs/
-    ├── specs/          # the specs the features were built from
-    ├── adr/            # architecture decision records
-    ├── research/       # spike findings
-    └── glossary.md     # domain vocabulary
-```
-
-## Getting started
-
-### 1. Prerequisites
-
-- A Mac with [Homebrew](https://brew.sh). The install below brings Node.js 22 or newer, `git` and the GitHub CLI (`gh`) if they are missing. The app needs an Apple Silicon Mac on macOS 26 or later. Working from a clone needs Node.js 26 and pnpm 12.
-- At least one of the `claude`, `codex` and `agy` (Antigravity) CLIs, installed and logged in from the terminal where you run Carrier. For local models, LM Studio or Ollama running.
-- A GitHub identity for each role: [Agent Forge](https://github.com/AshuLab/agent-forge) bot profiles, or your own `gh` login. Two different ones is the clean way; if you cannot get a second one, pick the same for both and they share it: what they publish is signed with their role, and both then act with everything that login's token can do.
-- The target repos use the [Solve](https://github.com/AshuLab/skills) flow.
-
-### 2. Install
+You need a Mac with [Homebrew](https://brew.sh).
 
 ```bash
 brew install ashulab/tap/carrier          # the `carrier` command
-brew install --cask ashulab/tap/carrier   # the app, in /Applications (optional)
+brew install --cask ashulab/tap/carrier   # the Mac app (optional, Apple Silicon, macOS 26+)
 ```
 
-The first installs the `carrier` command (with `node`, `git` and `gh` if they are missing). A formula and a cask have the same name, so the app needs `--cask`; it depends on the command, and Homebrew installs that first if it is missing. Open the app with a double click: it finds `carrier` by itself, so there is nothing to fill in. Use the full names: it trusts only that formula under Homebrew's tap trust ([ADR 0017](docs/adr/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)). The app is signed ad hoc, not notarized, and the cask clears the quarantine attribute for you; if macOS still refuses to open it, see [troubleshooting](docs/troubleshooting.md#macos-will-not-open-the-app).
+Before you use it you also need:
 
-Without Homebrew, the command alone installs with `pnpm add -g @ashulab/carrier` (or `pnpm dlx @ashulab/carrier` to run it without installing). To work on Carrier itself, clone the repo and run `pnpm install`; the app is built from the clone as [`macos/README.md`](macos/README.md) says.
+- At least one agent CLI (`claude`, `codex` or `agy`), installed and logged in.
+- A GitHub identity for the author and another for the reviewer: [Agent Forge](https://github.com/AshuLab/agent-forge) bots, or your own `gh` login.
+- Target repos that use the [Solve](https://github.com/AshuLab/skills) flow ([how to prepare one](docs/preparing-a-repo.md)).
 
-#### Upgrade
+More options (no Homebrew, upgrade, uninstall): [install](docs/install.md).
+
+## First run
 
 ```bash
-brew upgrade carrier          # the command: the engine and the chat host
-brew upgrade --cask carrier   # the app
+carrier init      # guided setup: repos, agents, identities. Writes ~/.carrier/config.json
+carrier doctor    # checks the config and the machine, and tells you how to fix what fails
+carrier           # starts Carrier and shows the live panel (Ctrl+C stops it)
 ```
 
-Both move to the same release. They can be upgraded at different moments, and when they speak different protocols the app says which one to update and does not connect until you do ([troubleshooting](docs/troubleshooting.md#the-app-asks-to-update-carrier-or-itself)).
+Then add the label `solve:epic:ready` to an epic in one of your repos and watch the panel. Prefer the Mac app? Open it: it finds `carrier` by itself.
 
-If you have the app you do not have to type these. It checks for updates by itself (with [Sparkle](https://sparkle-project.org), once a day and each time it opens), asks before it installs, and relaunches. When it opens at the new version and the installed `carrier` is older, it runs `brew update` and `brew upgrade` for `carrier` (the log is `~/.carrier/engine/logs/app-upgrade.log`), and then replaces the chat host and the engine that were running, each only when it is free to replace: the host when no session is working or waiting for an approval, the engine when it has no execution in flight (an engine you had stopped stays stopped). If Homebrew fails, the app keeps what you had and says why on the Sessions home. Whether the app checks and whether it installs by itself are Sparkle's own preferences and have no page in Settings yet. What Sparkle compares is the app's build number, derived from the version (`X.Y.Z` is `X*10000 + Y*100 + Z`). The update flow, the update key (its public half is `macos/update-key.pub`) and what to do if something fails are in [releasing](docs/releasing.md) and [troubleshooting](docs/troubleshooting.md#the-app-never-shows-an-update). Without the app, Homebrew tells nobody there is a new version: run the two commands.
+## How it works
 
-#### Uninstall
+Carrier polls the repos you list and, for every epic labelled `solve:epic:ready`, runs the whole loop without supervision:
 
-```bash
-brew uninstall --cask carrier   # the app first: it depends on the command
-brew uninstall carrier          # the command
-```
+1. **Pick up.** It takes the oldest ready epic when a slot is free and relabels it `solve:epic:running`.
+2. **Ship.** An _author_ agent (Claude Code, Codex or Antigravity) runs [Solve](https://github.com/AshuLab/skills)'s `ship` on the epic in a managed clone, and Carrier checks the final PR on GitHub.
+3. **Review.** A _reviewer_ agent with a **different GitHub identity** reviews that PR. If it asks for changes, the author fixes and the reviewer goes again, up to `maxReviews` rounds.
+4. **Hand-off.** The epic ends as `solve:epic:ready-for-test` or `solve:epic:needs-human` (with the reason shown). Carrier never merges the final PR: you test it and decide.
 
-This leaves `~/.carrier` (or your `CARRIER_HOME`), with your config, sessions and clones. Add `--zap` to the cask (`brew uninstall --zap --cask carrier`) to remove also the app's own preferences (`~/Library/Preferences/dev.ashulab.carrier.plist`) and its cache, where the updater keeps what it downloads (`~/Library/Caches/dev.ashulab.carrier`), and nothing else.
+It survives interruptions: state lives in SQLite, retries first check the real state on GitHub (no duplicate PRs or comments), and a restart picks up where it left. More in [what the engine does](docs/cli.md#what-the-engine-does).
 
-To remove the Carrier folder as well, stop Carrier first (`carrier stop` and `carrier chat --stop`), then delete it by hand:
-
-```bash
-rm -rf ~/.carrier
-```
-
-That deletes everything in it, for good: `config.json`; `providers.json`; `engine/` (its `state/` with `carrier.db`, the control socket and the lock, its `logs/`, the managed clones in `repos/`, the reviewer's checkouts in `reviews/` and the epics' `worktrees/`); and `chat/` (its `state/` with `chat.db`, the chat socket and the lock, its `logs/`, the repositories it cloned in `projects/`, the session `worktrees/` and `chat.json`). Commit and push any work you want to keep from those worktrees first. See [Where it keeps things](#where-it-keeps-things).
-
-### 3. Create the config
-
-```bash
-carrier init
-```
-
-It looks at the machine (stopping with the fix if `git`, `gh` or every agent CLI is missing) and shows what it found: each agent CLI with its path, version and login, and the local servers that answer. It asks for the repos to watch (picked from the repos your `gh` login can push to, grouped by owner), the identity of each role (a bot of Agent Forge or your `gh` login; picking the same one twice is accepted, and the recap then says the signature will show it), then the accounts: one per agent CLI found is written to `~/.carrier/providers.json`, even when `--out` moves the config, and you are only asked for **extra** accounts, added one at a time (the CLI among the installed ones, the local provider when a server is running, the model and, for Claude and Codex, the config folder: the `~/.claude`, `~/.claude-*` and `~/.codex` it finds with their login state, the environment, or a typed path; Antigravity has no folder), each with a suggested name that must be a lowercase word and unique, and after each one whether to add another; each role then asks which of those options runs it, its model and its effort (`low`, `medium`, `high`, `xhigh` or `max`, or the CLI's own, which writes nothing), and with two or more options it asks, for each role, whether to turn failover on and for up to two steps, each a provider and a model (the `failover` block). Run again on an existing config it keeps the accounts of `providers.json` and the `failover` steps, starts each role's effort from the file's, and lets you add more accounts (editing or removing one is done in the file). Then the persona of each role (a name and a prompt, each skippable, and when editing `-` clears one; `--author-persona-name`, `--author-persona-prompt`, `--reviewer-persona-name` and `--reviewer-persona-prompt` answer them; `--author-effort`, `--reviewer-effort` and `--lead-reviewer-effort` answer the efforts), writes the config to `~/.carrier/config.json` (one global file per user; change it with `--out`) and runs the checks below. Run again on an existing config, it offers to edit it with its answers as the starting points. Before saving it shows a recap to confirm, and the checks that follow print only what fails (otherwise a single count), then it shows how many epics are waiting and offers to start Carrier. If there is no Agent Forge bot it can run `agent-forge add` for you on the spot. Every question has a flag (`carrier init --help`); `--author` and `--reviewer` (`<harness>:<model>`, with `--author-provider` and `--reviewer-provider`) each add an account named after its harness to `providers.json` (the one found, when it matches) and skip the extras question and the failover question when both are given. `--yes` never asks, so an agent can run it too (`--author-profile gh --reviewer-profile gh` makes both roles your `gh` login):
-
-```bash
-carrier init --yes --repo AshuLab/my-repo \
-  --author-profile forge:<agent-1> --author claude:<model> \
-  --reviewer-profile forge:<agent-2> --reviewer codex:<model>
-```
-
-Without `--author` and `--reviewer`, `--yes` writes one `claude` option that runs both roles; the flags above give each role its own option.
-
-Check a config (yours or a hand-written one) at any time:
-
-```bash
-carrier doctor
-```
-
-It verifies the tools are installed, that each identity can get a token for each repo, that the orchestrator can read it, and that each repo it could read has the Solve labels (`solve:epic` and `solve:epic:ready`; the fix is to run `solve:setup` in the repo). `carrier schema` prints the JSON Schema of the config for your editor. `carrier doctor --json` prints the checks as a JSON array (`{ name, status, detail?, fix?, repo?, profiles? }`, `status` `ok`, `warn` or `fail`; `repo` and `profiles`, the names under `config.profiles` the check stands for, are set together on the checks about one repo) and nothing else, with the same exit code (1 when any fails); the macOS app's Health tab reads it.
-
-#### The file, by hand
-
-A JSON file merged over the defaults (objects merge by field, simple values replace, lists replace entirely). Invalid configs print every error with its field and exit without starting anything.
-
-```json
-{
-  "repos": [{ "name": "AshuLab/my-repo", "agents": { "reviewer": { "provider": "claude", "model": "<model>" } } }],
-  "profiles": {
-    "author-bot": { "kind": "forge", "agent": "<forge-agent-1>" },
-    "reviewer-bot": { "kind": "forge", "agent": "<forge-agent-2>" }
-  },
-  "orchestratorProfile": "author-bot",
-  "agents": {
-    "author": { "profile": "author-bot", "provider": "claude", "model": "<model>" },
-    "reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "<model>" }
-  }
-}
-```
-
-Defaults: `pollIntervalMinutes` 5, `logLevel` `info`, and `limits` of `maxConcurrentEpics` 3, `maxReviews` 5, `maxExecutionRetries` 3, `maxExecutionHours` 4 (or `"unlimited"`), `githubCallTimeoutSeconds` 30. Identity, provider, model and persona for author and reviewer can be overridden per repo; an AI provider is declared in `providers.json` in the Carrier folder (`{ "providers": { "claude": { "harness": "claude" }, "codex": { "harness": "codex" } } }`, with an optional local server provider, config folder, model and display name per account). The files hold no secrets: a profile is `{ "kind": "forge", "agent": ... }` or `{ "kind": "gh" }`.
-
-### 4. Run it
-
-```bash
-carrier
-```
-
-`carrier` reads `~/.carrier/config.json`; pass `--config <path>` to use another file. It holds the terminal and runs until `Ctrl+C`; to leave it running with the terminal closed, use `carrier start` instead (see [What's included](#whats-included)). Only one instance can run per Carrier folder. From a clone, run `pnpm build` and then `node dist/terminal/cli/main.js`, or `node src/terminal/cli/main.ts --config ...` (Node 26 runs the TypeScript directly).
-
-Mark an epic `solve:epic:ready` in a configured repo and watch the panel.
-
-## Scripts
+## Everyday commands
 
 | Command | What it does |
 |---------|--------------|
-| `pnpm build` | Compile to `dist/` (what gets published) |
-| `pnpm typecheck` | Type-check the project |
-| `pnpm test` | Full unit suite — fakes and a temp SQLite, no network and no real agents |
-| `pnpm test:integration` | Integration tests with real tools; they skip with a clear message unless their environment variables are set |
-| `pnpm db:generate` | Generate a Drizzle migration after changing the schema |
+| `carrier start` | Run in the background; `stop`, `pause`, `resume` and `check` control it from any terminal |
+| `carrier status` / `carrier watch` | Show what the running Carrier is doing, once or live |
+| `carrier restart <owner/name>#<issue>` | Resume an epic that stopped in `needs-human` |
+| `carrier chat --workspace <folder>` | Talk to an agent in a session |
 
-The gated tests use `CARRIER_IT_*` and `CARRIER_TEST_*` variables; each test file lists the ones it needs in its header.
-
-## Where it keeps things
-
-Carrier's folder is `~/.carrier/` (override it with `CARRIER_HOME`). The engine's config is `~/.carrier/config.json`. The accounts, one per login of an agent CLI, are in `~/.carrier/providers.json` ([ADR 0020](docs/adr/0020-accounts-live-in-a-file-both-processes-read.md)): the one file besides `config.json` that both the engine and the chat host read (the engine when it starts, the chat host at each request), and the app writes it. The engine's schema is `src/config/schema.ts`, the accounts' is `src/config/providers.ts` and the chat's is `src/chat/config.ts`. The chat keeps everything else it owns in `~/.carrier/chat/`:
-
-- `chat/state/` — the chat host's `chat.db`, `chat.sock` and lock; `chat/logs/` — its logs; `chat/projects/` — the repositories it clones; `chat/worktrees/` — the worktrees of the sessions that ask for one; `chat/chat.json` — its optional settings ([configuration](docs/configuration.md#chat-configuration)).
-
-The engine keeps its files in `~/.carrier/engine/`, in the same Carrier folder; only Carrier writes there, and `--config` changes which config file is read, never this folder:
-
-- `engine/state/` — `carrier.db` (SQLite), `control.sock` and `carrier.lock`.
-- `engine/logs/` — `orchestrator.log`, `executions/<id>/` with each agent's full output, and `start.log`. Logs and sessions of a finished or cancelled epic are deleted after 30 days; SQLite and worktrees are never touched.
-- `engine/repos/<org>/<repo>/` — managed clones; `engine/reviews/<repo>/<epic>/` — the reviewer's separate checkout.
-- `engine/worktrees/<repo>/<feature>/` — where Carrier keeps an epic's worktree by default; any other place works, since Carrier finds a worktree with git.
-
-## Developing against a throwaway folder
-
-Everything the chat owns is in the Carrier folder, so a development run can use a scratch one and never touch your real `~/.carrier`. Keep the path short: a Unix socket path is limited to about 100 bytes and the host refuses a longer one.
-
-```bash
-export CARRIER_HOME=$(mktemp -d /tmp/carrier.XXXXXX)   # the scratch folder
-node src/terminal/cli/main.ts chat-host                # the host in the foreground; Ctrl+C or `chat --stop` ends it
-node src/terminal/cli/main.ts chat --list              # from another terminal with the same CARRIER_HOME: "No chat sessions."
-node src/terminal/cli/main.ts chat --stop              # ends the host
-```
-
-The host creates `$CARRIER_HOME/chat/` (`state/`, `logs/`) on its own and uses the defaults of `chat.json`; to try other settings, write `$CARRIER_HOME/chat/chat.json` before starting it (a wrong file stops the host and names the key). To run the app against it, build it (see [`macos/README.md`](macos/README.md)) and start its binary from the same terminal, so it inherits `CARRIER_HOME`:
-
-```bash
-(cd macos && ./build-app.sh)
-macos/Carrier.app/Contents/MacOS/Carrier               # opens the window; with `carrier` found, starts the host in $CARRIER_HOME/chat/ if none answers
-```
-
-The app finds `carrier` by itself (the Homebrew one, `/opt/homebrew/bin/carrier`) and says in the Sessions section when it does not. To test your clone's `carrier` instead, run `pnpm build` and put the path of `dist/terminal/cli/main.js` (or of `src/terminal/cli/main.ts`) in the advanced "Use this carrier" setting of Settings > Engine; a path ending in `.ts` or `.js` runs under `node`, which the app finds from your login shell. That setting is the app's preference, not part of the folder. The app replaces a running host only when the installed `carrier` has a newer version, and a build under development keeps the same one, so stop the host with `carrier chat --stop` after changing the code. When you are done, `carrier chat --stop`, clear the setting and delete the folder.
+All the commands and their options: [command line](docs/cli.md).
 
 ## Security
 
@@ -253,12 +72,9 @@ Unattended agents run with **your** permissions: Claude with permissions bypasse
 
 ## Documentation
 
-- Using it: [configuration](docs/configuration.md), [preparing a repo](docs/preparing-a-repo.md) and [troubleshooting](docs/troubleshooting.md).
-- [Specs](docs/specs/) (the orchestrator's is [autonomous-orchestrator](docs/specs/autonomous-orchestrator.md)), [glossary](docs/glossary.md) and the [macOS app](macos/README.md).
-- [ADRs](docs/adr/) — coordination vs. evaluation, SQLite as the authority, agents on the host (which replaces the container ADR 0003), the engine independent of the macOS app, and Carrier running detached on demand, not as a login service.
-- [Research](docs/research/) — headless agents, Antigravity, Agent Forge, logging and panel, containers (dropped, kept as reference).
-- [`AGENTS.md`](AGENTS.md) — entry point for coding agents working in this repo.
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute, and the [changelog](CHANGELOG.md) of each release.
+- **Using it:** [install](docs/install.md) · [command line](docs/cli.md) · [configuration](docs/configuration.md) · [preparing a repo](docs/preparing-a-repo.md) · [troubleshooting](docs/troubleshooting.md) · [macOS app](macos/README.md)
+- **Understanding it:** [glossary](docs/glossary.md) · [specs](docs/specs/) (start with [autonomous-orchestrator](docs/specs/autonomous-orchestrator.md)) · [ADRs](docs/adr/) · [research](docs/research/)
+- **Contributing:** [`CONTRIBUTING.md`](CONTRIBUTING.md) (setup, tech stack, repo structure) · [`AGENTS.md`](AGENTS.md) (entry point for coding agents) · [changelog](CHANGELOG.md)
 
 ## License
 

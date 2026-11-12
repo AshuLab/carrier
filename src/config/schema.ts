@@ -71,8 +71,7 @@ export const configSchema = z
           name: z.string().regex(repoNamePattern, 'must be owner/name'),
           agents: z.strictObject({ author: agent.partial(), reviewer: agent.partial(), leadReviewer: agent.partial().optional() }).partial().optional(),
         }),
-      )
-      .min(1),
+      ),
     profiles: z.record(z.string(), profile),
     /** Left out, it is the author's profile (ADR 0021). */
     orchestratorProfile: z.string().min(1).optional(),

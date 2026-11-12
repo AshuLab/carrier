@@ -1,7 +1,8 @@
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
+import { defaults, loadConfig } from '../../../config/load.ts';
 import type { InitDeps } from '../deps.ts';
-import { fakeDeps, quietUi, useTempDir } from '../testing.ts';
+import { fakeDeps, providersWritten, quietUi, useTempDir } from '../testing.ts';
 import { runInit } from '../wizard.ts';
 
 const dir = useTempDir();
@@ -19,7 +20,7 @@ test('with a list of repos they are picked, not typed; the current folder is fir
   const { ui, listed } = quietUi();
   const out = join(dir, 'h.json');
   await runInit({ out }, ui, deps);
-  expect(listed[0]).toEqual(['AshuLab:carrier,skills', 'vemec:encaja', 'Other:Other…']); // one section per owner, the folder's owner first
+  expect(listed[0]).toEqual(['AshuLab:carrier,skills', 'vemec:encaja', 'Other:Other…,None for now']); // one section per owner, the folder's owner first
   expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/carrier' }]);
 });
 
@@ -27,7 +28,7 @@ test('with one owner the list is flat and shows full names', async () => {
   const { deps } = fakeDeps({ listRepos: () => ({ names: ['AshuLab/skills'], hasMore: false }), originRepo: () => undefined });
   const { ui, listed } = quietUi({ [repoKey]: 'AshuLab/skills' });
   await runInit({ out: join(dir, 'l.json') }, ui, deps);
-  expect(listed[0]).toEqual(['AshuLab:AshuLab/skills,Other…']);
+  expect(listed[0]).toEqual(['AshuLab:AshuLab/skills,Other…,None for now']);
 });
 
 test('"Other" asks for the repos that are not on the list and joins them to the picked ones', async () => {
@@ -79,9 +80,9 @@ test('"Load more…" reads the next page, keeps what was ticked and files the ne
   const out = join(dir, 'm.json');
   await runInit({ out }, ui, deps);
   expect(asked).toEqual([1, 2]);
-  expect(labels(lists[0]!)).toEqual(['AshuLab:carrier,skills', 'vemec:encaja', `Other:${loadMoreEntry},Other…`]);
+  expect(labels(lists[0]!)).toEqual(['AshuLab:carrier,skills', 'vemec:encaja', `Other:${loadMoreEntry},Other…,None for now`]);
   expect(initial[1]).toEqual(['AshuLab/skills']); // the ticked one stays, the entry is not one of them
-  expect(labels(lists[1]!)).toEqual(['AshuLab:carrier,skills,tools', 'vemec:encaja', 'zed:new', 'Other:Other…']); // no more pages: no entry
+  expect(labels(lists[1]!)).toEqual(['AshuLab:carrier,skills,tools', 'vemec:encaja', 'zed:new', 'Other:Other…,None for now']); // no more pages: no entry
   expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/skills' }, { name: 'zed/new' }]);
 });
 
@@ -89,7 +90,7 @@ test('with one owner the entry sits next to "Other…" in the flat list', async 
   const { deps } = fakeDeps({ listRepos: () => page(['AshuLab/skills'], true) });
   const { ui, lists } = rounds([['AshuLab/skills']]);
   await runInit({ out: join(dir, 'n.json') }, ui, deps);
-  expect(labels(lists[0]!)).toEqual([`AshuLab:AshuLab/carrier,AshuLab/skills,${loadMoreEntry},Other…`]);
+  expect(labels(lists[0]!)).toEqual([`AshuLab:AshuLab/carrier,AshuLab/skills,${loadMoreEntry},Other…,None for now`]);
 });
 
 test('a page that adds nothing keeps the entry while GitHub has more', async () => {
@@ -112,7 +113,7 @@ test('a later page that cannot be read is said and the wizard goes on with what 
   const out = join(dir, 'p.json');
   await runInit({ out }, ui, deps);
   expect(asked).toContain('warn:Could not load more repos (gh: timed out); going on with the ones loaded.');
-  expect(labels(lists[1]!)).toEqual([`AshuLab:AshuLab/carrier,AshuLab/skills,Other…`]);
+  expect(labels(lists[1]!)).toEqual([`AshuLab:AshuLab/carrier,AshuLab/skills,Other…,None for now`]);
   expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/skills' }]);
 });
 
@@ -123,7 +124,29 @@ test('a first page emptied by the filter still offers "Load more…" while GitHu
   const out = join(dir, 'q.json');
   await runInit({ out }, ui, deps);
   expect(asked.some((a) => a.startsWith('warn:'))).toBe(false);
-  expect(labels(lists[0]!)).toEqual([`Other:${loadMoreEntry},Other…`]);
-  expect(labels(lists[1]!)).toEqual(['AshuLab:AshuLab/tools,Other…']);
+  expect(labels(lists[0]!)).toEqual([`Other:${loadMoreEntry},Other…,None for now`]);
+  expect(labels(lists[1]!)).toEqual(['AshuLab:AshuLab/tools,Other…,None for now']);
   expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/tools' }]);
+});
+
+test('"None for now" writes a config with no repos that still loads; a typed none does the same; picked repos win over it', async () => {
+  const notNow = 'Start Carrier now? (Ctrl+C stops it)';
+  const list = fakeDeps({ listRepos: () => ({ names: ['AshuLab/skills'], hasMore: false }) });
+  const out = join(dir, 'none.json');
+  const { ui, notes } = quietUi({ [repoKey]: '\0none', [notNow]: false });
+  await runInit({ out }, ui, list.deps);
+  const config = JSON.parse(list.written[out]!);
+  expect(config.repos).toEqual([]);
+  expect(loadConfig(defaults, config, providersWritten(list.written) as never).ok).toBe(true);
+  expect(notes.find((n) => n.title === 'This is what will be saved')!.message).toContain('none yet');
+
+  const typed = fakeDeps();
+  const typedOut = join(dir, 'none-typed.json');
+  await runInit({ out: typedOut }, quietUi({ 'Repos to watch (owner/name, comma separated, or none for now)': 'None', [notNow]: false }).ui, typed.deps);
+  expect(JSON.parse(typed.written[typedOut]!).repos).toEqual([]);
+
+  const both = fakeDeps({ listRepos: () => ({ names: ['AshuLab/skills'], hasMore: false }) });
+  const bothOut = join(dir, 'none-and-one.json');
+  await runInit({ out: bothOut }, quietUi({ [repoKey]: 'AshuLab/skills,\0none', [notNow]: false }).ui, both.deps);
+  expect(JSON.parse(both.written[bothOut]!).repos).toEqual([{ name: 'AshuLab/skills' }]);
 });

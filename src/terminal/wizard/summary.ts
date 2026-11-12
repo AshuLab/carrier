@@ -15,7 +15,7 @@ const personaLine = ({ persona }: Role) => (persona ? [`${persona.name ?? '(no n
 const roleLine = (r: Role, providers: Record<string, AIProvider>) => {
   const p = providers[r.provider];
   const pDesc = p ? `${r.provider} (${providerLine(p)})` : r.provider;
-  return [`${r.identity.kind === 'gh' ? 'your gh login' : r.identity.agent} · ${pDesc} · ${r.model}${r.effort ? ` · ${r.effort}` : ''}`, ...personaLine(r).map((item) => `\n          persona: ${item}`)].join('');
+  return [`${r.identity.kind === 'gh' ? 'your gh login' : r.identity.agent} · ${pDesc} · ${r.model}${r.effort ? ` · ${r.effort}` : ''}`, ...personaLine(r).map((item) => `\n              persona: ${item}`)].join('');
 };
 
 const loginText = { in: 'signed in', out: 'signed out', unknown: 'login not checked' } as const;
@@ -30,6 +30,13 @@ export const foundLines = ({ harnesses, accounts, servers }: Detected) => [
   ...localKinds.map((kind) => `${localLabel[kind].padEnd(12)} ${servers[kind].running ? `running · ${servers[kind].models.length} models` : 'not running'}`),
 ];
 
+/** A failover chain per role, as one line: `author: claude opus → codex`. */
+export const failoverLine = (failover: Failover) =>
+  Object.entries(failover.roles ?? {})
+    .filter(([_, steps]) => steps.length > 0)
+    .map(([role, steps]) => `${role}: ${steps.map((step) => (step.model ? `${step.provider} ${step.model}` : step.provider)).join(' → ')}`)
+    .join(' · ');
+
 /** What is about to be written, in one box. */
 export const summary = (
   repos: string[],
@@ -42,15 +49,15 @@ export const summary = (
   leadReviewer?: Role,
 ) =>
   [
-    `Repos       ${repos.join(', ')}`,
-    ...(sameAccount(author.identity, reviewer.identity) ? ['Identity    shared: author and reviewer are the same account, and the signature in what they publish will show it'] : []),
-    `Providers   ${Object.keys(providers).join(', ')}`,
-    `Author      ${roleLine(author, providers)}`,
-    `Reviewer    ${roleLine(reviewer, providers)}`,
-    ...(leadReviewer ? [`Lead Rev    ${roleLine(leadReviewer, providers)}`] : []),
-    ...(failover?.roles
-      ? [`Failover    ${Object.entries(failover.roles).filter(([_, steps]) => steps.length > 0).map(([role, steps]) => `${role}: ${steps.map((step) => (step.model ? `${step.provider} ${step.model}` : step.provider)).join(' → ')}`).join(' · ')}`]
-      : []),
-    `Saved to    ${tilde(out)}`,
-    `Accounts in ${tilde(providersPath)} (the Carrier folder, wherever the config goes)`,
-  ].join('\n');
+    ['Repos', repos.length > 0 ? repos.join(', ') : 'none yet'],
+    ...(sameAccount(author.identity, reviewer.identity) ? [['Identity', 'shared: author and reviewer are the same account, and the signature in what they publish will show it']] : []),
+    ['Accounts', Object.keys(providers).join(', ')],
+    ['Author', roleLine(author, providers)],
+    ['Reviewer', roleLine(reviewer, providers)],
+    ...(leadReviewer ? [['Lead reviewer', roleLine(leadReviewer, providers)]] : []),
+    ...(failover?.roles && failoverLine(failover) !== '' ? [['Failover', failoverLine(failover)]] : []),
+    ['Config', tilde(out)],
+    ['Accounts file', `${tilde(providersPath)} (the Carrier folder, wherever the config goes)`],
+  ]
+    .map(([label, value]) => `${label!.padEnd(14)}${value}`)
+    .join('\n');

@@ -16,7 +16,7 @@ test('with no Forge agents both roles are the gh login: it is accepted, and the 
   expect(config.profiles).toEqual({ gh: { kind: 'gh' } });
   expect(config.agents.author.profile).toBe('gh');
   expect(config.agents.reviewer.profile).toBe('gh');
-  expect(notes['This is what will be saved']).toContain('Identity    shared: author and reviewer are the same account, and the signature in what they publish will show it');
+  expect(notes['This is what will be saved']).toContain('Identity      shared: author and reviewer are the same account, and the signature in what they publish will show it');
 });
 
 test('picking the same identity for the author and the reviewer is accepted without a word of protest', async () => {

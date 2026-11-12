@@ -31,8 +31,8 @@ func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
     #expect(repoProblem("other/web", joining: ["acme/web"]) == "other/web has the same folder name as acme/web; Solve's worktree paths have no owner")
 }
 
-@Test func theWholeListNeedsOneRepoAndNoProblems() {
-    #expect(reposProblem([]) == "The config needs at least one repo.")
+@Test func theWholeListHasNoProblemsAndMayBeEmpty() {
+    #expect(reposProblem([]) == nil)
     #expect(reposProblem(["acme/web", "acme/api"]) == nil)
     #expect(reposProblem(["acme/web", "other/web"])?.contains("same folder name as acme/web") == true)
 }
@@ -57,8 +57,13 @@ func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
 @Test func theAppNeverMakesAConfigFileNorWritesAnInvalidList() {
     #expect(applyingRepos(["a/b"], to: Data()) == nil)
     #expect(applyingRepos(["a/b"], to: Data("[]".utf8)) == nil)
-    #expect(applyingRepos([], to: file) == nil)
     #expect(applyingRepos(["acme/web", "other/web"], to: file) == nil)
+}
+
+@Test func stoppingToWatchTheLastRepoWritesAnEmptyList() throws {
+    let data = try #require(applyingRepos([], to: file))
+    let written = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    #expect((written["repos"] as? [Any])?.isEmpty == true && written["profiles"] != nil)
 }
 
 @Test func theBehaviorTabAndTheReposTabKeepEachOthersKeys() throws {

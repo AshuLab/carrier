@@ -4,8 +4,8 @@ import Observation
 import SwiftUI
 
 /// The one dictation of the app: what the message boxes read (the session's state, the recognizers on offer, the microphone's permission,
-/// the level of the voice) and the click that starts or stops it. The recognizer is the first one registered and its first model until the
-/// Dictation page lets a person choose.
+/// the level of the voice), the click that starts or stops it and the switch of the Dictation page, which the boxes of both views read at once.
+/// The recognizer is the one of the model the person chose on that page, Apple's until they do.
 @MainActor @Observable final class DictationController {
     static let shared: DictationController = {
         // a fixture build hears nothing and asks macOS for nothing: its recognizer is a canned phrase
@@ -23,15 +23,21 @@ import SwiftUI
     /// The voice's level, `0...1`, smoothed, while the microphone listens; 0 otherwise.
     private(set) var level: Float = 0
     private(set) var microphone: MicrophonePermission
+    /// Whether the message boxes have a microphone. Off, nothing asks macOS for the microphone and nothing listens.
+    private(set) var enabled: Bool
     @ObservationIgnored private let access: MicrophoneAccess
+    @ObservationIgnored private let preferences: AppPreferences
 
     /// The defaults are a fixture build's: a capture that hears nothing, which the fixture recognizer does not need, and an allowed microphone.
     init(
         registry: RecognizerRegistry, capture: AudioCapture = ScriptedCapture(), microphone access: MicrophoneAccess = .allowed,
-        log: DictationLog? = nil, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        log: DictationLog? = nil, preferences: AppPreferences = AppPreferences(),
+        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.registry = registry
         self.access = access
+        self.preferences = preferences
+        enabled = preferences.dictationEnabled
         microphone = access.status()
         session = DictationSession(capture: capture, sleep: sleep, announce: { AccessibilityNotification.Announcement($0).post() }, log: { log?.append($0) })
         // sending the app to the background: nothing keeps listening unseen
@@ -44,22 +50,52 @@ import SwiftUI
         }
     }
 
-    /// What `owner`'s box draws: nothing when no recognizer is registered, and the state of the session only while that box is the one dictating.
+    /// The speech models on offer, those of every registered recognizer.
+    var models: [SpeechModel] { registry.recognizers.flatMap(\.models) }
+
+    /// The model the person chose, and Apple's when they did not or it is gone.
+    var model: SpeechModel? { preferences.dictationModel(among: models) }
+
+    func choose(model: SpeechModel) { preferences.dictationModelID = model.id }
+
+    /// The Language popup for the chosen model, over the languages of this Mac.
+    var languages: LanguageChoices? {
+        model.map { languageChoices(for: $0, macOSLanguages: Locale.preferredLanguages, saved: preferences.dictationLanguage) }
+    }
+
+    func choose(language: String) { preferences.dictationLanguage = language }
+
+    /// The switch of the page. Turning it off while a dictation listens stops it and keeps its text.
+    func setEnabled(_ on: Bool) {
+        preferences.dictationEnabled = on
+        enabled = on
+        if on == false { stop() }
+    }
+
+    /// Reset of the page: on, Apple's and the language of macOS. The downloaded models are not touched.
+    func reset() {
+        preferences.reset(.dictation)
+        enabled = preferences.dictationEnabled
+    }
+
+    /// What `owner`'s box draws: nothing when Dictation is off or no recognizer is registered, and the state of the session only while that box is the one dictating.
     func presentation(for owner: String) -> DictationPresentation? {
-        dictationPresentation(session.owner == owner ? session.state : .idle, registered: registry.recognizers.isEmpty == false, microphone: microphone)
+        guard enabled else { return nil }
+        return dictationPresentation(session.owner == owner ? session.state : .idle, registered: registry.recognizers.isEmpty == false, microphone: microphone)
     }
 
     /// A click on the microphone of a box: stops the dictation that box runs, or starts one into its field (stopping another box's first).
     /// Says `explainBlock` when macOS blocks the microphone, and the box opens its popover.
     @discardableResult
     func toggle(into field: DictationField) -> DictationClick {
+        guard enabled else { return .start }
         guard session.owner != field.owner else {
             if session.state == .listening { session.stop() }
             return .start
         }
         microphone = access.status()
         let click = dictationClick(microphone)
-        guard click == .start, let recognizer = registry.recognizers.first, let model = recognizer.models.first else { return click }
+        guard click == .start, let model, let recognizer = registry.recognizers.first(where: { $0.id == model.recognizer }) else { return click }
         if microphone == .allowed {
             session.start(recognizer: recognizer, model: model, into: field)
         } else {
@@ -67,7 +103,7 @@ import SwiftUI
             Task {
                 let allowed = await access.request()
                 microphone = access.status()
-                if allowed { session.start(recognizer: recognizer, model: model, into: field) }
+                if allowed, enabled { session.start(recognizer: recognizer, model: model, into: field) }
             }
         }
         return click

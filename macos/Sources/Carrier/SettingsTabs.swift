@@ -303,34 +303,53 @@ struct SettingsHeaderNoteKey: PreferenceKey {
     static func reduce(value: inout SettingsHeaderNote?, nextValue: () -> SettingsHeaderNote?) { value = nextValue() ?? value }
 }
 
-/// The top of a page: an icon, the title and a line, and the page's note at the right when it has one.
+/// The top of a page: an icon, the title and a line, and the page's note at the right when it has one, or below the title when the page is
+/// too narrow for both.
 struct SettingsPageHeader: View {
     let page: SettingsPage
     var note: SettingsHeaderNote?
 
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: page.icon)
-                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
-                .frame(width: 38, height: 38)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
-                .accessibilityHidden(true)
-            // the two lines are about as tall as the tile (a Spacer here would take the whole height the page's bar offers)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(page.rawValue).font(.title3.weight(.semibold))
-                Text(page.detail).font(.callout).foregroundStyle(.secondary)
+    private var tile: some View {
+        Image(systemName: page.icon)
+            .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
+            .frame(width: 38, height: 38)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
+            .accessibilityHidden(true)
+    }
+
+    // the two lines are about as tall as the tile (a Spacer here would take the whole height the page's bar offers)
+    private var titles: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(page.rawValue).font(.title3.weight(.semibold))
+            Text(page.detail).font(.callout).foregroundStyle(.secondary)
+        }
+    }
+
+    // an engine's message can be long: it wraps instead of being cut
+    @ViewBuilder private func noteView(_ note: SettingsHeaderNote) -> some View {
+        Group {
+            switch note.tone {
+            case .saved: Label(note.text, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             }
-            if let note {
-                Spacer(minLength: 16)
-                Group {
-                    switch note.tone {
-                    case .saved: Label(note.text, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                    case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                    }
+        }
+        .font(.callout).fixedSize(horizontal: false, vertical: true)
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 12) {
+                tile
+                titles.fixedSize(horizontal: true, vertical: false)
+                if let note {
+                    Spacer(minLength: 16)
+                    noteView(note).multilineTextAlignment(.trailing).frame(maxWidth: 420, alignment: .trailing)
                 }
-                // an engine's message can be long: it wraps instead of being cut
-                .font(.callout).multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 420, alignment: .trailing).textSelection(.enabled)
+            }
+            // too narrow for the title and the note side by side: the note goes under the title, with the room of the page
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: 12) { tile; titles }
+                if let note { noteView(note).frame(maxWidth: .infinity, alignment: .leading) }
             }
         }
         // a problem appears while the person looks elsewhere: say it to VoiceOver too
@@ -339,6 +358,28 @@ struct SettingsPageHeader: View {
         }
         // room for the close button, which sits over the corner of the header
         .padding(.trailing, 32)
+    }
+}
+
+/// A line of a page that says what went wrong in its words, in orange, and says it to VoiceOver when it appears or changes.
+struct ProblemLine: View {
+    let text: String
+    var font: Font = .callout
+
+    var body: some View {
+        Label(text, systemImage: "exclamationmark.triangle.fill").font(font).foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+            .onAppear { AccessibilityNotification.Announcement(text).post() }
+            .onChange(of: text) { _, text in AccessibilityNotification.Announcement(text).post() }
+    }
+}
+
+/// What the engine answered to the last save when it did not apply it (`ReloadStatus`): the same on every page, until a save is applied.
+struct ReloadNote: View {
+    private let engine = ReloadStatus.shared
+
+    var body: some View {
+        if let words = engine.words { ProblemLine(text: words) }
     }
 }
 

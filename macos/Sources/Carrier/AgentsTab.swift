@@ -27,6 +27,7 @@ struct AgentsTabView: View {
             if let page {
                 flow(page)
                 if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
+                ReloadNote().padding(.horizontal, 4)
                 if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
                 if let note = page.bots.note { Text(note).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
             } else {
@@ -52,8 +53,13 @@ struct AgentsTabView: View {
 
     /// Writes the change, then reads the file back so the page shows what is there, whether it was saved or refused.
     private func save(_ change: RoleChange, role: AgentRole, page: AgentsPage) -> RoleSave {
-        if role == .leadReviewer, turningOnLead { return fillLead(change, page: page) }
-        let result = saveGlobalRole(change, role: role, path: configFilePath(), accounts: page.accounts, bots: page.bots.names, reload: { reloadEngine() })
+        save([change], role: role, page: page)
+    }
+
+    /// Several changes of one pick are one write and one ask of the engine.
+    private func save(_ changes: [RoleChange], role: AgentRole, page: AgentsPage) -> RoleSave {
+        if role == .leadReviewer, turningOnLead { return fillLead(changes, page: page) }
+        let result = saveGlobalRole(changes, role: role, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
         load()
         problem = result.problem
         return result
@@ -67,10 +73,10 @@ struct AgentsTabView: View {
     }
 
     /// A choice for the role being turned on: kept in the draft, and written only when identity, provider and model are all there.
-    private func fillLead(_ change: RoleChange, page: AgentsPage) -> RoleSave {
-        leadDraft.apply(change)
+    private func fillLead(_ changes: [RoleChange], page: AgentsPage) -> RoleSave {
+        changes.forEach { leadDraft.apply($0) }
         guard leadDraft.isComplete else { return .saved }
-        let result = turnLeadReviewerOn(leadDraft, path: configFilePath(), accounts: page.accounts, bots: page.bots.names, reload: { reloadEngine() })
+        let result = turnLeadReviewerOn(leadDraft, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
         if result.isWritten {
             turningOnLead = false
             leadDraft = LeadReviewerDraft()
@@ -89,7 +95,7 @@ struct AgentsTabView: View {
             turningOnLead = false
         } else {
             turningOnLead = false
-            let result = turnLeadReviewerOff(path: configFilePath(), reload: { reloadEngine() })
+            let result = turnLeadReviewerOff(path: configFilePath())
             load()
             problem = result.problem
         }
@@ -167,26 +173,26 @@ struct AgentsTabView: View {
                         ) { pick in
                             switch pick {
                             case .account(let account, let model):
-                                // the model belongs to the account's provider: they are written one after the other, the provider first
-                                if account != row.fields.provider { _ = save(.provider(account), role: row.role, page: page) }
-                                if let model { _ = save(.model(model), role: row.role, page: page) }
+                                // the model belongs to the account's provider: written together, in one save
+                                let changes = (account != row.fields.provider ? [RoleChange.provider(account)] : []) + (model.map { [RoleChange.model($0)] } ?? [])
+                                if changes.isEmpty == false { _ = save(changes, role: row.role, page: page) }
                             case .effort(let level): _ = save(.effort(level.isEmpty ? nil : level), role: row.role, page: page)
                             case .none, .inherit: break
                             }
                         }
                     }
-                    if let problem { Text(problem).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
+                    if let problem { ProblemLine(text: problem, font: .caption).textSelection(.enabled).padding(.vertical, 8) }
                 }
                 SettingsGroup(title: "Details") {
                     SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
                         CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: 220, mono: false, prompt: "None") {
-                            saveDetails(saveGlobalPersona(name: blankIsNil($0), prompt: row.fields.persona?.prompt, role: row.role, path: configFilePath(), reload: { reloadEngine() }))
+                            saveDetails(saveGlobalPersona(name: blankIsNil($0), prompt: row.fields.persona?.prompt, role: row.role, path: configFilePath()))
                         }
                         .id(row.role)
                     }
                     SettingsStackedRow(title: "Persona prompt", detail: "Optional instructions") {
                         CommitEditor(label: "Persona prompt", text: row.fields.persona?.prompt ?? "", prompt: "None") {
-                            saveDetails(saveGlobalPersona(name: row.fields.persona?.name, prompt: blankIsNil($0), role: row.role, path: configFilePath(), reload: { reloadEngine() }))
+                            saveDetails(saveGlobalPersona(name: row.fields.persona?.name, prompt: blankIsNil($0), role: row.role, path: configFilePath()))
                         }
                         .id(row.role)
                     }
@@ -197,7 +203,7 @@ struct AgentsTabView: View {
                         Toggle("Switch automatically", isOn: Binding(get: { on }, set: { now in
                             if now { switchedOn.insert(row.role) } else {
                                 switchedOn.remove(row.role)
-                                _ = saveDetails(saveGlobalFailover(first: nil, second: nil, role: row.role, path: configFilePath(), accounts: page.accounts, reload: { reloadEngine() }))
+                                _ = saveDetails(saveGlobalFailover(first: nil, second: nil, role: row.role, path: configFilePath(), accounts: page.accounts))
                             }
                         })).labelsHidden().toggleStyle(.switch)
                     }
@@ -225,7 +231,7 @@ struct AgentsTabView: View {
         func write(_ own: FailoverStep?) -> Bool {
             let first = index == 0 ? own : row.steps.first
             let second = index == 1 ? own : row.steps.dropFirst().first
-            return saveDetails(saveGlobalFailover(first: first, second: second, role: row.role, path: configFilePath(), accounts: page.accounts, reload: { reloadEngine() }))
+            return saveDetails(saveGlobalFailover(first: first, second: second, role: row.role, path: configFilePath(), accounts: page.accounts))
         }
         return SettingsTabRow(title: title, detail: detail) {
             ModelPickerButton(

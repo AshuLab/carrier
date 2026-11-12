@@ -18,8 +18,8 @@ struct ReposTabView: View {
     /// the file as `load` read it, for the roles on a repo's page
     @State private var configData: Data?
     @State private var failure: String?
-    /// the last save was written and the engine did not apply it: a repo of the list is not in use, whatever the engine can do
-    @State private var kept = false
+    /// what the engine answered to the last save, from any tab: a refusal means a repo of the list is not in use, whatever the engine can do
+    private let reloaded = ReloadStatus.shared
     /// the repo whose ✕ was pressed
     @State private var removing: String?
     @State private var adding = false
@@ -68,11 +68,10 @@ struct ReposTabView: View {
                 .frame(width: 270)
                 detail(chosen)
             }
-            if let problem, unreadable == false { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
-            // the list is written as it changes and says nothing about it, unless it could not
-            if let failure {
-                Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange).padding(.horizontal, 4)
-            }
+            if let problem, unreadable == false { ProblemLine(text: problem) }
+            // the list is written as it changes and says nothing about it, unless it could not or the engine did not apply it
+            if let failure { ProblemLine(text: failure).padding(.horizontal, 4) }
+            ReloadNote().padding(.horizontal, 4)
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
@@ -118,7 +117,7 @@ struct ReposTabView: View {
     /// The chosen repo's page.
     @ViewBuilder private func detail(_ row: RepoRow?) -> some View {
         if let row {
-            let status = repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine)), notLoaded: settingsNote(state: state, canReload: canReload, kept: kept))
+            let status = repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine)), notLoaded: settingsNote(state: state, canReload: canReload, outcome: reloaded.outcome))
             // two distances, as the Providers page has: 4 inside a block and 14 between blocks
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .center, spacing: 4) {
@@ -168,17 +167,13 @@ struct ReposTabView: View {
 
     /// Writes the role, then reads the file back and asks the doctor, whose reason is shown when the engine refuses what was written.
     private func saveRole(_ fields: RoleFields?, role: AgentRole, repo: String) -> RoleSave {
-        let result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: declaredAccounts(providersJSON: providersData), reload: { reloadEngine() })
-        keep(result)
+        let result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: declaredAccounts(providersJSON: providersData))
         if result.isWritten {
+            failure = nil
             load()
             runDoctor()
         }
         return result
-    }
-
-    private func keep(_ result: RoleSave) {
-        if case .notApplied = result { kept = true } else if result.isWritten { kept = false }
     }
 
     private func load() {
@@ -199,9 +194,8 @@ struct ReposTabView: View {
     /// Writes the file, read again just now so a save from the Behavior tab in between is not lost; false (with the reason shown)
     /// when it could not.
     private func write() -> Bool {
-        let result = saveConfig(path: path, unusable: "The config file could not be read or the list is not valid.", edit: { applyingRepos(draft, to: $0) }, reload: { reloadEngine() })
+        let result = saveConfig(path: path, unusable: "The config file could not be read or the list is not valid.", edit: { applyingRepos(draft, to: $0) })
         failure = result.problem
-        keep(result)
         if result.isWritten { saved = draft }
         return result == .saved
     }

@@ -118,11 +118,11 @@ public func repoRows(draft: [String], saved: [String], snapshot: PanelSnapshot?)
     draft.map { name in
         let epics = repoEpics(name, snapshot: snapshot)
         if saved.contains(name) == false {
-            return RepoRow(name: name, health: .unknown, line: "Not checked yet · Carrier looks at it after it starts with the new list", epics: nil, isNew: true)
+            return RepoRow(name: name, health: .unknown, line: "Not checked yet", epics: nil, isNew: true)
         }
         guard let snapshot else { return RepoRow(name: name, health: .unknown, line: "Carrier is stopped", epics: nil, isNew: false) }
         guard let watched = snapshot.watched?.first(where: { $0.repo == name }) else {
-            return RepoRow(name: name, health: .unknown, line: "Carrier has not loaded it yet · it does at its next reload or start", epics: epics, isNew: false)
+            return RepoRow(name: name, health: .unknown, line: "Not in use yet", epics: epics, isNew: false)
         }
         if watched.ok == false {
             return RepoRow(name: name, health: .error, line: watched.error ?? "GitHub refused it", epics: epics, isNew: false, isLoaded: true)

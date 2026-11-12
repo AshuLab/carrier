@@ -96,9 +96,9 @@ struct ProvidersTabView: View {
                             .lineLimit(2).truncationMode(.middle).copyOnHover(tool.path ?? line)
                     }
                 }
-                if let failure { Label(failure, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange) }
+                if let failure { ProblemLine(text: failure, font: .caption) }
                 // an editor that closed after a save the engine did not apply leaves its words here
-                if editing == nil, adding == nil, let problem = store.editProblem { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange) }
+                if editing == nil, adding == nil, let problem = store.editProblem { ProblemLine(text: problem, font: .caption) }
                 switch tool.status {
                 case .missing: EmptyStateView(icon: "arrow.down.circle", title: "\(tool.title) is not installed", line: "Not found on this Mac, so there are no accounts to show.").frame(minHeight: 260)
                 case .foundNotAdded:
@@ -106,7 +106,7 @@ struct ProvidersTabView: View {
                         note("Found on this Mac and not added as an account yet.")
                         HStack(spacing: 10) {
                             Button("Add") { Task { await store.add(harness: tool.id) } }.buttonStyle(SecondaryCapsuleButtonStyle())
-                            if let problem = store.addProblem { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
+                            if let problem = store.addProblem { ProblemLine(text: problem) }
                         }
                     }
                 default:

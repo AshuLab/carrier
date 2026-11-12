@@ -171,7 +171,8 @@ func aRepoThatIsNotOwnerSlashNameIsRefusedBeforeItIsSent(repo: String) throws {
 
 @Test func withNoEngineOrOneThatDoesNotListReloadTheFunctionSendsNothingAndIsNotAnError() {
     #expect(reloadEngine(socketPath: "/tmp/carrier-no-such-engine.sock") == .nobody)
+    // a running engine that cannot reload is told apart from a stopped Carrier: the page says it reads the files when it restarts
     let older = FixtureEngine(capabilities: all)
     defer { older.stop() }
-    #expect(reloadEngine(socketPath: older.path) == .nobody && older.commands.isEmpty)
+    #expect(reloadEngine(socketPath: older.path) == .unsupported && older.commands.isEmpty)
 }

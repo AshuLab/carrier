@@ -58,7 +58,7 @@ public enum RoleSave: Equatable {
     case refused(String)
     /// the file could not be read or written
     case failed(String)
-    /// written, and the engine, asked to apply it, kept its settings: what the page says (`reloadRefusedWords`)
+    /// written, and the engine, asked in line (a `Reload` that waits for the answer), did not apply it: what the page says (`reloadWords`)
     case notApplied(String)
 }
 
@@ -80,7 +80,7 @@ extension RoleSave {
     }
 }
 
-/// `.saved` after a write, or `.notApplied` when the engine, asked to `reload`, refused what was written or did not answer. Call it only after the write worked.
+/// `.saved` after a write, or `.notApplied` when `reload` answered that the engine did not apply what was written. Call it only after the write worked.
 func written(_ reload: Reload) -> RoleSave {
     reloadWords(reload()).map { .notApplied($0) } ?? .saved
 }
@@ -109,7 +109,7 @@ func applyingRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, to j
 
 /// Saves `fields` as the repo's own `role` (nil resets it) in the file at `path`, read just now. A profile or account that is not declared
 /// is refused before anything is written.
-public func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String], reload: Reload) -> RoleSave {
+public func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String], reload: Reload = reloadInBackground) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), let roles = repoRoles(json: current, repo: repo) else {
         return .failed("The config file could not be read.")

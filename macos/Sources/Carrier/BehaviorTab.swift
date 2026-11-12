@@ -14,6 +14,8 @@ struct BehaviorTabView: View {
     @State private var unreadable = false
     @State private var failure: String?
     @State private var note: String?
+    /// what the engine answered to the last save, from any tab
+    private let engine = ReloadStatus.shared
 
     private var path: String { configFilePath() }
 
@@ -23,7 +25,9 @@ struct BehaviorTabView: View {
             return SettingsHeaderNote(text: "The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", tone: .problem)
         }
         if let failure { return SettingsHeaderNote(text: failure, tone: .problem) }
-        if let note { return SettingsHeaderNote(text: note, tone: .saved) }
+        if let words = engine.words { return SettingsHeaderNote(text: words, tone: .problem) }
+        // "Saved" waits for the engine's answer, so it never shows over a refusal that is on its way
+        if let note, engine.pending == false { return SettingsHeaderNote(text: note, tone: .saved) }
         return nil
     }
 
@@ -130,16 +134,12 @@ struct BehaviorTabView: View {
         draft = saved
     }
 
-    /// Writes the file and asks Carrier to apply it; false (with the reason shown) when it could not write. A write the engine did not apply
-    /// is shown the same way when it answers, with the file saved.
+    /// Writes the file; the engine is asked after the write and off the main thread (this runs at every edit, and one that hangs must not hold
+    /// the page), and what it answers is `engine`'s. False, with the reason shown, when it could not write.
     private func write() -> Bool {
-        // the engine is asked after the write and off the main thread: this runs at every edit, and one that hangs must not hold the page
-        let result = saveConfig(path: path, unusable: "The config file could not be read or the values are not valid.", edit: { draft.applied(to: $0) }, reload: { .nobody })
+        let result = saveConfig(path: path, unusable: "The config file could not be read or the values are not valid.", edit: { draft.applied(to: $0) })
         failure = result.problem
-        if result.isWritten {
-            saved = draft
-            reloadEngineInBackground { if let words = $0 { failure = words } }
-        }
+        if result.isWritten { saved = draft }
         return result == .saved
     }
 

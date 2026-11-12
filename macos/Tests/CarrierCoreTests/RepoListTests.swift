@@ -105,7 +105,7 @@ func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
     let rows = repoRows(draft: [name, "bad/repo", "later/one", "new/repo"], saved: [name, "bad/repo", "later/one"], snapshot: snapshot)
     #expect(rows[0].health == .ok && rows[0].line.hasPrefix("Checked 2m"))
     #expect(rows[1].health == .error && rows[1].line == "GitHub refused the profile")
-    #expect(rows[2].health == .unknown && rows[2].line.hasPrefix("Carrier has not loaded it yet"))
+    #expect(rows[2].health == .unknown && rows[2].line == "Not in use yet")
     #expect(rows[3].isNew && rows[3].line.hasPrefix("Not checked yet"))
 
     let stopped = repoRows(draft: ["a/b"], saved: ["a/b"], snapshot: nil)

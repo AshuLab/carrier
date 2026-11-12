@@ -76,7 +76,7 @@ struct AccountEditor: View {
                         }
                     }
                 }
-                if let problem = store.editProblem { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
+                if let problem = store.editProblem { ProblemLine(text: problem) }
                 HStack(spacing: 10) {
                     Button(role: .destructive) {
                         Task { if await store.remove(name: account.name) { close() } }
@@ -133,7 +133,7 @@ struct AddAccountForm: View {
                     TextField("~/.\(harness)-work", text: $folder).settingsField(width: 240)
                 }
             }
-            if let message = problem ?? store.editProblem { Label(message, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
+            if let message = problem ?? store.editProblem { ProblemLine(text: message) }
             HStack(spacing: 10) {
                 Spacer()
                 Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }

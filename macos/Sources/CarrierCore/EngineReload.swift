@@ -6,25 +6,29 @@ import Foundation
 public enum ReloadOutcome: Equatable, Sendable {
     /// the engine read the files and runs on them
     case applied
-    /// there was no one to ask (Carrier stopped, or an engine that does not list `reload`): it reads the files when it starts
+    /// there was no one to ask (Carrier is stopped): it reads the files when it starts
     case nobody
+    /// the engine is running and does not list `reload` (an older one): it reads the files when it restarts
+    case unsupported
     /// the engine kept its settings; its problem, the key named
     case refused(String)
     /// an engine that was there did not answer (a timeout, a socket error): the file is written, and it reads it when it starts
     case noAnswer
+    /// the ask was handed to `ReloadStatus`, which keeps the answer when it comes
+    case asked
 }
 
-/// What a writer calls after its own successful write, and only then: asks the engine to read its settings again.
+/// What a writer calls after its own successful write, and only then: asks the running engine to read its settings again.
 public typealias Reload = () -> ReloadOutcome
 
-/// `Reload` for the engine at `socketPath`. Blocks until the engine has answered, which is quick: a saver that runs for every edit
-/// calls `reloadEngineInBackground` instead.
+/// `Reload` for the engine at `socketPath`. Blocks until the engine has answered (3 s to connect, 3 s to reply at most): a page runs it
+/// through `reloadInBackground`, a model that already waits (`await reloadOffMain`) runs it on its own.
 public func reloadEngine(socketPath: String = controlSocketPath()) -> ReloadOutcome {
     guard let client = ControlClient.connect(path: socketPath, timeout: 3) else { return .nobody }
     defer { client.close() }
     do {
         _ = try client.hello()
-        return try client.reload() ? .applied : .nobody
+        return try client.reload() ? .applied : .unsupported
     } catch ControlError.remote(let problem) {
         return .refused(problem)
     } catch {
@@ -33,32 +37,62 @@ public func reloadEngine(socketPath: String = controlSocketPath()) -> ReloadOutc
     }
 }
 
-/// `reloadEngine` off the main thread, for a page that saves at every edit: `done` gets the words to show when the engine did not apply
-/// the file (`reloadWords`), on the main actor, once it has answered.
-public func reloadEngineInBackground(socketPath: String = controlSocketPath(), done: @escaping @MainActor (String?) -> Void) {
-    Task.detached {
-        let outcome = reloadEngine(socketPath: socketPath)
-        await MainActor.run { done(reloadWords(outcome)) }
+/// `reload` off the main thread, for whoever awaits it.
+public func reloadOffMain(_ reload: @escaping Reload) async -> ReloadOutcome {
+    await Task.detached { reload() }.value
+}
+
+/// The last answer of the engine to a save of the settings, for every page that saves them: one answer outlives the tab that asked, and
+/// an answer to an older ask is dropped when a newer one was made.
+@MainActor @Observable public final class ReloadStatus {
+    public static let shared = ReloadStatus()
+    /// What the engine answered to the last ask; nil before any
+    public private(set) var outcome: ReloadOutcome?
+    /// An ask has not been answered yet
+    public private(set) var pending = false
+
+    @ObservationIgnored private var asks = 0
+    @ObservationIgnored private let reload: Reload
+
+    public init(reload: @escaping Reload = { reloadEngine() }) { self.reload = reload }
+
+    /// What the page says when the engine did not apply what was saved; nil when it did, or there was no one to ask.
+    public var words: String? { outcome.flatMap(reloadWords) }
+
+    /// Asks the engine off the main thread. The returned task ends when the answer is in (or was dropped).
+    @discardableResult public func ask() -> Task<Void, Never> {
+        asks += 1
+        let mine = asks
+        pending = true
+        return Task { [reload] in
+            let answer = await reloadOffMain(reload)
+            guard mine == asks else { return }
+            outcome = answer
+            pending = false
+        }
     }
 }
 
-/// What the page says when the file is saved and the engine did not apply it.
-public func reloadRefusedWords(_ problem: String) -> String {
-    "Saved, but Carrier kept its settings: \(problem)"
+/// The `Reload` of the pages: hands the ask to `ReloadStatus.shared` at once and says `.asked`, so a save never waits for the engine. For the
+/// main actor, where the pages save.
+public func reloadInBackground() -> ReloadOutcome {
+    MainActor.assumeIsolated { ReloadStatus.shared.ask() }
+    return .asked
 }
 
-/// What the page says for an outcome that needs saying: nil when the engine applied the file or there was no one to ask.
+/// What the page says when the file is saved and the engine did not apply it: nil when it did, there was no one to ask, or the answer is on its way.
 public func reloadWords(_ outcome: ReloadOutcome) -> String? {
     switch outcome {
-    case .applied, .nobody: nil
-    case .refused(let problem): reloadRefusedWords(problem)
+    case .applied, .nobody, .asked: nil
+    case .refused(let problem): "Saved, but Carrier kept its settings: \(problem)"
     case .noAnswer: "Saved, but Carrier did not answer: it will read the file when it starts."
+    case .unsupported: "Saved. This Carrier does not apply it while it runs: it will read the file when it restarts."
     }
 }
 
 /// What the Behavior and Repos tabs save with: `edit` rewrites the file at `path`, read just now so a save of another tab in between is not
 /// lost; `unusable` is what to say when it cannot be read or `edit` gives nothing. A written file is followed by `reload`.
-public func saveConfig(path: String, unusable: String, edit: (Data) -> Data?, reload: Reload) -> RoleSave {
+public func saveConfig(path: String, unusable: String, edit: (Data) -> Data?, reload: Reload = reloadInBackground) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), let updated = edit(current) else { return .failed(unusable) }
     do {

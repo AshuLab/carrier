@@ -547,7 +547,7 @@ public struct WatchNote: Equatable {
 
     /// Adds `repo` to the config's `repos`, the file read again just now; the engine is then asked to reload, so nothing is restarted. What it
     /// came to is the session's `watchNotes`.
-    private func addToWatched(_ repo: String, session id: String) {
+    private func addToWatched(_ repo: String, session id: String) async {
         func failed(_ reason: String) { watchNotes[id] = WatchNote(text: "\(repo) could not be added to Carrier's list: \(reason).", failed: true) }
         guard let json = readConfig(), let names = configRepoNames(json: json) else {
             return failed("the config file could not be read or is not a JSON object")
@@ -558,12 +558,9 @@ public struct WatchNote: Equatable {
         do {
             try writeConfig(updated)
             watched = names + [repo]
-            switch reload() {
-            case .applied: watchNotes[id] = WatchNote(text: "Carrier will listen to \(repo) from its next check.", failed: false)
-            case .nobody: watchNotes[id] = WatchNote(text: "Carrier will listen to \(repo) from its next start.", failed: false)
-            case .refused(let problem): watchNotes[id] = WatchNote(text: "\(repo) was added to Carrier's list, but Carrier kept its settings: \(problem)", failed: true)
-            case .noAnswer: watchNotes[id] = WatchNote(text: "\(repo) was added to Carrier's list, but Carrier did not answer: it will listen to it from its next start.", failed: true)
-            }
+            // the engine may take seconds: the page does not wait for it
+            let note = addedRepoNote(repo, outcome: await reloadOffMain(reload))
+            watchNotes[id] = WatchNote(text: note.text, failed: note.failed)
         } catch {
             log("new session: could not write the config: \(error)")
             failed("the config file is not writable")
@@ -582,7 +579,7 @@ public struct WatchNote: Equatable {
             }
             if found.state != .preparing, found.preparation == nil {
                 pendingWatches[id] = nil
-                addToWatched(repo, session: id)
+                await addToWatched(repo, session: id)
             }
         }
     }

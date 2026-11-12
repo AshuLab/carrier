@@ -22,7 +22,7 @@ private func updateConfig(path: String, reload: Reload, _ edit: (inout [String: 
 
 /// Sets the global `role`'s persona to `name` and `prompt`, either one alone or both; nil for both removes it. A text given but empty, a name over
 /// 40 characters or with a line break, or a prompt over 4000 characters is refused before writing.
-public func saveGlobalPersona(name: String?, prompt: String?, role: AgentRole, path: String, reload: Reload) -> RoleSave {
+public func saveGlobalPersona(name: String?, prompt: String?, role: AgentRole, path: String, reload: Reload = reloadInBackground) -> RoleSave {
     for (label, text) in [("name", name), ("prompt", prompt)] where text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
         return .refused("The persona’s \(label) cannot be empty. Leave it out instead.")
     }
@@ -43,7 +43,7 @@ public func saveGlobalPersona(name: String?, prompt: String?, role: AgentRole, p
 /// Sets the first two steps of the global `role`'s failover to `first` and `second`, and keeps the steps after them that the file has. Both nil
 /// is Switch automatically off: the role's list is removed. Each step needs a declared provider; a step equal to another of the list or to the
 /// role's own provider and model is refused (the engine's rule, `failover.roles.<role>.<n>`), with its position.
-public func saveGlobalFailover(first: FailoverStep?, second: FailoverStep?, role: AgentRole, path: String, accounts: [String], reload: Reload) -> RoleSave {
+public func saveGlobalFailover(first: FailoverStep?, second: FailoverStep?, role: AgentRole, path: String, accounts: [String], reload: Reload = reloadInBackground) -> RoleSave {
     if first == nil, second != nil { return .refused("Then needs a First step.") }
     func clean(_ step: FailoverStep) -> FailoverStep {
         let model = step.model?.trimmingCharacters(in: .whitespacesAndNewlines)

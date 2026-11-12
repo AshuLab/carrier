@@ -998,7 +998,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     return model
 }
 
-@MainActor @Test func theRepositoryIsAddedToTheConfigOnlyOnceTheMessageStepIsDoneKeepingEverythingElseAndSaysItListensFromTheNextCheck() async throws {
+@MainActor @Test func theRepositoryIsAddedToTheConfigOnlyOnceTheMessageStepIsDoneKeepingEverythingElseAndSaysCarrierAppliesItToTheNextEpic() async throws {
     let config = FakeConfig("""
     {"note": "kept", "limits": {"maxReviews": 7}, "repos": [{"name": "acme/web", "agents": {"author": {"profile": "p"}}}]}
     """)
@@ -1018,7 +1018,8 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     let repos = try #require(file["repos"] as? [[String: Any]])
     #expect(repos.map { $0["name"] as? String } == ["acme/web", "AshuLab/carrier"] && repos[0]["agents"] != nil && repos[1].keys.sorted() == ["name"])
     #expect(file["note"] as? String == "kept" && (file["limits"] as? [String: Any])?["maxReviews"] as? Int == 7)
-    #expect(model.watchNotes[opened] == WatchNote(text: "Carrier will listen to AshuLab/carrier from its next check.", failed: false))
+    await settle { model.watchNotes[opened] != nil }
+    #expect(model.watchNotes[opened] == WatchNote(text: "Carrier applies AshuLab/carrier to the next epic", failed: false))
     // once: looking again changes nothing
     await model.settleWatches()
     try await Task.sleep(for: .milliseconds(30))
@@ -1034,8 +1035,8 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     await model.settleWatches()
     #expect(asked.isEmpty)
     host.active = [listed(opened, "answered")]
-    await settle { config.writes == 1 }
-    #expect(asked.count == 1 && asked[0] == config.json)
+    await settle { asked.count == 1 }
+    #expect(config.writes == 1 && asked.count == 1 && asked[0] == config.json)
     // a config that cannot be written: nothing was written, nothing is asked
     let stuck = FakeConfig()
     stuck.unwritable = true
@@ -1057,10 +1058,11 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     #expect(model.watchNotes[opened] == WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier kept its settings: repos.1.name: bad", failed: true))
 }
 
-@MainActor @Test func withNoEngineToAskTheNoteSaysNextStartAndWithOneThatDidNotAnswerItSaysSo() async {
+@MainActor @Test func withNoEngineToAskTheNoteSaysItIsReadAtStartAndWithOneThatDidNotAnswerItSaysSo() async {
     for (outcome, note) in [
-        (ReloadOutcome.nobody, WatchNote(text: "Carrier will listen to AshuLab/carrier from its next start.", failed: false)),
-        (.noAnswer, WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier did not answer: it will listen to it from its next start.", failed: true)),
+        (ReloadOutcome.nobody, WatchNote(text: "Carrier reads AshuLab/carrier when it starts", failed: false)),
+        (.unsupported, WatchNote(text: "Carrier reads AshuLab/carrier when it starts", failed: false)),
+        (.noAnswer, WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier did not answer: it will read it when it starts.", failed: true)),
     ] {
         let config = FakeConfig()
         let host = FakeChat()

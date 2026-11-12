@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The place pill in a session's toolbar ("In the folder", "Worktree") has room on its right, so it lines up with the window's corner.
+
 ## [0.2.0] - 2026-11-11
 
 Carrier's Mac app now updates itself, and Settings grows pages for Providers, Agents and Repos.

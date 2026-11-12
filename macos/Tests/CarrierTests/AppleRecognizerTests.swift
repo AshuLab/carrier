@@ -9,8 +9,13 @@ import Testing
 let dictationGate = Testing.ConditionTrait.enabled(if: ProcessInfo.processInfo.environment["CARRIER_IT_DICTATION"] != nil)
 
 /// The short Spanish clip of the test resources, made with `say`, as the buffers a capture would give.
-func spanishClip() throws -> [CarrierCore.AudioBuffer] {
-    let url = try #require(Bundle.module.url(forResource: "hola-es", withExtension: "wav"))
+func spanishClip() throws -> [CarrierCore.AudioBuffer] { try clip("hola-es") }
+
+/// The English one, for the models that only understand English.
+func englishClip() throws -> [CarrierCore.AudioBuffer] { try clip("hello-en") }
+
+private func clip(_ name: String) throws -> [CarrierCore.AudioBuffer] {
+    let url = try #require(Bundle.module.url(forResource: name, withExtension: "wav"))
     let file = try AVAudioFile(forReading: url)
     let buffer = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)))
     try file.read(into: buffer)

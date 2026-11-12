@@ -10,6 +10,7 @@ private func model(_ name: String, languages: Set<String>, detects: Bool) -> Spe
 }
 
 private let parakeet = model("Parakeet", languages: ["de", "en", "es"], detects: true)
+private let nemotronMultilingual = model("Nemotron 3.5", languages: ["de", "en", "es", "fr", "it", "ja", "pt", "zh"], detects: true)
 private let nemotronEnglish = model("Nemotron EN", languages: ["en"], detects: false)
 private let apple = model("Apple", languages: ["en", "es", "fr"], detects: false)
 
@@ -35,6 +36,12 @@ private struct Case: CustomTestStringConvertible, Sendable {
          offered: ["en"], selected: "en"),
     Case(name: "an English-only model drops a saved language it does not understand", model: nemotronEnglish, macOS: ["es-AR"], saved: "es",
          offered: ["en"], selected: "en"),
+    Case(name: "the eight-language model offers Automatic first, then the languages of macOS it understands, then the others by code", model: nemotronMultilingual,
+         macOS: ["es-AR", "en-US", "ru-RU"], saved: nil, offered: [automaticLanguage, "es", "en", "de", "fr", "it", "ja", "pt", "zh"], selected: automaticLanguage),
+    Case(name: "the eight-language model keeps a saved language it offers and drops one it does not", model: nemotronMultilingual, macOS: ["es-AR"], saved: "ja",
+         offered: [automaticLanguage, "es", "de", "en", "fr", "it", "ja", "pt", "zh"], selected: "ja"),
+    Case(name: "the eight-language model goes back to Automatic when the saved language is Russian", model: nemotronMultilingual, macOS: ["es-AR"], saved: "ru",
+         offered: [automaticLanguage, "es", "de", "en", "fr", "it", "ja", "pt", "zh"], selected: automaticLanguage),
     Case(name: "Apple's has no Automatic and starts on the first language of macOS that it supports", model: apple, macOS: ["ja-JP", "es-AR", "en-US"], saved: nil,
          offered: ["es", "en", "fr"], selected: "es"),
     Case(name: "Apple's with no supported language of macOS starts on the first it offers", model: apple, macOS: ["ja-JP"], saved: nil,
@@ -54,6 +61,7 @@ private func theLanguagePageOffersAFunctionOfTheModelMacOSAndTheSavedChoice(c: C
     #expect(languageChoices(for: apple, macOSLanguages: [], saved: nil).hint.contains("one language"))
     #expect(languageChoices(for: nemotronEnglish, macOSLanguages: [], saved: nil).hint == "This model only understands English")
     #expect(languageChoices(for: parakeet, macOSLanguages: [], saved: nil).hint.contains("mix Spanish and English"))
+    #expect(languageChoices(for: nemotronMultilingual, macOSLanguages: [], saved: "en").hint == "Choose Automatic to mix languages")
 }
 
 @Test func theSwitchDimsEveryRowButItselfStorageAndReset() {

@@ -23,6 +23,7 @@ struct SessionsRows: View {
     /// The search field's text while it is open, nil while it is closed; not remembered between launches.
     @State private var query: String?
     @FocusState private var searching: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// What the pointer is over, by group: the header and each row of it. A group's + shows while the pointer is anywhere in the group; a set
     /// and not a flag, because leaving one row and entering the next arrive in either order.
     @State private var hovering: [String: Set<String>] = [:]
@@ -70,43 +71,47 @@ struct SessionsRows: View {
         .onChange(of: open) { if open == false { query = nil } }
         .onChange(of: searchRequest) { if searchRequest?.section == .sessions { openSearch() } }
         if open {
-            if query != nil {
-                // not `Binding($query)`: its getter force-unwraps, and the field reads it once more after the query is nil
-                SidebarSearchField(
-                    placeholder: "Search sessions", text: Binding(get: { query ?? "" }, set: { query = $0 }), focus: $searching,
-                    close: { query = nil }
-                )
-            }
-            let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", pinned: pinnedIds(pinnedStored), now: Date(), calendar: .current)
-            if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
-                SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
-            }
-            if ChatHostStarter.shared.restartAdvised {
-                SidebarEmptyBlock(icon: "arrow.clockwise", title: chatHostRestartNotice.title, line: chatHostRestartNotice.line) { EmptyView() }
-            }
-            if let notice = ChatHostStarter.shared.upgradeNotice {
-                SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
-            }
-            switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
-            case .empty where ChatHostStarter.shared.missing.isEmpty:
-                let empty = EmptyState.noSessions
-                SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
-                    Button("New session", action: newSession).help("New session")
+            // one block, so the list slides open and shut (the animation is the sidebar's, on `open`)
+            LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
+                if query != nil {
+                    // not `Binding($query)`: its getter force-unwraps, and the field reads it once more after the query is nil
+                    SidebarSearchField(
+                        placeholder: "Search sessions", text: Binding(get: { query ?? "" }, set: { query = $0 }), focus: $searching,
+                        close: { query = nil }
+                    )
                 }
-            case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
-            case .rows, .empty: EmptyView()
-            }
-            ForEach(groups, id: \.title) { group in
-                GroupHeader(
-                    title: group.title, over: hovering[group.title]?.isEmpty == false, hover: track(group.title, "header"),
-                    add: sort == .workspace && group.title != "Pinned" ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil
-                )
-                ForEach(group.rows, id: \.id) { row in
-                    SessionRowView(row: row, showsWorkspace: sort != .workspace)
-                        .selectableSidebarRow(selected: selection == .session(id: row.id)) { selection = .session(id: row.id) }
-                        .onHover(perform: track(group.title, row.id))
+                let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", pinned: pinnedIds(pinnedStored), now: Date(), calendar: .current)
+                if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
+                    SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
+                }
+                if ChatHostStarter.shared.restartAdvised {
+                    SidebarEmptyBlock(icon: "arrow.clockwise", title: chatHostRestartNotice.title, line: chatHostRestartNotice.line) { EmptyView() }
+                }
+                if let notice = ChatHostStarter.shared.upgradeNotice {
+                    SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
+                }
+                switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
+                case .empty where ChatHostStarter.shared.missing.isEmpty:
+                    let empty = EmptyState.noSessions
+                    SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
+                        Button("New session", action: newSession).help("New session")
+                    }
+                case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
+                case .rows, .empty: EmptyView()
+                }
+                ForEach(groups, id: \.title) { group in
+                    GroupHeader(
+                        title: group.title, over: hovering[group.title]?.isEmpty == false, hover: track(group.title, "header"),
+                        add: sort == .workspace && group.title != "Pinned" ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil
+                    )
+                    ForEach(group.rows, id: \.id) { row in
+                        SessionRowView(row: row, showsWorkspace: sort != .workspace)
+                            .selectableSidebarRow(selected: selection == .session(id: row.id)) { selection = .session(id: row.id) }
+                            .onHover(perform: track(group.title, row.id))
+                    }
                 }
             }
+            .transition(reduceMotion ? .opacity : .reveal)
         }
     }
 }

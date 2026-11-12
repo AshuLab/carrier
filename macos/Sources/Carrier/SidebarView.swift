@@ -46,6 +46,7 @@ struct SidebarView: View {
     @State private var searching = false
     @State private var query = ""
     @FocusState private var searchFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var sidebarEpicCount: Int { snapshot.map { sidebarGroups($0, by: groupBy).reduce(0) { $0 + $1.count } } ?? 0 }
 
@@ -63,53 +64,59 @@ struct SidebarView: View {
                 SidebarSectionRow(title: "Home", icon: "house", selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
                 SessionsRows(
                     sessions: sessions, sort: $sessionSort, selection: $selection, selected: selection == .sessions,
-                    select: { selection = .sessions }, // Archive is a panel under the list, not a replacement for it: the sessions stay unfolded while it is open
+                    select: { selection = .sessions },
+                    // Archive is a panel under the list, not a replacement for it: the sessions stay unfolded while it is open
                     open: Binding(get: { open == .sessions || open == .archive }, set: { open = $0 ? .sessions : nil }),
                     searchRequest: searchRequest, newSession: { selection = .newSession }, newSessionIn: newSessionIn
                 )
                 // Carrier is under Sessions while it is the open section, with its epics; otherwise it is a row in the foot
                 if open == .carrier { carrierRow(epicCount: epicCount) }
                 if let snapshot, open == .carrier {
-                    if searching {
-                        SidebarSearchField(placeholder: "Search epics", text: $query, focus: $searchFocused, close: { searching = false })
-                    }
-                    let queried = query.trimmingCharacters(in: .whitespaces).isEmpty == false
-                    let groups = sidebarGroups(snapshot, by: groupBy, query: query)
-                    switch SidebarListState(shown: groups.reduce(0) { $0 + $1.count }, of: epicCount, query: query) {
-                    case .empty: SidebarEmptyBlock(state: .noEpics)
-                    case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
-                    case .rows: EmptyView()
-                    }
-                    ForEach(groups.indices, id: \.self) { index in
-                        let group = groups[index]
-                        // while a query is typed every group is open, so there is nothing to toggle
-                        let expanded = queried || !collapse.isCollapsed(group, by: groupBy, query: query)
-                        Button {
-                            if queried == false { collapse.toggle(group, by: groupBy) }
-                        } label: {
-                            HStack {
-                                Text(group.title)
-                                Spacer(minLength: 0)
-                                Text("\(group.count)").monospacedDigit()
-                                Image(systemName: "chevron.right").imageScale(.small).rotationEffect(.degrees(expanded ? 90 : 0))
-                                    .opacity(queried ? 0 : 1)
-                            }
-                            .font(SidebarMetrics.group).foregroundStyle(.secondary)
-                            .frame(height: 22).padding(.horizontal, SidebarMetrics.inset)
-                            .contentShape(Rectangle())
+                    LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
+                        if searching {
+                            SidebarSearchField(placeholder: "Search epics", text: $query, focus: $searchFocused, close: { searching = false })
                         }
-                        .buttonStyle(HoverFillButtonStyle())
-                        .padding(.top, SidebarMetrics.groupTop)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityHint(expanded ? "Folds the group" : "Unfolds the group")
-                        if expanded {
-                            ForEach(group.rows, id: \.selection) { row in
-                                SidebarRowView(row: row).selectableSidebarRow(selected: selection == row.selection) { selection = row.selection }
+                        let queried = query.trimmingCharacters(in: .whitespaces).isEmpty == false
+                        let groups = sidebarGroups(snapshot, by: groupBy, query: query)
+                        switch SidebarListState(shown: groups.reduce(0) { $0 + $1.count }, of: epicCount, query: query) {
+                        case .empty: SidebarEmptyBlock(state: .noEpics)
+                        case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
+                        case .rows: EmptyView()
+                        }
+                        ForEach(groups.indices, id: \.self) { index in
+                            let group = groups[index]
+                            // while a query is typed every group is open, so there is nothing to toggle
+                            let expanded = queried || !collapse.isCollapsed(group, by: groupBy, query: query)
+                            Button {
+                                if queried == false { collapse.toggle(group, by: groupBy) }
+                            } label: {
+                                HStack {
+                                    Text(group.title)
+                                    Spacer(minLength: 0)
+                                    Text("\(group.count)").monospacedDigit()
+                                    Image(systemName: "chevron.right").imageScale(.small).rotationEffect(.degrees(expanded ? 90 : 0))
+                                        .opacity(queried ? 0 : 1)
+                                }
+                                .font(SidebarMetrics.group).foregroundStyle(.secondary)
+                                .frame(height: 22).padding(.horizontal, SidebarMetrics.inset)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(HoverFillButtonStyle())
+                            .padding(.top, SidebarMetrics.groupTop)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityHint(expanded ? "Folds the group" : "Unfolds the group")
+                            if expanded {
+                                ForEach(group.rows, id: \.selection) { row in
+                                    SidebarRowView(row: row).selectableSidebarRow(selected: selection == row.selection) { selection = row.selection }
+                                }
                             }
                         }
                     }
+                    .transition(reduceMotion ? .opacity : .reveal)
                 }
             }
+            // the open section's list slides open and shut, and Carrier's row moves between the list and the foot with it
+            .animation(.smooth(duration: 0.25), value: open)
             .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
         }
         .onChange(of: searching) { if searching { searchFocused = true } else { query = "" } }
@@ -140,6 +147,7 @@ struct SidebarView: View {
                 SidebarSectionRow(title: "Settings", icon: "gearshape", selected: false, action: openSettings)
                     .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
             }
+            .animation(.smooth(duration: 0.25), value: open)
         }
     }
 }

@@ -273,6 +273,15 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     })
 }
 
+@Test func aNoticeFromTheHostIsAPlainLineAndNeverTheBannerThatOffersTryAgain() {
+    let rows = chatFeed([
+        ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
+        ChatEvent(id: 2, at: 1, kind: "notice", text: "The agent could not find this conversation"),
+    ])
+    #expect(rows.last == .line(id: "e2", text: "The agent could not find this conversation"))
+    #expect(openOutcome(rows) == nil)
+}
+
 @Test func aTurnThatEndsInAnErrorMarksItsLastRunFailedAndAnAnswerAfterTheRunKeepsItClean() {
     let ended = chatFeed([
         ChatEvent(id: 1, at: 0, kind: "user", text: "go"),

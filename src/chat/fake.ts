@@ -12,6 +12,7 @@ import { ChatRefused, type ChatCommand, type ChatConversation, type ChatEvent, t
 export class FakeConversation implements ChatConversation {
   options: ChatOption[] = [];
   nativeId: string | undefined;
+  startedOver = false;
   process: ChatConversation['process'];
   sent: string[] = [];
   answers: { approvalId: string; choiceId: string; answers?: Record<string, string> }[] = [];

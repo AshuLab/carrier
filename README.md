@@ -7,6 +7,7 @@
 
 <p align="center">
   <img alt="Node.js 22+" src="https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white" />
+  <img alt="Swift 6.2" src="https://img.shields.io/badge/Swift-6.2-F05138?logo=swift&logoColor=white" />
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue" />
 </p>
 

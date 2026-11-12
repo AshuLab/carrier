@@ -290,7 +290,7 @@ test('a resume whose transcript is gone starts a new conversation in the same fo
 test('a resume that fails for another reason refuses, and so does one whose new conversation cannot start either', async () => {
   const failing = (message: string) => (() => ({ initializationResult: async () => Promise.reject(new Error(message)), close() {}, [Symbol.asyncIterator]: () => ({ next: () => new Promise(() => {}) }) })) as unknown as typeof sdkQuery;
   await expect(claudeChatRunner(deps(failing('boom'))).open({ folder: '/work', resume: 'x', env: {} })).rejects.toThrow(/could not resume/);
-  await expect(claudeChatRunner(deps(failing('No conversation found with session ID: x'))).open({ folder: '/work', resume: 'x', env: {} })).rejects.toThrow(/could not resume/);
+  await expect(claudeChatRunner(deps(failing('No conversation found with session ID: x'))).open({ folder: '/work', resume: 'x', env: {} })).rejects.toThrow(/^Claude could not be started$/);
 });
 
 test('an account\'s binary and login folder are what the login check and the SDK start with', async () => {

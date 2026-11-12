@@ -100,6 +100,7 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
       else if (event.kind === 'assistant') write(`${event.text}\n`);
       else if (event.kind === 'tool_start') write(`  [${event.tool}${event.arg ? ` ${event.arg}` : ''}]\n`);
       else if (event.kind === 'error') write(`error: ${event.text}\n`);
+      else if (event.kind === 'notice') write(`[${event.text}]\n`);
     }
   }
 

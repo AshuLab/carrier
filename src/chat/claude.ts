@@ -70,6 +70,7 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
       try {
         return await begin(resume);
       } catch (error) {
+        // `claude --resume <unknown id>` ends with "No conversation found with session ID: <id>" (the SDK prefixes it with "Claude Code returned an error result: ").
         // Claude Code keeps its transcripts in its own config folder; when they are gone (a broken `projects` link, a cleaned folder) it cannot resume and never will. Start over in the same folder instead of failing on every try.
         if (resume !== undefined && /No conversation found/i.test(String(error instanceof Error ? error.message : error))) {
           log.warn(`claude has no transcript for ${resume}; starting a new conversation in its folder`);
@@ -79,7 +80,7 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
             return conversation;
           } catch (retry) {
             log.error('claude could not be started', retry);
-            throw new ChatRefused('Claude could not resume that conversation');
+            throw new ChatRefused('Claude could not be started');
           }
         }
         log.error('claude could not be started', error);

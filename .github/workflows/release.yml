@@ -179,12 +179,13 @@ jobs:
         if: env.DRY_RUN != 'true'
         run: |
           URL="https://registry.npmjs.org/@ashulab/carrier/-/carrier-$VERSION.tgz"
-          # The registry can take a moment to serve what was just published.
-          for i in 1 2 3 4 5 6; do
+          # npm validates a version it was just given before it serves the tarball: about 5 minutes for 0.3.0, "minutes or hours" in
+          # npm's words. 11 tries 45 s apart is about 8 minutes; past that the step fails and a re-run finishes the release.
+          for i in $(seq 1 11); do
             curl -fsSL "$URL" -o published.tgz && break
-            sleep 10
+            [ "$i" -lt 11 ] && sleep 45
           done
-          test -f published.tgz
+          test -f published.tgz || { echo "npm is not serving $URL yet: re-run the failed job once it does"; exit 1; }
           PUBLISHED="$(shasum -a 256 published.tgz | cut -d' ' -f1)"
           sed -i '' -E "s|^  sha256 \".*\"|  sha256 \"$PUBLISHED\"|" formula/carrier.rb
 

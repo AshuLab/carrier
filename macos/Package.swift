@@ -18,7 +18,7 @@ let package = Package(
             .product(name: "WhisperKit", package: "argmax-oss-swift"),
         ]),
         .testTarget(name: "CarrierCoreTests", dependencies: ["CarrierCore"]),
-        .testTarget(name: "CarrierTests", dependencies: ["Carrier"]),
+        .testTarget(name: "CarrierTests", dependencies: ["Carrier"], resources: [.copy("Resources/hola-es.wav")]),
     ],
     swiftLanguageModes: [.v5]
 )

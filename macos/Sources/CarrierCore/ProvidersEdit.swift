@@ -1,7 +1,7 @@
 import Foundation
 
 // Add, edit and remove an account of `providers.json` (docs/specs/providers-in-settings.md, docs/adr/0020). The app checks what it cheaply can
-// with the rules of `src/config/providers.ts` (the name's pattern, the range of Auto-compact, absolute paths, the flags Carrier sets itself)
+// with the rules of `src/config/providers.ts` (the name's pattern, the range of Auto-compact, absolute paths for the binary, the flags Carrier sets itself)
 // and never writes a file those rules refuse; the rest is the chat host's, which answers `problem` on the next `providers`. Every function takes
 // the file's bytes and returns the whole new file, keeping the keys the app does not know, so the caller has only to write it.
 
@@ -51,6 +51,14 @@ public struct AccountDraft: Equatable {
 /// "~" or "~/..." or "/...", with no control character: what the schema accepts once `~` is expanded.
 private func isAbsolute(_ path: String) -> Bool {
     (path.hasPrefix("/") || path == "~" || path.hasPrefix("~/")) && path.unicodeScalars.allSatisfy { $0.value >= 0x20 && $0.value != 0x7F }
+}
+
+/// The config folder as the file keeps it. The engine takes an absolute path or one that starts with `~/`, and a person can type anything: a
+/// path that is neither is taken from the home folder (`work` is `~/work`, `./work` too), so the file is always one the engine reads.
+public func normalizedConfigDir(_ text: String) -> String {
+    let path = text.trimmingCharacters(in: .whitespaces)
+    if path.isEmpty || isAbsolute(path) { return path }
+    return "~/" + (path.hasPrefix("./") ? String(path.dropFirst(2)) : path)
 }
 
 /// A name the engine accepts: `optionNamePattern`, `^[a-z][a-z0-9-]{0,39}$`.
@@ -104,8 +112,8 @@ public func draftProblems(_ draft: AccountDraft, harness: String) -> [String: St
     if draft.configDir.isEmpty == false {
         if harness == "agy" {
             problems["configDir"] = "Antigravity has no config folder setting."
-        } else if isAbsolute(draft.configDir) == false {
-            problems["configDir"] = "Config folder must be an absolute path, or start with ~/."
+        } else if draft.configDir.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) {
+            problems["configDir"] = "Config folder has a character that a path cannot have."
         }
     }
     if draft.autoCompact.isEmpty == false {
@@ -158,7 +166,7 @@ private func serialized(_ file: [String: Any], _ providers: [String: Any]) throw
 }
 
 /// `json` with a new account of `harness`: its name and, when given, its config folder. Refused for a name that is invalid or taken, a folder
-/// that is not absolute, and Antigravity, which has one account.
+/// that a path cannot have, and Antigravity, which has one account. A folder that is not absolute is taken from the home folder.
 public func applyingNewAccount(name: String, harness: String, configDir: String, to json: Data?) throws -> Data {
     if let problem = nameProblem(name) { throw ProvidersFileError.invalid(problem) }
     guard harness == "claude" || harness == "codex" else { throw ProvidersFileError.invalid("Only Claude Code and Codex take more accounts.") }
@@ -169,7 +177,7 @@ public func applyingNewAccount(name: String, harness: String, configDir: String,
     var (file, providers) = try parsed(json)
     guard providers[name] == nil else { throw ProvidersFileError.taken(name) }
     var account: [String: Any] = ["harness": harness]
-    if configDir.isEmpty == false { account["configDir"] = configDir }
+    if configDir.isEmpty == false { account["configDir"] = normalizedConfigDir(configDir) }
     providers[name] = account
     return try serialized(file, providers)
 }
@@ -185,7 +193,7 @@ public func applyingEdit(name: String, draft: AccountDraft, to json: Data?) thro
     let display = draft.displayName.trimmingCharacters(in: .whitespaces)
     set("displayName", display.isEmpty ? nil : display)
     set("command", draft.command.isEmpty ? nil : draft.command)
-    set("configDir", draft.configDir.isEmpty ? nil : draft.configDir)
+    set("configDir", draft.configDir.isEmpty ? nil : normalizedConfigDir(draft.configDir))
     set("autoCompact", draft.autoCompact.isEmpty ? nil : (Int(draft.autoCompact) as Any? ?? draft.autoCompact))
     set("launchArgs", draft.arguments.isEmpty ? nil : draft.arguments)
     switch draft.idle {
@@ -212,6 +220,3 @@ public func accountDraft(named name: String, in json: Data?) -> AccountDraft? {
           let account = (file["providers"] as? [String: Any])?[name] as? [String: Any] else { return nil }
     return AccountDraft(account: account)
 }
-
-/// Said under the accounts, as the Behavior tab says it of `config.json`: the engine reads the file when it starts.
-public let providersFooter = "The engine reads providers.json when it starts, so a running engine needs a restart to read a change. The chat host reads it at its next session."

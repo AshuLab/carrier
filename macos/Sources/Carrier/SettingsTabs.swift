@@ -11,6 +11,8 @@ struct SettingsTabRow<Control: View>: View {
     let detail: String
     var first = false
     var mono = false
+    /// A third line for what the row is and not what it says (a path, a login): monospaced and quieter than the detail.
+    var note: String?
     @ViewBuilder var control: Control
 
     var body: some View {
@@ -19,6 +21,9 @@ struct SettingsTabRow<Control: View>: View {
                 Text(title).fontWeight(.medium)
                 Text(detail).font(mono ? .scaled(11.5, design: .monospaced) : .caption).foregroundStyle(.secondary)
                     .lineLimit(2).truncationMode(.middle)
+                if let note {
+                    Text(note).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
+                }
             }
             Spacer(minLength: 8)
             control
@@ -81,7 +86,7 @@ struct SettingsPageBody<Content: View>: View {
             if let reset {
                 SettingsTabCard {
                     SettingsTabRow(title: "Reset", detail: "Puts this page back to how it came", first: true) {
-                        Button("Reset", action: reset).buttonStyle(.glass).buttonBorderShape(.capsule)
+                        Button("Reset", action: reset).buttonStyle(SecondaryCapsuleButtonStyle())
                     }
                 }
             }
@@ -672,7 +677,7 @@ struct NotificationsTabView: View {
                 Label(testAdvice, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange).padding(.horizontal, 14)
             }
         }
-        .buttonStyle(.glass).buttonBorderShape(.capsule)
+        .buttonStyle(SecondaryCapsuleButtonStyle())
         .task { refresh() }
         // back from System Settings, where the person may have changed the answer
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }

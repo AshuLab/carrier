@@ -51,8 +51,10 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
 
     func agents() async throws -> [ChatAgent] { agents }
     func list(archived wanted: Bool) async throws -> [ChatSession] { wanted ? archived : active }
+    /// `AgentOfferStore.warm` asks every agent at once, so the asks are recorded under a lock.
+    private let asksLock = NSLock()
     func agentOptions(_ agent: String) async throws -> AgentOffer {
-        optionAsks.append(agent)
+        asksLock.withLock { optionAsks.append(agent) }
         guard let listed = offered[agent] else { throw ControlError.remote("the chat host does not support agentOptions") }
         return AgentOffer(options: listed, commands: commandsOffered[agent] ?? [])
     }

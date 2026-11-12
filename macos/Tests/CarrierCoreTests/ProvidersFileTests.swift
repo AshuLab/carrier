@@ -207,7 +207,8 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
         #expect(throws: (any Error).self, "\(bad)") { try applyingNewAccount(name: bad, harness: "claude", configDir: "", to: base) }
     }
     #expect(try map(applyingNewAccount(name: String(repeating: "a", count: 40), harness: "claude", configDir: "", to: base)).count == 4)
-    #expect(throws: ProvidersFileError.self) { try applyingNewAccount(name: "w", harness: "claude", configDir: "relative/dir", to: base) }
+    // a folder that is not absolute is taken from the home folder, so the file is one the engine reads
+    #expect(try map(applyingNewAccount(name: "w", harness: "claude", configDir: "relative/dir", to: base))["w"]?["configDir"] as? String == "~/relative/dir")
     #expect(throws: ProvidersFileError.self) { try applyingNewAccount(name: "w", harness: "agy", configDir: "", to: base) }
     #expect(throws: ProvidersFileError.notAnObject) { try applyingNewAccount(name: "w", harness: "claude", configDir: "", to: Data("[]".utf8)) }
 }
@@ -258,7 +259,9 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     #expect(problems("codex") { $0.idle = .never }["idleCompaction"] != nil && problems("agy") { $0.idle = .never }["idleCompaction"] != nil)
     #expect(problems("claude") { $0.idle = .never }.isEmpty)
     #expect(problems("claude") { $0.command = "claude" }["command"]?.hasPrefix("Binary path") == true && problems("claude") { $0.command = "~/bin/claude" }.isEmpty)
-    #expect(problems("claude") { $0.configDir = "rel" }["configDir"]?.hasPrefix("Config folder") == true)
+    // any path is taken for the config folder; only a character a path cannot have is refused
+    #expect(problems("claude") { $0.configDir = "rel" }.isEmpty && problems("claude") { $0.configDir = "a/b c/../d" }.isEmpty)
+    #expect(problems("claude") { $0.configDir = "a\u{7}b" }["configDir"]?.hasPrefix("Config folder") == true)
     #expect(problems("claude") { $0.displayName = String(repeating: "x", count: 61) }["displayName"] != nil)
     // launch arguments that repeat what Carrier sets
     #expect(problems("claude") { $0.launchArgs = "--chrome\n--model=opus" }["launchArgs"]?.contains("--model") == true)
@@ -291,8 +294,17 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     #expect(accountUses(config: config, chat: chat)["claude"] == [.role(.author), .chatAgent("x")])
 }
 
-@Test func theFooterTellsThatARunningEngineNeedsARestart() {
-    #expect(providersFooter.contains("restart") && providersFooter.contains("when it starts"))
+@Test func aConfigFolderThatIsNotAbsoluteIsTakenFromTheHomeFolderAndTheOthersStayAsTheyAre() {
+    #expect(normalizedConfigDir("work") == "~/work" && normalizedConfigDir("./work") == "~/work" && normalizedConfigDir("  .claude-work ") == "~/.claude-work")
+    #expect(normalizedConfigDir("/srv/claude") == "/srv/claude" && normalizedConfigDir("~/x") == "~/x" && normalizedConfigDir("~") == "~" && normalizedConfigDir("") == "")
+}
+
+@Test func theEditorReadsTheAccountFromTheFileAndAnAccountTheFileLacksIsNotInventedAsABlankOne() throws {
+    let json = Data(#"{"providers":{"w":{"harness":"claude","displayName":"Work","command":"/bin/c","configDir":"~/.w","autoCompact":200000,"launchArgs":["--a","--b"],"idleCompaction":false}}}"#.utf8)
+    let draft = try #require(accountDraft(named: "w", in: json))
+    #expect(draft.displayName == "Work" && draft.command == "/bin/c" && draft.configDir == "~/.w" && draft.autoCompact == "200000")
+    #expect(draft.launchArgs == "--a\n--b" && draft.idle == .never)
+    #expect(accountDraft(named: "nope", in: json) == nil && accountDraft(named: "w", in: nil) == nil)
 }
 
 // MARK: the store

@@ -19,8 +19,10 @@ struct SettingsTabRow<Control: View>: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).fontWeight(.medium)
-                Text(detail).font(mono ? .scaled(11.5, design: .monospaced) : .caption).foregroundStyle(.secondary)
-                    .lineLimit(2).truncationMode(.middle)
+                if detail.isEmpty == false {
+                    Text(detail).font(mono ? .scaled(11.5, design: .monospaced) : .caption).foregroundStyle(.secondary)
+                        .lineLimit(2).truncationMode(.middle)
+                }
                 if let note {
                     Text(note).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
                 }

@@ -66,7 +66,10 @@ public enum ModelState: Equatable, Sendable {
     }
 
     /// `<root>/<recognizer>/<model>`, the model being the id without its recognizer's prefix.
-    public func folder(for model: SpeechModel) -> URL {
+    public func folder(for model: SpeechModel) -> URL { Self.folder(in: root, for: model) }
+
+    /// The same folder for whoever loads the model: a recognizer reads from where the store downloaded to.
+    public nonisolated static func folder(in root: URL, for model: SpeechModel) -> URL {
         let name = model.id.split(separator: ".", maxSplits: 1).last.map(String.init) ?? model.id
         return root.appending(path: model.recognizer.rawValue.lowercased()).appending(path: name)
     }

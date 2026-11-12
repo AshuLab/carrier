@@ -225,7 +225,7 @@ struct NewSessionView: View {
         MessageBox(
             text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
             canSend: model.canSend, canSendWithText: model.canSendWithText, sendHelp: model.canSend ? "Send" : model.hostOlder ? NewSessionModel.olderHostNotice : model.noAgentReason ?? "Choose a workspace and write a message",
-            focus: $boxFocused, commands: model.agentCommands, send: send
+            focus: $boxFocused, commands: model.agentCommands, dictationOwner: "new-session", send: send
         ) {
             ComposerMenuButton(
                 providers: model.agents.map { ProviderTab(name: $0.name, icon: $0.harness, available: $0.available, note: $0.note) }, agent: model.agent ?? "",

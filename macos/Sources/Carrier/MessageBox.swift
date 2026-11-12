@@ -18,6 +18,9 @@ struct MessageBox<Selects: View>: View {
     var focus: Binding<Bool>
     /// What the person can invoke by typing a slash and its name (skills and the provider's own commands); empty when there is none to list.
     var commands: [ChatCommand] = []
+    /// Which box this is to the dictation, so only the one that dictates draws its state: the new-session view or an open session.
+    var dictationOwner = "message-box"
+    var dictation = DictationController.shared
     var send: () -> Void
     var stop: () -> Void = {}
     @ViewBuilder var selects: () -> Selects
@@ -35,6 +38,8 @@ struct MessageBox<Selects: View>: View {
     @State private var pastes: [Pasted] = []
     /// Whether files are being dragged over the box.
     @State private var dropping = false
+    /// Where the text a dictation is still hearing is; it is drawn secondary.
+    @State private var tentative: Range<Int>?
     @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
     @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
     @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
@@ -47,6 +52,11 @@ struct MessageBox<Selects: View>: View {
 
     /// Whether there is something to send: a text, or a pasted text when the session would take one.
     private var ready: Bool { canSend || (pastes.contains { $0.text.allSatisfy(\.isWhitespace) == false } && canSendWithText == true) }
+
+    private var dictationPresentation: DictationPresentation? { dictation.presentation(for: dictationOwner) }
+
+    /// Whether Send may send: not while a dictation listens.
+    private var sendAllowed: Bool { dictationPresentation?.sendEnabled ?? true }
 
     /// The word under the caret, while it is a slash and what is typed of a name.
     private var token: CommandToken? { commands.isEmpty ? nil : commandToken(in: text, cursor: cursor) }
@@ -87,7 +97,7 @@ struct MessageBox<Selects: View>: View {
                     .animation(.smooth(duration: 0.2), value: attachments)
                 }
                 CommandTextView(
-                    text: $text, cursor: $cursor, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onFiles: attach, onFileDrag: { dropping = $0 }, onLargePaste: keep,
+                    text: $text, cursor: $cursor, tentative: tentative, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onFiles: attach, onFileDrag: { dropping = $0 }, onLargePaste: keep,
                     sendKey: sendKey, writingTools: writingTools, checksSpelling: checksSpelling, correctsSpelling: correctsSpelling
                 )
                 .onChange(of: text) { _, now in
@@ -99,9 +109,20 @@ struct MessageBox<Selects: View>: View {
                     withAnimation(.smooth(duration: 0.2)) { pastes += split.pastes.map { Pasted(text: $0) } }
                     text = split.text
                 }
-                HStack {
+                HStack(spacing: 8) {
                     selects()
                     Spacer(minLength: 0)
+                    if let presentation = dictationPresentation {
+                        // the caption goes first when the row is tight
+                        if let caption = presentation.caption {
+                            ViewThatFits(in: .horizontal) {
+                                Text(caption).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+                                Color.clear.frame(width: 0, height: 0)
+                            }
+                            .layoutPriority(-1)
+                        }
+                        DictationButton(presentation: presentation, action: dictate)
+                    }
                     button
                 }
             }
@@ -112,7 +133,22 @@ struct MessageBox<Selects: View>: View {
             .offset(y: dropping ? -3 : 0)
             .animation(.smooth(duration: 0.2), value: dropping)
             .dropDestination(for: URL.self) { urls, _ in attach(urls) } isTargeted: { dropping = $0 }
+            if let failure = dictation.session.failure(for: dictationOwner) {
+                Text(failure.cause).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled)
+            }
         }
+    }
+
+    /// The click on the microphone: starts a dictation at the caret, or stops the one that listens.
+    private func dictate() {
+        dictation.toggle(into: DictationField(
+            owner: dictationOwner, text: { text }, caret: { cursor },
+            put: { written, caret, range in
+                text = written
+                cursor = caret
+                tentative = range
+            }
+        ))
     }
 
     /// What the box says while files are over it.
@@ -251,6 +287,7 @@ struct MessageBox<Selects: View>: View {
 
     /// Enter and the button: sends, and makes the arrow bounce when there is something to send.
     private func fire() {
+        guard sendAllowed || busy else { return }
         if ready || busy { sent += 1 }
         // the long texts go in blocks under what is typed, then the files as paths; both are taken out of the box once the message is on its way
         if ready {
@@ -266,7 +303,7 @@ struct MessageBox<Selects: View>: View {
     /// A round glass button of the system's, tinted when there is something to send and plain when there is not; it gives under the finger
     /// and springs back. The arrow becomes the Stop square while the agent answers, bounces up on a send and pulses while it works.
     @ViewBuilder private var button: some View {
-        let active = ready || busy
+        let active = (ready && sendAllowed) || busy
         let action = busy ? stop : fire
         let label = Image(systemName: busy ? "stop.fill" : "arrow.up")
             .font(.scaled(busy ? 12 : 14, weight: .bold)).foregroundStyle(active ? .white : .secondary)

@@ -137,7 +137,7 @@ struct ModelPickerButton: View {
             }
             // the chevrons at the right edge, as the Mac's pop-up has them, whatever the words take
             Spacer(minLength: 6)
-            Image(systemName: "chevron.up.chevron.down").font(.scaled(9, weight: .semibold)).foregroundStyle(.secondary)
+            Image(systemName: "chevron.up.chevron.down").font(.scaled(10, weight: .bold)).foregroundStyle(.primary.opacity(0.85))
         }
         // a width of its own, as the pop-ups of the other rows have, and long words are cut; in a form it takes the room it is given
         .frame(width: fill ? nil : 210, alignment: .leading).frame(maxWidth: fill ? .infinity : nil, alignment: .leading)
@@ -292,10 +292,10 @@ private struct PopUpButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(configuration.isPressed ? 0.18 : hovered ? 0.13 : 0.09)))
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.16 : 0.12)))
                 .opacity(enabled ? 1 : 0.5)
-                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .onHover { hovered = $0 }
                 .animation(.easeOut(duration: 0.12), value: hovered)
         }

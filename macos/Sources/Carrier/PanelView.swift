@@ -218,7 +218,7 @@ struct PanelView: View {
             }
         }
         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
-        .sheet(isPresented: $shell.settingsShown) { SettingsSheet(state: model.state, tab: $shell.settingsTab).themed() }
+        .sheet(isPresented: $shell.settingsShown) { SettingsSheet(state: model.state, canReload: model.epics.canReload, tab: $shell.settingsTab).themed() }
         .frame(minWidth: 1100, minHeight: 600)
         .themed()
         .environment(model.actions)

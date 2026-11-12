@@ -17,13 +17,14 @@ struct BehaviorTabView: View {
 
     private var path: String { configFilePath() }
 
-    private var headerNote: SettingsHeaderNote {
+    /// Said at the right of the header only when there is something to say: that it saved, or why it could not.
+    private var headerNote: SettingsHeaderNote? {
         if unreadable {
             return SettingsHeaderNote(text: "The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", tone: .problem)
         }
         if let failure { return SettingsHeaderNote(text: failure, tone: .problem) }
         if let note { return SettingsHeaderNote(text: note, tone: .saved) }
-        return SettingsHeaderNote(text: behaviorSavingNote, tone: .plain)
+        return nil
     }
 
     private var problems: [String: String] {
@@ -61,7 +62,7 @@ struct BehaviorTabView: View {
     }
 
     private func row(_ item: BehaviorRow, first: Bool) -> some View {
-        SettingsTabRow(title: item.title, detail: problems[item.key] ?? item.detail, first: first, problem: problems[item.key] != nil) { control(item) }
+        SettingsTabRow(title: item.title, detail: item.detail, first: first, problem: problems[item.key]) { control(item) }
     }
 
     @ViewBuilder private func control(_ item: BehaviorRow) -> some View {
@@ -107,7 +108,7 @@ struct BehaviorTabView: View {
 
     private func field<Value: Equatable>(_ key: String, _ value: Binding<Value>, unit: String?, parse: @escaping (String) -> Value?, format: @escaping (Value) -> String, step: @escaping (Value, Int) -> Value?) -> some View {
         HStack(spacing: 6) {
-            NumberField(key: key, value: value, unparsable: $unparsable, invalid: problems[key] != nil, parse: parse, format: format, step: step)
+            NumberField(key: key, value: value, unparsable: $unparsable, parse: parse, format: format, step: step)
             if let unit { Text(unit).font(.caption).foregroundStyle(.secondary) }
         }
     }
@@ -160,7 +161,7 @@ struct NumberField<Value: Equatable>: View {
     let key: String
     @Binding var value: Value
     @Binding var unparsable: Set<String>
-    let invalid: Bool
+    @Environment(\.settingsInvalid) private var invalid
     let parse: (String) -> Value?
     let format: (Value) -> String
     /// The value one click of − (-1) or + (1) moves to; nil when it would go below the least the engine takes.

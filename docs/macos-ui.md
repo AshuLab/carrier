@@ -73,7 +73,7 @@ A row that opens an editor or a form shows **a chevron `chevron.right` at its ri
 
 ## A value that is not valid
 
-Orange, not red, and nothing moves. A row with `problem: true` (`SettingsTabRow`) puts what is wrong in the place of its detail line, in orange with a warning mark, and its title keeps its colour; the field gets `invalid: true` (`settingsField`, or the ring of `NumberField`): an orange ring and a warning mark inside the box, the same size as without them. A message that has no row of its own (a refused save) is a `Label` with `exclamationmark.triangle.fill` in orange. Do not colour a whole row red.
+Orange, not red, and nothing moves. This is the default of every row and field: pass the message once, `SettingsTabRow(…, problem: "what is wrong")`, and the row puts it in the place of its detail line, in orange with a warning mark (the title keeps its colour), while every `settingsField` and `NumberField` inside it draws an orange ring and a warning mark in the box, the same size as without them (the row tells them through `\.settingsInvalid`). A new field needs nothing for it; do not pass a flag to the field, and do not colour a whole row red. A message that has no row of its own (a refused save) is a `Label` with `exclamationmark.triangle.fill` in orange.
 
 ## Text
 

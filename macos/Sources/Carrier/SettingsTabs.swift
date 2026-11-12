@@ -15,17 +15,18 @@ struct SettingsTabRow<Control: View>: View {
     var roomy = false
     /// A third line for what the row is and not what it says (a path, a login): monospaced and quieter than the detail.
     var note: String?
-    /// The detail is what is wrong with the value: it takes the place of the usual detail, in orange and with a warning mark, and the title keeps its colour.
-    var problem = false
+    /// What is wrong with the value, in words: it takes the place of the detail, in orange and with a warning mark, the title keeps its colour, and
+    /// every `settingsField` and `NumberField` inside the row draws itself as invalid (`\.settingsInvalid`). One argument; nothing else to pass.
+    var problem: String?
     @ViewBuilder var control: Control
 
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).fontWeight(.medium)
-                if detail.isEmpty == false {
+                if detail.isEmpty == false || problem != nil {
                     Group {
-                        if problem { Text("\(Image(systemName: "exclamationmark.triangle.fill")) \(detail)").foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
+                        if let problem { Text("\(Image(systemName: "exclamationmark.triangle.fill")) \(problem)").foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
                     }
                     .font(mono ? .scaled(11.5, design: .monospaced) : .caption).lineLimit(2).truncationMode(.middle)
                 }
@@ -34,11 +35,16 @@ struct SettingsTabRow<Control: View>: View {
                 }
             }
             Spacer(minLength: 8)
-            control
+            control.environment(\.settingsInvalid, problem != nil)
         }
         .padding(.vertical, roomy ? 14 : 10).frame(minHeight: 46)
         .overlay(alignment: .top) { if first == false { SettingsDivider() } }
     }
+}
+
+extension EnvironmentValues {
+    /// Whether the row the control sits in says its value is not valid.
+    @Entry var settingsInvalid = false
 }
 
 /// The line between two rows of a card: a whole point tall and quiet, where the system's Divider is a grey hairline that stands out on the dark themes.
@@ -51,7 +57,7 @@ struct SettingsDivider: View {
 private struct SettingsFieldModifier: ViewModifier {
     let width: CGFloat?
     let icon: String?
-    let invalid: Bool
+    @Environment(\.settingsInvalid) private var invalid
     /// The caller's own focus state, when it needs to know about the focus (to save as the person leaves the field); else the field keeps its own.
     let external: FocusState<Bool>.Binding?
     @FocusState private var own: Bool
@@ -80,9 +86,9 @@ private struct SettingsFieldModifier: ViewModifier {
 
 extension View {
     /// `icon` is an SF Symbol drawn inside the box before the text (a magnifying glass for a search).
-    /// `invalid` draws the ring in orange and a warning mark inside the box, the same size as without them: nothing moves.
-    func settingsField(width: CGFloat? = nil, icon: String? = nil, invalid: Bool = false, focused: FocusState<Bool>.Binding? = nil) -> some View {
-        modifier(SettingsFieldModifier(width: width, icon: icon, invalid: invalid, external: focused))
+    /// Inside a row with a `problem` the ring is orange and a warning mark sits in the box, the same size as without them: nothing moves.
+    func settingsField(width: CGFloat? = nil, icon: String? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
+        modifier(SettingsFieldModifier(width: width, icon: icon, external: focused))
     }
 }
 
@@ -285,9 +291,9 @@ struct SettingsGroup<Content: View>: View {
     }
 }
 
-/// A line a page puts at the right of its own header (the Behavior page's note about saving, or why it cannot save).
+/// A line a page puts at the right of its own header, only when there is something to say (the Behavior page's "Saved", or why it cannot save).
 struct SettingsHeaderNote: Equatable {
-    enum Tone { case plain, saved, problem }
+    enum Tone { case saved, problem }
     let text: String
     let tone: Tone
 }
@@ -317,12 +323,13 @@ struct SettingsPageHeader: View {
             if let note {
                 Spacer(minLength: 16)
                 switch note.tone {
-                case .plain: Text(note.text).font(.callout).foregroundStyle(.secondary)
                 case .saved: Label(note.text, systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.green)
                 case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
                 }
             }
         }
+        // room for the close button, which sits over the corner of the header
+        .padding(.trailing, 32)
     }
 }
 

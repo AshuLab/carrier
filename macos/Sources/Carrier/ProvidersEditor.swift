@@ -38,14 +38,14 @@ struct AccountEditor: View {
             } else {
                 SettingsGroup(title: "Edit \(account.title)") {
                     field("Display name", "displayName", "What the app shows instead of \(account.name)", first: true) {
-                        TextField(account.name, text: $draft.displayName).settingsField(width: 240, invalid: problems["displayName"] != nil)
+                        TextField(account.name, text: $draft.displayName).settingsField(width: 240)
                     }
                     field("Binary path", "command", "Empty runs \(harness) from the PATH") {
-                        TextField("/opt/homebrew/bin/\(harness)", text: $draft.command).settingsField(width: 240, invalid: problems["command"] != nil)
+                        TextField("/opt/homebrew/bin/\(harness)", text: $draft.command).settingsField(width: 240)
                     }
                     if harness != "agy" {
                         field("Config folder", "configDir", harness == "claude" ? "CLAUDE_CONFIG_DIR; empty is this Mac's login" : "CODEX_HOME; empty is this Mac's login", hint: "Any path; one that does not start with / or ~/ is taken from your home folder") {
-                            TextField("~/.\(harness)-work", text: $draft.configDir).settingsField(width: 240, invalid: problems["configDir"] != nil)
+                            TextField("~/.\(harness)-work", text: $draft.configDir).settingsField(width: 240)
                         }
                         field("Auto-compact after", "autoCompact", "Tokens in the conversation before the CLI compacts it. Use default is the CLI's own") {
                             // the steps are ours; a value already in the file that is not one of them stays in the list, so opening the editor never changes it
@@ -100,7 +100,7 @@ struct AccountEditor: View {
     private func field<Control: View>(
         _ title: String, _ key: String, _ detail: String, hint: String? = nil, first: Bool = false, @ViewBuilder control: () -> Control
     ) -> some View {
-        SettingsTabRow(title: title, detail: problems[key] ?? [detail, hint].compactMap { $0 }.joined(separator: ". "), first: first, roomy: true, problem: problems[key] != nil) { control() }
+        SettingsTabRow(title: title, detail: [detail, hint].compactMap { $0 }.joined(separator: ". "), first: first, roomy: true, problem: problems[key]) { control() }
             .accessibilityElement(children: .contain)
     }
 }

@@ -19,6 +19,8 @@ A setting lives in one of three levels, by who reads it: the engine's `config.js
 
 The coexistence with Solve's worktrees is left for later. Until then the engine finds an epic's worktree with git, wherever `ship` put it, and does not derive its path from the `Worktrees` line of each repo's `solve.md`; the documentation recommends `~/.carrier/engine/worktrees/<repo>/<feature>/` as that line.
 
+The Mac app is the third process that owns a subfolder, `app/`, with `models/<recognizer>/<model>/` for the speech models a person downloads and `logs/` for `dictation.log` ([0023](0023-dictation-runs-on-recognizers-with-a-fixed-list-of-downloadable-speech-models.md)).
+
 Nothing is migrated and nothing old is read: a config that still has `root` is rejected like any other unknown key.
 
 ## Alternatives considered

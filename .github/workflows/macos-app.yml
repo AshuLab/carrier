@@ -10,9 +10,9 @@ on:
 jobs:
   build-and-test:
     runs-on: macos-26
-    timeout-minutes: 40
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Toolchain
         run: xcodebuild -version
       - name: Build
@@ -20,7 +20,7 @@ jobs:
         run: swift build
       - name: Test
         working-directory: macos
-        run: swift test
+        run: scripts/test-ci.sh
       - name: Bundle
         working-directory: macos
         run: scripts/check-app.sh

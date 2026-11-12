@@ -4,7 +4,7 @@ import Testing
 @testable import Carrier
 import CarrierCore
 
-@Test func aRingToldToAnimateTurnsCappedAt20Fps() throws {
+@MainActor @Test func aRingToldToAnimateTurnsCappedAt20Fps() throws {
     let ring = RingLayer.make(diameter: 16, lineWidth: 2.5, color: NSColor.systemGreen.cgColor, animate: true)
     let spin = try #require(ring.arc.animation(forKey: RingLayer.spinKey) as? CABasicAnimation)
     #expect(spin.preferredFrameRateRange == CAFrameRateRange(minimum: 20, maximum: 20, preferred: 20))
@@ -13,12 +13,12 @@ import CarrierCore
     #expect(ring.track.animationKeys() == nil)
 }
 
-@Test func aRingNotToldToAnimateHasNoAnimation() {
+@MainActor @Test func aRingNotToldToAnimateHasNoAnimation() {
     let ring = RingLayer.make(diameter: 16, lineWidth: 2.5, color: NSColor.systemGreen.cgColor, animate: false)
     #expect(ring.animationKeys() == nil && ring.arc.animationKeys() == nil && ring.track.animationKeys() == nil)
 }
 
-@Test func animatingTwiceKeepsTheSameAnimationAndStoppingRemovesIt() throws {
+@MainActor @Test func animatingTwiceKeepsTheSameAnimationAndStoppingRemovesIt() throws {
     let ring = RingLayer.make(diameter: 16, lineWidth: 2.5, color: NSColor.systemGreen.cgColor, animate: true)
     let first = try #require(ring.arc.animation(forKey: RingLayer.spinKey))
     ring.setAnimating(true)

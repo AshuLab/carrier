@@ -43,3 +43,23 @@ is not open source and not covered by this repository's MIT licence. Its `packag
 Carrier does not copy or modify the package; it is installed from npm as a dependency. The package also lists the
 platform builds of Claude Code (`@anthropic-ai/claude-agent-sdk-<os>-<cpu>`) as optional dependencies, under the same
 terms; Carrier always points the SDK at the user's own `claude` binary and does not use them.
+
+## FluidAudio
+
+The Carrier app (`macos/Package.swift`, the `Carrier` target only) links the Swift package
+[FluidAudio](https://github.com/FluidInference/FluidAudio), pinned to 0.18.3, to run the Parakeet and Nemotron speech
+models on Core ML for dictation. Copyright the FluidInference authors, under the Apache License 2.0 (its `LICENSE` names
+no individual holder; the text is at <https://www.apache.org/licenses/LICENSE-2.0>). Carrier does not modify it. The
+speech models are not part of the app: a person downloads them from inside it.
+
+## WhisperKit
+
+The Carrier app (`macos/Package.swift`, the `Carrier` target only) links `WhisperKit`, a library of the Swift package
+[argmax-oss-swift](https://github.com/argmaxinc/argmax-oss-swift), pinned to 1.1.1, to run the Whisper speech models on
+Core ML for dictation. Copyright (c) 2024 argmax, inc., under the MIT licence. Carrier does not modify it. The speech
+models are not part of the app: a person downloads them from inside it.
+
+Part of the package is derived from the [swift-transformers](https://github.com/huggingface/swift-transformers) project
+of Hugging Face (Copyright 2022 Hugging Face SAS) and is distributed under the Apache License 2.0, as modified by Argmax,
+Inc. (<https://www.apache.org/licenses/LICENSE-2.0>); the package's own notice for it is
+[`NOTICES`](https://github.com/argmaxinc/argmax-oss-swift/blob/v1.1.1/NOTICES).

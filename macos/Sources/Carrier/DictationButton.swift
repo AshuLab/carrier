@@ -30,8 +30,8 @@ private struct DictationButtonStyle: ButtonStyle {
             let lit = (hovering || pressed) && presentation.pressable
             ZStack {
                 switch presentation.icon {
-                case .mic:
-                    Image(systemName: "mic").font(.scaled(16))
+                case .mic, .micSlash:
+                    Image(systemName: presentation.icon == .micSlash ? "mic.slash" : "mic").font(.scaled(16))
                         .foregroundStyle(presentation.inAccent ? Color.themeAccent : lit ? Color.primary : Color.secondary)
                 case .spinner:
                     ProgressView().controlSize(.small)

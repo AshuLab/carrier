@@ -252,3 +252,27 @@ private func everyReasonToStopKeepsWhatWasHeard(reason: Reason, partial: Partial
 func theAnnouncementsOfADictation(notice: DictationNotice, says: String) {
     #expect(dictationAnnouncement(notice) == says)
 }
+
+@MainActor @Test func aDictationWritesNoFileAndReleasesTheCaptureWhenItEnds() async throws {
+    // the samples of the test are a pattern no other test writes: a file of the temporary folder or the working one that holds it is the audio on disk
+    let pattern: Float = 0.123456
+    let bytes = withUnsafeBytes(of: [Float](repeating: pattern, count: 64)) { Data($0) }
+    func filesWithTheAudio() -> [String] {
+        [NSTemporaryDirectory(), FileManager.default.currentDirectoryPath].flatMap { folder -> [String] in
+            let names = (try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []
+            return names.map { folder + "/" + $0 }.filter { path in
+                guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe), data.count < 20_000_000 else { return false }
+                return data.range(of: bytes) != nil
+            }
+        }
+    }
+    let rig = Rig()
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("hola")])
+    rig.dictate(with: recognizer)
+    await rig.reaches(.listening)
+    for _ in 0..<5 { rig.capture.feed(AudioBuffer(samples: Array(repeating: pattern, count: 1600), sampleRate: 16000)) }
+    rig.session.stop()
+    await rig.reaches(.idle)
+    #expect(filesWithTheAudio().isEmpty)
+    #expect(rig.capture.isRunning == false && rig.capture.stopCount >= 1)
+}

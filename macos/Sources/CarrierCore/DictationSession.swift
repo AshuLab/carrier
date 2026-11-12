@@ -33,6 +33,7 @@ public struct DictationField {
     @ObservationIgnored private let capture: AudioCapture
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
     @ObservationIgnored private let announce: (String) -> Void
+    @ObservationIgnored private let log: (DictationFailure) -> Void
     @ObservationIgnored private var field: DictationField?
     @ObservationIgnored private var model: SpeechModel?
     @ObservationIgnored private var tentative = TentativeText(caret: 0)
@@ -46,14 +47,16 @@ public struct DictationField {
     /// A dictation asked for while another one stops: it starts when that one is idle.
     @ObservationIgnored private var queued: (recognizer: any Recognizer, model: SpeechModel, field: DictationField)?
 
-    /// `announce` is told what VoiceOver should say (`dictationAnnouncement`): the start, the stop and a failure, never partial text.
+    /// `announce` is told what VoiceOver should say (`dictationAnnouncement`): the start, the stop and a failure, never partial text; `log` hears
+    /// every failure, with its cause only.
     public init(
         capture: AudioCapture, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        announce: @escaping (String) -> Void = { _ in }
+        announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in }
     ) {
         self.capture = capture
         self.sleep = sleep
         self.announce = announce
+        self.log = log
     }
 
     /// Why the last dictation of `owner` could not start or go on, until it starts another.
@@ -138,6 +141,7 @@ public struct DictationField {
         let cause = error as? DictationFailure ?? DictationFailure(error.localizedDescription)
         if let owner { failure = (owner, cause) }
         announce(dictationAnnouncement(.failed(cause)))
+        log(cause)
         end(announcing: false)
     }
 

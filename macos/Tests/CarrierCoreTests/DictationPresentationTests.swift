@@ -33,3 +33,24 @@ func aBuildWithNoRecognizerDrawsNoIconInAnyState(state: DictationSession.State) 
     #expect(registry.recognizers.map(\.id) == [.whisper, .apple])
     #expect(registry.recognizers.last as? ScriptedRecognizer === second)
 }
+
+@Test func aBlockedMicrophoneShowsTheSlashedIconAndAClickExplainsInsteadOfListening() throws {
+    let blocked = try #require(dictationPresentation(.idle, registered: true, microphone: .denied))
+    #expect(blocked.icon == .micSlash && blocked.pressable && blocked.sendEnabled && blocked.caption == nil)
+    #expect(blocked.label == "Dictation is blocked")
+    #expect(dictationClick(.denied) == .explainBlock)
+    #expect(MicrophoneBlockedPopover.button == "Open System Settings")
+    #expect(MicrophoneBlockedPopover.settingsURL.hasSuffix("Privacy_Microphone"))
+}
+
+@Test(arguments: [(MicrophonePermission.allowed, DictationClick.start), (.notAsked, .start), (.denied, .explainBlock)])
+func theMicrophonePermissionDecidesWhatTheIconDoesAndWhatAClickOffers(permission: MicrophonePermission, click: DictationClick) throws {
+    let icon = try #require(dictationPresentation(.idle, registered: true, microphone: permission)).icon
+    #expect(icon == (permission == .denied ? .micSlash : .mic))
+    #expect(dictationClick(permission) == click)
+}
+
+@Test func theMicrophoneOnlyBlocksWhileTheBoxIsIdle() throws {
+    // a dictation that is already running keeps its own states
+    #expect(try #require(dictationPresentation(.listening, registered: true, microphone: .denied)).icon == .mic)
+}

@@ -82,3 +82,44 @@ func theMessageBoxBuildsInEveryStateOfADictationAtWideAndNarrowWidths(state: Dic
     await until { dictation.session.state == .idle }
     #expect(dictation.session.state == .idle)
 }
+
+@MainActor private func microphone(_ status: MicrophonePermission, answer: Bool = true, asked: @escaping () -> Void = {}) -> DictationController {
+    let registry = RecognizerRegistry()
+    registry.register(ScriptedRecognizer())
+    var current = status
+    let access = MicrophoneAccess(
+        status: { current },
+        request: {
+            asked()
+            current = answer ? .allowed : .denied
+            return answer
+        }
+    )
+    return DictationController(registry: registry, capture: ScriptedCapture(), microphone: access)
+}
+
+private let boxField = DictationField(owner: "box", text: { "" }, caret: { 0 }, put: { _, _, _ in })
+
+@MainActor @Test func aBlockedMicrophoneDrawsTheSlashAndAClickExplainsInsteadOfListening() async {
+    let dictation = microphone(.denied)
+    #expect(dictation.presentation(for: "box")?.icon == .micSlash)
+    #expect(dictation.toggle(into: boxField) == .explainBlock)
+    try? await Task.sleep(for: .milliseconds(50))
+    #expect(dictation.session.state == .idle)
+}
+
+@MainActor @Test func theFirstClickAsksForTheMicrophoneAndListensWhenItIsAllowed() async {
+    var asked = 0
+    let dictation = microphone(.notAsked) { asked += 1 }
+    #expect(dictation.presentation(for: "box")?.icon == .mic)
+    #expect(dictation.toggle(into: boxField) == .start)
+    for _ in 0..<2000 where dictation.session.state != .listening { try? await Task.sleep(for: .milliseconds(1)) }
+    #expect(asked == 1 && dictation.session.state == .listening && dictation.microphone == .allowed)
+}
+
+@MainActor @Test func aMicrophoneThatTheFirstClickDeniesTurnsTheIconToTheSlashAndNeverListens() async {
+    let dictation = microphone(.notAsked, answer: false)
+    dictation.toggle(into: boxField)
+    for _ in 0..<2000 where dictation.microphone != .denied { try? await Task.sleep(for: .milliseconds(1)) }
+    #expect(dictation.presentation(for: "box")?.icon == .micSlash && dictation.session.state == .idle)
+}

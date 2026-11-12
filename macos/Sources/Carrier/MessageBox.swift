@@ -40,6 +40,8 @@ struct MessageBox<Selects: View>: View {
     @State private var dropping = false
     /// Where the text a dictation is still hearing is; it is drawn secondary.
     @State private var tentative: Range<Int>?
+    /// Whether the popover of a blocked microphone is open.
+    @State private var microphoneBlocked = false
     @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
     @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
     @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
@@ -122,6 +124,7 @@ struct MessageBox<Selects: View>: View {
                             .layoutPriority(-1)
                         }
                         DictationButton(presentation: presentation, action: dictate)
+                            .popover(isPresented: $microphoneBlocked, arrowEdge: .top) { blockedPopover }
                     }
                     button
                 }
@@ -143,7 +146,7 @@ struct MessageBox<Selects: View>: View {
 
     /// The click on the microphone: starts a dictation at the caret, or stops the one that listens.
     private func dictate() {
-        dictation.toggle(into: DictationField(
+        let click = dictation.toggle(into: DictationField(
             owner: dictationOwner, text: { text }, caret: { cursor },
             put: { written, caret, range in
                 text = written
@@ -151,6 +154,20 @@ struct MessageBox<Selects: View>: View {
                 tentative = range
             }
         ))
+        microphoneBlocked = click == .explainBlock
+    }
+
+    /// What a blocked microphone offers: the way to the Microphone pane of System Settings.
+    private var blockedPopover: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(MicrophoneBlockedPopover.title).font(.scaled(13, weight: .semibold))
+            Text(MicrophoneBlockedPopover.message).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Button(MicrophoneBlockedPopover.button) {
+                MicrophoneAccess.openSystemSettings()
+                microphoneBlocked = false
+            }
+        }
+        .padding(14).frame(width: 260, alignment: .leading)
     }
 
     /// What the box says while files are over it.

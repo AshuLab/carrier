@@ -78,10 +78,10 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
                     return settled.trimmingCharacters(in: .whitespaces)
                 }
                 try await analyzer.start(inputSequence: inputs)
-                var converter: AudioConverter?
+                var converter: CaptureConverter?
                 var fed = false
                 for await buffer in audio {
-                    if converter == nil { converter = AudioConverter(from: buffer.sampleRate, to: format) }
+                    if converter == nil { converter = CaptureConverter(from: buffer.sampleRate, to: format) }
                     if let converted = converter?.convert(buffer) {
                         input.yield(AnalyzerInput(buffer: converted))
                         fed = true
@@ -100,8 +100,8 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
     }
 }
 
-/// Puts the capture's mono Float samples in the format the analyzer asks for.
-private final class AudioConverter {
+/// Puts the capture's mono Float samples in the format a recognizer asks for.
+final class CaptureConverter {
     private let source: AVAudioFormat
     private let target: AVAudioFormat
     private let converter: AVAudioConverter

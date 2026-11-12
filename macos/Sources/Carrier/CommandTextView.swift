@@ -380,14 +380,22 @@ final class PillTextView: NSTextView {
         scrollRangeToVisible(selectedRange())
     }
 
-    /// Draws the text of `range` (plain offsets) secondary and the rest in the normal colour.
+    /// The colour of text still being guessed: the normal one with a touch of the accent, so it reads as provisional without losing the contrast
+    /// the secondary colour loses over the box's glass. Read when drawn, so it follows the appearance and the accent.
+    static let tentativeColor = NSColor(name: nil) { appearance in
+        var color = NSColor.labelColor
+        appearance.performAsCurrentDrawingAppearance { color = NSColor.labelColor.blended(withFraction: 0.4, of: NSColor(Color.themeAccent)) ?? .labelColor }
+        return color
+    }
+
+    /// Draws the text of `range` (plain offsets) in the provisional colour and the rest in the normal colour.
     func drawTentative(_ range: Range<Int>?) {
         guard let storage = textStorage else { return }
         let whole = NSRange(location: 0, length: storage.length)
         storage.addAttribute(.foregroundColor, value: NSColor.labelColor, range: whole)
         guard let range else { return }
         let from = location(ofPlainOffset: range.lowerBound), to = location(ofPlainOffset: range.upperBound)
-        storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: NSRange(location: from, length: max(0, to - from)))
+        storage.addAttribute(.foregroundColor, value: Self.tentativeColor, range: NSRange(location: from, length: max(0, to - from)))
     }
 
     /// The position in the plain text of a position in the text.

@@ -90,6 +90,18 @@ public struct DictationField {
         halt()
     }
 
+    /// Cancels the dictation at once, in any state: the audio is dropped, nothing the recognizer says afterwards is written, and the text on the
+    /// screen, a partial one included, stays as it is, as final. A model that gives its text at the end, which has shown none, adds none.
+    /// Returns whether there was a dictation to cancel.
+    @discardableResult
+    public func cancel() -> Bool {
+        queued = nil
+        guard state != .idle else { return false }
+        running?.cancel()
+        end()
+        return true
+    }
+
     private func halt() {
         switch state {
         case .idle, .transcribing: return

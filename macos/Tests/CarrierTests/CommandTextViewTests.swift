@@ -150,8 +150,8 @@ final class CommandTextViewTests: XCTestCase {
         XCTAssertTrue(window.firstResponder === view)
     }
 
-    /// A dictation writes where the caret was and not at the end, the partial text is secondary and turns normal when it is final.
-    func testADictationWritesInPlaceInSecondaryAndTurnsNormalWhenFinal() throws {
+    /// A dictation writes where the caret was and not at the end, the partial text is in the provisional colour and turns normal when it is final.
+    func testADictationWritesInPlaceInTheProvisionalColourAndTurnsNormalWhenFinal() throws {
         let probe = Probe()
         probe.text = "uno dos"
         probe.cursor = 4
@@ -171,7 +171,7 @@ final class CommandTextViewTests: XCTestCase {
             XCTAssertEqual(view.string, edit.text)
             XCTAssertEqual(view.selectedRange().location, edit.caret)
             XCTAssertEqual(colour(at: 0), .labelColor)
-            XCTAssertEqual(colour(at: 4), secondary ? .secondaryLabelColor : .labelColor)
+            XCTAssertEqual(colour(at: 4), secondary ? PillTextView.tentativeColor : .labelColor)
             XCTAssertEqual(colour(at: view.string.utf16.count - 1), .labelColor)
         }
         XCTAssertEqual(view.string, "uno hola mundo dos")

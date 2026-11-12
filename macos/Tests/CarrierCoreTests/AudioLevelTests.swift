@@ -6,9 +6,9 @@ import Testing
     (Float(0), Float(0)),
     (-0.5, 0),
     (.nan, 0),
-    (0.003, 0),  // about -50 dB: the floor
-    (0.316, 1),  // -10 dB: the ceiling
-    (0.0316, 0.5),  // -30 dB: halfway in decibels
+    (0.0025, 0),  // about -52 dB: the floor
+    (0.079, 1),  // -22 dB: the ceiling
+    (0.0178, 0.567),  // -35 dB: just over halfway in decibels
     (4, 1),  // a clipped buffer
     (.infinity, 1),
 ])
@@ -16,23 +16,23 @@ func theLevelOfABufferGoesFromTheFloorToTheCeiling(rms: Float, level: Float) {
     #expect(abs(normalizedLevel(rms: rms) - level) < 0.02)
 }
 
-@Test func theLevelRisesFasterThanItFalls() {
-    let up = smoothedLevel(from: 0, toward: 1)
-    let down = 1 - smoothedLevel(from: 1, toward: 0)
-    #expect(abs(up - 0.6) < 0.0001 && abs(down - 0.25) < 0.0001)
-    #expect(up > down)
-    // a voice that stops: the level lets go over several samples and never goes below zero
-    var level: Float = 1
-    for _ in 0..<3 { level = smoothedLevel(from: level, toward: 0) }
-    #expect(level > 0.4 && level < 0.5)
+@Test func theFollowerGoesUpFasterThanItComesDown() {
+    var follower = VoiceFollower()
+    let loud = VoiceLevels(overall: 1, low: 1, mid: 1, high: 1)
+    follower.step(toward: loud, seconds: 1.0 / 60)
+    let up = follower.shown.overall
+    follower.step(toward: .silence, seconds: 1.0 / 60)
+    let down = up - follower.shown.overall
+    #expect(up > 0.3 && down < up * 0.5)
+    // a voice that stops: it lets go over a few tenths of a second, never below zero, and a frame of no time moves nothing
+    for _ in 0..<60 { follower.step(toward: .silence, seconds: 1.0 / 60) }
+    #expect(follower.shown.overall >= 0 && follower.shown.overall < 0.02)
+    let held = follower.shown
+    follower.step(toward: loud, seconds: 0)
+    #expect(follower.shown == held)
 }
 
-@Test(arguments: [(Float(0), 0.4), (0.5, 0.7), (1, 1.0), (-1, 0.4), (3, 1.0)])
-func theEdgeOpacityIs04Plus06TimesTheLevel(level: Float, opacity: Double) {
-    #expect(abs(dictationEdgeOpacity(level: level) - opacity) < 0.0001)
-}
-
-@Test func theMeterPublishesAboutFifteenTimesASecondAndFollowsTheVoice() {
+@Test func theMeterPublishesAboutThirtyTimesASecondAsItHeardIt() {
     var meter = LevelMeter()
     let rate = 16000.0
     let loud = AudioBuffer(samples: Array(repeating: 0.3, count: 1600), sampleRate: rate)  // 0.1 s
@@ -40,14 +40,26 @@ func theEdgeOpacityIs04Plus06TimesTheLevel(level: Float, opacity: Double) {
     for _ in 0..<10 where meter.add(loud) != nil { published += 1 }  // one second of audio
     #expect(published == 10)
     #expect(meter.level > 0.9)
-    // a buffer shorter than a fifteenth of a second waits for the next
+    // a buffer shorter than a thirtieth of a second waits for the next
     var short = LevelMeter()
-    #expect(short.add(AudioBuffer(samples: Array(repeating: 0.3, count: 500), sampleRate: rate)) == nil)
-    #expect(short.add(AudioBuffer(samples: Array(repeating: 0.3, count: 600), sampleRate: rate)) != nil)
-    // silence after the voice lets the level go down gradually
-    let before = meter.level
+    #expect(short.add(AudioBuffer(samples: Array(repeating: 0.3, count: 300), sampleRate: rate)) == nil)
+    #expect(short.add(AudioBuffer(samples: Array(repeating: 0.3, count: 300), sampleRate: rate)) != nil)
+    // silence right after the voice reads as silence: the smoothing is the view's
     _ = meter.add(AudioBuffer(samples: Array(repeating: 0, count: 1600), sampleRate: rate))
-    #expect(meter.level < before && meter.level > before * 0.5)
+    #expect(meter.level == 0)
+}
+
+@Test(arguments: [(150.0, 0), (800.0, 1), (5000.0, 2)])
+func aToneLightsTheBandItBelongsTo(hertz: Double, band: Int) {
+    var meter = LevelMeter()
+    let rate = 16000.0
+    let tone = (0..<3200).map { Float(0.02 * sin(2 * Double.pi * hertz * Double($0) / rate)) }  // 0.2 s
+    var last = VoiceLevels.silence
+    for chunk in stride(from: 0, to: tone.count, by: 800) {
+        if let levels = meter.add(AudioBuffer(samples: Array(tone[chunk..<chunk + 800]), sampleRate: rate)) { last = levels }
+    }
+    let levels = [last.low, last.mid, last.high]
+    #expect(levels.firstIndex(of: levels.max()!) == band)
 }
 
 private func degrees(_ color: HSB) -> Double { (color.hue * 360).rounded() }
@@ -78,9 +90,4 @@ func aGrayAccentKeepsItsHueAndOnlyTheBrightnessVaries(saturation: Double) {
     #expect(dictationEdgeShown(nil, dropping: false) == false)
     #expect(dictationEdgeShown(dictationPresentation(.listening, registered: true), dropping: false))
     #expect(dictationEdgeShown(dictationPresentation(.listening, registered: true), dropping: true) == false)
-}
-
-@Test(arguments: [(Float(0), 0.21), (1, 0.6)])
-func theLightTopsAt60PercentAndKeepsA35thOfThatInSilence(level: Float, opacity: Double) {
-    #expect(abs(dictationLightOpacity(level: level) - opacity) < 0.0001)
 }

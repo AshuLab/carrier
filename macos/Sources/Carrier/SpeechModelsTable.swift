@@ -15,20 +15,19 @@ struct SpeechModelsTable: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Color.clear.frame(width: 20)
-                Text("MODEL").frame(maxWidth: .infinity, alignment: .leading)
-                Text("SIZE").frame(width: 64, alignment: .leading)
-                Text("LANGUAGES").frame(width: 150, alignment: .leading)
-                Text("TEXT APPEARS").frame(width: 104, alignment: .leading)
-                Color.clear.frame(width: 158)
+                Text("Model").frame(maxWidth: .infinity, alignment: .leading)
+                Text("Size").frame(width: 64, alignment: .leading)
+                Text("Languages").frame(width: 150, alignment: .leading)
+                Text("Text appears").frame(width: 104, alignment: .leading)
+                Color.clear.frame(width: 170)
             }
-            .font(.caption2.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.vertical, 8)
+            .sectionLabel().padding(.vertical, 10)
             .accessibilityHidden(true)
             ForEach(rows) { row in
-                Divider()
+                SettingsDivider()
                 SpeechModelRowView(row: row, choose: choose, download: download, cancel: cancel, delete: delete)
             }
         }
-        .padding(.bottom, 4)
     }
 }
 
@@ -38,7 +37,6 @@ private struct SpeechModelRowView: View {
     let download: (String) -> Void
     let cancel: (String) -> Void
     let delete: (String) -> Void
-    @State private var hovering = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -47,7 +45,7 @@ private struct SpeechModelRowView: View {
                 Text(row.name).font(.body.weight(.medium))
                 HStack(spacing: 0) {
                     Text("\(row.recognizer) · ").foregroundStyle(.secondary)
-                    Link(row.licence, destination: row.card).help("Open the card of \(row.name)")
+                    Link(row.licence, destination: row.card).tint(Color.themeAccent).help("Open the card of \(row.name)")
                 }
                 .font(.caption)
             }
@@ -59,52 +57,45 @@ private struct SpeechModelRowView: View {
             }
             .frame(width: 150, alignment: .leading)
             StatusChip(text: row.text, tint: row.text == "Live" ? Color.themeAccent : .secondary).frame(width: 104, alignment: .leading)
-            action.frame(width: 158, alignment: .trailing)
+            action.frame(width: 170, alignment: .trailing)
         }
-        .padding(8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(fill))
+        .padding(.vertical, 14)
         .contentShape(Rectangle())
-        .onHover { hovering = $0 }
         .onTapGesture { if row.radio != nil { choose(row.id) } }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(row.label)
         .accessibilityAddTraits(row.radio == true ? .isSelected : [])
     }
 
-    private var fill: Color {
-        row.radio == true ? Color.themeAccent.opacity(0.22) : hovering && row.radio != nil ? Color.secondary.opacity(0.14) : .clear
-    }
-
-    @ViewBuilder private var radio: some View {
-        if let chosen = row.radio {
-            Button { choose(row.id) } label: {
-                Image(systemName: chosen ? "largecircle.fill.circle" : "circle").foregroundStyle(chosen ? Color.themeAccent : .secondary)
-            }
-            .buttonStyle(.plain).accessibilityLabel("Use \(row.name)")
+    /// Always there so the column is the same on every row: lit on the model in use, plain on a model that is on disk, dim and dead on one that is not.
+    private var radio: some View {
+        Button { choose(row.id) } label: {
+            Image(systemName: row.radio == true ? "largecircle.fill.circle" : "circle").foregroundStyle(row.radio == true ? Color.themeAccent : .secondary)
         }
+        .buttonStyle(.plain).disabled(row.radio == nil).opacity(row.radio == nil ? 0.35 : 1)
+        .accessibilityLabel("Use \(row.name)")
     }
 
     @ViewBuilder private var action: some View {
         switch row.action {
         case .download(let size):
-            Button("Download · \(size)") { download(row.id) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+            Button { download(row.id) } label: { Label("Download · \(size)", systemImage: "arrow.down.circle") }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
         case .downloading(let percent):
             HStack(spacing: 6) {
                 ProgressView(value: Double(percent), total: 100).tint(Color.themeAccent)
                 Text("\(percent)%").font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                Button { cancel(row.id) } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                    .buttonStyle(.plain).help("Cancel").accessibilityLabel("Cancel the download of \(row.name)")
+                IconButton(icon: "xmark", name: "Cancel the download of \(row.name)") { cancel(row.id) }
             }
         case .failed(let cause):
             VStack(alignment: .trailing, spacing: 2) {
-                Text(cause).font(.caption).foregroundStyle(.red).multilineTextAlignment(.trailing)
-                Button("Retry") { download(row.id) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                Label(cause, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange).multilineTextAlignment(.trailing)
+                Button { download(row.id) } label: { Label("Retry", systemImage: "arrow.clockwise") }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         case .delete:
-            Button { delete(row.id) } label: { Image(systemName: "trash").foregroundStyle(.secondary) }
-                .buttonStyle(.plain).help("Delete").accessibilityLabel("Delete \(row.name)")
+            IconButton(icon: "trash", name: "Delete \(row.name)") { delete(row.id) }
         case .none:
-            EmptyView()
+            // a frame on an EmptyView collapses, and the whole row would slide a column to the right
+            Color.clear
         }
     }
 }

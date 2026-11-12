@@ -133,7 +133,7 @@ struct MessageBox<Selects: View>: View {
             // while it listens: the edge, halo and light of the voice, over the glass and under the text; a drop's veil makes the edge wait
             .background {
                 if dictationEdgeShown(dictationPresentation, dropping: dropping) {
-                    DictationIndicator(level: dictation.level).transition(.opacity)
+                    DictationIndicator(levels: dictation.voice).transition(.opacity)
                 }
             }
             .animation(.smooth(duration: 0.2), value: dictationEdgeShown(dictationPresentation, dropping: dropping))
@@ -225,6 +225,8 @@ struct MessageBox<Selects: View>: View {
             guard marked != nil else { return false }
             highlighted = min(matches.count - 1, highlighted + 1)
         case .escape:
+            // Escape first cancels a dictation, keeping the text that is there; with none, it closes the list of commands
+            if dictation.cancel(ownedBy: dictationOwner) { return true }
             guard marked != nil else { return false }
             closedFor = token
         }

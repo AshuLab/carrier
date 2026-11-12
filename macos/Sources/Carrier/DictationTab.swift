@@ -25,11 +25,13 @@ struct DictationTabView: View {
                 microphoneRow.live(.microphone, enabled: enabled)
             }
             SettingsGroup(title: "Speech models", accessory: {
-                Picker("Recognizer", selection: $filter) {
-                    Text("All").tag(RecognizerID?.none)
-                    ForEach(RecognizerID.allCases, id: \.self) { Text($0.title).tag(Optional($0)) }
+                HStack(spacing: 6) {
+                    FilterChip(title: "All", on: filter == nil) { filter = nil }
+                    ForEach(RecognizerID.allCases, id: \.self) { recognizer in
+                        FilterChip(title: recognizer.title, on: filter == recognizer) { filter = filter == recognizer ? nil : recognizer }
+                    }
                 }
-                .pickerStyle(.segmented).labelsHidden().fixedSize().padding(.trailing, 14)
+                .padding(.trailing, 14)
             }, content: {
                 SpeechModelsTable(
                     rows: dictation.rows(filter: filter), choose: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) },
@@ -39,7 +41,7 @@ struct DictationTabView: View {
             .live(.modelsTable, enabled: enabled)
             SettingsGroup(title: "Storage") {
                 SettingsTabRow(title: "Downloaded models", detail: "\(formatModelSize(dictation.store.usedBytes)) in the Carrier folder", first: true) {
-                    Button("Show in Finder") { dictation.showModelsInFinder() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    Button { dictation.showModelsInFinder() } label: { Label("Show in Finder", systemImage: "folder") }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 }
             }
             .live(.storage, enabled: enabled)
@@ -49,10 +51,10 @@ struct DictationTabView: View {
     @ViewBuilder private var speechModelRow: some View {
         if let model = dictation.model {
             SettingsTabRow(title: "Speech model", detail: "\(model.recognizer.title) · \(model.partial.line)") {
-                Picker("Speech model", selection: Binding(get: { model.id }, set: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) })) {
-                    ForEach(dictation.models.filter { dictation.store.state(of: $0) == .downloaded }) { Text($0.name).tag($0.id) }
-                }
-                .labelsHidden().fixedSize()
+                ChoicePopUp(
+                    label: "Speech model", options: dictation.models.filter { dictation.store.state(of: $0) == .downloaded }.map { (value: $0.id, title: $0.name) },
+                    selection: Binding(get: { model.id }, set: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) }), width: 200
+                )
             }
         }
     }
@@ -60,10 +62,10 @@ struct DictationTabView: View {
     @ViewBuilder private var languageRow: some View {
         if let choices = dictation.languages {
             SettingsTabRow(title: "Language", detail: choices.hint) {
-                Picker("Language", selection: Binding(get: { choices.selected }, set: { dictation.choose(language: $0) })) {
-                    ForEach(choices.offered, id: \.self) { Text(languageName($0)).tag($0) }
-                }
-                .labelsHidden().fixedSize()
+                ChoicePopUp(
+                    label: "Language", options: choices.offered.map { (value: $0, title: languageName($0)) },
+                    selection: Binding(get: { choices.selected }, set: { dictation.choose(language: $0) }), width: 200
+                )
             }
         }
     }
@@ -78,8 +80,8 @@ struct DictationTabView: View {
                 switch microphone {
                 case .allowed: StatusChip(text: "Allowed", tint: .green)
                 case .denied:
-                    StatusChip(text: "Not allowed", tint: .red)
-                    Button(MicrophoneBlockedPopover.button) { MicrophoneAccess.openSystemSettings() }
+                    StatusChip(text: "Not allowed", tint: .orange)
+                    Button { MicrophoneAccess.openSystemSettings() } label: { Label(MicrophoneBlockedPopover.button, systemImage: "gearshape") }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 case .notAsked: StatusChip(text: "Not asked yet", tint: .secondary)
                 }

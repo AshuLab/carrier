@@ -1,42 +1,96 @@
 import Foundation
 
-/// The level of a buffer, `0...1`, from its root mean square: decibels with a floor at -50 and a ceiling at -10. Zero, a negative and NaN
-/// are silence; a clipped buffer and infinity are the ceiling.
+/// The level of a buffer, `0...1`, from its root mean square: decibels with a floor at -52, under a quiet room's hiss, and a ceiling at -22, which a
+/// voice at the microphone reaches. Zero, a negative and NaN are silence; a clipped buffer and infinity are the ceiling.
 public func normalizedLevel(rms: Float) -> Float {
     guard rms > 0 else { return 0 }
     let decibels = 20 * log10(rms)
-    return min(1, max(0, (decibels + 50) / 40))
+    return min(1, max(0, (decibels + 52) / 30))
 }
 
-/// One step of the smoothing: a quarter of the way down and 60% of the way up, so the light follows a voice fast and lets go slowly.
-public func smoothedLevel(from current: Float, toward target: Float) -> Float {
-    current + (target - current) * (target > current ? 0.6 : 0.25)
+/// How loud the voice is, `0...1` each, as a whole and in three bands: low (under about 250 Hz, the body of a voice), mid (up to about 2.5 kHz,
+/// the vowels) and high (above it, the consonants and the breath).
+public struct VoiceLevels: Equatable, Sendable {
+    public var overall: Float
+    public var low: Float
+    public var mid: Float
+    public var high: Float
+
+    public static let silence = VoiceLevels(overall: 0, low: 0, mid: 0, high: 0)
+
+    public init(overall: Float, low: Float, mid: Float, high: Float) {
+        self.overall = overall
+        self.low = low
+        self.mid = mid
+        self.high = high
+    }
 }
 
-/// The opacity of the box's edge while it listens.
-public func dictationEdgeOpacity(level: Float) -> Double { 0.4 + 0.6 * Double(min(1, max(0, level))) }
-
-/// Turns the capture's buffers into the level the app shows, about fifteen times a second.
+/// Turns the capture's buffers into the levels the app shows, about thirty times a second and as they were heard: the smoothing is the view's,
+/// frame by frame (`VoiceFollower`), so a peak is not blunted before it is drawn.
 public struct LevelMeter: Sendable {
-    public static let rate = 15.0
+    public static let rate = 30.0
+    /// Where the bands split, in hertz.
+    static let lowEdge = 250.0
+    static let highEdge = 2500.0
+    // ponytail: speech carries less energy up high, so each band is lifted by an empirical gain; tune by eye if the highs stay dull or flicker
+    static let gains: (low: Float, mid: Float, high: Float) = (1, 1.6, 3.5)
 
-    public private(set) var level: Float = 0
-    private var sumOfSquares = 0.0
+    public private(set) var levels = VoiceLevels.silence
+    public var level: Float { levels.overall }
+    // one-pole filters: `lowPass` is what is under the low edge, `midPass` what is under the high edge
+    private var lowPass = 0.0
+    private var midPass = 0.0
+    private var sums = (overall: 0.0, low: 0.0, mid: 0.0, high: 0.0)
     private var count = 0
 
     public init() {}
 
-    /// Takes a buffer; returns the new smoothed level each time about a fifteenth of a second of audio has gathered, nil in between.
-    public mutating func add(_ buffer: AudioBuffer) -> Float? {
+    /// Takes a buffer; returns the levels each time about a thirtieth of a second of audio has gathered, nil in between.
+    public mutating func add(_ buffer: AudioBuffer) -> VoiceLevels? {
+        let lowAlpha = 1 - exp(-2 * Double.pi * Self.lowEdge / buffer.sampleRate)
+        let highAlpha = 1 - exp(-2 * Double.pi * Self.highEdge / buffer.sampleRate)
         for sample in buffer.samples {
-            sumOfSquares += Double(sample * sample)
-            count += 1
+            let x = Double(sample)
+            lowPass += lowAlpha * (x - lowPass)
+            midPass += highAlpha * (x - midPass)
+            let (low, mid, high) = (lowPass, midPass - lowPass, x - midPass)
+            sums.overall += x * x
+            sums.low += low * low
+            sums.mid += mid * mid
+            sums.high += high * high
         }
+        count += buffer.samples.count
         guard count > 0, Double(count) >= buffer.sampleRate / Self.rate else { return nil }
-        level = smoothedLevel(from: level, toward: normalizedLevel(rms: Float((sumOfSquares / Double(count)).squareRoot())))
-        sumOfSquares = 0
+        func band(_ sum: Double, _ gain: Float) -> Float { normalizedLevel(rms: Float((sum / Double(count)).squareRoot()) * gain) }
+        levels = VoiceLevels(
+            overall: band(sums.overall, 1), low: band(sums.low, Self.gains.low), mid: band(sums.mid, Self.gains.mid), high: band(sums.high, Self.gains.high)
+        )
+        sums = (0, 0, 0, 0)
         count = 0
-        return level
+        return levels
+    }
+}
+
+/// What the view shows of the levels: it goes up to a new one in about 30 ms and lets go of it in about 200 ms, stepped on every frame so the
+/// motion flows between the thirty readings a second.
+public struct VoiceFollower: Sendable {
+    public static let attack = 0.03
+    public static let release = 0.2
+
+    public private(set) var shown = VoiceLevels.silence
+
+    public init() {}
+
+    public mutating func step(toward target: VoiceLevels, seconds: Double) {
+        func follow(_ current: Float, _ target: Float) -> Float {
+            let tau = target > current ? Self.attack : Self.release
+            return current + (target - current) * Float(1 - exp(-max(0, seconds) / tau))
+        }
+        shown = VoiceLevels(
+            overall: follow(shown.overall, target.overall), low: follow(shown.low, target.low),
+            mid: follow(shown.mid, target.mid), high: follow(shown.high, target.high)
+        )
     }
 }
 
@@ -72,6 +126,3 @@ public func dictationColors(accent: HSB) -> [HSB] {
 public func dictationEdgeShown(_ presentation: DictationPresentation?, dropping: Bool) -> Bool {
     presentation?.inAccent == true && dropping == false
 }
-
-/// How much light the box has at `level`: about 60% at full voice and 35% of that in silence.
-public func dictationLightOpacity(level: Float) -> Double { 0.6 * (0.35 + 0.65 * Double(min(1, max(0, level)))) }

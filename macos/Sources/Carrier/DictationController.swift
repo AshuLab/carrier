@@ -15,7 +15,7 @@ import SwiftUI
             registry: .shared, capture: capture, microphone: .system, log: DictationLog(carrierFolder: currentCarrierFolder()),
             modelsRoot: dictationModelsRoot(), downloader: RealDownloads()
         )
-        capture.onLevel = { level in Task { @MainActor in controller.level = level } }
+        capture.onLevel = { levels in Task { @MainActor in controller.voice = levels } }
         return controller
     }()
 
@@ -23,8 +23,9 @@ import SwiftUI
     let session: DictationSession
     /// The speech models on disk, their downloads and their space.
     let store: ModelStore
-    /// The voice's level, `0...1`, smoothed, while the microphone listens; 0 otherwise.
-    private(set) var level: Float = 0
+    /// How loud the voice is, as a whole and in three bands, while the microphone listens; silence otherwise.
+    private(set) var voice = VoiceLevels.silence
+    var level: Float { voice.overall }
     private(set) var microphone: MicrophonePermission
     /// Whether the message boxes have a microphone. Off, nothing asks macOS for the microphone and nothing listens.
     private(set) var enabled: Bool
@@ -129,6 +130,11 @@ import SwiftUI
             }
         }
         return click
+    }
+
+    /// Escape: cancels the dictation of `owner` and keeps the text that was on the screen. Says whether there was one, so the key is taken only then.
+    func cancel(ownedBy owner: String) -> Bool {
+        session.owner == owner && session.cancel()
     }
 
     /// Stops the dictation of `owner`, or whichever runs when nil: a typed key, Enter and leaving (a session, the window, the app).

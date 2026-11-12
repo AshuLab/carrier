@@ -188,6 +188,43 @@ private func everyReasonToStopKeepsWhatWasHeard(reason: Reason, partial: Partial
     #expect(rig.session.failure(for: "box") == nil)
 }
 
+@MainActor @Test(arguments: [PartialText.native, .atTheEnd])
+private func cancellingKeepsTheTextThatIsThereAndIgnoresWhatTheRecognizerSaysAfterwards(partial: PartialText) async {
+    let rig = Rig(text: "uno dos", caret: 4)
+    let recognizer = ScriptedRecognizer(partial: partial)
+    rig.dictate(with: recognizer)
+    await rig.reaches(.listening)
+    recognizer.say(.partial("hola"))
+    if partial == .native { await rig.until { rig.text == "uno holados" } }
+    let shown = rig.text
+    #expect(rig.session.cancel())
+    // it is idle at once, the partial text is final and the audio is gone
+    #expect(rig.session.state == .idle)
+    #expect(rig.tentative == nil)
+    #expect(rig.text == shown)
+    #expect(rig.capture.isRunning == false)
+    // what the recognizer says after the cancel changes nothing, and a second cancel has nothing to cancel
+    recognizer.say(.final("hola mundo"))
+    recognizer.finish()
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(rig.text == shown)
+    #expect(rig.session.cancel() == false)
+}
+
+@MainActor @Test func cancellingWhileTranscribingGivesUpTheTextThatWasToCome() async {
+    let rig = Rig(text: "uno", caret: 3)
+    let recognizer = ScriptedRecognizer(partial: .atTheEnd)
+    rig.dictate(with: recognizer)
+    await rig.reaches(.listening)
+    rig.session.stop()
+    #expect(rig.session.state == .transcribing)
+    #expect(rig.session.cancel())
+    recognizer.say(.final("hola"))
+    recognizer.finish()
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(rig.session.state == .idle && rig.text == "uno")
+}
+
 @MainActor @Test func aSecondDictationStopsTheFirstAndStartsWhenItIsIdle() async {
     let rig = Rig()
     let first = ScriptedRecognizer()

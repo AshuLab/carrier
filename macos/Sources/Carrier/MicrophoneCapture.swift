@@ -25,13 +25,13 @@ struct MicrophoneAccess {
     }
 }
 
-/// The audio capture over the system's microphone: gives its mono buffers to the recognizer and the level, about fifteen times a second,
+/// The audio capture over the system's microphone: gives its mono buffers to the recognizer and the levels, about thirty times a second,
 /// to `onLevel`. The audio lives in memory only: `stop` takes the tap off and ends the stream, and nothing is written anywhere.
 final class MicrophoneCapture: AudioCapture, @unchecked Sendable {
     private let lock = NSLock()
     private var engine: AVAudioEngine?
     private var continuation: AsyncStream<CarrierCore.AudioBuffer>.Continuation?
-    var onLevel: (@Sendable (Float) -> Void)?
+    var onLevel: (@Sendable (VoiceLevels) -> Void)?
 
     func start() throws -> AsyncStream<CarrierCore.AudioBuffer> {
         stop()
@@ -69,6 +69,6 @@ final class MicrophoneCapture: AudioCapture, @unchecked Sendable {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         continuation?.finish()
-        onLevel?(0)
+        onLevel?(.silence)
     }
 }

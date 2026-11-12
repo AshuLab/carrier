@@ -1,7 +1,7 @@
 import Foundation
 
 // The Behavior page of Settings (docs/specs/behavior-in-settings.md): the eight values of `EngineConfig` in three groups, with the
-// title and description of each and the key it edits. The view only draws this.
+// title and description of each and the key it edits, then the Reset card. The view only draws this.
 
 /// How a row is edited.
 public enum BehaviorControl: Equatable {
@@ -43,3 +43,9 @@ public let behaviorGroups: [BehaviorGroup] = [
         BehaviorRow(key: "logLevel", title: "Log level", detail: "How much Carrier writes to its log", control: .logLevel),
     ]),
 ]
+
+/// The last group of the page: one card that puts the eight values back to the engine's defaults (`EngineConfig()`).
+public let behaviorReset = (group: "Reset", title: "Restore the defaults", detail: "Everything on this page goes back to how it came", button: "Reset")
+
+/// The note under the title when nothing went wrong; what the engine does with a saved value is not decided here.
+public let behaviorSavingNote = "Saved as you change them · Carrier reads these when it starts"

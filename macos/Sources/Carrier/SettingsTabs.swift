@@ -15,6 +15,8 @@ struct SettingsTabRow<Control: View>: View {
     var roomy = false
     /// A third line for what the row is and not what it says (a path, a login): monospaced and quieter than the detail.
     var note: String?
+    /// The detail is what is wrong with the value: it takes the place of the usual detail, in orange and with a warning mark, and the title keeps its colour.
+    var problem = false
     @ViewBuilder var control: Control
 
     var body: some View {
@@ -22,8 +24,10 @@ struct SettingsTabRow<Control: View>: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).fontWeight(.medium)
                 if detail.isEmpty == false {
-                    Text(detail).font(mono ? .scaled(11.5, design: .monospaced) : .caption).foregroundStyle(.secondary)
-                        .lineLimit(2).truncationMode(.middle)
+                    Group {
+                        if problem { Text("\(Image(systemName: "exclamationmark.triangle.fill")) \(detail)").foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
+                    }
+                    .font(mono ? .scaled(11.5, design: .monospaced) : .caption).lineLimit(2).truncationMode(.middle)
                 }
                 if let note {
                     Text(note).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
@@ -47,6 +51,7 @@ struct SettingsDivider: View {
 private struct SettingsFieldModifier: ViewModifier {
     let width: CGFloat?
     let icon: String?
+    let invalid: Bool
     /// The caller's own focus state, when it needs to know about the focus (to save as the person leaves the field); else the field keeps its own.
     let external: FocusState<Bool>.Binding?
     @FocusState private var own: Bool
@@ -59,13 +64,14 @@ private struct SettingsFieldModifier: ViewModifier {
         HStack(spacing: 7) {
             if let icon { Image(systemName: icon).font(.scaled(12, weight: .medium)).foregroundStyle(.secondary).accessibilityHidden(true) }
             content.textFieldStyle(.plain).focused(focus).focusEffectDisabled()
+            if invalid { Image(systemName: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange).accessibilityHidden(true) }
         }
             .padding(.horizontal, 10).padding(.vertical, 6)
             // a fixed width, or the whole width it is given
             .frame(minWidth: width, maxWidth: width ?? .infinity)
             // a fill only while idle: a half-point hairline over a translucent fill drew uneven edges
             .background(shape.fill(Color.primary.opacity(focused ? 0.09 : 0.07)))
-            .overlay { if focused { shape.strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
+            .overlay { if invalid { shape.strokeBorder(Color.orange, lineWidth: 1.5) } else if focused { shape.strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
             .contentShape(shape)
             .onTapGesture { focus.wrappedValue = true }
             .animation(.easeOut(duration: 0.12), value: focused)
@@ -74,8 +80,9 @@ private struct SettingsFieldModifier: ViewModifier {
 
 extension View {
     /// `icon` is an SF Symbol drawn inside the box before the text (a magnifying glass for a search).
-    func settingsField(width: CGFloat? = nil, icon: String? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
-        modifier(SettingsFieldModifier(width: width, icon: icon, external: focused))
+    /// `invalid` draws the ring in orange and a warning mark inside the box, the same size as without them: nothing moves.
+    func settingsField(width: CGFloat? = nil, icon: String? = nil, invalid: Bool = false, focused: FocusState<Bool>.Binding? = nil) -> some View {
+        modifier(SettingsFieldModifier(width: width, icon: icon, invalid: invalid, external: focused))
     }
 }
 

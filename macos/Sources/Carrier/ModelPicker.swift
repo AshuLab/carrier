@@ -50,6 +50,8 @@ struct ModelPickerButton: View {
     let accounts: [PickerAccount]
     let catalog: ModelCatalog
     var showsEffort = true
+    /// A failover step may name no effort: it then keeps the one the role was running with, which the first level of the slider says.
+    var inheritsEffort = false
     /// A step may name no model and take the account's own: the first row of the list says so, and so does the pill.
     var allowsDefaultModel = false
     /// Set for a step that may be taken away (the second): the row at the foot that does it.
@@ -87,6 +89,7 @@ struct ModelPickerButton: View {
 
     private var effortText: String? {
         guard showsEffort, provider != nil else { return nil }
+        if inheritsEffort, (effort ?? "").isEmpty { return nil }
         return effortSteps.first { $0.id == (effort ?? "") }?.label
     }
 
@@ -123,7 +126,11 @@ struct ModelPickerButton: View {
             if showsEffort {
                 ScaleRow(
                     scale: OptionScale(id: "effort", title: "Reasoning", steps: effortSteps.map {
-                        OptionRow.Choice(id: $0.id, label: $0.label, ticked: $0.id == (effort ?? ""), detail: $0.detail)
+                        let same = inheritsEffort && $0.id.isEmpty
+                        return OptionRow.Choice(
+                            id: $0.id, label: same ? "As the role" : $0.label, ticked: $0.id == (effort ?? ""),
+                            detail: same ? "Keeps the reasoning the role was running with." : $0.detail
+                        )
                     }),
                     color: { _, _ in Color.themeAccent },
                     commit: { index in if effortSteps.indices.contains(index) { pick(.effort(effortSteps[index].id)) } }

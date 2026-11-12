@@ -41,7 +41,8 @@ struct BehaviorTabView: View {
             }
             SettingsGroup(title: behaviorReset.group) {
                 SettingsTabRow(title: behaviorReset.title, detail: behaviorReset.detail, first: true) {
-                    Button(behaviorReset.button) { draft = EngineConfig(); unparsable = [] }.disabled(draft == EngineConfig() && unparsable.isEmpty)
+                    Button { draft = EngineConfig(); unparsable = [] } label: { Label(behaviorReset.button, systemImage: "arrow.counterclockwise") }
+                        .disabled(draft == EngineConfig() && unparsable.isEmpty)
                 }
             }
         }
@@ -60,8 +61,7 @@ struct BehaviorTabView: View {
     }
 
     private func row(_ item: BehaviorRow, first: Bool) -> some View {
-        SettingsTabRow(title: item.title, detail: problems[item.key] ?? item.detail, first: first) { control(item) }
-            .foregroundStyle(problems[item.key] == nil ? Color.primary : Color.orange)
+        SettingsTabRow(title: item.title, detail: problems[item.key] ?? item.detail, first: first, problem: problems[item.key] != nil) { control(item) }
     }
 
     @ViewBuilder private func control(_ item: BehaviorRow) -> some View {
@@ -75,17 +75,17 @@ struct BehaviorTabView: View {
                 if draft.maxExecutionHours != nil {
                     integer(item.key, Binding(get: { draft.maxExecutionHours ?? 4 }, set: { draft.maxExecutionHours = $0 }), min: 1, unit: "h")
                 }
-                Picker(item.title, selection: Binding(get: { draft.maxExecutionHours == nil }, set: { unlimited in
-                    unparsable.remove(item.key)
-                    draft.maxExecutionHours = unlimited ? nil : 4
-                })) {
-                    Text("Limit").tag(false)
-                    Text("Unlimited").tag(true)
-                }.pickerStyle(.segmented).labelsHidden().fixedSize()
+                ChoicePopUp(
+                    label: item.title, options: [(value: false, title: "Limit"), (value: true, title: "Unlimited")],
+                    selection: Binding(get: { draft.maxExecutionHours == nil }, set: { unlimited in
+                        unparsable.remove(item.key)
+                        draft.maxExecutionHours = unlimited ? nil : 4
+                    }),
+                    width: 120
+                )
             }
         case .logLevel:
-            Picker(item.title, selection: $draft.logLevel) { ForEach(EngineConfig.logLevels, id: \.self) { Text($0) } }
-                .labelsHidden().frame(width: 90)
+            ChoicePopUp(label: item.title, options: EngineConfig.logLevels.map { (value: $0, title: $0) }, selection: $draft.logLevel, width: 100)
         }
     }
 
@@ -175,8 +175,8 @@ struct NumberField<Value: Equatable>: View {
             stepButton("plus", 1)
         }
         .padding(2)
-        .background(RoundedRectangle(cornerRadius: 9).fill(Color.secondary.opacity(0.12)))
-        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(invalid ? Color.red : focused ? Color.themeAccent : Color.clear, lineWidth: 1.5))
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(focused ? 0.09 : 0.07)))
+        .overlay { if invalid { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.orange, lineWidth: 1.5) } else if focused { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
             .onAppear { text = format(value) }
             .onChange(of: text) {
                 if let parsed = parse(text) {

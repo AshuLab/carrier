@@ -33,19 +33,19 @@ struct AccountEditor: View {
         VStack(alignment: .leading, spacing: 8) {
             if inFile == false {
                 // never a blank form that would write over an account it did not read
-                Text("\(account.title) is not in providers.json, so there is nothing to edit.").font(.callout).foregroundStyle(.red)
+                Label("\(account.title) is not in providers.json, so there is nothing to edit.", systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
                 Button("Close") { close() }.buttonStyle(SecondaryCapsuleButtonStyle())
             } else {
                 SettingsGroup(title: "Edit \(account.title)") {
                     field("Display name", "displayName", "What the app shows instead of \(account.name)", first: true) {
-                        TextField(account.name, text: $draft.displayName).settingsField(width: 240)
+                        TextField(account.name, text: $draft.displayName).settingsField(width: 240, invalid: problems["displayName"] != nil)
                     }
                     field("Binary path", "command", "Empty runs \(harness) from the PATH") {
-                        TextField("/opt/homebrew/bin/\(harness)", text: $draft.command).settingsField(width: 240)
+                        TextField("/opt/homebrew/bin/\(harness)", text: $draft.command).settingsField(width: 240, invalid: problems["command"] != nil)
                     }
                     if harness != "agy" {
                         field("Config folder", "configDir", harness == "claude" ? "CLAUDE_CONFIG_DIR; empty is this Mac's login" : "CODEX_HOME; empty is this Mac's login", hint: "Any path; one that does not start with / or ~/ is taken from your home folder") {
-                            TextField("~/.\(harness)-work", text: $draft.configDir).settingsField(width: 240)
+                            TextField("~/.\(harness)-work", text: $draft.configDir).settingsField(width: 240, invalid: problems["configDir"] != nil)
                         }
                         field("Auto-compact after", "autoCompact", "Tokens in the conversation before the CLI compacts it. Use default is the CLI's own") {
                             // the steps are ours; a value already in the file that is not one of them stays in the list, so opening the editor never changes it
@@ -76,7 +76,7 @@ struct AccountEditor: View {
                         }
                     }
                 }
-                if let problem = store.editProblem { Text(problem).font(.callout).foregroundStyle(.red) }
+                if let problem = store.editProblem { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
                 HStack(spacing: 10) {
                     Button(role: .destructive) {
                         Task { if await store.remove(name: account.name) { close() } }
@@ -100,8 +100,7 @@ struct AccountEditor: View {
     private func field<Control: View>(
         _ title: String, _ key: String, _ detail: String, hint: String? = nil, first: Bool = false, @ViewBuilder control: () -> Control
     ) -> some View {
-        SettingsTabRow(title: title, detail: problems[key] ?? [detail, hint].compactMap { $0 }.joined(separator: ". "), first: first, roomy: true) { control() }
-            .foregroundStyle(problems[key] == nil ? Color.primary : Color.red)
+        SettingsTabRow(title: title, detail: problems[key] ?? [detail, hint].compactMap { $0 }.joined(separator: ". "), first: first, roomy: true, problem: problems[key] != nil) { control() }
             .accessibilityElement(children: .contain)
     }
 }
@@ -134,7 +133,7 @@ struct AddAccountForm: View {
                     TextField("~/.\(harness)-work", text: $folder).settingsField(width: 240)
                 }
             }
-            if let message = problem ?? store.editProblem { Text(message).font(.callout).foregroundStyle(.red) }
+            if let message = problem ?? store.editProblem { Label(message, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
             HStack(spacing: 10) {
                 Spacer()
                 Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }

@@ -729,7 +729,7 @@ test('a usage limit does not count in the retry streak', async () => {
 });
 
 // Failover: three options, the author on `claude` and the reviewer on `codex`; `spare` is the one only the list can name.
-type Steps = { provider: string; model?: string }[];
+type Steps = { provider: string; model?: string; effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' }[];
 const failoverRepos = (roles?: { author?: Steps; reviewer?: Steps }): EffectiveRepoConfig[] =>
   choosing({ claude: claudeOption, codex: codexOption, spare: { harness: 'agy', model: 'flash' } }).map((repo) => ({ ...repo, ...(roles && { failover: { roles } }) }));
 // Reserves the epic, which starts at once on the defaults.
@@ -769,6 +769,17 @@ test("a role's effort goes with it when it moves to the next step", async () => 
   await startWith(config);
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
   expect(runner.tasks[1]).toMatchObject({ option: 'spare', effort: 'high' });
+});
+
+test('a failover step with its own effort runs on it, and one without keeps the effort the role was running with', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.option === 'codex' ? { sessionId: 's-3', write: completed(task) } : outOf(task.option === 'claude' ? 'claude' : 'spare')(task, { exit: 'hang' }));
+  const config = failoverRepos({ author: [{ provider: 'spare', effort: 'low' }, { provider: 'codex' }] }).map((repo) => ({ ...repo, agents: { ...repo.agents, author: { ...repo.agents.author, effort: 'high' as const } } }));
+  await startWith(config);
+  await vi.waitFor(() => expect(runner.tasks.length).toBeGreaterThanOrEqual(3));
+  expect(runner.tasks[1]).toMatchObject({ option: 'spare', effort: 'low' });
+  expect(runner.tasks[2]).toMatchObject({ option: 'codex', effort: 'low' });
 });
 
 test('only the role that ran out moves: a reviewer that runs out leaves the author option as it is', async () => {

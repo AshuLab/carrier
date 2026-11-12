@@ -206,7 +206,7 @@ struct AgentsTabView: View {
                         })).labelsHidden().toggleStyle(.switch)
                     }
                     if on {
-                        stepRow("First", detail: "Provider and model", step: row.steps.first, row: row, page: page, index: 0)
+                        stepRow("First", detail: "Provider, model and reasoning", step: row.steps.first, row: row, page: page, index: 0)
                         stepRow("Then", detail: "Optional", step: row.steps.dropFirst().first, row: row, page: page, index: 1)
                     }
                     if row.steps.count > 2 {
@@ -233,13 +233,15 @@ struct AgentsTabView: View {
         }
         return SettingsTabRow(title: title, detail: detail) {
             ModelPickerButton(
-                provider: step?.provider, model: step?.model, accounts: pickerAccounts(page: page, current: [step?.provider]), catalog: catalog,
-                showsEffort: false, allowsDefaultModel: true, noneTitle: index == 1 ? "No second step" : nil, placeholder: index == 0 ? "Choose…" : "None"
+                provider: step?.provider, model: step?.model, effort: step?.effort, accounts: pickerAccounts(page: page, current: [step?.provider]), catalog: catalog,
+                inheritsEffort: true, allowsDefaultModel: true, noneTitle: index == 1 ? "No second step" : nil, placeholder: index == 0 ? "Choose…" : "None"
             ) { pick in
                 switch pick {
-                case .account(let account, let model): _ = write(FailoverStep(provider: account, model: model))
+                case .account(let account, let model): _ = write(FailoverStep(provider: account, model: model, effort: step?.effort))
                 case .none: _ = write(nil)
-                case .effort: break
+                case .effort(let level):
+                    // a level goes with a provider: with none yet there is nothing to write it on
+                    if let step { _ = write(FailoverStep(provider: step.provider, model: step.model, effort: level.isEmpty ? nil : level)) }
                 }
             }
         }

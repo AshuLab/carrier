@@ -71,6 +71,10 @@ A row that opens an editor or a form shows **a chevron `chevron.right` at its ri
 - Small facts of a status card (`fact` in `ReposTab.swift`): a label of 84 pt in `secondary` and the value; **every row is at least 40 pt**, taller than any chip, so a row with a badge and one without are the same height.
 - A state is shown by a green, orange or grey dot, or by `StatusMark` (`SettingsTabs.swift`, a 16 pt round mark: `checkmark` green, `exclamationmark` yellow, `xmark` orange), at the right of a row that has no button or before one. While something runs, **each row turns its own `ProgressView` and says "Checking…"**; the page does not say it once in a corner.
 
+## A value that is not valid
+
+Orange, not red, and nothing moves. A row with `problem: true` (`SettingsTabRow`) puts what is wrong in the place of its detail line, in orange with a warning mark, and its title keeps its colour; the field gets `invalid: true` (`settingsField`, or the ring of `NumberField`): an orange ring and a warning mark inside the box, the same size as without them. A message that has no row of its own (a refused save) is a `Label` with `exclamationmark.triangle.fill` in orange. Do not colour a whole row red.
+
 ## Text
 
 - Titles `fontWeight(.medium)`, details `.caption` in `secondary`, a path or a command `.scaled(11, design: .monospaced)`. Use `Font.scaled` (`ScaledFont.swift`), not a fixed size, so the person's text size applies.

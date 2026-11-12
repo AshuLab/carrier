@@ -47,18 +47,20 @@ public enum RoleIdentity: Equatable {
     case unset
 }
 
-/// One step of a role's failover: a provider and, optionally, a model.
+/// One step of a role's failover: a provider and, optionally, a model and how hard it thinks (left out, the effort the role was running with).
 public struct FailoverStep: Equatable {
     public var provider: String
     public var model: String?
+    public var effort: String?
 
-    public init(provider: String, model: String? = nil) {
+    public init(provider: String, model: String? = nil, effort: String? = nil) {
         self.provider = provider
         self.model = model
+        self.effort = effort
     }
 
-    /// `codex · gpt-5`, or `codex` when the step takes the account's model.
-    public var text: String { [provider, model].compactMap { $0 }.joined(separator: " · ") }
+    /// `codex · gpt-5 · low`, or `codex` when the step takes the account's model and the role's effort.
+    public var text: String { [provider, model, effort].compactMap { $0 }.joined(separator: " · ") }
 }
 
 public struct RoleRow: Equatable, Identifiable {
@@ -123,7 +125,7 @@ public func agentsPage(config: Data, providers: Data?, bots: ForgeBots) -> Agent
             identity = .unset
         }
         let steps = (lists[role.rawValue] as? [[String: Any]] ?? []).compactMap { step in
-            (step["provider"] as? String).map { FailoverStep(provider: $0, model: step["model"] as? String) }
+            (step["provider"] as? String).map { FailoverStep(provider: $0, model: step["model"] as? String, effort: step["effort"] as? String) }
         }
         return RoleRow(
             role: role, what: role.purpose, fields: fields, identity: identity,

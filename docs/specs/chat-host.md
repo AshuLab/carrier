@@ -90,7 +90,7 @@ The chat inside the engine process, for tying conversations to the engine's stop
 3. When the agent asks for approval, the terminal shows the question with the provider's own choices and the answer is honoured, including a decline; if the person leaves while it is pending, it stays pending and can be answered after `--resume`.
 4. The person can list the session's options (permission mode, model, reasoning level, whatever the provider offers), change one while the session runs, and a value the provider does not list is refused.
 5. Ctrl+C during a turn interrupts it and the session stays open for the next message.
-6. A closed session, also after the host ended or died, resumes by its id with the same agent context, and the transcript so far is shown.
+6. A closed session, also after the host ended or died, resumes by its id with the same agent context, and the transcript so far is shown. When the provider has lost its own copy of the conversation, the session still wakes: a new conversation starts in the same folder and the transcript says, in a `notice`, that the agent does not remember it.
 7. `--list` shows the sessions with their folder, agent, state and age; a session can be archived, unarchived and deleted from the terminal (`--archive`, `--unarchive`, `--delete`), and a deleted one leaves nothing behind.
 8. The same conversation works with Codex through the same port, or the epic closes without Codex if its spike failed.
 9. A folder that does not exist, is not a directory, or is inside the engine's folder is refused with a reason.
@@ -123,13 +123,16 @@ type ChatEvent =
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
-  | { kind: 'error'; text: string };
+  | { kind: 'error'; text: string }
+  | { kind: 'notice'; text: string; lostNativeId?: string };  // said by the host, never by an adapter: a plain line, not a failure
 
 interface ChatConversation {
   readonly options: ChatOption[];
   readonly commands: ChatCommand[];            // skills and commands to invoke; empty when the provider has none or does not say
   /** The provider's id for this conversation, once it has one. */
   readonly nativeId: string | undefined;
+  /** Set when a resume found nothing to resume and the provider began a new conversation instead. */
+  readonly startedOver?: boolean;
   send(text: string, command?: ChatCommand): void;
   answer(approvalId: string, choiceId: string, answers?: Record<string, string>): void;
   interrupt(): Promise<void>;
@@ -143,7 +146,7 @@ interface ChatRunner {
 }
 ```
 
-The runner's `open` rejects when the provider is not installed, not logged in, or does not know the native id to resume, and the host turns each into a reason a client can show. Adapters keep their own typed parsing and never throw on a line they do not know. The host treats an agent process that ends on its own as the end of the turn if one was running (outcome error) and of the live session otherwise.
+The runner's `open` rejects when the provider is not installed or not logged in, and the host turns each into a reason a client can show. A native id the provider does not know is not one of them for Claude: its adapter starts a new conversation (`startedOver`), and the host stores a `notice` with the lost id, drops the id from the session and carries on; a provider without that fallback rejects, as the others do. Adapters keep their own typed parsing and never throw on a line they do not know. The host treats an agent process that ends on its own as the end of the turn if one was running (outcome error) and of the live session otherwise.
 
 The chat socket's request union is its own and strict, in the style of the engine's, with the same hello (`protocol: 1`). The cursor polling choice is a reversible default, which is why it has no ADR.
 

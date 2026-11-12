@@ -218,6 +218,29 @@ test('--resume prints the last 20 events of the transcript, then continues the c
   expect(second.conversations[0]!.sent).toEqual(['and now']);
 });
 
+test('--resume of a session whose conversation the provider lost says so in the transcript, and the agent starts a new one', async () => {
+  const work = join(root, 'work');
+  mkdirSync(work);
+  const first = new FakeChatRunner();
+  first.setup = nativeReply;
+  const one = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: first } });
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const { session } = (await client.request('open', { agent: 'claude', folder: work })) as any;
+  await client.request('send', { sessionId: session.id, text: 'hello' });
+  client.close();
+  await one.stop();
+
+  const second = new FakeChatRunner();
+  second.setup = (conversation) => {
+    nativeReply(conversation);
+    conversation.startedOver = true;
+  };
+  const next = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: second } });
+  stops.push(next.stop);
+  expect(await chatCommand({ resume: session.id }, { input: typed('/quit'), pollMs: 5 })).toBe(0);
+  expect(written.join('')).toMatch(/> hello\nre: hello\n\[The agent could not find this conversation/);
+});
+
 test('--resume of an unknown session shows the refusal in words', async () => {
   await host();
   await expect(chatCommand({ resume: '00000000-0000-4000-8000-000000000000' }, { input: typed('/quit') })).rejects.toMatchObject({ code: 1, lines: ['There is no such session'] });

@@ -73,6 +73,7 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
       if (event.kind === 'assistant') write(`${String(event.text).slice(printed)}\n`), (printed = 0);
       else if (event.kind === 'tool_start') write(`  [${event.tool}${event.arg ? ` ${event.arg}` : ''}]\n`);
       else if (event.kind === 'error') write(`error: ${event.text}\n`);
+      else if (event.kind === 'notice') write(`[${event.text}]\n`);
       else if (event.kind === 'turn_end') {
         finished = true;
         printed = 0;
@@ -99,6 +100,7 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
       else if (event.kind === 'assistant') write(`${event.text}\n`);
       else if (event.kind === 'tool_start') write(`  [${event.tool}${event.arg ? ` ${event.arg}` : ''}]\n`);
       else if (event.kind === 'error') write(`error: ${event.text}\n`);
+      else if (event.kind === 'notice') write(`[${event.text}]\n`);
     }
   }
 

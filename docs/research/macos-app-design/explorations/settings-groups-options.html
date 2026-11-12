@@ -321,12 +321,17 @@ Carrier: { icon:'📦', pages:[
   {id:'reviewer', t:'Reviewer', ic:'🔍', sub:'carrier-reviewer · codex · gpt-5.5 · high', secs:()=>roleSecs('reviewer')},
   {id:'lead', t:'Lead reviewer', ic:'🧭', sub:()=>TG['role.lead']?'Choose an identity, provider and model':'Off', secs:()=>roleSecs('lead')}
  ]},
- {id:'beh', t:'Behavior', d:'How epics run', ic:'🎚', secs:[
-  {t:'Rhythm', rows:[
-   {t:'Look for ready epics every', d:'', c:'val|5 min'}, {t:'Show finished epics for', d:'', c:'val|15 days'}, {t:'Log level', d:'', c:'val|info'}]},
-  {t:'Limits', rows:[
-   {t:'Epics at once', d:'', c:'val|3'}, {t:'Reviews at once', d:'', c:'val|5'}, {t:'Retries', d:'', c:'val|3'}, {t:'Time per agent run', d:'', c:'val|4 h'},
-   {t:'GitHub call timeout', d:'', c:'val|30 s'}, {t:'Wait for the choice of provider', d:'How long a reserved epic waits when there are two or more', c:'val|2 min'}]}]}
+ {id:'beh', t:'Behavior', d:'How Carrier runs epics', ic:'🎚', hr:'Saved as you change them · Carrier reads these when it starts', secs:[
+  {t:'Pace', rows:[
+   {t:'Look for ready epics every', d:'', c:'val|5 min'}, {t:'Epics at once', d:'Running at the same time', c:'val|3'}]},
+  {t:'When something goes wrong', rows:[
+   {t:'Review rounds before asking you', d:'Then the epic waits for a person (needs-human)', c:'val|5'},
+   {t:'Retries after a technical failure', d:'Of an agent run', c:'val|3'},
+   {t:'Time per agent run', d:'', c:'val|4 h'}]},
+  {t:'Housekeeping', rows:[
+   {t:'Show finished epics for', d:'1 to 30 days', c:'val|15 days'}, {t:'GitHub call timeout', d:'Each short call', c:'val|30 s'}, {t:'Log level', d:'', c:'val|info'}]},
+  {t:'Reset', rows:[{t:'Restore the defaults', d:'Everything on this page goes back to how it came', c:'btn|ResetBeh'}]}
+ ]}
 ]},
 Chat: { icon:'💬', pages:[
  {id:'sessions', t:'Sessions', d:'When sessions age out', ic:'🕘', secs:[
@@ -668,6 +673,7 @@ function ctl(c){
   if(c==='btn|ResetChat') return '<button class="glass sm" onclick="resetC()">Reset</button>';
   if(c==='btn|ResetKeys') return '<button class="glass sm" onclick="resetKeys()">Reset</button>';
   if(c.startsWith('kb:')) return kbCtl(c.slice(3));
+  if(c==='btn|ResetBeh') return '<button class="glass sm">Reset</button>';
   if(c==='btn|Reset') return '<button class="glass sm" onclick="reset()">Reset</button>';
   if(c.startsWith('fn:')) return CT[c.slice(3)]();
   if(c.startsWith('sw')) return '<div class="sg-sw '+(c.includes('on')?'on':'')+'"></div>';

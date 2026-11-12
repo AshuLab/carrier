@@ -105,7 +105,7 @@ An informational panel drawn with ANSI sequences without dependencies, in the sa
 5. Every interval the app records, once and in order of arrival, the open epics with `solve:epic:ready` from all configured repos, even if there is more than one page of results.
 6. If GitHub fails or rate-limits requests, the queue and state are kept, the error is shown and the query is retried at the next interval or after the wait GitHub indicates, without consuming agent retries.
 7. When a slot is free the oldest queued epic is started, never more than the configured concurrency nor two executions of the same epic, and the issue goes from `ready` to `running`.
-8. On startup, the app creates in each configured repo the `running`, `ready-for-test` and `needs-human` labels that are missing, with their colour and description.
+8. The first time the app writes a label on an epic's issue in a repo, it creates in that repo the `running`, `ready-for-test` and `needs-human` labels that are missing, with their colour and description (once per run for each repo, and never at startup: a repo where no epic gets a label is never asked). If creating them fails, the epic keeps its label pending and is not launched, and the next check tries again.
 9. The author runs `ship` as a host process with the epic's workspace and the engine records the final PR validated against GitHub.
 10. The reviewer, with another identity and a separate checkout, reviews the final PR and its `completed` result leaves the epic in `ready-for-test` only if the reviewed SHA is the PR's current head.
 11. If the reviewer requests changes and rounds remain, the author gets a fix turn and the reviewer reviews again; with the last round exhausted the epic goes to `needs-human`. If the review is `completed` but lists observations, the author goes over them once in a pass before the epic is ready for test (a pass that changes nothing ends in `ready-for-test`, one that commits is reviewed again); see [ADR 0009](../adr/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md).
@@ -178,7 +178,7 @@ export const CallerResult = z.discriminatedUnion('outcome', [
 }
 ```
 
-**Labels.** Carrier owns `solve:epic:running`, `solve:epic:ready-for-test` and `solve:epic:needs-human` and creates them in the configured repos if missing; `solve:epic:ready` belongs to Solve and is not created. Carrier creates its three with a colour and a description (`running` blue `0969da`, `ready-for-test` purple `8957e5`, `needs-human` orange-red `d93f0b`, loud on purpose) and never changes one that already exists; `ready` is created by Solve's hand-off step ([AshuLab/skills#34](https://github.com/AshuLab/skills/issues/34)).
+**Labels.** Carrier owns `solve:epic:running`, `solve:epic:ready-for-test` and `solve:epic:needs-human` and creates them in a configured repo, if missing, when an epic is first labelled there; `solve:epic:ready` belongs to Solve and is not created. Carrier creates its three with a colour and a description (`running` blue `0969da`, `ready-for-test` purple `8957e5`, `needs-human` orange-red `d93f0b`, loud on purpose) and never changes one that already exists; `ready` is created by Solve's hand-off step ([AshuLab/skills#34](https://github.com/AshuLab/skills/issues/34)).
 
 **Panel.** Drawn with ANSI sequences from the standard library, without TUI dependencies.
 

@@ -57,21 +57,42 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
       }
       if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('Claude is not logged in; run "claude" once to log in');
       const extraArgs = extraArgsOf(launch); // before anything starts, so a refusal reaches the person in its own words
-      const conversation = new ClaudeConversation(options, resume);
+      const begin = async (from: string | undefined) => {
+        const conversation = new ClaudeConversation(options, from);
+        try {
+          await conversation.start(deps, { folder, binary, env, extraArgs });
+        } catch (error) {
+          await conversation.close();
+          throw error;
+        }
+        return conversation;
+      };
       try {
-        await conversation.start(deps, { folder, binary, env, extraArgs });
+        return await begin(resume);
       } catch (error) {
+        // `claude --resume <unknown id>` ends with "No conversation found with session ID: <id>" (the SDK prefixes it with "Claude Code returned an error result: ").
+        // Claude Code keeps its transcripts in its own config folder; when they are gone (a broken `projects` link, a cleaned folder) it cannot resume and never will. Start over in the same folder instead of failing on every try.
+        if (resume !== undefined && /No conversation found/i.test(String(error instanceof Error ? error.message : error))) {
+          log.warn(`claude has no transcript for ${resume}; starting a new conversation in its folder`);
+          try {
+            const conversation = await begin(undefined);
+            conversation.startedOver = true;
+            return conversation;
+          } catch (retry) {
+            log.error('claude could not be started', retry);
+            throw new ChatRefused('Claude could not be started');
+          }
+        }
         log.error('claude could not be started', error);
-        await conversation.close();
         throw new ChatRefused(resume === undefined ? 'Claude could not be started' : 'Claude could not resume that conversation');
       }
-      return conversation;
     },
   };
 }
 
 class ClaudeConversation implements ChatConversation {
   nativeId: string | undefined;
+  startedOver = false;
   private listeners: ((event: ChatEvent) => void)[] = [];
   private endListeners: (() => void)[] = [];
   private query!: Query;

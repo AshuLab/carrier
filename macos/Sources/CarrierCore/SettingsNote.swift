@@ -16,8 +16,8 @@ public func settingsNote(_ subject: SettingsNoteSubject, state: ConnectionState?
     var applies = false
     if case .running? = state { applies = canReload }
     switch (subject, applies) {
-    case (.values, true): return "Carrier applies these to the next epic."
-    case (.values, false): return "Carrier reads these when it starts."
+    case (.values, true): return "Carrier applies these to the next epic"
+    case (.values, false): return "Carrier reads these when it starts"
     case (.repo, true): return "Carrier applies it to the next epic"
     case (.repo, false): return "Carrier reads it when it starts"
     }

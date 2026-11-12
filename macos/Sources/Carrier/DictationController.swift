@@ -11,8 +11,10 @@ import SwiftUI
         // a fixture build hears nothing and asks macOS for nothing: its recognizer is a canned phrase
         guard CommandLine.arguments.contains("--fixture") == false else { return DictationController(registry: .shared) }
         let capture = MicrophoneCapture()
+        let folder = currentCarrierFolder()
         let controller = DictationController(
-            registry: .shared, capture: capture, microphone: .system, log: DictationLog(carrierFolder: currentCarrierFolder())
+            registry: .shared, capture: capture, microphone: .system, log: DictationLog(carrierFolder: folder),
+            modelsRoot: URL(fileURLWithPath: folder + "/app/models"), downloader: NoDownloads()
         )
         capture.onLevel = { level in Task { @MainActor in controller.level = level } }
         return controller
@@ -20,6 +22,8 @@ import SwiftUI
 
     let registry: RecognizerRegistry
     let session: DictationSession
+    /// The speech models on disk, their downloads and their space.
+    let store: ModelStore
     /// The voice's level, `0...1`, smoothed, while the microphone listens; 0 otherwise.
     private(set) var level: Float = 0
     private(set) var microphone: MicrophonePermission
@@ -32,6 +36,9 @@ import SwiftUI
     init(
         registry: RecognizerRegistry, capture: AudioCapture = ScriptedCapture(), microphone access: MicrophoneAccess = .allowed,
         log: DictationLog? = nil, preferences: AppPreferences = AppPreferences(),
+        // a fixture build keeps its pretend downloads in a temporary folder, away from the person's own
+        modelsRoot: URL = FileManager.default.temporaryDirectory.appending(path: "carrier-fixture-models"),
+        downloader: any ModelDownloader = FixtureModelDownloader(),
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.registry = registry
@@ -39,6 +46,11 @@ import SwiftUI
         self.preferences = preferences
         enabled = preferences.dictationEnabled
         microphone = access.status()
+        store = ModelStore(
+            root: modelsRoot, models: { registry.recognizers.flatMap(\.models) },
+            downloader: downloader, inUse: { preferences.dictationModel(among: registry.recognizers.flatMap(\.models))?.id },
+            log: { log?.append($0) }, announce: { AccessibilityNotification.Announcement($0).post() }
+        )
         session = DictationSession(capture: capture, sleep: sleep, announce: { AccessibilityNotification.Announcement($0).post() }, log: { log?.append($0) })
         // sending the app to the background: nothing keeps listening unseen
         NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
@@ -55,6 +67,17 @@ import SwiftUI
 
     /// The model the person chose, and Apple's when they did not or it is gone.
     var model: SpeechModel? { preferences.dictationModel(among: models) }
+
+    /// The rows of the speech models table, for the recognizer chosen in its filter (all of them when nil).
+    func rows(filter: RecognizerID?) -> [SpeechModelRow] {
+        speechModelRows(models: models, filter: filter, state: store.state(of:), inUse: model?.id)
+    }
+
+    /// Shows the models' folder, which may not exist yet.
+    func showModelsInFinder() {
+        try? FileManager.default.createDirectory(at: store.root, withIntermediateDirectories: true)
+        NSWorkspace.shared.activateFileViewerSelecting([store.root])
+    }
 
     func choose(model: SpeechModel) { preferences.dictationModelID = model.id }
 
@@ -95,7 +118,7 @@ import SwiftUI
         }
         microphone = access.status()
         let click = dictationClick(microphone)
-        guard click == .start, let model, let recognizer = registry.recognizers.first(where: { $0.id == model.recognizer }) else { return click }
+        guard click == .start, let model, let recognizer = registry.recognizers.first(where: { $0.models.contains(model) }) else { return click }
         if microphone == .allowed {
             session.start(recognizer: recognizer, model: model, into: field)
         } else {
@@ -112,5 +135,12 @@ import SwiftUI
     /// Stops the dictation of `owner`, or whichever runs when nil: a typed key, Enter and leaving (a session, the window, the app).
     func stop(ownedBy owner: String? = nil) {
         if owner == nil || session.owner == owner { session.stop() }
+    }
+}
+
+/// The downloader of a real build, which lists only Apple's model: nothing there can be downloaded yet, and the real downloaders arrive with their recognizers.
+private struct NoDownloads: ModelDownloader {
+    func download(_ model: SpeechModel, into folder: URL, progress: @MainActor @Sendable (Double) -> Void) async throws {
+        throw DictationFailure("This build cannot download \(model.name).")
     }
 }

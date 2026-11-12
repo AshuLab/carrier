@@ -73,3 +73,35 @@ func theDictationPageBuildsWithTheSwitchOnAndOff(enabled: Bool) {
         #expect(renderer.cgImage != nil, "\(enabled) at \(width)")
     }
 }
+
+@MainActor @Test func theModelsTableBuildsWithRowsInEveryState() {
+    let models = FixtureRecognizer().models
+    let states: [ModelState] = [.downloaded, .notDownloaded, .downloading(0.4), .failed("No space on the disk"), .downloaded, .notDownloaded]
+    var byID: [String: ModelState] = [:]
+    for (model, state) in zip(models, states) { byID[model.id] = state }
+    let rows = speechModelRows(models: models, filter: nil, state: { byID[$0.id] ?? .notDownloaded }, inUse: models[0].id)
+    // the five actions of a row are among them: Download, the progress, Retry, the trash and none
+    #expect(Set(rows.map(\.action)).count == 5)
+    for width in [760.0, 1000.0] {
+        let table = SpeechModelsTable(rows: rows, choose: { _ in }, download: { _ in }, cancel: { _ in }, delete: { _ in })
+        let renderer = ImageRenderer(content: table.frame(width: width))
+        #expect(renderer.cgImage != nil, "at \(width)")
+    }
+}
+
+@MainActor @Test func thePageBuildsOverTheFixtureListWithTheSwitchOff() {
+    let registry = RecognizerRegistry()
+    registry.register(FixtureRecognizer())
+    let preferences = AppPreferences(defaults: UserDefaults(suiteName: "dictation-tab-\(UUID().uuidString)")!)
+    let dictation = DictationController(registry: registry, preferences: preferences)
+    for enabled in [true, false] {
+        dictation.setEnabled(enabled)
+        #expect(ImageRenderer(content: DictationTabView(dictation: dictation).frame(width: 900)).cgImage != nil)
+    }
+    // the popup lists what is downloaded: the canned phrase, which stands in for Apple's, and none of the entries to download
+    #expect(dictation.rows(filter: nil).filter { $0.radio != nil }.map(\.name) == ["Fixture phrase"])
+}
+
+@Test func appleRecognizersModelPassesTheCatalogCheck() {
+    #expect(SpeechModelCatalog.problems(in: AppleRecognizer(languages: ["en", "es"], preferredLanguages: ["es"]).models).isEmpty)
+}

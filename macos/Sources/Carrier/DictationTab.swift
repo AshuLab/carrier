@@ -1,13 +1,14 @@
 import CarrierCore
 import SwiftUI
 
-/// The Dictation page: the switch, the speech model, the language and the microphone's state. With the switch off the rows under it are
+/// The Dictation page: the switch, the speech model, the language, the microphone's state, the speech models table and Storage. With the switch off the rows under it are
 /// drawn at 40% and take no clicks (`dictationRowIsLive`).
 struct DictationTabView: View {
     var dictation = DictationController.shared
     // the choices are the controller's to read and write; these make the page redraw when they change, Reset included
     @AppStorage(AppPreferences.dictationModelKey) private var savedModel: String?
     @AppStorage(AppPreferences.dictationLanguageKey) private var savedLanguage: String?
+    @State private var filter: RecognizerID?
 
     var body: some View {
         let enabled = dictation.enabled
@@ -23,6 +24,25 @@ struct DictationTabView: View {
                 languageRow.live(.language, enabled: enabled)
                 microphoneRow.live(.microphone, enabled: enabled)
             }
+            SettingsGroup(title: "Speech models", accessory: {
+                Picker("Recognizer", selection: $filter) {
+                    Text("All").tag(RecognizerID?.none)
+                    ForEach(RecognizerID.allCases, id: \.self) { Text($0.title).tag(Optional($0)) }
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize().padding(.trailing, 14)
+            }, content: {
+                SpeechModelsTable(
+                    rows: dictation.rows(filter: filter), choose: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) },
+                    download: dictation.store.download, cancel: dictation.store.cancel, delete: { dictation.store.delete($0) }
+                )
+            })
+            .live(.modelsTable, enabled: enabled)
+            SettingsGroup(title: "Storage") {
+                SettingsTabRow(title: "Downloaded models", detail: "\(formatModelSize(dictation.store.usedBytes)) in the Carrier folder", first: true) {
+                    Button("Show in Finder") { dictation.showModelsInFinder() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                }
+            }
+            .live(.storage, enabled: enabled)
         }
     }
 
@@ -30,7 +50,7 @@ struct DictationTabView: View {
         if let model = dictation.model {
             SettingsTabRow(title: "Speech model", detail: "\(model.recognizer.title) · \(model.partial.line)") {
                 Picker("Speech model", selection: Binding(get: { model.id }, set: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) })) {
-                    ForEach(dictation.models) { Text($0.name).tag($0.id) }
+                    ForEach(dictation.models.filter { dictation.store.state(of: $0) == .downloaded }) { Text($0.name).tag($0.id) }
                 }
                 .labelsHidden().fixedSize()
             }
@@ -73,7 +93,7 @@ struct DictationTabView: View {
 }
 
 /// A capsule with a word in it: its color at 16% under the same color, so the state is never the color alone.
-private struct StatusChip: View {
+struct StatusChip: View {
     let text: String
     let tint: Color
 
@@ -89,16 +109,6 @@ private extension View {
     func live(_ row: DictationRow, enabled: Bool) -> some View {
         let live = dictationRowIsLive(row, enabled: enabled)
         return opacity(live ? 1 : 0.4).disabled(live == false)
-    }
-}
-
-private extension RecognizerID {
-    var title: String {
-        switch self {
-        case .apple: "Apple"
-        case .fluidAudio: "FluidAudio"
-        case .whisper: "Whisper"
-        }
     }
 }
 

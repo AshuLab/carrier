@@ -56,8 +56,8 @@ private func theLanguagePageOffersAFunctionOfTheModelMacOSAndTheSavedChoice(c: C
     #expect(languageChoices(for: parakeet, macOSLanguages: [], saved: nil).hint.contains("mix Spanish and English"))
 }
 
-@Test func theSwitchDimsEveryRowButItselfAndReset() {
-    let rows: [DictationRow] = [.enabledSwitch, .speechModel, .language, .microphone, .reset]
-    #expect(rows.filter { dictationRowIsLive($0, enabled: false) } == [.enabledSwitch, .reset])
+@Test func theSwitchDimsEveryRowButItselfStorageAndReset() {
+    let rows: [DictationRow] = [.enabledSwitch, .speechModel, .language, .microphone, .modelsTable, .storage, .reset]
+    #expect(rows.filter { dictationRowIsLive($0, enabled: false) } == [.enabledSwitch, .storage, .reset])
     #expect(rows.allSatisfy { dictationRowIsLive($0, enabled: true) })
 }

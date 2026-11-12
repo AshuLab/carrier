@@ -40,10 +40,9 @@ public func languageChoices(for model: SpeechModel, macOSLanguages: [String], sa
 }
 
 /// The rows of the Dictation page that the switch affects.
-public enum DictationRow: Equatable, Sendable { case enabledSwitch, speechModel, language, microphone, reset }
+public enum DictationRow: Equatable, Sendable { case enabledSwitch, speechModel, language, microphone, modelsTable, storage, reset }
 
-/// Whether a row takes clicks and is drawn in full: with Dictation off only the switch and Reset do (the models table is dimmed and Storage
-/// stays live too, when those rows come).
+/// Whether a row takes clicks and is drawn in full: with Dictation off only the switch, Storage (so the disk can be freed) and Reset do.
 public func dictationRowIsLive(_ row: DictationRow, enabled: Bool) -> Bool {
-    enabled || row == .enabledSwitch || row == .reset
+    enabled || row == .enabledSwitch || row == .storage || row == .reset
 }

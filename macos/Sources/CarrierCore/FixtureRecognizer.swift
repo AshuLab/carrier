@@ -14,7 +14,7 @@ public struct FixtureRecognizer: Recognizer {
 
     public static let phrase = "Hola, necesito que revises los cambios de esta rama antes de enviarlos."
 
-    // It stands in for Apple's: a fixture build registers no other.
+    // It stands in for Apple's, and its models include the fixture entries of the other recognizers: a fixture build registers no other.
     public let id = RecognizerID.apple
     public let mode: Mode
     private let sleep: @Sendable (Duration) async throws -> Void
@@ -30,7 +30,7 @@ public struct FixtureRecognizer: Recognizer {
                 id: "fixture.canned-phrase", recognizer: id, name: "Fixture phrase", bytes: nil, languages: ["es"], detectsLanguage: false,
                 partial: mode == .atTheEnd ? .atTheEnd : .native, licence: "None", card: URL(string: "https://github.com/AshuLab/carrier")!
             )
-        ]
+        ] + SpeechModelCatalog.fixtureEntries
     }
 
     public func prepare(_ model: SpeechModel) async throws {

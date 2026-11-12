@@ -96,7 +96,8 @@ struct BehaviorTabView: View {
         case "maxReviews": return $draft.maxReviews
         case "maxExecutionRetries": return $draft.maxExecutionRetries
         case "githubCallTimeoutSeconds": return $draft.githubCallTimeoutSeconds
-        default: return $draft.finishedWindowDays
+        case "finishedWindowDays": return $draft.finishedWindowDays
+        default: preconditionFailure("no whole-number value named \(key)")
         }
     }
 
@@ -150,39 +151,6 @@ struct BehaviorTabView: View {
     private func autosave() {
         guard unreadable == false, draft != saved, problems.isEmpty else { return }
         if write() { note = "Saved" }
-    }
-}
-
-/// The green line after a save.
-struct SavedNote: View {
-    let text: String
-
-    var body: some View {
-        Label(text, systemImage: "checkmark.circle.fill").fontWeight(.medium).foregroundStyle(.green)
-            .padding(.horizontal, 14).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.green.opacity(0.13)))
-    }
-}
-
-/// A question under the tab's content with a way out and a red button: the restart that interrupts epics.
-struct ConfirmationCard: View {
-    let text: String
-    let confirm: String
-    let cancel: () -> Void
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(text)
-            HStack {
-                Spacer()
-                Button("Cancel", action: cancel)
-                Button(confirm, role: .destructive, action: action)
-            }
-            .buttonStyle(SecondaryCapsuleButtonStyle())
-        }
-        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.12)))
     }
 }
 

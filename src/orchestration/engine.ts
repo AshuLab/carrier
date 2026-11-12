@@ -102,14 +102,12 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   let stopping = false;
 
   // Creates the owned labels a repo lacks, with their colour and description; never touches existing ones nor creates `ready` (Solve's).
-  async function ensureLabels() {
-    for (const { name } of repos) {
-      if (stopping) return;
-      if (labelledRepos.has(name)) continue;
-      const existing = await github.listLabels(name);
-      for (const label of ownedLabels) if (!existing.includes(label)) await github.createLabel(name, label, labelStyles[label]);
-      labelledRepos.add(name);
-    }
+  // Runs right before the first label write on a repo; the repo is remembered only once every label exists, so a failure is retried by the next write.
+  async function ensureLabels(repo: string) {
+    if (labelledRepos.has(repo)) return;
+    const existing = await github.listLabels(repo);
+    for (const label of ownedLabels) if (!existing.includes(label)) await github.createLabel(repo, label, labelStyles[label]);
+    labelledRepos.add(repo);
   }
 
   // The one owned label each status shows; merged and cancelled (stopped from outside) show none.
@@ -126,6 +124,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Mirrors the epic's status on its issue: its label, none of the other owned ones, and no `ready` while running.
   const applyLabels = async ({ id, repo, issue, status }: Epic) => {
     if (stopping || suspended) return; // labelPending stays true: the next run reflects it
+    await ensureLabels(repo);
     const wanted = labelOf(status);
     await github.setLabels(repo, issue, {
       add: wanted ? [wanted] : [],
@@ -822,7 +821,6 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     try {
       // Fetch every repo before writing: a failure on any of them leaves the queue untouched.
       const found: { repo: string; issue: number; title: string; labels: string[] }[] = [];
-      await ensureLabels();
       if (!recovered) await recover();
       for (const { name: repo } of repos) {
         for (const { issue, title, labels } of await github.listReadyEpics(repo)) found.push({ repo, issue, title, labels });
@@ -882,13 +880,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     async start() {
       stopRetention = startRetention(db, places.logs, clock, sessionDirs);
       // GitHub down: retried every cycle until it works.
-      for (const step of [ensureLabels, recover]) {
-        try {
-          await step();
-        } catch (err) {
-          log.error('startup step failed', err);
-          failed(err);
-        }
+      try {
+        await recover();
+      } catch (err) {
+        log.error('startup step failed', err);
+        failed(err);
       }
       schedule(pollIntervalMs);
       sliceTimer();

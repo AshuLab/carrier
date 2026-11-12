@@ -76,14 +76,16 @@ test('builds the engine with the config\'s limits, effective repos and the real 
   expect(seen.logging).toEqual([[join(root, 'engine', 'logs', 'orchestrator.log'), 'debug']]);
   expect(acquireLock(join(root, 'engine', 'state'))).toEqual({ ok: false });
   expect(seen.sigint).toBe(1);
-  // It started: the labels of every configured repo were checked.
-  expect(github.created).toHaveLength(6);
+  // It started without asking GitHub for any repo's labels.
+  expect(github.created).toHaveLength(0);
 
   // Limits and effective repos: two epics at once, the repo override reaches the reviewer, the time limit is in ms.
   await clock.advance(MIN);
   // two accounts are declared and the epics start at once
   expect(runner.tasks.map((t) => [t.epic, t.stage, t.timeoutMs])).toEqual([[1, 'ship', 2 * 3_600_000], [2, 'ship', 2 * 3_600_000]]);
   expect(app.db.$client.prepare('select config from epics order by id').pluck().get()).toContain('"model":"override"');
+  // Taking the epics of AshuLab/a created that repo's labels, and only that repo's.
+  expect(github.created.map((c) => c.split(':')[0])).toEqual(['AshuLab/a', 'AshuLab/a', 'AshuLab/a']);
 });
 
 test('GitHub acts as the orchestrator\'s profile from inside a clone-shaped folder under the Carrier folder, with the configured timeout', async () => {
@@ -157,8 +159,8 @@ test('a second instance on the same Carrier folder gets InstanceBusy before anyt
 });
 
 test('a startup failure releases the lock', async () => {
-  const { github, deps } = fakes();
-  github.listLabels = async () => {
+  const { runner, deps } = fakes();
+  runner.listActive = async () => {
     throw new Error('boom');
   };
   await expect(startCarrier(config(), root, deps)).rejects.toThrow('boom');
@@ -176,7 +178,7 @@ test('onArrived fires once the engine is up and before the panel draws; a startu
   await vi.waitFor(() => expect(seen.panel.length).toBeGreaterThan(0)); // and the panel does start
 
   const failing = fakes();
-  failing.github.listLabels = async () => {
+  failing.runner.listActive = async () => {
     throw new Error('boom');
   };
   const announced = vi.fn();
@@ -196,6 +198,7 @@ test('with a terminal on both sides the panel takes keys: r polls now, p pauses 
   const calls = github.calls;
   stdin.emit('keypress', 'r', { name: 'r' });
   await vi.waitFor(() => expect(github.calls).toBeGreaterThan(calls)); // polled without waiting for the interval
+  await app.engine.pollNow(); // joins that poll: the database is not closed under it
   stdin.emit('keypress', 'p', { name: 'p' });
   expect(app.engine.paused).toBe(true);
   stdin.emit('keypress', 'q', { name: 'q' });

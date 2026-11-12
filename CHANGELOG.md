@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Carrier no longer asks GitHub about the labels of every repo it watches before it answers on its socket: a repo's `solve:epic:running`, `solve:epic:ready-for-test` and `solve:epic:needs-human` are created when an epic is first labelled in that repo, no longer at start, so starting takes the same with six repos or a hundred.
 - The release waits about 8 minutes (it waited 1) for npm to serve a version it has just been given before it takes the formula's checksum, so it no longer stops at that step while npm is still validating.
 
 ## [0.3.0] - 2026-11-12

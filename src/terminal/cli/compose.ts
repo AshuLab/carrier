@@ -102,20 +102,30 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
   const startedAt = deps.clock.now();
   const db = openDatabase(places.db);
   const repos = config.repos.map((repo) => resolveRepoConfig(config, repo));
-  const { limits } = started; // the GitHub timeout is read once; reloading it comes with the profiles
+  // Profiles are looked up by name when used, so a reload reaches the next token, clone and GitHub call; one removed while an epic names it fails that run naming it.
+  const declared = (name: string) => {
+    const profile = config.profiles[name];
+    if (!profile) throw new Error(`profile "${name}" is not declared`);
+    return profile;
+  };
   // Git over the network (clone, fetch) runs as the repo's author profile.
-  const authorProfile = (repo: string) => config.profiles[repos.find((r) => r.name === repo)!.agents.author.profile]!;
+  const authorProfile = (repo: string) => declared(repos.find((r) => r.name === repo)!.agents.author.profile);
+  const timeoutMs = () => config.limits.githubCallTimeoutSeconds * 1000;
   const github = deps.makeGitHub({
-    profile: config.profiles[config.orchestratorProfile]!,
+    get profile() {
+      return declared(config.orchestratorProfile);
+    },
     cwd: forgeCwd(places),
-    timeoutMs: limits.githubCallTimeoutSeconds * 1000,
+    get timeoutMs() {
+      return timeoutMs();
+    },
   });
   const engine = createEngine({
     db,
     clock: deps.clock,
     github,
-    workspaces: deps.makeWorkspaces({ places, token: (repo) => deps.mint(authorProfile(repo), repo) }),
-    runner: deps.makeRunner({ credentials: profileCredentials({ profiles: config.profiles, mint: deps.mint, botId: deps.botId }) }),
+    workspaces: deps.makeWorkspaces({ places, token: async (repo) => deps.mint(authorProfile(repo), repo) }),
+    runner: deps.makeRunner({ credentials: profileCredentials({ profiles: () => config.profiles, mint: deps.mint, botId: deps.botId }) }),
     repos,
     settings: () => ({
       pollIntervalMs: config.pollIntervalMinutes * 60_000,
@@ -178,7 +188,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
     epic: (repo: string, issue: number) => epicOf(db, repo, issue),
     files: (repo: string, issue: number, executionId?: string) => filesOf(db, places.repos, repo, issue, executionId),
     fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, places.repos, repo, issue, section, path),
-    availableRepos: (page: number) => deps.listRepos(page, limits.githubCallTimeoutSeconds * 1000),
+    availableRepos: (page: number) => deps.listRepos(page, timeoutMs()),
     resumeEpic: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.resumeEpic(repo, issue, chosen),
     reload: () =>
       engine.reload(() => {

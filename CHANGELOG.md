@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-12
+
+The Mac app has an Updates page and its sidebar tells a session's state at a glance; Settings' Providers, Repos and Agents pages share one design.
+
 ### Added
 
 - Settings has an Updates page: the version, when Carrier last looked for a newer one, a Check now button, and the two choices (look by itself, install by itself). The Carrier menu has Check for Updates… under About Carrier. The page also says where the update of Carrier's engine stands (updating, up to date, or why it failed) and, when it failed, has a Try again button.
@@ -115,7 +119,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/AshuLab/carrier/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AshuLab/carrier/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/AshuLab/carrier/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/AshuLab/carrier/compare/v0.1.2...v0.1.3

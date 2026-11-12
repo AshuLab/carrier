@@ -222,3 +222,15 @@ _Avoid_: tab (a page is a row of the rail, not a tab), section (that is a part o
 
 **Legacy group** - The Settings group that holds the pages that existed before the groups (Engine, Behavior, Sessions, Health) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
 _Avoid_: old settings, misc, other.
+
+**Dictation** - Speaking to write: the app listens through the microphone and puts the recognized text where the person is typing. The first cut starts from a button in the chat composer and fills that field; a shortcut and typing into other apps come after, on the same core.
+_Avoid_: voice input, transcription (a recording turned into text afterwards), speech-to-text (that is what a recognizer does).
+
+**Recognizer** - The piece of software that turns audio into text, each with its own list of speech models: Apple's SpeechAnalyzer, FluidAudio (Parakeet, Nemotron) and Whisper. A person picks a recognizer and then one of its models. It runs inside the app, not in the engine.
+_Avoid_: engine (that is Carrier's orchestrator, and the app has an Engine page), backend, provider (that is who serves an agent's model), ASR or STT engine.
+
+**Speech model** - What a recognizer runs, taken from one fixed list in the app: its name, recognizer, size, languages, how it gives partial text and its licence. It is downloaded by the person from the app, never bundled with it and never fetched from a free URL; Apple's are managed by the system.
+_Avoid_: model alone (that is the language model an account's agent uses), voice, checkpoint.
+
+**Partial text** - What a dictation shows while the person is still speaking, before it is final. A recognizer gives it natively, or the core makes it by transcribing the audio so far at short intervals when the model is fast enough, or there is none and the text arrives when the person stops.
+_Avoid_: live transcription, preview, interim result.

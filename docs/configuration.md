@@ -140,7 +140,7 @@ A config with `limits.optionChoiceSeconds`, or a `providers.json` account with `
 
 A role has failover when its list of steps in `failover.roles` is not empty. There is no global switch and no default list: a missing or empty list (`[]`) means that role stops when its login runs out.
 
-A step is a provider, an account of `providers.json`, and optionally the model to run there. Without a model the step uses the account's `model`, then the harness's default.
+A step is a provider, an account of `providers.json`, and optionally the model to run there and its `effort` (one of the five levels). Without a model the step uses the account's `model`, then the harness's default; without an `effort` it keeps the one the role was running with (the role's own for the first step).
 
 ```jsonc
 "failover": {
@@ -148,7 +148,7 @@ A step is a provider, an account of `providers.json`, and optionally the model t
   "triggers": ["usage_limit", "rate_limit", "service_down"],
 
   "roles": {
-    "author": [{ "provider": "claude-personal", "model": "sonnet" }, { "provider": "codex" }],
+    "author": [{ "provider": "claude-personal", "model": "sonnet", "effort": "medium" }, { "provider": "codex" }],
     "reviewer": [{ "provider": "claude-personal", "model": "haiku" }],
     "leadReviewer": []
   }

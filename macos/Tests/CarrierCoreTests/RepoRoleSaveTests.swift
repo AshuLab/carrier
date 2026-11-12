@@ -124,3 +124,9 @@ private func entry(_ path: String, repo: Int = 0, role: String = "reviewer") thr
     #expect(declaredAccounts(providersJSON: Data("{}".utf8)) == ["claude", "codex", "agy"])
     #expect(declaredAccounts(providersJSON: Data(#"{"providers":{"work":{"harness":"claude"},"home":{"harness":"codex"}}}"#.utf8)) == ["home", "work"])
 }
+
+@Test func eachAccountGetsTheIconOfTheHarnessItRuns() {
+    let json = #"{"providers":{"pro":{"harness":"claude"},"codex":{"harness":"codex"},"agy":{"harness":"agy"},"teams":{"harness":"claude"},"bare":{}}}"#
+    #expect(accountIcons(providersJSON: Data(json.utf8)) == ["pro": "claude", "codex": "codex", "agy": "antigravity", "teams": "claude", "bare": "bare"])
+    #expect(accountIcons(providersJSON: nil) == ["claude": "claude", "codex": "codex", "agy": "antigravity"])
+}

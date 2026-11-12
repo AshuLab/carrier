@@ -9,7 +9,7 @@ struct CreateBotRow: View {
 
     var body: some View {
         SettingsTabRow(title: "Create a bot…", detail: failure ?? "Opens Terminal on agent-forge add; the list updates when you come back") {
-            Button("Create a bot…") { open() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and runs agent-forge add")
+            Button { open() } label: { Label("Create a bot…", systemImage: "plus") }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and runs agent-forge add")
         }
     }
 

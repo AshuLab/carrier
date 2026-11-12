@@ -38,10 +38,10 @@ struct HealthTabView: View {
             .padding(.horizontal, 14)
             ForEach(healthSections(host: store.latest, facts: facts, doctor: doctor.state), id: \.title) { section in
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(section.title.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary).padding(.leading, 14).padding(.top, 8)
+                    Text(section.title).sectionLabel().padding(.leading, 14).padding(.top, 8)
                     if let note = section.note {
                         Text(note).font(.callout).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                            .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+                            .settingsCard()
                     }
                     // cards side by side: as many as fit, so the tab stays short
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 10, alignment: .top)], alignment: .leading, spacing: 10) {

@@ -52,6 +52,15 @@ public struct OptionRow: Equatable, Identifiable {
         public let detail: String?
         public let version: String?
         public let icon: String?
+
+        public init(id: String, label: String, ticked: Bool = false, detail: String? = nil, version: String? = nil, icon: String? = nil) {
+            self.id = id
+            self.label = label
+            self.ticked = ticked
+            self.detail = detail
+            self.version = version
+            self.icon = icon
+        }
     }
 
     public let id: String

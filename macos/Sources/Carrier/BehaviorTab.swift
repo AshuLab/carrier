@@ -14,6 +14,8 @@ struct BehaviorTabView: View {
     @State private var unreadable = false
     @State private var failure: String?
     @State private var note: String?
+    /// the autosave that waits for the person to stop typing
+    @State private var saveLater: Task<Void, Never>?
     /// what the engine answered to the last save, from any tab
     private let engine = ReloadStatus.shared
 
@@ -25,7 +27,8 @@ struct BehaviorTabView: View {
             return SettingsHeaderNote(text: "The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", tone: .problem)
         }
         if let failure { return SettingsHeaderNote(text: failure, tone: .problem) }
-        if let words = engine.words { return SettingsHeaderNote(text: words, tone: .problem) }
+        // the page says a problem answer to VoiceOver itself, once, when it comes (`announcesReloadProblems`)
+        if let words = engine.words { return SettingsHeaderNote(text: words, tone: engine.isProblem ? .problem : .plain, announces: false) }
         // "Saved" waits for the engine's answer, so it never shows over a refusal that is on its way
         if let note, engine.pending == false { return SettingsHeaderNote(text: note, tone: .saved) }
         return nil
@@ -55,14 +58,22 @@ struct BehaviorTabView: View {
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
         .disabled(unreadable)
         .preference(key: SettingsHeaderNoteKey.self, value: headerNote)
+        .announcesReloadProblems()
         .onAppear(perform: load)
+        // an edit that waits to be written is written when the person leaves, not lost
+        .onDisappear { flush() }
         .onChange(of: start.configExists) { load() }
         // a file that is there but unreadable may be fixed in another app: look again when Carrier is back in front (only then, so no edit is lost)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if unreadable { load() } }
         .onChange(of: draft) {
             note = nil
             failure = nil  // it spoke of an earlier edit
-            autosave()
+            // a number is written when the person pauses, not at each key: "30" would otherwise reach a running Carrier as 3 and then 30
+            saveLater?.cancel()
+            saveLater = Task {
+                try? await Task.sleep(for: .milliseconds(700))
+                if Task.isCancelled == false { autosave() }
+            }
         }
     }
 
@@ -139,8 +150,16 @@ struct BehaviorTabView: View {
     private func write() -> Bool {
         let result = saveConfig(path: path, unusable: "The config file could not be read or the values are not valid.", edit: { draft.applied(to: $0) })
         failure = result.problem
-        if result.isWritten { saved = draft }
+        if result == .saved { saved = draft }
         return result == .saved
+    }
+
+    /// Writes now what waits to be written.
+    private func flush() {
+        guard saveLater != nil else { return }
+        saveLater?.cancel()
+        saveLater = nil
+        autosave()
     }
 
     /// Writes what the person just changed, when the engine would accept it; a value that is still being typed waits.

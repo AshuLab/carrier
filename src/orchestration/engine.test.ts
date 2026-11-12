@@ -21,7 +21,7 @@ import { executions } from '../storage/executions.ts';
 import { failureStreak } from './retry.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
-import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
+import { AuthError, GitHubRejected, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { enginePlacesOf } from '../config/engine-places.ts';
@@ -2171,7 +2171,7 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
   db.insert(executions).values({ executionId: 'x-old', epicId: old.id, stage: 'ship', sessionId: 's-old', resultPath: 'r', startedAt: 0 }).run();
   const logs = join(dir, 'engine', 'logs', 'executions', 'x-old');
   mkdirSync(logs, { recursive: true });
-  const engine = createEngine({ db, github, clock, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 }), runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 }), runner, workspaces, places: enginePlacesOf(dir) });
   await engine.start();
   expect(existsSync(logs)).toBe(false);
   mkdirSync(logs, { recursive: true });
@@ -3115,7 +3115,7 @@ test('a repo a reload adds that GitHub answers 404 for fails its own check; the 
   github.ready = { 'AshuLab/a': ready(1) };
   const listed = github.listReadyEpics.bind(github);
   github.listReadyEpics = async (repo) => {
-    if (repo === 'AshuLab/b') throw new Error('GitHub answered HTTP 404: Not Found');
+    if (repo === 'AshuLab/b') throw new GitHubRejected('GitHub answered HTTP 404: Not Found');
     return listed(repo);
   };
   const engine = await start(0, [repos[0]!]);
@@ -3241,6 +3241,119 @@ test('an epic restored while the orchestrator profile fails is recovered by the 
   github.authError = null;
   await clock.advance(5 * MIN);
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(2)); // the check that works takes the epic back
+});
+
+// --- A reload on a live engine: what the third review found ---
+
+test('a repo GitHub refuses in the middle of the cycle fails its own check; the other repos still settle and start in that same cycle', async () => {
+  const db = open();
+  seedEpic(db, 1, { repo: 'AshuLab/b', status: 'needs_human', prNumber: 50 });
+  github.ready = { 'AshuLab/a': ready(1) };
+  const found = github.getPullRequest.bind(github);
+  github.getPullRequest = async (repo, number) => {
+    if (repo === 'AshuLab/b') throw new GitHubRejected('GitHub answered HTTP 404: Not Found');
+    return found(repo, number);
+  };
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.repo)).toEqual(['AshuLab/a'])); // fillSlots ran after stopEnded failed for the other repo
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 5 * MIN, ok: false, error: 'GitHub answered HTTP 404: Not Found' });
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null });
+});
+
+test('what is not GitHub refusing a repo still surfaces from the listing, and the next poll is armed all the same', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const listed = github.listReadyEpics.bind(github);
+  github.listReadyEpics = async (repo) => {
+    if (repo === 'AshuLab/b') throw new Error('database is locked');
+    return listed(repo);
+  };
+  const engine = await start(0);
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/b')).toBeUndefined(); // not written off as that repo's failure
+  expect(engine.nextPollAt).toBe(10 * MIN);
+});
+
+test('a begin that read its epic before the repo was removed and added back does not launch a second author', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  let held = 0;
+  const label = github.setLabels.bind(github);
+  github.setLabels = async (repo, issue, change) => {
+    if (issue === 2 && held++ === 0) await gate; // the labels of the second epic, as the result of the first frees its slot
+    return label(repo, issue, change);
+  };
+  let openWorkspace!: () => void;
+  const workspaceGate = new Promise<void>((resolve) => (openWorkspace = resolve));
+  let prepared = 0;
+  workspaces.prepareAuthor = async (repo, epic) => (epic === 2 && prepared++ === 0 && (await workspaceGate), `/work/${repo}/${epic}/author`);
+  runner.behavior = (task) => (task.epic === 1 ? { write: result(task, { outcome: 'needs_human', reason: 'stop' }) } : { exit: 'hang' });
+  const engine = await start(1);
+  void clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(held).toBe(1)); // epic 2 is reserved and its begin waits for the labels
+
+  reload(engine, { repos: [repos[1]!] });
+  reload(engine, { repos });
+  open();
+  await vi.waitFor(() => expect(prepared).toBeGreaterThanOrEqual(1));
+  await settle();
+  openWorkspace(); // a begin that went on after the restore would be the second author preparing a workspace for the same stage
+  await vi.waitFor(() => expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1));
+  await settle();
+
+  expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1);
+});
+
+test('an epic whose pull request was merged while its repo was parked ends when the repo is back and is not launched first', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ stage: 'review' }));
+  const reviewers = () => runner.tasks.filter((t) => t.stage === 'review').length;
+  await vi.waitFor(() => expect(reviewers()).toBe(1));
+
+  reload(engine, { repos: [repos[1]!] });
+  await settle();
+  await settle();
+  const finalPr = rows(engine.db)[0]!.prNumber!;
+  pull(finalPr, { state: 'merged' }); // merged by a person while Carrier did not watch the repo
+  reload(engine, { repos });
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'merged' }));
+  await settle();
+
+  expect(reviewers()).toBe(1); // the one that was running before; none was started for an epic that was already over
+});
+
+test('an epic a reload parks and restores after its own turn of a recovery is not dropped from the restore', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e1', 1, { status: 'interrupted' });
+  seedEpic(db, 2);
+  seedExecution(db, 'e2', 2, { status: 'interrupted' });
+  const listActive = runner.listActive.bind(runner);
+  runner.listActive = async () => {
+    throw new GitHubUnavailable('network', 'down'); // the recovery of the start fails: the first check does it again
+  };
+  const engine = await start(2, repos);
+  runner.listActive = listActive;
+  let open2!: () => void;
+  const gate = new Promise<void>((resolve) => (open2 = resolve));
+  workspaces.prepareAuthor = async (repo, epic) => (epic === 2 ? (await gate, `/work/${repo}/${epic}/author`) : `/work/${repo}/${epic}/author`);
+  runner.behavior = () => ({ exit: 'hang' });
+  void clock.advance(5 * MIN); // the check recovers epic 1 (its agent starts), then waits for epic 2's workspace
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.epic)).toEqual([1]));
+
+  reload(engine, { repos: [repos[1]!] }); // both epics are in AshuLab/a: parked, epic 1's agent stopped
+  reload(engine, { repos }); // and back, while the recovery is still awaiting epic 2
+  open2();
+  await vi.waitFor(() => expect(runner.tasks.filter((t) => t.epic === 1).length).toBeGreaterThanOrEqual(2)); // epic 1 continued by the restore
+  await settle();
+  expect(rows(engine.db).map((e) => e.status)).toEqual(['running', 'running']);
+  expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1); // and epic 2, which the recovery was waiting for, once
 });
 
 test('the review limit is the one in force when a review asks for changes', async () => {

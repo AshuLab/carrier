@@ -1062,7 +1062,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     for (outcome, note) in [
         (ReloadOutcome.nobody, WatchNote(text: "Carrier reads AshuLab/carrier when it starts", failed: false)),
         (.unsupported, WatchNote(text: "Carrier reads AshuLab/carrier when it starts", failed: false)),
-        (.noAnswer, WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier did not answer: it will read it when it starts.", failed: true)),
+        (.noAnswer, WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier did not answer: it may not have applied it.", failed: true)),
     ] {
         let config = FakeConfig()
         let host = FakeChat()

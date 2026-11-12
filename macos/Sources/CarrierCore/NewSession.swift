@@ -164,6 +164,7 @@ public struct WatchNote: Equatable {
     @ObservationIgnored private let readConfig: () -> Data?
     @ObservationIgnored private let writeConfig: (Data) throws -> Void
     @ObservationIgnored private let reload: Reload
+    @ObservationIgnored private let status: ReloadStatus
     @ObservationIgnored private let readChatConfig: () throws -> Data?
     @ObservationIgnored private let writeChatConfig: (Data) throws -> Void
     @ObservationIgnored private let carrierFolder: String
@@ -199,6 +200,7 @@ public struct WatchNote: Equatable {
         projectsFolder: @escaping () -> String = currentProjectsFolder,
         readConfig: @escaping () -> Data? = currentConfig, writeConfig: @escaping (Data) throws -> Void = writeCurrentConfig,
         reload: @escaping Reload = { reloadEngine() },
+        status: ReloadStatus? = nil,
         readChatConfig: @escaping () throws -> Data? = currentChatConfig, writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
         carrierFolder: String = currentCarrierFolder()
     ) {
@@ -210,6 +212,7 @@ public struct WatchNote: Equatable {
         self.readConfig = readConfig
         self.writeConfig = writeConfig
         self.reload = reload
+        self.status = status ?? .shared
         self.readChatConfig = readChatConfig
         self.writeChatConfig = writeChatConfig
         self.carrierFolder = carrierFolder
@@ -559,7 +562,7 @@ public struct WatchNote: Equatable {
             try writeConfig(updated)
             watched = names + [repo]
             // the engine may take seconds: the page does not wait for it
-            let note = addedRepoNote(repo, outcome: await reloadOffMain(reload))
+            let note = addedRepoNote(repo, outcome: await status.answer(reload))
             watchNotes[id] = WatchNote(text: note.text, failed: note.failed)
         } catch {
             log("new session: could not write the config: \(error)")

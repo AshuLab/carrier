@@ -132,10 +132,10 @@ private func complete() -> LeadReviewerDraft {
     #expect(engine.calls == 2)
 }
 
-@Test func aLeadReviewerTheEngineRefusedToApplyIsSavedAndSaysWhatTheEngineAnswered() throws {
+@Test func aLeadReviewerTheEngineRefusedToApplyStaysSaved() throws {
     let path = try temporaryConfig(withLead)
     let engine = FakeReload(file: path, problem: "failover.roles.leadReviewer: bad")
     let result = turnLeadReviewerOff(path: path, reload: engine.reload)
-    #expect(result == .notApplied("Saved, but Carrier kept its settings: failover.roles.leadReviewer: bad") && result.isWritten)
+    #expect(result == .saved) // what the engine answered is `ReloadStatus`'s
     #expect((try file(path)["agents"] as? [String: Any])?["leadReviewer"] == nil)
 }

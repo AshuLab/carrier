@@ -159,11 +159,11 @@ private func failover(_ first: FailoverStep?, _ second: FailoverStep? = nil, rol
     #expect(engine.calls == 2)
 }
 
-@Test func aPersonaTheEngineRefusedToApplyIsSavedAndSaysWhatTheEngineAnswered() throws {
+@Test func aPersonaTheEngineRefusedToApplyStaysSaved() throws {
     let path = try temporaryConfig()
     let engine = FakeReload(file: path, problem: "agents.author: bad")
     let result = saveGlobalPersona(name: "Ada", prompt: nil, role: .author, path: path, reload: engine.reload)
-    #expect(result == .notApplied("Saved, but Carrier kept its settings: agents.author: bad") && result.isWritten)
+    #expect(result == .saved)
     #expect(try value(path, "agents", "author", "persona") as? NSDictionary == ["name": "Ada"])
 }
 

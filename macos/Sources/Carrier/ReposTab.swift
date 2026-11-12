@@ -168,7 +168,7 @@ struct ReposTabView: View {
     /// Writes the role, then reads the file back and asks the doctor, whose reason is shown when the engine refuses what was written.
     private func saveRole(_ fields: RoleFields?, role: AgentRole, repo: String) -> RoleSave {
         let result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: declaredAccounts(providersJSON: providersData))
-        if result.isWritten {
+        if result == .saved {
             failure = nil
             load()
             runDoctor()
@@ -196,7 +196,7 @@ struct ReposTabView: View {
     private func write() -> Bool {
         let result = saveConfig(path: path, unusable: "The config file could not be read or the list is not valid.", edit: { applyingRepos(draft, to: $0) })
         failure = result.problem
-        if result.isWritten { saved = draft }
+        if result == .saved { saved = draft }
         return result == .saved
     }
 

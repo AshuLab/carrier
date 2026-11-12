@@ -7,12 +7,12 @@ import Foundation
 /// `canReload`: the hello of the engine the app talks to lists `reload`. `outcome`: what the engine answered to the last save; `repo` is
 /// what the note calls the repo ("this repo" on its own page).
 public func settingsNote(state: ConnectionState?, canReload: Bool, outcome: ReloadOutcome?, repo: String = "this repo") -> String {
+    // what the engine answered belongs to a running engine: a stopped Carrier reads the file when it starts, whatever it once said
+    guard case .running? = state else { return reads(repo) }
     switch outcome {
     case .refused?: return "Not in use: Carrier kept its previous settings"
-    case .noAnswer?: return "Carrier did not answer: it will read \(repo) when it starts"
-    default:
-        if case .running? = state, canReload { return applies(repo) }
-        return reads(repo)
+    case .noAnswer?: return "Carrier did not answer: it may not have applied \(repo)"
+    default: return canReload ? applies(repo) : reads(repo)
     }
 }
 
@@ -22,7 +22,7 @@ public func addedRepoNote(_ repo: String, outcome: ReloadOutcome) -> (text: Stri
     case .applied: (applies(repo), false)
     case .nobody, .unsupported, .asked: (reads(repo), false)
     case .refused(let problem): ("\(repo) was added to Carrier's list, but Carrier kept its settings: \(problem)", true)
-    case .noAnswer: ("\(repo) was added to Carrier's list, but Carrier did not answer: it will read it when it starts.", true)
+    case .noAnswer: ("\(repo) was added to Carrier's list, but Carrier did not answer: it may not have applied it.", true)
     }
 }
 

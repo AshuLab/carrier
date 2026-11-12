@@ -36,11 +36,12 @@ What was cut: watching the files, which would also catch edits by hand but react
 8. A reload re-arms the next poll with the new interval and asks for a poll; while one runs, it does not start a second one beside it, and one more follows it when it ends.
 9. A repo added by a reload is watched from the next poll, and a repo removed parks its epics as `repo_removed`, stops its active runs as interrupted and touches GitHub no more; adding it back restores them where they were.
 10. The profiles and the orchestrator's profile that the engine uses for the next token, clone and GitHub call are the current ones; a profile removed while a running epic names it fails that epic's next run naming the profile and leaves the epic in `needs-human`.
-11. The app sends `reload` after each successful write of `config.json` or `providers.json`, from every place that writes them (the Behavior, Repos, Agents and Providers pages), and shows the problem the reply carries.
-12. With Carrier stopped, or an engine that does not list `reload`, a save sends nothing and is not an error.
-13. The notes of the pages that say Carrier reads the settings when it starts say it applies them to the next epic when the engine lists `reload`, and keep the old text when it does not.
-14. The unused "Save and restart" footer logic and its restart warning are removed.
-15. The configuration guide, the README, `macos/README.md` and the changelog agree with all of the above.
+11. The app sends `reload` after each successful write of `config.json` or `providers.json`, from every place that writes them (the Behavior, Repos, Agents and Providers pages), and shows what the engine answered where the page shows a failure to save.
+12. With Carrier stopped a save sends nothing and is not an error. With a running engine that does not list `reload` the page says, quietly and not as a problem, that Carrier will read it when it starts; with an engine that does not answer it says the change may not have been applied; with one that refuses the file it says so, naming the key, and that Carrier kept its previous settings. The last answer stays on the page when the person goes to another and comes back, and goes when the connection changes.
+13. The note of the Repos page says Carrier applies a repo to the next epic when the engine lists `reload`, and "reads it when it starts" when it does not. The Behavior page has no standing note since the Settings UI polish epic took it out; what it says after a save is what the engine answered.
+14. The saves do not wait for the engine: the app writes first, asks in the background and shows the answer when it comes; an answer that is older than the last save is dropped.
+15. The unused "Save and restart" footer logic and its restart warning are removed.
+16. The configuration guide, the README, `macos/README.md` and the changelog agree with all of the above.
 
 ## Decisions
 
@@ -58,7 +59,7 @@ The engine and `startCarrier` stop taking the settings as values and take a way 
 
 The log level is applied with `configureUniversalLogger({ minLevel })`, which merges the new options into the library's config; the file sink installed at start stays.
 
-The app has one function in CarrierCore that asks the engine to reload: it connects to the control socket, checks the hello's capabilities, sends `reload` and returns nothing or the problem; no socket or no capability is a silent no-op. Each writer of the two files (the Behavior and Repos tabs, `GlobalRoleSave`, `RepoRoleSave`, `RoleDetailsSave`, `LeadReviewerSwitch`, `ProvidersFile` and the workspace sources) calls it after its own successful write, so a new page that writes the files is one call from live. A reload refused between the two writes of one change is shown only if the reload after the second write is also refused.
+The app has one function in CarrierCore that asks the engine to reload: it connects to the control socket, checks the hello's capabilities, sends `reload` and returns what happened: applied, nobody to ask (Carrier stopped), unsupported (a running engine that does not list `reload`), refused with the problem, or no answer. The last answer is kept in one store (`ReloadStatus`) that the pages read, so it survives a change of page; each ask has a number and an older answer never replaces a newer one. Each writer of the two files (the Behavior and Repos tabs, `GlobalRoleSave`, `RepoRoleSave`, `RoleDetailsSave`, `LeadReviewerSwitch`, `ProvidersFile` and the workspace sources) calls it after its own successful write, so a new page that writes the files is one call from live. A reload refused between the two writes of one change is shown only if the reload after the second write is also refused.
 
 Testing seams, story by story, with the ones that exist:
 

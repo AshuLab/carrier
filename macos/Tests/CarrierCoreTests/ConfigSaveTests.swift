@@ -50,23 +50,10 @@ private func temporaryConfig(_ text: String = #"{"keep":1,"repos":[{"name":"a/b"
     #expect(engine.calls == 0)
 }
 
-@Test func aSaveTheEngineRefusedToApplyIsWrittenAndSaysWhatTheEngineAnswered() throws {
+@Test func aSaveTheEngineRefusedToApplyIsWritten() throws {
     let path = try temporaryConfig()
     let engine = FakeReload(file: path, problem: "pollIntervalMinutes: must be positive")
     let result = saveConfig(path: path, unusable: "unusable", edit: { applyingRepos(["a/b", "c/d"], to: $0) }, reload: engine.reload)
-    #expect(result == .notApplied("Saved, but Carrier kept its settings: pollIntervalMinutes: must be positive") && result.isWritten)
+    #expect(result == .saved)
     #expect(configRepoNames(json: try Data(contentsOf: URL(fileURLWithPath: path))) == ["a/b", "c/d"])
-}
-
-@Test func aRefusalBetweenTwoWritesOfOneChangeIsShownOnlyIfTheSecondIsRefusedToo() throws {
-    let path = try temporaryConfig()
-    let engine = FakeReload(file: path, problem: "first")
-    let first = saveConfig(path: path, unusable: "unusable", edit: { applyingRepos(["a/b", "c/d"], to: $0) }, reload: engine.reload)
-    engine.problem = nil
-    let second = saveConfig(path: path, unusable: "unusable", edit: { applyingRepos(["a/b", "c/d", "e/f"], to: $0) }, reload: engine.reload)
-    // a page shows the problem of its latest save, so the first one's is gone
-    #expect(first.problem != nil && second.problem == nil)
-    engine.problem = "second"
-    let third = saveConfig(path: path, unusable: "unusable", edit: { applyingRepos(["a/b"], to: $0) }, reload: engine.reload)
-    #expect(third.problem == "Saved, but Carrier kept its settings: second")
 }

@@ -58,7 +58,11 @@ struct ConversationView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
                     }
                     if let note = draft?.watchNotes[model.sessionId] {
-                        Label(note.text, systemImage: note.failed ? "exclamationmark.triangle.fill" : "eye.fill").font(.scaled(11)).foregroundStyle(note.failed ? .orange : .secondary).textSelection(.enabled)
+                        if note.failed {
+                            ProblemLine(text: note.text, font: .scaled(11)).textSelection(.enabled)
+                        } else {
+                            Label(note.text, systemImage: "eye.fill").font(.scaled(11)).foregroundStyle(.secondary).textSelection(.enabled)
+                        }
                     }
                     let open = openOutcome(model.rows)
                     let (feed, closing) = shown

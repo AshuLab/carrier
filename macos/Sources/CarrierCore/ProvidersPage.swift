@@ -245,12 +245,15 @@ public enum ProvidersOutcome: Equatable {
     public private(set) var addProblem: String?
     /// Why the last Add account, edit or Remove did not write the file, in words naming the field; nil when it did or none was made.
     public private(set) var editProblem: String?
+    /// An Add, Save or Remove is being written and the engine asked: its buttons wait for the answer, so a second click does not save twice.
+    public private(set) var busy = false
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let file: () -> ProvidersFile
     @ObservationIgnored private let uses: () throws -> [String: [AccountUse]]
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private let reload: Reload
+    @ObservationIgnored private let status: ReloadStatus
 
     /// `file` is looked up at each use, so the Carrier folder is the one the app has then. `uses` is who names each account, read from
     /// `config.json` and `chat.json` when an account is removed; a `chat.json` that is there and cannot be read stops the removal.
@@ -258,13 +261,15 @@ public enum ProvidersOutcome: Equatable {
         host: ChatHost, file: @escaping () -> ProvidersFile = ProvidersFile.current,
         uses: @escaping () throws -> [String: [AccountUse]] = { accountUses(config: currentConfig(), chat: try currentChatConfig()) },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
-        reload: @escaping Reload = { reloadEngine() }
+        reload: @escaping Reload = { reloadEngine() },
+        status: ReloadStatus? = nil
     ) {
         self.host = host
         self.file = file
         self.uses = uses
         self.log = log
         self.reload = reload
+        self.status = status ?? .shared
     }
 
     /// When the app opens: with no `providers.json`, writes one account per harness the host found, named after it. With a file there it writes nothing, so an account that was removed stays removed; with nothing found
@@ -280,19 +285,21 @@ public enum ProvidersOutcome: Equatable {
             return
         }
         // no page is asking for this file, so the engine's refusal goes to the log
-        if let problem = reloadWords(await reloadOffMain(reload)) { log("providers: the engine did not apply the new providers.json: \(problem)") }
+        if let problem = reloadWords(await status.answer(reload)) { log("providers: the engine did not apply the new providers.json: \(problem)") }
         await load()
     }
 
     /// The Add of a "Found, not added" row: the account named after the harness, then the host is asked again so the row goes away.
     public func add(harness: String) async {
+        busy = true
+        defer { busy = false }
         addProblem = nil
         editProblem = nil
         do {
             let current = try file().read()
             try file().write(applyingAccounts([(name: harness, harness: harness)], to: current))
             // the row leaves "Found, not added" once the host is asked again, so the engine's words go where the accounts show them
-            editProblem = reloadWords(await reloadOffMain(reload))
+            editProblem = reloadWords(await status.answer(reload))
         } catch ProvidersFileError.notAnObject {
             addProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
         } catch ProvidersFileError.taken(let name) {
@@ -324,13 +331,15 @@ public enum ProvidersOutcome: Equatable {
 
     /// Reads the file, writes what `make` returns and asks the host again, so a `problem` it answers is what the page shows; a refusal writes nothing.
     private func change(_ what: String, _ make: (Data?) throws -> Data) async -> Bool {
+        busy = true
+        defer { busy = false }
         editProblem = nil
         var written = false
         do {
             let file = file()
             try file.write(make(try file.read()))
             written = true
-            editProblem = reloadWords(await reloadOffMain(reload))
+            editProblem = reloadWords(await status.answer(reload))
         } catch ProvidersFileError.notAnObject {
             editProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
         } catch ProvidersFileError.taken(let name) {

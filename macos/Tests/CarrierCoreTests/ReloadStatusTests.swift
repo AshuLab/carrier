@@ -86,3 +86,26 @@ private final class GatedEngine: @unchecked Sendable {
     #expect(reloadWords(.unsupported)?.hasPrefix("Saved. This Carrier does not apply it while it runs") == true)
     #expect(reloadWords(.noAnswer)?.contains("did not answer") == true)
 }
+
+@MainActor @Test func aStoppedOrRestartedCarrierStartsWithoutTheAnswerOfTheOneBefore() async {
+    let engine = GatedEngine(answers: [.refused("x"), .applied], gated: [1])
+    let status = ReloadStatus(reload: engine.reload)
+    status.ask()
+    await answered(status)
+    #expect(status.isProblem && status.words != nil)
+    status.reset()
+    #expect(status.outcome == nil && status.words == nil && status.pending == false)
+    // an ask that was on its way when it was reset does not bring its answer back
+    status.ask()
+    status.reset()
+    engine.open(1)
+    try? await Task.sleep(for: .milliseconds(40))
+    #expect(status.outcome == nil)
+}
+
+@Test func anOlderEnginesReadsItWhenItStartsIsAFactAndARefusalOrSilenceIsAProblem() {
+    #expect(ReloadOutcome.unsupported.isProblem == false && ReloadOutcome.applied.isProblem == false && ReloadOutcome.nobody.isProblem == false)
+    #expect(ReloadOutcome.refused("x").isProblem && ReloadOutcome.noAnswer.isProblem)
+    #expect(reloadWords(.noAnswer)?.contains("may not have applied it") == true)
+    #expect(reloadWords(.unsupported)?.hasSuffix("it will read the file when it starts.") == true)
+}

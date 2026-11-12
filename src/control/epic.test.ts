@@ -59,6 +59,7 @@ async function drive(script: (string[] | 'approved')[], { maxReviews = 5, flaky 
     return { write: verdict === 'approved' ? result(task, { outcome: 'completed', pr, verification: { ci: 'passed', evidence: 'ok' } }) : result(task, { outcome: 'changes_requested', pr, blockers: verdict.map((title) => ({ title })) }) };
   };
   const engine = createEngine({
+    profileDeclared: () => true,
     db, github, clock, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews }), runner, workspaces: new FakeWorkspaces(), places: enginePlacesOf(dir),
   });
   await engine.start();

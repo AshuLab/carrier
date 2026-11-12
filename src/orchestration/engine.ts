@@ -26,7 +26,7 @@ import { latestBlockers, latestObservations } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
 import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
-import { AuthError, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub, type Slices } from './github.ts';
+import { AuthError, GitHubRejected, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub, type Slices } from './github.ts';
 import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak } from './retry.ts';
@@ -55,8 +55,8 @@ export type EngineOptions = {
   places: Pick<EnginePlaces, 'state' | 'logs'>;
   /** Where the CLIs keep sessions, for the 30-day cleanup; the CLIs' own folders by default. */
   sessionDirs?: SessionDirs;
-  /** Whether the configuration declares the profile now. Without it every profile counts as declared. */
-  profileDeclared?: (name: string) => boolean;
+  /** Whether the configuration declares the profile now. */
+  profileDeclared: (name: string) => boolean;
 };
 
 const log = createScopedLogger('engine');
@@ -155,6 +155,25 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const epochOf = (id: number) => epochs.get(id) ?? 0;
   const unchanged = (id: number, epoch: number) => stillRunning(id) && epochOf(id) === epoch;
 
+  // GitHub refusing one repo (not found, no access) is that repo's check failing, not the cycle's: the others go on, the repo shows why, and
+  // nothing is reserved for it until the next cycle. What is about everyone (the profile, GitHub down) and anything else still goes up.
+  const rejected = new Set<string>();
+  function refuse(repo: string, e: GitHubRejected) {
+    log.error('GitHub refused a repo', e, { repo });
+    rejected.add(repo);
+    checks.set(repo, { at: clock.now(), ok: false, error: e.message });
+  }
+  async function forRepo(repo: string, step: () => Promise<void>) {
+    try {
+      await step();
+      return true;
+    } catch (e) {
+      if (!(e instanceof GitHubRejected)) throw e;
+      refuse(repo, e);
+      return false;
+    }
+  }
+
   // GitHub being down is expected (the next poll retries), and so is a failing orchestrator profile; anything else is a bug and surfaces.
   const failed = (e: unknown) => {
     if (e instanceof AuthError) suspended = e;
@@ -167,13 +186,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     writer.update(epics).set({ status: 'needs_human', needsHumanKind: kind, needsHumanReason: reason, finishedAt: clock.now(), labelPending: true }).where(eq(epics.id, id)).run();
 
   // Mirrors the label, then launches the author unless the epic already has one; an epic restarted on options chosen takes them first.
-  const begin = async (epic: Epic) => {
+  // `epoch` is the epic's when the caller read the row: a park and a restore in between made it another launch's to make.
+  const begin = async (epic: Epic, epoch = epochOf(epic.id)) => {
     if (stopping) return;
     await applyLabels(epic);
-    if (epic.status !== 'running' || epic.stage !== null) return;
+    if (epic.status !== 'running' || epic.stage !== null || !unchanged(epic.id, epoch)) return;
     const restarted = restarts.get(epic.id);
     restarts.delete(epic.id);
-    await launch(restarted ? onChosen(epic.id, declaredOnly(epic, restarted)) : epic, 'ship');
+    await launch(restarted ? onChosen(epic.id, declaredOnly(epic, restarted)) : epic, 'ship', epoch);
   };
 
   // The options a person picked when restarting a stopped epic, by epic id, until the poll that requeues it reserves it again.
@@ -207,7 +227,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // Running epics with no stage: the start failed (GitHub was down while the author's session was rebuilt). Each starts now, on the options already saved.
   async function resumeStarts() {
     if (stopping || suspended) return;
-    for (const epic of db.select().from(epics).where(and(eq(epics.status, 'running'), isNull(epics.stage))).orderBy(asc(epics.id)).all()) await launch(epic, 'ship');
+    const pending = db.select().from(epics).where(and(eq(epics.status, 'running'), isNull(epics.stage))).orderBy(asc(epics.id)).all();
+    const epochsRead = pending.map((epic) => epochOf(epic.id));
+    for (const [i, epic] of pending.entries()) await forRepo(epic.repo, () => launch(epic, 'ship', epochsRead[i]));
   }
 
   const defaultHarnessModels: Record<HarnessName, string> = {
@@ -292,7 +314,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   }
 
   // Launches the author (ship, fix) or the reviewer (review) for the epic's current stage.
-  async function launch(epic: Epic, stage: AgentTask['stage']) {
+  async function launch(epic: Epic, stage: AgentTask['stage'], epoch = epochOf(epic.id)) {
     if (stopping) return;
     let rebuild: Parameters<typeof execute>[3];
     if (stage === 'ship') {
@@ -304,6 +326,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         const pr = await github.findPullRequest(epic.repo, epic.issue);
         rebuild = { pr: pr && { number: pr.number, headSha: pr.headSha } };
       }
+      if (!unchanged(epic.id, epoch)) return; // parked (and maybe restored) since the caller read the epic: the restore launches it
       // Claim the launch first: concurrent reconciles (a result freeing a slot, the poll) never start a second author.
       const claimed = db.update(epics).set({ stage: 'ship', stageStartedAt: clock.now() }).where(and(eq(epics.id, epic.id), isNull(epics.stage), eq(epics.status, 'running'))).returning().get();
       if (!claimed) return;
@@ -419,7 +442,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         }
         else if (exit === 'failed' || exit === 'session_unavailable') await retry(epic.id);
         else if (exit === 'auth_failed') {
-          if (profileDeclared?.(task.profile) ?? true) await stopProfile(task.profile);
+          if (profileDeclared(task.profile)) await stopProfile(task.profile);
           else {
             // A reload removed the profile: every run that names it fails the same way and says nothing about the others, so only this epic
             // stops, naming it. The runs already going keep the token they started with.
@@ -478,7 +501,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // Running epics whose last execution failed and was not relaunched yet (GitHub was down).
   async function retryPending() {
-    for (const { id } of db.select({ id: epics.id }).from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) await retry(id);
+    for (const { id, repo } of db.select({ id: epics.id, repo: epics.repo }).from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) await forRepo(repo, () => retry(id));
   }
 
   // Summaries the caller left in earlier review and fix turns, oldest first.
@@ -547,6 +570,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (stopping || suspended) return; // stays `finished` without a result: the next run imports it
     const epic = fresh(execution.epicId);
     if (outside(epic.id)) return; // ended from outside or stopped: nothing new moves
+    const epoch = epochOf(epic.id);
     const expected = expectedOf(epic, execution);
     const raw = readResult(execution);
     const parsed = parseCallerResult(raw, expected);
@@ -576,7 +600,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         if (!workspace) problem = { kind: 'workspace', text: `could not find the worktree for branch ${branch} in the clone of ${epic.repo}` };
       }
     }
-    if (outside(epic.id)) return; // it ended or was parked while GitHub was asked: stays `finished` without a result, the next run imports it
+    if (outside(epic.id) || epochOf(epic.id) !== epoch) return; // it ended, or was parked (and maybe restored) while GitHub was asked: stays `finished` without a result, the next run imports it
     const imported = importResult(db, raw, expected, (tx, result) => {
       const update = (set: Partial<Epic>) => tx.update(epics).set(set).where(eq(epics.id, epic.id)).run();
       if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, 'agent_needs_human', result.reason);
@@ -615,17 +639,19 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // Parked epics (needs_human, ready_for_test) end the same way: a person merges or closes outside Carrier.
   async function stopEnded() {
     for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos().map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
-      const end = await endOf(github, epic);
-      if (!end) continue;
-      const ended = db.update(epics)
-        .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason }), finishedAt: clock.now(), labelPending: true })
-        .where(and(eq(epics.id, epic.id), inArray(epics.status, ['running', 'needs_human', 'ready_for_test']))) // parked while GitHub was asked: `repo_removed` stays
-        .returning()
-        .get();
-      if (!ended) continue;
-      db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: `epic_${end.status}`, data: { reason: end.reason } }).run();
-      const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
-      await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
+      await forRepo(epic.repo, async () => {
+        const end = await endOf(github, epic);
+        if (!end) return;
+        const ended = db.update(epics)
+          .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason }), finishedAt: clock.now(), labelPending: true })
+          .where(and(eq(epics.id, epic.id), inArray(epics.status, ['running', 'needs_human', 'ready_for_test']))) // parked while GitHub was asked: `repo_removed` stays
+          .returning()
+          .get();
+        if (!ended) return;
+        db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: `epic_${end.status}`, data: { reason: end.reason } }).run();
+        const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
+        await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
+      });
     }
   }
 
@@ -638,7 +664,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       .where(and(eq(executions.status, 'finished'), isNull(callerResults.executionId)))
       .orderBy(asc(executions.startedAt))
       .all();
-    for (const { execution } of pending) await settle(execution);
+    for (const { execution } of pending) await forRepo(fresh(execution.epicId).repo, () => settle(execution));
   }
 
   // SQLite is the authority: a label that did not reach GitHub is retried here.
@@ -649,15 +675,17 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       .where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test', 'merged', 'cancelled']), eq(epics.labelPending, true)))
       .orderBy(asc(epics.id))
       .all();
-    for (const epic of pending) await begin(epic);
+    const epochsRead = pending.map((epic) => epochOf(epic.id));
+    for (const [i, epic] of pending.entries()) await forRepo(epic.repo, () => begin(epic, epochsRead[i]));
   }
 
   // Starts the oldest queued epics until the concurrency limit or the queue is exhausted.
   async function fillSlots() {
     for (;;) {
       if (stopping || suspended || paused) return;
-      const epic = reserve(db, { maxConcurrent: settings().maxConcurrentEpics, now: clock.now(), repos: repos() });
+      const epic = reserve(db, { maxConcurrent: settings().maxConcurrentEpics, now: clock.now(), repos: repos().filter((r) => !rejected.has(r.name)) });
       if (!epic) return;
+      const epoch = epochOf(epic.id);
       const cancelWith = (cancelReason: string) =>
         db.update(epics).set({ status: 'cancelled', cancelReason, finishedAt: clock.now(), labelPending: false }).where(and(eq(epics.id, epic.id), eq(epics.status, 'running'))).run();
       let issue;
@@ -666,6 +694,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       } catch (e) {
         // Could not check it: give the slot back, the epic keeps its place in the queue.
         db.update(epics).set({ status: 'queued', startedAt: null, config: null, labelPending: false, authorOption: null, reviewerOption: null }).where(and(eq(epics.id, epic.id), eq(epics.status, 'running'))).run();
+        if (e instanceof GitHubRejected) {
+          refuse(epic.repo, e); // that repo gets nothing more this cycle; the next epics of the others go on
+          continue;
+        }
         throw e;
       }
       if (!stillRunning(epic.id)) continue; // parked while GitHub was asked: it keeps where it was
@@ -673,9 +705,13 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       else if (!issue.labels.includes(readyLabel)) cancelWith('ready label removed');
       else {
         // Its slices exist before it is ready: read them now so the app has the list from the first second, not after the next poll.
-        await readEpicSlices(epic.repo, epic.id, epic.issue);
-        if (!stillRunning(epic.id)) continue;
-        await begin(epic); // GitHubUnavailable here leaves it reserved, labelPending
+        try {
+          await readEpicSlices(epic.repo, epic.id, epic.issue);
+          if (stillRunning(epic.id)) await begin(epic, epoch); // GitHubUnavailable here leaves it reserved, labelPending; a refusal too, the next cycle labels it
+        } catch (e) {
+          if (!(e instanceof GitHubRejected)) throw e;
+          refuse(epic.repo, e);
+        }
       }
     }
   }
@@ -770,8 +806,13 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
     void reconcileRepos().stopped.catch((e) => log.error('stopping the runs of a removed repo failed', e));
     const running = db.select({ id: epics.id }).from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all();
-    for (const { id } of running) await recoverEpic(id);
-    for (const { id } of running) restoring.delete(id); // an epic a reload restored while the loop awaited is not one of these: restore() takes it
+    const epochsRead = new Map(running.map(({ id }) => [id, epochOf(id)]));
+    for (const { id } of running) {
+      // A reload parked it, and maybe restored it, since the list was read: restore() takes it from where it is, not this loop.
+      if (epochOf(id) !== epochsRead.get(id)) continue;
+      await recoverEpic(id);
+      if (epochOf(id) === epochsRead.get(id)) restoring.delete(id);
+    }
     // SQLite is the authority: labels that differ on GitHub are put back.
     for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos().map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
       const { labels } = await github.getIssue(epic.repo, epic.issue);
@@ -896,31 +937,25 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   async function poll(): Promise<number> {
     if (stopping) return settings().pollIntervalMs;
     const read = new Set<string>();
+    rejected.clear();
     try {
       // Fetch every repo before writing: a failure on any of them leaves the queue untouched.
       const found: { repo: string; issue: number; title: string; labels: string[] }[] = [];
       if (!recovered) await recover();
       for (const { name: repo } of repos()) {
-        try {
+        // GitHub answering for this one repo that it cannot be read (not found, no access) is that repo's check; the others go on.
+        // What is about the whole cycle (the profile, GitHub down) stops it below.
+        const ok = await forRepo(repo, async () => {
           const listed = await github.listReadyEpics(repo);
           await refreshProgress(repo);
           await refreshSlices(repo);
           await refreshPullRequests(repo);
           found.push(...listed.map(({ issue, title, labels }) => ({ repo, issue, title, labels })));
-        } catch (e) {
-          // GitHub answering for this one repo that it cannot be read (not found, no access) is that repo's check; the others go on. What is about the
-          // whole cycle (the profile, GitHub down) stops it below.
-          if (e instanceof AuthError || e instanceof GitHubUnavailable) throw e;
-          log.error('check of a repo failed', e, { repo });
-          checks.set(repo, { at: clock.now(), ok: false, error: e instanceof Error ? e.message : String(e) });
-          read.add(repo); // it has its own error: the one below is not written over it
-          continue;
-        }
-        checks.set(repo, { at: clock.now(), ok: true, error: null });
-        read.add(repo);
+        });
+        if (ok) checks.set(repo, { at: clock.now(), ok: true, error: null });
+        read.add(repo); // a repo that failed has its own error: the one below is not written over it
       }
       suspended = null; // listing worked: the orchestrator's profile is back, the cycle goes on
-      await restore(); // after the probe: a suspended engine makes no GitHub call, and a restored epic's recovery makes some
       const queuedAt = clock.now();
       db.transaction((tx) => {
         for (const epic of found) {
@@ -931,6 +966,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         }
       });
       await stopEnded();
+      // After the probe: a suspended engine makes no GitHub call, and a restored epic's recovery makes some. After stopEnded: an epic whose PR
+      // was merged or closed while its repo was parked ends there and is not launched just to be stopped.
+      await restore();
       await settlePending();
       await retryPending();
       await resumeStarts();

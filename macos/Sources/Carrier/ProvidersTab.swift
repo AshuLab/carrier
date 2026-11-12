@@ -105,7 +105,7 @@ struct ProvidersTabView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         note("Found on this Mac and not added as an account yet.")
                         HStack(spacing: 10) {
-                            Button("Add") { Task { await store.add(harness: tool.id) } }.buttonStyle(SecondaryCapsuleButtonStyle())
+                            Button("Add") { Task { await store.add(harness: tool.id) } }.buttonStyle(SecondaryCapsuleButtonStyle()).disabled(store.busy)
                             if let problem = store.addProblem { ProblemLine(text: problem) }
                         }
                     }

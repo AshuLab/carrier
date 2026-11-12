@@ -293,9 +293,12 @@ struct SettingsGroup<Content: View>: View {
 
 /// A line a page puts at the right of its own header, only when there is something to say (the Behavior page's "Saved", or why it cannot save).
 struct SettingsHeaderNote: Equatable {
-    enum Tone { case saved, problem }
+    /// `plain`: a fact that is no one's fault, said quietly
+    enum Tone { case saved, problem, plain }
     let text: String
     let tone: Tone
+    /// A problem is said to VoiceOver when it appears; one whose page says it itself (once, when the answer comes) leaves it to the page.
+    var announces = true
 }
 
 struct SettingsHeaderNoteKey: PreferenceKey {
@@ -331,6 +334,7 @@ struct SettingsPageHeader: View {
             switch note.tone {
             case .saved: Label(note.text, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
             case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            case .plain: Label(note.text, systemImage: "info.circle").foregroundStyle(.secondary)
             }
         }
         .font(.callout).fixedSize(horizontal: false, vertical: true)
@@ -354,32 +358,57 @@ struct SettingsPageHeader: View {
         }
         // a problem appears while the person looks elsewhere: say it to VoiceOver too
         .onChange(of: note) { _, note in
-            if let note, note.tone == .problem { AccessibilityNotification.Announcement(note.text).post() }
+            if let note, note.tone == .problem, note.announces { AccessibilityNotification.Announcement(note.text).post() }
         }
         // room for the close button, which sits over the corner of the header
         .padding(.trailing, 32)
     }
 }
 
-/// A line of a page that says what went wrong in its words, in orange, and says it to VoiceOver when it appears or changes.
+/// A line of a page that says what went wrong in its words, in orange, and says it to VoiceOver when it appears or changes (`announces`).
 struct ProblemLine: View {
     let text: String
     var font: Font = .callout
+    var announces = true
 
     var body: some View {
         Label(text, systemImage: "exclamationmark.triangle.fill").font(font).foregroundStyle(.orange)
             .fixedSize(horizontal: false, vertical: true)
-            .onAppear { AccessibilityNotification.Announcement(text).post() }
-            .onChange(of: text) { _, text in AccessibilityNotification.Announcement(text).post() }
+            .onAppear { if announces { AccessibilityNotification.Announcement(text).post() } }
+            .onChange(of: text) { _, text in if announces { AccessibilityNotification.Announcement(text).post() } }
     }
 }
 
-/// What the engine answered to the last save when it did not apply it (`ReloadStatus`): the same on every page, until a save is applied.
+/// What the engine answered to the last save when it did not apply it (`ReloadStatus`): the same on every page, until a save is applied or
+/// Carrier stops. A problem is said to VoiceOver once, when the answer comes (not each time the person comes back to the page), and has a
+/// way out: Check again asks the engine without a save.
 struct ReloadNote: View {
     private let engine = ReloadStatus.shared
 
     var body: some View {
-        if let words = engine.words { ProblemLine(text: words) }
+        Group {
+            if let words = engine.words {
+            HStack(spacing: 10) {
+                if engine.isProblem {
+                    ProblemLine(text: words, announces: false)
+                    Button { engine.ask() } label: { Label("Check again", systemImage: "arrow.clockwise") }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(engine.pending)
+                } else {
+                    Label(words, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            }
+        }
+        .announcesReloadProblems()
+    }
+}
+
+extension View {
+    /// Says a problem answer of the engine to VoiceOver when it comes, on the page that is open (a page that shows `ReloadNote` or the header).
+    func announcesReloadProblems() -> some View {
+        onChange(of: ReloadStatus.shared.outcome) { _, outcome in
+            if let outcome, outcome.isProblem, let words = reloadWords(outcome) { AccessibilityNotification.Announcement(words).post() }
+        }
     }
 }
 

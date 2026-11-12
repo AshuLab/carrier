@@ -25,11 +25,12 @@ private func running() throws -> ConnectionState {
 @Test func aRefusedSaveMakesTheRepoNotInUseWhateverTheEngineCanDo() throws {
     let words = "Not in use: Carrier kept its previous settings"
     #expect(settingsNote(state: try running(), canReload: true, outcome: .refused("repos.1.name: bad")) == words)
-    #expect(settingsNote(state: .stopped, canReload: false, outcome: .refused("x")) == words)
+    // what an engine once said is not said of a Carrier that is stopped: it reads the file when it starts
+    #expect(settingsNote(state: .stopped, canReload: false, outcome: .refused("x")) == "Carrier reads this repo when it starts")
 }
 
 @Test func anEngineThatDidNotAnswerMayHaveAppliedItSoTheRepoIsNotSaidToBeKept() throws {
-    let words = "Carrier did not answer: it will read this repo when it starts"
+    let words = "Carrier did not answer: it may not have applied this repo"
     #expect(settingsNote(state: try running(), canReload: true, outcome: .noAnswer) == words)
 }
 

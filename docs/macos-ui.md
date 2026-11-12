@@ -75,6 +75,10 @@ A row that opens an editor or a form shows **a chevron `chevron.right` at its ri
 
 Orange, not red, and nothing moves. This is the default of every row and field: pass the message once, `SettingsTabRow(…, problem: "what is wrong")`, and the row puts it in the place of its detail line, in orange with a warning mark (the title keeps its colour), while every `settingsField` and `NumberField` inside it draws an orange ring and a warning mark in the box, the same size as without them (the row tells them through `\.settingsInvalid`). A new field needs nothing for it; do not pass a flag to the field, and do not colour a whole row red. A message that has no row of its own (a refused save) is a `Label` with `exclamationmark.triangle.fill` in orange.
 
+## What the engine answers to a save
+
+A page that writes `config.json` or `providers.json` does not wait for Carrier: it writes, asks the engine in the background (`ReloadStatus.ask`, in `CarrierCore/EngineReload.swift`) and shows the answer when it comes; an answer older than the last save is dropped. A refusal or a missing answer is a problem and is orange: `ProblemLine` (`SettingsTabs.swift`) is the line with the warning mark that VoiceOver reads when it appears, and `ReloadNote` is the page's line for the last answer, with "Check again" to ask without saving. A running Carrier that is too old to reload is told quietly, in the secondary colour and with no announcement, because it is a normal state after an update. A page that is a header note (`SettingsHeaderNoteKey`) wraps it under the title when it does not fit beside it (`ViewThatFits`). The last answer lives in `ReloadStatus.shared`, not in the page's `@State`, so it is still there when the person comes back to the page, and it goes when Carrier starts or stops.
+
 ## Text
 
 - Titles `fontWeight(.medium)`, details `.caption` in `secondary`, a path or a command `.scaled(11, design: .monospaced)`. Use `Font.scaled` (`ScaledFont.swift`), not a fixed size, so the person's text size applies.

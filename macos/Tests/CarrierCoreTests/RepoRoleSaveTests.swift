@@ -143,11 +143,11 @@ private func entry(_ path: String, repo: Int = 0, role: String = "reviewer") thr
     #expect(engine.calls == 2)
 }
 
-@Test func aRepoRoleTheEngineRefusedToApplyIsSavedAndSaysWhatTheEngineAnswered() throws {
+@Test func aRepoRoleTheEngineRefusedToApplyStaysSaved() throws {
     let path = try temporaryConfig()
     let engine = FakeReload(file: path, problem: "repos.0.agents.reviewer: bad")
     let result = saveRepoRole(RoleFields(model: "a"), role: .reviewer, repo: "a/b", path: path, accounts: accounts, reload: engine.reload)
-    #expect(result == .notApplied("Saved, but Carrier kept its settings: repos.0.agents.reviewer: bad") && result.isWritten)
+    #expect(result == .saved)
     #expect(try entry(path)?["model"] as? String == "a")
 }
 
@@ -157,9 +157,9 @@ private func entry(_ path: String, repo: Int = 0, role: String = "reviewer") thr
     #expect(accountIcons(providersJSON: nil) == ["claude": "claude", "codex": "codex", "agy": "antigravity"])
 }
 
-@Test func aRoleSavedWhileTheEngineDidNotAnswerIsSavedAndSaysTheEngineDidNotAnswer() throws {
+@Test func aRoleSavedWhileTheEngineDidNotAnswerStaysSaved() throws {
     let path = try temporaryConfig()
     let result = saveRepoRole(RoleFields(model: "a"), role: .reviewer, repo: "a/b", path: path, accounts: accounts, reload: { .noAnswer })
-    #expect(result == .notApplied("Saved, but Carrier did not answer: it will read the file when it starts.") && result.isWritten)
+    #expect(result == .saved)
     #expect(try entry(path)?["model"] as? String == "a")
 }

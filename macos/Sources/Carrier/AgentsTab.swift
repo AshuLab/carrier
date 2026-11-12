@@ -69,7 +69,7 @@ struct AgentsTabView: View {
     private func saveDetails(_ result: RoleSave) -> Bool {
         load()
         problem = result.problem
-        return result.isWritten
+        return result == .saved
     }
 
     /// A choice for the role being turned on: kept in the draft, and written only when identity, provider and model are all there.
@@ -77,7 +77,7 @@ struct AgentsTabView: View {
         changes.forEach { leadDraft.apply($0) }
         guard leadDraft.isComplete else { return .saved }
         let result = turnLeadReviewerOn(leadDraft, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
-        if result.isWritten {
+        if result == .saved {
             turningOnLead = false
             leadDraft = LeadReviewerDraft()
         }

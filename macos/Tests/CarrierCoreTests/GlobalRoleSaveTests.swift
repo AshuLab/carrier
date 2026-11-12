@@ -149,11 +149,10 @@ private func save(_ change: RoleChange, _ role: AgentRole = .author, path: Strin
     #expect(engine.calls == 1)
 }
 
-@Test func aRoleTheEngineRefusedToApplyIsSavedAndSaysWhatTheEngineAnswered() throws {
+@Test func aRoleTheEngineRefusedToApplyStaysSaved() throws {
     let path = try temporaryConfig()
     let engine = FakeReload(file: path, problem: "agents.author.model: must not be empty")
     let result = saveGlobalRole(.model("gpt-5"), role: .author, path: path, accounts: accounts, bots: bots, reload: engine.reload)
-    #expect(result == .notApplied("Saved, but Carrier kept its settings: agents.author.model: must not be empty"))
-    #expect(result.isWritten && result.problem != nil)
+    #expect(result == .saved && result.problem == nil)
     #expect(try role(path, "author")["model"] as? String == "gpt-5")
 }

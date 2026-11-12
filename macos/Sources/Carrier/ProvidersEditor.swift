@@ -87,7 +87,7 @@ struct AccountEditor: View {
                     Button {
                         Task { if await store.save(name: account.name, draft: draft) { close() } }
                     } label: { Label("Save", systemImage: "checkmark") }
-                    .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(problems.isEmpty == false || draft == saved)
+                    .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(problems.isEmpty == false || draft == saved || store.busy)
                 }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
                 .padding(.top, 10)
@@ -140,7 +140,7 @@ struct AddAccountForm: View {
                 Button {
                     Task { if await store.addAccount(name: name, harness: harness, configDir: folder) { close() } }
                 } label: { Label("Add", systemImage: "plus") }
-                .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(name.isEmpty || problem != nil)
+                .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(name.isEmpty || problem != nil || store.busy)
             }
             .buttonStyle(SecondaryCapsuleButtonStyle())
             .padding(.top, 10)

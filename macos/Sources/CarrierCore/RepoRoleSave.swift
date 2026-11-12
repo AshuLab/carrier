@@ -58,31 +58,22 @@ public enum RoleSave: Equatable {
     case refused(String)
     /// the file could not be read or written
     case failed(String)
-    /// written, and the engine, asked in line (a `Reload` that waits for the answer), did not apply it: what the page says (`reloadWords`)
-    case notApplied(String)
 }
 
 extension RoleSave {
-    /// The file has what was asked, whether or not the engine applied it.
-    public var isWritten: Bool {
-        switch self {
-        case .saved, .notApplied: true
-        case .refused, .failed: false
-        }
-    }
-
     /// What the page shows where it shows a save that did not work; nil when all went through.
     public var problem: String? {
         switch self {
         case .saved: nil
-        case .refused(let words), .failed(let words), .notApplied(let words): words
+        case .refused(let words), .failed(let words): words
         }
     }
 }
 
-/// `.saved` after a write, or `.notApplied` when `reload` answered that the engine did not apply what was written. Call it only after the write worked.
+/// `.saved` after the write, and the engine asked (what it answers is `ReloadStatus`'s, not the save's). Call it only after the write worked.
 func written(_ reload: Reload) -> RoleSave {
-    reloadWords(reload()).map { .notApplied($0) } ?? .saved
+    _ = reload()
+    return .saved
 }
 
 /// `json` with `repo`'s `role` set to the `fields` that are set, other keys of the entry kept; the entry goes when nothing is left. With `fields`

@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import { epicSlicesQuery, epicSlicesResponse, pullRequestOf, pullRequestQuery, pullRequestResponse, sliceOf, threadsOf } from './github-graphql.ts';
 import { redact } from '../logging/redact.ts';
-import { AuthError, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type RateLimit, type Slices } from '../orchestration/github.ts';
+import { AuthError, GitHubRejected, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type RateLimit, type Slices } from '../orchestration/github.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -30,7 +30,7 @@ const networkStderr =
   /error connecting|dial tcp|no such host|ENOTFOUND|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|network is unreachable|i\/o timeout|connection reset|TLS handshake/i;
 
 /** Any non-2xx answer that is neither "GitHub is down" nor "bad credentials", e.g. 404 or 422. */
-class HttpError extends Error {
+class HttpError extends GitHubRejected {
   readonly status: number;
 
   constructor(status: number, body: string) {

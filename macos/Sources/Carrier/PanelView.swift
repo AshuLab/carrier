@@ -84,6 +84,11 @@ struct PanelView: View {
         }
     }
 
+    private var engineRunning: Bool {
+        if case .running? = model.state { return true }
+        return false
+    }
+
     var body: some View {
         @Bindable var shell = model.shell
         @Bindable var epics = model.epics
@@ -218,6 +223,8 @@ struct PanelView: View {
             }
         }
         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
+        // what the engine answered to a save belongs to the engine that answered: another one, or none, starts clean
+        .onChange(of: engineRunning) { ReloadStatus.shared.reset() }
         .sheet(isPresented: $shell.settingsShown) { SettingsSheet(state: model.state, canReload: model.epics.canReload, tab: $shell.settingsTab).themed() }
         .frame(minWidth: 1100, minHeight: 600)
         .themed()

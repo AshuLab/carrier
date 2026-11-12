@@ -78,7 +78,7 @@ public func repoEpics(_ repo: String, snapshot: PanelSnapshot?) -> RepoEpics? {
 
 /// The confirmation under the list when the person presses ✕ on a repo.
 public func removalText(_ epics: RepoEpics?) -> String {
-    let when = " It takes effect when you save; Revert puts it back."
+    let when = " It takes effect right away."
     guard let epics else {
         return "Its epics, if it has any, stop where they are, untouched, and continue if you add the repo again. Nothing is deleted." + when
     }

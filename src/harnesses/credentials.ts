@@ -4,7 +4,8 @@ import type { GitHubProfile } from '../integrations/github.ts';
 import type { HostRunnerOptions } from './host-runner.ts';
 
 export interface CredentialsOptions {
-  profiles: Record<string, GitHubProfile>;
+  /** Read at each call, so a reload's profiles reach the next execution. */
+  profiles: () => Record<string, GitHubProfile>;
   /** A fresh token of the profile; Forge picks the App installation from the owner of `repo`. */
   mint: (profile: GitHubProfile, repo: string) => Promise<string>;
   /** Numeric GitHub id of the bot `<agent>[bot]`: the noreply commit email carries it. */
@@ -38,7 +39,7 @@ export function botIdFromGitHub(fetchImpl: typeof fetch = fetch): (agent: string
  */
 export function profileCredentials({ profiles, mint, botId = botIdFromGitHub() }: CredentialsOptions): HostRunnerOptions['credentials'] {
   return async (task: AgentTask) => {
-    const profile = profiles[task.profile];
+    const profile = profiles()[task.profile];
     if (!profile) throw new Error(`profile "${task.profile}" is not declared`);
     const githubToken = await mint(profile, task.repo);
     if (profile.kind === 'gh') return { githubToken };

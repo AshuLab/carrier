@@ -16,6 +16,8 @@ import { realMachine, type Machine } from '../doctor/detect.ts';
 import { realProbes, type HealthProbes } from './health.ts';
 import { binaryFound, createSessions, type ChatSessionsDeps, type SessionAges } from './sessions.ts';
 import { realProcesses, sweepDeadHost, type Processes } from './sweep.ts';
+import { createUsage, type UsageDeps } from '../usage/service.ts';
+import { realHistoryPorts, realUsagePorts } from '../usage/real.ts';
 
 const HOUR_MS = 3_600_000;
 
@@ -45,6 +47,8 @@ export interface ChatHostDeps {
   machine: Machine;
   /** The process table and the kill the start-up sweep uses. */
   processes: Processes;
+  /** What the `usage` request touches on the machine; the real ports unless a test replaces them (the clock is the host's). */
+  usage: Pick<UsageDeps, 'ports' | 'history'>;
 }
 
 const realGithub = ({ githubCallTimeoutSeconds }: ChatSettings): GithubRepos => ({
@@ -53,7 +57,7 @@ const realGithub = ({ githubCallTimeoutSeconds }: ChatSettings): GithubRepos => 
   branches: (repo) => ghBranches(repo, githubCallTimeoutSeconds * 1000),
 });
 
-const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(settings), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses });
+const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(settings), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses, usage: { ports: realUsagePorts, history: realHistoryPorts } });
 
 /**
  * Runs the chat host from the Carrier folder alone (`CARRIER_HOME`, else `~/.carrier`): its own lock, database and socket under
@@ -84,6 +88,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     if (current.ok) ages = current.settings;
     return ages;
   };
+  const usage = createUsage({ ports: { ...deps.usage.ports, clock: deps.clock }, history: deps.usage.history, db, folder: carrierHome(), env: deps.env });
   const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock });
   const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, onLiveChange: () => idle?.recheck() });
   // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
@@ -129,7 +134,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
       joined: () => void (idle?.joined(), sessions.clientJoined()),
       left: () => void (idle?.left(), sessions.clientLeft()),
     };
-    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, cloneRepo: projects.cloneRepo, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
+    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, cloneRepo: projects.cloneRepo, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
   } catch (error) {
     close();
     throw error;

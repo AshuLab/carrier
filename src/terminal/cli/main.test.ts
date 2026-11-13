@@ -518,6 +518,24 @@ test('--help lists chat and chat-host, and neither takes --config', () => {
   for (const line of out.split('\n').filter((l) => l.includes('carrier chat'))) expect(line).not.toContain('--config');
 });
 
+test('--help lists usage, which takes no --config; a bad --days or --source is refused before any host is started', () => {
+  expect(run('--help').stdout).toContain('carrier usage ');
+  const folder = mkdtempSync(join(tmpdir(), 'cm-'));
+  try {
+    const withConfig = chatRun(folder, 'usage', '--config', join(dir, 'ok.json'));
+    expect(withConfig.status).toBe(2);
+    expect(withConfig.stderr).toContain('takes no --config');
+    for (const flag of [['--days', '10'], ['--source', 'cli'], ['--provider', 'gemini']]) {
+      const refused = chatRun(folder, 'usage', ...flag);
+      expect(refused.status).toBe(2);
+      expect(refused.stderr).toContain(`${flag[0]} is one of`);
+    }
+    expect(existsSync(join(folder, 'chat'))).toBe(false); // no host was started
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 test('--version prints the package version, the one the hello carries, with no config', () => {
   const { version } = JSON.parse(readFileSync(join(import.meta.dirname, '../../../package.json'), 'utf8'));
   const result = run('--version');

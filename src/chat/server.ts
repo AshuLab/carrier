@@ -15,11 +15,27 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
+const model = z.string().trim().min(1).max(200);
+const rate = z.number().finite().nonnegative().max(10_000);
+// The price of a model a person sets: `local` is `$0.00`, `alias` borrows a catalog model's rates, `custom` gives its own, `clear` goes back to the table.
+export const usageOverrideRequest = z
+  .strictObject({ id, cmd: z.literal('usageOverride'), model, action: z.enum(['local', 'alias', 'custom', 'clear']), aliasTo: model.optional(), inputPerMillionUsd: rate.optional(), cachedInputPerMillionUsd: rate.optional(), cacheWritePerMillionUsd: rate.optional(), outputPerMillionUsd: rate.optional() })
+  .refine((r) => (r.action === 'alias' ? r.aliasTo !== undefined : r.action === 'custom' ? r.inputPerMillionUsd !== undefined && r.outputPerMillionUsd !== undefined : true));
+export const usageRequest = z.strictObject({
+  id,
+  cmd: z.literal('usage'),
+  refresh: z.boolean().optional(),
+  days: z.union([z.literal(7), z.literal(14), z.literal(30), z.literal(90)]).optional(),
+  provider: z.enum(['all', 'claude', 'codex', 'agy', 'local']).optional(),
+  source: z.enum(['all', 'epic', 'chat', 'external']).optional(),
+  search: z.string().trim().min(1).max(200).optional(),
+  account: z.string().trim().min(1).max(200).optional(),
+});
 // An allowlist, strict like the engine's: any other command, field or type is rejected before anything acts on it.
 export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('agents') }),
@@ -51,6 +67,8 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('repoBranches'), repo: z.string().regex(repoNamePattern) }),
   z.strictObject({ id, cmd: z.literal('health'), refresh: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('providers') }),
+  usageRequest,
+  usageOverrideRequest,
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -94,6 +112,10 @@ export type ChatControls = {
   health(args: Args<'health'>): Promise<unknown>;
   /** The accounts of `providers.json` with their state, the harnesses found with no account and the local servers; a file that does not match answers `problem`. */
   providers(): Promise<unknown>;
+  /** Live quotas per account and the history of what was used; a `providers.json` that does not match is refused in words. */
+  usage(args: Args<'usage'>): Promise<unknown>;
+  /** Sets or clears the price of a model; refused in words for a price that cannot be saved. */
+  usageOverride(args: Args<'usageOverride'>): unknown;
 };
 
 async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls, gone: AbortSignal): Promise<unknown> {
@@ -152,6 +174,10 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.health({ refresh: request.refresh });
     case 'providers':
       return controls.providers();
+    case 'usage':
+      return controls.usage({ refresh: request.refresh, days: request.days, provider: request.provider, source: request.source, search: request.search, account: request.account });
+    case 'usageOverride':
+      return controls.usageOverride({ model: request.model, action: request.action, aliasTo: request.aliasTo, inputPerMillionUsd: request.inputPerMillionUsd, cachedInputPerMillionUsd: request.cachedInputPerMillionUsd, cacheWritePerMillionUsd: request.cacheWritePerMillionUsd, outputPerMillionUsd: request.outputPerMillionUsd });
   }
 }
 

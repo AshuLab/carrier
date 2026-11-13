@@ -782,3 +782,52 @@ test('the providers request answers over the socket the accounts with their stat
   expect(await client.request('list')).toEqual({ sessions: [] });
   client.close();
 });
+
+test('usage answers over the socket the quotas of each account and the history read from its folders, a price override changes the cost and survives in chat.db, and a wrong providers.json is refused in words', async () => {
+  const { realHistoryPorts } = await import('../usage/real.ts');
+  const clock = new FakeClock();
+  clock.time = Date.UTC(2026, 10, 13, 12);
+  const claudeDir = join(root, 'claude');
+  mkdirSync(join(claudeDir, 'projects', 'app'), { recursive: true });
+  const line = { type: 'assistant', sessionId: 's1', requestId: 'r1', timestamp: new Date(clock.time - 3_600_000).toISOString(), cwd: '/work/app', message: { id: 'm1', model: 'claude-sonnet-4-5', usage: { input_tokens: 1_000_000, output_tokens: 0 } } };
+  writeFileSync(join(claudeDir, 'projects', 'app', 's1.jsonl'), `${JSON.stringify(line)}\n`);
+  writeFileSync(join(root, 'providers.json'), JSON.stringify({ providers: { 'claude-work': { harness: 'claude', configDir: claudeDir, displayName: 'Work' } } }));
+  const ports = {
+    clock,
+    http: async () => ({ status: 200, json: {} }),
+    run: async () => ({ code: 0, stdout: '{}' }),
+    spawnRpc: () => {
+      throw new Error('no child in this test');
+    },
+    files: { read: async () => Promise.reject(Object.assign(new Error('gone'), { code: 'ENOENT' })) },
+    localModels: async () => Promise.reject(new Error('down')),
+  };
+  const started = await startChatHost({ installLogging: () => {}, clock, exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, binaryFound: () => true, usage: { ports, history: realHistoryPorts } });
+  stops.push(started.stop);
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  expect(client.hello.capabilities).toEqual(expect.arrayContaining(['usage', 'usageOverride']));
+
+  const before = (await client.request('usage', { days: 7 })) as any;
+  expect(before.checkedAt).toBe(clock.time);
+  expect(before.quotas.map((q: any) => [q.account, q.displayName, q.provider, q.status])).toEqual([['claude-work', 'Work', 'claude', 'missing'], ['local', 'Local servers', 'local', 'unavailable']]);
+  expect(before.summary).toMatchObject({ tokens: { input: 1_000_000 }, costUsd: 3, turns: 1 });
+  expect(before.daily).toHaveLength(7);
+  expect(before.byModel).toMatchObject([{ model: 'claude-sonnet-4-5', provider: 'claude', costStatus: 'priced' }]);
+  expect(before.byWorkspace).toMatchObject([{ workspace: '/work/app', source: 'external' }]);
+  expect(before.catalogModels).toContain('claude-sonnet-4-5');
+  expect(await client.request('usage', { days: 7, provider: 'codex' })).toMatchObject({ quotas: [], summary: { turns: 0 } });
+  expect(await client.request('usage', { days: 7, account: 'local', source: 'chat' })).toMatchObject({ quotas: [{ account: 'local' }], summary: { turns: 0 } });
+
+  expect(await client.request('usageOverride', { model: 'claude-sonnet-4-5', action: 'local' })).toEqual({ model: 'claude-sonnet-4-5', action: 'local' });
+  expect(((await client.request('usage', { days: 7 })) as any).summary.costUsd).toBe(0);
+  await client.request('usageOverride', { model: 'claude-sonnet-4-5', action: 'custom', inputPerMillionUsd: 2, outputPerMillionUsd: 4 });
+  expect(((await client.request('usage', { days: 7 })) as any).summary.costUsd).toBe(2);
+  await client.request('usageOverride', { model: 'claude-sonnet-4-5', action: 'clear' });
+  expect(((await client.request('usage', { days: 7 })) as any).summary.costUsd).toBe(3);
+
+  writeFileSync(join(root, 'providers.json'), JSON.stringify({ providers: { claude: { harness: 'claude', autoCompact: '300000' } } }));
+  await expect(client.request('usage')).rejects.toThrow('providers.claude.autoCompact');
+  expect(await client.request('list')).toEqual({ sessions: [] });
+  expect(existsSync(join(root, 'engine'))).toBe(false); // the usage never started an engine nor made its folder
+  client.close();
+});

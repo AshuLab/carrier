@@ -38,7 +38,8 @@ const chatConfigSchema = z.strictObject({
 });
 
 /** The chat's settings once the defaults are in. */
-export type ChatSettings = { agents: ChatAgent[]; projectsFolder: string; githubCallTimeoutSeconds: number; logLevel: LogLevel; archiveAfterDays: number | 'never'; deleteAfterDays: number | 'never' };
+/** `agents` is undefined when `chat.json` lists none: the agents are then the accounts of `providers.json` (see `chatAgentsOf`). */
+export type ChatSettings = { agents: ChatAgent[] | undefined; projectsFolder: string; githubCallTimeoutSeconds: number; logLevel: LogLevel; archiveAfterDays: number | 'never'; deleteAfterDays: number | 'never' };
 export type ChatConfigError = { path: string; message: string };
 export type ChatConfigResult = { ok: true; settings: ChatSettings } | { ok: false; errors: ChatConfigError[] };
 
@@ -49,14 +50,12 @@ export const chatLogsOf = (folder = carrierHome()) => join(chatDirOf(folder), 'l
 export const chatSocketOf = (folder = carrierHome()) => join(chatStateOf(folder), 'chat.sock');
 export const chatConfigPathOf = (folder = carrierHome()) => join(chatDirOf(folder), 'chat.json');
 
-const defaultAgents = { claude: { account: 'claude' }, codex: { account: 'codex' } };
-
 /** The chat's settings from the parsed contents of `chat.json` (`{}` when there is no file), with the defaults for what it leaves out. */
 export function loadChatConfig(user: unknown, folder = carrierHome()): ChatConfigResult {
   const parsed = chatConfigSchema.safeParse(user);
   if (parsed.success === false) return { ok: false, errors: parsed.error.issues.map((issue) => ({ path: issue.path.join('.') || '(root)', message: issue.message })) };
-  const { agents = defaultAgents, projectsFolder = join(chatDirOf(folder), 'projects'), githubCallTimeoutSeconds = 30, logLevel = LogLevel.INFO, archiveAfterDays, deleteAfterDays } = parsed.data;
-  return { ok: true, settings: { agents: Object.entries(agents).map(([name, agent]) => ({ name, ...agent })), projectsFolder, githubCallTimeoutSeconds, logLevel, archiveAfterDays, deleteAfterDays } };
+  const { agents, projectsFolder = join(chatDirOf(folder), 'projects'), githubCallTimeoutSeconds = 30, logLevel = LogLevel.INFO, archiveAfterDays, deleteAfterDays } = parsed.data;
+  return { ok: true, settings: { agents: agents && Object.entries(agents).map(([name, agent]) => ({ name, ...agent })), projectsFolder, githubCallTimeoutSeconds, logLevel, archiveAfterDays, deleteAfterDays } };
 }
 
 /** `chat.json` read and validated; a file that is not there is the defaults, one that cannot be read or does not match is an error naming the key. */

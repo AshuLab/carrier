@@ -134,3 +134,8 @@ test('an effort is passed as -c model_reasoning_effort, in a new run and in a re
     expect(args[args.indexOf('model_reasoning_effort=high') - 1]).toBe('-c');
   }
 });
+
+test('an engine Codex run gets no chat MCP configuration in its arguments or environment', () => {
+  const { args, env } = buildCodexCommand(task, ctx);
+  expect(`${args.join('\n')}\n${Object.entries(env).flat().join('\n')}`).not.toMatch(/carrier-chat|mcp_servers|mcp-config/i);
+});

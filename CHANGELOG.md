@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- The agent of a chat session can reach back into Carrier: the chat host serves an MCP of its own (`carrier-chat`, loopback only, on by default) to the Claude and Codex agents of its sessions, each with a token that stops working when the session closes, and its first tool, `capabilities`, tells the agent which session it is in, which agents are configured and ready, and whether `git` and `gh` work. The agents of an epic never see it.
 - Settings > Agents chooses a role's model in a panel, as the chat's message box does, and nobody types a model name any more: the providers that can work as tabs (a signed-out one is left out unless the role already uses it), a search over their models (a name the list lacks can be used as typed), the reasoning slider, and a note that a role has full access because epics run on their own. The steps of "When it runs out of tokens" use the same panel, with "Default model" as the first choice and, for the second step, "No second step". A role's list on the left shows the provider's mark, the model and the reasoning.
 - A step of a role's failover can name its own `effort` (`{ "provider": "codex", "model": "gpt-5", "effort": "low" }`); without it the step keeps the effort the role was running with, as before. Settings > Agents sets it from the same panel as the model.
 - The dialog that adds repos from GitHub has filters (all, private, public; one owner; hide the ones already watched) and a search with a magnifying glass.

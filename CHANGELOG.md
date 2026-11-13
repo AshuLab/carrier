@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings > Sessions has a "Work in" row in the New sessions group, with the choices "The base folder" (the default, so a new session opens as before) and "A new worktree": a new session whose folder is a git repository with a working folder and a branch opens in a new worktree, with the name and branch it suggests as always, and any other folder opens on the base folder. What you choose in the new session screen stays what that session gets, and the Reset of Sessions puts it back to the base folder.
 - The agent of a chat session can reach back into Carrier: the chat host serves an MCP of its own (`carrier-chat`, loopback only, on by default) to the Claude and Codex agents of its sessions, each with a token that stops working when the session closes, and its first tool, `capabilities`, tells the agent which session it is in, which agents are configured and ready, and whether `git` and `gh` work. The agents of an epic never see it.
 
+### Changed
+
+- The toolbar's buttons (Search, Filter, New session, Check again, Check now, Pause, Stop) are smaller glass capsules, Archive is laid out like Sessions (its title and count in the toolbar, rows with the project's tile), Settings' list shows only the pages' names, and Start Carrier is a glass button.
+
 ### Fixed
 
 - A long pasted text is sent when it is all there is in the message box (the card stayed and nothing went), and saving a setting with an older Carrier running no longer says that it will read the file when it starts.

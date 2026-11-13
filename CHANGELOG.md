@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-13
+
+Settings apply without a restart, the message box dictates, and a role's model is chosen in the chat's own panel; new sessions start with the provider, model, reasoning and access set in Settings > Chat, and the chat offers every account of `providers.json`.
+
 ### Added
 
 - Settings > Chat has a New sessions group that chooses the provider, model and reasoning a new session opens with, in the same panel as the message box; with none chosen it takes the first provider that can work and that provider's own model and level. It also chooses what the agent may do (its access), as far as the provider lists it. The message box still changes all of it for one session.
@@ -156,7 +160,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/AshuLab/carrier/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/AshuLab/carrier/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AshuLab/carrier/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/AshuLab/carrier/compare/v0.1.3...v0.1.4

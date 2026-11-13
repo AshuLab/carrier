@@ -259,15 +259,15 @@ test('price overrides change the rollup and clearing one puts it back', async ()
   const { chat, run } = setup();
   insertChat(chat, { id: 's1', model: 'brand-new-model', usage: { input_tokens: 1_000_000 } });
   const overrides = createPriceOverrides(chat, () => NOW);
-  expect((await run()).byModel[0]).toMatchObject({ costStatus: 'unpriced' });
+  expect((await run()).byModel[0]).toMatchObject({ costStatus: 'unpriced', overridden: false });
   overrides.set({ model: 'brand-new-model', action: 'custom', inputUsdPerMillion: 2, outputUsdPerMillion: 8 });
-  expect((await run()).byModel[0]).toMatchObject({ costStatus: 'priced', costUsd: 2 });
+  expect((await run()).byModel[0]).toMatchObject({ costStatus: 'priced', costUsd: 2, overridden: true });
   overrides.set({ model: 'Brand-New-Model', action: 'alias', aliasModel: 'claude-haiku-4-5' });
   expect((await run()).byModel[0]).toMatchObject({ costStatus: 'priced', costUsd: 1 });
   overrides.set({ model: 'brand-new-model', action: 'zero' });
   expect((await run()).byModel[0]).toMatchObject({ costStatus: 'local', provider: 'local', costUsd: 0 });
   overrides.set({ model: 'brand-new-model', action: 'clear' });
-  expect((await run()).byModel[0]).toMatchObject({ costStatus: 'unpriced' });
+  expect((await run()).byModel[0]).toMatchObject({ costStatus: 'unpriced', overridden: false });
 });
 
 // ---- Window and filters
@@ -284,6 +284,9 @@ test('days, provider, source and search narrow the rollup and the chart has one 
   expect(week.days.map((d) => d.date)).toHaveLength(7);
   expect(week.days.at(-1)).toMatchObject({ date: '2026-11-13', turns: 3 });
   expect(week.totals.tokens.input).toBe(1 + 2 + 8 + 16);
+  // each day is split by provider for the stacked chart
+  expect(week.days.at(-1)?.providers.codex).toMatchObject({ turns: 1, tokens: { input: 16 } });
+  expect(week.days.at(-1)?.providers.claude).toMatchObject({ turns: 2 });
   expect((await run({ days: 14 })).totals.tokens.input).toBe(1 + 2 + 4 + 8 + 16);
   expect((await run({ days: 7, source: 'epic' })).totals.tokens.input).toBe(8);
   expect((await run({ days: 7, source: 'external' })).totals.tokens.input).toBe(16);

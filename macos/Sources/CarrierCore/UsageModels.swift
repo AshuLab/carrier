@@ -48,11 +48,15 @@ public struct UsageDay: Decodable, Equatable {
     /// `YYYY-MM-DD`, in the host's local time.
     public let date: String
     public let row: UsageRow
+    /// The day split by who ran it (`claude`, `codex`, `agy`, `local`); one that ran nothing is not in it.
+    public let providers: [String: UsageRow]
 
-    private enum CodingKeys: String, CodingKey { case date }
+    private enum CodingKeys: String, CodingKey { case date, providers }
 
     public init(from decoder: Decoder) throws {
-        date = try decoder.container(keyedBy: CodingKeys.self).decode(String.self, forKey: .date)
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        date = try values.decode(String.self, forKey: .date)
+        providers = try values.decodeIfPresent([String: UsageRow].self, forKey: .providers) ?? [:]
         row = try UsageRow(from: decoder)
     }
 }
@@ -66,9 +70,11 @@ public struct UsageModel: Decodable, Equatable {
     public let isLocal: Bool
     /// `unpriced` is a model the price table does not know: its cost is not `$0.00`, it is missing.
     public let costStatus: CostStatus
+    /// The person priced it by hand (`usageOverride`): it can be edited or cleared.
+    public let overridden: Bool
     public let row: UsageRow
 
-    private enum CodingKeys: String, CodingKey { case model, provider, isLocal, costStatus }
+    private enum CodingKeys: String, CodingKey { case model, provider, isLocal, costStatus, overridden }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -76,6 +82,7 @@ public struct UsageModel: Decodable, Equatable {
         provider = try values.decodeIfPresent(String.self, forKey: .provider) ?? ""
         isLocal = try values.decodeIfPresent(Bool.self, forKey: .isLocal) ?? false
         costStatus = try values.decodeIfPresent(String.self, forKey: .costStatus).flatMap(CostStatus.init(rawValue:)) ?? .priced
+        overridden = try values.decodeIfPresent(Bool.self, forKey: .overridden) ?? false
         row = try UsageRow(from: decoder)
     }
 }

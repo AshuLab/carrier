@@ -39,8 +39,8 @@ private let none = #"{"tokens":{"input":0,"cachedInput":0,"cacheWrite":0,"output
 
 @Test func anUnpricedModelIsNotAFreeOne() throws {
     let models = try JSONDecoder().decode(UsageSnapshot.self, from: Data(contentsOf: golden)).byModel
-    #expect(models.map(\.costStatus) == [.priced, .priced, .unpriced, .local])
-    #expect(models[2].row.costUsd == 0 && models[3].isLocal)
+    #expect(models.map(\.costStatus) == [.priced, .priced, .unpriced, .priced, .local])
+    #expect(models[2].row.costUsd == 0 && models[4].isLocal && models[3].overridden && models[2].overridden == false)
 }
 
 @Test func anEmptyHistoryDecodesToZeroes() throws {

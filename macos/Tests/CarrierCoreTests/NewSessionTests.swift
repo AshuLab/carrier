@@ -1704,3 +1704,47 @@ private let accessOptions = claudeOptions + [
     #expect(NewSessionStart.access(fromJSON: NewSessionStart.json(fromAccess: access)) == access)
     #expect(NewSessionStart.access(fromJSON: "").isEmpty && NewSessionStart.access(fromJSON: "[1]").isEmpty)
 }
+
+// MARK: what Settings > Sessions says a new session opens in
+
+@MainActor private func draft(_ host: FakeChat, workIn: WorkIn) async -> NewSessionModel {
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, workIn: { workIn })
+    await model.load()
+    return model
+}
+
+@MainActor @Test func aGitFolderOpensInANewWorktreeWhenWorkInSaysSoAndOnTheBaseFolderOtherwise() async {
+    let host = FakeChat()
+    host.workspaces["/w/api"] = WorkspaceInfo(folder: "/w/api", branch: "main", defaultBranch: "main", branches: [.init(name: "main", remote: false)])
+    let base = await draft(host, workIn: .baseFolder)
+    await base.choose(folder: "/w/api")
+    #expect(base.worktree == false)
+    let model = await draft(host, workIn: .newWorktree)
+    await model.choose(folder: "/w/api")
+    #expect(model.worktree && model.worktreeName == "brave-marine-aiur" && model.nameState == .free && model.startBranch == "main")
+}
+
+@MainActor @Test func aFolderThatOffersNoWorktreeOpensOnTheBaseFolderWhateverWorkInSays() async {
+    let host = FakeChat()
+    host.workspaces["/w/plain"] = WorkspaceInfo(folder: "/w/plain", git: false)
+    host.workspaces["/w/bare"] = WorkspaceInfo(folder: "/w/bare", bare: true, branches: [.init(name: "main", remote: false)])
+    host.workspaces["/w/empty"] = WorkspaceInfo(folder: "/w/empty")
+    let model = await draft(host, workIn: .newWorktree)
+    for folder in ["/w/plain", "/w/bare", "/w/empty"] {
+        await model.choose(folder: folder)
+        #expect(model.offersWorktree == false && model.worktree == false, "\(folder)")
+    }
+}
+
+@MainActor @Test func whatThePersonChoosesInTheDraftWinsOverWorkIn() async {
+    let host = FakeChat()
+    host.workspaces["/w/api"] = WorkspaceInfo(folder: "/w/api", branch: "main", defaultBranch: "main", branches: [.init(name: "main", remote: false)])
+    let model = await draft(host, workIn: .newWorktree)
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(false)
+    #expect(model.worktree == false)
+    // a plan sent for the base folder comes back on it
+    model.restore(SessionPlan(agent: "claude", folder: "/w/api", text: "hi"))
+    await model.load()
+    #expect(model.folder == "/w/api" && model.worktree == false && model.text == "hi")
+}

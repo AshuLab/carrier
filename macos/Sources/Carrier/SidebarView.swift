@@ -22,7 +22,7 @@ enum SidebarMetrics {
 }
 
 /// The sidebar: the Home row and Sessions in a scroll area, and Carrier with its epics in groups under them while it is the open section;
-/// the foot is fixed: Archive (only while Sessions or Archive is open), Carrier as a row (while it is not open) and Settings. The rows draw their own fill, selected or hovered, so what is under a section is plain rows and not a `List`.
+/// the foot is fixed: Archive (only while Sessions or Archive is open), Carrier as a row (while it is not open), Settings and Usage under it. The rows draw their own fill, selected or hovered, so what is under a section is plain rows and not a `List`.
 struct SidebarView: View {
     private let timeChanges = TimeFormatChanges()
     let snapshot: PanelSnapshot?
@@ -129,7 +129,7 @@ struct SidebarView: View {
         .themedSidebarBackground()
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 600)
         .safeAreaBar(edge: .bottom, spacing: 0) {
-            // Archive above the divider and Settings alone under it; both stay while the list above scrolls, over the system's scroll pocket
+            // Archive above the divider and Settings with Usage under it; both stay while the list above scrolls, over the system's scroll pocket
             VStack(spacing: 0) {
                 // Archive is only there while Sessions (or Archive itself) is the open section: archived sessions are noise otherwise
                 if open == .sessions || open == .archive {
@@ -144,8 +144,11 @@ struct SidebarView: View {
                         .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
                 }
                 Divider()
-                SidebarSectionRow(title: "Settings", icon: "gearshape", selected: false, action: openSettings)
-                    .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
+                VStack(spacing: SidebarMetrics.rowGap) {
+                    SidebarSectionRow(title: "Settings", icon: "gearshape", selected: false, action: openSettings)
+                    SidebarSectionRow(title: "Usage", icon: "chart.bar", selected: selection == .usage, action: { selection = .usage })
+                }
+                .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
             }
             .animation(.smooth(duration: 0.25), value: open)
         }

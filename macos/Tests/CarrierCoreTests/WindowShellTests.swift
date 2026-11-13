@@ -21,7 +21,7 @@ import Testing
 
 @Test func theSelectionHoldsEveryPage() {
     let shell = WindowShell()
-    for next in [Selection.epic(repo: "acme/web", issue: 7), .home, .sessions, .session(id: "s1"), .newSession, .archive, .carrier] {
+    for next in [Selection.epic(repo: "acme/web", issue: 7), .home, .sessions, .session(id: "s1"), .newSession, .archive, .carrier, .usage] {
         shell.selection = next
         #expect(shell.selection == next)
     }
@@ -50,7 +50,7 @@ import Testing
         shell.selection = next
         #expect(shell.open == opens)
     }
-    for (kept, next) in [(OpenSection.carrier as OpenSection?, Selection.home), (nil, .home), (.archive, .home)] {
+    for (kept, next) in [(OpenSection.carrier as OpenSection?, Selection.home), (nil, .home), (.archive, .home), (.sessions, .usage), (.archive, .usage), (nil, .usage), (.carrier, .usage)] {
         shell.open = kept
         shell.selection = next
         #expect(shell.open == kept)

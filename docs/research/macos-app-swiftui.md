@@ -50,7 +50,7 @@ Mapping to the design:
 
 | Design element | Use |
 |---|---|
-| Buttons in the toolbar and the inspector footer (Open window, Reveal, Choose…, Detect again, Send a test) | `.buttonStyle(.glass)`; the primary one (Start Carrier, Continue in terminal) `.buttonStyle(.glassProminent)` with `.tint`. Small ones: `.controlSize(.small)`. |
+| Buttons in the toolbar and the inspector footer (Open window, Reveal, Choose…, Detect, Send a test) | `.buttonStyle(.glass)`; the primary one (Start Carrier, Continue in terminal) `.buttonStyle(.glassProminent)` with `.tint`. Small ones: `.controlSize(.small)`. |
 | Sidebar, inspector, toolbar | Nothing to add: the system draws them. |
 | "2/3" pill in the sidebar header, count chips | Plain `Capsule()` filled with `Color.green.opacity(0.22)` (as the design does with `color-mix`), not glass: they are content/status, and the sidebar is already glass (glass on glass). |
 | Tab controls (Slices/Review/Details, Agent output/Files changed, Settings tabs) | See below. |

@@ -1,7 +1,7 @@
 import Foundation
 
-// The Engine tab of Settings as plain values: the readiness banner (docs/specs/macos-app-redesign.md, story 30). The tab asks for
-// nothing but the advanced "use this carrier"; `node` and the `PATH` come from the shell, and `carrier` from Homebrew.
+// The readiness banner of Settings (docs/specs/macos-app-redesign.md, story 30) as plain values. `node` and the `PATH` come from the shell, and
+// `carrier` from Homebrew or the one the person chose under Programs on the Engine page.
 
 public struct ReadinessBanner: Equatable {
     public enum State: Equatable { case ready, missing, detecting }
@@ -22,6 +22,6 @@ public func readinessBanner(missing: [String], detecting: Bool) -> ReadinessBann
     let names = missing.joined(separator: " and ")
     return ReadinessBanner(
         state: .missing, title: "Start Carrier needs \(names)",
-        detail: "Install carrier with Homebrew, or set “Use this carrier” under Advanced, then run Detect again."
+        detail: "Install carrier with Homebrew, or use “Use another…” and then Detect under Programs on the Engine page."
     )
 }

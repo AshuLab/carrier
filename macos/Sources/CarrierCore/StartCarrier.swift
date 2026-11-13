@@ -38,7 +38,7 @@ public func startCommand(settings: SetupSettings, carrier: String?, environment:
     let run = carrierProgram(carrier: carrier, node: settings.node, arguments: [])
     return StartCommand(
         program: run.program, arguments: run.arguments, environment: environment,
-        processDir: engine, logPath: engine + "/logs/app-start.log", socketPath: controlSocketPath(environment: environment, home: home)
+        processDir: engine, logPath: engineStartLogPath(environment: environment, home: home), socketPath: controlSocketPath(environment: environment, home: home)
     )
 }
 

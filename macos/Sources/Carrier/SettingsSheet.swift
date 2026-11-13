@@ -11,7 +11,11 @@ struct SettingsSheet: View {
     @ObservedObject private var start = StartController.shared
     @Binding var tab: SettingsPage
     @AppStorage(startOnOpenKey) private var startOnOpen = false
+    @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
+    @StateObject private var github = EngineIdentityStore()
     @State private var headerNote: SettingsHeaderNote?
+    /// What `carrier --version` and `node --version` printed for the programs the page shows; nil while they are being read.
+    @State private var versions: ProgramVersions?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -61,7 +65,13 @@ struct SettingsSheet: View {
             case .keybindings: KeybindingsTabView()
             case .updates: UpdatesTabView()
             case .providers: ProvidersTabView(openAgents: { tab = .agents })
-            case .engine: engine(banner, notConfigured: notConfigured)
+            case .engine:
+                // one container, so the versions are read once and not once per group
+                VStack(alignment: .leading, spacing: 14) { engine(notConfigured: notConfigured) }
+                    .task(id: versionsKey) {
+                        versions = nil
+                        versions = await ProgramVersions.read(setup)
+                    }
             case .behavior: BehaviorTabView()
             case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { tab = .agents })
             case .agents: AgentsTabView()
@@ -72,33 +82,75 @@ struct SettingsSheet: View {
         }
     }
 
-    @ViewBuilder private func engine(_ banner: ReadinessBanner, notConfigured: String?) -> some View {
+    /// Changes when a program the page shows does, and when a detection ends (an upgrade keeps the path), so the versions are read again.
+    private var versionsKey: String { "\(setup.carrier ?? "")|\(setup.settings.node)|\(setup.settings.path)|\(setup.detecting)" }
+
+    @ViewBuilder private func engine(notConfigured: String?) -> some View {
         if let notConfigured {
             Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
         }
-        if banner.state == .ready {
-            HStack(spacing: 12) {
-                HStack(spacing: 12) {
-                    StatusDot(found: notConfigured == nil)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(notConfigured == nil ? "Carrier is ready to start" : "Carrier cannot start yet").fontWeight(.semibold)
-                        Text(setup.carrier ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+        let programs = EnginePrograms(
+            carrier: setup.carrier, carrierIsOwn: setup.carrierIsOwn, carrierVersion: versions?.carrier, setup: setup.settings, nodeVersion: versions?.node,
+            carrierRuns: setup.carrierRuns, versionsRead: versions != nil
+        )
+        let folder = carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
+        ForEach(
+            engineGroups(
+                configured: notConfigured == nil, programs: programs, identity: github.identity, identityFailure: github.failure, folder: folder,
+                home: NSHomeDirectory(),
+                exists: { FileManager.default.fileExists(atPath: $0) }
+            ),
+            id: \.title
+        ) { group in
+            SettingsGroup(title: group.title) {
+                ForEach(Array(group.rows.enumerated()), id: \.element.title) { index, row in
+                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0, note: row.note ?? row.file?.shown, problem: row.problem) {
+                        switch row.id {
+                        case .startOnOpen: Toggle(row.title, isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
+                        case .confirmStop: Toggle(row.title, isOn: $confirmStop).labelsHidden().toggleStyle(.switch)
+                        case .carrier: CarrierChoice(setup: setup, offersHomebrew: row.offersHomebrew)
+                        case .node, .path: EmptyView()
+                        case .lookAgain:
+                            HStack(spacing: 8) {
+                                // beside the button, so the button keeps its size and its name while it works
+                                if setup.detecting { ProgressView().controlSize(.small).accessibilityLabel("Detecting") }
+                                Button { setup.detect(); start.refreshConfig() } label: { Label("Detect", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
+                                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(setup.detecting)
+                            }
+                            .onChange(of: setup.detecting) { _, detecting in
+                                if detecting == false { AccessibilityNotification.Announcement(setup.message ?? "Detection finished").post() }
+                            }
+                        case .orchestratorProfile: identityChoice(row.title)
+                        case .carrierFolder, .logs, .startLog:
+                            if let file = row.file {
+                                Button {
+                                    let url = URL(fileURLWithPath: file.path)
+                                    if file.action == .reveal { NSWorkspace.shared.activateFileViewerSelecting([url]) } else { NSWorkspace.shared.open(url) }
+                                } label: { Label(file.buttonTitle, systemImage: file.exists ? (file.action == .reveal ? "folder" : "doc.text") : "questionmark.folder").labelStyle(.titleAndIcon) }
+                                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(file.exists == false)
+                                    .accessibilityLabel("\(file.buttonTitle): \(row.title)")
+                            }
+                        }
                     }
                 }
-                .accessibilityElement(children: .combine)
-                Spacer(minLength: 8)
-                Button("Detect again") { setup.detect(); start.refreshConfig() }.buttonStyle(SecondaryCapsuleButtonStyle())
             }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .settingsCard()
-            SettingsTabRow(title: "Start Carrier when the app opens", detail: notConfigured == nil ? "Carrier starts working on ready epics as soon as the app opens" : "Does nothing until the engine is configured", first: true) {
-                Toggle("Start Carrier when the app opens", isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
-            }
-            .padding(.horizontal, 14)
-            .settingsCard()
         }
-        Text("Advanced").font(.headline).padding(.top, 6).accessibilityAddTraits(.isHeader)
-        UseThisCarrierField(setup: setup)
+        ReloadNote().padding(.horizontal, 4)
+    }
+
+    /// The default first, then the profiles of the file; an undeclared one the file names is on the list too (`EngineIdentity.choices`).
+    private func identityChoice(_ title: String) -> some View {
+        let identity = github.identity
+        return ChoicePopUp(
+            label: title,
+            options: EngineIdentity.options(identity),
+            selection: Binding(get: { identity?.current }, set: { if $0 != identity?.current { github.choose($0) } }),
+            width: 180
+        )
+        .disabled(identity == nil)
+        .onAppear { github.load() }
+        .onChange(of: start.configExists) { github.load() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in github.load() }
     }
 }
 
@@ -151,7 +203,8 @@ struct ReadinessBannerView: View {
                 Text(banner.detail).font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-            Button("Detect again", action: detectAgain).disabled(detecting)
+            Button(action: detectAgain) { Label("Detect", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
+                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(detecting)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .background(RoundedRectangle(cornerRadius: 16).fill(tint.opacity(0.13)))
@@ -172,19 +225,19 @@ struct StatusDot: View {
     }
 }
 
-/// The advanced setting: a `carrier` to run instead of the Homebrew one, a path as typed (a `.ts` or `.js` one runs under `node`).
-struct UseThisCarrierField: View {
+/// The buttons of the `carrier` row: choose another one (a path as chosen; a `.ts` or `.js` one runs under `node`), and go back to the Homebrew one.
+struct CarrierChoice: View {
     @ObservedObject var setup: SetupController
+    let offersHomebrew: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Use this carrier").fontWeight(.medium)
-            HStack {
-                TextField("Use this carrier", text: $setup.carrierOverride, prompt: Text("/opt/homebrew/bin/carrier"))
-                    .textFieldStyle(.roundedBorder).font(.system(.caption, design: .monospaced))
-                Button("Choose…") { choose() }
+        HStack(spacing: 8) {
+            if offersHomebrew {
+                Button { setup.carrierOverride = "" } label: { Label("Use the Homebrew one", systemImage: "arrow.uturn.backward").labelStyle(.titleAndIcon) }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
-            Text("Leave it empty to use the Homebrew one. A path ending in .ts or .js runs with node.").font(.caption).foregroundStyle(.secondary)
+            Button { choose() } label: { Label("Use another…", systemImage: "folder.badge.plus").labelStyle(.titleAndIcon) }
+                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
         }
     }
 

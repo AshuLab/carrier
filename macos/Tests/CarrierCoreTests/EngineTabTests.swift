@@ -17,3 +17,8 @@ import Testing
     #expect(readinessBanner(missing: [], detecting: true).state == .detecting)
     #expect(readinessBanner(missing: ["carrier"], detecting: true).state == .detecting)
 }
+
+@Test func whenSomethingIsMissingTheBannerPointsToProgramsOnTheEnginePage() {
+    let detail = readinessBanner(missing: ["carrier"], detecting: false).detail
+    #expect(detail == "Install carrier with Homebrew, or use “Use another…” and then Detect under Programs on the Engine page.")
+}

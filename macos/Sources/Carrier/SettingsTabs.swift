@@ -31,7 +31,9 @@ struct SettingsTabRow<Control: View>: View {
                     .font(mono ? .scaled(11.5, design: .monospaced) : .caption).lineLimit(2).truncationMode(.middle)
                 }
                 if let note {
+                    // cut in the middle to one line: the whole of it (a long PATH) is in the tooltip, and it can be selected to copy
                     Text(note).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
+                        .help(note).textSelection(.enabled)
                 }
             }
             Spacer(minLength: 8)
@@ -518,7 +520,6 @@ struct GeneralTabView: View {
     @AppStorage(AppPreferences.styleKey) private var style = AppPreferences.defaultStyle.rawValue
     @AppStorage(AppPreferences.animatesKey) private var animates = AppPreferences.defaultAnimates
     @AppStorage(showEpicsKey) private var showsEpics = AppPreferences.defaultShowsEpics
-    @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
     @AppStorage(AppPreferences.timeStyleKey) private var timeStyle = TimeStyle.relative.rawValue
     @AppStorage(AppPreferences.clockHoursKey) private var clockHours = ClockHours.system.rawValue
 
@@ -554,11 +555,6 @@ struct GeneralTabView: View {
                     )
                 }
                 displayPreview()
-            }
-            SettingsGroup(title: "Confirmations") {
-                SettingsTabRow(title: "Ask before stopping Carrier", detail: "Only when stopping would interrupt epics that are running", first: true) {
-                    Toggle("Ask before stopping Carrier", isOn: $confirmStop).labelsHidden().toggleStyle(.switch)
-                }
             }
         }
     }

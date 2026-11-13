@@ -223,7 +223,7 @@ _Avoid_: expiry, retention, auto-clean.
 **Settings group** - One heading of the Settings rail, by what its pages configure: App (how the app looks and behaves on this Mac: the app's preferences, a config level, and what both processes share, the accounts of `providers.json`), Chat (the chat host, its `chat.json`) and Carrier (the engine, its `config.json`). App has no heading in the rail and comes first; Chat and Carrier have theirs, in that order. A page belongs to one group, and the group says where its settings live without the page naming a file.
 _Avoid_: tab (a page is a row of the rail, not a tab), section (that is a part of a page, or a sidebar section), category.
 
-**Legacy group** - The Settings group that holds the pages that existed before the groups (Engine and Health; Behavior has moved to the Carrier group and Sessions to the Chat group) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
+**Legacy group** - The Settings group that holds the pages that existed before the groups (Health; Behavior and Engine have moved to the Carrier group and Sessions to the Chat group) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
 _Avoid_: old settings, misc, other.
 
 **Chat MCP** - The MCP server the chat host runs for the agents of its sessions: loopback only, on by default, injected into one session when it opens and never into the agents of an epic or the user's own CLI configuration ([0024](adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)). Its tools are pre-approved in the harness; what each may do is its access level.

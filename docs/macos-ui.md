@@ -11,7 +11,8 @@ A Settings page is a header and groups of rows (`SettingsSheet.swift`, `Settings
 | Piece | What it is |
 |---|---|
 | `SettingsPageHeader` | The page's tile (38 pt, the theme's accent at 16 %), its name and its line, at the top of the scroll under `safeAreaBar`. |
-| `SettingsGroup(title:)` | A small uppercase title over a card. |
+| `SettingsGroup(title:)` | A small uppercase title over a card. `SettingsGroup(title:accessory:content:)` puts a control at the right of the title (the models table's recognizer chips). |
+| `StatusChip(text:tint:)` | A capsule with a word in it, its colour at 16 % under the same colour; the word carries the state, never the colour alone (Dictation's microphone: Allowed, Not allowed, Not asked yet). |
 | `SettingsTabCard` | The card: 14 pt side padding, rounded 14, `secondary` at 7 %. |
 | `SettingsTabRow` | A row of a card: title, detail (and `note`, a quiet monospaced third line), the control at the right. `first: true` on the first row (no line above it). `roomy: true` for a form with many stacked fields (14 pt above and below instead of 10). |
 | `.settingsCard()` | The card's background as a modifier (rounded 14, `secondary` at 7 %), for a list, a note or a card that is not a group of rows. Never write the fill out again. |

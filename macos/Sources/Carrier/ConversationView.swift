@@ -226,7 +226,7 @@ private struct ConversationBox: View {
             MessageBox(
                 text: $model.draft, placeholder: "Message the agent", minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, canSendWithText: true, busy: model.busy,
-                focus: $boxFocused, commands: model.shownCommands, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
+                focus: $boxFocused, commands: model.shownCommands, dictationOwner: "session:\(model.sessionId)", send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
                 ComposerMenuButton(
                     providers: model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: model.agent)], agent: model.agent, locked: true,

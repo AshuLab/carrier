@@ -57,6 +57,7 @@ struct SettingsSheet: View {
             case .appearance: AppearanceTabView()
             case .sidebar: SidebarTabView()
             case .chat: ChatTabView()
+            case .dictation: DictationTabView()
             case .keybindings: KeybindingsTabView()
             case .updates: UpdatesTabView()
             case .providers: ProvidersTabView(openAgents: { tab = .agents })

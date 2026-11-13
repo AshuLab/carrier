@@ -1,8 +1,25 @@
 import AppKit
 import CarrierCore
+import Observation
 import SwiftUI
 import XCTest
 @testable import Carrier
+
+@Observable @MainActor fileprivate final class Probe {
+    var text = ""
+    var cursor = 0
+    var tentative: Range<Int>?
+    var dictated: String?
+}
+
+fileprivate struct ProbeBox: View {
+    @Bindable var probe: Probe
+    var body: some View {
+        CommandTextView(text: $probe.text, cursor: $probe.cursor, tentative: probe.tentative, dictated: probe.dictated, focus: .constant(false), placeholder: "", minLines: 3, commands: [], onKey: { _ in false })
+            .frame(width: 600)
+    }
+}
+
 
 @MainActor
 final class CommandTextViewTests: XCTestCase {
@@ -132,5 +149,86 @@ final class CommandTextViewTests: XCTestCase {
         let view = try XCTUnwrap(textView(in: host))
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertTrue(window.firstResponder === view)
+    }
+
+    /// A dictation writes where the caret was and not at the end, the partial text has the provisional colour and a dotted underline and
+    /// turns normal when it is final.
+    func testADictationWritesInPlaceInTheProvisionalColourAndTurnsNormalWhenFinal() throws {
+        let probe = Probe()
+        probe.text = "uno dos"
+        probe.cursor = 4
+        let host = NSHostingView(rootView: ProbeBox(probe: probe))
+        host.frame = NSRect(x: 0, y: 0, width: 600, height: 200)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let view = try XCTUnwrap(textView(in: host))
+        func colour(at index: Int) -> NSColor? { view.textStorage?.attribute(.foregroundColor, at: index, effectiveRange: nil) as? NSColor }
+        func underline(at index: Int) -> Int? { view.textStorage?.attribute(.underlineStyle, at: index, effectiveRange: nil) as? Int }
+
+        var tentative = TentativeText(caret: 4, in: probe.text)
+        for (event, secondary) in [(DictationEvent.partial("hola mun"), true), (.final("hola mundo "), false)] {
+            let edit = try XCTUnwrap(tentative.apply(event, to: probe.text, caret: probe.cursor))
+            (probe.text, probe.cursor, probe.tentative, probe.dictated) = (edit.text, edit.caret, tentative.range, edit.text)
+            host.layoutSubtreeIfNeeded()
+            XCTAssertEqual(view.string, edit.text)
+            XCTAssertEqual(view.selectedRange().location, edit.caret)
+            XCTAssertEqual(colour(at: 0), .labelColor)
+            XCTAssertEqual(colour(at: 4), secondary ? PillTextView.tentativeColor : .labelColor)
+            XCTAssertEqual(colour(at: view.string.utf16.count - 1), .labelColor)
+            // the cue that is not a colour: the partial text only is underlined
+            XCTAssertNil(underline(at: 0))
+            XCTAssertEqual(underline(at: 4) != nil, secondary)
+            XCTAssertNil(underline(at: view.string.utf16.count - 1))
+        }
+        XCTAssertEqual(view.string, "uno hola mundo dos")
+        XCTAssertEqual(view.selectedRange().location, 15)
+    }
+
+    private func host(_ probe: Probe) -> (NSHostingView<ProbeBox>, PillTextView) {
+        let host = NSHostingView(rootView: ProbeBox(probe: probe))
+        host.frame = NSRect(x: 0, y: 0, width: 600, height: 200)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        return (host, textView(in: host)!)
+    }
+
+    /// A dictation whose first and only write is a final (a model that answers at the end) leaves the caret after the text it wrote, in the
+    /// middle of the text, and not at the end of the whole text; a text that comes from outside still puts it at the end.
+    func testAFinalWrittenInTheMiddleLeavesTheCaretAfterItAndAnOutsideTextLeavesItAtTheEnd() throws {
+        let probe = Probe()
+        probe.text = "uno dos"
+        probe.cursor = 4
+        let (host, view) = host(probe)
+        var tentative = TentativeText(caret: 4, in: probe.text)
+        let edit = try XCTUnwrap(tentative.apply(.final("hola mundo "), to: probe.text, caret: 4))
+        (probe.text, probe.cursor, probe.dictated) = (edit.text, edit.caret, edit.text)
+        host.layoutSubtreeIfNeeded()
+        XCTAssertEqual(view.string, "uno hola mundo dos")
+        XCTAssertEqual(view.selectedRange().location, 15)
+
+        probe.text = "a message that came back"
+        host.layoutSubtreeIfNeeded()
+        XCTAssertEqual(view.selectedRange().location, ("a message that came back" as NSString).length)
+    }
+
+    /// With no list of commands to take, Tab leaves the text for the next control and types no tab; the list still takes it when it is open.
+    func testTabWithNoListOfCommandsTypesNothingAndTheListTakesIt() throws {
+        let probe = Probe()
+        probe.text = "uno"
+        let (_, view) = host(probe)
+        view.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        XCTAssertEqual(view.string, "uno")
+
+        var keys: [CommandTextView.Key] = []
+        let taken = CommandTextView(
+            text: .constant("uno"), cursor: .constant(0), focus: .constant(false), placeholder: "", minLines: 3, commands: [],
+            onKey: { keys.append($0); return true }
+        )
+        let coordinator = taken.makeCoordinator()
+        XCTAssertTrue(coordinator.textView(view, doCommandBy: #selector(NSResponder.insertTab(_:))))
+        XCTAssertEqual(keys, [.tab])
+        XCTAssertEqual(view.string, "uno")
     }
 }

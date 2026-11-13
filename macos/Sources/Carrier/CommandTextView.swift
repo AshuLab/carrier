@@ -11,6 +11,12 @@ struct CommandTextView: NSViewRepresentable {
     @Binding var text: String
     /// Where the caret is, in UTF-16 units of `text`.
     @Binding var cursor: Int
+    /// The range of `text` (plain UTF-16 units) a dictation is still hearing: drawn in a colour with a touch of the accent and with a dotted
+    /// underline, so it does not rest on colour alone.
+    var tentative: Range<Int>?
+    /// The text a dictation last wrote: when `text` is it, the change is the dictation's, written in place, and the caret is where the box says
+    /// and not at the end.
+    var dictated: String?
     /// Set to true to put the caret in the text; the text resets it once it has.
     @Binding var focus: Bool
     var placeholder: String
@@ -19,6 +25,8 @@ struct CommandTextView: NSViewRepresentable {
     var commands: [ChatCommand]
     /// What a key does for the box; true when the box took it.
     var onKey: (Key) -> Bool
+    /// The person changed the text (a key, a paste, a deletion): not a write of the box itself.
+    var onTyped: () -> Void = {}
     /// Files dropped on the text: the box attaches them (true when it did).
     var onFiles: (([URL]) -> Bool)?
     var onFileDrag: ((Bool) -> Void)?
@@ -97,21 +105,23 @@ struct CommandTextView: NSViewRepresentable {
         let rescaled = coordinator.textSize != textSize
         coordinator.textSize = textSize
         // what the box itself reported is already in the text view: only a text or a command list that came from outside needs the work
-        let settled = rescaled == false && text == coordinator.reported && commands == coordinator.reportedCommands
+        let settled = rescaled == false && text == coordinator.reported && commands == coordinator.reportedCommands && tentative == coordinator.reportedTentative
         if view.hasMarkedText() == false, settled == false {
             let rendered = render(text, commands: commands)
             let length = (text as NSString).length
             if rescaled || view.plain != text || view.string != rendered.string {
                 // a text put in from outside (a refused message that came back, a queued one taken back to edit) is written for the person
                 // to go on at its end; the caret the box knew was the one of the text it replaced
-                let outside = view.plain != text
+                let outside = view.plain != text && text != dictated
                 view.replace(with: rendered, plainCursor: outside ? length : min(cursor, length))
                 if outside { DispatchQueue.main.async { if cursor != length { cursor = length } } }
             } else if view.plainOffset(of: view.selectedRange().location) != cursor {
                 view.setSelectedRange(NSRange(location: view.location(ofPlainOffset: cursor), length: 0))
             }
+            view.drawTentative(tentative)
             coordinator.reported = text
             coordinator.reportedCommands = commands
+            coordinator.reportedTentative = tentative
         }
         if focus {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -182,6 +192,7 @@ struct CommandTextView: NSViewRepresentable {
         /// The text and the commands the box last put in the text view or took from it: what is already there.
         var reported = ""
         var reportedCommands: [ChatCommand] = []
+        var reportedTentative: Range<Int>?
         /// The height the last layout measured, and what it was measured for.
         var measured: (key: Int, height: CGFloat)?
 
@@ -209,6 +220,7 @@ struct CommandTextView: NSViewRepresentable {
             reportedCommands = parent.commands
             parent.text = text
             parent.cursor = cursor
+            parent.onTyped()
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
@@ -230,7 +242,13 @@ struct CommandTextView: NSViewRepresentable {
             case #selector(NSResponder.insertLineBreak(_:)):
                 textView.insertNewlineIgnoringFieldEditor(nil)
                 return true
-            case #selector(NSResponder.insertTab(_:)): return parent.onKey(.tab)
+            case #selector(NSResponder.insertTab(_:)):
+                // with no list of commands to take, Tab goes on to the next control (the microphone, then Send) and types nothing
+                if parent.onKey(.tab) == false { textView.window?.selectNextKeyView(textView) }
+                return true
+            case #selector(NSResponder.insertBacktab(_:)):
+                textView.window?.selectPreviousKeyView(textView)
+                return true
             case #selector(NSResponder.moveUp(_:)): return parent.onKey(.up)
             case #selector(NSResponder.moveDown(_:)): return parent.onKey(.down)
             case #selector(NSResponder.cancelOperation(_:)): return parent.onKey(.escape)
@@ -368,6 +386,28 @@ final class PillTextView: NSTextView {
         typingAttributes = CommandTextView.attributes
         setSelectedRange(NSRange(location: location(ofPlainOffset: plainCursor), length: 0))
         scrollRangeToVisible(selectedRange())
+    }
+
+    /// The colour of text still being guessed: the normal one with a touch of the accent, so it keeps the contrast the secondary colour loses
+    /// over the box's glass; the dotted underline of `drawTentative` says it too, for whoever does not tell the colours apart. Read when drawn,
+    /// so it follows the appearance and the accent.
+    static let tentativeColor = NSColor(name: nil) { appearance in
+        var color = NSColor.labelColor
+        appearance.performAsCurrentDrawingAppearance { color = NSColor.labelColor.blended(withFraction: 0.4, of: NSColor(Color.themeAccent)) ?? .labelColor }
+        return color
+    }
+
+    /// Draws the text of `range` (plain offsets) in the provisional colour and a dotted underline, and the rest in the normal colour with none.
+    func drawTentative(_ range: Range<Int>?) {
+        guard let storage = textStorage else { return }
+        let whole = NSRange(location: 0, length: storage.length)
+        storage.addAttribute(.foregroundColor, value: NSColor.labelColor, range: whole)
+        storage.removeAttribute(.underlineStyle, range: whole)
+        guard let range else { return }
+        let from = location(ofPlainOffset: range.lowerBound), to = location(ofPlainOffset: range.upperBound)
+        let drawn = NSRange(location: from, length: max(0, to - from))
+        storage.addAttribute(.foregroundColor, value: Self.tentativeColor, range: drawn)
+        storage.addAttribute(.underlineStyle, value: NSUnderlineStyle.patternDot.union(.single).rawValue, range: drawn)
     }
 
     /// The position in the plain text of a position in the text.

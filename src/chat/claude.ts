@@ -19,9 +19,10 @@ const PERMISSION_MODES = [
   { id: 'dontAsk', label: "Don't ask" },
 ]; // `bypassPermissions` is left out: it needs a flag of its own and Carrier does not turn it on
 
-/** The statuses of an MCP server that cannot be used (`pending` is still connecting, and is not a failure). */
 /** The variable of the claude process that holds the chat MCP's token; the header of the injected server names it. */
 const MCP_TOKEN_ENV = 'CARRIER_MCP_TOKEN';
+
+/** The statuses of an MCP server that cannot be used (`pending` is still connecting, and is not a failure). */
 const MCP_DOWN = ['failed', 'needs-auth', 'disabled', 'disconnected'];
 
 export type ClaudeChatDeps = {

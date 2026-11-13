@@ -259,6 +259,7 @@ test('a tool that declares no valid access level cannot be defined, and a server
   expect(() => defineTool({ name: 'test_no_access', ...spec } as any)).toThrow('no valid access level');
   expect(() => defineTool({ name: 'test_bad_access', access: 'writes', ...spec } as any)).toThrow('no valid access level');
   await expect(startMcpServer({ registry, sessions: {} as any, tools: [echo, echo] })).rejects.toThrow('listed twice');
+  await expect(startMcpServer({ registry, sessions: {} as any, tools: [{ name: 'test_literal', access: 'writes', ...spec } as any] })).rejects.toThrow('no valid access level');
 });
 
 test('capabilities is a readsAsSession tool that takes no arguments and answers what the session lends it', async () => {

@@ -113,6 +113,7 @@ const toolResult = (text: string, isError: boolean) => ({ content: [{ type: 'tex
 
 /** Loopback HTTP MCP server on `127.0.0.1`, an ephemeral port, `/mcp`. Every request needs the bearer token of a live conversation. */
 export async function startMcpServer(deps: { registry: McpSessionRegistry; sessions: McpSessions; tools: McpTool[] }): Promise<McpServer> {
+  for (const tool of deps.tools) defineTool(tool); // a tool built as a literal, without `defineTool`, is held to the same rule
   const tools = new Map(deps.tools.map((tool) => [tool.name, tool]));
   if (tools.size !== deps.tools.length) throw new Error('A tool is listed twice');
 

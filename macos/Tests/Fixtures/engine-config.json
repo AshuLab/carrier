@@ -1,0 +1,101 @@
+{
+  "defaults": {
+    "pollIntervalMinutes": 5,
+    "finishedWindowDays": 15,
+    "logLevel": "info",
+    "limits": {
+      "maxConcurrentEpics": 3,
+      "maxReviews": 5,
+      "maxExecutionRetries": 3,
+      "maxExecutionHours": 4,
+      "githubCallTimeoutSeconds": 30
+    }
+  },
+  "cases": [
+    {
+      "field": "pollIntervalMinutes",
+      "value": 0,
+      "valid": false
+    },
+    {
+      "field": "pollIntervalMinutes",
+      "value": 0.5,
+      "valid": true
+    },
+    {
+      "field": "logLevel",
+      "value": "trace",
+      "valid": false
+    },
+    {
+      "field": "logLevel",
+      "value": "debug",
+      "valid": true
+    },
+    {
+      "field": "finishedWindowDays",
+      "value": 0,
+      "valid": false
+    },
+    {
+      "field": "finishedWindowDays",
+      "value": 30,
+      "valid": true
+    },
+    {
+      "field": "finishedWindowDays",
+      "value": 31,
+      "valid": false
+    },
+    {
+      "field": "limits.maxConcurrentEpics",
+      "value": 0,
+      "valid": false
+    },
+    {
+      "field": "limits.maxConcurrentEpics",
+      "value": 1,
+      "valid": true
+    },
+    {
+      "field": "limits.maxReviews",
+      "value": 0,
+      "valid": false
+    },
+    {
+      "field": "limits.maxReviews",
+      "value": 1,
+      "valid": true
+    },
+    {
+      "field": "limits.maxExecutionRetries",
+      "value": -1,
+      "valid": false
+    },
+    {
+      "field": "limits.maxExecutionRetries",
+      "value": 0,
+      "valid": true
+    },
+    {
+      "field": "limits.maxExecutionHours",
+      "value": 0,
+      "valid": false
+    },
+    {
+      "field": "limits.maxExecutionHours",
+      "value": "unlimited",
+      "valid": true
+    },
+    {
+      "field": "limits.githubCallTimeoutSeconds",
+      "value": 0,
+      "valid": false
+    },
+    {
+      "field": "limits.githubCallTimeoutSeconds",
+      "value": 1,
+      "valid": true
+    }
+  ]
+}

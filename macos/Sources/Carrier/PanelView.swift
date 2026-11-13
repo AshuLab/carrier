@@ -205,9 +205,13 @@ struct PanelView: View {
                             .symbolEffect(.rotate, options: .repeating, isActive: checking)
                             .labelStyle(.titleAndIcon)
                     }
+                    // the toolbar's own glass is taller than this button needs: it draws the small grey capsule of the page's buttons instead
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    .padding(.trailing, 10)
                     .disabled(checking)
                     .help("Asks every provider again, skipping the minute the chat host keeps its answer")
                 }
+                .sharedBackgroundVisibility(.hidden)
             }
             if let snapshot, shell.selection == .carrier {
                 // two pills: the check against GitHub, then what governs Carrier itself (intake and stopping)

@@ -1,6 +1,7 @@
 import { accessSync, constants } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import type { AgentTask } from '../execution/agent-runner.ts';
+import type { ExecutionUsage } from '../storage/executions.ts';
 import type { AgentEvent, EventState } from '../execution/events.ts';
 
 /** What to spawn for one execution. The env is the full child environment. */
@@ -18,6 +19,8 @@ export interface LineSignal {
   /** An API error the agent printed as its final result. */
   failure?: { kind: 'usage_limit' | 'api_error'; detail: string };
   sessionUnavailable?: true;
+  /** What the line reports having used; the runner adds up those of the whole run. */
+  usage?: ExecutionUsage;
 }
 
 /** The part of the runner that is specific to one harness CLI; each harness (Claude, Codex, Antigravity) provides one. */

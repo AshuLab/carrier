@@ -3,6 +3,8 @@ import { buildPrompt } from '../prompts/build-prompt.ts';
 import { claudeLocalEnv } from './local.ts';
 import { childEnv, markerFor, type AgentCommand, type CommandContext, type LineSignal, type HarnessAdapter } from './common.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
+import { addUsage, cost, obj, tokens } from '../execution/usage.ts';
+import type { ExecutionUsage, ModelUsage } from '../storage/executions.ts';
 import { boundOutput, caps, clean, type AgentEvent, type EventState } from '../execution/events.ts';
 
 /** Headless Claude as in docs/research/headless-agents.md; stdin is closed by the runner. */
@@ -36,6 +38,24 @@ export function buildClaudeCommand(task: AgentTask, ctx: CommandContext): AgentC
   };
 }
 
+// A `result` carries the run's usage twice: `modelUsage` per model and top-level `usage` with `total_cost_usd`. A limit or
+// error result can zero the top-level one while `modelUsage` keeps the real totals, so a non-empty `modelUsage` wins.
+function claudeUsage(event: Record<string, unknown>): ExecutionUsage | undefined {
+  const models = Object.entries(obj(event.modelUsage)).filter(([, usage]) => typeof usage === 'object' && usage !== null);
+  if (models.length > 0) {
+    const byModel: Record<string, ModelUsage> = {};
+    for (const [model, raw] of models) {
+      const u = obj(raw);
+      byModel[model] = { inputTokens: tokens(u.inputTokens), cachedInputTokens: tokens(u.cacheReadInputTokens), cacheWriteTokens: tokens(u.cacheCreationInputTokens), outputTokens: tokens(u.outputTokens), reasoningTokens: tokens(u.thinkingTokens), costUsd: cost(u.costUSD) };
+    }
+    const total = Object.values(byModel).reduce<ExecutionUsage | undefined>((sum, usage) => addUsage(sum, usage), undefined)!;
+    return { ...total, byModel };
+  }
+  if (typeof event.usage !== 'object' || event.usage === null) return undefined;
+  const u = obj(event.usage);
+  return { inputTokens: tokens(u.input_tokens), cachedInputTokens: tokens(u.cache_read_input_tokens), cacheWriteTokens: tokens(u.cache_creation_input_tokens), outputTokens: tokens(u.output_tokens), reasoningTokens: tokens(obj(u.output_tokens_details).thinking_tokens), costUsd: cost(event.total_cost_usd) };
+}
+
 // Shapes observed with claude 2.1.301: init carries the session; a login or key error is an assistant
 // message with error "authentication_failed" and a result with api_error_status 401; a lost session is
 // a result "error_during_execution" saying "No conversation found"; an API error is a result with a numeric
@@ -50,13 +70,16 @@ export function parseClaudeLine(line: string): LineSignal | undefined {
   if (event.type === 'system' && event.subtype === 'init' && typeof event.session_id === 'string') return { session: event.session_id };
   if (event.type === 'assistant' && event.error === 'authentication_failed') return { authFailed: true };
   if (event.type === 'result') {
-    if (event.api_error_status === 401) return { authFailed: true };
-    if (event.is_error === true && JSON.stringify(event.errors ?? '').includes('No conversation found')) return { sessionUnavailable: true };
+    const usage = claudeUsage(event);
+    const used = usage && { usage };
+    if (event.api_error_status === 401) return { authFailed: true, ...used };
+    if (event.is_error === true && JSON.stringify(event.errors ?? '').includes('No conversation found')) return { sessionUnavailable: true, ...used };
     if (event.is_error === true && typeof event.api_error_status === 'number') {
       const text = typeof event.result === 'string' ? event.result : '';
-      if (event.api_error_status === 429 && event.api_error === 'usage_limit_reached') return { failure: { kind: 'usage_limit', detail: text } };
-      return { failure: { kind: 'api_error', detail: `HTTP ${event.api_error_status}${text ? `: ${text}` : ''}` } };
+      if (event.api_error_status === 429 && event.api_error === 'usage_limit_reached') return { failure: { kind: 'usage_limit', detail: text }, ...used };
+      return { failure: { kind: 'api_error', detail: `HTTP ${event.api_error_status}${text ? `: ${text}` : ''}` }, ...used };
     }
+    return used;
   }
   return undefined;
 }

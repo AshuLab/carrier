@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { AgentDone, AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from './agent-runner.ts';
+import type { ExecutionUsage } from '../storage/executions.ts';
 import type { AgentEvent } from './events.ts';
 import type { Workspaces } from './workspaces.ts';
 
@@ -15,6 +16,8 @@ export type Behavior = {
   exit?: AgentExit | 'hang';
   /** What a 'failed' exit reports; defaults to a crash with exit code 1, and `failure: undefined` set on purpose reports none. */
   failure?: AgentFailure;
+  /** What the run reports having used, on whatever exit; absent: none. */
+  usage?: ExecutionUsage;
   /** The run ends with `exit` only once this settles, to let other runs start first. */
   when?: Promise<unknown>;
 };
@@ -39,7 +42,7 @@ export class FakeAgentRunner implements AgentRunner {
     this.tasks.push(task);
     this.alive.add(task.executionId);
     const behavior = this.behavior(task);
-    const { sessionId, output = [], events = [], write, exit = 'ok', when } = behavior;
+    const { sessionId, output = [], events = [], write, exit = 'ok', when, usage } = behavior;
     const failure = 'failure' in behavior ? behavior.failure : exit === 'failed' ? crash : undefined;
     const sessions: ((id: string) => void)[] = [];
     const outputs: ((stream: 'stdout' | 'stderr', chunk: string) => void)[] = [];
@@ -60,8 +63,8 @@ export class FakeAgentRunner implements AgentRunner {
         mkdirSync(dirname(task.resultPath), { recursive: true });
         writeFileSync(task.resultPath, typeof write === 'string' ? write : JSON.stringify(write));
       }
-      if (when && exit !== 'hang') void when.then(() => finish({ exit, sessionId, failure }));
-      else if (exit !== 'hang') finish({ exit, sessionId, failure });
+      if (when && exit !== 'hang') void when.then(() => finish({ exit, sessionId, failure, usage }));
+      else if (exit !== 'hang') finish({ exit, sessionId, failure, usage });
     });
     return {
       onSession: (cb) => void sessions.push(cb),
@@ -70,7 +73,7 @@ export class FakeAgentRunner implements AgentRunner {
       done,
       stop: async () => {
         this.stopped.push(task.executionId);
-        finish({ exit: 'stopped', sessionId });
+        finish({ exit: 'stopped', sessionId, usage });
       },
     };
   }

@@ -960,6 +960,33 @@ test('an execution that ends ok, and one that Carrier stops, leave every failure
   for (const row of executionsOf(engine.db)) expect(row).toMatchObject({ failureKind: null, failureDetail: null, exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null });
 });
 
+const usage = { inputTokens: 10, cachedInputTokens: 20, cacheWriteTokens: 3, outputTokens: 4, reasoningTokens: 5, costUsd: 0.5, byModel: { m: { inputTokens: 10, cachedInputTokens: 20, cacheWriteTokens: 3, outputTokens: 4, reasoningTokens: 5, costUsd: 0.5 } } };
+
+test.each([
+  ['ok', 'finished', {}],
+  ['failed', 'failed', { failure: outOfCredits }],
+  ['timed_out', 'timed_out', {}],
+  ['stopped', 'interrupted', {}],
+] as const)('the usage a run reports is stored on the execution that ends %s', async (exit, status, extra) => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => ({ sessionId: 's', exit, ...(exit === 'ok' && { write: completed(task) }), ...extra, usage });
+  const engine = await start(1, repos, 4, 0);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(executionsOf(engine.db)[0]?.status).toBe(status));
+  expect(executionsOf(engine.db)[0]?.usage).toEqual(usage);
+});
+
+test('an execution whose run reports no usage keeps usage null', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => ({ sessionId: 's', write: completed(task) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(executionsOf(engine.db)[0]?.status).toBe('finished'));
+  expect(executionsOf(engine.db)[0]?.usage).toBeNull();
+});
+
 const noProcess = { exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null };
 
 const endKinds = [

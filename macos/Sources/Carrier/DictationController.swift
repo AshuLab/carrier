@@ -69,7 +69,13 @@ import SwiftUI
     var models: [SpeechModel] { registry.recognizers.flatMap(\.models) }
 
     /// The model the person chose, and Apple's when they did not or it is gone.
-    var model: SpeechModel? { preferences.dictationModel(among: models) }
+    /// The model the person chose, whether or not it is still on disk (the page says when it is not).
+    var chosenModel: SpeechModel? { preferences.dictationModel(among: models) }
+    /// The model dictation uses: the chosen one when it is on disk, else Apple's, which is always there.
+    var model: SpeechModel? {
+        if let chosen = chosenModel, store.state(of: chosen) == .downloaded { return chosen }
+        return models.first { $0.recognizer == .apple }
+    }
 
     /// The rows of the speech models table, for the recognizer chosen in its filter (all of them when nil).
     func rows(filter: RecognizerID?) -> [SpeechModelRow] {

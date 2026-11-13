@@ -64,7 +64,7 @@ struct DictationTabView: View {
     private func modelNamed(_ id: String) -> String? { dictation.models.first { $0.id == id }?.name }
 
     @ViewBuilder private var speechModelRow: some View {
-        let choice = speechModelChoice(models: dictation.models, chosen: dictation.model, state: dictation.store.state(of:))
+        let choice = speechModelChoice(models: dictation.models, chosen: dictation.chosenModel, state: dictation.store.state(of:))
         if let shown = choice.shown {
             SettingsTabRow(
                 title: "Speech model",

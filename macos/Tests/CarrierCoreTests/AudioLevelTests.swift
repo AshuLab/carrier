@@ -39,14 +39,14 @@ func theLevelOfABufferGoesFromTheFloorToTheCeiling(rms: Float, level: Float) {
     var published = 0
     for _ in 0..<10 where meter.add(loud) != nil { published += 1 }  // one second of audio
     #expect(published == 10)
-    #expect(meter.level > 0.9)
+    #expect(meter.levels.overall > 0.9)
     // a buffer shorter than a thirtieth of a second waits for the next
     var short = LevelMeter()
     #expect(short.add(AudioBuffer(samples: Array(repeating: 0.3, count: 300), sampleRate: rate)) == nil)
     #expect(short.add(AudioBuffer(samples: Array(repeating: 0.3, count: 300), sampleRate: rate)) != nil)
     // silence right after the voice reads as silence: the smoothing is the view's
     _ = meter.add(AudioBuffer(samples: Array(repeating: 0, count: 1600), sampleRate: rate))
-    #expect(meter.level == 0)
+    #expect(meter.levels.overall == 0)
 }
 
 @Test(arguments: [(150.0, 0), (800.0, 1), (5000.0, 2)])

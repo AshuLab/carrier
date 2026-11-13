@@ -37,7 +37,6 @@ public struct LevelMeter: Sendable {
     static let gains: (low: Float, mid: Float, high: Float) = (1, 1.6, 3.5)
 
     public private(set) var levels = VoiceLevels.silence
-    public var level: Float { levels.overall }
     // one-pole filters: `lowPass` is what is under the low edge, `midPass` what is under the high edge
     private var lowPass = 0.0
     private var midPass = 0.0
@@ -121,7 +120,7 @@ public func dictationColors(accent: HSB) -> [HSB] {
     return [accent, turned(40), turned(-40)]
 }
 
-/// Whether the box draws the dictation's edge, halo and light: only while it listens, and a file dragged over the box wins (its veil is the
+/// Whether the box draws the dictation's line: only while it listens, and a file dragged over the box wins (its veil is the
 /// one that asks for an action) so the edge waits.
 public func dictationEdgeShown(_ presentation: DictationPresentation?, dropping: Bool) -> Bool {
     presentation?.inAccent == true && dropping == false

@@ -11,6 +11,7 @@ struct SettingsSheet: View {
     @Binding var tab: SettingsPage
     @AppStorage(startOnOpenKey) private var startOnOpen = false
     @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
+    @StateObject private var github = EngineIdentityStore()
     @State private var headerNote: SettingsHeaderNote?
     @Environment(\.dismiss) private var dismiss
 
@@ -75,17 +76,21 @@ struct SettingsSheet: View {
         if let notConfigured {
             Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
         }
-        ForEach(engineGroups(configured: notConfigured == nil), id: \.title) { group in
+        ForEach(engineGroups(configured: notConfigured == nil, identity: github.identity), id: \.title) { group in
             SettingsGroup(title: group.title) {
                 ForEach(Array(group.rows.enumerated()), id: \.element.title) { index, row in
-                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0) {
+                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0, problem: row.problem) {
                         switch row.id {
                         case .startOnOpen: Toggle(row.title, isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
                         case .confirmStop: Toggle(row.title, isOn: $confirmStop).labelsHidden().toggleStyle(.switch)
+                        case .orchestratorProfile: identityChoice(row.title)
                         }
                     }
                 }
             }
+        }
+        if let failure = github.failure {
+            Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
         }
         if banner.state == .ready {
             HStack(spacing: 12) {
@@ -105,6 +110,21 @@ struct SettingsSheet: View {
         }
         Text("Advanced").font(.headline).padding(.top, 6).accessibilityAddTraits(.isHeader)
         UseThisCarrierField(setup: setup)
+    }
+
+    /// The default first, then the profiles of the file; an undeclared one the file names is on the list too (`EngineIdentity.choices`).
+    private func identityChoice(_ title: String) -> some View {
+        let identity = github.identity
+        return ChoicePopUp(
+            label: title,
+            options: [(value: String?.none, title: EngineIdentity.defaultTitle)] + (identity?.choices ?? []).map { (value: String?.some($0), title: $0) },
+            selection: Binding(get: { identity?.current }, set: { github.choose($0) }),
+            width: 180
+        )
+        .disabled(identity == nil)
+        .onAppear { github.load() }
+        .onChange(of: start.configExists) { github.load() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in github.load() }
     }
 }
 

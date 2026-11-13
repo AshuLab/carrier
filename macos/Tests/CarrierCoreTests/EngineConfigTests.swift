@@ -113,3 +113,38 @@ private let file = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"limits":{"m
     #expect(written["logLevel"] == nil && written["pollIntervalMinutes"] == nil && written["finishedWindowDays"] == nil)
     #expect((written["limits"] as? [String: Any])?.keys.sorted() == ["other"])
 }
+
+private let profiled = Data(#"{"zeta":1,"profiles":{"bot":{}},"repos":[{"name":"a/b"}],"orchestratorProfile":"old","limits":{"maxReviews":7}}"#.utf8)
+
+@Test func aProfileIsWrittenAndEveryOtherKeyIsKept() throws {
+    let written = object(applyingOrchestratorProfile("bot", to: profiled))
+    #expect(written["orchestratorProfile"] as? String == "bot")
+    var expected = object(profiled)
+    expected["orchestratorProfile"] = "bot"
+    #expect(NSDictionary(dictionary: written).isEqual(to: expected))
+    #expect(EngineIdentity(config: try #require(applyingOrchestratorProfile("bot", to: profiled)))?.current == "bot")
+}
+
+@Test func theDefaultTakesTheKeyOutInsteadOfWritingTheAuthorsName() throws {
+    let written = object(applyingOrchestratorProfile(nil, to: profiled))
+    #expect(written["orchestratorProfile"] == nil && written.count == object(profiled).count - 1)
+    #expect(written["zeta"] as? Int == 1 && (written["repos"] as? [Any])?.count == 1)
+}
+
+@Test func anUndeclaredProfileIsKeptUntilAnotherIsPicked() throws {
+    let file = Data(#"{"profiles":{"bot":{}},"orchestratorProfile":"gone"}"#.utf8)
+    #expect(EngineIdentity(config: file)?.undeclared == "gone")
+    #expect(object(applyingOrchestratorProfile("bot", to: file))["orchestratorProfile"] as? String == "bot")
+}
+
+@Test func theKeysOfASortedFileKeepTheirOrder() throws {
+    let sorted = Data("{\n  \"a\" : 1,\n  \"orchestratorProfile\" : \"x\",\n  \"z\" : 2\n}".utf8)
+    let text = String(decoding: try #require(applyingOrchestratorProfile("y", to: sorted)), as: UTF8.self)
+    #expect(text.contains("\"a\" : 1,\n  \"orchestratorProfile\" : \"y\",\n  \"z\" : 2"))
+}
+
+@Test func aFileThatIsNotAnObjectIsRefusedForTheIdentity() {
+    #expect(applyingOrchestratorProfile("bot", to: Data("[]".utf8)) == nil)
+    #expect(applyingOrchestratorProfile(nil, to: Data("not json".utf8)) == nil)
+    #expect(applyingOrchestratorProfile("bot", to: Data()) == nil)
+}

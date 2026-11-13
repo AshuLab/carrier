@@ -31,6 +31,9 @@ import SwiftUI
     private(set) var enabled: Bool
     @ObservationIgnored private let access: MicrophoneAccess
     @ObservationIgnored private let preferences: AppPreferences
+    /// Whether macOS has the microphone prompt open, and the box whose click waits for its answer (nil once that box stops or leaves).
+    @ObservationIgnored private var prompting = false
+    @ObservationIgnored private var waiting: String?
 
     /// The defaults are a fixture build's: a capture that hears nothing, which the fixture recognizer does not need, and an allowed microphone.
     init(
@@ -116,17 +119,27 @@ import SwiftUI
             if session.state == .listening { session.stop() }
             return .start
         }
+        // a second click while macOS asks waits for that answer, it does not ask again
+        guard prompting == false else { return .start }
         microphone = access.status()
         let click = dictationClick(microphone)
-        guard click == .start, let model, let recognizer = registry.recognizers.first(where: { $0.models.contains(model) }) else { return click }
+        guard click == .start else { return click }
+        guard let model, let recognizer = registry.recognizers.first(where: { $0.models.contains(model) }) else {
+            session.refuse(DictationFailure("No speech model is available"), for: field.owner)
+            return click
+        }
         if microphone == .allowed {
             session.start(recognizer: recognizer, model: model, into: field)
         } else {
-            // the first click: macOS asks, and the dictation starts when the person allows it
+            // the first click: macOS asks, and the dictation starts when the person allows it and the box is still there
+            prompting = true
+            waiting = field.owner
             Task {
                 let allowed = await access.request()
                 microphone = access.status()
-                if allowed, enabled { session.start(recognizer: recognizer, model: model, into: field) }
+                prompting = false
+                defer { waiting = nil }
+                if allowed, enabled, waiting == field.owner { session.start(recognizer: recognizer, model: model, into: field) }
             }
         }
         return click
@@ -139,7 +152,9 @@ import SwiftUI
 
     /// Stops the dictation of `owner`, or whichever runs when nil: a typed key, Enter and leaving (a session, the window, the app).
     func stop(ownedBy owner: String? = nil) {
-        if owner == nil || session.owner == owner { session.stop() }
+        guard let owner else { return session.stop() }
+        if waiting == owner { waiting = nil }
+        session.stop(ownedBy: owner)
     }
 }
 

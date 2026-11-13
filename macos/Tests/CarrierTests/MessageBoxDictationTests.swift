@@ -123,3 +123,79 @@ private let boxField = DictationField(owner: "box", text: { "" }, caret: { 0 }, 
     for _ in 0..<2000 where dictation.microphone != .denied { try? await Task.sleep(for: .milliseconds(1)) }
     #expect(dictation.presentation(for: "box")?.icon == .micSlash && dictation.session.state == .idle)
 }
+
+@MainActor @Test func aClickWithNoSpeechModelShowsWhyInsteadOfDoingNothing() {
+    let dictation = DictationController(registry: RecognizerRegistry(), capture: ScriptedCapture())
+    #expect(dictation.model == nil)
+    dictation.toggle(into: boxField)
+    #expect(dictation.session.failure(for: "box")?.cause == "No speech model is available")
+    #expect(dictation.session.state == .idle)
+}
+
+/// A microphone whose prompt stays open until `open` is called, and how many times it was asked.
+@MainActor private final class Prompt {
+    var asked = 0
+    let (gate, open) = AsyncStream<Void>.makeStream()
+}
+
+@MainActor @Test func aSecondClickWhileMacOSAsksForTheMicrophoneDoesNotAskAgain() async {
+    let registry = RecognizerRegistry()
+    registry.register(ScriptedRecognizer())
+    let prompt = Prompt()
+    var current = MicrophonePermission.notAsked
+    let capture = ScriptedCapture()
+    let access = MicrophoneAccess(
+        status: { current },
+        request: {
+            prompt.asked += 1
+            for await _ in prompt.gate {}
+            current = .allowed
+            return true
+        }
+    )
+    let dictation = DictationController(registry: registry, capture: capture, microphone: access)
+    dictation.toggle(into: boxField)
+    dictation.toggle(into: boxField)
+    try? await Task.sleep(for: .milliseconds(20))
+    prompt.open.finish()
+    for _ in 0..<2000 where dictation.session.state != .listening { try? await Task.sleep(for: .milliseconds(1)) }
+    #expect(prompt.asked == 1 && dictation.session.state == .listening && capture.startCount == 1)
+}
+
+@MainActor @Test func aBoxThatLeavesWhileMacOSAsksForTheMicrophoneNeverStartsItsDictation() async {
+    let registry = RecognizerRegistry()
+    registry.register(ScriptedRecognizer())
+    let prompt = Prompt()
+    var current = MicrophonePermission.notAsked
+    let capture = ScriptedCapture()
+    let access = MicrophoneAccess(
+        status: { current },
+        request: {
+            for await _ in prompt.gate {}
+            current = .allowed
+            return true
+        }
+    )
+    let dictation = DictationController(registry: registry, capture: capture, microphone: access)
+    dictation.toggle(into: boxField)
+    dictation.stop(ownedBy: "box")
+    prompt.open.finish()
+    try? await Task.sleep(for: .milliseconds(50))
+    #expect(dictation.session.state == .idle && capture.startCount == 0)
+}
+
+@MainActor @Test func aBoxThatLeavesDropsItsDictationThatWaitsForAnotherBoxToEnd() async {
+    let registry = RecognizerRegistry()
+    registry.register(ScriptedRecognizer(atAudioEnd: [.final("")]))
+    let capture = ScriptedCapture()
+    let dictation = DictationController(registry: registry, capture: capture)
+    func field(_ owner: String) -> DictationField { DictationField(owner: owner, text: { "" }, caret: { 0 }, put: { _, _, _ in }) }
+    dictation.toggle(into: field("a"))
+    for _ in 0..<2000 where dictation.session.state != .listening { try? await Task.sleep(for: .milliseconds(1)) }
+    dictation.toggle(into: field("b"))
+    dictation.stop(ownedBy: "b")
+    dictation.stop(ownedBy: "a")
+    for _ in 0..<2000 where dictation.session.state != .idle { try? await Task.sleep(for: .milliseconds(1)) }
+    try? await Task.sleep(for: .milliseconds(30))
+    #expect(dictation.session.state == .idle && capture.startCount == 1)
+}

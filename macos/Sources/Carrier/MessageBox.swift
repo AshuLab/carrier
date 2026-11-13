@@ -38,8 +38,10 @@ struct MessageBox<Selects: View>: View {
     @State private var pastes: [Pasted] = []
     /// Whether files are being dragged over the box.
     @State private var dropping = false
-    /// Where the text a dictation is still hearing is; it is drawn secondary.
+    /// Where the text a dictation is still hearing is; it is drawn in a colour with a touch of the accent and with a dotted underline.
     @State private var tentative: Range<Int>?
+    /// The text the dictation last wrote, so the text view knows a change of the text is the dictation's and keeps its caret.
+    @State private var dictated: String?
     /// Whether the popover of a blocked microphone is open.
     @State private var microphoneBlocked = false
     @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
@@ -99,7 +101,7 @@ struct MessageBox<Selects: View>: View {
                     .animation(.smooth(duration: 0.2), value: attachments)
                 }
                 CommandTextView(
-                    text: $text, cursor: $cursor, tentative: tentative, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onTyped: { dictation.stop(ownedBy: dictationOwner) }, onFiles: attach, onFileDrag: { dropping = $0 }, onLargePaste: keep,
+                    text: $text, cursor: $cursor, tentative: tentative, dictated: dictated, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onTyped: { dictation.stop(ownedBy: dictationOwner) }, onFiles: attach, onFileDrag: { dropping = $0 }, onLargePaste: keep,
                     sendKey: sendKey, writingTools: writingTools, checksSpelling: checksSpelling, correctsSpelling: correctsSpelling
                 )
                 .onChange(of: text) { _, now in
@@ -124,13 +126,15 @@ struct MessageBox<Selects: View>: View {
                             .layoutPriority(-1)
                         }
                         DictationButton(presentation: presentation, level: dictation.level, action: dictate)
+                            // Escape from the microphone, which holds the focus when a keyboard user came to it, cancels what it listens to
+                            .onExitCommand { _ = dictation.cancel(ownedBy: dictationOwner) }
                             .popover(isPresented: $microphoneBlocked, arrowEdge: .top) { blockedPopover }
                     }
                     button
                 }
             }
             .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
-            // while it listens: the edge, halo and light of the voice, over the glass and under the text; a drop's veil makes the edge wait
+            // while it listens: the line with its arc that follows the voice, outside the box and under the text; a drop's veil makes it wait
             .background {
                 if dictationEdgeShown(dictationPresentation, dropping: dropping) {
                     DictationIndicator(levels: dictation.voice).transition(.opacity)
@@ -156,6 +160,7 @@ struct MessageBox<Selects: View>: View {
         let click = dictation.toggle(into: DictationField(
             owner: dictationOwner, text: { text }, caret: { cursor },
             put: { written, caret, range in
+                dictated = written
                 text = written
                 cursor = caret
                 tentative = range

@@ -4,7 +4,7 @@ import Testing
 
 @Test(arguments: [
     (DictationSession.State.idle, DictationIcon.mic, false, true, String?.none, true, "Dictate"),
-    (.gettingReady, .spinner, false, false, "Getting the model ready…", true, "Dictation is getting ready"),
+    (.gettingReady, .spinner, false, false, "Getting the model ready…", false, "Dictation is getting ready"),
     (.listening, .mic, true, true, nil, false, "Stop dictation"),
     (.transcribing, .spinner, false, false, "Transcribing…", false, "Transcribing"),
 ])

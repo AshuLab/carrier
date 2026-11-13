@@ -11,8 +11,12 @@ struct CommandTextView: NSViewRepresentable {
     @Binding var text: String
     /// Where the caret is, in UTF-16 units of `text`.
     @Binding var cursor: Int
-    /// The range of `text` (plain UTF-16 units) a dictation is still hearing: drawn secondary, and the caret is where the box says, not at the end.
+    /// The range of `text` (plain UTF-16 units) a dictation is still hearing: drawn in a colour with a touch of the accent and with a dotted
+    /// underline, so it does not rest on colour alone.
     var tentative: Range<Int>?
+    /// The text a dictation last wrote: when `text` is it, the change is the dictation's, written in place, and the caret is where the box says
+    /// and not at the end.
+    var dictated: String?
     /// Set to true to put the caret in the text; the text resets it once it has.
     @Binding var focus: Bool
     var placeholder: String
@@ -108,9 +112,7 @@ struct CommandTextView: NSViewRepresentable {
             if rescaled || view.plain != text || view.string != rendered.string {
                 // a text put in from outside (a refused message that came back, a queued one taken back to edit) is written for the person
                 // to go on at its end; the caret the box knew was the one of the text it replaced
-                // a dictation writes in place: the caret is the one the box set
-                let dictating = tentative != nil || coordinator.reportedTentative != nil
-                let outside = view.plain != text && dictating == false
+                let outside = view.plain != text && text != dictated
                 view.replace(with: rendered, plainCursor: outside ? length : min(cursor, length))
                 if outside { DispatchQueue.main.async { if cursor != length { cursor = length } } }
             } else if view.plainOffset(of: view.selectedRange().location) != cursor {
@@ -240,7 +242,13 @@ struct CommandTextView: NSViewRepresentable {
             case #selector(NSResponder.insertLineBreak(_:)):
                 textView.insertNewlineIgnoringFieldEditor(nil)
                 return true
-            case #selector(NSResponder.insertTab(_:)): return parent.onKey(.tab)
+            case #selector(NSResponder.insertTab(_:)):
+                // with no list of commands to take, Tab goes on to the next control (the microphone, then Send) and types nothing
+                if parent.onKey(.tab) == false { textView.window?.selectNextKeyView(textView) }
+                return true
+            case #selector(NSResponder.insertBacktab(_:)):
+                textView.window?.selectPreviousKeyView(textView)
+                return true
             case #selector(NSResponder.moveUp(_:)): return parent.onKey(.up)
             case #selector(NSResponder.moveDown(_:)): return parent.onKey(.down)
             case #selector(NSResponder.cancelOperation(_:)): return parent.onKey(.escape)
@@ -380,22 +388,26 @@ final class PillTextView: NSTextView {
         scrollRangeToVisible(selectedRange())
     }
 
-    /// The colour of text still being guessed: the normal one with a touch of the accent, so it reads as provisional without losing the contrast
-    /// the secondary colour loses over the box's glass. Read when drawn, so it follows the appearance and the accent.
+    /// The colour of text still being guessed: the normal one with a touch of the accent, so it keeps the contrast the secondary colour loses
+    /// over the box's glass; the dotted underline of `drawTentative` says it too, for whoever does not tell the colours apart. Read when drawn,
+    /// so it follows the appearance and the accent.
     static let tentativeColor = NSColor(name: nil) { appearance in
         var color = NSColor.labelColor
         appearance.performAsCurrentDrawingAppearance { color = NSColor.labelColor.blended(withFraction: 0.4, of: NSColor(Color.themeAccent)) ?? .labelColor }
         return color
     }
 
-    /// Draws the text of `range` (plain offsets) in the provisional colour and the rest in the normal colour.
+    /// Draws the text of `range` (plain offsets) in the provisional colour and a dotted underline, and the rest in the normal colour with none.
     func drawTentative(_ range: Range<Int>?) {
         guard let storage = textStorage else { return }
         let whole = NSRange(location: 0, length: storage.length)
         storage.addAttribute(.foregroundColor, value: NSColor.labelColor, range: whole)
+        storage.removeAttribute(.underlineStyle, range: whole)
         guard let range else { return }
         let from = location(ofPlainOffset: range.lowerBound), to = location(ofPlainOffset: range.upperBound)
-        storage.addAttribute(.foregroundColor, value: Self.tentativeColor, range: NSRange(location: from, length: max(0, to - from)))
+        let drawn = NSRange(location: from, length: max(0, to - from))
+        storage.addAttribute(.foregroundColor, value: Self.tentativeColor, range: drawn)
+        storage.addAttribute(.underlineStyle, value: NSUnderlineStyle.patternDot.union(.single).rawValue, range: drawn)
     }
 
     /// The position in the plain text of a position in the text.

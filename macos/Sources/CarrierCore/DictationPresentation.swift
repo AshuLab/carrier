@@ -45,7 +45,7 @@ public func dictationPresentation(_ state: DictationSession.State, registered: B
         return DictationPresentation(icon: .mic, inAccent: false, pressable: true, caption: nil, sendEnabled: true, label: "Dictate", help: "Dictate")
     case .gettingReady:
         return DictationPresentation(
-            icon: .spinner, inAccent: false, pressable: false, caption: "Getting the model ready…", sendEnabled: true,
+            icon: .spinner, inAccent: false, pressable: false, caption: "Getting the model ready…", sendEnabled: false,
             label: "Dictation is getting ready", help: "Getting the model ready…"
         )
     case .listening:
@@ -57,6 +57,7 @@ public func dictationPresentation(_ state: DictationSession.State, registered: B
 
 /// What VoiceOver is told about a dictation. Partial text is never one of them: it would speak over the person.
 public enum DictationNotice: Equatable, Sendable {
+    case gettingReady
     case listening
     case stopped(words: Int)
     case failed(DictationFailure)
@@ -64,6 +65,7 @@ public enum DictationNotice: Equatable, Sendable {
 
 public func dictationAnnouncement(_ notice: DictationNotice) -> String {
     switch notice {
+    case .gettingReady: "Getting the model ready"
     case .listening: "Listening"
     case .stopped(let words): "Dictation stopped, \(words == 0 ? "no words" : words == 1 ? "1 word" : "\(words) words") added"
     case .failed(let failure): "Dictation failed: \(failure.cause)"

@@ -12,6 +12,7 @@ Reference for the `carrier` command. The quick tour is in the [README](../README
 | `carrier status` / `watch` | Show what the running Carrier is doing. |
 | `carrier restart` | Resume an epic that stopped in `needs-human`. |
 | `carrier chat` / `chat-host` | Talk to an agent in a session. |
+| `carrier usage` | Live quotas of your accounts and what was used. |
 
 From a clone, run `pnpm build` and then `node dist/terminal/cli/main.js`, or `node src/terminal/cli/main.ts --config ...` (Node 26 runs the TypeScript directly).
 
@@ -67,6 +68,8 @@ The panel is a dependency-free ANSI dashboard: uptime, repos watched and the nex
 ## Chat host
 
 `carrier chat --workspace <folder> [--agent <name>]` opens a conversation (it prints the answer as it streams; `/quit` leaves and the session stays open), `carrier chat --list [--archived]`, `--archive`, `--unarchive` and `--delete <id>` (deleting leaves nothing of the session; a working one is refused) talk to the chat host, a process of its own that keeps everything in `<folder>/chat/` (the Carrier folder, `~/.carrier` or `CARRIER_HOME`), and starts it detached when none answers. It needs no engine config: with nothing but the Carrier folder it starts, its optional settings are in `<folder>/chat/chat.json` ([configuration](configuration.md#chat-configuration)), and it reads the accounts its agents name from `<folder>/providers.json`, the file the engine reads too. It ends by itself a minute after the last client leaves, or at once with `carrier chat --stop`. The engine and the host run side by side and neither's stop touches the other. `carrier chat-host` runs it in the foreground. See [ADR 0013](adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md) and [the spec](specs/chat-host.md).
+
+`carrier usage [--json] [--refresh] [--days <7|14|30>] [--provider <all|claude|codex|agy|local>] [--source <all|epic|chat|external>]` asks the chat host (started on demand, like `carrier chat`; no engine is needed or started) for the live quotas of each account in `providers.json` (the windows used and when they reset, extra credits where the provider shows them) and for what was used over the last 7, 14 or 30 days (default 30): the total, then by model and by workspace, from epic runs, Carrier chats and the sessions the agent CLIs wrote on their own. Quotas are kept for a minute; `--refresh` asks again. Costs are the API price estimated from a bundled table, not what a plan charges, `$0.00` for local servers; a model with no price shows `unpriced` (the Mac app can map or price it). `--json` prints the host's answer as is. It takes no `--config`.
 
 ## What the engine does
 

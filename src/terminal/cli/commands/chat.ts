@@ -24,7 +24,7 @@ async function connectHost(path: string): Promise<CarrierClient | null> {
 export const POLL_MS = 200;
 
 /** The chat host's client, started on demand. */
-async function hostClient(socketPath: string, start: typeof startDetached): Promise<CarrierClient> {
+export async function hostClient(socketPath: string, start: typeof startDetached): Promise<CarrierClient> {
   const client = await connectHost(socketPath);
   if (client !== null) return client;
   await start({ label: 'The chat host', args: ['chat-host'], socketPath, logPath: join(chatLogsOf(), 'start.log') });

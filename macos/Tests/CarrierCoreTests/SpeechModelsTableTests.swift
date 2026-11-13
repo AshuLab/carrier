@@ -70,6 +70,7 @@ private func eachStateAndFilterGivesItsRowsAndWhatTheyOffer(c: Case) {
     #expect(rows.map(\.languages) == ["Your macOS languages", "3 languages", "English only"])
     #expect(rows.map(\.detectsLanguage) == [false, true, false])
     #expect(rows.map(\.text) == ["Live", "Live", "When you stop"])
+    #expect(rows.map(\.live) == [true, true, false])
     #expect(rows.map(\.recognizer) == ["Apple", "FluidAudio", "Whisper"])
     #expect(rows[1].label == "fluidaudio.parakeet, FluidAudio, 500 MB, 3 languages, text appears live, in use")
     #expect(rows[2].label.hasSuffix("not downloaded"))
@@ -84,4 +85,13 @@ private func eachStateAndFilterGivesItsRowsAndWhatTheyOffer(c: Case) {
     #expect(formatModelSize(0) == "0 MB")
     #expect(formatModelSize(75_000_000) == "75 MB")
     #expect(formatModelSize(1_250_000_000) == "1.2 GB")
+}
+
+@Test func aSavedModelThatIsNotOnDiskShowsAppleInThePopupAndIsReported() {
+    let onDisk: (SpeechModel) -> ModelState = { $0.bytes == nil || $0.id == parakeet.id ? .downloaded : .notDownloaded }
+    let gone = speechModelChoice(models: [apple, parakeet, tiny], chosen: tiny, state: onDisk)
+    #expect(gone.options.map(\.id) == [apple.id, parakeet.id])
+    #expect(gone.shown?.id == apple.id && gone.missing?.id == tiny.id)
+    let here = speechModelChoice(models: [apple, parakeet, tiny], chosen: parakeet, state: onDisk)
+    #expect(here.shown?.id == parakeet.id && here.missing == nil)
 }

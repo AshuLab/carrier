@@ -9,6 +9,8 @@ struct DictationTabView: View {
     @AppStorage(AppPreferences.dictationModelKey) private var savedModel: String?
     @AppStorage(AppPreferences.dictationLanguageKey) private var savedLanguage: String?
     @State private var filter: RecognizerID?
+    /// The id of the model the trash asked to delete, while the confirmation is open.
+    @State private var deleting: String?
 
     var body: some View {
         let enabled = dictation.enabled
@@ -35,7 +37,7 @@ struct DictationTabView: View {
             }, content: {
                 SpeechModelsTable(
                     rows: dictation.rows(filter: filter), choose: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) },
-                    download: dictation.store.download, cancel: dictation.store.cancel, delete: { dictation.store.delete($0) }
+                    download: dictation.store.download, cancel: dictation.store.cancel, delete: { deleting = $0 }
                 )
             })
             .live(.modelsTable, enabled: enabled)
@@ -46,14 +48,31 @@ struct DictationTabView: View {
             }
             .live(.storage, enabled: enabled)
         }
+        .alert(
+            "Delete \(deleting.flatMap(modelNamed) ?? "the model")?", isPresented: Binding(get: { deleting != nil }, set: { if $0 == false { deleting = nil } })
+        ) {
+            Button("Cancel", role: .cancel) { deleting = nil }
+            Button("Delete", role: .destructive) {
+                if let id = deleting { dictation.store.delete(id) }
+                deleting = nil
+            }
+        } message: {
+            Text("It frees its space on this Mac. You can download it again.")
+        }
     }
 
+    private func modelNamed(_ id: String) -> String? { dictation.models.first { $0.id == id }?.name }
+
     @ViewBuilder private var speechModelRow: some View {
-        if let model = dictation.model {
-            SettingsTabRow(title: "Speech model", detail: "\(model.recognizer.title) · \(model.partial.line)") {
+        let choice = speechModelChoice(models: dictation.models, chosen: dictation.model, state: dictation.store.state(of:))
+        if let shown = choice.shown {
+            SettingsTabRow(
+                title: "Speech model",
+                detail: choice.missing.map { "\($0.name) is not on disk: download it in the table or choose another" } ?? "\(shown.recognizer.title) · \(shown.partial.line)"
+            ) {
                 ChoicePopUp(
-                    label: "Speech model", options: dictation.models.filter { dictation.store.state(of: $0) == .downloaded }.map { (value: $0.id, title: $0.name) },
-                    selection: Binding(get: { model.id }, set: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) }), width: 200
+                    label: "Speech model", options: choice.options.map { (value: $0.id, title: $0.name) },
+                    selection: Binding(get: { shown.id }, set: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) }), width: 200
                 )
             }
         }

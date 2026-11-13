@@ -85,6 +85,8 @@ public struct SpeechModelRow: Equatable, Identifiable, Sendable {
     public let detectsLanguage: Bool
     /// "Live" or "When you stop".
     public let text: String
+    /// Whether the text appears as the person speaks (`text` is "Live"): the chip's tint follows this, not the words.
+    public let live: Bool
     /// A downloaded row has a radio, filled when it is the model in use; the others have none.
     public let radio: Bool?
     public let action: Action
@@ -96,7 +98,8 @@ public func speechModelRows(models: [SpeechModel], filter: RecognizerID?, state:
     models.filter { filter == nil || $0.recognizer == filter }.map { model in
         let state = state(model)
         let size = model.bytes.map(formatModelSize) ?? "System"
-        let text = model.partial == .atTheEnd ? "When you stop" : "Live"
+        let live = model.partial != .atTheEnd
+        let text = live ? "Live" : "When you stop"
         let languages = languagesText(model)
         let action: SpeechModelRow.Action
         let status: String
@@ -113,10 +116,26 @@ public func speechModelRows(models: [SpeechModel], filter: RecognizerID?, state:
         }
         return SpeechModelRow(
             id: model.id, name: model.name, recognizer: model.recognizer.title, licence: model.licence, card: model.card, size: size, languages: languages,
-            detectsLanguage: model.detectsLanguage, text: text, radio: state == .downloaded ? model.id == inUse : nil, action: action,
+            detectsLanguage: model.detectsLanguage, text: text, live: live, radio: state == .downloaded ? model.id == inUse : nil, action: action,
             label: "\(model.name), \(model.recognizer.title), \(size), \(languages), text appears \(text.lowercased()), \(status)"
         )
     }
+}
+
+/// What the Speech model popup offers and shows: the models on disk, and the one drawn as chosen. A saved model that is no longer on disk (the person
+/// deleted its folder) is `missing`, and the popup shows Apple's, which is always there, instead of whichever entry happens to be first.
+public struct SpeechModelChoice {
+    public let options: [SpeechModel]
+    public let shown: SpeechModel?
+    public let missing: SpeechModel?
+}
+
+public func speechModelChoice(models: [SpeechModel], chosen: SpeechModel?, state: (SpeechModel) -> ModelState) -> SpeechModelChoice {
+    let options = models.filter { state($0) == .downloaded }
+    let onDisk = chosen.map { chosen in options.contains { $0.id == chosen.id } } ?? false
+    return SpeechModelChoice(
+        options: options, shown: onDisk ? chosen : options.first { $0.recognizer == .apple }, missing: onDisk ? nil : chosen
+    )
 }
 
 private func languagesText(_ model: SpeechModel) -> String {

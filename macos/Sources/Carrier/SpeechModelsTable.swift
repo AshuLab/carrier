@@ -5,6 +5,11 @@ import SwiftUI
 /// name over its recognizer and its licence (a link to the model's card), the size, the languages, how the text appears and the action of the
 /// row's state. What each row shows and offers is `speechModelRows`; this only draws it.
 struct SpeechModelsTable: View {
+    /// The widths of the columns, the same in the header and in every row; Model takes what is left.
+    fileprivate enum Column {
+        static let radio: CGFloat = 20, size: CGFloat = 64, languages: CGFloat = 150, text: CGFloat = 104, action: CGFloat = 170
+    }
+
     let rows: [SpeechModelRow]
     let choose: (String) -> Void
     let download: (String) -> Void
@@ -14,12 +19,12 @@ struct SpeechModelsTable: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Color.clear.frame(width: 20)
+                Color.clear.frame(width: Column.radio)
                 Text("Model").frame(maxWidth: .infinity, alignment: .leading)
-                Text("Size").frame(width: 64, alignment: .leading)
-                Text("Languages").frame(width: 150, alignment: .leading)
-                Text("Text appears").frame(width: 104, alignment: .leading)
-                Color.clear.frame(width: 170)
+                Text("Size").frame(width: Column.size, alignment: .leading)
+                Text("Languages").frame(width: Column.languages, alignment: .leading)
+                Text("Text appears").frame(width: Column.text, alignment: .leading)
+                Color.clear.frame(width: Column.action)
             }
             .sectionLabel().padding(.vertical, 10)
             .accessibilityHidden(true)
@@ -40,24 +45,25 @@ private struct SpeechModelRowView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            radio.frame(width: 20)
+            radio.frame(width: SpeechModelsTable.Column.radio)
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.name).font(.body.weight(.medium))
                 HStack(spacing: 0) {
                     Text("\(row.recognizer) · ").foregroundStyle(.secondary)
-                    Link(row.licence, destination: row.card).tint(Color.themeAccent).help("Open the card of \(row.name)")
+                    // underlined: the accent alone does not say it is a link when it is pale or gray
+                    Link(destination: row.card) { Text(row.licence).underline() }.tint(Color.themeAccent).help("Open the card of \(row.name)")
                 }
                 .font(.caption)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text(row.size).font(.callout).monospacedDigit().frame(width: 64, alignment: .leading)
+            Text(row.size).font(.callout).monospacedDigit().frame(width: SpeechModelsTable.Column.size, alignment: .leading)
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.languages).font(.callout)
                 if row.detectsLanguage { Text("Detects the language").font(.caption).foregroundStyle(.secondary) }
             }
-            .frame(width: 150, alignment: .leading)
-            StatusChip(text: row.text, tint: row.text == "Live" ? Color.themeAccent : .secondary).frame(width: 104, alignment: .leading)
-            action.frame(width: 170, alignment: .trailing)
+            .frame(width: SpeechModelsTable.Column.languages, alignment: .leading)
+            StatusChip(text: row.text, tint: row.live ? Color.themeAccent : .secondary).frame(width: SpeechModelsTable.Column.text, alignment: .leading)
+            action.frame(width: SpeechModelsTable.Column.action, alignment: .trailing)
         }
         .padding(.vertical, 14)
         .contentShape(Rectangle())
@@ -74,6 +80,10 @@ private struct SpeechModelRowView: View {
         }
         .buttonStyle(.plain).disabled(row.radio == nil).opacity(row.radio == nil ? 0.35 : 1)
         .accessibilityLabel("Use \(row.name)")
+        .accessibilityAddTraits(row.radio == true ? .isSelected : [])
+        .accessibilityValue(row.radio == true ? "in use" : "")
+        // a model that is not on disk has nothing to choose yet: its row says so ("not downloaded") and its action is Download
+        .accessibilityHidden(row.radio == nil)
     }
 
     @ViewBuilder private var action: some View {

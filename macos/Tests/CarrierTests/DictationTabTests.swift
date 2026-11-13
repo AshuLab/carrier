@@ -105,3 +105,8 @@ func theDictationPageBuildsWithTheSwitchOnAndOff(enabled: Bool) {
 @Test func appleRecognizersModelPassesTheCatalogCheck() {
     #expect(SpeechModelCatalog.problems(in: AppleRecognizer(languages: ["en", "es"], preferredLanguages: ["es"]).models).isEmpty)
 }
+
+@Test func reduceTransparencyDrawsTheRingAloneAndNeverTheArcOrItsBloom() {
+    #expect(DictationIndicator.drawsLight(reduceTransparency: false))
+    #expect(DictationIndicator.drawsLight(reduceTransparency: true) == false)
+}

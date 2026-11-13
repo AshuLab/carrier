@@ -29,14 +29,18 @@ private struct DictationButtonStyle: ButtonStyle {
         let level: Float
         let pressed: Bool
         @State private var hovering = false
+        /// How dim the solid microphone is under the level's fill while it listens.
+        private static let listeningBase = 0.4
 
         var body: some View {
             let lit = (hovering || pressed) && presentation.pressable
             ZStack {
                 switch presentation.icon {
                 case .mic, .micSlash:
-                    Image(systemName: presentation.icon == .micSlash ? "mic.slash" : "mic").font(.scaled(16))
+                    // listening is not told by the accent alone (a pale or gray accent reads weakly): the glyph turns from an outline to a dim solid
+                    Image(systemName: presentation.icon == .micSlash ? "mic.slash" : presentation.inAccent ? "mic.fill" : "mic").font(.scaled(16))
                         .foregroundStyle(presentation.inAccent ? Color.themeAccent : lit ? Color.primary : Color.secondary)
+                        .opacity(presentation.inAccent ? Self.listeningBase : 1)
                         .overlay {
                             // the capsule fills from the bottom with the level, like the Mac's own Dictation
                             if presentation.inAccent {

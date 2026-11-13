@@ -19,6 +19,9 @@ const PERMISSION_MODES = [
   { id: 'dontAsk', label: "Don't ask" },
 ]; // `bypassPermissions` is left out: it needs a flag of its own and Carrier does not turn it on
 
+/** The statuses of an MCP server that cannot be used (`pending` is still connecting, and is not a failure). */
+const MCP_DOWN = ['failed', 'needs-auth', 'disabled', 'disconnected'];
+
 export type ClaudeChatDeps = {
   query: typeof sdkQuery;
   /** The `claude` to run: `command` when given, else the one found on the path. Throws when there is none. */
@@ -48,7 +51,7 @@ export const realClaudeDeps: ClaudeChatDeps = { query: sdkQuery, resolve: resolv
 
 export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, launch = {}, env }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env, mcp }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -60,7 +63,7 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
       const begin = async (from: string | undefined) => {
         const conversation = new ClaudeConversation(options, from);
         try {
-          await conversation.start(deps, { folder, binary, env, extraArgs });
+          await conversation.start(deps, { folder, binary, env, extraArgs, mcp });
         } catch (error) {
           await conversation.close();
           throw error;
@@ -116,6 +119,7 @@ class ClaudeConversation implements ChatConversation {
   private pid: number | undefined;
   private command: string | undefined;
   private chosen: Record<string, string>;
+  mcpProblem: string | undefined;
 
   constructor(chosen: Record<string, string>, resume: string | undefined) {
     this.chosen = chosen;
@@ -125,7 +129,7 @@ class ClaudeConversation implements ChatConversation {
     this.effort = chosen.effort ?? '';
   }
 
-  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null> }) {
+  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs, mcp }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null>; mcp?: { serverName: string; url: string; token: string } }) {
     const spawnOwn = deps.spawn && ((o: Parameters<NonNullable<ClaudeChatDeps['spawn']>>[0]) => {
       const child = deps.spawn!(o);
       this.pid = (child as { pid?: number }).pid;
@@ -147,11 +151,19 @@ class ClaudeConversation implements ChatConversation {
         ...(this.chosen.permissionMode && { permissionMode: this.chosen.permissionMode as never }),
         ...(this.chosen.effort && { effort: this.chosen.effort as never }),
         ...(this.nativeId && { resume: this.nativeId }),
+        // The chat MCP is handed over in memory, never in `extraArgs` (they are `argv`) and never in a config file; its tools run without asking, as the chat host's own.
+        ...(mcp && {
+          mcpServers: { [mcp.serverName]: { type: 'http' as const, url: mcp.url, headers: { Authorization: `Bearer ${mcp.token}` } } },
+          allowedTools: [`mcp__${mcp.serverName}__*`],
+        }),
       },
     });
     const ready = await this.query.initializationResult();
     this.models = ready.models;
     this.slash = ready.commands ?? [];
+    // The SDK's type does not declare `mcpServers` on this reply; a Claude Code that does not send it gives no verdict, and that is not a problem.
+    const injected = mcp && (ready as { mcpServers?: { name: string; status: string; error?: string }[] }).mcpServers?.find((s) => s.name === mcp.serverName);
+    if (injected && MCP_DOWN.includes(injected.status)) this.mcpProblem = injected.error ? `${injected.status}: ${injected.error}` : injected.status;
     void this.pump();
   }
 

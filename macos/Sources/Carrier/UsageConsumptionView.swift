@@ -198,12 +198,15 @@ private struct DailyChart: View {
         // one label in a few, so thirty days do not run into each other
         let step = max(1, Int((Double(bars.count) / 7).rounded(.up)))
         let titles = usageChartProviders.map(usageProviderTitle)
+        let valueName: String = metric == .cost ? "Cost" : "Tokens"
         Chart {
             ForEach(bars) { bar in
                 ForEach(bar.segments) { segment in
-                    BarMark(x: .value("Day", bar.label), y: .value(metric == .cost ? "Cost" : "Tokens", segment.value))
-                        .foregroundStyle(by: .value("Provider", usageProviderTitle(segment.provider)))
-                        .opacity(shown == nil || shown?.id == bar.id ? 1 : 0.45)
+                    let dimmed: Bool = shown != nil && shown?.id != bar.id
+                    let provider: String = usageProviderTitle(segment.provider)
+                    BarMark(x: .value("Day", bar.label), y: .value(valueName, segment.value))
+                        .foregroundStyle(by: .value("Provider", provider))
+                        .opacity(dimmed ? 0.45 : 1)
                 }
             }
             if let shown {

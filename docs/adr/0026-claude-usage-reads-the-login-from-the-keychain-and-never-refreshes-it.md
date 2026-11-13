@@ -1,6 +1,6 @@
 # 0026 - Claude's usage reads the login from the macOS Keychain, and never refreshes it
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-11-13
 
 ## Context

@@ -39,6 +39,7 @@ public struct AppPreferences {
     public static let newSessionModelKey = "chat.newSession.model"
     public static let newSessionEffortKey = "chat.newSession.effort"
     public static let newSessionAccessKey = "chat.newSession.access"
+    public static let workInKey = "chat.newSession.workIn"
     public static let dictationEnabledKey = "dictation.enabled"
     public static let dictationModelKey = "dictation.model"
     public static let dictationLanguageKey = "dictation.language"
@@ -64,6 +65,7 @@ public struct AppPreferences {
     public static let defaultDiffStyle = DiffStyle.unified
     public static let defaultOutputLength = OutputLength.short
     public static let defaultConfirmDelete = true
+    public static let defaultWorkIn = WorkIn.baseFolder
     public static let defaultShowsReasoning = true
     public static let defaultDictationEnabled = true
 
@@ -267,6 +269,12 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.confirmDeleteKey) }
     }
 
+    /// Where a new session opens: the base folder, or a new worktree when its folder offers one.
+    public var workIn: WorkIn {
+        get { defaults.string(forKey: Self.workInKey).flatMap(WorkIn.init(rawValue:)) ?? Self.defaultWorkIn }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.workInKey) }
+    }
+
     /// Whether the message box has a microphone: Dictation is on until the person turns it off.
     public var dictationEnabled: Bool {
         get { defaults.object(forKey: Self.dictationEnabledKey) as? Bool ?? Self.defaultDictationEnabled }
@@ -312,9 +320,10 @@ public struct AppPreferences {
         case .chat:
             [
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
-                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey, confirmDeleteKey,
-                newSessionAgentKey, newSessionModelKey, newSessionEffortKey, newSessionAccessKey,
+                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey,
             ]
+        // the ages of the session clock live in chat.json: the page's own Reset writes them back
+        case .sessions: [confirmDeleteKey, newSessionAgentKey, newSessionModelKey, newSessionEffortKey, newSessionAccessKey, workInKey]
         case .notifications:
             [
                 notifyNeedsYouKey, notifyReadyForTestKey, notifyProblemKey, notifyChatNeedsAttentionKey, notifyChatDoneKey, notifyOnlyWhenAwayKey,
@@ -323,7 +332,7 @@ public struct AppPreferences {
         case .dictation: [dictationEnabledKey, dictationModelKey, dictationLanguageKey]
         case .keybindings: [ShortcutTable.key]
         // the Providers page only reads, the Updates page writes Sparkle's own preferences, and the Legacy pages keep their own settings and have no Reset
-        case .providers, .updates, .engine, .behavior, .repos, .agents, .sessions, .health: []
+        case .providers, .updates, .engine, .behavior, .repos, .agents, .health: []
         }
     }
 }
@@ -351,6 +360,13 @@ public struct NewSessionStart: Equatable {
     public static func json(fromAccess access: [String: String]) -> String {
         (try? JSONEncoder().encode(access)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
     }
+}
+
+/// Where a new session opens when its folder offers a worktree; a draft's own choice stays above it.
+public enum WorkIn: String, CaseIterable {
+    case baseFolder, newWorktree
+
+    public var title: String { self == .baseFolder ? "The base folder" : "A new worktree" }
 }
 
 public enum ColorSchemeChoice: String, CaseIterable {

@@ -831,3 +831,46 @@ test('usage answers over the socket the quotas of each account and the history r
   expect(existsSync(join(root, 'engine'))).toBe(false); // the usage never started an engine nor made its folder
   client.close();
 });
+
+// The chat MCP: up before the socket, one token per conversation, down with the socket.
+const callMcp = (mcp: { url: string; token: string }, method: string, params?: object) =>
+  fetch(mcp.url, { method: 'POST', headers: { authorization: `Bearer ${mcp.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+
+test('the host serves the chat MCP to the conversation it opened: capabilities answers for that session, the token ends with the session, and stop closes the endpoint', async () => {
+  const claude = new FakeChatRunner();
+  const { stop } = await host(new FakeClock(), claude);
+  const work = join(root, 'w');
+  mkdirSync(work);
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const { session } = (await client.request('open', { agent: 'claude', folder: work })) as { session: { id: string } };
+  const mcp = claude.opened[0]!.mcp!;
+  expect(mcp).toMatchObject({ serverName: 'carrier-chat', url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/) });
+  const listed = (await (await callMcp(mcp, 'tools/list')).json()) as any;
+  expect(listed.result.tools.map((t: any) => t.name)).toEqual(['capabilities']);
+  const called = (await (await callMcp(mcp, 'tools/call', { name: 'capabilities' })).json()) as any;
+  expect(called.result.isError).toBe(false);
+  expect(JSON.parse(called.result.content[0].text).session).toMatchObject({ id: session.id, agent: 'claude' });
+  await client.request('close', { sessionId: session.id });
+  expect((await callMcp(mcp, 'ping')).status).toBe(401);
+
+  await client.request('open', { agent: 'claude', folder: work });
+  const live = claude.opened[1]!.mcp!;
+  expect((await callMcp(live, 'ping')).status).toBe(200);
+  client.close();
+  await stop();
+  await expect(callMcp(live, 'ping')).rejects.toThrow();
+});
+
+test('a host whose MCP cannot bind keeps running: sessions open without it and say so in a notice', async () => {
+  const claude = new FakeChatRunner();
+  const started = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude }, binaryFound: () => true, startMcp: async () => { throw new Error('EADDRINUSE'); } });
+  stops.push(started.stop);
+  const work = join(root, 'w');
+  mkdirSync(work);
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const { session } = (await client.request('open', { agent: 'claude', folder: work })) as { session: { id: string } };
+  expect(claude.opened[0]!.mcp).toBeUndefined();
+  const { events } = (await client.request('events', { sessionId: session.id, limit: 50 })) as any;
+  expect(events.map((e: any) => e.kind)).toEqual(['notice']);
+  client.close();
+});

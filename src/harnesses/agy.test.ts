@@ -115,3 +115,8 @@ test('an effort is passed as --effort, and without one nothing is added', () => 
   expect(args.filter((_, i) => args[i] !== '--effort' && args[i - 1] !== '--effort')).toEqual(plain.args);
   expect(args[args.indexOf('--effort') + 1]).toBe('max');
 });
+
+test('an engine Antigravity run gets no chat MCP configuration in its arguments or environment', () => {
+  const { args, env } = buildAgyCommand(task, ctx);
+  expect(`${args.join('\n')}\n${Object.entries(env).flat().join('\n')}`).not.toMatch(/carrier-chat|mcp_servers|mcp-config/i);
+});

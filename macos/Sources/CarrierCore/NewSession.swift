@@ -91,8 +91,10 @@ public struct WatchNote: Equatable {
     @ObservationIgnored private var optionsAgent: String?
     /// What each agent offered when last asked, kept between drafts and launches.
     @ObservationIgnored private let offers: AgentOfferStore
-    /// What Settings > Chat says a new session opens with, read each time it is needed so a change shows in the next draft.
+    /// What Settings > Sessions says a new session opens with, read each time it is needed so a change shows in the next draft.
     @ObservationIgnored private let start: () -> NewSessionStart
+    /// What Settings > Sessions says a new session opens in, read when the workspace answers.
+    @ObservationIgnored private let workIn: () -> WorkIn
     public var text = ""
     public private(set) var sending = false
     /// Why `open` was refused (or the host would not start), said in words in the draft; nil when it worked.
@@ -205,9 +207,11 @@ public struct WatchNote: Equatable {
         status: ReloadStatus? = nil,
         readChatConfig: @escaping () throws -> Data? = currentChatConfig, writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
         carrierFolder: String = currentCarrierFolder(),
-        start: @escaping () -> NewSessionStart = { AppPreferences().newSessionStart }
+        start: @escaping () -> NewSessionStart = { AppPreferences().newSessionStart },
+        workIn: @escaping () -> WorkIn = { AppPreferences().workIn }
     ) {
         self.start = start
+        self.workIn = workIn
         self.host = host
         self.health = health
         self.offers = offers ?? AgentOfferStore()
@@ -272,8 +276,10 @@ public struct WatchNote: Equatable {
             await useWorktree(true)
             // an empty name is the host's to generate, which the draft already did
             if let name = wanted.name, name.isEmpty == false, worktree { worktreeName = name }
-        } else if let branch = plan.branch {
-            picked = branch
+        } else {
+            // the plan asked for the base folder: what it was sent with wins over "Work in"
+            await useWorktree(false)
+            if let branch = plan.branch { picked = branch }
         }
     }
 
@@ -291,7 +297,7 @@ public struct WatchNote: Equatable {
     /// The workspace chip's ✕: drops the workspace and what depends on it (branch, worktree choice and name).
     public func clearWorkspace() { reset(folder: nil) }
 
-    /// Keeps the chosen provider while it can be chosen, else takes the one Settings > Chat names when it can work, else the first one
+    /// Keeps the chosen provider while it can be chosen, else takes the one Settings > Sessions names when it can work, else the first one
     /// that can; none when none can.
     public func pickAvailableAgent() {
         guard agents.contains(where: { $0.name == agent && $0.available }) == false else { return }
@@ -323,7 +329,7 @@ public struct WatchNote: Equatable {
         guard let name = agent, optionsAgent != name else { return }
         optionsAgent = name
         chosenOptions = [:]
-        // what Settings > Chat names: the model and reasoning go to the provider it names, the access to any provider that lists those options,
+        // what Settings > Sessions names: the model and reasoning go to the provider it names, the access to any provider that lists those options,
         // all as far as the provider lists them
         let wanted = start()
         if restoredOptions == nil {
@@ -462,6 +468,7 @@ public struct WatchNote: Equatable {
             let names = listed.branches.contains(listed.defaultBranch) ? listed.branches : [listed.defaultBranch] + listed.branches
             workspace = WorkspaceInfo(folder: path, branch: listed.defaultBranch, defaultBranch: listed.defaultBranch, branches: names.map { .init(name: $0, remote: false) })
             branchesPartial = listed.hasMore
+            await openWhereSettingsSays()
         } catch {
             guard folder == path else { return }
             // the draft still works: the repository is cloned on its default branch, with no worktree to offer
@@ -624,11 +631,17 @@ public struct WatchNote: Equatable {
             let info = try await host.workspace(path)
             guard folder == path else { return }
             workspace = info
+            await openWhereSettingsSays()
         } catch {
             guard folder == path else { return }
             // the draft still works in the base folder: the host refuses the same folder at `open`, in words
             workspaceProblem = report(error, "read the workspace")
         }
+    }
+
+    /// A draft whose folder offers a worktree opens in one when Settings > Sessions says so; one that offers none stays on the base folder.
+    private func openWhereSettingsSays() async {
+        if workIn() == .newWorktree { await useWorktree(true) }
     }
 
     private func reset(folder path: String?) {

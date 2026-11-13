@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { z } from 'zod';
 import { FakeClock } from '../orchestration/fake.ts';
+import { capabilities } from './mcp/capabilities.ts';
 import { accessLevels, defineTool, McpSessionRegistry, registeredTools, startMcpServer, type McpServer } from './mcp.ts';
 import { ChatRefused } from './runner.ts';
 
@@ -68,7 +69,7 @@ beforeEach(async () => {
   existing = new Set(['s1']);
   liveOnes = new Set(['s1']);
   seen = [];
-  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id) } });
+  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }) } });
 });
 afterEach(() => server.close());
 
@@ -205,7 +206,7 @@ test('tools/call runs the handler with the session of the token and answers its 
   const token = issue();
   const { result } = await call(token, 'test_echo', { text: 'hi' });
   expect(result).toEqual({ content: [{ type: 'text', text: '{"said":"hi"}' }], isError: false });
-  expect(seen[0]).toEqual({ args: { text: 'hi' }, ctx: { sessionId: 's1', invocationId: 'i1' } });
+  expect(seen[0]).toEqual({ args: { text: 'hi' }, ctx: { sessionId: 's1', invocationId: 'i1', sessions: expect.any(Object) } });
   expect((await rpc(token, 'tools/call', { name: 'nope' })).error?.code).toBe(-32602);
   expect((await rpc(token, 'tools/call', { arguments: {} })).error?.code).toBe(-32602);
 });
@@ -262,4 +263,28 @@ test('every registered tool declares a valid access level, and one that does not
   expect(() => defineTool({ name: 'test_bad_access', access: 'writes', ...spec } as any)).toThrow('no valid access level');
   expect(() => defineTool({ name: 'test_echo', access: 'reads', ...spec })).toThrow('already registered');
   expect(registeredTools().map((t) => t.name)).not.toContain('test_no_access');
+});
+
+test('capabilities is a readsAsSession tool that takes no arguments and answers what the session lends it', async () => {
+  expect(capabilities).toMatchObject({ name: 'capabilities', access: 'readsAsSession' });
+  expect(registeredTools().map((t) => t.name)).toContain('capabilities');
+  const view = { id: 's1', agent: 'a', harness: 'claude', folder: '/work', model: null, options: {} };
+  const own = await startMcpServer({
+    registry,
+    tools: [capabilities],
+    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', found: true }], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }) },
+  });
+  try {
+    const token = issue();
+    const ask = async (args?: unknown) => ((await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'capabilities', ...(args !== undefined && { arguments: args }) } }) })).json()) as any).result;
+    for (const args of [undefined, {}]) {
+      const result = await ask(args);
+      expect(result.isError).toBe(false);
+      expect(JSON.parse(result.content[0].text)).toEqual({ session: view, agents: [{ name: 'a', harness: 'claude', found: true, state: 'ready' }], environment: { git: 'ready', gh: 'missing' } });
+    }
+    expect((await ask({ extra: 1 })).isError).toBe(true);
+    expect((await ask([])).isError).toBe(true);
+  } finally {
+    await own.close();
+  }
 });

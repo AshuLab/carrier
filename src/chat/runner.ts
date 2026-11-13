@@ -50,6 +50,8 @@ export interface ChatConversation {
   readonly nativeId: string | undefined;
   /** Set when a resume found nothing to resume and the provider began a new conversation instead: the agent remembers nothing of the earlier ones. */
   readonly startedOver?: boolean;
+  /** Set when the chat MCP was handed over and the provider could not start or reach it: the conversation works without it, and the host says so. */
+  readonly mcpProblem?: string;
   /** The agent's process, when it leads a group of its own: what the next host needs to sweep it if this one dies. `command` is what it was started with. */
   readonly process?: { pid: number; pgid: number; command: string };
   /** `text` is the message, or what follows the command's name when one is invoked (the provider's own way of invoking it is the adapter's). */
@@ -68,7 +70,7 @@ export type ChatLaunch = Pick<Account, 'autoCompact' | 'idleCompaction' | 'launc
 
 export interface ChatRunner {
   /** Rejects with a `ChatRefused` when the provider is not installed, not logged in, or does not know the id to resume. */
-  open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv }): Promise<ChatConversation>;
+  open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv; /** The chat MCP of this one conversation, by the key it is registered under, its URL and its bearer token (never logged, never in `argv`); none for a probe. */ mcp?: { serverName: string; url: string; token: string } }): Promise<ChatConversation>;
 }
 
 /** A failure whose message is for the person, in words: it travels to the client as it is. Any other error is logged and reaches the client as "internal error". */

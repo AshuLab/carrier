@@ -129,6 +129,35 @@ private func window(_ used: Double, resetsAt: Int? = nil, label: String = "5h", 
     #expect(store.quotas.count == 5 && host.queries.map(\.provider) == [.all, .codex])
 }
 
+@MainActor @Test func aClickOnAnAccountFiltersTheWholeHistoryByItAndAnotherClickClearsIt() async throws {
+    let host = try host()
+    let store = UsageStore(host: host)
+    store.toggleFilter(.claude)
+    store.toggleAccount("claude-work", provider: "claude")
+    // an account and a provider are never on together
+    #expect(store.accountFilter == "claude-work" && store.providerFilter == .all && store.hasActiveFilters)
+    await store.load()
+    // the quotas of every account are asked apart, so the list keeps them all
+    #expect(host.queries == [UsageQuery(days: 7), UsageQuery(days: 30, account: "claude-work")])
+    #expect(store.quotas.count == 5)
+    #expect(store.accountFilterTitle == "Work")
+    store.toggleAccount("claude-work", provider: "claude")
+    #expect(store.accountFilter == nil && store.hasActiveFilters == false)
+}
+
+@MainActor @Test func theLocalServersFilterByTheirProviderAndAProviderClickClearsTheAccount() throws {
+    let store = UsageStore(host: try host())
+    store.toggleAccount("claude", provider: "claude")
+    store.toggleAccount("local", provider: "local")
+    #expect(store.providerFilter == .local && store.accountFilter == nil)
+    store.toggleAccount("codex", provider: "codex")
+    store.toggleFilter(.agy)
+    #expect(store.providerFilter == .agy && store.accountFilter == nil)
+    store.toggleAccount("codex", provider: "codex")
+    store.clearFilters()
+    #expect(store.accountFilter == nil && store.providerFilter == .all)
+}
+
 // MARK: limit detection
 
 private func state(_ kind: String?, status: String = "needs_human", issue: Int = 7) throws -> ConnectionState {
@@ -196,13 +225,39 @@ private final class Ticks: @unchecked Sendable {
 @MainActor @Test func becomingActiveAsksOnlyWhileThePageIsOpenAndCheckAgainSkipsTheCache() async throws {
     let host = try host()
     let refresher = UsageRefresher(store: UsageStore(host: host)) { _ in try await Task.sleep(for: .seconds(3600)) }
-    #expect(refresher.appBecameActive() == nil && host.queries.isEmpty)
+    // the app becoming active is attention coming back: the page is not open, so nothing is asked
+    #expect(refresher.setAttentive(false) == nil)
+    #expect(refresher.setAttentive(true) == nil && host.queries.isEmpty)
     refresher.appear()
-    await refresher.appBecameActive()?.value
+    refresher.setAttentive(false)
+    await refresher.setAttentive(true)?.value
     await until { host.queries.count == 2 }
     #expect(host.queries.map(\.refresh) == [false, false])
     await refresher.checkAgain().value
     await refresher.limitHit().value
     #expect(host.queries.map(\.refresh) == [false, false, true, true])
+    refresher.disappear()
+}
+
+@MainActor @Test func theMinuteTimerPausesWhileNobodyLooksAndAsksAgainWhenSomeoneDoes() async throws {
+    let host = try host()
+    let refresher = UsageRefresher(store: UsageStore(host: host)) { _ in try await Task.sleep(for: .seconds(3600)) }
+    refresher.appear()
+    await until { host.queries.count == 1 }
+    // minimized, another Space, another app: no timer, no ask
+    #expect(refresher.setAttentive(false) == nil && refresher.isTimerRunning == false && refresher.visible)
+    await refresher.setAttentive(true)?.value
+    #expect(refresher.isTimerRunning && host.queries.count == 2)
+    // the same attention twice is no change
+    #expect(refresher.setAttentive(true) == nil)
+    refresher.disappear()
+    refresher.setAttentive(false)
+    #expect(refresher.setAttentive(true) == nil && refresher.isTimerRunning == false && host.queries.count == 2)
+    // appearing while nobody looks waits for someone to
+    refresher.setAttentive(false)
+    refresher.appear()
+    #expect(refresher.isTimerRunning == false)
+    await refresher.setAttentive(true)?.value
+    #expect(refresher.isTimerRunning && host.queries.count == 3)
     refresher.disappear()
 }

@@ -61,6 +61,13 @@ struct ConsumptionSection: View {
                 }
                 .help("Showing \(usageProviderTitle(store.providerFilter.rawValue)) only; click to show all providers")
             }
+            if let account = store.accountFilterTitle {
+                FilterChip(title: account, icon: "xmark", on: true) {
+                    store.accountFilter = nil
+                    reload()
+                }
+                .help("Showing \(account) only; click to show all accounts")
+            }
             TextField("Search model or workspace", text: $store.searchText).settingsField(width: 210, icon: "magnifyingglass")
         }
     }
@@ -71,7 +78,7 @@ struct ConsumptionSection: View {
         SettingsTabCard {
             HStack(alignment: .top, spacing: 0) {
                 ForEach(Array(usageKpis(snapshot).enumerated()), id: \.offset) { index, kpi in
-                    if index > 0 { Divider().padding(.vertical, 12) }
+                    if index > 0 { SettingsDivider(vertical: true).padding(.vertical, 12) }
                     VStack(alignment: .leading, spacing: 3) {
                         Text(kpi.title).sectionLabel()
                         Text(kpi.value).font(.scaled(20, weight: .semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
@@ -83,6 +90,8 @@ struct ConsumptionSection: View {
                     .accessibilityElement(children: .combine)
                 }
             }
+            // the cards' lines take the height of the tallest card
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -93,15 +102,16 @@ struct ConsumptionSection: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Daily \(store.metric == .cost ? "estimated API cost" : "tokens")").sectionLabel()
                 if usageIsEmpty(snapshot) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "chart.bar").font(.scaled(22)).foregroundStyle(.secondary).accessibilityHidden(true)
-                        Text(store.hasActiveFilters ? "Nothing matches these filters" : "No usage in the last \(store.days) days")
-                            .font(.callout).foregroundStyle(.secondary)
-                        if store.hasActiveFilters {
-                            Button("Clear filters") { store.clearFilters(); reload() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                        }
+                    if store.hasActiveFilters {
+                        EmptyStateView(
+                            icon: "chart.bar", title: "Nothing matches these filters", line: "Clear them to see all of the last \(store.days) days.",
+                            action: ("Clear filters", { store.clearFilters(); reload() })
+                        )
+                        .frame(minHeight: 220)
+                    } else {
+                        EmptyStateView(icon: "chart.bar", title: "No usage in the last \(store.days) days", line: "Epics, chats and terminal sessions show here once they run.")
+                            .frame(minHeight: 220)
                     }
-                    .frame(maxWidth: .infinity).frame(height: 160)
                 } else {
                     DailyChart(bars: usageBars(snapshot, metric: store.metric), metric: store.metric)
                 }
@@ -139,14 +149,12 @@ struct ConsumptionSection: View {
         HStack(spacing: 6) {
             if let cost = row.cost { Text(cost).font(.scaled(12, weight: .medium)).monospacedDigit() }
             if row.unpriced {
-                Button("Unpriced · Map") { mapping = row }
-                    .buttonStyle(.plain).font(.scaled(11, weight: .semibold)).foregroundStyle(.orange)
-                    .padding(.horizontal, 8).padding(.vertical, 3).background(Capsule().fill(Color.orange.opacity(0.15)))
+                Button { mapping = row } label: { Badge(text: "Unpriced · Map", icon: "exclamationmark.triangle.fill", tint: .orange) }
+                    .buttonStyle(.plain).accessibilityLabel("Unpriced. Map \(row.model) to a price")
                     .help("This model is not in the price table: its cost is missing, not zero. Map it to a price.")
             } else if row.overridden {
-                Button { mapping = row } label: { Label("Custom", systemImage: "pencil") }
-                    .buttonStyle(.plain).font(.scaled(11, weight: .semibold)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 8).padding(.vertical, 3).background(Capsule().fill(Color.primary.opacity(0.08)))
+                Button { mapping = row } label: { Badge(text: "Custom", icon: "pencil", tint: .secondary) }
+                    .buttonStyle(.plain).accessibilityLabel("Custom price. Edit the price of \(row.model)")
                     .help("You set this model's price. Edit or clear it.")
             }
         }
@@ -202,9 +210,14 @@ private struct DailyChart: View {
         let provider: PlottableValue<String> = .value("Provider", usageProviderTitle(segment.provider))
         let dimmed: Bool = shown != nil && shown?.id != bar.id
         let opacity: Double = dimmed ? 0.45 : 1
+        // VoiceOver reads each segment, so a day's numbers do not depend on the pointer
+        let spoken: String = "\(bar.label), \(usageProviderTitle(segment.provider))"
+        let worth: String = usageFormat(segment.value, metric)
         BarMark(x: day, y: amount)
             .foregroundStyle(by: provider)
             .opacity(opacity)
+            .accessibilityLabel(spoken)
+            .accessibilityValue(worth)
     }
 
     var body: some View {
@@ -246,7 +259,6 @@ private struct DailyChart: View {
         }
         .frame(height: 220)
         .accessibilityLabel("Daily \(metric == .cost ? "cost" : "tokens") by provider")
-        .accessibilityValue(shown.map { tip in usageTooltip(tip, metric: metric).lines.map { "\($0.provider) \($0.value)" }.joined(separator: ", ") } ?? "")
     }
 
     private func day(at point: CGPoint, _ proxy: ChartProxy, _ geometry: GeometryProxy) -> String? {
@@ -271,13 +283,13 @@ private struct Tooltip: View {
                 }
             }
             if tooltip.lines.count > 1 {
-                Divider()
+                SettingsDivider()
                 HStack { Text("Total").font(.scaled(11, weight: .semibold)); Spacer(minLength: 10); Text(tooltip.total).font(.scaled(11, weight: .semibold)).monospacedDigit() }
             }
         }
         .frame(width: 170).padding(8)
         .background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
     }
 }
 
@@ -318,13 +330,11 @@ private struct MapSheet: View {
             }
             .pickerStyle(.segmented).labelsHidden()
             fields
-            if let refusal {
-                Label(refusal, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange).textSelection(.enabled)
-            }
+            if let refusal { ProblemLine(text: refusal) }
             HStack {
                 Spacer()
                 if saving { ProgressView().controlSize(.small) }
-                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
+                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction).disabled(saving)
                 Button("Save") { Task { await save() } }.buttonStyle(PrimaryCapsuleButtonStyle()).keyboardShortcut(.defaultAction).disabled(saving)
             }
         }
@@ -367,7 +377,7 @@ private struct MapSheet: View {
     }
 
     @ViewBuilder private func problem(_ text: String?) -> some View {
-        if let text { Text(text).font(.caption).foregroundStyle(.orange) }
+        if let text { ProblemLine(text: text, font: .caption) }
     }
 
     private func save() async {

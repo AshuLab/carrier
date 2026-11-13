@@ -26,13 +26,17 @@ struct UsageView: View {
                     }
                     Spacer()
                     if store.isRefreshing { ProgressView().controlSize(.small) }
-                    Button("Check again") { refresher.checkAgain() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    Button { refresher.checkAgain() } label: { Label("Check again", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
+                        .buttonStyle(HoverTextButtonStyle(tint: nil))
                         .disabled(store.isRefreshing).help("Asks every provider again, skipping the minute the chat host keeps its answer")
                 }
-                if let error = store.error ?? failure {
-                    Label(error, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange).textSelection(.enabled)
+                // an older host is a normal state after an update: told quietly, as an engine too old to reload is
+                let tooOld = store.error == usageNeedsNewerHost
+                if tooOld {
+                    Text(usageNeedsNewerHost).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                if store.quotas.isEmpty {
+                if let problem = (tooOld ? nil : store.error) ?? failure { ProblemLine(text: problem) }
+                if store.quotas.isEmpty, store.error == nil {
                     SettingsTabCard {
                         Text(store.isLoading ? "Asking the chat host…" : "No accounts to show")
                             .font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 14)
@@ -49,7 +53,8 @@ struct UsageView: View {
                                     open: store.expandedProviders.contains(provider.id),
                                     toggleFilter: { store.toggleFilter(provider.id.asFilter); Task { await store.load() } },
                                     toggleOpen: { store.toggleProvider(provider.id) }, checkAgain: { refresher.checkAgain() },
-                                    signIn: { signIn($0, provider: provider.id) }
+                                    signIn: { signIn($0, provider: provider.id) }, filteredAccount: store.accountFilter,
+                                    toggleAccount: { store.toggleAccount($0, provider: provider.id); Task { await store.load() } }
                                 )
                             }
                         }
@@ -61,7 +66,6 @@ struct UsageView: View {
         }
         .onAppear { refresher.appear() }
         .onDisappear { refresher.disappear() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresher.appBecameActive() }
     }
 
     /// Opens Terminal on the account's login, as the Providers page does (the same script, the same opener; nothing is opened under `--fixture`).
@@ -97,6 +101,8 @@ private struct ProviderBlock: View {
     let toggleOpen: () -> Void
     let checkAgain: () -> Void
     let signIn: (String) -> Void
+    let filteredAccount: String?
+    let toggleAccount: (String) -> Void
     @State private var hovered = false
 
     var body: some View {
@@ -124,8 +130,7 @@ private struct ProviderBlock: View {
                         }
                         Spacer(minLength: 0)
                         if provider.stale {
-                            Text("Stale").font(.scaled(10, weight: .semibold)).foregroundStyle(.orange)
-                                .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(Color.orange.opacity(0.15)))
+                            StatusChip(text: "Stale", tint: .orange)
                                 .help("The provider is rate limiting the check: these are the last known numbers")
                         }
                         if let reset = provider.earliestReset {
@@ -147,10 +152,16 @@ private struct ProviderBlock: View {
             .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(filtered ? 0.12 : hovered ? 0.05 : 0)).padding(.horizontal, -8))
             .onHover { hovered = $0 }
             if open {
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(provider.accounts) { account in AccountBlock(account: account, checkAgain: checkAgain, signIn: { signIn(account.id) }) }
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(provider.accounts) { account in
+                        // the local servers filter by their provider: they are no account of providers.json
+                        let selected = provider.id == "local" ? filtered : filteredAccount == account.id
+                        AccountBlock(
+                            account: account, selected: selected, checkAgain: checkAgain, signIn: { signIn(account.id) }, toggle: { toggleAccount(account.id) }
+                        )
+                    }
                 }
-                .padding(.leading, 28).padding(.bottom, 14)
+                .padding(.leading, 28).padding(.bottom, 8)
             }
         }
         .animation(.easeOut(duration: 0.12), value: open)
@@ -165,18 +176,22 @@ private func usageMark(_ mark: UsageMark, _ label: String) -> StatusMark {
     }
 }
 
-/// One account or server pool of a drawer: its status, its actions and every row the provider gave.
+/// One account or server pool of a drawer: its status, its actions and every row the provider gave. A click on it filters the consumption by
+/// the account (a second click shows all again); its buttons keep their own clicks.
 private struct AccountBlock: View {
     let account: UsageAccountRow
+    let selected: Bool
     let checkAgain: () -> Void
     let signIn: () -> Void
+    let toggle: () -> Void
+    @State private var hovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Text(account.title).font(.scaled(12, weight: .semibold))
                 Text(account.status).font(.scaled(11)).foregroundStyle(.secondary)
-                if account.stale { Text("Stale").font(.scaled(10, weight: .semibold)).foregroundStyle(.orange) }
+                if account.stale { StatusChip(text: "Stale", tint: .orange) }
                 Spacer()
                 if account.canSignIn { Button("Sign in", action: signIn).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and signs this account in") }
                 if account.mark != .ok { Button("Check again", action: checkAgain).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small) }
@@ -184,6 +199,15 @@ private struct AccountBlock: View {
             if let note = account.note { Text(note).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             ForEach(Array(account.lines.enumerated()), id: \.offset) { _, line in LineRow(line: line) }
         }
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(selected ? 0.12 : hovered ? 0.05 : 0)).padding(.horizontal, -8))
+        .onHover { hovered = $0 }
+        .onTapGesture(perform: toggle)
+        .help(selected ? "Showing the consumption of \(account.title) only; click to show all" : "Show the consumption of \(account.title) only")
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityAction(named: selected ? "Show all consumption" : "Show the consumption of \(account.title) only", toggle)
     }
 }
 

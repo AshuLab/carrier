@@ -18,6 +18,8 @@ import Observation
     public var metric = UsageMetric.cost
     public var days = 30
     public var providerFilter = UsageProviderFilter.all
+    /// One account of `providers.json` (a click on its row in a drawer); never on together with `providerFilter`.
+    public var accountFilter: String?
     public var sourceFilter = UsageSourceFilter.all
     public var searchText = ""
     /// The providers whose accounts are shown under their row.
@@ -30,17 +32,34 @@ import Observation
     public init(host: ChatHost) { self.host = host }
 
     /// Any of the filters that narrow the history is on, so an empty chart can say it is the filters and offer to clear them.
-    public var hasActiveFilters: Bool { providerFilter != .all || sourceFilter != .all || searchText.trimmingCharacters(in: .whitespaces).isEmpty == false }
+    public var hasActiveFilters: Bool { providerFilter != .all || accountFilter != nil || sourceFilter != .all || searchText.trimmingCharacters(in: .whitespaces).isEmpty == false }
 
     /// Puts provider, source and search back to all. The caller asks again with `load`.
     public func clearFilters() {
         providerFilter = .all
+        accountFilter = nil
         sourceFilter = .all
         searchText = ""
     }
 
     /// A click on a provider's row: filters by it, or by all again when it already is the filter. The caller asks again with `load`.
-    public func toggleFilter(_ provider: UsageProviderFilter) { providerFilter = providerFilter.toggled(provider) }
+    public func toggleFilter(_ provider: UsageProviderFilter) {
+        providerFilter = providerFilter.toggled(provider)
+        accountFilter = nil
+    }
+
+    /// A click on an account's row in a drawer: filters by it, or by all again when it already is the filter. The local servers have no
+    /// account of `providers.json`, so their row filters by the provider `local`. The caller asks again with `load`.
+    public func toggleAccount(_ account: String, provider: String) {
+        guard provider != UsageProviderFilter.local.rawValue else { return toggleFilter(.local) }
+        accountFilter = accountFilter == account ? nil : account
+        providerFilter = .all
+    }
+
+    /// The account filter's name for its chip: the account's display name when the host gave one.
+    public var accountFilterTitle: String? {
+        accountFilter.map { account in quotas.first { $0.account == account }?.displayName ?? account }
+    }
 
     public func toggleProvider(_ provider: String) {
         if expandedProviders.remove(provider) == nil { expandedProviders.insert(provider) }
@@ -52,15 +71,15 @@ import Observation
         let mine = asked
         if snapshot == nil { isLoading = true } else { isRefreshing = true }
         defer { if mine == asked { isLoading = false; isRefreshing = false } }
-        var query = UsageQuery(refresh: refresh, days: days, provider: providerFilter, source: sourceFilter, search: searchText)
+        var query = UsageQuery(refresh: refresh, days: days, provider: providerFilter, source: sourceFilter, search: searchText, account: accountFilter)
         do {
             guard try await host.capabilities().contains(.usage) else {
                 if mine == asked { error = usageNeedsNewerHost }
                 return
             }
-            // the host filters the quotas by provider too: with a filter on, the quotas of all are asked apart (the refresh goes with them)
+            // the host filters the quotas by provider and account too: with one on, the quotas of all are asked apart (the refresh goes with them)
             var all: [UsageQuota]?
-            if providerFilter != .all {
+            if providerFilter != .all || accountFilter != nil {
                 all = try await host.usage(UsageQuery(refresh: refresh, days: 7)).quotas
                 query.refresh = false
             }

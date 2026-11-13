@@ -184,6 +184,53 @@ private func rig(_ host: FakeHost) -> (ChatSessionsPoller, Clock, () -> [Session
     #expect(rows().map(\.id) == ["a", "x"])
 }
 
+@Test func aHostThatDoesNotAnswerGivesNoRowsAndDoesNotEmitAuthoritativeSessionIds() async throws {
+    let host = FakeHost()
+    host.active = [try session("a")]
+    host.archived = [try session("x", archived: true)]
+    let clock = Clock()
+    var rows: [SessionRow] = []
+    var authoritativeSnapshots: [Set<String>] = []
+    let poller = ChatSessionsPoller(
+        host: host,
+        archivedEvery: 5,
+        now: { clock.now },
+        onAuthoritativeSessionIds: { authoritativeSnapshots.append($0) },
+        onChange: { rows = $0 }
+    )
+    await poller.poll()
+    #expect(authoritativeSnapshots == [Set(["a", "x"])])
+
+    // Active failure clears UI rows but must not trigger session terminal pruning.
+    host.active = nil
+    clock.now.addTimeInterval(1)
+    await poller.poll()
+    #expect(rows.isEmpty)
+    #expect(authoritativeSnapshots.count == 1)
+
+    // Recovery emits authoritative session IDs once both active and archived succeed again.
+    host.active = [try session("a")]
+    clock.now.addTimeInterval(1)
+    await poller.poll()
+    #expect(authoritativeSnapshots.count == 2)
+    #expect(authoritativeSnapshots.last == Set(["a", "x"]))
+
+    // Initial or periodic archived list failure must also suppress authoritative pruning.
+    let partialHost = FakeHost()
+    partialHost.active = [try session("live")]
+    partialHost.archived = nil
+    var partialSnapshots: [Set<String>] = []
+    let partialPoller = ChatSessionsPoller(
+        host: partialHost,
+        archivedEvery: 5,
+        now: { clock.now },
+        onAuthoritativeSessionIds: { partialSnapshots.append($0) },
+        onChange: { _ in }
+    )
+    await partialPoller.poll()
+    #expect(partialSnapshots.isEmpty)
+}
+
 @Test func anArchivedListThatFailsKeepsTheLastOneAndTriesAgainNextPoll() async throws {
     let host = FakeHost()
     host.active = [try session("a")]
@@ -443,7 +490,11 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     let host = FakeHost()
     let actions = SessionActions(host: host, log: { _ in })
     var removed: [String] = []
-    actions.confirmSessionRemoval = { $0.contains("blocked") == false }
+    var seenKinds: [SessionRemovalKind] = []
+    actions.confirmSessionRemoval = { kind, ids in
+        seenKinds.append(kind)
+        return ids.contains("blocked") == false
+    }
     actions.didRemoveSession = { removed.append($0) }
 
     #expect(await actions.archive("blocked") == nil)
@@ -451,12 +502,14 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(await actions.clear(["a", "blocked"]) == nil)
     #expect(host.changes.isEmpty)
     #expect(removed.isEmpty)
+    #expect(seenKinds == [.archive, .delete, .clear])
 
     #expect(await actions.archive("a") == nil)
     #expect(await actions.delete("b") == nil)
     #expect(await actions.clear(["c", "d"]) == nil)
     #expect(host.changes == ["archive a", "delete b", "delete c", "delete d"])
     #expect(removed == ["a", "b", "c", "d"])
+    #expect(seenKinds == [.archive, .delete, .clear, .archive, .delete, .clear])
 }
 
 @MainActor @Test func aRefusalIsReturnedInWordsAndNothingChanges() async {

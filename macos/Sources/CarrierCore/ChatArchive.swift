@@ -154,6 +154,12 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
     ].filter { $0.isEmpty == false }
 }
 
+public enum SessionRemovalKind: Sendable {
+    case archive
+    case delete
+    case clear
+}
+
 /// Archives, restores and deletes sessions through the host. Each call returns what the host refused, in words, nil when it worked;
 /// `changed` is told after a success so the lists are read again.
 @Observable public final class SessionActions {
@@ -161,7 +167,7 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private let preferences: AppPreferences
     @ObservationIgnored public var changed: () -> Void = {}
-    @ObservationIgnored public var confirmSessionRemoval: @MainActor ([String]) -> Bool = { _ in true }
+    @ObservationIgnored public var confirmSessionRemoval: @MainActor (SessionRemovalKind, [String]) async -> Bool = { _, _ in true }
     @ObservationIgnored public var didRemoveSession: @MainActor (String) -> Void = { _ in }
 
     public init(
@@ -174,7 +180,7 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
     }
 
     public func archive(_ id: String) async -> String? {
-        guard await confirmSessionRemoval([id]) else { return nil }
+        guard await confirmSessionRemoval(.archive, [id]) else { return nil }
         let refusal = await run("archive", id) { try await $0.archive(id, true) }
         if refusal == nil { await didRemoveSession(id) }
         return refusal
@@ -226,7 +232,7 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
 
     /// Deletes each session; one the host refuses does not stop the rest, and a host that stops answering does.
     public func clear(_ ids: [String]) async -> String? {
-        guard ids.isEmpty == false, await confirmSessionRemoval(ids) else { return nil }
+        guard ids.isEmpty == false, await confirmSessionRemoval(.clear, ids) else { return nil }
         var deleted = 0
         var refusal: String?
         for id in ids {
@@ -250,7 +256,7 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
     }
 
     private func performDelete(_ id: String, skipConfirmation: Bool) async -> DeleteOutcome {
-        if skipConfirmation == false, await confirmSessionRemoval([id]) == false {
+        if skipConfirmation == false, await confirmSessionRemoval(.delete, [id]) == false {
             return .cancelled
         }
         if let failed = await run("delete", id, { try await $0.delete(id) }) {

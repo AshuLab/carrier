@@ -64,16 +64,25 @@ public final class ChatSessionsPoller {
     private let host: ChatHost
     private let archivedEvery: TimeInterval
     private let now: () -> Date
+    private let onAuthoritativeSessionIds: (Set<String>) -> Void
     private let onChange: ([SessionRow]) -> Void
     private var archived: [ChatSession] = []
     private var archivedAt: Date?
+    private var hasArchivedSnapshot = false
     /// Set from any thread by `invalidateArchived`.
     private let stale = Mutex(false)
 
-    public init(host: ChatHost, archivedEvery: TimeInterval = 5, now: @escaping () -> Date = Date.init, onChange: @escaping ([SessionRow]) -> Void) {
+    public init(
+        host: ChatHost,
+        archivedEvery: TimeInterval = 5,
+        now: @escaping () -> Date = Date.init,
+        onAuthoritativeSessionIds: @escaping (Set<String>) -> Void = { _ in },
+        onChange: @escaping ([SessionRow]) -> Void
+    ) {
         self.host = host
         self.archivedEvery = archivedEvery
         self.now = now
+        self.onAuthoritativeSessionIds = onAuthoritativeSessionIds
         self.onChange = onChange
     }
 
@@ -84,16 +93,27 @@ public final class ChatSessionsPoller {
         guard let active = try? await host.list(archived: false) else {
             archived = []
             archivedAt = nil
+            hasArchivedSnapshot = false
             return onChange([])
         }
         let invalidated = stale.withLock { flag in
             defer { flag = false }
             return flag
         }
-        if invalidated || (archivedAt.map({ now().timeIntervalSince($0) >= archivedEvery }) ?? true), let listed = try? await host.list(archived: true) {
-            archived = listed
-            archivedAt = now()
+        var archivedRefreshFailed = false
+        if invalidated || (archivedAt.map({ now().timeIntervalSince($0) >= archivedEvery }) ?? true) {
+            if let listed = try? await host.list(archived: true) {
+                archived = listed
+                archivedAt = now()
+                hasArchivedSnapshot = true
+            } else {
+                archivedRefreshFailed = true
+            }
         }
-        onChange(sessionRows(active + archived))
+        let combined = active + archived
+        onChange(sessionRows(combined))
+        if hasArchivedSnapshot && archivedRefreshFailed == false {
+            onAuthoritativeSessionIds(Set(combined.map(\.id)))
+        }
     }
 }

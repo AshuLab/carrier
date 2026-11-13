@@ -5,80 +5,6 @@ import Foundation
 import GhosttyTerminal
 import Observation
 
-/// Seam for inspecting live child commands inside terminal panes without tying unit tests to real TTYs.
-@MainActor
-protocol TerminalProcessInspecting {
-    func activeCommands(in state: TerminalViewState, platformView: TerminalView?) -> [String]
-}
-
-/// Default process inspector backed by GhosttyKit's `ttyName` and `/bin/ps`.
-@MainActor
-struct GhosttyTerminalProcessInspector: TerminalProcessInspecting {
-    private static let ignoredCommands: Set<String> = [
-        "login", "zsh", "-zsh", "bash", "-bash", "fish", "-fish", "sh", "-sh", "nu", "-nu", "ps",
-    ]
-
-    func activeCommands(in state: TerminalViewState, platformView: TerminalView?) -> [String] {
-        guard let tty = platformView?.ttyName ?? state.attachedPlatformView?.ttyName, tty.isEmpty == false else {
-            return []
-        }
-        return Self.commands(onTTY: tty)
-    }
-
-    static func commands(onTTY rawTTY: String) -> [String] {
-        let shortTTY = rawTTY.hasPrefix("/dev/") ? String(rawTTY.dropFirst(5)) : rawTTY
-        guard shortTTY.isEmpty == false else { return [] }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/ps")
-        process.arguments = ["-t", shortTTY, "-o", "comm="]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-        } catch {
-            return []
-        }
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return [] }
-
-        var commands: [String] = []
-        var seen: Set<String> = []
-        let output = String(decoding: data, as: UTF8.self)
-        for line in output.split(whereSeparator: \.isNewline) {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard trimmed.isEmpty == false else { continue }
-            let base = (trimmed as NSString).lastPathComponent
-            guard Self.ignoredCommands.contains(trimmed) == false,
-                  Self.ignoredCommands.contains(base) == false,
-                  seen.insert(base).inserted
-            else { continue }
-            commands.append(base)
-        }
-        return commands
-    }
-}
-
-/// Scope for checking or tearing down terminal panes.
-enum TerminalCloseTarget: Equatable {
-    case pane(UUID)
-    case tab(UUID)
-    case owner(TerminalOwner)
-    case owners([TerminalOwner])
-    case all
-}
-
-/// Summary of running non-shell commands inside one terminal pane.
-struct TerminalActiveProcess: Equatable {
-    let paneId: UUID
-    let paneTitle: String
-    let commands: [String]
-}
-
 private struct AppearanceCacheKey: Equatable {
     let profile: TerminalAppearanceProfile
 }
@@ -128,6 +54,7 @@ final class CarrierTerminalStore {
     @ObservationIgnored private var appearanceObserver: NSKeyValueObservation?
     @ObservationIgnored private var lastAppliedAppearance: AppearanceCacheKey?
     @ObservationIgnored private var hasLoadedOrMutatedPersistence: Bool
+    @ObservationIgnored private var isTornDown = false
 
     /// Hook invoked when Ghostty itself requests closing a live surface (e.g., `close_surface` keybinding).
     @ObservationIgnored var onCloseConfirmationNeeded: (@MainActor (TerminalCloseTarget, Question) -> Bool)?
@@ -197,6 +124,7 @@ final class CarrierTerminalStore {
 
     // MARK: - Queries
 
+    var hasLiveSurfaces: Bool { viewStates.isEmpty == false || platformViews.isEmpty == false }
     func tabs(for owner: TerminalOwner) -> [TerminalTab] { registry.tabs(for: owner) }
     func activeTabId(for owner: TerminalOwner) -> UUID? { registry.activeTabId(for: owner) }
     func activeTab(for owner: TerminalOwner) -> TerminalTab? { registry.activeTab(for: owner) }
@@ -273,12 +201,6 @@ final class CarrierTerminalStore {
         return moved
     }
 
-    func renameTab(_ tabId: UUID, customTitle: String?) {
-        registry.renameTab(id: tabId, customTitle: customTitle)
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
-    }
-
     @discardableResult
     func splitPane(
         _ targetPaneId: UUID,
@@ -314,15 +236,6 @@ final class CarrierTerminalStore {
     func selectPane(_ paneId: UUID) {
         registry.selectPane(id: paneId)
         focus(paneId: paneId)
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
-    }
-
-    func focusAdjacentPane(inTab tabId: UUID, offset: Int) {
-        registry.focusAdjacentPane(inTab: tabId, offset: offset)
-        if let activePaneId = registry.tab(id: tabId)?.activePaneId {
-            focus(paneId: activePaneId)
-        }
         hasLoadedOrMutatedPersistence = true
         saveWorkspaceNow()
     }
@@ -401,7 +314,7 @@ final class CarrierTerminalStore {
     // MARK: - Pane-Keyed Ghostty Views, Search & Input
 
     func state(for paneId: UUID) -> TerminalViewState? {
-        guard let pane = registry.pane(id: paneId) else { return nil }
+        guard isTornDown == false, let pane = registry.pane(id: paneId) else { return nil }
         if let existing = viewStates[paneId] { return existing }
 
         let state = buildState(for: pane)
@@ -553,64 +466,44 @@ final class CarrierTerminalStore {
 
     // MARK: - Process Confirmation & Lifecycle Teardown
 
-    func activeProcesses(for target: TerminalCloseTarget) -> [TerminalActiveProcess] {
-        let paneIds = targetPaneIds(for: target)
-        var results: [TerminalActiveProcess] = []
-        for paneId in paneIds {
-            guard let state = viewStates[paneId] else { continue }
-            let commands = processInspector.activeCommands(in: state, platformView: platformViews[paneId])
-            guard commands.isEmpty == false else { continue }
-            let title = registry.pane(id: paneId)?.displayTitle ?? "Terminal"
-            results.append(TerminalActiveProcess(paneId: paneId, paneTitle: title, commands: commands))
-        }
-        return results
+    func activeProcesses(for target: TerminalCloseTarget) async -> [TerminalActiveProcess] {
+        await inspectProcesses(for: target).running
     }
 
-    func pendingConfirmation(for target: TerminalCloseTarget) -> Question? {
+    func pendingConfirmation(
+        for target: TerminalCloseTarget,
+        removalKind: SessionRemovalKind? = nil
+    ) async -> Question? {
         guard preferences.terminal.confirmCloseRunningProcess else { return nil }
-        let running = activeProcesses(for: target)
-        guard running.isEmpty == false else { return nil }
+        let inspection = await inspectProcesses(for: target)
+        guard inspection.running.isEmpty == false || inspection.error != nil else { return nil }
 
-        let allCommands = Array(Set(running.flatMap(\.commands))).sorted()
-        let commandList = allCommands.joined(separator: ", ")
-
-        switch target {
-        case .pane:
-            return Question(
-                title: "Close terminal?",
-                message: "A command is still running: \(commandList). Closing this terminal will terminate it.",
-                confirm: "Close"
-            )
-        case .tab:
-            let count = running.count
-            return Question(
-                title: count == 1 ? "Close tab?" : "Close \(count) running terminals?",
-                message: "Commands still running: \(commandList). Closing this tab will terminate them.",
-                confirm: "Close"
-            )
-        case .owner, .owners:
-            let count = running.count
-            return Question(
-                title: count == 1 ? "Close session terminal?" : "Close \(count) session terminals?",
-                message: "Commands still running: \(commandList). Proceeding will terminate them.",
-                confirm: "Close"
-            )
-        case .all:
-            let count = running.count
-            return Question(
-                title: count == 1 ? "Quit Carrier with a running terminal?" : "Quit Carrier with \(count) running terminals?",
-                message: "Commands still running: \(commandList). Quitting will terminate them.",
-                confirm: "Quit"
-            )
+        let targetTitle: String? = switch target {
+        case .pane(let id): registry.pane(id: id)?.displayTitle
+        case .tab(let id): registry.tab(id: id)?.title
+        case .owner, .owners, .all: nil
         }
+
+        return terminalConfirmationQuestion(
+            for: target,
+            running: inspection.running,
+            targetTitle: targetTitle,
+            removalKind: removalKind,
+            inspectionError: inspection.error
+        )
     }
 
     @discardableResult
-    func closePane(id paneId: UUID, force: Bool = false) -> Bool {
+    func closePane(id paneId: UUID, force: Bool = false) async -> Bool {
         guard registry.pane(id: paneId) != nil else { return false }
-        if force == false, pendingConfirmation(for: .pane(paneId)) != nil {
+        if force == false, await pendingConfirmation(for: .pane(paneId)) != nil {
             return false
         }
+        return forceClosePane(id: paneId)
+    }
+
+    @discardableResult
+    func forceClosePane(id paneId: UUID) -> Bool {
         guard registry.closePane(id: paneId) != nil else { return false }
         tearDown(paneId: paneId)
         hasLoadedOrMutatedPersistence = true
@@ -619,11 +512,17 @@ final class CarrierTerminalStore {
     }
 
     @discardableResult
-    func closeTab(id tabId: UUID, force: Bool = false) -> Bool {
-        guard let tab = registry.tab(id: tabId) else { return false }
-        if force == false, pendingConfirmation(for: .tab(tabId)) != nil {
+    func closeTab(id tabId: UUID, force: Bool = false) async -> Bool {
+        guard registry.tab(id: tabId) != nil else { return false }
+        if force == false, await pendingConfirmation(for: .tab(tabId)) != nil {
             return false
         }
+        return forceCloseTab(id: tabId)
+    }
+
+    @discardableResult
+    func forceCloseTab(id tabId: UUID) -> Bool {
+        guard let tab = registry.tab(id: tabId) else { return false }
         let paneIds = tab.orderedPaneIds
         _ = registry.closeTab(id: tabId)
         for paneId in paneIds {
@@ -635,12 +534,19 @@ final class CarrierTerminalStore {
     }
 
     @discardableResult
-    func closeAll(for owner: TerminalOwner, force: Bool = false) -> Bool {
+    func closeAll(for owner: TerminalOwner, force: Bool = false) async -> Bool {
         let paneIds = registry.allPaneIds(for: owner)
         guard paneIds.isEmpty == false else { return true }
-        if force == false, pendingConfirmation(for: .owner(owner)) != nil {
+        if force == false, await pendingConfirmation(for: .owner(owner)) != nil {
             return false
         }
+        return forceCloseAll(for: owner)
+    }
+
+    @discardableResult
+    func forceCloseAll(for owner: TerminalOwner) -> Bool {
+        let paneIds = registry.allPaneIds(for: owner)
+        guard paneIds.isEmpty == false else { return true }
         _ = registry.closeAll(for: owner)
         for paneId in paneIds {
             tearDown(paneId: paneId)
@@ -650,8 +556,28 @@ final class CarrierTerminalStore {
         return true
     }
 
+    private func inspectProcesses(for target: TerminalCloseTarget) async -> (running: [TerminalActiveProcess], error: String?) {
+        let paneIds = targetPaneIds(for: target)
+        let inputs = paneIds.compactMap { paneId -> TerminalPaneInspectionInput? in
+            guard let state = viewStates[paneId] else { return nil }
+            return TerminalPaneInspectionInput(paneId: paneId, state: state, platformView: platformViews[paneId])
+        }
+        guard inputs.isEmpty == false else { return ([], nil) }
+
+        let result = await processInspector.inspectActiveCommands(in: inputs)
+        var running: [TerminalActiveProcess] = []
+        for input in inputs {
+            let commands = result.commandsByPane[input.paneId] ?? []
+            guard commands.isEmpty == false else { continue }
+            let title = registry.pane(id: input.paneId)?.displayTitle ?? "Terminal"
+            running.append(TerminalActiveProcess(paneId: input.paneId, paneTitle: title, commands: commands))
+        }
+        return (running, result.inspectionError)
+    }
+
     /// Persists current workspace layout if initialized with data, then tears down all live surfaces on quit.
     func teardownAll() {
+        isTornDown = true
         persistTask?.cancel()
         persistTask = nil
         if hasLoadedOrMutatedPersistence {
@@ -697,17 +623,17 @@ final class CarrierTerminalStore {
             Task { @MainActor [weak self] in
                 guard let self, self.registry.pane(id: paneId) != nil else { return }
                 guard processAlive, self.preferences.terminal.confirmCloseRunningProcess else {
-                    _ = self.closePane(id: paneId, force: true)
+                    _ = self.forceClosePane(id: paneId)
                     return
                 }
-                let question = self.pendingConfirmation(for: .pane(paneId)) ?? Question(
-                    title: "Close terminal?",
-                    message: "A process is still running in this terminal. Closing this terminal will terminate it.",
-                    confirm: "Close"
+                let question = await self.pendingConfirmation(for: .pane(paneId)) ?? terminalConfirmationQuestion(
+                    for: .pane(paneId),
+                    running: [],
+                    targetTitle: self.registry.pane(id: paneId)?.displayTitle
                 )
                 let approved = self.onCloseConfirmationNeeded?(.pane(paneId), question) ?? false
                 if approved {
-                    _ = self.closePane(id: paneId, force: true)
+                    _ = self.forceClosePane(id: paneId)
                 }
             }
         }

@@ -22,9 +22,22 @@ public struct PersistedTerminalWorkspace: Equatable, Codable, Sendable {
 
 public extension TerminalRegistry {
     func exportPersistedWorkspace() -> PersistedTerminalWorkspace {
-        PersistedTerminalWorkspace(
+        let strippedWorkspaces = workspaces.map { workspace in
+            TerminalWorkspace(
+                owner: workspace.owner,
+                tabs: workspace.tabs.map { tab in
+                    var copy = tab
+                    for paneId in copy.panes.keys {
+                        copy.panes[paneId]?.envVars = [:]
+                    }
+                    return copy
+                },
+                activeTabId: workspace.activeTabId
+            )
+        }
+        return PersistedTerminalWorkspace(
             schemaVersion: PersistedTerminalWorkspace.currentSchemaVersion,
-            workspaces: workspaces
+            workspaces: strippedWorkspaces
         )
     }
 
@@ -78,7 +91,7 @@ public extension TerminalRegistry {
                         title: rawPane.title,
                         customTitle: rawPane.customTitle,
                         workingDirectory: resolvedCwd,
-                        envVars: rawPane.envVars,
+                        envVars: [:],
                         command: rawPane.command,
                         waitAfterCommand: rawPane.waitAfterCommand
                     )
@@ -117,19 +130,37 @@ public extension TerminalRegistry {
 /// Pass `fileURL: nil` to disable disk I/O during `--fixture`, `--selftest`, or in-memory tests.
 public struct TerminalWorkspaceFileStore: Sendable {
     public let fileURL: URL?
+    private let log: @Sendable (String) -> Void
 
-    public init(fileURL: URL?) {
+    public init(
+        fileURL: URL?,
+        log: @escaping @Sendable (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }
+    ) {
         self.fileURL = fileURL
+        self.log = log
     }
 
     public func load() -> PersistedTerminalWorkspace? {
-        guard let fileURL, let data = try? Data(contentsOf: fileURL) else {
+        guard let fileURL else { return nil }
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
             return nil
         }
-        guard let decoded = try? JSONDecoder().decode(PersistedTerminalWorkspace.self, from: data) else {
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL)
+        } catch {
+            log("could not read terminal workspace at \(fileURL.path): \(error.localizedDescription)")
+            return nil
+        }
+        let decoded: PersistedTerminalWorkspace
+        do {
+            decoded = try JSONDecoder().decode(PersistedTerminalWorkspace.self, from: data)
+        } catch {
+            log("could not decode terminal workspace at \(fileURL.path): \(error.localizedDescription)")
             return nil
         }
         guard decoded.schemaVersion == PersistedTerminalWorkspace.currentSchemaVersion else {
+            log("ignoring terminal workspace at \(fileURL.path) with unsupported schemaVersion \(decoded.schemaVersion)")
             return nil
         }
         return decoded
@@ -138,21 +169,61 @@ public struct TerminalWorkspaceFileStore: Sendable {
     @discardableResult
     public func save(_ persisted: PersistedTerminalWorkspace) -> Bool {
         guard let fileURL else { return false }
+        let sanitized = PersistedTerminalWorkspace(
+            schemaVersion: persisted.schemaVersion,
+            workspaces: persisted.workspaces.map { workspace in
+                TerminalWorkspace(
+                    owner: workspace.owner,
+                    tabs: workspace.tabs.map { tab in
+                        var copy = tab
+                        for paneId in copy.panes.keys {
+                            copy.panes[paneId]?.envVars = [:]
+                        }
+                        return copy
+                    },
+                    activeTabId: workspace.activeTabId
+                )
+            }
+        )
         do {
             let folder = fileURL.deletingLastPathComponent()
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: folder,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(persisted)
-            try data.write(to: fileURL, options: .atomic)
+            let data = try encoder.encode(sanitized)
+            let tempURL = folder.appendingPathComponent(".\(fileURL.lastPathComponent).tmp.\(UUID().uuidString)")
+            guard FileManager.default.createFile(
+                atPath: tempURL.path,
+                contents: data,
+                attributes: [.posixPermissions: 0o600]
+            ) else {
+                log("could not create temporary terminal workspace file at \(tempURL.path)")
+                return false
+            }
+            do {
+                _ = try FileManager.default.replaceItemAt(fileURL, withItemAt: tempURL)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+            } catch {
+                try? FileManager.default.removeItem(at: tempURL)
+                throw error
+            }
             return true
         } catch {
+            log("could not save terminal workspace at \(fileURL.path): \(error.localizedDescription)")
             return false
         }
     }
 
     public func removeFile() {
-        guard let fileURL else { return }
-        try? FileManager.default.removeItem(at: fileURL)
+        guard let fileURL, FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        do {
+            try FileManager.default.removeItem(at: fileURL)
+        } catch {
+            log("could not remove terminal workspace at \(fileURL.path): \(error.localizedDescription)")
+        }
     }
 }

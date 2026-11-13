@@ -14,16 +14,19 @@ import SwiftUI
     /// Archive, restore and delete; `startMonitor` makes the lists read again after each.
     let actions: SessionActions = {
         let actions = SessionActions(host: SocketChatHost())
-        actions.confirmSessionRemoval = { sessionIds in
+        actions.confirmSessionRemoval = { kind, sessionIds in
             guard let store = CarrierTerminalStore.sharedIfInitialized,
-                  let question = store.pendingConfirmation(for: .owners(sessionIds.map { .session($0) }))
+                  let question = await store.pendingConfirmation(
+                      for: .owners(sessionIds.map { .session($0) }),
+                      removalKind: kind
+                  )
             else {
                 return true
             }
             return ask(question)
         }
         actions.didRemoveSession = { sessionId in
-            CarrierTerminalStore.sharedIfInitialized?.closeAll(for: .session(sessionId), force: true)
+            CarrierTerminalStore.sharedIfInitialized?.forceCloseAll(for: .session(sessionId))
         }
         return actions
     }()
@@ -37,12 +40,14 @@ import SwiftUI
     /// A new list from the host, on the main thread.
     func adopt(_ rows: [SessionRow]) {
         hostRows = rows
-        MainActor.assumeIsolated {
-            let knownIds = Set(rows.map(\.id))
-            CarrierTerminalStore.lastKnownSessionIds = knownIds
-            CarrierTerminalStore.sharedIfInitialized?.pruneSessions(keeping: knownIds)
-        }
         refreshUnread()
+    }
+
+    /// Prunes persisted/live session terminals only against an authoritative list from a healthy chat host.
+    @MainActor
+    func reconcileKnownSessions(_ knownIds: Set<String>) {
+        CarrierTerminalStore.lastKnownSessionIds = knownIds
+        CarrierTerminalStore.sharedIfInitialized?.pruneSessions(keeping: knownIds)
     }
 
     /// Sets `unread` again: when the list changes and when the open session does. The session on screen is seen as it moves.
@@ -469,10 +474,18 @@ final class WindowController: NSObject, NSWindowDelegate {
             }
         )
         Thread.detachNewThread { monitor.run() }
-        let sessions = ChatSessionsPoller(host: SocketChatHost()) { rows in
-            // only a change is published: an equal list at every poll would rebuild an open context menu under the pointer
-            DispatchQueue.main.async { if stop.isSet == false { model.adopt(rows) } }
-        }
+        let sessions = ChatSessionsPoller(
+            host: SocketChatHost(),
+            onAuthoritativeSessionIds: { knownIds in
+                DispatchQueue.main.async {
+                    if stop.isSet == false { model.reconcileKnownSessions(knownIds) }
+                }
+            },
+            onChange: { rows in
+                // only a change is published: an equal list at every poll would rebuild an open context menu under the pointer
+                DispatchQueue.main.async { if stop.isSet == false { model.adopt(rows) } }
+            }
+        )
         DispatchQueue.main.async { model.actions.changed = { sessions.invalidateArchived() } }
         Task.detached {
             repeat {

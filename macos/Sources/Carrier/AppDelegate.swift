@@ -187,12 +187,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard fixtureServer == nil, Self.selfTestPath() == nil else { return .terminateNow }
         return MainActor.assumeIsolated {
-            guard let store = CarrierTerminalStore.sharedIfInitialized,
-                  let question = store.pendingConfirmation(for: .all)
-            else {
+            guard let store = CarrierTerminalStore.sharedIfInitialized, store.hasLiveSurfaces else {
                 return .terminateNow
             }
-            return ask(question) ? .terminateNow : .terminateCancel
+            Task { @MainActor in
+                let question = await store.pendingConfirmation(for: .all)
+                let shouldTerminate = question.map(ask) ?? true
+                sender.reply(toApplicationShouldTerminate: shouldTerminate)
+            }
+            return .terminateLater
         }
     }
 

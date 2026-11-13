@@ -82,4 +82,4 @@ Specs of one area that build on each other are listed oldest first.
 
 ## macOS app: terminal
 
-- [embedded-terminal-core](embedded-terminal-core.md): native `GhosttyKit` terminal core with tabs, split panes, persistence, settings, and process close guards. Implemented (unreleased).
+- [embedded-terminal-core](embedded-terminal-core.md): native `GhosttyKit` terminal core with tabs, split panes, persistence, settings, and process close guards. Implemented (core only; UI unwired, unreleased).

@@ -9,10 +9,31 @@ import Testing
 @MainActor
 private final class FakeProcessInspector: TerminalProcessInspecting {
     var runningByStateId: [ObjectIdentifier: [String]] = [:]
+    var inspectionError: String?
 
-    func activeCommands(in state: TerminalViewState, platformView: TerminalView?) -> [String] {
-        runningByStateId[ObjectIdentifier(state)] ?? []
+    func inspectActiveCommands(in panes: [TerminalPaneInspectionInput]) async -> TerminalProcessInspectionResult {
+        if let inspectionError {
+            return TerminalProcessInspectionResult(inspectionError: inspectionError)
+        }
+        var mapped: [UUID: [String]] = [:]
+        for pane in panes {
+            if let cmds = runningByStateId[ObjectIdentifier(pane.state)], cmds.isEmpty == false {
+                mapped[pane.paneId] = cmds
+            }
+        }
+        return TerminalProcessInspectionResult(commandsByPane: mapped)
     }
+}
+
+@MainActor
+private func waitUntil(timeoutSeconds: TimeInterval = 1.0, _ condition: @MainActor () -> Bool) async -> Bool {
+    let deadline = Date().addingTimeInterval(timeoutSeconds)
+    while condition() == false {
+        if Date() >= deadline { return false }
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 5_000_000)
+    }
+    return true
 }
 
 @MainActor
@@ -100,12 +121,22 @@ struct CarrierTerminalStoreTests {
         _ = store.openTab(for: dropSession, workingDirectory: "/tmp")
 
         let state = store.state(for: leftId)!
+        state.isSurfaceVisible = true
         let view = state.makePlatformView!()
         view.controller = store.controller
+        #expect(state.onClose != nil)
+        #expect(state.onOpenURL != nil)
+        #expect(state.makePlatformView != nil)
         #expect(view.controller != nil)
 
-        // Quit teardown must flush workspace to disk AND detach live platform views.
+        // Quit teardown must flush workspace to disk AND detach live state/callbacks/platform views.
         store.teardownAll()
+        #expect(store.state(for: leftId) == nil)
+        #expect(store.platformView(for: leftId) == nil)
+        #expect(state.onClose == nil)
+        #expect(state.onOpenURL == nil)
+        #expect(state.makePlatformView == nil)
+        #expect(state.isSurfaceVisible == false)
         #expect(view.controller == nil)
         #expect(FileManager.default.fileExists(atPath: fileURL.path))
 
@@ -124,7 +155,7 @@ struct CarrierTerminalStoreTests {
         #expect(reloaded.pane(id: right.id)?.customTitle == "Runner")
     }
 
-    @Test func gatesCloseAndQuitOnRunningProcessConfirmationWithForceAndPrefOverrides() {
+    @Test func gatesCloseAndQuitOnRunningProcessConfirmationWithForceAndPrefOverrides() async {
         let (prefs, cleanup) = makeIsolatedPreferences()
         defer { cleanup() }
 
@@ -145,7 +176,7 @@ struct CarrierTerminalStoreTests {
         let session = TerminalOwner.session("busy-session")
         let tab = store.openTab(for: session, workingDirectory: "/tmp")
         let idlePane = tab.activePaneId
-        let busyPane = store.splitPane(idlePane, edge: .trailing)!.id
+        let busyPane = store.splitPane(idlePane, edge: .trailing, customTitle: "Dev server")!.id
 
         let idleState = store.state(for: idlePane)!
         let busyState = store.state(for: busyPane)!
@@ -154,22 +185,32 @@ struct CarrierTerminalStoreTests {
         inspector.runningByStateId[ObjectIdentifier(busyState)] = ["vite", "vitest"]
 
         // Idle pane closes cleanly without confirmation.
-        #expect(store.pendingConfirmation(for: .pane(idlePane)) == nil)
-        #expect(store.closePane(id: idlePane, force: false))
+        #expect(await store.pendingConfirmation(for: .pane(idlePane)) == nil)
+        #expect(await store.closePane(id: idlePane, force: false))
         #expect(store.pane(id: idlePane) == nil)
         #expect(store.state(for: idlePane) == nil)
+        #expect(idleState.onClose == nil)
 
-        // Busy pane, tab, owner, and app quit all produce confirmations and refuse non-forced closes.
-        let paneQuestion = store.pendingConfirmation(for: .pane(busyPane))
+        // Busy pane, tab, owner, delete context, and app quit all produce consistent confirmations and refuse non-forced closes.
+        let paneQuestion = await store.pendingConfirmation(for: .pane(busyPane))
+        #expect(paneQuestion?.title == "Close \u{201C}Dev server\u{201D}?")
         #expect(paneQuestion?.message.contains("vite") == true)
         #expect(paneQuestion?.message.contains("vitest") == true)
-        #expect(store.pendingConfirmation(for: .tab(tab.id)) != nil)
-        #expect(store.pendingConfirmation(for: .owner(session)) != nil)
-        #expect(store.pendingConfirmation(for: .all)?.confirm == "Quit")
 
-        #expect(store.closePane(id: busyPane, force: false) == false)
-        #expect(store.closeTab(id: tab.id, force: false) == false)
-        #expect(store.closeAll(for: session, force: false) == false)
+        let tabQuestion = await store.pendingConfirmation(for: .tab(tab.id))
+        #expect(tabQuestion?.title == "Close tab \u{201C}Dev server\u{201D}?")
+        #expect(tabQuestion?.message.contains("Closing this tab will terminate them.") == true)
+
+        let deleteQuestion = await store.pendingConfirmation(for: .owners([session]), removalKind: .delete)
+        #expect(deleteQuestion?.title.contains("Delete session") == true)
+        #expect(deleteQuestion?.message.contains("Deleting this session") == true)
+
+        #expect(await store.pendingConfirmation(for: .owner(session)) != nil)
+        #expect(await store.pendingConfirmation(for: .all)?.confirm == "Quit")
+
+        #expect(await store.closePane(id: busyPane, force: false) == false)
+        #expect(await store.closeTab(id: tab.id, force: false) == false)
+        #expect(await store.closeAll(for: session, force: false) == false)
         #expect(store.pane(id: busyPane) != nil)
         #expect(busyView.controller != nil)
 
@@ -177,15 +218,23 @@ struct CarrierTerminalStoreTests {
         var settings = prefs.terminal
         settings.confirmCloseRunningProcess = false
         prefs.terminal = settings
-        #expect(store.pendingConfirmation(for: .pane(busyPane)) == nil)
+        #expect(await store.pendingConfirmation(for: .pane(busyPane)) == nil)
 
-        // Forced close tears down the view synchronously.
+        // Inspector failure fails safe conservatively with a verification-error confirmation when pref is enabled.
         settings.confirmCloseRunningProcess = true
         prefs.terminal = settings
-        #expect(store.closeAll(for: session, force: true))
+        inspector.runningByStateId = [:]
+        inspector.inspectionError = "ps failed"
+        let errorQuestion = await store.pendingConfirmation(for: .pane(busyPane))
+        #expect(errorQuestion?.message.contains("ps failed") == true)
+
+        // Forced close tears down state, callbacks, and view synchronously.
+        #expect(await store.closeAll(for: session, force: true))
         #expect(store.tabs(for: session).isEmpty)
+        #expect(store.state(for: busyPane) == nil)
+        #expect(store.platformView(for: busyPane) == nil)
+        #expect(busyState.onClose == nil)
         #expect(busyView.controller == nil)
-        _ = idleState
     }
 
     @Test func syncsTerminalSettingsAndThemesIntoGhosttyController() {
@@ -221,7 +270,8 @@ struct CarrierTerminalStoreTests {
         #expect(rendered.contains("font-size = 15"))
     }
 
-    @Test func liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection() async {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["CARRIER_IT_TERMINAL"] != nil))
+    func liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection() async {
         let (prefs, cleanup) = makeIsolatedPreferences()
         defer { cleanup() }
 
@@ -241,49 +291,55 @@ struct CarrierTerminalStoreTests {
             backing: .buffered,
             defer: false
         )
-        window.contentView = NSHostingView(rootView: CarrierTerminalView(store: store, paneId: paneId))
+        window.contentView = NSHostingView(rootView: CarrierTerminalView(store: store, paneId: paneId, autoFocus: true))
         window.orderBack(nil)
         defer {
-            store.closeAll(for: .quick, force: true)
+            _ = store.forceCloseAll(for: .quick)
             window.orderOut(nil)
         }
 
         // Wait up to 3s for Ghostty surface & PTY initialization.
-        for _ in 0..<30 {
-            if state.surface != nil, state.attachedPlatformView?.ttyName != nil {
-                break
-            }
-            try? await Task.sleep(nanoseconds: 100_000_000)
+        let surfaceReady = await waitUntil(timeoutSeconds: 3.0) {
+            state.surface != nil && state.attachedPlatformView?.ttyName != nil
         }
-        #expect(state.surface != nil)
+        #expect(surfaceReady)
 
-        // Wait briefly for user shell startup (.zshrc prompt hooks) to reach an idle prompt.
+        // Wait for user shell startup (.zshrc prompt hooks) to reach an idle prompt.
+        var reachedIdle = false
         for _ in 0..<25 {
-            if store.pendingConfirmation(for: .pane(paneId)) == nil {
+            if await store.pendingConfirmation(for: .pane(paneId)) == nil {
+                reachedIdle = true
                 break
             }
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
-        #expect(store.pendingConfirmation(for: .pane(paneId)) == nil)
+        #expect(reachedIdle)
 
-        // Paste command + Enter (zsh bracketed paste holds newlines in the edit buffer until Enter).
+        // Paste command + Enter and wait on scrollback output instead of a blind sleep.
         #expect(store.paste("echo CARRIER_SEARCH_NEEDLE_42", paneId: paneId))
         #expect(state.sendKey(.enter))
-        try? await Task.sleep(nanoseconds: 350_000_000)
+        var needleVisible = false
+        for _ in 0..<25 {
+            _ = state.performBindingAction("select_all")
+            if store.selectedText(paneId: paneId)?.contains("CARRIER_SEARCH_NEEDLE_42") == true {
+                needleVisible = true
+                break
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        #expect(needleVisible)
 
         _ = store.startSearch(paneId: paneId)
         #expect(store.search("CARRIER_SEARCH_NEEDLE_42", paneId: paneId))
         #expect(store.navigateSearch(next: true, paneId: paneId))
         _ = store.endSearch(paneId: paneId)
-        #expect(state.performBindingAction("select_all"))
-        #expect(store.selectedText(paneId: paneId)?.contains("CARRIER_SEARCH_NEEDLE_42") == true)
 
         // Spawn a foreground sleep child process and confirm detection catches it cleanly.
         #expect(store.paste("sleep 3", paneId: paneId))
         #expect(state.sendKey(.enter))
         var detected = false
         for _ in 0..<25 {
-            if let question = store.pendingConfirmation(for: .pane(paneId)),
+            if let question = await store.pendingConfirmation(for: .pane(paneId)),
                question.message.contains("sleep") {
                 detected = true
                 break
@@ -295,6 +351,87 @@ struct CarrierTerminalStoreTests {
         // Send Ctrl+C to terminate sleep and verify clearScrollback dispatches cleanly.
         #expect(store.sendInterrupt(paneId: paneId))
         #expect(store.clearScrollback(paneId: paneId))
+    }
+
+    @Test func parsesBatchedPSOutputAndLogsInspectorErrors() async throws {
+        let paneA = UUID()
+        let paneB = UUID()
+        let output = """
+          ttys001 -zsh
+          ttys001 /bin/dash
+          ttys001 /usr/local/bin/ksh
+          ttys001 pwsh
+          ttys001 vite
+          ttys001 node
+          ttys002 -tcsh
+          ttys002 python3
+          ttys002 csh
+        """
+        let parsed = GhosttyTerminalProcessInspector.parsePSOutput(
+            output,
+            paneIdsByShortTTY: ["ttys001": [paneA], "ttys002": [paneB]]
+        )
+        #expect(parsed[paneA] == ["vite", "node"])
+        #expect(parsed[paneB] == ["python3"])
+
+        final class LockedLogs: @unchecked Sendable {
+            private let lock = NSLock()
+            private var items: [String] = []
+            func append(_ message: String) {
+                lock.lock()
+                items.append(message)
+                lock.unlock()
+            }
+            var count: Int {
+                lock.lock()
+                defer { lock.unlock() }
+                return items.count
+            }
+        }
+
+        let logged = LockedLogs()
+        let failingResult = GhosttyTerminalProcessInspector.runBatchedPS(
+            executablePath: "/nonexistent/ps-binary",
+            shortTTYs: ["ttys001"],
+            paneIdsByShortTTY: ["ttys001": [paneA]],
+            timeoutSeconds: 0.5,
+            log: { logged.append($0) }
+        )
+        #expect(failingResult.inspectionError != nil)
+        #expect(logged.count == 1)
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("carrier-ps-timeout-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let sleepScriptURL = tempDir.appendingPathComponent("slow-ps.sh")
+        try "#!/bin/sh\nsleep 2\n".write(to: sleepScriptURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sleepScriptURL.path)
+
+        let timedOutLogs = LockedLogs()
+        let timeoutResult = GhosttyTerminalProcessInspector.runBatchedPS(
+            executablePath: sleepScriptURL.path,
+            shortTTYs: ["ttys001"],
+            paneIdsByShortTTY: ["ttys001": [paneA]],
+            timeoutSeconds: 0.1,
+            log: { timedOutLogs.append($0) }
+        )
+        #expect(timeoutResult.inspectionError?.contains("timed out") == true)
+        #expect(timedOutLogs.count == 1)
+
+        let noTTYInspector = GhosttyTerminalProcessInspector(
+            psExecutablePath: "/nonexistent/ps-binary",
+            timeoutSeconds: 0.5,
+            log: { logged.append($0) }
+        )
+        let dummyState = TerminalViewState(controller: TerminalController(configSource: .none))
+        let view = TerminalView()
+        let result = await noTTYInspector.inspectActiveCommands(in: [
+            TerminalPaneInspectionInput(paneId: paneA, state: dummyState, platformView: view)
+        ])
+        // Without a ttyName, no ps invocation occurs; empty input is a clean no-op.
+        #expect(result.inspectionError == nil)
+        #expect(logged.count == 1)
     }
 
     @Test func handlesSurfaceCloseCallbackAndPrunesOrPreservesUnknownSchema() async throws {
@@ -312,7 +449,7 @@ struct CarrierTerminalStoreTests {
         try futureJSON.write(to: fileURL)
 
         let untouchedStore = CarrierTerminalStore(
-            fileStore: TerminalWorkspaceFileStore(fileURL: fileURL),
+            fileStore: TerminalWorkspaceFileStore(fileURL: fileURL, log: { _ in }),
             preferences: prefs,
             scheme: .dark,
             fallbackDirectory: "/tmp"
@@ -346,21 +483,21 @@ struct CarrierTerminalStoreTests {
             return approveClose
         }
 
-        // processAlive == true without ps match still prompts generic fallback instead of silently force-closing.
+        // processAlive == true without ps match still prompts fallback instead of silently force-closing.
         s1.onClose?(true)
-        try? await Task.sleep(nanoseconds: 50_000_000)
-        #expect(confirmPrompts.count == 1)
+        #expect(await waitUntil { confirmPrompts.count == 1 })
         #expect(store.pane(id: p1) != nil)
 
         approveClose = true
         s1.onClose?(true)
-        try? await Task.sleep(nanoseconds: 50_000_000)
-        #expect(store.pane(id: p1) == nil)
+        #expect(await waitUntil { store.pane(id: p1) == nil })
+        #expect(store.state(for: p1) == nil)
+        #expect(s1.onClose == nil)
 
         // Repeated onClose callback for an already-closed pane does not re-prompt.
         let promptsAfterFirstClose = confirmPrompts.count
         s1.onClose?(true)
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        await Task.yield()
         #expect(confirmPrompts.count == promptsAfterFirstClose)
 
         // processAlive == false closes immediately without prompting.
@@ -368,13 +505,15 @@ struct CarrierTerminalStoreTests {
         let s3 = store.state(for: t3.activePaneId)!
         let beforePrompts = confirmPrompts.count
         s3.onClose?(false)
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(await waitUntil { store.pane(id: t3.activePaneId) == nil })
         #expect(confirmPrompts.count == beforePrompts)
-        #expect(store.pane(id: t3.activePaneId) == nil)
 
         // pruneSessions tears down unlisted sessions synchronously.
         store.pruneSessions(keeping: ["s-keep"])
         #expect(store.tabs(for: dropSession).isEmpty)
+        #expect(store.state(for: p2) == nil)
+        #expect(store.platformView(for: p2) == nil)
+        #expect(s2.onClose == nil)
         #expect(v2.controller == nil)
 
         store.teardownAll()

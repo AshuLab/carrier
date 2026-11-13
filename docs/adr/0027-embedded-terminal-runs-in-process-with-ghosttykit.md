@@ -1,4 +1,4 @@
-# 0026 - The embedded terminal runs in-process with GhosttyKit and restores layout across launches
+# 0027 - The embedded terminal runs in-process with GhosttyKit and restores layout across launches
 
 - Status: accepted
 - Date: 2026-11-13

@@ -183,7 +183,10 @@ struct TerminalCoreTests {
         let validSession = TerminalOwner.session("sess-keep")
         let staleSession = TerminalOwner.session("sess-deleted")
 
-        let quickTab = registry.openTab(owner: .quick, spec: TerminalLaunchSpec(workingDirectory: "/existing/a", title: "Shell"))
+        let quickTab = registry.openTab(
+            owner: .quick,
+            spec: TerminalLaunchSpec(workingDirectory: "/existing/a", envVars: ["CARRIER_SECRET": "top-secret-value"], title: "Shell")
+        )
         let quickRight = registry.splitPane(quickTab.activePaneId, edge: .trailing, ratio: 0.35)!
         registry.renamePane(quickRight.id, customTitle: "Logs")
         registry.updatePaneWorkingDirectory("/missing/worktree", forPane: quickRight.id)
@@ -197,11 +200,36 @@ struct TerminalCoreTests {
         defer { try? FileManager.default.removeItem(at: tempFolder) }
 
         let fileURL = terminalWorkspaceURL(carrierFolder: tempFolder.path)
-        let store = TerminalWorkspaceFileStore(fileURL: fileURL)
+        final class LockedLogs: @unchecked Sendable {
+            private let lock = NSLock()
+            private var items: [String] = []
+            func append(_ message: String) {
+                lock.lock()
+                items.append(message)
+                lock.unlock()
+            }
+            var values: [String] {
+                lock.lock()
+                defer { lock.unlock() }
+                return items
+            }
+            var count: Int { values.count }
+        }
+        let loggedMessages = LockedLogs()
+        let store = TerminalWorkspaceFileStore(fileURL: fileURL, log: { loggedMessages.append($0) })
         #expect(store.save(registry.exportPersistedWorkspace()))
+
+        // Persistence must strip envVars on disk and restrict file permissions to 0600.
+        let persistedText = try String(contentsOf: fileURL, encoding: .utf8)
+        #expect(persistedText.contains("top-secret-value") == false)
+        #expect(persistedText.contains("CARRIER_SECRET") == false)
+        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let permissions = attributes[.posixPermissions] as? NSNumber
+        #expect(permissions?.intValue == 0o600)
 
         let loaded = store.load()
         #expect(loaded != nil)
+        #expect(loggedMessages.values.isEmpty)
 
         let existing = Set(["/existing/a", "/existing/b", "/existing/c", "/fallback/home"])
         let restored = TerminalRegistry(
@@ -215,6 +243,7 @@ struct TerminalCoreTests {
         #expect(restored.tabs(for: validSession).count == 1)
         let restoredQuick = restored.tabs(for: .quick).first
         #expect(restoredQuick?.paneCount == 2)
+        #expect(restoredQuick?.panes[quickTab.activePaneId]?.envVars.isEmpty == true)
         #expect(restoredQuick?.zoomedPaneId == quickRight.id)
         #expect(restored.pane(id: quickRight.id)?.customTitle == "Logs")
         #expect(restored.pane(id: quickRight.id)?.workingDirectory == "/fallback/home")
@@ -264,9 +293,16 @@ struct TerminalCoreTests {
         #expect(postPrune.tabs(for: validSession).count == 1)
         #expect(postPrune.tabs(for: .quick).count == 1)
 
-        // Corrupt JSON fails gracefully without throwing.
+        // Corrupt JSON logs the failure instead of swallowing it silently.
         try Data("{corrupt".utf8).write(to: fileURL)
         #expect(store.load() == nil)
+        #expect(loggedMessages.count == 1)
+
+        // Unsupported schema versions log why the file was skipped.
+        let futureData = try JSONEncoder().encode(future)
+        try futureData.write(to: fileURL)
+        #expect(store.load() == nil)
+        #expect(loggedMessages.count == 2)
 
         // Disabled fileURL performs no I/O.
         let disabled = TerminalWorkspaceFileStore(fileURL: nil)
@@ -356,11 +392,14 @@ struct TerminalCoreTests {
         #expect(prefs.terminal == TerminalSettings())
     }
 
-    @Test func urlAllowlistRejectsDangerousSchemes() {
+    @Test func urlAllowlistAllowsOnlyHTTPAndHTTPSWithHost() {
         #expect(isAllowedTerminalURL("https://github.com/AshuLab/carrier"))
         #expect(isAllowedTerminalURL("http://localhost:3000"))
-        #expect(isAllowedTerminalURL("file:///Users/dev/file.swift"))
-        #expect(isAllowedTerminalURL("mailto:dev@carrier.local"))
+        #expect(isAllowedTerminalURL("file:///Users/dev/file.swift") == false)
+        #expect(isAllowedTerminalURL("file:///Applications/Calculator.app") == false)
+        #expect(isAllowedTerminalURL("mailto:dev@carrier.local") == false)
+        #expect(isAllowedTerminalURL("smb://fileserver/share") == false)
+        #expect(isAllowedTerminalURL("http://") == false)
         #expect(isAllowedTerminalURL("javascript:alert(1)") == false)
         #expect(isAllowedTerminalURL("itms-services://bad") == false)
     }

@@ -1,6 +1,6 @@
 # Embedded terminal core
 
-Status: implemented (unreleased)
+Status: implemented (core only; UI unwired, unreleased)
 
 ## Problem
 
@@ -8,10 +8,11 @@ When working in `Carrier.app`, a user who needs to run commands, inspect git sta
 Nothing inside `Carrier.app` today can host native interactive shells, preserve terminal workspaces across restarts, or prevent accidental termination of running commands when closing a workspace or app.
 
 This effort is scoped strictly to the native macOS terminal core so it works cleanly and deterministically before any app UI chrome or orchestrator epic integration is wired on top.
+Note: `CarrierTerminalStore` and `CarrierTerminalView` are not yet instantiated or mounted in `Carrier.app`, so the `AppDelegate`, `PanelModel`, and `SessionActions` lifecycle hooks stay dormant until the UI PR opens the first surface.
 
 ## Solution
 
-We embed `GhosttyKit` (`Lakr233/libghostty-spm`, pinned to `2.2.2026111302`, MIT) directly in `Carrier.app` via [0026](../adr/0026-embedded-terminal-runs-in-process-with-ghosttykit.md).
+We embed `GhosttyKit` (`Lakr233/libghostty-spm`, pinned to `2.2.2026111302`, MIT) directly in `Carrier.app` via [0027](../adr/0027-embedded-terminal-runs-in-process-with-ghosttykit.md).
 Ghostty handles the native PTY (`/usr/bin/login` login shell inheriting the user's full `PATH`), VT parser, Metal/CoreText rendering, IME, clipboard protection, URL click handling, drag-and-drop paths, scrollback search, and `foregroundPid` / `ttyName` / `close_surface(processAlive:)` signals.
 Our code divides into two layers so domain rules remain fast, pure, and AppKit-free:
 
@@ -56,7 +57,7 @@ Closing an entire tab, deleting or archiving a chat session, or quitting `Carrie
 ## Decisions
 
 **Dependency and runtime architecture.**
-See [0026](../adr/0026-embedded-terminal-runs-in-process-with-ghosttykit.md) — `GhosttyKit` runs in-process without a separate Node PTY daemon.
+See [0027](../adr/0027-embedded-terminal-runs-in-process-with-ghosttykit.md) — `GhosttyKit` runs in-process without a separate Node PTY daemon.
 Because `2.2.2026111302` already spawns `/usr/bin/login` -> `-/bin/zsh` cleanly on macOS and populates `foregroundPid` and `ttyName` at runtime, the host does not need custom `PATH` scraping.
 
 **Pane-keyed caching and layout model.**
@@ -68,12 +69,15 @@ Every split node enforces unique leaf `paneId` invariants so moving a pane remov
 **Process activity detection for close confirmation.**
 We verified against `libghostty-spm` `2.2.2026111302` (`upstream.cf5519b2`) that `view.foregroundPid` returns the interactive shell's PID when idle at a prompt, and switches to the active child's PID when a command runs; `performBindingAction("close_surface")` passes `processAlive == true` only when a non-shell process or background child is active.
 For single-pane close, the store uses Ghostty's `close_surface` `processAlive` callback (with `force` override).
-For multi-pane / multi-tab / app-quit preflight checks (`pendingConfirmation(for:)`), the store checks non-shell process presence on each pane's `ttyName` (via `GhosttyKit` or a testable process-inspector seam) so the user gets one clear confirmation prompt before anything starts tearing down.
+For multi-pane / multi-tab / app-quit preflight checks (`pendingConfirmation(for:)`), the store runs one batched off-main-thread `/bin/ps` query across pane TTYs (filtering common interactive shells with a 1.5s timeout and surfacing errors conservatively) behind a testable process-inspector seam so the user gets one clear confirmation prompt before anything starts tearing down.
+
+**Link handling.**
+Terminal link activation (`isAllowedTerminalURL`) permits only `http` and `https` URLs with a non-empty host.
 
 **Persistence file location and format.**
-Persisted layout uses JSON (`Codable`, versioned `schemaVersion: 1`) stored in `<Carrier folder>/app/terminals.json` via atomic write, matching [0016](../adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md).
-Unrecognized future schema versions fail gracefully to an empty registry without crashing launch.
-Stale session ids (sessions deleted externally while closed) and removed worktree directories are pruned or fallen back safely on restore.
+Persisted layout uses JSON (`Codable`, versioned `schemaVersion: 1`) written atomically with `0600` permissions in `<Carrier folder>/app/terminals.json` ([0016](../adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)), stripping `envVars` so environment secrets never hit disk.
+Unrecognized future schema versions or corrupt files are logged and ignored without overwriting the file or crashing launch.
+Stale session ids are pruned only on an authoritative session snapshot (`ChatSessionsPoller.onAuthoritativeSessionIds`, never when the chat host is unreachable or incomplete), and removed worktree directories fall back safely on restore.
 
 **Testing seams per story.**
 - Story 1: Existing `ThirdPartyNoticesTests` (`CarrierTests`) and `macos/scripts/check-app.sh` release bundle + `codesign --verify --deep --strict` verification.

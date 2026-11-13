@@ -75,13 +75,21 @@ struct SettingsSheet: View {
         if let notConfigured {
             Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
         }
-        ForEach(engineGroups(configured: notConfigured == nil), id: \.title) { group in
+        ForEach(engineGroups(configured: notConfigured == nil, folder: carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()), home: NSHomeDirectory(), exists: { FileManager.default.fileExists(atPath: $0) }), id: \.title) { group in
             SettingsGroup(title: group.title) {
                 ForEach(Array(group.rows.enumerated()), id: \.element.title) { index, row in
-                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0) {
+                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0, note: row.file?.shown) {
                         switch row.id {
                         case .startOnOpen: Toggle(row.title, isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
                         case .confirmStop: Toggle(row.title, isOn: $confirmStop).labelsHidden().toggleStyle(.switch)
+                        case .carrierFolder, .logs, .startLog:
+                            if let file = row.file {
+                                Button {
+                                    let url = URL(fileURLWithPath: file.path)
+                                    if file.action == .reveal { NSWorkspace.shared.activateFileViewerSelecting([url]) } else { NSWorkspace.shared.open(url) }
+                                } label: { Label(file.buttonTitle, systemImage: file.exists ? (file.action == .reveal ? "folder" : "doc.text") : "questionmark.folder").labelStyle(.titleAndIcon) }
+                                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(file.exists == false)
+                            }
                         }
                     }
                 }

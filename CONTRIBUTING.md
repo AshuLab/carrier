@@ -105,7 +105,7 @@ Every user-visible change adds one line under `## [Unreleased]` in [CHANGELOG.md
 
 ## Branches and PRs
 
-`main` is the only long-lived branch. There is no `develop` branch, and no branch protection or required checks on purpose: reviews and checks are done by hand until the volume grows.
+`main` is the only long-lived branch; there is no `develop` branch. A PR into `main` needs one review and the `CI` check (typecheck and unit tests, run once the PR is not a draft); force-pushes are refused. Epic branches have no rules, so `ship` merges slices into them unattended.
 
 - Work happens on an epic branch `feat/<feature>/epic`, cut from `main`, with slice branches `feat/<feature>/<NNN-slug>` as its siblings. Each slice gets a PR into the epic branch.
 - PRs merge with merge commits. Never squash or rebase.

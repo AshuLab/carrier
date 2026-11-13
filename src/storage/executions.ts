@@ -5,6 +5,12 @@ export const executionStates = ['running', 'finished', 'failed', 'timed_out', 'i
 
 export const failureKinds = ['usage_limit', 'api_error', 'killed', 'crashed', 'spawn_error', 'auth', 'session_lost', 'timeout', 'invalid_result', 'unknown'] as const;
 
+/** Tokens and cost of one model's share of a run; costUsd is null when the CLI reported none. */
+export type ModelUsage = { inputTokens: number; cachedInputTokens: number; cacheWriteTokens: number; outputTokens: number; reasoningTokens: number; costUsd: number | null };
+
+/** What a run used, normalized across harnesses; inputTokens excludes the cached ones. */
+export type ExecutionUsage = ModelUsage & { byModel?: Record<string, ModelUsage> };
+
 export const executions = sqliteTable('executions', {
   executionId: text().primaryKey(),
   epicId: integer().notNull().references(() => epics.id),
@@ -28,6 +34,7 @@ export const executions = sqliteTable('executions', {
   configDir: text(), // that option's config folder, absolute; null when it had none
   workspace: text(), // the cwd of the session: what resuming it needs
   round: integer(), // the review round, null for ship
+  usage: text({ mode: 'json' }).$type<ExecutionUsage>(), // null on a run that reported none, or from before it was recorded
   resultPath: text().notNull(),
   startedAt: integer().notNull(),
   finishedAt: integer(),

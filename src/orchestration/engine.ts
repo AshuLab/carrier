@@ -422,7 +422,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     });
     run.onSession((sessionId) => db.update(executions).set({ sessionId }).where(eq(executions.executionId, executionId)).run());
     track(
-      run.done.then(async ({ exit, sessionId, failure: processFailure }) => {
+      run.done.then(async ({ exit, sessionId, failure: processFailure, usage }) => {
         active.delete(executionId);
         output.flush();
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
@@ -439,7 +439,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           timed_out: { kind: 'timeout', detail: `exceeded ${task.timeoutMs! / 3_600_000} h` },
         };
         db.update(executions)
-          .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(failure && { error: failure }), ...failureColumns(processFailure ?? (endFailure[exit] && { ...noExit, ...endFailure[exit] })) })
+          .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(usage && { usage }), ...(failure && { error: failure }), ...failureColumns(processFailure ?? (endFailure[exit] && { ...noExit, ...endFailure[exit] })) })
           .where(eq(executions.executionId, executionId))
           .run();
         if (failure) db.update(epics).set({ lastError: failure }).where(eq(epics.id, epic.id)).run();

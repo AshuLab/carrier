@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { defaultConfigPath } from '../../config/default-path.ts';
 
-export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'chat', 'chat-host'] as const;
+export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'chat', 'chat-host', 'usage'] as const;
 export type CommandName = (typeof commandNames)[number];
 
 export const usage = () => `Usage: carrier --config <path>          run the orchestrator
@@ -20,6 +20,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier chat --archive|--unarchive|--delete <id>   archive, unarchive or delete a chat session
        carrier chat --stop               stop the chat host
        carrier chat-host                 run the chat host in the foreground
+       carrier usage [--json] [--refresh] [--days <7|14|30>] [--provider <all|claude|codex|agy|local>] [--source <all|epic|chat|external>]   live quotas and what was used (starts the chat host if needed)
        carrier --version                 print the installed version
 
 --config defaults to ${defaultConfigPath()} (where init writes it) when that file exists.
@@ -71,6 +72,10 @@ const options = {
   archive: { type: 'string' },
   unarchive: { type: 'string' },
   delete: { type: 'string' },
+  refresh: { type: 'boolean' },
+  days: { type: 'string' },
+  provider: { type: 'string' },
+  source: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
   version: { type: 'boolean', short: 'v' },
 } as const;

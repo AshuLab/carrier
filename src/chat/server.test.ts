@@ -60,6 +60,11 @@ const controls = (): ChatControls => ({
   repoBranches: async ({ repo }) => ({ repo }),
   health: async ({ refresh }) => ({ refresh }),
   providers: async () => ({ accounts: [] }),
+  usage: async (args) => ({ args }),
+  usageOverride: (args) => {
+    if (args.model === 'refused') throw new ChatRefused('That price cannot be saved');
+    return { args };
+  },
 });
 const seen: AbortSignal[] = [];
 async function open({ stop = async () => {}, clients = noClients } = {}) {
@@ -96,7 +101,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -112,6 +117,20 @@ test.each([
   ['a health with an extra field', '{"id":10,"cmd":"health","agent":"claude"}', 10],
   ['providers with a field', '{"id":12,"cmd":"providers","refresh":true}', 12],
   ['events asking for reasoning with a non-boolean', `{"id":11,"cmd":"events","sessionId":"${uuid}","limit":10,"reasoning":"yes"}`, 11],
+  ['usage with a range that is not offered', '{"id":20,"cmd":"usage","days":10}', 20],
+  ['usage with a provider that is not one', '{"id":21,"cmd":"usage","provider":"gemini"}', 21],
+  ['usage with a source that is not one', '{"id":22,"cmd":"usage","source":"cli"}', 22],
+  ['usage with an extra field', '{"id":23,"cmd":"usage","force":true}', 23],
+  ['usage with an empty account', '{"id":24,"cmd":"usage","account":" "}', 24],
+  ['an override with an unknown action', '{"id":25,"cmd":"usageOverride","model":"m","action":"free"}', 25],
+  ['an override with no model', '{"id":26,"cmd":"usageOverride","action":"clear"}', 26],
+  ['an alias with no target', '{"id":27,"cmd":"usageOverride","model":"m","action":"alias"}', 27],
+  ['a custom price with no output rate', '{"id":28,"cmd":"usageOverride","model":"m","action":"custom","inputPerMillionUsd":1}', 28],
+  ['a custom price with a negative rate', '{"id":29,"cmd":"usageOverride","model":"m","action":"custom","inputPerMillionUsd":-1,"outputPerMillionUsd":1}', 29],
+  ['a custom price with a rate over the limit', '{"id":30,"cmd":"usageOverride","model":"m","action":"custom","inputPerMillionUsd":1,"outputPerMillionUsd":10001}', 30],
+  ['a custom price with a rate that is not a number', '{"id":31,"cmd":"usageOverride","model":"m","action":"custom","inputPerMillionUsd":"1","outputPerMillionUsd":1}', 31],
+  ['an override with an extra field', '{"id":32,"cmd":"usageOverride","model":"m","action":"local","mode":"zero"}', 32],
+  ['an override with an empty model', '{"id":33,"cmd":"usageOverride","model":"  ","action":"local"}', 33],
   ['a missing id', '{"cmd":"list"}', null],
   ['a bad id', '{"id":-1,"cmd":"list"}', null],
 ])('%s is "invalid request", with the id only when it is valid', async (_name, line, id) => {
@@ -133,6 +152,17 @@ test('health takes an optional refresh and passes it on', async () => {
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"health"}')).toEqual({ id: 1, ok: true, data: {} });
   expect(await c.ask('{"id":2,"cmd":"health","refresh":true}')).toEqual({ id: 2, ok: true, data: { refresh: true } });
+});
+
+test('usage passes its filters on, and an override reaches the controls with the words of a refusal', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"usage"}')).toEqual({ id: 1, ok: true, data: { args: {} } });
+  expect(await c.ask('{"id":2,"cmd":"usage","refresh":true,"days":7,"provider":"local","source":"chat","search":" opus ","account":"claude-work"}')).toEqual({ id: 2, ok: true, data: { args: { refresh: true, days: 7, provider: 'local', source: 'chat', search: 'opus', account: 'claude-work' } } });
+  expect(await c.ask('{"id":3,"cmd":"usageOverride","model":"qwen","action":"local"}')).toEqual({ id: 3, ok: true, data: { args: { model: 'qwen', action: 'local' } } });
+  expect(await c.ask('{"id":4,"cmd":"usageOverride","model":"qwen","action":"alias","aliasTo":"gpt-5"}')).toMatchObject({ ok: true, data: { args: { aliasTo: 'gpt-5' } } });
+  expect(await c.ask('{"id":5,"cmd":"usageOverride","model":"qwen","action":"custom","inputPerMillionUsd":0,"outputPerMillionUsd":2.5,"cacheWritePerMillionUsd":1}')).toMatchObject({ ok: true, data: { args: { inputPerMillionUsd: 0, outputPerMillionUsd: 2.5, cacheWritePerMillionUsd: 1 } } });
+  expect(await c.ask('{"id":6,"cmd":"usageOverride","model":"refused","action":"clear"}')).toEqual({ id: 6, ok: false, error: 'That price cannot be saved' });
 });
 
 test('answer is a strict request with a session, an approval and a choice', async () => {

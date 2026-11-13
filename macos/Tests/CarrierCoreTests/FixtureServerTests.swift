@@ -55,6 +55,16 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     #expect(reply.accounts.last?.harness == "agy" && reply.accounts.last?.found == true)
 }
 
+@Test func theFixtureChatHostAnswersUsageFromItsGoldenFile() throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let client = try #require(ControlClient.connect(path: server.chatSocketPath))
+    let capabilities = try client.hello().capabilities
+    #expect(capabilities.contains(.usage) && capabilities.contains(.usageOverride))
+    #expect(try sameJSON(client.request("usage"), golden("chat-usage.json")))
+    _ = try client.request("usageOverride", fields: ",\"model\":\"m\",\"action\":\"clear\"")
+}
+
 @Test func answersAnUnknownRequestWithAnError() throws {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }

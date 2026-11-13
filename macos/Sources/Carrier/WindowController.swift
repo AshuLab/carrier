@@ -5,7 +5,10 @@ import SwiftUI
 
 /// What the window shows: nil until the first answer from Carrier.
 @Observable final class PanelModel {
-    var state: ConnectionState?
+    var state: ConnectionState? {
+        // an epic that stops on a usage limit has used up a quota: the Usage page's numbers are asked again
+        didSet { if usageLimitEntered(from: oldValue, to: state) { MainActor.assumeIsolated { _ = AppUsage.refresher.limitHit() } } }
+    }
     let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
     /// Archive, restore and delete; `startMonitor` makes the lists read again after each.
@@ -331,7 +334,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         let pages: [(String, () -> Void)] = [
             ("home", { self.model.shell.selection = .home }), ("sessions", { self.model.shell.selection = .sessions }),
             ("new session", { self.model.shell.selection = .newSession }), ("archive", { self.model.shell.selection = .archive }),
-            ("carrier", { self.model.shell.selection = .carrier }),
+            ("carrier", { self.model.shell.selection = .carrier }), ("usage", { self.model.shell.selection = .usage }),
             ("first session", { self.selectFirstSession() }),
         ]
         for (name, select) in pages {
@@ -392,8 +395,13 @@ final class WindowController: NSObject, NSWindowDelegate {
         return NSSize(width: max(frameSize.width, least.width), height: max(frameSize.height, least.height))
     }
 
-    /// Someone is looking when the app is active and the window is on screen: then the host and the engine are asked often.
-    func refreshPace() { PollPace.shared.set(attentive: NSApp.isActive && windowIsShown) }
+    /// Someone is looking when the app is active and the window is on screen: then the host and the engine are asked often, and the Usage
+    /// page's minute timer runs (it pauses while nobody looks and asks again when someone does).
+    func refreshPace() {
+        let attentive = NSApp.isActive && windowIsShown
+        PollPace.shared.set(attentive: attentive)
+        MainActor.assumeIsolated { _ = AppUsage.refresher.setAttentive(attentive) }
+    }
 
     private var windowIsShown: Bool {
         window.map { $0.isVisible && $0.isMiniaturized == false && $0.occlusionState.contains(.visible) } ?? false
@@ -408,7 +416,10 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     @objc private func windowClosed() {
         PollPace.shared.set(attentive: false)
-        MainActor.assumeIsolated { DictationController.shared.stop() }
+        MainActor.assumeIsolated {
+            AppUsage.refresher.setAttentive(false)
+            DictationController.shared.stop()
+        }
         // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()
         stop = nil

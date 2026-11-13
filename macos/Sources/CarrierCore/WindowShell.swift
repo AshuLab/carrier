@@ -12,6 +12,8 @@ public enum Selection: Hashable {
     case newSession
     case archive
     case carrier
+    /// The Usage page of the sidebar foot, under Settings: quotas and consumption, not a section with a list of its own.
+    case usage
     case epic(repo: String, issue: Int)
 }
 
@@ -80,7 +82,7 @@ public struct ArchiveRequest: Equatable {
             case .sessions, .session, .newSession: open = .sessions
             case .carrier, .epic: open = .carrier
             case .archive: open = .archive
-            case .home: break
+            case .home, .usage: break
             }
         }
     }

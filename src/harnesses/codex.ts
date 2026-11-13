@@ -1,6 +1,7 @@
 import { buildPrompt } from '../prompts/build-prompt.ts';
 import { childEnv, markerFor, type AgentCommand, type CommandContext, type LineSignal, type HarnessAdapter } from './common.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
+import { obj, tokens } from '../execution/usage.ts';
 import { boundOutput, caps, clean, type AgentEvent, type EventState } from '../execution/events.ts';
 
 /**
@@ -51,6 +52,11 @@ export function parseCodexLine(line: string): LineSignal | undefined {
     return line.includes('no rollout found for thread id') ? { sessionUnavailable: true } : undefined;
   }
   if (event.type === 'thread.started' && typeof event.thread_id === 'string') return { session: event.thread_id };
+  // One per turn; the runner adds them up. Codex counts the cached tokens inside input_tokens.
+  if (event.type === 'turn.completed' && typeof event.usage === 'object' && event.usage !== null) {
+    const u = obj(event.usage);
+    return { usage: { inputTokens: Math.max(0, tokens(u.input_tokens) - tokens(u.cached_input_tokens)), cachedInputTokens: tokens(u.cached_input_tokens), cacheWriteTokens: tokens(u.cache_write_input_tokens), outputTokens: tokens(u.output_tokens), reasoningTokens: tokens(u.reasoning_output_tokens), costUsd: null } };
+  }
   if (event.type === 'turn.failed') {
     const message = str(event.error?.message) ?? 'the turn failed';
     if (message.includes('401 Unauthorized')) return { authFailed: true };

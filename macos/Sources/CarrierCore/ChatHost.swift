@@ -205,6 +205,12 @@ public protocol ChatHost {
     /// The accounts of `providers.json` with their state, the harnesses found with no account and the local servers with their models; a file
     /// that does not match answers `problem`. Only for a host whose hello lists `providers`.
     func providers() async throws -> HostProviders
+    /// Live quotas per account and what was used, filtered as asked. Only for a host whose hello lists `usage`; the host reads the machine's
+    /// CLIs and logs, so it can take seconds.
+    func usage(_ query: UsageQuery) async throws -> UsageSnapshot
+    /// Sets or clears the price of a model for the cost in `usage`; refused in words for a rate the host cannot use. Only for a host whose
+    /// hello lists `usageOverride`.
+    func usageOverride(_ override: UsageOverride) async throws
     /// The events of a session after the cursor, at most `limit` (the host takes 1 to 200).
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
     /// Opens a closed session's agent again; the host refuses a `send` to one that is not live.
@@ -257,6 +263,12 @@ extension ChatHost {
 
     /// A host that cannot list the AI tools refuses; the app only asks one that lists `providers`.
     public func providers() async throws -> HostProviders { throw ControlError.remote("the chat host does not support providers") }
+
+    /// A host that cannot say what was used refuses; the app only asks one that lists `usage`.
+    public func usage(_ query: UsageQuery) async throws -> UsageSnapshot { throw ControlError.remote(usageNeedsNewerHost) }
+
+    /// A host that cannot price refuses; the app only asks one that lists `usageOverride`.
+    public func usageOverride(_ override: UsageOverride) async throws { throw ControlError.remote(usageNeedsNewerHost) }
 
     /// A host that cannot rename refuses; the app only asks one that lists `rename`.
     public func rename(_ id: String, _ title: String) async throws { throw ControlError.remote("the chat host does not support rename") }
@@ -388,6 +400,19 @@ public struct SocketChatHost: ChatHost {
         return try await Task.detached { try chatRequest(path, "health", requires: .health, fields: fields, timeout: 15) }.value
     }
 
+    /// Each account's probe has its own seconds (Claude's takes about five), run in parallel, and the logs are read after them.
+    public func usage(_ query: UsageQuery) async throws -> UsageSnapshot {
+        let fields = query.wire
+        let path = socketPath()
+        return try await Task.detached { try usageRequest(path, "usage", requires: .usage, fields: fields, timeout: 45) }.value
+    }
+
+    public func usageOverride(_ override: UsageOverride) async throws {
+        let fields = override.wire
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try usageRequest(path, "usageOverride", requires: .usageOverride, fields: fields) }.value
+    }
+
     /// Every probe of the host has its five seconds, in parallel, and a version is read after them, so the wait is longer than the 5 of the other requests.
     public func providers() async throws -> HostProviders {
         let path = socketPath()
@@ -489,7 +514,7 @@ private func wireId(_ id: String) throws -> String {
 }
 
 /// A string as a JSON literal, so quotes, newlines and anything else in it stay inside the string on the wire.
-private func jsonString(_ text: String) -> String { String(decoding: (try? JSONEncoder().encode(text)) ?? Data("\"\"".utf8), as: UTF8.self) }
+func jsonString(_ text: String) -> String { String(decoding: (try? JSONEncoder().encode(text)) ?? Data("\"\"".utf8), as: UTF8.self) }
 
 /// The reply of `open`: only the new session's id is read.
 /// Where a plan works: a folder that exists, a repository `owner/name` (the host clones it into its projects folder when the message is sent, or
@@ -668,6 +693,13 @@ fileprivate func chatRequest<Reply: Decodable>(
         throw ControlError.remote("the chat host does not support \(command)")
     }
     do { return try JSONDecoder().decode(Reply.self, from: data) } catch { throw ControlError.badLine }
+}
+
+/// `chatRequest`, but a host that does not list the request is told in the words of what to do about it.
+fileprivate func usageRequest<Reply: Decodable>(_ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String, timeout: TimeInterval = 5) throws -> Reply {
+    do { return try chatRequest(path, command, requires: capability, fields: fields, timeout: timeout) } catch ControlError.remote(let reason) where reason == "the chat host does not support \(command)" {
+        throw ControlError.remote(usageNeedsNewerHost)
+    }
 }
 
 public let hostNotRunning = "The chat host is not running"

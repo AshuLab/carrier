@@ -90,3 +90,10 @@ test('chat takes --list or --stop, and chat-host nothing', () => {
   expect(parseCli(['chat', '--delete', 'a'])).toMatchObject({ ok: true, flags: { delete: 'a' } });
   expect(parseCli(['chat-host'])).toMatchObject({ ok: true, command: 'chat-host' });
 });
+
+test('usage takes --json, --refresh, --days, --provider and --source, and the help lists it', () => {
+  expect(parseCli(['usage'])).toMatchObject({ ok: true, command: 'usage', flags: {} });
+  expect(parseCli(['usage', '--json', '--refresh', '--days', '7', '--provider', 'codex', '--source', 'chat'])).toMatchObject({ ok: true, command: 'usage', flags: { json: true, refresh: true, days: '7', provider: 'codex', source: 'chat' } });
+  expect(parseCli(['usage', '--days'])).toMatchObject({ ok: false });
+  expect(usage()).toContain('carrier usage ');
+});

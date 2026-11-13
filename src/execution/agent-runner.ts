@@ -1,6 +1,6 @@
 import type { AccountRuntime } from '../config/providers.ts';
 import type { HarnessName } from '../harnesses/names.ts';
-import type { failureKinds } from '../storage/executions.ts';
+import type { ExecutionUsage, failureKinds } from '../storage/executions.ts';
 import type { AgentEvent } from './events.ts';
 
 export interface AgentTask extends AccountRuntime {
@@ -44,7 +44,7 @@ export type AgentFailure = {
   hostLoad: number | null; // one-minute load average, same cases
 };
 
-export type AgentDone = { exit: AgentExit; sessionId?: string; failure?: AgentFailure };
+export type AgentDone = { exit: AgentExit; sessionId?: string; failure?: AgentFailure; usage?: ExecutionUsage };
 
 export interface AgentRun {
   /** Called as soon as the session exists. */

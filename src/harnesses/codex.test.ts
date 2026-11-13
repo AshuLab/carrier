@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { buildPrompt } from '../prompts/build-prompt.ts';
+import { addUsage } from '../execution/usage.ts';
 import { buildCodexCommand, parseCodexLine } from './codex.ts';
 
 const task: AgentTask = {
@@ -60,7 +61,7 @@ test('parseCodexLine reads session, login and lost-session errors', () => {
   // retries before the turn ends are not the end of the run
   expect(parseCodexLine('{"type":"error","message":"Reconnecting... 2/5 (unexpected status 401 Unauthorized: Missing bearer)"}')).toBeUndefined();
   expect(parseCodexLine('{"type":"turn.failed","error":{"message":"stream disconnected"}}')).toEqual({ failure: { kind: 'api_error', detail: 'stream disconnected' } });
-  expect(parseCodexLine('{"type":"turn.completed","usage":{}}')).toBeUndefined();
+  expect(parseCodexLine('{"type":"turn.completed"}')).toBeUndefined();
   expect(parseCodexLine('2026-10-16T01:37:13Z ERROR codex_api: HTTP error: 401 Unauthorized')).toBeUndefined();
 });
 
@@ -77,8 +78,27 @@ test('a local model selects its harness with -c, which `exec resume` accepts (it
 test('parseCodexLine reads the session from a real captured stream and never throws on a line', () => {
   const lines = readFileSync(new URL('./codex-exec.fixture.jsonl', import.meta.url), 'utf8').trim().split('\n');
   const signals = lines.map((line) => parseCodexLine(line));
-  expect(signals.filter(Boolean)).toEqual([{ session: '00000000-0000-7000-8000-000000000000' }]);
+  expect(signals.filter(Boolean)).toEqual([
+    { session: '00000000-0000-7000-8000-000000000000' },
+    { usage: { inputTokens: 21144, cachedInputTokens: 38400, cacheWriteTokens: 0, outputTokens: 314, reasoningTokens: 0, costUsd: null } },
+  ]);
   expect(lines.length).toBe(15);
+});
+
+const completed = (usage: unknown) => JSON.stringify({ type: 'turn.completed', usage });
+
+test('codex usage: non-cached input is input minus cached, never negative; bad fields are 0', () => {
+  expect(parseCodexLine(completed({ input_tokens: 100, cached_input_tokens: 30, cache_write_input_tokens: 5, output_tokens: 20, reasoning_output_tokens: 8 }))).toEqual({
+    usage: { inputTokens: 70, cachedInputTokens: 30, cacheWriteTokens: 5, outputTokens: 20, reasoningTokens: 8, costUsd: null },
+  });
+  expect(parseCodexLine(completed({ input_tokens: 10, cached_input_tokens: 30, output_tokens: -4, reasoning_output_tokens: 'x' }))?.usage).toMatchObject({ inputTokens: 0, cachedInputTokens: 30, outputTokens: 0, reasoningTokens: 0 });
+  expect(parseCodexLine(completed('nope'))).toBeUndefined();
+});
+
+test('codex usage of a multi-turn run adds up across every turn.completed', () => {
+  const turns = [completed({ input_tokens: 100, cached_input_tokens: 40, output_tokens: 10 }), completed({ input_tokens: 50, cached_input_tokens: 50, output_tokens: 5 })];
+  const total = turns.map((line) => parseCodexLine(line)?.usage).reduce(addUsage);
+  expect(total).toMatchObject({ inputTokens: 60, cachedInputTokens: 90, outputTokens: 15 });
 });
 
 test('the prompt carries the 401 rule only when the context has a forgeAgent', () => {

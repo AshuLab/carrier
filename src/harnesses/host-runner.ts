@@ -5,6 +5,8 @@ import { freemem, loadavg } from 'node:os';
 import { promisify } from 'node:util';
 import type { AgentDone, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { failureDetail } from '../execution/failure.ts';
+import { addUsage } from '../execution/usage.ts';
+import type { ExecutionUsage } from '../storage/executions.ts';
 import { createEventState, type AgentEvent } from '../execution/events.ts';
 import { claudeAdapter } from './claude.ts';
 import { agyAdapter } from './agy.ts';
@@ -132,6 +134,7 @@ export class HostAgentRunner implements AgentRunner {
       let authFailed = false;
       let sessionLost = false;
       let adapterFailure: LineSignal['failure'];
+      let usage: ExecutionUsage | undefined;
       const eventState = createEventState();
       // The events of the lines of one chunk, to be reported together; only stdout carries the stream.
       let batch: AgentEvent[] = [];
@@ -145,6 +148,7 @@ export class HostAgentRunner implements AgentRunner {
         authFailed ||= signalOfLine?.authFailed === true;
         sessionLost ||= signalOfLine?.sessionUnavailable === true;
         adapterFailure ??= signalOfLine?.failure;
+        usage = addUsage(usage, signalOfLine?.usage);
       };
       const reportEvents = () => {
         if (batch.length > 0) eventSinks.forEach((cb) => cb(batch));
@@ -192,12 +196,12 @@ export class HostAgentRunner implements AgentRunner {
       out.flush();
       err.flush();
 
-      if (reason) return { exit: reason, sessionId };
-      if (authFailed) return { exit: 'auth_failed', sessionId };
-      if (sessionLost) return { exit: 'session_unavailable', sessionId };
+      if (reason) return { exit: reason, sessionId, usage };
+      if (authFailed) return { exit: 'auth_failed', sessionId, usage };
+      if (sessionLost) return { exit: 'session_unavailable', sessionId, usage };
       if (startError !== undefined) return { ...spawnError(`cannot start ${command.bin}: ${startError}`), sessionId };
-      if (code === 0) return { exit: 'ok', sessionId };
-      return { exit: 'failed', sessionId, failure: processFailure(code, killedBy, adapterFailure) };
+      if (code === 0) return { exit: 'ok', sessionId, usage };
+      return { exit: 'failed', sessionId, usage, failure: processFailure(code, killedBy, adapterFailure) };
     };
 
     const done = start().finally(() => this.runs.delete(task.executionId));

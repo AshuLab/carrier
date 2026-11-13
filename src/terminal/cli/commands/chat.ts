@@ -9,10 +9,10 @@ import { connectControl, ControlUnreachable, type CarrierClient } from '../contr
 import { startDetached } from '../detached.ts';
 import { socketGone } from './control.ts';
 
-/** A client on the chat host's socket; null when no host answers. */
-async function connectHost(path: string): Promise<CarrierClient | null> {
+/** A client on the chat host's socket; null when no host answers. `timeoutMs` bounds the hello and each request (5 s when left out). */
+async function connectHost(path: string, timeoutMs?: number): Promise<CarrierClient | null> {
   try {
-    return await connectControl(path);
+    return await connectControl(path, { timeoutMs });
   } catch (error) {
     if (error instanceof ControlUnreachable === false) throw error;
     if (error.reason === 'not-running') return null;
@@ -24,11 +24,11 @@ async function connectHost(path: string): Promise<CarrierClient | null> {
 export const POLL_MS = 200;
 
 /** The chat host's client, started on demand. */
-async function hostClient(socketPath: string, start: typeof startDetached): Promise<CarrierClient> {
-  const client = await connectHost(socketPath);
+export async function hostClient(socketPath: string, start: typeof startDetached, timeoutMs?: number): Promise<CarrierClient> {
+  const client = await connectHost(socketPath, timeoutMs);
   if (client !== null) return client;
   await start({ label: 'The chat host', args: ['chat-host'], socketPath, logPath: join(chatLogsOf(), 'start.log') });
-  const started = await connectHost(socketPath);
+  const started = await connectHost(socketPath, timeoutMs);
   if (started === null) throw new CliError(1, 'The chat host stopped answering right after it started');
   return started;
 }

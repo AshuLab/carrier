@@ -2,6 +2,7 @@
 /// these, in the order of the cases.
 public enum SettingsPage: String, CaseIterable {
     case general = "General", notifications = "Notifications", appearance = "Appearance", sidebar = "Sidebar", chat = "Chat"
+    case dictation = "Dictation"
     case keybindings = "Keybindings"
     case updates = "Updates"
     case providers = "Providers"
@@ -26,7 +27,7 @@ public enum SettingsPage: String, CaseIterable {
 
     public var group: Group {
         switch self {
-        case .general, .notifications, .appearance, .sidebar, .chat, .keybindings, .updates: .app
+        case .general, .notifications, .appearance, .sidebar, .chat, .dictation, .keybindings, .updates: .app
         case .providers, .repos, .agents, .behavior, .engine: .carrier
         case .sessions, .health: .legacy
         }
@@ -40,6 +41,7 @@ public enum SettingsPage: String, CaseIterable {
         case .appearance: "paintbrush"
         case .sidebar: "sidebar.left"
         case .chat: "bubble.left.and.text.bubble.right"
+        case .dictation: "mic"
         case .keybindings: "keyboard"
         case .updates: "arrow.down.circle"
         case .providers: "brain"
@@ -60,6 +62,7 @@ public enum SettingsPage: String, CaseIterable {
         case .appearance: "Theme, color, text size, density and the font of code"
         case .sidebar: "What the sessions list shows"
         case .chat: "The message box and the conversation"
+        case .dictation: "Speak instead of typing"
         case .keybindings: "The keys that run the app's actions"
         case .updates: "This version, and whether Carrier looks for a newer one by itself"
         case .providers: "The AI tools on this Mac and their accounts"

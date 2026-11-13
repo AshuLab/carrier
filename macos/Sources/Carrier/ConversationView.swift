@@ -58,7 +58,11 @@ struct ConversationView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
                     }
                     if let note = draft?.watchNotes[model.sessionId] {
-                        Label(note.text, systemImage: note.failed ? "exclamationmark.triangle.fill" : "eye.fill").font(.scaled(11)).foregroundStyle(note.failed ? .orange : .secondary).textSelection(.enabled)
+                        if note.failed {
+                            ProblemLine(text: note.text, font: .scaled(11)).textSelection(.enabled)
+                        } else {
+                            Label(note.text, systemImage: "eye.fill").font(.scaled(11)).foregroundStyle(.secondary).textSelection(.enabled)
+                        }
                     }
                     let open = openOutcome(model.rows)
                     let (feed, closing) = shown
@@ -222,7 +226,7 @@ private struct ConversationBox: View {
             MessageBox(
                 text: $model.draft, placeholder: "Message the agent", minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, canSendWithText: true, busy: model.busy,
-                focus: $boxFocused, commands: model.shownCommands, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
+                focus: $boxFocused, commands: model.shownCommands, dictationOwner: "session:\(model.sessionId)", send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
                 ComposerMenuButton(
                     providers: model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: model.agent)], agent: model.agent, locked: true,

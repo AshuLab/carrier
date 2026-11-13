@@ -26,7 +26,7 @@ Who works here is where the app grows. Today it never reads `profiles` or the gl
 
 The Lead reviewer row is shown only when the global config has a Lead reviewer. A repo may in fact add one the global config lacks, but only by giving its identity, provider and model together, and this epic does not offer that. A failed "can sign here" check offers Use another identity, which opens that role's form. The button Open Agents of the prototype is not shown in this epic, because the page it opens comes from the Agents epic (`AshuLab/carrier#778`), which adds the button; until then the inherited text is read-only.
 
-A repo just added is in the file but the running engine has not loaded it. The page says so, "Carrier reads it when it starts", in place of the epics and the last check, and its checks run from the doctor all the same. When Carrier is stopped, every repo reads like that.
+A repo just added is in the file but the running engine has not loaded it. The page says so, "Carrier reads it when it starts" (since [ADR 0023](../adr/0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md), "Carrier applies it to the next epic" when the engine lists `reload`), in place of the epics and the last check, and its checks run from the doctor all the same. When Carrier is stopped, every repo reads like that.
 
 What was weighed and cut: merging Repos with the page of the global roles (Agents) as an "All repos" entry at the top of the list, which keeps defaults and exceptions together but moves failover and the Lead reviewer's switch into a page whose items are repos; a pause switch per repo, which needs a new key and has no demand while a repo with no ready epic does nothing; the engine returning a structured per-repo status over the control socket, which is the best shape for a later web client but a larger change than the doctor's two fields, which the app already runs; and checking `docs/agents/solve.md` and the branch protection.
 
@@ -40,7 +40,7 @@ The documentation changes with it: `docs/troubleshooting.md` and the README wher
 4. A person sees the watched repos with their dot and line, adds one from the picker, and stops watching one after the question, except the only one.
 5. A person opens a repo and sees its Status: epics, last check, the clone with Reveal, and the link to GitHub.
 6. A person sees the four checks of a repo, each ok, failed with its reason, or waiting, from a doctor run on opening the page and on Check again.
-7. A repo that is in the file but not loaded by the running engine, or any repo while Carrier is stopped, says "Carrier reads it when it starts" instead of epics and last check.
+7. A repo that is in the file but not loaded by the running engine, or any repo while Carrier is stopped, says "Carrier reads it when it starts" (or, with an engine that lists `reload`, "Carrier applies it to the next epic") instead of epics and last check.
 8. A person sees, for each role of a repo, the value it inherits from the global config or its own, with the Lead reviewer row only when the global config has one.
 9. A person changes a role's identity, provider, model, effort or persona for one repo, each field on its own, and the page writes only that repo's `agents` entry, leaving every other key of the file as it was.
 10. A person resets a role and its entry is gone from the file.

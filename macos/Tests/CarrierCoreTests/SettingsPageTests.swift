@@ -2,8 +2,15 @@ import Testing
 @testable import CarrierCore
 
 @Test func theAppGroupHasNoHeadingAndHoldsGeneralThenNotificationsAndEndsWithUpdates() {
+    let pages = SettingsPage.pages(in: .app)
     #expect(SettingsPage.Group.app.heading == nil)
-    #expect(SettingsPage.pages(in: .app) == [.general, .notifications, .appearance, .sidebar, .chat, .keybindings, .updates])
+    #expect(pages.first == .general && pages[1] == .notifications && pages.last == .updates)
+}
+
+@Test func dictationIsInTheAppGroupRightAfterChat() throws {
+    let pages = SettingsPage.pages(in: .app)
+    #expect(try #require(pages.firstIndex(of: .dictation)) == (try #require(pages.firstIndex(of: .chat))) + 1)
+    #expect(SettingsPage.dictation.icon == "mic" && SettingsPage.dictation.detail == "Speak instead of typing")
 }
 
 @Test func legacyHasItsHeadingAndHoldsSessionsAndHealth() {

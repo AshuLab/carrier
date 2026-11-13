@@ -57,7 +57,7 @@ runner.behavior = (task) => {
   return { sessionId: `s-${task.epic}`, exit: 'hang' };
 };
 
-const app = await startCarrier(loaded.config, root, {
+const app = await startCarrier(loaded.config, root, () => loaded.config, {
   makeGitHub: () => github,
   makeWorkspaces: () => new FakeWorkspaces(),
   makeRunner: () => runner,

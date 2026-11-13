@@ -6,11 +6,13 @@ import SwiftUI
 /// right, closed by the corner button or Esc. The readiness banner shows over every section while something is missing or being looked for.
 struct SettingsSheet: View {
     let state: ConnectionState?
+    let canReload: Bool
     @ObservedObject var setup: SetupController = .shared
     @ObservedObject private var start = StartController.shared
     @Binding var tab: SettingsPage
     @AppStorage(startOnOpenKey) private var startOnOpen = false
     @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
+    @StateObject private var github = EngineIdentityStore()
     @State private var headerNote: SettingsHeaderNote?
     /// What `carrier --version` and `node --version` printed for the programs the page shows; nil until read, or when they did not answer.
     @State private var versions = ProgramVersions()
@@ -59,12 +61,13 @@ struct SettingsSheet: View {
             case .appearance: AppearanceTabView()
             case .sidebar: SidebarTabView()
             case .chat: ChatTabView()
+            case .dictation: DictationTabView()
             case .keybindings: KeybindingsTabView()
             case .updates: UpdatesTabView()
             case .providers: ProvidersTabView(openAgents: { tab = .agents })
             case .engine: engine(notConfigured: notConfigured).task(id: versionsKey) { versions = await ProgramVersions.read(setup) }
             case .behavior: BehaviorTabView()
-            case .repos: ReposTabView(state: state, openAgents: { tab = .agents })
+            case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { tab = .agents })
             case .agents: AgentsTabView()
             case .sessions: SessionsTabView()
             case .notifications: NotificationsTabView()
@@ -83,10 +86,17 @@ struct SettingsSheet: View {
         let programs = EnginePrograms(
             carrier: setup.carrier, carrierIsOwn: setup.carrierIsOwn, carrierVersion: versions.carrier, setup: setup.settings, nodeVersion: versions.node
         )
-        ForEach(engineGroups(configured: notConfigured == nil, programs: programs), id: \.title) { group in
+        let folder = carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
+        ForEach(
+            engineGroups(
+                configured: notConfigured == nil, programs: programs, identity: github.identity, folder: folder, home: NSHomeDirectory(),
+                exists: { FileManager.default.fileExists(atPath: $0) }
+            ),
+            id: \.title
+        ) { group in
             SettingsGroup(title: group.title) {
                 ForEach(Array(group.rows.enumerated()), id: \.element.title) { index, row in
-                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0, note: row.note) {
+                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0, note: row.note ?? row.file?.shown, problem: row.problem) {
                         switch row.id {
                         case .startOnOpen: Toggle(row.title, isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
                         case .confirmStop: Toggle(row.title, isOn: $confirmStop).labelsHidden().toggleStyle(.switch)
@@ -97,11 +107,39 @@ struct SettingsSheet: View {
                                 if setup.detecting { ProgressView().controlSize(.small) } else { Label("Detect", systemImage: "arrow.clockwise") }
                             }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(setup.detecting)
+                        case .orchestratorProfile: identityChoice(row.title)
+                        case .carrierFolder, .logs, .startLog:
+                            if let file = row.file {
+                                Button {
+                                    let url = URL(fileURLWithPath: file.path)
+                                    if file.action == .reveal { NSWorkspace.shared.activateFileViewerSelecting([url]) } else { NSWorkspace.shared.open(url) }
+                                } label: { Label(file.buttonTitle, systemImage: file.exists ? (file.action == .reveal ? "folder" : "doc.text") : "questionmark.folder").labelStyle(.titleAndIcon) }
+                                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(file.exists == false)
+                            }
                         }
                     }
                 }
             }
         }
+        if let failure = github.failure {
+            Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+        }
+        ReloadNote()
+    }
+
+    /// The default first, then the profiles of the file; an undeclared one the file names is on the list too (`EngineIdentity.choices`).
+    private func identityChoice(_ title: String) -> some View {
+        let identity = github.identity
+        return ChoicePopUp(
+            label: title,
+            options: [(value: String?.none, title: EngineIdentity.defaultTitle)] + (identity?.choices ?? []).map { (value: String?.some($0), title: $0) },
+            selection: Binding(get: { identity?.current }, set: { github.choose($0) }),
+            width: 180
+        )
+        .disabled(identity == nil)
+        .onAppear { github.load() }
+        .onChange(of: start.configExists) { github.load() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in github.load() }
     }
 }
 

@@ -136,9 +136,9 @@ const realDeps: DoctorDeps = {
   mint: (profile, repo) => profileToken(profile)(repo),
   listLabels: (config, repo, folder) =>
     new GhGitHub({
-      profile: config.profiles[config.orchestratorProfile]!,
+      profile: () => config.profiles[config.orchestratorProfile]!,
       cwd: forgeCwd(enginePlacesOf(folder)),
-      timeoutMs: config.limits.githubCallTimeoutSeconds * 1000,
+      timeoutMs: () => config.limits.githubCallTimeoutSeconds * 1000,
     }).listLabels(repo),
 };
 

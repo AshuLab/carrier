@@ -57,6 +57,7 @@ struct PanelView: View {
         case .sessions: return "Sessions"
         case .session: return openSession.map(conversationTitle) ?? "Session"
         case .newSession: return "New session"
+        case .usage: return "Usage"
         default: return "Carrier"
         }
     }
@@ -123,6 +124,8 @@ struct PanelView: View {
                         SessionsHomeView(sessions: model.sessions, sort: $sessionSort, newSession: { shell.selection = .newSession }) { shell.selection = .session(id: $0) }
                     } else if shell.selection == .archive {
                         ArchiveView(rows: model.sessions.rows, sort: $archiveSort) { shell.selection = .session(id: $0) }
+                    } else if shell.selection == .usage {
+                        UsageView(store: AppUsage.store)
                     } else if shell.selection == .newSession {
                         NewSessionView(model: model.newSession, openHealth: shell.openHealth) { shell.selection = .session(id: $0) }
                     } else if let emptyPage {
@@ -244,7 +247,7 @@ private struct Running: View {
         case .epic(let repo, let issue):
             // not in the snapshot (any more)
             Text("\(repo) #\(issue)")
-        case .home, .sessions, .session, .newSession, .archive:
+        case .home, .sessions, .session, .newSession, .archive, .usage:
             EmptyView()  // PanelView shows these pages
         }
     }

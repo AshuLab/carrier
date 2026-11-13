@@ -2,9 +2,31 @@
 
 Read [README.md](README.md) first, then [AGENTS.md](AGENTS.md) for the layout and conventions. Docs: [configuration](docs/configuration.md), [preparing a repo](docs/preparing-a-repo.md), [troubleshooting](docs/troubleshooting.md), [glossary](docs/glossary.md) and the [ADRs](docs/adr/).
 
+## Getting started on the team
+
+1. Install Node 26, pnpm 12, `gh` and a recent Claude Code.
+   Claude Code reads `AGENTS.md` by itself, and the folders under `src/` have their own `AGENTS.md` that load when an agent works there (Claude Code 2.1.290 or later).
+   There is no `CLAUDE.md` on purpose: it would shadow `AGENTS.md`.
+2. Check the clone: `pnpm install && pnpm typecheck && pnpm test`.
+   No tokens and no agents are needed.
+3. Install the Solve skills the flow depends on, as in [preparing a repo](docs/preparing-a-repo.md#the-repo-uses-solve).
+   How work moves is in [docs/agents/solve-flow.md](docs/agents/solve-flow.md).
+4. Pick a ticket: an open `solve:refined` issue with no assignee and no open blocker (the query is under "find the next startable slice" in [docs/agents/solve.md](docs/agents/solve.md)).
+   Claim it with `gh issue edit <n> --add-assignee @me`.
+5. Branch and open the PR as in [Branches and PRs](#branches-and-prs).
+
+[Agent Forge](https://github.com/AshuLab/agent-forge) gives Carrier separate GitHub bot identities for the author and the reviewer.
+You do not need it to develop or to run the unit tests, only to run real epics (your own `gh` login also works there).
+
+Any teammate reviews a PR into `main`.
+Only the maintainer (Diego) cuts releases: see [releasing](docs/releasing.md).
+
 ## Setup and checks
 
-pnpm only, never npm or yarn. Node 26 runs the TypeScript directly.
+pnpm only, never npm or yarn.
+
+**Working on the repo needs Node 26**: it runs the TypeScript directly, with no build step.
+The published package runs on Node 22+ (it is compiled to `dist/`), which is what the README states.
 
 ```bash
 pnpm install
@@ -50,7 +72,7 @@ carrier/
 │   │   ├── wizard/     #   `carrier init`: the flow, what it asks (questions/), what it needs from the machine (deps), the recap
 │   │   └── dashboard/  #   the panel: renderers (dashboard, plain), keys and their state, agent-output tail, each epic's stage history
 │   ├── status/         # what Carrier is doing right now, read from SQLite (the view any front-end draws)
-│   ├── control/        # the control socket: snapshot, pause/resume, check, stop, sessions, events, epic, files, availableRepos (a page at a time), resumeEpic
+│   ├── control/        # the control socket: snapshot, pause/resume, check, stop, sessions, events, epic, files, fileDiff, availableRepos (a page at a time), resumeEpic, reload
 │   ├── doctor/         # the checks of `carrier doctor` and the remedy for each failure
 │   ├── config/         # config schema, the accounts' `providers.json`, defaults, loading/merging, per-repo resolution, JSON Schema, default path
 │   ├── orchestration/  # engine: polling, scheduler, stages, retries, restart, final-PR rules, ports + fakes
@@ -99,19 +121,64 @@ The app finds `carrier` by itself (the Homebrew one, `/opt/homebrew/bin/carrier`
 
 Every user-visible change adds one line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md), in the same PR, under Added, Changed, Deprecated, Removed, Fixed or Security ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)). Short, plain English, from the point of view of someone using Carrier. A change nobody can see (tests, refactors, CI) needs no line.
 
+Everyone edits `## [Unreleased]`, so two branches often conflict there: keep both lines.
+
+## Writing docs
+
+New or edited prose has one sentence per line.
+Markdown renders it the same, and a diff then shows the sentence that changed instead of the whole paragraph.
+Files are not reformatted in bulk: they get it as they are edited.
+
 ## Versions
 
 [SemVer](https://semver.org/). While Carrier is 0.x, a breaking or large change bumps the minor version and a fix bumps the patch.
 
 ## Branches and PRs
 
-`main` is the only long-lived branch; there is no `develop` branch. A PR into `main` needs one review and the `CI` check (typecheck and unit tests, run once the PR is not a draft); force-pushes are refused. Epic branches have no rules, so `ship` merges slices into them unattended.
+`main` is the only long-lived branch; there is no `develop` branch.
+Every change reaches `main` through a PR, and PRs merge with merge commits, never squash or rebase.
+A PR into `main` that is not a draft runs CI (typecheck and unit tests) and needs one teammate's review.
+Force-pushes to `main` are refused, and epic branches have no rules, so `ship` merges slices into them unattended.
 
-- Work happens on an epic branch `feat/<feature>/epic`, cut from `main`, with slice branches `feat/<feature>/<NNN-slug>` as its siblings. Each slice gets a PR into the epic branch.
-- PRs merge with merge commits. Never squash or rebase.
-- The epic branch gets one reviewed PR to `main`.
+There are two lanes.
+If the change needs a decision written down (a spec, an ADR) or more than one PR, it is an epic; otherwise it goes direct.
+
+### Epic lane
+
+The solve flow, and what Carrier itself runs.
+
+- The epic branch `feat/<feature>/epic` is cut from `main`, with slice branches `feat/<feature>/<NNN-slug>` as its siblings.
+- Each slice gets a PR into the epic branch, and `ship` merges it.
+  Slice PRs need no human review and run no CI.
+- The epic branch gets one PR into `main`, which `ship` opens as a draft.
+- The order to `main`: the reviewer marks the PR ready when starting the review, CI runs, and `land` merges only once CI is green.
+  `land`'s own `gh pr ready` is then a no-op.
+
+### Direct lane
+
+Small changes that need no spec or slicing: docs, dependency updates, a contained bug fix, CI tweaks.
+
+- Branch `<type>/<slug>` from `main`, where `<type>` is `fix`, `docs`, `chore`, `ci` or `test`.
+  Never `feat/<slug>`: git forbids a branch `feat/x` next to `feat/x/epic`, so a later epic with the same slug could not start.
+  Features go through the epic lane.
+- One PR into `main`; CI runs, a teammate reviews, it merges with a merge commit.
+- A user-visible fix still adds its CHANGELOG line.
 
 The commands for the branches are in [docs/agents/solve.md](docs/agents/solve.md) and the flow is in [docs/agents/solve-flow.md](docs/agents/solve-flow.md).
+
+### Numbered files
+
+Drizzle migrations (`src/storage/migrations/`, `src/chat/migrations/`: the `NNNN_*.sql` file plus its `meta/` snapshot and journal) and ADRs (`docs/adr/NNNN-*.md`) are numbered in sequence, so two branches can take the same number.
+The branch that merges second fixes its number.
+Before merging into `main`, merge `origin/main` into your branch (merge, never rebase); if your number is taken:
+
+- Migration: delete your generated migration and its `meta/` snapshot, restore `meta/_journal.json` from `main` and run `pnpm db:generate` again.
+  Never edit the journal by hand.
+- ADR: rename it to the next free number and update every link to it (grep the old file name).
+
+An epic branch lives longer, so it is usually the second: the rule applies to its PR into `main`, not to every slice.
+The two ADRs already numbered `0014` and the two numbered `0023` stay as they are.
+Specs and the glossary are named by slug and need no rule.
 
 ## Releases
 

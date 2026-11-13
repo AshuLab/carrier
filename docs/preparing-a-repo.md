@@ -4,7 +4,17 @@ Carrier does not prepare epics, it runs them. A repo is ready for it when these 
 
 ## The repo uses Solve
 
-Carrier runs the [Solve](https://github.com/AshuLab/skills) skills (`ship`, `code-review`, `code-post`) through the agents, so the repo needs Solve's setup (`solve:setup`): its labels and `docs/agents/solve.md`. Epics and tickets are GitHub issues created by Solve. The skills have to be available to each agent CLI you use (for Claude Code, the Solve plugin; Antigravity has its own requirement, below).
+Carrier runs the [Solve](https://github.com/AshuLab/skills) skills (`ship`, `code-review`, `code-post`) through the agents, so the repo needs Solve's setup (`solve:setup`): its labels and `docs/agents/solve.md`.
+Epics and tickets are GitHub issues created by Solve.
+The skills have to be available to each agent CLI you use.
+For Claude Code, install the Solve plugin:
+
+```
+/plugin marketplace add AshuLab/skills
+/plugin install solve@ashulab
+```
+
+Codex installs it as in the [skills README](https://github.com/AshuLab/skills#install); Antigravity has its own requirement, below.
 
 ## The epic is ready
 

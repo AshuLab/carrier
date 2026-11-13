@@ -4,6 +4,7 @@ import SwiftUI
 
 /// The Behavior tab: the values of `config.json` (CarrierCore/EngineConfig.swift), in the three
 /// groups of `behaviorGroups` (CarrierCore/BehaviorPage.swift). Every change that the engine would accept is written to the file as it is made, in place; nothing restarts Carrier.
+/// A running Carrier is asked to read it when the person pauses (a number typed as "30" must not reach it as 3 and then 30), or at once when they leave.
 /// The note about saving, or why it cannot, is in the page's header (`SettingsHeaderNoteKey`).
 struct BehaviorTabView: View {
     @ObservedObject private var start = StartController.shared
@@ -14,8 +15,9 @@ struct BehaviorTabView: View {
     @State private var unreadable = false
     @State private var failure: String?
     @State private var note: String?
-    /// the autosave that waits for the person to stop typing
-    @State private var saveLater: Task<Void, Never>?
+    /// the ask of the engine that waits for the person to stop typing; the file is already written
+    @State private var askLater: Task<Void, Never>?
+    @State private var confirmingReset = false
     /// what the engine answered to the last save, from any tab
     private let engine = ReloadStatus.shared
 
@@ -28,9 +30,9 @@ struct BehaviorTabView: View {
         }
         if let failure { return SettingsHeaderNote(text: failure, tone: .problem) }
         // the page says a problem answer to VoiceOver itself, once, when it comes (`announcesReloadProblems`)
-        if let words = engine.words { return SettingsHeaderNote(text: words, tone: engine.isProblem ? .problem : .plain, announces: false) }
+        if let words = engine.words { return SettingsHeaderNote(text: words, tone: engine.isProblem ? .problem : .plain, announces: false, asksAgain: engine.isProblem) }
         // "Saved" waits for the engine's answer, so it never shows over a refusal that is on its way
-        if let note, engine.pending == false { return SettingsHeaderNote(text: note, tone: .saved) }
+        if let note, engine.pending == false, askLater == nil { return SettingsHeaderNote(text: note, tone: .saved) }
         return nil
     }
 
@@ -49,10 +51,17 @@ struct BehaviorTabView: View {
             }
             SettingsGroup(title: behaviorReset.group) {
                 SettingsTabRow(title: behaviorReset.title, detail: behaviorReset.detail, first: true) {
-                    Button { draft = EngineConfig(); unparsable = [] } label: { Label(behaviorReset.button, systemImage: "arrow.counterclockwise") }
+                    Button { confirmingReset = true } label: { Label(behaviorReset.button, systemImage: "arrow.counterclockwise") }
                         .disabled(draft == EngineConfig() && unparsable.isEmpty)
                 }
             }
+        }
+        // it rewrites all eight values, and a running Carrier applies them
+        .alert(behaviorReset.title + "?", isPresented: $confirmingReset) {
+            Button("Cancel", role: .cancel) {}
+            Button(behaviorReset.button, role: .destructive) { draft = EngineConfig(); unparsable = [] }
+        } message: {
+            Text(behaviorReset.detail)
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
@@ -60,20 +69,19 @@ struct BehaviorTabView: View {
         .preference(key: SettingsHeaderNoteKey.self, value: headerNote)
         .announcesReloadProblems()
         .onAppear(perform: load)
-        // an edit that waits to be written is written when the person leaves, not lost
+        // the ask that waits for a pause is made when the person leaves, not lost
         .onDisappear { flush() }
+        // and when Carrier quits: the app is gone before a pause ends, so this one waits for the engine
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            if askLater != nil { _ = reloadEngine() }
+        }
         .onChange(of: start.configExists) { load() }
         // a file that is there but unreadable may be fixed in another app: look again when Carrier is back in front (only then, so no edit is lost)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if unreadable { load() } }
         .onChange(of: draft) {
             note = nil
             failure = nil  // it spoke of an earlier edit
-            // a number is written when the person pauses, not at each key: "30" would otherwise reach a running Carrier as 3 and then 30
-            saveLater?.cancel()
-            saveLater = Task {
-                try? await Task.sleep(for: .milliseconds(700))
-                if Task.isCancelled == false { autosave() }
-            }
+            autosave()
         }
     }
 
@@ -145,27 +153,42 @@ struct BehaviorTabView: View {
         draft = saved
     }
 
-    /// Writes the file; the engine is asked after the write and off the main thread (this runs at every edit, and one that hangs must not hold
-    /// the page), and what it answers is `engine`'s. False, with the reason shown, when it could not write.
+    /// Writes the file now, so no edit is lost, and leaves the ask of the engine to `askAfterPause`. False, with the reason shown, when it could not write.
     private func write() -> Bool {
-        let result = saveConfig(path: path, unusable: "The config file could not be read or the values are not valid.", edit: { draft.applied(to: $0) })
+        let result = saveConfig(path: path, unusable: "The config file could not be read or the values are not valid.", edit: { draft.applied(to: $0) }, reload: { nil })
         failure = result.problem
         if result == .saved { saved = draft }
         return result == .saved
     }
 
-    /// Writes now what waits to be written.
+    /// Asks the engine, off the main thread (one that hangs must not hold the page); what it answers is `engine`'s.
+    private func askNow() {
+        askLater?.cancel()
+        askLater = nil
+        engine.ask()
+    }
+
+    /// Asks the engine when the person has paused: a number is written at each key, but "30" must not reach a running Carrier as 3 and then 30.
+    private func askAfterPause() {
+        askLater?.cancel()
+        askLater = Task {
+            try? await Task.sleep(for: .milliseconds(700))
+            if Task.isCancelled == false { askNow() }
+        }
+    }
+
+    /// The ask that waits for a pause is made now.
     private func flush() {
-        guard saveLater != nil else { return }
-        saveLater?.cancel()
-        saveLater = nil
-        autosave()
+        if askLater != nil { askNow() }
     }
 
     /// Writes what the person just changed, when the engine would accept it; a value that is still being typed waits.
     private func autosave() {
         guard unreadable == false, draft != saved, problems.isEmpty else { return }
-        if write() { note = "Saved" }
+        if write() {
+            note = "Saved"
+            askAfterPause()
+        }
     }
 }
 

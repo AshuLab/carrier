@@ -76,9 +76,10 @@ public func repoEpics(_ repo: String, snapshot: PanelSnapshot?) -> RepoEpics? {
     )
 }
 
-/// The confirmation under the list when the person presses ✕ on a repo.
-public func removalText(_ epics: RepoEpics?) -> String {
-    let when = " It takes effect right away."
+/// The confirmation under the list when the person presses ✕ on a repo. `appliesNow`: Carrier applies the change while it runs
+/// (`appliesWhileRunning`); else it reads the list when it starts.
+public func removalText(_ epics: RepoEpics?, appliesNow: Bool) -> String {
+    let when = appliesNow ? " It takes effect right away." : " Carrier reads the list when it starts."
     guard let epics else {
         return "Its epics, if it has any, stop where they are, untouched, and continue if you add the repo again. Nothing is deleted." + when
     }

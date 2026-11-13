@@ -27,15 +27,10 @@ private func freeProfileName(_ name: String, in profiles: [String: Any]) -> Stri
     return candidate
 }
 
-/// Applies `change` to the global `role` in the file at `path`, read just now. A bot the registry (`bots`) does not list, a provider that is not
-/// an account, an empty model, or a role left without profile, provider or model is refused before anything is written.
-public func saveGlobalRole(_ change: RoleChange, role: AgentRole, path: String, accounts: [String], bots: [String], reload: Reload = reloadInBackground) -> RoleSave {
-    saveGlobalRole([change], role: role, path: path, accounts: accounts, bots: bots, reload: reload)
-}
-
-/// Applies `changes` together: one write, or none. With `creating` the role may not be in the file yet (turning the Lead reviewer on), and then
+/// Applies `changes` to the global `role` in the file at `path`, read just now, together: one write, or none. A bot the registry (`bots`) does not list, a provider that is not
+/// an account, an empty model, or a role left without profile, provider or model is refused before anything is written. With `creating` the role may not be in the file yet (turning the Lead reviewer on), and then
 /// the changes have to make the whole role, identity, provider and model, or nothing is written.
-public func saveGlobalRole(_ changes: [RoleChange], role: AgentRole, path: String, accounts: [String], bots: [String], creating: Bool = false, reload: Reload = reloadInBackground) -> RoleSave {
+public func saveGlobalRole(_ changes: [RoleChange], role: AgentRole, path: String, accounts: [String], bots: [String], creating: Bool = false, reload: AfterWrite = reloadInBackground) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), var file = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any] else {
         return .failed("The config file could not be read.")

@@ -245,6 +245,8 @@ public enum ProvidersOutcome: Equatable {
     public private(set) var addProblem: String?
     /// Why the last Add account, edit or Remove did not write the file, in words naming the field; nil when it did or none was made.
     public private(set) var editProblem: String?
+    /// What the engine answered to the last write when that is a plain fact and not a problem (an older engine reads the file when it starts); nil when it applied it or none was made.
+    public private(set) var editNote: String?
     /// An Add, Save or Remove is being written and the engine asked: its buttons wait for the answer, so a second click does not save twice.
     public private(set) var busy = false
 
@@ -294,12 +296,12 @@ public enum ProvidersOutcome: Equatable {
         busy = true
         defer { busy = false }
         addProblem = nil
-        editProblem = nil
+        dismissProblem()
         do {
             let current = try file().read()
             try file().write(applyingAccounts([(name: harness, harness: harness)], to: current))
             // the row leaves "Found, not added" once the host is asked again, so the engine's words go where the accounts show them
-            editProblem = reloadWords(await status.answer(reload))
+            engineSaid(await status.answer(reload))
         } catch ProvidersFileError.notAnObject {
             addProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
         } catch ProvidersFileError.taken(let name) {
@@ -308,11 +310,22 @@ public enum ProvidersOutcome: Equatable {
             log("providers: could not add \(harness): \(error)")
             addProblem = "providers.json could not be written; the file stays as it was."
         }
+        busy = false
         await load()
     }
 
-    /// The person closed the form or editor that showed `editProblem`.
-    public func dismissProblem() { editProblem = nil }
+    /// The person closed the form or editor that showed `editProblem`, or left the page.
+    public func dismissProblem() {
+        editProblem = nil
+        editNote = nil
+    }
+
+    /// What the engine answered to a write: a problem is `editProblem`, a plain fact `editNote`.
+    private func engineSaid(_ outcome: ReloadOutcome) {
+        let words = reloadWords(outcome)
+        editProblem = outcome.isProblem ? words : nil
+        editNote = outcome.isProblem ? nil : words
+    }
 
     /// The Add account of a tool: a new account with a name and, when given, a config folder.
     @discardableResult public func addAccount(name: String, harness: String, configDir: String) async -> Bool {
@@ -333,13 +346,13 @@ public enum ProvidersOutcome: Equatable {
     private func change(_ what: String, _ make: (Data?) throws -> Data) async -> Bool {
         busy = true
         defer { busy = false }
-        editProblem = nil
+        dismissProblem()
         var written = false
         do {
             let file = file()
             try file.write(make(try file.read()))
             written = true
-            editProblem = reloadWords(await status.answer(reload))
+            engineSaid(await status.answer(reload))
         } catch ProvidersFileError.notAnObject {
             editProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
         } catch ProvidersFileError.taken(let name) {
@@ -354,6 +367,8 @@ public enum ProvidersOutcome: Equatable {
             log("providers: could not \(what): \(error)")
             editProblem = "providers.json could not be written; the file stays as it was."
         }
+        // the buttons wait for the engine's answer, not for the look at the host that follows
+        busy = false
         if written { await load() }
         return written
     }

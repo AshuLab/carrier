@@ -42,7 +42,7 @@ private final class GatedEngine: @unchecked Sendable {
     let engine = GatedEngine(answers: [.refused("limits.maxReviews: bad")])
     let status = ReloadStatus(reload: engine.reload)
     let path = try config()
-    let result = saveConfig(path: path, unusable: "no", edit: { $0 }, reload: { MainActor.assumeIsolated { status.ask() }; return .asked })
+    let result = saveConfig(path: path, unusable: "no", edit: { $0 }, reload: { MainActor.assumeIsolated { _ = status.ask() }; return nil })
     #expect(result == .saved && status.pending)
     await answered(status)
     #expect(engine.calls == 1 && status.outcome == .refused("limits.maxReviews: bad"))
@@ -52,7 +52,7 @@ private final class GatedEngine: @unchecked Sendable {
 @MainActor @Test func aSaveThatWroteNothingAsksNothing() async throws {
     let engine = GatedEngine(answers: [.applied])
     let status = ReloadStatus(reload: engine.reload)
-    let result = saveConfig(path: NSTemporaryDirectory() + "carrier-missing-\(UUID().uuidString).json", unusable: "no", edit: { $0 }, reload: { MainActor.assumeIsolated { status.ask() }; return .asked })
+    let result = saveConfig(path: NSTemporaryDirectory() + "carrier-missing-\(UUID().uuidString).json", unusable: "no", edit: { $0 }, reload: { MainActor.assumeIsolated { _ = status.ask() }; return nil })
     #expect(result == .failed("no") && status.pending == false)
     try await Task.sleep(for: .milliseconds(30))
     #expect(engine.calls == 0 && status.outcome == nil)
@@ -81,8 +81,16 @@ private final class GatedEngine: @unchecked Sendable {
     #expect(status.words == nil)
 }
 
+@MainActor @Test func twoEqualRefusalsInARowAreTwoAnswersSoThePageSaysTheSecondAgain() async {
+    let engine = GatedEngine(answers: [.refused("same"), .refused("same")])
+    let status = ReloadStatus(reload: engine.reload)
+    await status.ask().value
+    await status.ask().value
+    #expect(status.outcome == .refused("same") && status.answers == 2)
+}
+
 @MainActor @Test func anEngineThatDoesNotListReloadOrDidNotAnswerIsSaidSoAndNobodyToAskIsNot() {
-    #expect(reloadWords(.nobody) == nil && reloadWords(.applied) == nil && reloadWords(.asked) == nil)
+    #expect(reloadWords(.nobody) == nil && reloadWords(.applied) == nil)
     #expect(reloadWords(.unsupported)?.hasPrefix("Saved. This Carrier does not apply it while it runs") == true)
     #expect(reloadWords(.noAnswer)?.contains("did not answer") == true)
 }

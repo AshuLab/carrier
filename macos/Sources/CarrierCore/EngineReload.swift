@@ -14,8 +14,6 @@ public enum ReloadOutcome: Equatable, Sendable {
     case refused(String)
     /// an engine that was there did not answer (a timeout, a socket error): the file is written, and the engine may or may not have applied it
     case noAnswer
-    /// the ask was handed to `ReloadStatus`, which keeps the answer when it comes
-    case asked
 }
 
 extension ReloadOutcome {
@@ -23,13 +21,17 @@ extension ReloadOutcome {
     public var isProblem: Bool {
         switch self {
         case .refused, .noAnswer: true
-        case .applied, .nobody, .unsupported, .asked: false
+        case .applied, .nobody, .unsupported: false
         }
     }
 }
 
-/// What a writer calls after its own successful write, and only then: asks the running engine to read its settings again.
+/// What asks the running engine to read its settings again, and says what it answered.
 public typealias Reload = () -> ReloadOutcome
+
+/// What a writer calls after its own successful write, and only then: asks the engine without waiting, so there is no answer to give back
+/// (nil), the answer being `ReloadStatus`'s. A `Reload` is one too.
+public typealias AfterWrite = () -> ReloadOutcome?
 
 /// `Reload` for the engine at `socketPath`. Blocks until the engine has answered (3 s to connect, 3 s to reply at most): a page runs it
 /// through `reloadInBackground`, a model that already waits (`await reloadOffMain`) runs it on its own.
@@ -63,6 +65,8 @@ public func reloadOffMain(_ reload: @escaping Reload) async -> ReloadOutcome {
     public private(set) var outcome: ReloadOutcome?
     /// An ask has not been answered yet
     public private(set) var pending = false
+    /// How many answers were kept: a page that says a problem aloud listens to this, since two refusals in a row are equal as outcomes
+    public private(set) var answers = 0
 
     @ObservationIgnored private var asks = 0
     @ObservationIgnored private let reload: Reload
@@ -97,6 +101,7 @@ public func reloadOffMain(_ reload: @escaping Reload) async -> ReloadOutcome {
         if mine == asks {
             outcome = answer
             pending = false
+            answers += 1
         }
         return answer
     }
@@ -110,17 +115,21 @@ public func reloadOffMain(_ reload: @escaping Reload) async -> ReloadOutcome {
     }
 }
 
-/// The `Reload` of the pages: hands the ask to `ReloadStatus.shared` at once and says `.asked`, so a save never waits for the engine. For the
-/// main actor, where the pages save.
-public func reloadInBackground() -> ReloadOutcome {
-    MainActor.assumeIsolated { ReloadStatus.shared.ask() }
-    return .asked
+/// The `AfterWrite` of the pages: hands the ask to `ReloadStatus.shared`, so a save never waits for the engine. The pages save on the main
+/// thread and the ask is made at once; from any other thread it is made as soon as the main actor is free.
+public func reloadInBackground() -> ReloadOutcome? {
+    if Thread.isMainThread {
+        MainActor.assumeIsolated { ReloadStatus.shared.ask() }
+    } else {
+        Task { @MainActor in ReloadStatus.shared.ask() }
+    }
+    return nil
 }
 
 /// What the page says when the file is saved and the engine did not apply it: nil when it did, there was no one to ask, or the answer is on its way.
 public func reloadWords(_ outcome: ReloadOutcome) -> String? {
     switch outcome {
-    case .applied, .nobody, .asked: nil
+    case .applied, .nobody: nil
     case .refused(let problem): "Saved, but Carrier kept its settings: \(problem)"
     case .noAnswer: "Saved, but Carrier did not answer: it may not have applied it."
     case .unsupported: "Saved. This Carrier does not apply it while it runs: it will read the file when it starts."
@@ -129,7 +138,7 @@ public func reloadWords(_ outcome: ReloadOutcome) -> String? {
 
 /// What the Behavior and Repos tabs save with: `edit` rewrites the file at `path`, read just now so a save of another tab in between is not
 /// lost; `unusable` is what to say when it cannot be read or `edit` gives nothing. A written file is followed by `reload`.
-public func saveConfig(path: String, unusable: String, edit: (Data) -> Data?, reload: Reload = reloadInBackground) -> RoleSave {
+public func saveConfig(path: String, unusable: String, edit: (Data) -> Data?, reload: AfterWrite = reloadInBackground) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), let updated = edit(current) else { return .failed(unusable) }
     do {

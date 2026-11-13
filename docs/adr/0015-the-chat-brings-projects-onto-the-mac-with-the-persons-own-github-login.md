@@ -19,7 +19,7 @@ A project comes from a folder the person picks, from a GitHub URL (`owner/repo` 
 
 The GitHub login is the person's own: the account that is active in `gh` when they pick. The chat host uses it to list and to clone, never the engine's profile, and the token goes to git in the environment and not in argv, as the engine does. When `gh` is missing or not signed in, the draft says so in words.
 
-The chat has a list of its own. The engine config's `repos` are not offered as workspaces. Carrier watching a repository is a separate choice, offered when a project comes from GitHub and on by default: choosing it adds `{ "name": "owner/repo" }` to the engine config's `repos`, and the engine, which reads the config when it starts, begins to listen from its next start with a clone and worktrees of its own.
+The chat has a list of its own. The engine config's `repos` are not offered as workspaces. Carrier watching a repository is a separate choice, offered when a project comes from GitHub and on by default: choosing it adds `{ "name": "owner/repo" }` to the engine config's `repos`, and the engine begins to listen with a clone and worktrees of its own: at once if it lists `reload`, else from its next start ([ADR 0023](0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)).
 
 ## Alternatives considered
 

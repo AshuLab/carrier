@@ -16,11 +16,17 @@ public func settingsNote(state: ConnectionState?, canReload: Bool, outcome: Relo
     }
 }
 
+/// A change to the list is applied while Carrier runs: it is running and its engine lists `reload`.
+public func appliesWhileRunning(state: ConnectionState?, canReload: Bool) -> Bool {
+    if case .running? = state { return canReload }
+    return false
+}
+
 /// What the new session says of the repo it added, from what the engine answered.
 public func addedRepoNote(_ repo: String, outcome: ReloadOutcome) -> (text: String, failed: Bool) {
     switch outcome {
     case .applied: (applies(repo), false)
-    case .nobody, .unsupported, .asked: (reads(repo), false)
+    case .nobody, .unsupported: (reads(repo), false)
     case .refused(let problem): ("\(repo) was added to Carrier's list, but Carrier kept its settings: \(problem)", true)
     case .noAnswer: ("\(repo) was added to Carrier's list, but Carrier did not answer: it may not have applied it.", true)
     }

@@ -348,7 +348,7 @@ struct WorkspaceSheet: View {
                 .foregroundStyle(on.wrappedValue && reason == nil ? Color.green : .secondary).frame(width: 18).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Let Carrier watch \(what)")
-                Text(reason ?? "Carrier looks for epics marked ready and solves them with its agents. It starts listening once the agent has answered your first message.")
+                Text(reason ?? "Carrier looks for epics marked ready and solves them with its agents. It is added to Carrier's list once the agent has answered your first message.")
                     .font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)

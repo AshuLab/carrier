@@ -92,9 +92,10 @@ func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
 @Test func theLineAndTheConfirmationSayWhatHappensToTheEpics() {
     let some = RepoEpics(running: 0, queued: 2, needsYou: 1)
     #expect(some.line() == "2 queued · 1 needs you" && RepoEpics().line() == "")
-    #expect(removalText(some) == "It has epics (2 queued, 1 needs you). They stop where they are, untouched, and continue if you add the repo again. Nothing is deleted. It takes effect right away.")
-    #expect(removalText(RepoEpics()) == "It has no epics. You can add it again whenever you want. It takes effect right away.")
-    #expect(removalText(nil).hasPrefix("Its epics, if it has any, stop where they are"))
+    #expect(removalText(some, appliesNow: true) == "It has epics (2 queued, 1 needs you). They stop where they are, untouched, and continue if you add the repo again. Nothing is deleted. It takes effect right away.")
+    #expect(removalText(RepoEpics(), appliesNow: true) == "It has no epics. You can add it again whenever you want. It takes effect right away.")
+    #expect(removalText(nil, appliesNow: true).hasPrefix("Its epics, if it has any, stop where they are"))
+    #expect(removalText(RepoEpics(), appliesNow: false) == "It has no epics. You can add it again whenever you want. Carrier reads the list when it starts.")
 }
 
 @Test func theRowsSayHowEachRepoIs() throws {

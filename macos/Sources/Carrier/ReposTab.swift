@@ -95,7 +95,7 @@ struct ReposTabView: View {
                 removing = nil
             }
         } message: {
-            Text(removing.map { removalText(repoEpics($0, snapshot: snapshot)) } ?? "")
+            Text(removing.map { removalText(repoEpics($0, snapshot: snapshot), appliesNow: appliesWhileRunning(state: state, canReload: canReload)) } ?? "")
         }
         .sheet(isPresented: $adding) {
             AddReposSheet(watched: draft) { names in
@@ -341,8 +341,8 @@ private struct RepoRolesCard: View {
                     if editing == row.role { form(row) }
                 }
                 if let note = signatureNote(rows) { Text(note).font(.caption).foregroundStyle(.secondary).padding(.vertical, 8) }
-                if let refusal { Text(refusal).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
-                if editing == nil, let problem { Text(problem).font(.caption).foregroundStyle(.orange).padding(.vertical, 8) }
+                if let refusal { ProblemLine(text: refusal, font: .caption).textSelection(.enabled).padding(.vertical, 8) }
+                if editing == nil, let problem { ProblemLine(text: problem, font: .caption).padding(.vertical, 8) }
             }
             // the roles of Agents are another page's: its own item, not a row of this group
             SettingsTabCard {
@@ -387,7 +387,7 @@ private struct RepoRolesCard: View {
     }
 
     private func finish(_ result: RoleSave) {
-        // a role the engine did not apply is saved, but the form stays open with what was typed and says what the engine answered: Save asks again
+        // a saved role closes the form; what the engine answers to it is the page's `ReloadNote`. A refused one keeps the form open with what was typed
         if result == .saved { editing = nil }
         problem = result.problem
     }
@@ -406,7 +406,7 @@ private struct RepoRolesCard: View {
                     TextField(row.inherited.persona?.prompt ?? "Prompt", text: persona(\.prompt), axis: .vertical).lineLimit(3...8).settingsField()
                 }
             }
-            if let problem { Text(problem).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+            if let problem { ProblemLine(text: problem, font: .caption) }
             HStack(spacing: 8) {
                 Spacer()
                 Button { editing = nil } label: { Label("Cancel", systemImage: "xmark") }

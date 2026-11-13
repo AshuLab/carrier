@@ -299,6 +299,8 @@ struct SettingsHeaderNote: Equatable {
     let tone: Tone
     /// A problem is said to VoiceOver when it appears; one whose page says it itself (once, when the answer comes) leaves it to the page.
     var announces = true
+    /// The engine did not apply the save: the note has a way to ask it again, without a new edit.
+    var asksAgain = false
 }
 
 struct SettingsHeaderNoteKey: PreferenceKey {
@@ -330,14 +332,17 @@ struct SettingsPageHeader: View {
 
     // an engine's message can be long: it wraps instead of being cut
     @ViewBuilder private func noteView(_ note: SettingsHeaderNote) -> some View {
-        Group {
-            switch note.tone {
-            case .saved: Label(note.text, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-            case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-            case .plain: Label(note.text, systemImage: "info.circle").foregroundStyle(.secondary)
+        HStack(spacing: 10) {
+            Group {
+                switch note.tone {
+                case .saved: Label(note.text, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                case .plain: Label(note.text, systemImage: "info.circle").foregroundStyle(.secondary)
+                }
             }
+            .font(.callout).fixedSize(horizontal: false, vertical: true)
+            if note.asksAgain { AskAgainButton() }
         }
-        .font(.callout).fixedSize(horizontal: false, vertical: true)
     }
 
     var body: some View {
@@ -358,7 +363,7 @@ struct SettingsPageHeader: View {
         }
         // a problem appears while the person looks elsewhere: say it to VoiceOver too
         .onChange(of: note) { _, note in
-            if let note, note.tone == .problem, note.announces { AccessibilityNotification.Announcement(note.text).post() }
+            if let note, note.tone == .saved || (note.tone == .problem && note.announces) { AccessibilityNotification.Announcement(note.text).post() }
         }
         // room for the close button, which sits over the corner of the header
         .padding(.trailing, 32)
@@ -381,7 +386,7 @@ struct ProblemLine: View {
 
 /// What the engine answered to the last save when it did not apply it (`ReloadStatus`): the same on every page, until a save is applied or
 /// Carrier stops. A problem is said to VoiceOver once, when the answer comes (not each time the person comes back to the page), and has a
-/// way out: Check again asks the engine without a save.
+/// way out: Ask Carrier again asks the engine without a save.
 struct ReloadNote: View {
     private let engine = ReloadStatus.shared
 
@@ -391,8 +396,7 @@ struct ReloadNote: View {
             HStack(spacing: 10) {
                 if engine.isProblem {
                     ProblemLine(text: words, announces: false)
-                    Button { engine.ask() } label: { Label("Check again", systemImage: "arrow.clockwise") }
-                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(engine.pending)
+                    AskAgainButton()
                 } else {
                     Label(words, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
@@ -403,11 +407,21 @@ struct ReloadNote: View {
     }
 }
 
+/// Asks the engine again without a save, for a refusal that may be gone (the file was fixed by hand).
+struct AskAgainButton: View {
+    private let engine = ReloadStatus.shared
+
+    var body: some View {
+        Button { engine.ask() } label: { Label("Ask Carrier again", systemImage: "arrow.clockwise") }
+            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(engine.pending)
+    }
+}
+
 extension View {
     /// Says a problem answer of the engine to VoiceOver when it comes, on the page that is open (a page that shows `ReloadNote` or the header).
     func announcesReloadProblems() -> some View {
-        onChange(of: ReloadStatus.shared.outcome) { _, outcome in
-            if let outcome, outcome.isProblem, let words = reloadWords(outcome) { AccessibilityNotification.Announcement(words).post() }
+        onChange(of: ReloadStatus.shared.answers) {
+            if let outcome = ReloadStatus.shared.outcome, outcome.isProblem, let words = reloadWords(outcome) { AccessibilityNotification.Announcement(words).post() }
         }
     }
 }

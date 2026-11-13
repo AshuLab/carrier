@@ -71,7 +71,7 @@ extension RoleSave {
 }
 
 /// `.saved` after the write, and the engine asked (what it answers is `ReloadStatus`'s, not the save's). Call it only after the write worked.
-func written(_ reload: Reload) -> RoleSave {
+func written(_ reload: AfterWrite) -> RoleSave {
     _ = reload()
     return .saved
 }
@@ -100,7 +100,7 @@ func applyingRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, to j
 
 /// Saves `fields` as the repo's own `role` (nil resets it) in the file at `path`, read just now. A profile or account that is not declared
 /// is refused before anything is written.
-public func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String], reload: Reload = reloadInBackground) -> RoleSave {
+public func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String], reload: AfterWrite = reloadInBackground) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), let roles = repoRoles(json: current, repo: repo) else {
         return .failed("The config file could not be read.")

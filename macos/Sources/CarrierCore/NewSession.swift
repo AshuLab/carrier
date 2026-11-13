@@ -91,6 +91,8 @@ public struct WatchNote: Equatable {
     @ObservationIgnored private var optionsAgent: String?
     /// What each agent offered when last asked, kept between drafts and launches.
     @ObservationIgnored private let offers: AgentOfferStore
+    /// What Settings > Chat says a new session opens with, read each time it is needed so a change shows in the next draft.
+    @ObservationIgnored private let start: () -> NewSessionStart
     public var text = ""
     public private(set) var sending = false
     /// Why `open` was refused (or the host would not start), said in words in the draft; nil when it worked.
@@ -202,8 +204,10 @@ public struct WatchNote: Equatable {
         reload: @escaping Reload = { reloadEngine() },
         status: ReloadStatus? = nil,
         readChatConfig: @escaping () throws -> Data? = currentChatConfig, writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
-        carrierFolder: String = currentCarrierFolder()
+        carrierFolder: String = currentCarrierFolder(),
+        start: @escaping () -> NewSessionStart = { AppPreferences().newSessionStart }
     ) {
+        self.start = start
         self.host = host
         self.health = health
         self.offers = offers ?? AgentOfferStore()
@@ -287,9 +291,12 @@ public struct WatchNote: Equatable {
     /// The workspace chip's ✕: drops the workspace and what depends on it (branch, worktree choice and name).
     public func clearWorkspace() { reset(folder: nil) }
 
-    /// Keeps the chosen provider while it can be chosen, else takes the first one that can; none when none can.
+    /// Keeps the chosen provider while it can be chosen, else takes the one Settings > Chat names when it can work, else the first one
+    /// that can; none when none can.
     public func pickAvailableAgent() {
-        if agents.contains(where: { $0.name == agent && $0.available }) == false { agent = agents.first(where: \.available)?.name }
+        guard agents.contains(where: { $0.name == agent && $0.available }) == false else { return }
+        let wanted = start().agent
+        agent = agents.first(where: { $0.name == wanted && $0.available })?.name ?? agents.first(where: \.available)?.name
     }
 
     /// Why no provider can start a session, when the host listed some and none can; nil otherwise.
@@ -316,6 +323,13 @@ public struct WatchNote: Equatable {
         guard let name = agent, optionsAgent != name else { return }
         optionsAgent = name
         chosenOptions = [:]
+        // what Settings > Chat names: the model and reasoning go to the provider it names, the access to any provider that lists those options,
+        // all as far as the provider lists them
+        let wanted = start()
+        if restoredOptions == nil {
+            let own = wanted.agent == name ? ["model": wanted.model, "effort": wanted.effort].filter { $0.value.isEmpty == false } : [:]
+            restoredOptions = wanted.access.merging(own) { _, own in own }
+        }
         let known = offers.offer(name)
         agentOptions = known?.options ?? []
         agentCommands = known?.commands ?? []

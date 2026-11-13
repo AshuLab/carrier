@@ -1,15 +1,14 @@
 import Testing
 @testable import CarrierCore
 
-@Test func theAppGroupHasNoHeadingAndHoldsGeneralThenNotificationsAndEndsWithUpdates() {
-    let pages = SettingsPage.pages(in: .app)
+@Test func theAppGroupHasNoHeadingAndHoldsWhatIsSharedAndWhatIsOfTheMac() {
     #expect(SettingsPage.Group.app.heading == nil)
-    #expect(pages.first == .general && pages[1] == .notifications && pages.last == .updates)
+    #expect(SettingsPage.pages(in: .app) == [.general, .providers, .notifications, .appearance, .keybindings, .updates])
 }
 
-@Test func dictationIsInTheAppGroupRightAfterChat() throws {
-    let pages = SettingsPage.pages(in: .app)
-    #expect(try #require(pages.firstIndex(of: .dictation)) == (try #require(pages.firstIndex(of: .chat))) + 1)
+@Test func theChatGroupHasItsHeadingAndHoldsChatSidebarAndDictation() {
+    #expect(SettingsPage.Group.chat.heading == "Chat")
+    #expect(SettingsPage.pages(in: .chat) == [.chat, .sidebar, .dictation])
     #expect(SettingsPage.dictation.icon == "mic" && SettingsPage.dictation.detail == "Speak instead of typing")
 }
 
@@ -18,10 +17,9 @@ import Testing
     #expect(SettingsPage.pages(in: .legacy) == [.engine, .sessions, .health])
 }
 
-@Test func theCarrierGroupHasItsHeadingAndHoldsProvidersThenReposAgentsAndBehavior() {
+@Test func theCarrierGroupHasItsHeadingAndHoldsReposAgentsAndBehavior() {
     #expect(SettingsPage.Group.carrier.heading == "Carrier")
-    #expect(SettingsPage.pages(in: .carrier) == [.providers, .repos, .agents, .behavior])
-    #expect(SettingsPage.providers.group == .carrier)
+    #expect(SettingsPage.pages(in: .carrier) == [.repos, .agents, .behavior])
     #expect(SettingsPage.repos.group == .carrier)
     #expect(SettingsPage.agents.group == .carrier)
     #expect(SettingsPage.behavior.group == .carrier)
@@ -29,7 +27,7 @@ import Testing
 }
 
 @Test func theRailListsTheAppGroupFirstAndEveryPageHasARow() {
-    #expect(SettingsPage.Group.allCases == [.app, .carrier, .legacy])
+    #expect(SettingsPage.Group.allCases == [.app, .chat, .carrier, .legacy])
     #expect(SettingsPage.allCases == SettingsPage.Group.allCases.flatMap { SettingsPage.pages(in: $0) })
     #expect(SettingsPage.allCases.allSatisfy { !$0.icon.isEmpty && !$0.detail.isEmpty })
 }

@@ -1650,3 +1650,57 @@ private func tempFile() -> URL { FileManager.default.temporaryDirectory.appendin
     #expect(Set(host.optionAsks) == ["claude", "codex"] && store.offer("codex") == offer("gpt") && store.offer("gone") == nil)
 }
 
+
+// MARK: what Settings > Chat says a new session opens with
+
+@MainActor private func draft(_ host: FakeChat, starting start: NewSessionStart) async -> NewSessionModel {
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, start: { start })
+    await model.load()
+    return model
+}
+
+@MainActor @Test func aNewDraftOpensOnTheProviderSettingsNamesWhenItCanWorkElseOnTheFirstThatCan() async {
+    let host = FakeChat()
+    host.agents = [ChatAgent(name: "codex", harness: "codex", found: true), ChatAgent(name: "claude", harness: "claude", found: true)]
+    #expect(await draft(host).agent == "codex")
+    #expect(await draft(host, starting: NewSessionStart(agent: "claude")).agent == "claude")
+    // one that is gone or cannot work is not taken
+    #expect(await draft(host, starting: NewSessionStart(agent: "gone")).agent == "codex")
+    host.agents = [ChatAgent(name: "codex", harness: "codex", found: false), ChatAgent(name: "claude", harness: "claude", found: true)]
+    #expect(await draft(host, starting: NewSessionStart(agent: "codex")).agent == "claude")
+}
+
+@MainActor @Test func theModelAndReasoningSettingsNamesGoToItsProviderAsFarAsItListsThem() async {
+    let host = FakeChat()
+    host.offered["claude"] = claudeOptions
+    let model = await draft(host, starting: NewSessionStart(agent: "claude", model: "haiku", effort: "max"))
+    await model.loadOptions()
+    // the model is listed and taken; "max" is not listed and is left out
+    #expect(model.chosenOptions == ["model": "haiku"])
+    // a provider that is not the named one starts from its own values
+    let other = await draft(host, starting: NewSessionStart(agent: "codex", model: "haiku", effort: "low"))
+    await other.loadOptions()
+    #expect(other.agent == "claude" && other.chosenOptions.isEmpty)
+}
+
+private let accessOptions = claudeOptions + [
+    ChatOption(id: "permissionMode", label: "Permission mode", values: [.init(id: "default", label: "Ask"), .init(id: "acceptEdits", label: "Accept edits")], current: "default"),
+]
+
+@MainActor @Test func theAccessSettingsNamesGoToAnyProviderThatListsItAndNothingElse() async {
+    let host = FakeChat()
+    host.offered["claude"] = accessOptions
+    let model = await draft(host, starting: NewSessionStart(access: ["permissionMode": "acceptEdits", "sandbox": "read-only"]))
+    await model.loadOptions()
+    #expect(model.agent == "claude" && model.chosenOptions == ["permissionMode": "acceptEdits"])
+    // the model of the named provider and the access come together
+    let both = await draft(host, starting: NewSessionStart(agent: "claude", model: "haiku", access: ["permissionMode": "acceptEdits"]))
+    await both.loadOptions()
+    #expect(both.chosenOptions == ["model": "haiku", "permissionMode": "acceptEdits"])
+}
+
+@Test func theAccessIsKeptAsJSONAndABadOneReadsAsNone() {
+    let access = ["permissionMode": "acceptEdits", "sandbox": "read-only"]
+    #expect(NewSessionStart.access(fromJSON: NewSessionStart.json(fromAccess: access)) == access)
+    #expect(NewSessionStart.access(fromJSON: "").isEmpty && NewSessionStart.access(fromJSON: "[1]").isEmpty)
+}

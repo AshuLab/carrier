@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A step of a role's failover can name its own `effort` (`{ "provider": "codex", "model": "gpt-5", "effort": "low" }`); without it the step keeps the effort the role was running with, as before. Settings > Agents sets it from the same panel as the model.
 - The dialog that adds repos from GitHub has filters (all, private, public; one owner; hide the ones already watched) and a search with a magnifying glass.
 - `docs/macos-ui.md` is the guide to how the Mac app is drawn: the buttons, the line between rows, fields, selects, rows that open a form, lists, menus and empty states, with the mistakes already made. `AGENTS.md` points to it.
+- `carrier reload` (and a `reload` request on the control socket) makes a running Carrier read `config.json` and `providers.json` again and run on them without a restart; it prints "Reloaded", or the problem with the key named and exit 1 when a file is wrong, and then changes nothing. Running work keeps what it started with; a repo removed from the config parks its epics and stops its runs, and adding it back resumes them ([configuration](docs/configuration.md#changing-the-config-while-carrier-runs)).
+- The Mac app asks a running Carrier to reload after every save of `config.json` or `providers.json`, and shows what Carrier answers where the page shows a failure to save; with Carrier stopped it says nothing, and with one too old to reload it says quietly that Carrier will read it when it starts.
 
 ### Changed
 
@@ -25,9 +27,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings' Behavior page moves from the Legacy group to the Carrier group, after Agents, and its line under the title reads "How Carrier runs epics"; Legacy keeps Engine, Sessions and Health.
 - Settings' Behavior page regroups its eight values by the question each answers: Pace, When something goes wrong and Housekeeping, with new titles and descriptions; the values, their rules and what is written to `config.json` do not change.
 - Settings' Behavior page ends with a Reset group, a card "Restore the defaults" with a Reset button that puts the eight values back to the engine's defaults, in place of the "Reset to defaults" button of its footer; the page's header says "Saved" beside the title when a value is written, and a failed save or an unreadable file shows its message there, in orange; the standing note "Saved as you change them · Carrier reads these when it starts" is gone.
+- Settings notes say whether a change is applied now, waits for the next start (Carrier stopped or too old to reload) or was refused, and the last answer stays on the page when you leave it and come back.
 
 ### Fixed
 
+- A repo that GitHub refuses (a mistyped name, no access) no longer stops Carrier from polling the other repos; its error shows in its own check.
+- A long message in the header of a Settings page goes under the title when it does not fit, and VoiceOver reads it.
 - Settings > Providers opens with the tools already listed, since the Mac is looked at when the app opens and not when the page does.
 - The row "Tool output" in Settings > Chat was missing its line, and the pop-ups of a row switched off (Quiet hours, From and Until) did not look off.
 - A chat session whose Claude conversation is gone from Claude Code's own folder (so it answered "Claude could not resume that conversation" on every try) now opens a new conversation in the same folder, with a plain line in the history saying that the agent does not remember what came before (the banner of a failed turn is for failures).

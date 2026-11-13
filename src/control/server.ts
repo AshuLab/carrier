@@ -6,6 +6,7 @@ import type { ChatCapability } from '../chat/server.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
 import { controlSocketIn } from '../config/engine-places.ts';
 import { optionNamePattern } from '../config/providers.ts';
+import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
 import type { EpicReply, EventsReply, FileDiffReply, FilesReply, SessionsReply } from './replies.ts';
 
@@ -38,6 +39,7 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('files'), repo, issue, executionId: z.uuid().optional() }),
   z.strictObject({ id, cmd: z.literal('fileDiff'), repo, issue, section: z.string().min(1).max(100), path: z.string().min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('availableRepos'), page: z.int().min(1).max(100).optional() }),
+  z.strictObject({ id, cmd: z.literal('reload') }),
   z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional() }),
 ]);
 
@@ -45,7 +47,7 @@ export const request = z.union([
 export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
-export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic';
+export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'reload';
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: (Capability | ChatCapability)[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
 
@@ -68,6 +70,8 @@ export type Controls = {
   availableRepos(page: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }>;
   /** Puts a stopped epic back in motion and resolves once it started; rejects with ResumeRefused when it could not. */
   resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string }): Promise<void>;
+  /** Reads the settings again and runs on them; throws ReloadRefused, with the settings as they were, when they are not valid. */
+  reload(): void;
 };
 
 /** pause, resume, checkNow and tail. Like the panel's keys, a check is started and not waited for: its failure is the engine's to report. */
@@ -162,6 +166,16 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
         },
       );
   }
+  if (parsed.data.cmd === 'reload') {
+    try {
+      controls.reload();
+      return { id: parsed.data.id, ok: true };
+    } catch (error) {
+      if (error instanceof ReloadRefused) return { id: parsed.data.id, ok: false, error: error.problem };
+      log.error('reload failed', error);
+      return { id: parsed.data.id, ok: false, error: 'internal error' };
+    }
+  }
   if (parsed.data.cmd === 'events') {
     const { id: replyId, executionId, after, limit } = parsed.data;
     try {
@@ -190,7 +204,7 @@ export async function startControlServer({ stateDir, snapshot, startedAt, contro
     return { close: () => {} };
   }
   const sockets = new Set<Socket>();
-  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic'] };
+  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'reload'] };
   const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);
 
   const server = createServer((socket) => {

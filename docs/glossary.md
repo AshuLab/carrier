@@ -193,6 +193,9 @@ _Avoid_: fallback, automatic retry (an execution retry repeats the same provider
 **Role** - One of the three jobs of an epic: Author, Reviewer and Lead reviewer (optional). Each has a GitHub identity, an account, a model, an effort and an optional persona, and its own failover chain. There are no others and the user cannot make more; the same role can differ for one repo.
 _Avoid_: agent (the AI that runs a role; and in Agent Forge, a bot), persona (a role's name and prompt, not the role).
 
+**Reload** - The engine reading `config.json` and `providers.json` again while it runs, when the app or `carrier reload` asks, and applying them if they are valid; if not, it keeps what it has and says why. What is running keeps what it started with (an agent run its agent and timeout, an epic the configuration it stored) and what starts later uses the new settings.
+_Avoid_: restart (Carrier keeps running and nothing is interrupted), refresh, hot reload.
+
 **Homebrew tap** - Our repository of Homebrew recipes, `AshuLab/homebrew-tap`: the formula `carrier` (the engine and the chat host, from the npm package) and the cask `carrier` (the app). A person installs with `brew install ashulab/tap/carrier`. Homebrew loads a tap's code only once it is trusted, and the full name trusts just that item ([0017](adr/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)).
 _Avoid_: repo (it is not where the code lives), registry, package (the npm package is what the formula installs).
 

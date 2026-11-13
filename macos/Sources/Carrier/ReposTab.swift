@@ -4,10 +4,11 @@ import SwiftUI
 
 /// The Repos page: which repos Carrier watches (the `repos` of `config.json`, CarrierCore/RepoList.swift), each with how its last
 /// check went. Add from the gh login's list, stop watching with a question first. Saved like the Behavior tab: every change is written
-/// as it is made, and nothing restarts Carrier, which reads the file when it starts.
+/// as it is made, and nothing restarts Carrier.
 struct ReposTabView: View {
     private let timeChanges = TimeFormatChanges()
     let state: ConnectionState?
+    let canReload: Bool
     /// Open Agents: the page of the global roles, which every repo inherits.
     let openAgents: () -> Void
     @ObservedObject private var start = StartController.shared
@@ -17,6 +18,8 @@ struct ReposTabView: View {
     /// the file as `load` read it, for the roles on a repo's page
     @State private var configData: Data?
     @State private var failure: String?
+    /// what the engine answered to the last save, from any tab: a refusal means a repo of the list is not in use, whatever the engine can do
+    private let reloaded = ReloadStatus.shared
     /// the repo whose ✕ was pressed
     @State private var removing: String?
     @State private var adding = false
@@ -65,11 +68,10 @@ struct ReposTabView: View {
                 .frame(width: 270)
                 detail(chosen)
             }
-            if let problem, unreadable == false { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
-            // the list is written as it changes and says nothing about it, unless it could not
-            if let failure {
-                Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange).padding(.horizontal, 4)
-            }
+            if let problem, unreadable == false { ProblemLine(text: problem) }
+            // the list is written as it changes and says nothing about it, unless it could not or the engine did not apply it
+            if let failure { ProblemLine(text: failure).padding(.horizontal, 4) }
+            ReloadNote().padding(.horizontal, 4)
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
@@ -93,7 +95,7 @@ struct ReposTabView: View {
                 removing = nil
             }
         } message: {
-            Text(removing.map { removalText(repoEpics($0, snapshot: snapshot)) } ?? "")
+            Text(removing.map { removalText(repoEpics($0, snapshot: snapshot), appliesNow: appliesWhileRunning(state: state, canReload: canReload)) } ?? "")
         }
         .sheet(isPresented: $adding) {
             AddReposSheet(watched: draft) { names in
@@ -115,7 +117,7 @@ struct ReposTabView: View {
     /// The chosen repo's page.
     @ViewBuilder private func detail(_ row: RepoRow?) -> some View {
         if let row {
-            let status = repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine)))
+            let status = repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine)), notLoaded: settingsNote(state: state, canReload: canReload, outcome: reloaded.outcome))
             // two distances, as the Providers page has: 4 inside a block and 14 between blocks
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .center, spacing: 4) {
@@ -167,6 +169,7 @@ struct ReposTabView: View {
     private func saveRole(_ fields: RoleFields?, role: AgentRole, repo: String) -> RoleSave {
         let result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: declaredAccounts(providersJSON: providersData))
         if result == .saved {
+            failure = nil
             load()
             runDoctor()
         }
@@ -191,21 +194,10 @@ struct ReposTabView: View {
     /// Writes the file, read again just now so a save from the Behavior tab in between is not lost; false (with the reason shown)
     /// when it could not.
     private func write() -> Bool {
-        let url = URL(fileURLWithPath: path)
-        guard let data = try? Data(contentsOf: url), let updated = applyingRepos(draft, to: data) else {
-            failure = "The config file could not be read or the list is not valid."
-            return false
-        }
-        do {
-            try updated.write(to: url, options: .atomic)
-            failure = nil
-            saved = draft
-            return true
-        } catch {
-            FileHandle.standardError.write(Data("carrier: saving \(url.path) failed: \(error)\n".utf8))
-            failure = "Could not save the config file: \(error.localizedDescription)"
-            return false
-        }
+        let result = saveConfig(path: path, unusable: "The config file could not be read or the list is not valid.", edit: { applyingRepos(draft, to: $0) })
+        failure = result.problem
+        if result == .saved { saved = draft }
+        return result == .saved
     }
 
     /// Writes the list as soon as it changes, when the engine would accept it.
@@ -215,7 +207,7 @@ struct ReposTabView: View {
     }
 }
 
-/// Status: the epics and the last check (or that Carrier reads the repo when it starts), the clone and the repo on GitHub, as a label and its
+/// Status: the epics and the last check (or when Carrier uses the repo), the clone and the repo on GitHub, as a label and its
 /// value; Open on GitHub and Reveal clone are on the title's line.
 private struct RepoStatusCard: View {
     let row: RepoRow
@@ -349,8 +341,8 @@ private struct RepoRolesCard: View {
                     if editing == row.role { form(row) }
                 }
                 if let note = signatureNote(rows) { Text(note).font(.caption).foregroundStyle(.secondary).padding(.vertical, 8) }
-                if let refusal { Text(refusal).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
-                if editing == nil, let problem { Text(problem).font(.caption).foregroundStyle(.orange).padding(.vertical, 8) }
+                if let refusal { ProblemLine(text: refusal, font: .caption).textSelection(.enabled).padding(.vertical, 8) }
+                if editing == nil, let problem { ProblemLine(text: problem, font: .caption).padding(.vertical, 8) }
             }
             // the roles of Agents are another page's: its own item, not a row of this group
             SettingsTabCard {
@@ -395,13 +387,9 @@ private struct RepoRolesCard: View {
     }
 
     private func finish(_ result: RoleSave) {
-        switch result {
-        case .saved:
-            editing = nil
-            problem = nil
-        case .refused(let reason), .failed(let reason):
-            problem = reason
-        }
+        // a saved role closes the form; what the engine answers to it is the page's `ReloadNote`. A refused one keeps the form open with what was typed
+        if result == .saved { editing = nil }
+        problem = result.problem
     }
 
     /// The role's own fields as a grid of a label and its control, the same edges all the way down, in three blocks with more room between them
@@ -418,7 +406,7 @@ private struct RepoRolesCard: View {
                     TextField(row.inherited.persona?.prompt ?? "Prompt", text: persona(\.prompt), axis: .vertical).lineLimit(3...8).settingsField()
                 }
             }
-            if let problem { Text(problem).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+            if let problem { ProblemLine(text: problem, font: .caption) }
             HStack(spacing: 8) {
                 Spacer()
                 Button { editing = nil } label: { Label("Cancel", systemImage: "xmark") }

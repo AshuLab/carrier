@@ -524,7 +524,7 @@ function repoAddClose(){RPK.open=0;draw('A');}
 function repoQuery(v){RPK.q=v;document.getElementById('repoList').innerHTML=repoListHTML();}
 function repoAdd(name){
   const id=name.replace(/[^a-z0-9]+/gi,'-').toLowerCase();
-  REPOD[id]={owner:name.split('/')[0],pending:1,epics:'Carrier reads this repo when it starts',last:'Carrier reads this repo when it starts',sub:'Carrier reads it when it starts',checks:[['Carrier can read it'],['Author can sign here'],['Reviewer can sign here'],['Solve is set up']],roles:[null,null,null]};
+  REPOD[id]={owner:name.split('/')[0],pending:1,epics:'Carrier applies this repo to the next epic',last:'Carrier applies this repo to the next epic',sub:'Carrier applies it to the next epic',checks:[['Carrier can read it'],['Author can sign here'],['Reviewer can sign here'],['Solve is set up']],roles:[null,null,null]};
   D.Carrier.pages[0].list.push({id:id,t:name,st:'ok',sub:()=>repoSub(id),secs:()=>repoSecs(id)});
   state.A.sel.repos='repos/'+id; RPK.open=0; draw('A');
 }

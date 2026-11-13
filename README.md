@@ -60,6 +60,7 @@ It survives interruptions: state lives in SQLite, retries first check the real s
 | Command | What it does |
 |---------|--------------|
 | `carrier start` | Run in the background; `stop`, `pause`, `resume` and `check` control it from any terminal |
+| `carrier reload` | Make the running Carrier read `config.json` and `providers.json` again, with no restart |
 | `carrier status` / `carrier watch` | Show what the running Carrier is doing, once or live |
 | `carrier restart <owner/name>#<issue>` | Resume an epic that stopped in `needs-human` |
 | `carrier chat --workspace <folder>` | Talk to an agent in a session |

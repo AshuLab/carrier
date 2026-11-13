@@ -305,9 +305,14 @@ extension SettingsGroup where Accessory == EmptyView {
 
 /// A line a page puts at the right of its own header, only when there is something to say (the Behavior page's "Saved", or why it cannot save).
 struct SettingsHeaderNote: Equatable {
-    enum Tone { case saved, problem }
+    /// `plain`: a fact that is no one's fault, said quietly
+    enum Tone { case saved, problem, plain }
     let text: String
     let tone: Tone
+    /// A problem is said to VoiceOver when it appears; one whose page says it itself (once, when the answer comes) leaves it to the page.
+    var announces = true
+    /// The engine did not apply the save: the note has a way to ask it again, without a new edit.
+    var asksAgain = false
 }
 
 struct SettingsHeaderNoteKey: PreferenceKey {
@@ -315,33 +320,121 @@ struct SettingsHeaderNoteKey: PreferenceKey {
     static func reduce(value: inout SettingsHeaderNote?, nextValue: () -> SettingsHeaderNote?) { value = nextValue() ?? value }
 }
 
-/// The top of a page: an icon, the title and a line, and the page's note at the right when it has one.
+/// The top of a page: an icon, the title and a line, and the page's note at the right when it has one, or below the title when the page is
+/// too narrow for both.
 struct SettingsPageHeader: View {
     let page: SettingsPage
     var note: SettingsHeaderNote?
 
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: page.icon)
-                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
-                .frame(width: 38, height: 38)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
-                .accessibilityHidden(true)
-            // the two lines are about as tall as the tile (a Spacer here would take the whole height the page's bar offers)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(page.rawValue).font(.title3.weight(.semibold))
-                Text(page.detail).font(.callout).foregroundStyle(.secondary)
-            }
-            if let note {
-                Spacer(minLength: 16)
+    private var tile: some View {
+        Image(systemName: page.icon)
+            .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
+            .frame(width: 38, height: 38)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
+            .accessibilityHidden(true)
+    }
+
+    // the two lines are about as tall as the tile (a Spacer here would take the whole height the page's bar offers)
+    private var titles: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(page.rawValue).font(.title3.weight(.semibold))
+            Text(page.detail).font(.callout).foregroundStyle(.secondary)
+        }
+    }
+
+    // an engine's message can be long: it wraps instead of being cut
+    @ViewBuilder private func noteView(_ note: SettingsHeaderNote) -> some View {
+        HStack(spacing: 10) {
+            Group {
                 switch note.tone {
-                case .saved: Label(note.text, systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.green)
-                case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                case .saved: Label(note.text, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                case .plain: Label(note.text, systemImage: "info.circle").foregroundStyle(.secondary)
                 }
             }
+            .font(.callout).fixedSize(horizontal: false, vertical: true)
+            if note.asksAgain { AskAgainButton() }
+        }
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 12) {
+                tile
+                titles.fixedSize(horizontal: true, vertical: false)
+                if let note {
+                    Spacer(minLength: 16)
+                    noteView(note).multilineTextAlignment(.trailing).frame(maxWidth: 420, alignment: .trailing)
+                }
+            }
+            // too narrow for the title and the note side by side: the note goes under the title, with the room of the page
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: 12) { tile; titles }
+                if let note { noteView(note).frame(maxWidth: .infinity, alignment: .leading) }
+            }
+        }
+        // a problem appears while the person looks elsewhere: say it to VoiceOver too
+        .onChange(of: note) { _, note in
+            if let note, note.tone == .saved || (note.tone == .problem && note.announces) { AccessibilityNotification.Announcement(note.text).post() }
         }
         // room for the close button, which sits over the corner of the header
         .padding(.trailing, 32)
+    }
+}
+
+/// A line of a page that says what went wrong in its words, in orange, and says it to VoiceOver when it appears or changes (`announces`).
+struct ProblemLine: View {
+    let text: String
+    var font: Font = .callout
+    var announces = true
+
+    var body: some View {
+        Label(text, systemImage: "exclamationmark.triangle.fill").font(font).foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+            .onAppear { if announces { AccessibilityNotification.Announcement(text).post() } }
+            .onChange(of: text) { _, text in if announces { AccessibilityNotification.Announcement(text).post() } }
+    }
+}
+
+/// What the engine answered to the last save when it did not apply it (`ReloadStatus`): the same on every page, until a save is applied or
+/// Carrier stops. A problem is said to VoiceOver once, when the answer comes (not each time the person comes back to the page), and has a
+/// way out: Ask Carrier again asks the engine without a save.
+struct ReloadNote: View {
+    private let engine = ReloadStatus.shared
+
+    var body: some View {
+        Group {
+            if let words = engine.words {
+            HStack(spacing: 10) {
+                if engine.isProblem {
+                    ProblemLine(text: words, announces: false)
+                    AskAgainButton()
+                } else {
+                    Label(words, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            }
+        }
+        .announcesReloadProblems()
+    }
+}
+
+/// Asks the engine again without a save, for a refusal that may be gone (the file was fixed by hand).
+struct AskAgainButton: View {
+    private let engine = ReloadStatus.shared
+
+    var body: some View {
+        Button { engine.ask() } label: { Label("Ask Carrier again", systemImage: "arrow.clockwise") }
+            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(engine.pending)
+    }
+}
+
+extension View {
+    /// Says a problem answer of the engine to VoiceOver when it comes, on the page that is open (a page that shows `ReloadNote` or the header).
+    func announcesReloadProblems() -> some View {
+        onChange(of: ReloadStatus.shared.answers) {
+            if let outcome = ReloadStatus.shared.outcome, outcome.isProblem, let words = reloadWords(outcome) { AccessibilityNotification.Announcement(words).post() }
+        }
     }
 }
 

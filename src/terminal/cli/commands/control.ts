@@ -2,10 +2,10 @@ import { enginePlacesOf } from '../../../config/engine-places.ts';
 import { CliError } from '../cli-error.ts';
 import { connectControl, ControlUnreachable, type CarrierClient } from '../control-client.ts';
 
-export type ControlName = 'stop' | 'pause' | 'resume' | 'check';
+export type ControlName = 'stop' | 'pause' | 'resume' | 'check' | 'reload';
 
-const requests = { stop: 'stop', pause: 'pause', resume: 'resume', check: 'checkNow' } as const;
-const confirmations = { stop: 'Carrier stopped', pause: 'Intake paused', resume: 'Intake resumed', check: 'Checking GitHub now' } as const;
+const requests = { stop: 'stop', pause: 'pause', resume: 'resume', check: 'checkNow', reload: 'reload' } as const;
+const confirmations = { stop: 'Carrier stopped', pause: 'Intake paused', resume: 'Intake resumed', check: 'Checking GitHub now', reload: 'Reloaded' } as const;
 const STOP_WAIT_MS = 15_000; // the same limit as the app
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -22,22 +22,40 @@ export async function socketGone(path: string): Promise<boolean> {
   return false;
 }
 
-/** `stop`, `pause`, `resume` and `check` over the control socket of the Carrier running in this Carrier folder. Returns the exit code. */
+/** What a refusal from the engine says: a reload refused is the lines a start would print for the file. */
+const refusal = (name: ControlName, error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return name === 'reload' ? message.split('\n') : [`Carrier refused: ${message}`];
+};
+
+async function ask(client: CarrierClient, name: ControlName) {
+  // an engine that does not list `reload` would only answer "invalid request"
+  if (name === 'reload' && !client.hello.capabilities.includes('reload')) {
+    client.close();
+    throw new CliError(1, 'The running Carrier is too old to reload: restart it to apply the settings.');
+  }
+  await client.request(requests[name]);
+}
+
+/** `stop`, `pause`, `resume`, `check` and `reload` over the control socket of the Carrier running in this Carrier folder. Returns the exit code. */
 export async function controlCommand(name: ControlName, folder: string): Promise<number> {
   const path = enginePlacesOf(folder).socket;
   let client: CarrierClient;
   try {
     client = await connectControl(path);
-    await client.request(requests[name]);
+    await ask(client, name);
   } catch (error) {
-    if (error instanceof ControlUnreachable === false) throw new CliError(1, `Carrier refused: ${error instanceof Error ? error.message : String(error)}`);
-    if (error.reason === 'incompatible') throw new CliError(2, 'The running Carrier speaks a protocol this command does not (it expects 1). Update one of them.');
-    if (error.reason === 'no-answer') throw new CliError(1, `Carrier does not answer on ${path}`);
-    if (name === 'stop') {
-      process.stdout.write('Carrier is not running\n');
-      return 0;
+    if (error instanceof CliError) throw error;
+    if (error instanceof ControlUnreachable) {
+      if (error.reason === 'incompatible') throw new CliError(2, 'The running Carrier speaks a protocol this command does not (it expects 1). Update one of them.');
+      if (error.reason === 'no-answer') throw new CliError(1, `Carrier does not answer on ${path}`);
+      if (name === 'stop') {
+        process.stdout.write('Carrier is not running\n');
+        return 0;
+      }
+      throw new CliError(1, 'Carrier is not running');
     }
-    throw new CliError(1, 'Carrier is not running');
+    throw new CliError(1, ...refusal(name, error));
   }
   client.close();
   if (name === 'stop' && (await socketGone(path)) === false) throw new CliError(1, `Carrier still answers on ${path} after ${STOP_WAIT_MS / 1000} seconds`);

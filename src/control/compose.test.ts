@@ -73,7 +73,7 @@ const ask = () =>
   });
 
 test('startCarrier opens the socket once the engine is up, serves the panel\'s snapshot, and close removes it before the lock is released', async () => {
-  const app = await startCarrier(config(), root, deps());
+  const app = await startCarrier(config(), root, config, deps());
   closers.push(() => app.close());
 
   const [hello, reply] = (await ask()).map((line) => JSON.parse(line));
@@ -93,7 +93,7 @@ test('startCarrier opens the socket once the engine is up, serves the panel\'s s
 
 test('the snapshot carries the orchestrator profile\'s rate limit: null before GitHub answers, then the latest numbers', async () => {
   const github = new FakeGitHub();
-  const app = await startCarrier(config(), root, { ...deps(), makeGitHub: () => github });
+  const app = await startCarrier(config(), root, config, { ...deps(), makeGitHub: () => github });
   closers.push(() => app.close());
 
   expect(JSON.parse((await ask())[1]!).data.engine.rateLimit).toBeNull();
@@ -102,26 +102,26 @@ test('the snapshot carries the orchestrator profile\'s rate limit: null before G
 });
 
 test('a second carrier on the same folder fails as already running and leaves the live socket alone', async () => {
-  const app = await startCarrier(config(), root, deps());
+  const app = await startCarrier(config(), root, config, deps());
   closers.push(() => app.close());
 
-  await expect(startCarrier(config(), root, deps())).rejects.toBeInstanceOf(InstanceBusy);
+  await expect(startCarrier(config(), root, config, deps())).rejects.toBeInstanceOf(InstanceBusy);
   expect((await ask())[0]).toContain('"event":"hello"');
 });
 
 test('a socket file left by a crash is replaced once the lock is held', async () => {
-  const app0 = await startCarrier(config(), root, deps());
+  const app0 = await startCarrier(config(), root, config, deps());
   await app0.engine.shutdown();
   app0.close();
   writeFileSync(sock(), 'leftover of a crash');
 
-  const app = await startCarrier(config(), root, deps());
+  const app = await startCarrier(config(), root, config, deps());
   closers.push(() => app.close());
   expect((await ask())[0]).toContain('"event":"hello"');
 });
 
 test('the socket pauses and resumes the engine the panel pauses', async () => {
-  const app = await startCarrier(config(), root, deps());
+  const app = await startCarrier(config(), root, config, deps());
   closers.push(() => app.close());
 
   const lines = await new Promise<string[]>((resolve, reject) => {
@@ -144,7 +144,7 @@ test('a folder whose socket path does not fit still starts Carrier, with a warni
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   const long = join(root, 'r'.repeat(90));
 
-  const app = await startCarrier(config(), long, deps());
+  const app = await startCarrier(config(), long, config, deps());
   closers.push(() => app.close());
 
   expect(app.engine.paused).toBe(false);

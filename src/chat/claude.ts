@@ -161,9 +161,15 @@ class ClaudeConversation implements ChatConversation {
     const ready = await this.query.initializationResult();
     this.models = ready.models;
     this.slash = ready.commands ?? [];
-    // The SDK's type does not declare `mcpServers` on this reply; a Claude Code that does not send it gives no verdict, and that is not a problem.
-    const injected = mcp && (ready as { mcpServers?: { name: string; status: string; error?: string }[] }).mcpServers?.find((s) => s.name === mcp.serverName);
-    if (injected && MCP_DOWN.includes(injected.status)) this.mcpProblem = injected.error ? `${injected.status}: ${injected.error}` : injected.status;
+    // The reply of `initializationResult` carries no MCP verdict; `mcpServerStatus` does, and at once for a server that is down (checked against the real Claude Code). A status that cannot be read is no verdict: a broken MCP never blocks a chat.
+    if (mcp) {
+      try {
+        const injected = (await this.query.mcpServerStatus()).find((s) => s.name === mcp.serverName);
+        if (injected && MCP_DOWN.includes(injected.status)) this.mcpProblem = injected.error ? `${injected.status}: ${injected.error}` : injected.status;
+      } catch (error) {
+        log.warn('the status of the chat MCP could not be read', error);
+      }
+    }
     void this.pump();
   }
 

@@ -109,6 +109,15 @@ describe.skipIf(!enabled)('the Claude chat adapter against the real Claude', () 
     }
   });
 
+  test('a chat MCP that cannot be reached is reported as the conversation\'s mcpProblem, and the conversation still opens', { timeout: 60_000 }, async () => {
+    const own = await claudeChatRunner().open({ folder, command: process.env.CARRIER_IT_CLAUDE_COMMAND, options: { model: 'haiku' }, env: process.env, mcp: { serverName: 'carrier-chat', url: 'http://127.0.0.1:9/mcp', token: 'unused' } });
+    try {
+      expect(own.mcpProblem).toMatch(/^failed/);
+    } finally {
+      await own.close();
+    }
+  });
+
   test('with the chat MCP injected, the agent calls capabilities without asking and the call round-trips', { timeout: 180_000 }, async () => {
     const registry = new McpSessionRegistry(realClock);
     const view = { id: 's1', agent: 'a', harness: 'claude', folder: 'FOLDER-VIEW', model: null, options: {} };

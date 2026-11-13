@@ -90,7 +90,7 @@ function replay(lines: Line[]) {
   return { transport, seen };
 }
 
-const deps = (transport: CodexTransport, over: Partial<CodexChatDeps> = {}): CodexChatDeps => ({ resolve: (command) => command ?? '/bin/codex', loggedIn: async () => true, spawn: () => transport, ...over });
+const deps = (transport: CodexTransport, over: Partial<CodexChatDeps> = {}): CodexChatDeps => ({ resolve: (command) => command ?? '/bin/codex', loggedIn: async () => true, spawn: () => transport, mcpWaitMs: 0, ...over });
 const mcp = { serverName: 'carrier-chat', url: 'http://127.0.0.1:1/mcp', token: 'secret-token' };
 const openWith = async (lines: Line[], args: { resume?: string; options?: Record<string, string>; mcp?: typeof mcp } = {}) => {
   const { transport, seen } = replay(lines);
@@ -283,7 +283,7 @@ test('a line it does not know is ignored and never throws; a server request it d
 });
 
 test('the chat MCP rides in the config of thread/start and of thread/resume, and is left out when none was handed over', async () => {
-  const config = { 'mcp_servers.carrier-chat': { url: mcp.url, http_headers: { Authorization: 'Bearer secret-token' } } };
+  const config = { 'mcp_servers.carrier-chat': { url: mcp.url, default_tools_approval_mode: 'approve', http_headers: { Authorization: 'Bearer secret-token' } } };
   const started = await openWith(main, { mcp });
   expect(started.seen.written.find((m) => m.method === 'thread/start')!.params.config).toEqual(config);
   const again = await openWith(resumed, { resume: threadId, mcp });
@@ -330,6 +330,9 @@ test('a startup failure of the chat MCP is its mcpProblem and open still succeed
   expect((await openWith(failing('carrier-chat', 'failed'), { mcp })).conversation.mcpProblem).toBe('connection refused');
   expect((await openWith(failing('carrier-chat', 'ready'), { mcp })).conversation.mcpProblem).toBeUndefined();
   expect((await openWith(failing('other', 'failed'), { mcp })).conversation.mcpProblem).toBeUndefined();
+  // a Codex that never says how the MCP started does not hold the conversation: open waits for the bound and goes on
+  const { transport } = replay(main);
+  expect((await codexChatRunner(deps(transport, { mcpWaitMs: 30 })).open({ folder: '/work', env: {}, mcp })).mcpProblem).toBeUndefined();
 });
 
 test('open rejects with a reason when Codex is not installed, not logged in, or does not start or resume', async () => {

@@ -53,13 +53,13 @@ function replay(segments: Segment[], mcpServers?: { name: string; status: string
     return Object.assign(run(), {
       initializationResult: async () => ({
         models,
-        ...(mcpServers && { mcpServers }),
         commands: [
           { name: 'review', description: 'Review a change', argumentHint: '<pr>' },
           { name: 'compact', description: 'Free up context', argumentHint: '', builtin: true },
           { name: 'exit', description: 'Leave', argumentHint: '', builtin: true },
         ],
       }),
+      mcpServerStatus: async () => mcpServers ?? [],
       interrupt: async () => (seen.calls.push('interrupt'), interrupted(), undefined),
       setModel: async (model?: string) => void seen.calls.push(`setModel ${model}`),
       setPermissionMode: async (mode: string) => void seen.calls.push(`setPermissionMode ${mode}`),
@@ -354,6 +354,9 @@ test('a chat MCP the SDK reports as down is the conversation\'s mcpProblem, and 
   expect(await open([{ name: 'carrier-chat', status: 'pending' }])).toBeUndefined();
   expect(await open([{ name: 'other', status: 'failed' }])).toBeUndefined();
   expect(await open()).toBeUndefined();
+  const unreadable = replay([]).query;
+  const query = ((args: Parameters<typeof sdkQuery>[0]) => Object.assign(unreadable(args), { mcpServerStatus: async () => Promise.reject(new Error('no status')) })) as unknown as typeof sdkQuery;
+  expect((await claudeChatRunner(deps(query)).open({ folder: '/work', env: {}, mcp })).mcpProblem).toBeUndefined();
 });
 
 // Through the host's sessions, over a temporary SQLite: the person's message, the agent's and the turn are stored, and the native id lands on the session.

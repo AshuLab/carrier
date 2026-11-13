@@ -226,7 +226,7 @@ _Avoid_: tab (a page is a row of the rail, not a tab), section (that is a part o
 **Legacy group** - The Settings group that holds the pages that existed before the groups (Engine, Sessions, Health; Behavior has moved to the Carrier group) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
 _Avoid_: old settings, misc, other.
 
-**Chat MCP** - The MCP server the chat host runs for the agents of its sessions: loopback only, on by default, injected into one session when it opens and never into the agents of an epic or the user's own CLI configuration ([0023](adr/0023-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)). Its tools are pre-approved in the harness; what each may do is its access level.
+**Chat MCP** - The MCP server the chat host runs for the agents of its sessions: loopback only, on by default, injected into one session when it opens and never into the agents of an epic or the user's own CLI configuration ([0024](adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)). Its tools are pre-approved in the harness; what each may do is its access level.
 _Avoid_: Carrier MCP (the engine has none), orchestrator MCP, the app's MCP.
 
 **Toolkit** - A group of tools of the chat MCP kept together, with their schemas, handlers and tests, and added as one. The first is `capabilities`; each later capability is a toolkit of its own.

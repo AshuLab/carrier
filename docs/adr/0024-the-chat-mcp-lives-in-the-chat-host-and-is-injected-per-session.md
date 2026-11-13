@@ -1,4 +1,4 @@
-# 0023 - The chat MCP lives in the chat host and is injected per session, never into the engine's agents
+# 0024 - The chat MCP lives in the chat host and is injected per session, never into the engine's agents
 
 - Status: accepted
 - Date: 2026-11-12
@@ -17,7 +17,7 @@ It is injected when a real session opens or resumes and for that session only, u
 
 Each live conversation has its own credential, random, kept hashed in memory and never stored, keyed to the conversation instance and its session so concurrent resumes or failed opens revoke cleanly, and revoked when the session closes. The tools of the MCP are grouped in toolkits and every tool declares an access level, enforced by the server before its handler runs. A tool without one does not register.
 
-The tools of Carrier's own MCP are pre-approved in the harness (via `allowedTools` on Claude and auto-accepting `mcpServer/elicitation/request` for `carrier-chat` on Codex). This is the only exception to Carrier having no permission policy of its own, limited to tools Carrier serves; their safety is their access level and not a prompt.
+The tools of Carrier's own MCP are pre-approved in the harness (via `allowedTools` on Claude and setting `default_tools_approval_mode = "approve"` on the injected `carrier-chat` server and auto-accepting `mcpServer/elicitation/request` for it on Codex, because with the approval policy "Never ask" Codex refuses any MCP call that would need approval). This is the only exception to Carrier having no permission policy of its own, limited to tools Carrier serves; their safety is their access level and not a prompt.
 
 If the MCP cannot start or a harness refuses it, the session opens without it and the person is told.
 

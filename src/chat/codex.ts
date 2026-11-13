@@ -47,6 +47,8 @@ export type CodexChatDeps = {
   loggedIn: (binary: string, env: NodeJS.ProcessEnv) => Promise<boolean>;
   /** Starts `<binary> app-server` followed by `args`, as the leader of its own process group. */
   spawn: (binary: string, options: { cwd: string; env: NodeJS.ProcessEnv; args: string[] }) => CodexTransport;
+  /** How long `open` waits for the chat MCP to say whether it started; the real Codex answers in milliseconds. Default 5000. */
+  mcpWaitMs?: number;
 };
 
 const codexLoggedIn = (binary: string, env: NodeJS.ProcessEnv) =>
@@ -130,6 +132,8 @@ class CodexConversation implements ChatConversation {
   /** The key the chat MCP is registered under, when it was handed over: its elicitations are accepted for the person. */
   private mcpServerName: string | undefined;
   mcpProblem: string | undefined;
+  /** Called when the chat MCP reports that it started or failed, so `start` can stop waiting. */
+  private mcpSettled = () => {};
 
   constructor(chosen: Record<string, string>, binary: string) {
     this.chosen = chosen;
@@ -142,6 +146,7 @@ class CodexConversation implements ChatConversation {
 
   async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string } | undefined }) {
     this.mcpServerName = mcp?.serverName;
+    const settled = new Promise<void>((resolve) => (this.mcpSettled = resolve));
     this.transport = deps.spawn(this.binary, { cwd: folder, env, args: argsOf(launch) });
     this.transport.onLine((line) => this.receive(line));
     this.transport.onExit(() => this.ended());
@@ -151,10 +156,12 @@ class CodexConversation implements ChatConversation {
     this.notify('initialized');
     const params = { cwd: folder, approvalPolicy: this.approvalPolicy, sandbox: this.sandbox, ...(this.chosen.model && { model: this.chosen.model }),
       // over the pipe, so that the token is in neither `argv` nor a config file
-      ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
+      ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, default_tools_approval_mode: 'approve', http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
     };
     const started = await this.request(resume === undefined ? 'thread/start' : 'thread/resume', resume === undefined ? params : { threadId: resume, ...params });
     this.nativeId = started.thread.id;
+    // Codex says how the MCP started in a notification after thread/start, not in its reply: wait for it, a little, so that a failure is known when `open` returns.
+    if (mcp !== undefined) await Promise.race([settled, new Promise<void>((resolve) => setTimeout(resolve, deps.mcpWaitMs ?? 5000).unref())]);
     this.model = this.chosen.model ?? started.model ?? '';
     this.effort = this.chosen.effort ?? started.reasoningEffort ?? '';
     if (this.chosen.effort) this.overrides.effort = this.chosen.effort; // a thread takes no effort: the first turn carries it
@@ -374,7 +381,10 @@ class CodexConversation implements ChatConversation {
       case 'item/agentMessage/delta':
         return typeof params?.delta === 'string' && params.delta !== '' ? [{ kind: 'delta', text: params.delta }] : [];
       case 'mcpServer/startupStatus/updated':
-        if (this.mcpServerName !== undefined && params?.name === this.mcpServerName && params.status === 'failed') this.mcpProblem = typeof params.error === 'string' && params.error !== '' ? params.error : 'it failed to start';
+        if (this.mcpServerName !== undefined && params?.name === this.mcpServerName && (params.status === 'failed' || params.status === 'ready' || params.status === 'cancelled')) {
+          if (params.status === 'failed') this.mcpProblem = typeof params.error === 'string' && params.error !== '' ? params.error : 'it failed to start';
+          this.mcpSettled();
+        }
         return [];
       case 'item/started': {
         const item = params?.item;

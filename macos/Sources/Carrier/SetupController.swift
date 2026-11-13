@@ -34,6 +34,9 @@ final class SetupController: ObservableObject {
     /// Where `carrier` is, asked of the disk each time: the override, else the Homebrew one when it is executable.
     var carrier: String? { carrierPath(override: carrierOverride, isExecutable: FileManager.default.isExecutableFile(atPath:)) }
 
+    /// The person chose their own `carrier`, so it is not the Homebrew one.
+    var carrierIsOwn: Bool { carrierOverride.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
+
     /// Whether the `carrier` found runs: a script has to exist, anything else has to be executable. A typed path can be wrong.
     var carrierRuns: Bool {
         guard let carrier else { return false }

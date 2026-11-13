@@ -12,6 +12,8 @@ import { ChatRefused } from './runner.ts';
 import { chatCaps } from './transcript.ts';
 import { sessions as schemaSessions } from './schema.ts';
 import type { HealthProbes } from './health.ts';
+import { capabilities } from './mcp/capabilities.ts';
+import { McpSessionRegistry } from './mcp.ts';
 import { createSessions, type SessionAges } from './sessions.ts';
 
 let dir: string;
@@ -1685,4 +1687,181 @@ test.each([
   const s = await openOne(setup(undefined, { ages: () => ages }));
   await s.sessions.archive({ sessionId: s.id, archived: true });
   expect(s.sessions.list({ archived: true }).sessions[0]).toMatchObject({ kept: false, deleteAt: null });
+});
+
+// The chat MCP: a token for each conversation of a real session, revoked wherever the conversation ends.
+const ENDPOINT = 'http://127.0.0.1:4242/mcp';
+const withMcp = (down = false) => {
+  const registry = new McpSessionRegistry(new FakeClock());
+  return { registry, extra: { mcp: { registry, url: () => (down ? undefined : ENDPOINT) } } };
+};
+const tokensLive = (registry: McpSessionRegistry) => (registry as any).records.size as number;
+const noticesOf = (s: ReturnType<typeof setup>, id: string) => (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((e) => e.kind === 'notice').map((e) => e.text as string);
+
+test('open hands the runner a fresh read-only token for the session it is about to create, and close revokes it', async () => {
+  const { registry, extra } = withMcp();
+  const s = await openOne(setup(undefined, extra));
+  const { mcp } = s.claude.opened[0]!;
+  expect(mcp).toMatchObject({ serverName: 'carrier-chat', url: ENDPOINT });
+  expect(registry.lookup(mcp!.token)).toMatchObject({ sessionId: s.id, capabilities: new Set(['read']) });
+  expect(noticesOf(s, s.id)).toEqual([]);
+  await s.sessions.close({ sessionId: s.id });
+  expect(registry.lookup(mcp!.token)).toBeUndefined();
+});
+
+test('open revokes the token when the runner refuses, when an option is refused (and ends that conversation), and mints nothing for a refused folder', async () => {
+  const { registry, extra } = withMcp();
+  const s = setup(undefined, extra);
+  s.claude.refuseWith = 'claude is not logged in';
+  await expect(s.sessions.open({ agent: 'claude', folder: work })).rejects.toThrow('not logged in');
+  expect(tokensLive(registry)).toBe(0);
+  s.claude.refuseWith = undefined;
+  await expect(s.sessions.open({ agent: 'claude', folder: work, options: { speed: 'fast' } })).rejects.toThrow('no option "speed"');
+  expect(s.claude.conversations[0]!.closed).toBe(true);
+  expect(tokensLive(registry)).toBe(0);
+  await expect(s.sessions.open({ agent: 'claude', folder: join(dir, 'missing') })).rejects.toThrow();
+  expect(s.claude.opened).toHaveLength(2);
+});
+
+test('a conversation that ends on its own loses its token', async () => {
+  const { registry, extra } = withMcp();
+  const s = await openOne(setup(undefined, extra));
+  expect(tokensLive(registry)).toBe(1);
+  s.conversation.die();
+  await vi.waitFor(() => expect(tokensLive(registry)).toBe(0));
+});
+
+test('resume issues a new token for the new conversation; a resume that loses the race to another revokes only its own', async () => {
+  const { registry, extra } = withMcp();
+  const s = await openOne(setup(undefined, extra));
+  await s.sessions.close({ sessionId: s.id });
+  const first = s.claude.opened[0]!.mcp!.token;
+  await Promise.all([s.sessions.resume({ sessionId: s.id }), s.sessions.resume({ sessionId: s.id })]);
+  const [, winner, loser] = s.claude.opened.map((args) => args.mcp!.token);
+  expect(new Set([first, winner, loser]).size).toBe(3);
+  expect(registry.lookup(winner!)).toMatchObject({ sessionId: s.id });
+  expect(registry.lookup(loser!)).toBeUndefined();
+  expect(s.claude.conversations[2]!.closed).toBe(true);
+  expect(tokensLive(registry)).toBe(1);
+  await s.sessions.close({ sessionId: s.id });
+  expect(tokensLive(registry)).toBe(0);
+});
+
+test('resume revokes its token when the runner refuses', async () => {
+  const { registry, extra } = withMcp();
+  const s = await openOne(setup(undefined, extra));
+  await s.sessions.close({ sessionId: s.id });
+  s.claude.refuseWith = 'gone';
+  await expect(s.sessions.resume({ sessionId: s.id })).rejects.toThrow('gone');
+  expect(tokensLive(registry)).toBe(0);
+});
+
+test('openPlan issues the token for the preparing session, and a refused agent step, a refused option or a cancelled preparation revoke it', async () => {
+  const { registry, extra } = withMcp();
+  const s = setup(undefined, extra);
+  const { session } = await s.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(stepsOf(s, session.id)).toContain('message:running'));
+  const { mcp } = s.claude.opened[0]!;
+  expect(mcp).toMatchObject({ serverName: 'carrier-chat', url: ENDPOINT });
+  expect(registry.lookup(mcp!.token)).toMatchObject({ sessionId: session.id });
+  await s.sessions.close({ sessionId: session.id });
+  expect(registry.lookup(mcp!.token)).toBeUndefined();
+
+  s.claude.setup = offering(['model', ['haiku'], 'haiku']);
+  await s.sessions.openPlan({ plan: planFor({ options: { speed: 'fast' } }) });
+  await vi.waitFor(() => expect(s.claude.conversations[1]!.closed).toBe(true));
+  expect(tokensLive(registry)).toBe(0);
+
+  s.claude.refuseWith = 'no';
+  await s.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(s.claude.opened).toHaveLength(3));
+  await vi.waitFor(() => expect(tokensLive(registry)).toBe(0));
+});
+
+test('a preparation cancelled while its agent opens revokes the token of the conversation it closes', async () => {
+  const { registry, extra } = withMcp();
+  const s = setup(undefined, extra);
+  const open = s.claude.open.bind(s.claude);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  s.claude.open = async (args) => (await gate, open(args));
+  const { session } = await s.sessions.openPlan({ plan: planFor() });
+  const cancelling = s.sessions.cancelPreparation({ sessionId: session.id });
+  release();
+  await cancelling;
+  expect(tokensLive(registry)).toBe(0);
+  expect(s.claude.conversations[0]?.closed ?? true).toBe(true);
+});
+
+test('a resume whose session was deleted while it waited for the provider revokes its token, closes the agent and is refused', async () => {
+  const { registry, extra } = withMcp();
+  const s = setup(undefined, extra);
+  const { session } = await s.sessions.open({ agent: 'claude', folder: work });
+  await s.sessions.close({ sessionId: session.id });
+  const open = s.claude.open.bind(s.claude);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  s.claude.open = async (args) => (await gate, open(args));
+  const resuming = s.sessions.resume({ sessionId: session.id });
+  const refused = expect(resuming).rejects.toThrow('being deleted');
+  await s.sessions.delete({ sessionId: session.id }); // finishes before the provider answers: `deleting` is clear again
+  release();
+  await refused;
+  expect(tokensLive(registry)).toBe(0);
+  expect(s.claude.conversations.at(-1)!.closed).toBe(true);
+});
+
+test('agentOptions probes get no MCP and mint no token', async () => {
+  const { registry, extra } = withMcp();
+  const s = setup(undefined, extra);
+  await s.sessions.agentOptions({ agent: 'claude' });
+  expect(s.claude.opened).toHaveLength(1);
+  expect(s.claude.opened[0]!.mcp).toBeUndefined();
+  expect(tokensLive(registry)).toBe(0);
+});
+
+test('without an MCP endpoint, or when the harness could not use it, the session opens usable and the host stores a notice; with it working there is none', async () => {
+  const none = setup(undefined, withMcp(true).extra);
+  const { session } = await none.sessions.open({ agent: 'claude', folder: work });
+  expect(none.claude.opened[0]!.mcp).toBeUndefined();
+  expect(noticesOf(none, session.id)).toEqual([expect.stringContaining('not available')]);
+  none.claude.conversations[0]!.reply = () => {};
+  expect(() => none.sessions.send({ sessionId: session.id, text: 'hi' })).not.toThrow();
+
+  const broken = setup(undefined, withMcp().extra);
+  broken.claude.setup = (conversation) => void (conversation.mcpProblem = 'connection refused');
+  const opened = await broken.sessions.open({ agent: 'claude', folder: work });
+  expect(noticesOf(broken, opened.session.id)).toEqual([expect.stringContaining('connection refused')]);
+  await broken.sessions.close({ sessionId: opened.session.id });
+  await broken.sessions.resume({ sessionId: opened.session.id });
+  expect(noticesOf(broken, opened.session.id)).toHaveLength(2);
+
+  const planned = setup(undefined, withMcp(true).extra);
+  const { session: preparing } = await planned.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(noticesOf(planned, preparing.id)).toHaveLength(1));
+});
+
+test('capabilities answers the session, the agents and the verdicts, with no local path and without starting any agent', async () => {
+  writeProviders({ claude: { harness: 'claude', configDir: '/logins/secret-dir', command: '/opt/secret/bin/claude' }, codex: { harness: 'codex', configDir: '/logins/codex-dir' } });
+  const probes = probesOf({ loggedIn: async (harness) => harness === 'claude', exitCode: async (command) => (command === 'gh' ? 1 : 0) });
+  const s = setup(undefined, { probes, binaryFound: () => true });
+  s.claude.setup = offering(['model', ['haiku', 'sonnet'], 'sonnet'], ['mode', ['plan', 'default'], 'default']);
+  const { session } = await s.sessions.open({ agent: 'claude', folder: work });
+  const asked = s.claude.opened.length;
+  const answer = await capabilities.handler({}, { sessionId: session.id, invocationId: 'i', sessions: s.sessions.mcpView });
+  expect(answer).toEqual({
+    session: { id: session.id, agent: 'claude', harness: 'claude', folder: realpathSync(work), model: 'sonnet', options: { model: 'sonnet', mode: 'default' } },
+    agents: [
+      { name: 'claude', harness: 'claude', found: true, state: 'ready' },
+      { name: 'codex', harness: 'codex', found: true, state: 'signedOut' },
+    ],
+    environment: { git: 'ready', gh: 'signedOut' },
+  });
+  expect(JSON.stringify(answer)).not.toMatch(/secret|logins|\/opt/);
+  expect(s.claude.opened).toHaveLength(asked);
+  // closed, it speaks from the row
+  await s.sessions.close({ sessionId: session.id });
+  expect(s.sessions.mcpView.snapshot(session.id)).toMatchObject({ id: session.id, model: null, options: {} });
+  expect(s.sessions.mcpView.exists(session.id)).toBe(true);
+  expect(s.sessions.mcpView.exists('ghost')).toBe(false);
 });

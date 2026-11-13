@@ -2,7 +2,10 @@ import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { claudeChatRunner } from './claude.ts';
+import { claudeChatRunner, realClaudeDeps } from './claude.ts';
+import { realClock } from '../orchestration/clock.ts';
+import { McpSessionRegistry, startMcpServer } from './mcp.ts';
+import { capabilities } from './mcp/capabilities.ts';
 import type { ChatConversation, ChatEvent } from './runner.ts';
 
 // The real Claude, through the user's own `claude` binary and login, in a temporary folder: two turns in one
@@ -11,7 +14,7 @@ import type { ChatConversation, ChatEvent } from './runner.ts';
 // of the user's own plan. It only runs when this is set explicitly:
 //   CARRIER_IT_CLAUDE_CHAT=1   (optional: CARRIER_IT_CLAUDE_COMMAND=<path to the claude binary>, else the one on the path)
 // A second test interrupts a long turn and then asks a second message in the same session. A fourth has it ask to create
-// a file: declining leaves no file, allowing creates it.
+// a file: declining leaves no file, allowing creates it. A fifth hands it the chat MCP, a real loopback server, and asks it to call `capabilities`.
 // No token is read or printed: the agent runs with the environment of this process, as the chat host runs it.
 const enabled = process.env.CARRIER_IT_CLAUDE_CHAT === '1';
 
@@ -103,6 +106,44 @@ describe.skipIf(!enabled)('the Claude chat adapter against the real Claude', () 
     } finally {
       await own.close();
       rmSync(work, { recursive: true, force: true });
+    }
+  });
+
+  test('a chat MCP that cannot be reached is reported as the conversation\'s mcpProblem, and the conversation still opens', { timeout: 60_000 }, async () => {
+    const own = await claudeChatRunner().open({ folder, command: process.env.CARRIER_IT_CLAUDE_COMMAND, options: { model: 'haiku' }, env: process.env, mcp: { serverName: 'carrier-chat', url: 'http://127.0.0.1:9/mcp', token: 'unused' } });
+    try {
+      expect(own.mcpProblem).toMatch(/^failed/);
+    } finally {
+      await own.close();
+    }
+  });
+
+  test('with the chat MCP injected, the agent calls capabilities without asking and the call round-trips', { timeout: 180_000 }, async () => {
+    const registry = new McpSessionRegistry(realClock);
+    const view = { id: 's1', agent: 'a', harness: 'claude', folder: 'FOLDER-VIEW', model: null, options: {} };
+    const server = await startMcpServer({
+      registry,
+      tools: [capabilities],
+      sessions: { exists: () => true, live: () => true, snapshot: () => view, agents: () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }) },
+    });
+    const token = registry.issue({ sessionId: 's1', invocationId: 'i1' });
+    const argvs: string[] = [];
+    const runner = claudeChatRunner({ ...realClaudeDeps, spawn: (o) => (argvs.push(o.args.join(' ')), realClaudeDeps.spawn!(o)) });
+    const own = await runner.open({ folder, command: process.env.CARRIER_IT_CLAUDE_COMMAND, options: { model: 'haiku', permissionMode: 'default' }, env: process.env, mcp: { serverName: 'carrier-chat', url: server.url, token } });
+    const events: ChatEvent[] = [];
+    own.onEvent((event) => events.push(event));
+    try {
+      expect(own.mcpProblem).toBeUndefined();
+      expect(argvs.join(' ')).not.toContain(token); // the process list shows the name of the variable, never the token
+      own.send('Call the capabilities tool of the carrier-chat MCP server once, then reply with just the folder it reports for the session.');
+      await expect.poll(() => events.some((e) => e.kind === 'turn_end'), { timeout: 150_000, interval: 200 }).toBe(true);
+      expect(events.some((e) => e.kind === 'approval')).toBe(false); // pre-approved
+      expect(events.find((e) => e.kind === 'tool_start' && e.tool === 'mcp__carrier-chat__capabilities')).toBeDefined();
+      expect(events.find((e) => e.kind === 'tool_end' && e.tool === 'mcp__carrier-chat__capabilities')).toMatchObject({ status: 'ok' });
+      expect(events.filter((e) => e.kind === 'assistant').map((e) => (e as { text: string }).text).join(' ')).toContain('FOLDER-VIEW');
+    } finally {
+      await own.close();
+      await server.close();
     }
   });
 });

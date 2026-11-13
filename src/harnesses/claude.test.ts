@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -242,4 +242,19 @@ test('an effort is passed as --effort, and without one nothing is added', () => 
   expect(args.filter((_, i) => args[i] !== '--effort' && args[i - 1] !== '--effort')).toEqual(plain.args);
   expect(args[args.indexOf('--effort') + 1]).toBe('xhigh');
   expect(buildClaudeCommand({ ...task, effort: 'low', resumeSession: 's-1' }, ctx).args).toContain('--effort');
+});
+
+test('an engine Claude run gets no chat MCP configuration in its arguments or environment', () => {
+  const { args, env } = buildClaudeCommand(task, ctx);
+  expect(args).not.toContain('--mcp-config');
+  expect(`${args.join('\n')}\n${Object.entries(env).flat().join('\n')}`).not.toMatch(/carrier-chat|mcp_servers|mcp-config/i);
+});
+
+test('no engine module imports the chat MCP or anything from the chat host', () => {
+  const root = join(import.meta.dirname, '..');
+  const sources = ['orchestration', 'execution', 'harnesses'].flatMap((dir) =>
+    (readdirSync(join(root, dir), { recursive: true, encoding: 'utf8' }) as string[]).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts')).map((f) => join(root, dir, f)),
+  );
+  expect(sources.length).toBeGreaterThan(0);
+  for (const file of sources) expect(readFileSync(file, 'utf8'), file).not.toMatch(/(?:from|import\()\s*['"][^'"]*(?:\/chat\/|mcp)/i);
 });

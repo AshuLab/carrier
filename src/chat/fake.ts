@@ -13,6 +13,7 @@ export class FakeConversation implements ChatConversation {
   options: ChatOption[] = [];
   nativeId: string | undefined;
   startedOver = false;
+  mcpProblem: string | undefined;
   process: ChatConversation['process'];
   sent: string[] = [];
   answers: { approvalId: string; choiceId: string; answers?: Record<string, string> }[] = [];

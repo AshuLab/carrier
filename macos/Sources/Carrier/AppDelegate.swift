@@ -184,7 +184,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // A menu bar app keeps running with no windows.
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { false }
 
-    func applicationWillTerminate(_ notification: Notification) { fixtureServer?.stop() }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard fixtureServer == nil, Self.selfTestPath() == nil else { return .terminateNow }
+        return MainActor.assumeIsolated {
+            guard let store = CarrierTerminalStore.sharedIfInitialized,
+                  let question = store.pendingConfirmation(for: .all)
+            else {
+                return .terminateNow
+            }
+            return ask(question) ? .terminateNow : .terminateCancel
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { CarrierTerminalStore.sharedIfInitialized?.teardownAll() }
+        fixtureServer?.stop()
+    }
 
     /// `--fixture [folder]`: the folder of golden files, by default the ones inside the app bundle. nil without the flag.
     private static func fixturesPath() -> String? {

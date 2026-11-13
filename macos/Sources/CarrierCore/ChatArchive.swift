@@ -62,6 +62,12 @@ public struct Question: Equatable {
     public let title: String
     public let message: String
     public let confirm: String
+
+    public init(title: String, message: String, confirm: String) {
+        self.title = title
+        self.message = message
+        self.confirm = confirm
+    }
 }
 
 /// What a worktree holds that deleting would lose, in words: "3 uncommitted files and 2 commits that exist nowhere else"; nil when it holds nothing.
@@ -155,6 +161,8 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private let preferences: AppPreferences
     @ObservationIgnored public var changed: () -> Void = {}
+    @ObservationIgnored public var confirmSessionRemoval: @MainActor ([String]) -> Bool = { _ in true }
+    @ObservationIgnored public var didRemoveSession: @MainActor (String) -> Void = { _ in }
 
     public init(
         host: ChatHost, preferences: AppPreferences = AppPreferences(),
@@ -165,11 +173,23 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
         self.log = log
     }
 
-    public func archive(_ id: String) async -> String? { await run("archive", id) { try await $0.archive(id, true) } }
+    public func archive(_ id: String) async -> String? {
+        guard await confirmSessionRemoval([id]) else { return nil }
+        let refusal = await run("archive", id) { try await $0.archive(id, true) }
+        if refusal == nil { await didRemoveSession(id) }
+        return refusal
+    }
 
     public func restore(_ id: String) async -> String? { await run("restore", id) { try await $0.archive(id, false) } }
 
-    public func delete(_ id: String) async -> String? { await run("delete", id) { try await $0.delete(id) } }
+    public func delete(_ id: String) async -> String? {
+        switch await performDelete(id, skipConfirmation: false) {
+        case .deleted, .cancelled:
+            return nil
+        case .failed(let message):
+            return message
+        }
+    }
 
     /// Ends the turn that is in progress.
     public func stop(_ id: String) async -> String? { await run("stop", id) { try await $0.interrupt(id) } }
@@ -206,14 +226,38 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
 
     /// Deletes each session; one the host refuses does not stop the rest, and a host that stops answering does.
     public func clear(_ ids: [String]) async -> String? {
+        guard ids.isEmpty == false, await confirmSessionRemoval(ids) else { return nil }
         var deleted = 0
         var refusal: String?
         for id in ids {
-            let failed = await delete(id)
-            if let failed, refusal == nil { refusal = failed }
-            if failed == nil { deleted += 1 } else if failed == ConversationModel.words(ControlError.closed) { break }
+            switch await performDelete(id, skipConfirmation: true) {
+            case .deleted:
+                deleted += 1
+            case .cancelled:
+                break
+            case .failed(let failed):
+                if refusal == nil { refusal = failed }
+                if failed == ConversationModel.words(ControlError.closed) { return refusal.map { "Deleted \(deleted) of \(ids.count) archived sessions. \($0)" } }
+            }
         }
         return refusal.map { "Deleted \(deleted) of \(ids.count) archived sessions. \($0)" }
+    }
+
+    private enum DeleteOutcome {
+        case deleted
+        case cancelled
+        case failed(String)
+    }
+
+    private func performDelete(_ id: String, skipConfirmation: Bool) async -> DeleteOutcome {
+        if skipConfirmation == false, await confirmSessionRemoval([id]) == false {
+            return .cancelled
+        }
+        if let failed = await run("delete", id, { try await $0.delete(id) }) {
+            return .failed(failed)
+        }
+        await didRemoveSession(id)
+        return .deleted
     }
 
     private struct Refusal: Error { let words: String }

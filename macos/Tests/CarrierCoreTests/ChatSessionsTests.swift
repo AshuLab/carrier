@@ -439,6 +439,26 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(host.changes == ["archive a", "restore a", "delete b"] && changed == 3)
 }
 
+@MainActor @Test func sessionActionsRespectTerminalRemovalConfirmationAndCleanUpOnSuccess() async {
+    let host = FakeHost()
+    let actions = SessionActions(host: host, log: { _ in })
+    var removed: [String] = []
+    actions.confirmSessionRemoval = { $0.contains("blocked") == false }
+    actions.didRemoveSession = { removed.append($0) }
+
+    #expect(await actions.archive("blocked") == nil)
+    #expect(await actions.delete("blocked") == nil)
+    #expect(await actions.clear(["a", "blocked"]) == nil)
+    #expect(host.changes.isEmpty)
+    #expect(removed.isEmpty)
+
+    #expect(await actions.archive("a") == nil)
+    #expect(await actions.delete("b") == nil)
+    #expect(await actions.clear(["c", "d"]) == nil)
+    #expect(host.changes == ["archive a", "delete b", "delete c", "delete d"])
+    #expect(removed == ["a", "b", "c", "d"])
+}
+
 @MainActor @Test func aRefusalIsReturnedInWordsAndNothingChanges() async {
     let host = FakeHost()
     host.refuse["a"] = ControlError.remote("This session is working; interrupt or close it first, then archive it")

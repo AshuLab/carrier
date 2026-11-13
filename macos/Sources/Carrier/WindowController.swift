@@ -12,7 +12,21 @@ import SwiftUI
     let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
     /// Archive, restore and delete; `startMonitor` makes the lists read again after each.
-    let actions = SessionActions(host: SocketChatHost())
+    let actions: SessionActions = {
+        let actions = SessionActions(host: SocketChatHost())
+        actions.confirmSessionRemoval = { sessionIds in
+            guard let store = CarrierTerminalStore.sharedIfInitialized,
+                  let question = store.pendingConfirmation(for: .owners(sessionIds.map { .session($0) }))
+            else {
+                return true
+            }
+            return ask(question)
+        }
+        actions.didRemoveSession = { sessionId in
+            CarrierTerminalStore.sharedIfInitialized?.closeAll(for: .session(sessionId), force: true)
+        }
+        return actions
+    }()
     var collapse = SidebarCollapse()
     /// The chat host's sessions (`ChatSessionsPoller`), with which of them are unread.
     var sessions = Sessions()
@@ -23,6 +37,11 @@ import SwiftUI
     /// A new list from the host, on the main thread.
     func adopt(_ rows: [SessionRow]) {
         hostRows = rows
+        MainActor.assumeIsolated {
+            let knownIds = Set(rows.map(\.id))
+            CarrierTerminalStore.lastKnownSessionIds = knownIds
+            CarrierTerminalStore.sharedIfInitialized?.pruneSessions(keeping: knownIds)
+        }
         refreshUnread()
     }
 

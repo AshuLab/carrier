@@ -80,6 +80,15 @@ License, is its [`NOTICES`](https://github.com/argmaxinc/argmax-oss-swift/blob/v
 
 This file ships inside the app as well, in `Contents/Resources/Licenses/THIRD-PARTY-NOTICES.md`.
 
+## Ghostty (`libghostty-spm` and `DisplayLink`)
+
+The Carrier app (`macos/Package.swift`, the `Carrier` target only) links `GhosttyTerminal` from
+[libghostty-spm](https://github.com/Lakr233/libghostty-spm) (pinned to 2.2.2026111302, Copyright (c) 2026 @Lakr233, MIT
+License), which wraps [Ghostty](https://github.com/ghostty-org/ghostty)'s prebuilt `GhosttyKit.xcframework` (`libghostty`,
+MIT License) and [DisplayLink](https://github.com/Lakr233/DisplayLink) (pinned to 3.0.1, Copyright (c) 2024 Lakr Aream,
+MIT License). Their licence texts ship inside the app in `Contents/Resources/Licenses/libghostty-spm/LICENSE` and
+`Contents/Resources/Licenses/DisplayLink/LICENSE`.
+
 ## Speech models
 
 None of these is part of the app or is redistributed by Carrier: a person downloads each from Hugging Face, from the

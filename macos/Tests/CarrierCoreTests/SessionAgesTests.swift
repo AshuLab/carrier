@@ -30,6 +30,13 @@ private func object(_ data: Data?) throws -> [String: Any] {
     #expect(try object(applyingSessionAges(SessionAges(), to: nil)).isEmpty)
 }
 
+@Test func theResetWritesTheDefaultsBackAndTheFileReadsThem() throws {
+    let file = Data(#"{"logLevel":"debug","archiveAfterDays":"never","deleteAfterDays":9}"#.utf8)
+    let written = try #require(applyingSessionAges(SessionAges(), to: file))
+    #expect(sessionAges(chatJSON: written) == SessionAges(archive: .days(15), delete: .days(30)))
+    #expect(try object(written)["logLevel"] as? String == "debug")
+}
+
 @Test func theAgesAreNotWrittenOverAFileThatCannotBeReadOrWhenTheyBreakTheRule() {
     #expect(applyingSessionAges(SessionAges(), to: Data("[1]".utf8)) == nil && applyingSessionAges(SessionAges(), to: Data("nope".utf8)) == nil)
     #expect(applyingSessionAges(SessionAges(archive: .days(30), delete: .days(30)), to: nil) == nil)

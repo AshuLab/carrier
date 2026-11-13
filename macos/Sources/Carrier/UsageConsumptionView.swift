@@ -194,6 +194,19 @@ private struct DailyChart: View {
 
     private var shown: UsageBar? { bars.first { $0.label == (pinned ?? hovered) } }
 
+    // Its own function, with the plotted values typed, so the compiler has one small expression to solve.
+    @ChartContentBuilder
+    private func segmentMark(_ bar: UsageBar, _ segment: UsageSegment, _ valueName: String) -> some ChartContent {
+        let day: PlottableValue<String> = .value("Day", bar.label)
+        let amount: PlottableValue<Double> = .value(valueName, segment.value)
+        let provider: PlottableValue<String> = .value("Provider", usageProviderTitle(segment.provider))
+        let dimmed: Bool = shown != nil && shown?.id != bar.id
+        let opacity: Double = dimmed ? 0.45 : 1
+        BarMark(x: day, y: amount)
+            .foregroundStyle(by: provider)
+            .opacity(opacity)
+    }
+
     var body: some View {
         // one label in a few, so thirty days do not run into each other
         let step = max(1, Int((Double(bars.count) / 7).rounded(.up)))
@@ -202,11 +215,7 @@ private struct DailyChart: View {
         Chart {
             ForEach(bars) { bar in
                 ForEach(bar.segments) { segment in
-                    let dimmed: Bool = shown != nil && shown?.id != bar.id
-                    let provider: String = usageProviderTitle(segment.provider)
-                    BarMark(x: .value("Day", bar.label), y: .value(valueName, segment.value))
-                        .foregroundStyle(by: .value("Provider", provider))
-                        .opacity(dimmed ? 0.45 : 1)
+                    segmentMark(bar, segment, valueName)
                 }
             }
             if let shown {

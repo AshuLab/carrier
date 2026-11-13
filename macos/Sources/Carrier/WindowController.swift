@@ -43,11 +43,11 @@ import SwiftUI
         refreshUnread()
     }
 
-    /// Prunes persisted/live session terminals only against an authoritative list from a healthy chat host.
+    /// Prunes persisted/live session terminals only after two consecutive healthy chat-host polls omit them.
     @MainActor
     func reconcileKnownSessions(_ knownIds: Set<String>) {
         CarrierTerminalStore.lastKnownSessionIds = knownIds
-        CarrierTerminalStore.sharedIfInitialized?.pruneSessions(keeping: knownIds)
+        CarrierTerminalStore.sharedIfInitialized?.reconcileKnownSessions(knownIds)
     }
 
     /// Sets `unread` again: when the list changes and when the open session does. The session on screen is seen as it moves.

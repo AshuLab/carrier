@@ -54,6 +54,9 @@ final class CarrierTerminalStore {
     @ObservationIgnored private var appearanceObserver: NSKeyValueObservation?
     @ObservationIgnored private var lastAppliedAppearance: AppearanceCacheKey?
     @ObservationIgnored private var hasLoadedOrMutatedPersistence: Bool
+    @ObservationIgnored private var persistenceWriteBlocked = false
+    @ObservationIgnored private var missingSessionsInPreviousPoll: Set<String> = []
+    @ObservationIgnored private var pendingCloseTargets: Set<TerminalCloseTarget> = []
     @ObservationIgnored private var isTornDown = false
 
     /// Hook invoked when Ghostty itself requests closing a live surface (e.g., `close_surface` keybinding).
@@ -79,38 +82,46 @@ final class CarrierTerminalStore {
         self.processInspector = processInspector ?? GhosttyTerminalProcessInspector()
         self.persistDebounceNanoseconds = persistDebounceNanoseconds
 
-        let resolvedScheme = scheme ?? Self.resolveScheme(preferences.colorScheme)
-        let profile = TerminalAppearanceProfile(
+        let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(preferences.colorScheme)
+        let profile = TerminalAppearanceMapper.makeProfile(
             theme: preferences.theme,
             scheme: resolvedScheme,
-            accent: preferences.accent,
-            tint: preferences.tint,
-            monospace: preferences.monospace,
-            terminalSettings: preferences.terminal
+            preferences: preferences
         )
-        let theme = Self.ghosttyTheme(for: profile.theme, preferences: preferences)
-        let config = Self.ghosttyBaseConfiguration(for: profile)
+        let theme = TerminalAppearanceMapper.ghosttyTheme(for: profile.theme, preferences: preferences)
+        let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile)
         self.controller = TerminalController(
             configSource: .none,
             theme: theme,
             terminalConfiguration: config
         )
-        self.controller.setColorScheme(Self.ghosttyColorScheme(resolvedScheme))
+        self.controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(resolvedScheme))
         self.lastAppliedAppearance = AppearanceCacheKey(profile: profile)
 
         if let initialRegistry {
             self.registry = initialRegistry
             self.hasLoadedOrMutatedPersistence = true
-        } else if let persisted = resolvedStore.load() {
-            self.registry = TerminalRegistry(
-                restoring: persisted,
-                knownSessionIds: knownSessionIds,
-                fallbackDirectory: fallbackDirectory
-            )
-            self.hasLoadedOrMutatedPersistence = true
         } else {
-            self.registry = TerminalRegistry()
-            self.hasLoadedOrMutatedPersistence = false
+            switch resolvedStore.loadResult() {
+            case .loaded(let persisted):
+                self.registry = TerminalRegistry(
+                    restoring: persisted,
+                    knownSessionIds: knownSessionIds,
+                    fallbackDirectory: fallbackDirectory
+                )
+                self.hasLoadedOrMutatedPersistence = true
+            case .missing:
+                self.registry = TerminalRegistry()
+                self.hasLoadedOrMutatedPersistence = false
+            case .rejected(.corrupt(backedUp: true)):
+                // Corrupt file was safely moved to .bak.<timestamp>; allow saving new layout cleanly.
+                self.registry = TerminalRegistry()
+                self.hasLoadedOrMutatedPersistence = false
+            case .rejected:
+                self.registry = TerminalRegistry()
+                self.hasLoadedOrMutatedPersistence = false
+                self.persistenceWriteBlocked = true
+            }
         }
 
         if observesSystemAppearance {
@@ -156,6 +167,9 @@ final class CarrierTerminalStore {
             customTitle: customTitle
         )
         let tab = registry.openTab(owner: owner, spec: spec, activate: activate)
+        if case .session(let sessionId) = owner {
+            missingSessionsInPreviousPoll.remove(sessionId)
+        }
         hasLoadedOrMutatedPersistence = true
         saveWorkspaceNow()
         return tab
@@ -301,6 +315,21 @@ final class CarrierTerminalStore {
         saveWorkspaceNow()
     }
 
+    /// Reconciles live session terminals with an authoritative list from the chat host,
+    /// pruning only sessions missing from two consecutive authoritative snapshots.
+    func reconcileKnownSessions(_ knownSessionIds: Set<String>) {
+        missingSessionsInPreviousPoll = missingSessionsInPreviousPoll.subtracting(knownSessionIds)
+        let activeSessionIds = Set(registry.workspaces.compactMap { workspace -> String? in
+            guard case .session(let id) = workspace.owner else { return nil }
+            return id
+        })
+        let missingNow = activeSessionIds.subtracting(knownSessionIds)
+        let confirmedMissing = missingNow.intersection(missingSessionsInPreviousPoll)
+        missingSessionsInPreviousPoll = missingNow.subtracting(confirmedMissing)
+        guard confirmedMissing.isEmpty == false else { return }
+        pruneSessions(keeping: Set(activeSessionIds).subtracting(confirmedMissing))
+    }
+
     func pruneSessions(keeping knownSessionIds: Set<String>) {
         let removedPaneIds = registry.pruneSessions(keeping: knownSessionIds)
         guard removedPaneIds.isEmpty == false else { return }
@@ -402,66 +431,19 @@ final class CarrierTerminalStore {
 
     func syncAppearance(preferences customPreferences: AppPreferences? = nil, scheme: ThemeScheme? = nil) {
         let prefs = customPreferences ?? preferences
-        let resolvedScheme = scheme ?? Self.resolveScheme(prefs.colorScheme)
-        syncAppearance(
+        let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(prefs.colorScheme)
+        let profile = TerminalAppearanceMapper.makeProfile(
             theme: prefs.theme,
             scheme: resolvedScheme,
-            accent: prefs.accent,
-            tint: prefs.tint,
-            monospace: prefs.monospace,
-            terminalSettings: prefs.terminal,
-            preferencesForDarkLight: prefs
-        )
-    }
-
-    func syncAppearance(
-        theme: Theme,
-        scheme: ThemeScheme,
-        accent: AccentColor? = nil,
-        tint: Tint = .off,
-        monospace: MonospaceSettings = MonospaceSettings(),
-        terminalSettings: TerminalSettings? = nil,
-        preferencesForDarkLight: AppPreferences? = nil
-    ) {
-        let prefs = preferencesForDarkLight ?? preferences
-        let settings = terminalSettings ?? prefs.terminal
-        let profile = TerminalAppearanceProfile(
-            theme: theme,
-            scheme: scheme,
-            accent: accent,
-            tint: tint,
-            monospace: monospace,
-            terminalSettings: settings
+            preferences: prefs
         )
         let cacheKey = AppearanceCacheKey(profile: profile)
         guard cacheKey != lastAppliedAppearance else { return }
         lastAppliedAppearance = cacheKey
 
-        let lightProfile = TerminalAppearanceProfile(
-            theme: theme,
-            scheme: .light,
-            accent: accent,
-            tint: tint,
-            monospace: monospace,
-            terminalSettings: settings
-        )
-        let darkProfile = TerminalAppearanceProfile(
-            theme: theme,
-            scheme: .dark,
-            accent: accent,
-            tint: tint,
-            monospace: monospace,
-            terminalSettings: settings
-        )
-
-        controller.setColorScheme(Self.ghosttyColorScheme(scheme))
-        _ = controller.setTheme(
-            TerminalTheme(
-                light: Self.ghosttyColorConfiguration(for: lightProfile),
-                dark: Self.ghosttyColorConfiguration(for: darkProfile)
-            )
-        )
-        _ = controller.setTerminalConfiguration(Self.ghosttyBaseConfiguration(for: profile))
+        controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(resolvedScheme))
+        _ = controller.setTheme(TerminalAppearanceMapper.ghosttyTheme(for: profile.theme, preferences: prefs))
+        _ = controller.setTerminalConfiguration(TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile))
     }
 
     // MARK: - Process Confirmation & Lifecycle Teardown
@@ -496,8 +478,14 @@ final class CarrierTerminalStore {
     @discardableResult
     func closePane(id paneId: UUID, force: Bool = false) async -> Bool {
         guard registry.pane(id: paneId) != nil else { return false }
-        if force == false, await pendingConfirmation(for: .pane(paneId)) != nil {
-            return false
+        let target = TerminalCloseTarget.pane(paneId)
+        if force == false {
+            guard pendingCloseTargets.insert(target).inserted else { return false }
+            defer { pendingCloseTargets.remove(target) }
+            if await pendingConfirmation(for: target) != nil {
+                return false
+            }
+            guard isTornDown == false, registry.pane(id: paneId) != nil else { return false }
         }
         return forceClosePane(id: paneId)
     }
@@ -514,8 +502,14 @@ final class CarrierTerminalStore {
     @discardableResult
     func closeTab(id tabId: UUID, force: Bool = false) async -> Bool {
         guard registry.tab(id: tabId) != nil else { return false }
-        if force == false, await pendingConfirmation(for: .tab(tabId)) != nil {
-            return false
+        let target = TerminalCloseTarget.tab(tabId)
+        if force == false {
+            guard pendingCloseTargets.insert(target).inserted else { return false }
+            defer { pendingCloseTargets.remove(target) }
+            if await pendingConfirmation(for: target) != nil {
+                return false
+            }
+            guard isTornDown == false, registry.tab(id: tabId) != nil else { return false }
         }
         return forceCloseTab(id: tabId)
     }
@@ -537,8 +531,14 @@ final class CarrierTerminalStore {
     func closeAll(for owner: TerminalOwner, force: Bool = false) async -> Bool {
         let paneIds = registry.allPaneIds(for: owner)
         guard paneIds.isEmpty == false else { return true }
-        if force == false, await pendingConfirmation(for: .owner(owner)) != nil {
-            return false
+        let target = TerminalCloseTarget.owner(owner)
+        if force == false {
+            guard pendingCloseTargets.insert(target).inserted else { return false }
+            defer { pendingCloseTargets.remove(target) }
+            if await pendingConfirmation(for: target) != nil {
+                return false
+            }
+            guard isTornDown == false else { return false }
         }
         return forceCloseAll(for: owner)
     }
@@ -594,6 +594,7 @@ final class CarrierTerminalStore {
     func saveWorkspaceNow() {
         persistTask?.cancel()
         persistTask = nil
+        guard persistenceWriteBlocked == false else { return }
         _ = fileStore.save(registry.exportPersistedWorkspace())
     }
 
@@ -621,17 +622,21 @@ final class CarrierTerminalStore {
         }
         state.onClose = { [weak self] processAlive in
             Task { @MainActor [weak self] in
-                guard let self, self.registry.pane(id: paneId) != nil else { return }
+                guard let self, self.isTornDown == false, self.registry.pane(id: paneId) != nil else { return }
                 guard processAlive, self.preferences.terminal.confirmCloseRunningProcess else {
                     _ = self.forceClosePane(id: paneId)
                     return
                 }
-                let question = await self.pendingConfirmation(for: .pane(paneId)) ?? terminalConfirmationQuestion(
-                    for: .pane(paneId),
+                let target = TerminalCloseTarget.pane(paneId)
+                guard self.pendingCloseTargets.insert(target).inserted else { return }
+                defer { self.pendingCloseTargets.remove(target) }
+                let question = await self.pendingConfirmation(for: target) ?? terminalConfirmationQuestion(
+                    for: target,
                     running: [],
                     targetTitle: self.registry.pane(id: paneId)?.displayTitle
                 )
-                let approved = self.onCloseConfirmationNeeded?(.pane(paneId), question) ?? false
+                guard self.isTornDown == false, self.registry.pane(id: paneId) != nil else { return }
+                let approved = self.onCloseConfirmationNeeded?(target, question) ?? false
                 if approved {
                     _ = self.forceClosePane(id: paneId)
                 }
@@ -703,7 +708,7 @@ final class CarrierTerminalStore {
     }
 
     private func schedulePersist() {
-        guard fileStore.fileURL != nil else { return }
+        guard fileStore.fileURL != nil, persistenceWriteBlocked == false else { return }
         persistTask?.cancel()
         let debounce = persistDebounceNanoseconds
         persistTask = Task { @MainActor [weak self] in
@@ -727,79 +732,6 @@ final class CarrierTerminalStore {
             owners.flatMap { registry.allPaneIds(for: $0) }
         case .all:
             registry.allPaneIds
-        }
-    }
-
-    private static func ghosttyTheme(for theme: Theme, preferences: AppPreferences) -> TerminalTheme {
-        let light = TerminalAppearanceProfile(
-            theme: theme,
-            scheme: .light,
-            accent: preferences.accent,
-            tint: preferences.tint,
-            monospace: preferences.monospace,
-            terminalSettings: preferences.terminal
-        )
-        let dark = TerminalAppearanceProfile(
-            theme: theme,
-            scheme: .dark,
-            accent: preferences.accent,
-            tint: preferences.tint,
-            monospace: preferences.monospace,
-            terminalSettings: preferences.terminal
-        )
-        return TerminalTheme(
-            light: ghosttyColorConfiguration(for: light),
-            dark: ghosttyColorConfiguration(for: dark)
-        )
-    }
-
-    private static func ghosttyColorConfiguration(for profile: TerminalAppearanceProfile) -> TerminalConfiguration {
-        TerminalConfiguration { builder in
-            builder.withBackground(profile.background.hexString)
-            builder.withForeground(profile.foreground.hexString)
-            builder.withSelectionBackground(profile.selectionBackground.hexString)
-            builder.withSelectionForeground(profile.selectionForeground.hexString)
-            builder.withCursorColor(profile.cursorColor.hexString)
-            builder.withMinimumContrast(profile.minimumContrast)
-        }
-    }
-
-    private static func ghosttyBaseConfiguration(for profile: TerminalAppearanceProfile) -> TerminalConfiguration {
-        TerminalConfiguration { builder in
-            builder.withWindowPaddingX(Int(profile.paddingX.rounded()))
-            builder.withWindowPaddingY(Int(profile.paddingY.rounded()))
-            builder.withCursorStyle(ghosttyCursorStyle(profile.cursorStyle))
-            builder.withCursorStyleBlink(profile.cursorBlink)
-            builder.withFontSize(Float(profile.fontSize))
-            if let fontFamily = profile.fontFamily {
-                builder.withFontFamily(fontFamily)
-            }
-            builder.withCustom("font-feature", profile.ligatures ? "calt,liga" : "-calt,-liga,-dlig")
-        }
-    }
-
-    private static func ghosttyCursorStyle(_ choice: TerminalCursorStyleChoice) -> TerminalCursorStyle {
-        switch choice {
-        case .block: .block
-        case .bar: .bar
-        case .underline: .underline
-        }
-    }
-
-    private static func ghosttyColorScheme(_ scheme: ThemeScheme) -> TerminalColorScheme {
-        switch scheme {
-        case .light: .light
-        case .dark: .dark
-        }
-    }
-
-    private static func resolveScheme(_ choice: ColorSchemeChoice) -> ThemeScheme {
-        switch choice {
-        case .light: return .light
-        case .dark: return .dark
-        case .system:
-            let name = NSApp?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])
-            return name == .aqua ? .light : .dark
         }
     }
 }

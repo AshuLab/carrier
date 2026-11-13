@@ -23,7 +23,8 @@ L=Carrier.app/Contents/Resources/Licenses
 for f in FluidAudio/LICENSE FluidAudio/ThirdPartyLicenses/NemoTextProcessing-LICENSE.md FluidAudio/ThirdPartyLicenses/fastcluster-LICENSE.md argmax-oss-swift/LICENSE argmax-oss-swift/NOTICES libghostty-spm/LICENSE DisplayLink/LICENSE THIRD-PARTY-NOTICES.md; do
   [ -s "$L/$f" ] || fail "$L/$f is not in the app"
 done
-[ -d Carrier.app/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle ] || fail "GhosttyKit_GhosttyTerminal.bundle is not in the app"
+[ -d Carrier.app/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/terminfo ] || fail "GhosttyKit_GhosttyTerminal.bundle terminfo database is not in the app"
+[ -d Carrier.app/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/Ghostty ] || fail "GhosttyKit_GhosttyTerminal.bundle Ghostty resources are not in the app"
 codesign --verify --deep --strict Carrier.app || fail "codesign --verify --deep --strict failed"
 
 ./build-app.sh 0.1.4 >/dev/null

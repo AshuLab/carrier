@@ -205,6 +205,10 @@ struct CarrierTerminalStoreTests {
         #expect(deleteQuestion?.title.contains("Delete session") == true)
         #expect(deleteQuestion?.message.contains("Deleting this session") == true)
 
+        let clearQuestion = await store.pendingConfirmation(for: .owners([session, .quick]), removalKind: .clear)
+        #expect(clearQuestion?.title == "Delete archived sessions with a running terminal?")
+        #expect(clearQuestion?.confirm == "Delete all")
+
         #expect(await store.pendingConfirmation(for: .owner(session)) != nil)
         #expect(await store.pendingConfirmation(for: .all)?.confirm == "Quit")
 
@@ -361,6 +365,7 @@ struct CarrierTerminalStoreTests {
           ttys001 /bin/dash
           ttys001 /usr/local/bin/ksh
           ttys001 pwsh
+          ttys001 <defunct>
           ttys001 vite
           ttys001 node
           ttys002 -tcsh
@@ -390,7 +395,7 @@ struct CarrierTerminalStoreTests {
         }
 
         let logged = LockedLogs()
-        let failingResult = GhosttyTerminalProcessInspector.runBatchedPS(
+        let failingResult = await GhosttyTerminalProcessInspector.runBatchedPS(
             executablePath: "/nonexistent/ps-binary",
             shortTTYs: ["ttys001"],
             paneIdsByShortTTY: ["ttys001": [paneA]],
@@ -409,7 +414,7 @@ struct CarrierTerminalStoreTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sleepScriptURL.path)
 
         let timedOutLogs = LockedLogs()
-        let timeoutResult = GhosttyTerminalProcessInspector.runBatchedPS(
+        let timeoutResult = await GhosttyTerminalProcessInspector.runBatchedPS(
             executablePath: sleepScriptURL.path,
             shortTTYs: ["ttys001"],
             paneIdsByShortTTY: ["ttys001": [paneA]],
@@ -419,14 +424,15 @@ struct CarrierTerminalStoreTests {
         #expect(timeoutResult.inspectionError?.contains("timed out") == true)
         #expect(timedOutLogs.count == 1)
 
-        let noTTYInspector = GhosttyTerminalProcessInspector(
+        let missingTTYInspector = GhosttyTerminalProcessInspector(
             psExecutablePath: "/nonexistent/ps-binary",
             timeoutSeconds: 0.5,
+            ttyExists: { _ in false },
             log: { logged.append($0) }
         )
         let dummyState = TerminalViewState(controller: TerminalController(configSource: .none))
         let view = TerminalView()
-        let result = await noTTYInspector.inspectActiveCommands(in: [
+        let result = await missingTTYInspector.inspectActiveCommands(in: [
             TerminalPaneInspectionInput(paneId: paneA, state: dummyState, platformView: view)
         ])
         // Without a ttyName, no ps invocation occurs; empty input is a clean no-op.
@@ -443,19 +449,37 @@ struct CarrierTerminalStoreTests {
         defer { try? FileManager.default.removeItem(at: tempDir) }
         let fileURL = terminalWorkspaceURL(carrierFolder: tempDir.path)
 
-        // Future schema on disk must remain untouched when store never loads or mutates workspace state.
+        // Future schema on disk must remain untouched even when the downgraded run opens tabs and tears down.
         let futureJSON = Data(#"{"schemaVersion":999,"workspaces":[]}"#.utf8)
         try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try futureJSON.write(to: fileURL)
 
-        let untouchedStore = CarrierTerminalStore(
+        let futureStore = CarrierTerminalStore(
             fileStore: TerminalWorkspaceFileStore(fileURL: fileURL, log: { _ in }),
             preferences: prefs,
             scheme: .dark,
             fallbackDirectory: "/tmp"
         )
-        untouchedStore.teardownAll()
+        _ = futureStore.openTab(for: .quick, workingDirectory: "/tmp")
+        futureStore.teardownAll()
         #expect(try Data(contentsOf: fileURL) == futureJSON)
+
+        // Corrupt JSON is backed up before recovering persistence for new tabs.
+        let corruptJSON = Data("{not-json".utf8)
+        try corruptJSON.write(to: fileURL)
+        let recoveredStore = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: fileURL, log: { _ in }),
+            preferences: prefs,
+            scheme: .dark,
+            fallbackDirectory: "/tmp"
+        )
+        let healedTab = recoveredStore.openTab(for: .quick, workingDirectory: "/tmp")
+        recoveredStore.teardownAll()
+        let dirItems = try FileManager.default.contentsOfDirectory(atPath: fileURL.deletingLastPathComponent().path)
+        let backupFile = try #require(dirItems.first { $0.hasPrefix("terminals.json.bak.") })
+        #expect(try Data(contentsOf: fileURL.deletingLastPathComponent().appendingPathComponent(backupFile)) == corruptJSON)
+        let healedLoaded = TerminalWorkspaceFileStore(fileURL: fileURL, log: { _ in }).load()
+        #expect(healedLoaded?.workspaces.first?.tabs.first?.id == healedTab.id)
 
         // Store with live sessions handles state.onClose(processAlive: true/false) and pruneSessions.
         let store = CarrierTerminalStore(
@@ -517,5 +541,35 @@ struct CarrierTerminalStoreTests {
         #expect(v2.controller == nil)
 
         store.teardownAll()
+    }
+
+    @Test func reconcileKnownSessionsRequiresTwoConsecutiveMissesAndProtectsLocalTabs() {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark
+        )
+        let s1 = TerminalOwner.session("s-one")
+        let s2 = TerminalOwner.session("s-two")
+        _ = store.openTab(for: s1, workingDirectory: "/tmp")
+        _ = store.openTab(for: s2, workingDirectory: "/tmp")
+
+        // First poll missing s2 (stale snapshot or concurrent session creation race) keeps s2 alive.
+        store.reconcileKnownSessions(["s-one"])
+        #expect(store.tabs(for: s1).count == 1)
+        #expect(store.tabs(for: s2).count == 1)
+
+        // When s2 appears in the next poll, its strike resets cleanly.
+        store.reconcileKnownSessions(["s-one", "s-two"])
+        store.reconcileKnownSessions(["s-one"])
+        #expect(store.tabs(for: s2).count == 1)
+
+        // A second consecutive authoritative miss prunes s2 while preserving s1 and quick tabs.
+        store.reconcileKnownSessions(["s-one"])
+        #expect(store.tabs(for: s1).count == 1)
+        #expect(store.tabs(for: s2).isEmpty)
     }
 }

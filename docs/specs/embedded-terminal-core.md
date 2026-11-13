@@ -42,7 +42,7 @@ On app launch, Carrier restores each owner's tabs, binary split tree, ratios, ac
 
 **Process confirmation and teardown.**
 Closing a single pane asks Ghostty (`close_surface` -> `onClose(processAlive:)`) or inspects active non-shell foreground/tty processes (`foregroundPid`, `ttyName`) and raises a confirmation request before killing a live command; callers can also pass `force: true` after the user confirms.
-Closing an entire tab, deleting or archiving a chat session, or quitting `Carrier.app` (`NSApplicationDelegate.applicationShouldTerminate`) checks every affected pane for active processes before tearing down surfaces and freeing `TerminalController`.
+Closing an entire tab, deleting or archiving a chat session, or quitting `Carrier.app` (`NSApplicationDelegate.applicationShouldTerminate`) checks every affected pane for active processes before tearing down live surfaces and detaching views and callbacks from `TerminalController`.
 
 ## Scope
 
@@ -76,8 +76,8 @@ Terminal link activation (`isAllowedTerminalURL`) permits only `http` and `https
 
 **Persistence file location and format.**
 Persisted layout uses JSON (`Codable`, versioned `schemaVersion: 1`) written atomically with `0600` permissions in `<Carrier folder>/app/terminals.json` ([0016](../adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)), stripping `envVars` so environment secrets never hit disk.
-Unrecognized future schema versions or corrupt files are logged and ignored without overwriting the file or crashing launch.
-Stale session ids are pruned only on an authoritative session snapshot (`ChatSessionsPoller.onAuthoritativeSessionIds`, never when the chat host is unreachable or incomplete), and removed worktree directories fall back safely on restore.
+Unrecognized future schema versions are logged and write-protected for that launch so later terminal edits never overwrite the newer file, while corrupt files are logged and moved to a timestamped `.bak` copy before recovering persistence.
+Stale session ids are pruned only after two consecutive authoritative session snapshots omit them (`ChatSessionsPoller.onAuthoritativeSessionIds`, never when the chat host is unreachable or incomplete), and removed worktree directories fall back safely on restore.
 
 **Testing seams per story.**
 - Story 1: Existing `ThirdPartyNoticesTests` (`CarrierTests`) and `macos/scripts/check-app.sh` release bundle + `codesign --verify --deep --strict` verification.

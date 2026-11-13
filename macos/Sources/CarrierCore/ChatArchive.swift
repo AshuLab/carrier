@@ -189,12 +189,8 @@ public enum SessionRemovalKind: Sendable {
     public func restore(_ id: String) async -> String? { await run("restore", id) { try await $0.archive(id, false) } }
 
     public func delete(_ id: String) async -> String? {
-        switch await performDelete(id, skipConfirmation: false) {
-        case .deleted, .cancelled:
-            return nil
-        case .failed(let message):
-            return message
-        }
+        guard await confirmSessionRemoval(.delete, [id]) else { return nil }
+        return await deleteConfirmedSession(id)
     }
 
     /// Ends the turn that is in progress.
@@ -235,35 +231,26 @@ public enum SessionRemovalKind: Sendable {
         guard ids.isEmpty == false, await confirmSessionRemoval(.clear, ids) else { return nil }
         var deleted = 0
         var refusal: String?
+        let summary = { (message: String) in "Deleted \(deleted) of \(ids.count) archived sessions. \(message)" }
         for id in ids {
-            switch await performDelete(id, skipConfirmation: true) {
-            case .deleted:
-                deleted += 1
-            case .cancelled:
-                break
-            case .failed(let failed):
+            if let failed = await deleteConfirmedSession(id) {
                 if refusal == nil { refusal = failed }
-                if failed == ConversationModel.words(ControlError.closed) { return refusal.map { "Deleted \(deleted) of \(ids.count) archived sessions. \($0)" } }
+                if failed == ConversationModel.words(ControlError.closed) {
+                    return refusal.map(summary)
+                }
+            } else {
+                deleted += 1
             }
         }
-        return refusal.map { "Deleted \(deleted) of \(ids.count) archived sessions. \($0)" }
+        return refusal.map(summary)
     }
 
-    private enum DeleteOutcome {
-        case deleted
-        case cancelled
-        case failed(String)
-    }
-
-    private func performDelete(_ id: String, skipConfirmation: Bool) async -> DeleteOutcome {
-        if skipConfirmation == false, await confirmSessionRemoval(.delete, [id]) == false {
-            return .cancelled
-        }
+    private func deleteConfirmedSession(_ id: String) async -> String? {
         if let failed = await run("delete", id, { try await $0.delete(id) }) {
-            return .failed(failed)
+            return failed
         }
         await didRemoveSession(id)
-        return .deleted
+        return nil
     }
 
     private struct Refusal: Error { let words: String }

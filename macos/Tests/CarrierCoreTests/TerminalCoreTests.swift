@@ -293,16 +293,23 @@ struct TerminalCoreTests {
         #expect(postPrune.tabs(for: validSession).count == 1)
         #expect(postPrune.tabs(for: .quick).count == 1)
 
-        // Corrupt JSON logs the failure instead of swallowing it silently.
-        try Data("{corrupt".utf8).write(to: fileURL)
-        #expect(store.load() == nil)
+        // Corrupt JSON logs the failure and backs up the corrupt file instead of dropping it silently.
+        let corruptBytes = Data("{corrupt".utf8)
+        try corruptBytes.write(to: fileURL)
+        #expect(store.loadResult() == .rejected(.corrupt(backedUp: true)))
         #expect(loggedMessages.count == 1)
+        let folderContents = try FileManager.default.contentsOfDirectory(atPath: fileURL.deletingLastPathComponent().path)
+        let backupName = try #require(folderContents.first { $0.hasPrefix("terminals.json.bak.") })
+        let backupURL = fileURL.deletingLastPathComponent().appendingPathComponent(backupName)
+        #expect(try Data(contentsOf: backupURL) == corruptBytes)
+        #expect(FileManager.default.fileExists(atPath: fileURL.path) == false)
 
-        // Unsupported schema versions log why the file was skipped.
+        // Unsupported schema versions log why the file was skipped and leave it intact on disk.
         let futureData = try JSONEncoder().encode(future)
         try futureData.write(to: fileURL)
-        #expect(store.load() == nil)
+        #expect(store.loadResult() == .rejected(.unsupportedSchema(999)))
         #expect(loggedMessages.count == 2)
+        #expect(try Data(contentsOf: fileURL) == futureData)
 
         // Disabled fileURL performs no I/O.
         let disabled = TerminalWorkspaceFileStore(fileURL: nil)
@@ -310,7 +317,7 @@ struct TerminalCoreTests {
         #expect(disabled.load() == nil)
     }
 
-    @Test func resolveWorkingDirectoryUsesExistingPathOrFallsBack() {
+    @Test func resolveWorkingDirectoryUsesExistingPathOrFallsBack() throws {
         let existing = Set(["/tmp/repo", "/Users/dev"])
         #expect(
             resolveWorkingDirectory(" /tmp/repo ", fallback: "/Users/dev", directoryExists: existing.contains) == "/tmp/repo"
@@ -321,6 +328,20 @@ struct TerminalCoreTests {
         #expect(
             resolveWorkingDirectory("   ", fallback: "/Users/dev", directoryExists: existing.contains) == "/Users/dev"
         )
+
+        // Default directory check rejects unreadable/untraversable directories unless root.
+        let restrictedDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("carrier-unreadable-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: restrictedDir, withIntermediateDirectories: true)
+        defer {
+            _ = try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: restrictedDir.path)
+            try? FileManager.default.removeItem(at: restrictedDir)
+        }
+        #expect(isAccessibleTerminalDirectory(restrictedDir.path))
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: restrictedDir.path)
+        if geteuid() != 0 {
+            #expect(resolveWorkingDirectory(restrictedDir.path, fallback: "/tmp") == "/tmp")
+        }
     }
 
     @Test func allNineThemesMaintainHighContrastInLightAndDarkSchemes() {
@@ -395,6 +416,8 @@ struct TerminalCoreTests {
     @Test func urlAllowlistAllowsOnlyHTTPAndHTTPSWithHost() {
         #expect(isAllowedTerminalURL("https://github.com/AshuLab/carrier"))
         #expect(isAllowedTerminalURL("http://localhost:3000"))
+        #expect(isAllowedTerminalURL("https://user:secret@github.com/AshuLab/carrier") == false)
+        #expect(isAllowedTerminalURL("https://token@github.com") == false)
         #expect(isAllowedTerminalURL("file:///Users/dev/file.swift") == false)
         #expect(isAllowedTerminalURL("file:///Applications/Calculator.app") == false)
         #expect(isAllowedTerminalURL("mailto:dev@carrier.local") == false)

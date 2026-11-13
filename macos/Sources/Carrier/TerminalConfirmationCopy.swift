@@ -2,7 +2,7 @@ import CarrierCore
 import Foundation
 
 /// Scope for checking or tearing down terminal panes.
-enum TerminalCloseTarget: Equatable {
+enum TerminalCloseTarget: Hashable {
     case pane(UUID)
     case tab(UUID)
     case owner(TerminalOwner)
@@ -74,19 +74,32 @@ func terminalConfirmationQuestion(
         )
 
     case .owner, .owners:
+        let multiOwner: Bool = switch target {
+        case .owners(let owners) where owners.count > 1: true
+        default: false
+        }
+        let sessionWord = multiOwner ? "these sessions" : "this session"
+        let terminalWord = count == 1 ? "its terminal" : "its terminals"
         let (titlePrefix, bodyAction, confirmLabel): (String, String, String) = switch removalKind {
         case .archive:
-            ("Archive session", "Archiving this session will close its terminals and terminate them.", "Archive")
+            ("Archive session", "Archiving \(sessionWord) will close \(terminalWord) and terminate them.", "Archive")
         case .delete:
-            ("Delete session", "Deleting this session will close its terminals and terminate them.", "Delete")
+            ("Delete session", "Deleting \(sessionWord) will close \(terminalWord) and terminate them.", "Delete")
         case .clear:
             ("Delete archived sessions", "Deleting these sessions will close their terminals and terminate them.", "Delete all")
         case .none:
-            ("Close session terminal", "Closing these session terminals will terminate them.", "Close")
+            ("Close session terminal\(count <= 1 ? "" : "s")", "Closing \(terminalWord) will terminate them.", "Close")
         }
-        let title = count == 1
-            ? "\(titlePrefix) with running terminal\(primaryPaneName.map { " \u{201C}\($0)\u{201D}" } ?? "")?"
-            : "\(titlePrefix) with \(count) running terminals?"
+        let title: String
+        if removalKind == .clear {
+            title = count <= 1
+                ? "Delete archived sessions with a running terminal?"
+                : "Delete archived sessions with \(count) running terminals?"
+        } else {
+            title = count <= 1
+                ? "\(titlePrefix) with running terminal\(primaryPaneName.map { " \u{201C}\($0)\u{201D}" } ?? "")?"
+                : "\(titlePrefix) with \(count) running terminals?"
+        }
         if let commandSummary {
             return Question(title: title, message: "\(commandSummary) \(bodyAction)", confirm: confirmLabel)
         }

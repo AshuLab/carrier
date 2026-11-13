@@ -187,7 +187,7 @@ public struct TerminalTab: Identifiable, Equatable, Codable, Sendable {
         let validIds = Set(panes.keys)
         if let cleanRoot = root.normalized(validPaneIds: validIds) {
             root = cleanRoot
-        } else if let firstId = panes.keys.first {
+        } else if let firstId = panes.keys.min(by: { $0.uuidString < $1.uuidString }) {
             root = .leaf(firstId)
         }
         let leafIds = Set(root.leafPaneIds)
@@ -715,14 +715,20 @@ public struct TerminalRegistry: Equatable, Sendable {
     }
 }
 
-/// Resolves a launch directory safely: trimmed `preferred` if it exists as a directory, else `fallback`.
+/// Default OS directory check verifying the path exists as a directory and is readable/traversable.
+public func isAccessibleTerminalDirectory(_ path: String) -> Bool {
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+        return false
+    }
+    return access(path, R_OK | X_OK) == 0
+}
+
+/// Resolves a launch directory safely: trimmed `preferred` if it exists as an accessible directory, else `fallback`.
 public func resolveWorkingDirectory(
     _ preferred: String?,
     fallback: String = NSHomeDirectory(),
-    directoryExists: (String) -> Bool = { path in
-        var isDirectory: ObjCBool = false
-        return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
-    }
+    directoryExists: (String) -> Bool = isAccessibleTerminalDirectory
 ) -> String {
     if let trimmed = preferred?.trimmingCharacters(in: .whitespacesAndNewlines), trimmed.isEmpty == false {
         let expanded = (trimmed as NSString).expandingTildeInPath
@@ -738,7 +744,9 @@ public func isAllowedTerminalURL(_ raw: String) -> Bool {
           let scheme = url.scheme?.lowercased(),
           scheme == "http" || scheme == "https",
           let host = url.host,
-          host.isEmpty == false
+          host.isEmpty == false,
+          url.user == nil,
+          url.password == nil
     else {
         return false
     }

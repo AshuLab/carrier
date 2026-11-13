@@ -41,30 +41,41 @@ struct GhosttyTerminalProcessInspector: TerminalProcessInspecting {
         "csh", "-csh",
         "pwsh", "-pwsh",
         "ps",
+        "<defunct>",
     ]
 
     private let psExecutablePath: String
     private let timeoutSeconds: TimeInterval
+    private let ttyExists: @Sendable (String) -> Bool
     private let log: @Sendable (String) -> Void
 
     init(
         psExecutablePath: String = "/bin/ps",
         timeoutSeconds: TimeInterval = 1.5,
+        ttyExists: @escaping @Sendable (String) -> Bool = { FileManager.default.fileExists(atPath: "/dev/\($0)") },
         log: @escaping @Sendable (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }
     ) {
         self.psExecutablePath = psExecutablePath
         self.timeoutSeconds = timeoutSeconds
+        self.ttyExists = ttyExists
         self.log = log
     }
 
     func inspectActiveCommands(in panes: [TerminalPaneInspectionInput]) async -> TerminalProcessInspectionResult {
         var paneIdsByShortTTY: [String: [UUID]] = [:]
+        var verifiedExistingByTTY: [String: Bool] = [:]
         for pane in panes {
             guard let rawTTY = pane.platformView?.ttyName ?? pane.state.attachedPlatformView?.ttyName,
                   let shortTTY = Self.normalizeShortTTY(rawTTY)
             else {
                 continue
             }
+            let exists = verifiedExistingByTTY[shortTTY] ?? {
+                let present = ttyExists(shortTTY)
+                verifiedExistingByTTY[shortTTY] = present
+                return present
+            }()
+            guard exists else { continue }
             paneIdsByShortTTY[shortTTY, default: []].append(pane.paneId)
         }
         guard paneIdsByShortTTY.isEmpty == false else {
@@ -72,19 +83,13 @@ struct GhosttyTerminalProcessInspector: TerminalProcessInspecting {
         }
 
         let shortTTYs = paneIdsByShortTTY.keys.sorted()
-        let executable = psExecutablePath
-        let timeout = timeoutSeconds
-        let logger = log
-
-        return await Task.detached(priority: .userInitiated) {
-            Self.runBatchedPS(
-                executablePath: executable,
-                shortTTYs: shortTTYs,
-                paneIdsByShortTTY: paneIdsByShortTTY,
-                timeoutSeconds: timeout,
-                log: logger
-            )
-        }.value
+        return await Self.runBatchedPS(
+            executablePath: psExecutablePath,
+            shortTTYs: shortTTYs,
+            paneIdsByShortTTY: paneIdsByShortTTY,
+            timeoutSeconds: timeoutSeconds,
+            log: log
+        )
     }
 
     nonisolated static func normalizeShortTTY(_ rawTTY: String) -> String? {
@@ -135,54 +140,99 @@ struct GhosttyTerminalProcessInspector: TerminalProcessInspecting {
         shortTTYs: [String],
         paneIdsByShortTTY: [String: [UUID]],
         timeoutSeconds: TimeInterval,
-        log: @Sendable (String) -> Void
-    ) -> TerminalProcessInspectionResult {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = ["-t", shortTTYs.joined(separator: ","), "-o", "tty=,comm="]
+        log: @escaping @Sendable (String) -> Void
+    ) async -> TerminalProcessInspectionResult {
+        final class DrainState: @unchecked Sendable {
+            private let lock = NSLock()
+            var stdoutData = Data()
+            var stderrData = Data()
+            private var completed = false
+            private let continuation: CheckedContinuation<TerminalProcessInspectionResult, Never>
 
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        let done = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in
-            done.signal()
-        }
-
-        do {
-            try process.run()
-        } catch {
-            let message = "failed to inspect terminal processes with \(executablePath): \(error.localizedDescription)"
-            log(message)
-            return TerminalProcessInspectionResult(inspectionError: error.localizedDescription)
-        }
-
-        let waitResult = done.wait(timeout: .now() + max(timeoutSeconds, 0.1))
-        if waitResult == .timedOut {
-            process.terminate()
-            _ = done.wait(timeout: .now() + 0.5)
-            let message = "timed out inspecting terminal processes after \(timeoutSeconds)s"
-            log(message)
-            return TerminalProcessInspectionResult(inspectionError: message)
-        }
-
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-
-        if process.terminationStatus != 0 {
-            let stderrText = String(decoding: stderrData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-            if process.terminationStatus == 1 && stderrText.isEmpty {
-                return TerminalProcessInspectionResult()
+            init(continuation: CheckedContinuation<TerminalProcessInspectionResult, Never>) {
+                self.continuation = continuation
             }
-            let reason = stderrText.isEmpty ? "exit status \(process.terminationStatus)" : stderrText
-            log("process inspection returned non-zero status: \(reason)")
-            return TerminalProcessInspectionResult(inspectionError: reason)
+
+            func finish(with result: TerminalProcessInspectionResult) {
+                lock.lock()
+                let shouldResume = completed == false
+                completed = true
+                lock.unlock()
+                if shouldResume {
+                    continuation.resume(returning: result)
+                }
+            }
         }
 
-        let output = String(decoding: stdoutData, as: UTF8.self)
-        let parsed = parsePSOutput(output, paneIdsByShortTTY: paneIdsByShortTTY)
-        return TerminalProcessInspectionResult(commandsByPane: parsed)
+        let effectiveTimeout = max(timeoutSeconds, 0.1)
+        return await withCheckedContinuation { continuation in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: executablePath)
+            process.arguments = ["-t", shortTTYs.joined(separator: ","), "-o", "tty=,comm="]
+
+            let stdoutPipe = Pipe()
+            let stderrPipe = Pipe()
+            process.standardOutput = stdoutPipe
+            process.standardError = stderrPipe
+
+            let state = DrainState(continuation: continuation)
+            let pipeGroup = DispatchGroup()
+            let drainQueue = DispatchQueue.global(qos: .userInitiated)
+
+            let timeoutWork = DispatchWorkItem {
+                if process.isRunning {
+                    process.terminate()
+                }
+                let message = "timed out inspecting terminal processes after \(timeoutSeconds)s"
+                log(message)
+                state.finish(with: TerminalProcessInspectionResult(inspectionError: message))
+            }
+
+            process.terminationHandler = { terminated in
+                pipeGroup.notify(queue: drainQueue) {
+                    timeoutWork.cancel()
+                    if terminated.terminationStatus != 0 {
+                        let stderrText = String(decoding: state.stderrData, as: UTF8.self)
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        if terminated.terminationStatus == 1 && stderrText.isEmpty {
+                            state.finish(with: TerminalProcessInspectionResult())
+                            return
+                        }
+                        let reason = stderrText.isEmpty ? "exit status \(terminated.terminationStatus)" : stderrText
+                        log("process inspection returned non-zero status: \(reason)")
+                        state.finish(with: TerminalProcessInspectionResult(inspectionError: reason))
+                        return
+                    }
+
+                    let output = String(decoding: state.stdoutData, as: UTF8.self)
+                    let parsed = parsePSOutput(output, paneIdsByShortTTY: paneIdsByShortTTY)
+                    state.finish(with: TerminalProcessInspectionResult(commandsByPane: parsed))
+                }
+            }
+
+            do {
+                try process.run()
+            } catch {
+                timeoutWork.cancel()
+                let message = "failed to inspect terminal processes with \(executablePath): \(error.localizedDescription)"
+                log(message)
+                state.finish(with: TerminalProcessInspectionResult(inspectionError: error.localizedDescription))
+                return
+            }
+
+            // Drain stdout and stderr concurrently so output above the pipe buffer never deadlocks.
+            pipeGroup.enter()
+            drainQueue.async {
+                state.stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                pipeGroup.leave()
+            }
+            pipeGroup.enter()
+            drainQueue.async {
+                state.stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                pipeGroup.leave()
+            }
+
+            drainQueue.asyncAfter(deadline: .now() + effectiveTimeout, execute: timeoutWork)
+        }
     }
 }

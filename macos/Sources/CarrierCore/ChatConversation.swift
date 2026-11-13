@@ -469,6 +469,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var scrolls = 0
     /// When each message was written (ms since the epoch), by the id of its row; the message in progress has none yet.
     public private(set) var times: [String: Int] = [:]
+    /// Called when a turn fails with a quota error (the Usage page's quotas are then out of date).
+    @ObservationIgnored public var onQuotaError: (@MainActor () -> Void)?
     /// What is typed in the box.
     public var draft = ""
     /// Whether the agent is answering (or waiting for an approval): the host refuses a message then, so the box queues it and the send button is Stop.
@@ -626,7 +628,9 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         let preparing = preparationSteps(events, preparation: preparation, progress: progress)
         if preparing != steps { steps = preparing }
         if changed {
-            rows = feed()
+            let next = feed()
+            if quotaErrorAppeared(from: rows, to: next) { onQuotaError?() }
+            rows = next
             times = Dictionary(events.filter { $0.kind == "user" || $0.kind == "assistant" }.map { ("e\($0.id)", $0.at) }) { $1 }
             if followsOutput && atEnd { scrolls += 1 }
         }

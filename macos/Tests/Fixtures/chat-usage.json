@@ -19,7 +19,8 @@
         { "id": "spark-primary", "label": "Spark 5h", "group": "spark", "usedPercent": 4, "resetLabel": "in 3 hours" }
       ],
       "message": "Codex is rate limiting the check; these are the last known numbers.",
-      "credits": { "hasCredits": true, "unlimited": false, "balance": "12.50" }
+      "credits": { "hasCredits": true, "unlimited": false, "balance": "12.50" },
+      "rateLimitResetCredits": { "availableCount": 1, "credits": [] }
     },
     {
       "account": "agy", "provider": "agy", "status": "ok", "checkedAt": 1794700795000,

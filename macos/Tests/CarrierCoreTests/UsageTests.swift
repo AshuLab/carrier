@@ -84,7 +84,7 @@ private let none = #"{"tokens":{"input":0,"cachedInput":0,"cacheWrite":0,"output
 
 // MARK: the store, through a fake host
 
-private final class UsageHost: ChatHost, @unchecked Sendable {
+final class UsageHost: ChatHost, @unchecked Sendable {
     var capabilitiesAnswer: Set<ControlClient.Capability> = [.usage, .usageOverride]
     var snapshot: UsageSnapshot
     var failure: Error?
@@ -123,7 +123,7 @@ private final class UsageHost: ChatHost, @unchecked Sendable {
     func setOption(_ id: String, option: String, value: String) async throws {}
 }
 
-private func host() throws -> UsageHost { UsageHost(try JSONDecoder().decode(UsageSnapshot.self, from: Data(contentsOf: golden))) }
+func host() throws -> UsageHost { UsageHost(try JSONDecoder().decode(UsageSnapshot.self, from: Data(contentsOf: golden))) }
 
 @MainActor @Test func loadingAsksWithTheFiltersAndKeepsTheSnapshot() async throws {
     let host = try host()
@@ -134,7 +134,8 @@ private func host() throws -> UsageHost { UsageHost(try JSONDecoder().decode(Usa
     store.sourceFilter = .epic
     store.searchText = "web"
     await store.load(refresh: true)
-    #expect(host.queries == [UsageQuery(refresh: true, days: 7, provider: .claude, source: .epic, search: "web")])
+    // the quotas of every provider are asked apart, with the refresh; the filtered ask then reads what that left in the host's cache
+    #expect(host.queries == [UsageQuery(refresh: true, days: 7), UsageQuery(refresh: false, days: 7, provider: .claude, source: .epic, search: "web")])
     #expect(store.snapshot == host.snapshot && store.isLoading == false && store.isRefreshing == false && store.error == nil)
 }
 

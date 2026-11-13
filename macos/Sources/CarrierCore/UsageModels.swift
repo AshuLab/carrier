@@ -155,6 +155,17 @@ public struct UsageCredits: Decodable, Equatable {
     }
 }
 
+/// Codex's reset credits: how many can be spent to reset a limit early.
+public struct UsageResetCredits: Decodable, Equatable {
+    public let availableCount: Int
+
+    public init(from decoder: Decoder) throws {
+        availableCount = try decoder.container(keyedBy: CodingKeys.self).decodeIfPresent(Int.self, forKey: .availableCount) ?? 0
+    }
+
+    private enum CodingKeys: String, CodingKey { case availableCount }
+}
+
 /// A local server (LM Studio, Ollama) with the models it has loaded.
 public struct UsageServer: Decodable, Equatable {
     public let kind: String
@@ -190,11 +201,12 @@ public struct UsageQuota: Decodable, Equatable {
     public let message: String?
     public let extraUsage: UsageExtra?
     public let credits: UsageCredits?
+    public let rateLimitResetCredits: UsageResetCredits?
     public let aiCreditsNotice: String?
     public let servers: [UsageServer]
 
     private enum CodingKeys: String, CodingKey {
-        case account, displayName, provider, status, checkedAt, stale, windows, planType, message, extraUsage, credits, aiCreditsNotice, servers
+        case account, displayName, provider, status, checkedAt, stale, windows, planType, message, extraUsage, credits, rateLimitResetCredits, aiCreditsNotice, servers
     }
 
     public init(from decoder: Decoder) throws {
@@ -211,6 +223,8 @@ public struct UsageQuota: Decodable, Equatable {
         message = try values.decodeIfPresent(String.self, forKey: .message)
         extraUsage = try values.decodeIfPresent(UsageExtra.self, forKey: .extraUsage)
         credits = try values.decodeIfPresent(UsageCredits.self, forKey: .credits)
+        // the host passes this on as it came from Codex: anything that is not the object read here is no reset credits
+        rateLimitResetCredits = try? values.decodeIfPresent(UsageResetCredits.self, forKey: .rateLimitResetCredits)
         aiCreditsNotice = try values.decodeIfPresent(String.self, forKey: .aiCreditsNotice)
         servers = try values.decodeIfPresent([UsageServer].self, forKey: .servers) ?? []
     }

@@ -38,7 +38,9 @@ struct ConversationView: View {
         self.draft = draft
         self.request = request
         self.cancelled = cancelled
-        _model = State(initialValue: ConversationModel(host: SocketChatHost(), sessionId: sessionId, memory: .userDefaults))
+        let model = ConversationModel(host: SocketChatHost(), sessionId: sessionId, memory: .userDefaults)
+        model.onQuotaError = { AppUsage.refresher.limitHit() }
+        _model = State(initialValue: model)
     }
 
     var body: some View {

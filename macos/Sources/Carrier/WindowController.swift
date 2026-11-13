@@ -5,7 +5,10 @@ import SwiftUI
 
 /// What the window shows: nil until the first answer from Carrier.
 @Observable final class PanelModel {
-    var state: ConnectionState?
+    var state: ConnectionState? {
+        // an epic that stops on a usage limit has used up a quota: the Usage page's numbers are asked again
+        didSet { if usageLimitEntered(from: oldValue, to: state) { MainActor.assumeIsolated { _ = AppUsage.refresher.limitHit() } } }
+    }
     let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
     /// Archive, restore and delete; `startMonitor` makes the lists read again after each.

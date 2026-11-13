@@ -16,7 +16,7 @@ describe.skipIf(!enabled)('GhGitHub against a real repo', () => {
   test(
     'lists a ready epic, creates the missing labels and swaps ready for running',
     async () => {
-      const github = new GhGitHub({ profile: { kind: 'forge', agent: agent! }, cwd: () => cwd!, timeoutMs: 30_000 });
+      const github = new GhGitHub({ profile: () => ({ kind: 'forge', agent: agent! }), cwd: () => cwd!, timeoutMs: () => 30_000 });
       const forge = (args: string[]) => execFileSync('agent-forge', ['gh', agent!, ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
       const created: string[] = [];
       let issue: number | undefined;
@@ -61,7 +61,7 @@ describe.skipIf(!enabled || !pull)('GhGitHub reads the review threads of a real 
   test(
     'the block and every thread decode, with the first line cut',
     async () => {
-      const github = new GhGitHub({ profile: { kind: 'forge', agent: agent! }, cwd: () => cwd!, timeoutMs: 30_000 });
+      const github = new GhGitHub({ profile: () => ({ kind: 'forge', agent: agent! }), cwd: () => cwd!, timeoutMs: () => 30_000 });
       const read = await github.readPullRequest(repo!, Number(pull));
       expect(read).not.toBeNull();
       expect(read!.pr.number).toBe(Number(pull));

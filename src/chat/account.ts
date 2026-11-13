@@ -11,6 +11,18 @@ export function readAccounts(folder = carrierHome()): Providers {
   return read.providers;
 }
 
+/** The agents a chat can start with: a list, or a function that gives it each time it is asked. */
+export type ChatAgents = ChatAgent[] | (() => ChatAgent[]);
+
+/**
+ * The agents of `chat.json` when it lists some; else one per account of `providers.json` but Antigravity's (a chat does not offer it), named as
+ * the account. Read now, so an account added in Settings is there with no restart. A wrong `providers.json` is refused, naming the key.
+ */
+export function chatAgentsOf(configured: ChatAgent[] | undefined): ChatAgent[] {
+  if (configured !== undefined) return configured;
+  return Object.entries(readAccounts()).filter(([, account]) => account.harness !== 'agy').map(([name]) => ({ name, account: name }));
+}
+
 /** What a chat agent runs with: its account's harness, binary, compaction and launch arguments, and login, the login as the environment the CLI reads it from. Refuses, naming the account, one that is missing or Antigravity's. */
 export function chatAccount(providers: Providers, agent: ChatAgent, env: NodeJS.ProcessEnv = {}) {
   const found = providers[agent.account];

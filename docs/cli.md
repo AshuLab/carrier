@@ -9,6 +9,7 @@ Reference for the `carrier` command. The quick tour is in the [README](../README
 | `carrier doctor` | Checks the config and the machine. |
 | `carrier schema` | Prints the config's JSON Schema. |
 | `carrier start` / `stop` / `pause` / `resume` / `check` | Run it in the background and control it from any terminal. |
+| `carrier reload` | Make the running Carrier read `config.json` and `providers.json` again, with no restart. |
 | `carrier status` / `watch` | Show what the running Carrier is doing. |
 | `carrier restart` | Resume an epic that stopped in `needs-human`. |
 | `carrier chat` / `chat-host` | Talk to an agent in a session. |
@@ -55,6 +56,8 @@ See [configuration](configuration.md): the minimal file, every field with its de
 
 `carrier start --config <path>` launches Carrier as a detached run (its own session, its output in `<folder>/engine/logs/start.log`) and returns once the control socket answers, within 15 seconds; in a Carrier folder where Carrier already runs it says so, does nothing and exits 0, and if it does not come up it prints the end of the log and exits 1. `carrier stop`, `pause`, `resume` and `check` do from any terminal what the panel's `Ctrl+C`, `p` and `r` do (`check` looks at GitHub now) and confirm in one line: exit 0 on success (`stop` also when none runs), 1 when no Carrier runs (or answers), 2 when it speaks another protocol. See [ADR 0010](adr/0010-carrier-runs-in-the-background-as-a-detached-process.md).
 
+`carrier reload` asks the running Carrier to read `config.json` and `providers.json` again and run on them, without a restart: use it after editing the files by hand (the Mac app asks by itself after each save). It prints `Reloaded` and exits 0; when a file does not match it prints the problem with the key named, exits 1 and Carrier goes on with the settings it had. It also exits 1 when no Carrier runs or when the running one is too old to reload (restart it), and 2 when it speaks another protocol. Which settings follow, and what keeps what it started with: [configuration](configuration.md#changing-the-config-while-carrier-runs).
+
 ## Status and the panel
 
 `carrier status` prints the panel of the running Carrier once, from any terminal; exit 0 it runs, 1 it is not running, 2 it speaks another protocol. `carrier watch` attaches the live panel to it with the same keys as the foreground one, except `q` (and `Ctrl+C`) only leave: Carrier keeps running. It exits 1 when none runs or when the Carrier it watches stops. Both show each epic's stage history (running, needing you, or ready for test), asked over the socket; a Carrier that does not list `sessions` in its hello is drawn from the snapshot alone, and an epic whose request fails is drawn without it.
@@ -74,7 +77,7 @@ The panel is a dependency-free ANSI dashboard: uptime, repos watched and the nex
 ## What the engine does
 
 - **Survives interruptions.** SQLite is the source of truth and labels are its mirror; technical failures are retried by a new execution that first verifies the real state (no duplicate PRs, comments or commits); `Ctrl+C` stops the agents but keeps sessions and work; a restart reconciles against GitHub before continuing.
-- **Config.** A user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, agent option and persona; an epic is shared when author and reviewer resolve to the same account, derived from the roles, with no key for it.
+- **Config.** A user JSON file merged over defaults, validated with Zod at startup and on each [reload](configuration.md#changing-the-config-while-carrier-runs) with one error per field; per-repo overrides for identity, agent option and persona; an epic is shared when author and reviewer resolve to the same account, derived from the roles, with no key for it.
 - **Polling and queue.** FIFO across repos with pagination, rate-limit and outage handling; one instance per Carrier folder (an exclusive SQLite lock released by the OS on death).
 - **Scheduler.** Atomic reservation, configurable concurrency, label management (`running`, `ready-for-test`, `needs-human` are created in each repo if missing).
 - **Stages.** Ship, review and fix loops with a typed caller result (`completed`, `changes_requested`, `needs_human`) imported idempotently in a single transaction.

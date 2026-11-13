@@ -284,6 +284,26 @@ test('watch prints plain lines when piped and leaves on Ctrl+C with Carrier stil
   await carrierClosed;
 });
 
+test('reload against a carrier that does not list it says it is too old, and exits 1', async () => {
+  home = withAccounts(join(dir, 'ol'));
+  mkdirSync(join(home, 'engine', 'state'), { recursive: true });
+  const server = createServer((socket) => socket.end(`${JSON.stringify({ event: 'hello', protocol: 1, pid: 1, startedAt: 1, version: '0.1.0', capabilities: [] })}\n`));
+  await new Promise<void>((resolve) => server.listen(join(home, 'engine', 'state', 'control.sock'), resolve));
+  try {
+    const result = await new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve) => {
+      const child = spawn(process.execPath, [main, 'reload'], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'pipe', 'pipe'] });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (chunk) => (stdout += chunk));
+      child.stderr.on('data', (chunk) => (stderr += chunk));
+      child.on('close', (status) => resolve({ status, stdout, stderr }));
+    });
+    expect([result.status, result.stdout, result.stderr]).toEqual([1, '', 'The running Carrier is too old to reload: restart it to apply the settings.\n']);
+  } finally {
+    server.close();
+  }
+});
+
 test('status against a carrier that speaks another protocol exits 2 naming both', async () => {
   home = withAccounts(join(dir, 'sp'));
   mkdirSync(join(home, 'engine', 'state'), { recursive: true });
@@ -310,7 +330,7 @@ test('pause, resume, check and stop act on a running Carrier; a second stop and 
   const control = (command: string) => run(command);
 
   // none running yet
-  for (const command of ['pause', 'resume', 'check']) {
+  for (const command of ['pause', 'resume', 'check', 'reload']) {
     const result = control(command);
     expect([result.status, result.stdout, result.stderr]).toEqual([1, '', 'Carrier is not running\n']);
   }
@@ -333,6 +353,24 @@ test('pause, resume, check and stop act on a running Carrier; a second stop and 
     expect(control('resume')).toMatchObject({ status: 0, stdout: 'Intake resumed\n', stderr: '' });
     await vi.waitFor(async () => expect(await paused()).toBe(false));
     expect(control('check')).toMatchObject({ status: 0, stdout: 'Checking GitHub now\n', stderr: '' });
+
+    // a reload reads the file again: confirmed when it is valid, the problem with its key and exit 1 when it is not
+    const snapshot = async () => {
+      const client = await connectControl(socket);
+      try {
+        return ((await client.request('snapshot')) as { engine: { pollIntervalMs: number } }).engine.pollIntervalMs;
+      } finally {
+        client.close();
+      }
+    };
+    write('control.json', { ...valid, pollIntervalMinutes: 9, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+    expect(control('reload')).toMatchObject({ status: 0, stdout: 'Reloaded\n', stderr: '' });
+    expect(await snapshot()).toBe(9 * 60_000);
+    write('control.json', { ...valid, pollIntervalMinutes: 'soon', profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+    const refused = control('reload');
+    expect([refused.status, refused.stdout]).toEqual([1, '']);
+    expect(refused.stderr).toContain('pollIntervalMinutes');
+    expect(await snapshot()).toBe(9 * 60_000);
 
     expect(control('stop')).toMatchObject({ status: 0, stdout: 'Carrier stopped\n', stderr: '' });
     expect(existsSync(socket)).toBe(false);

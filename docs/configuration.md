@@ -4,6 +4,24 @@
 
 The file is a JSON object merged over the defaults: objects merge field by field, simple values replace the default, lists replace it whole. A value of the wrong type is an error, never converted. An invalid config prints every error with its field and exits without starting anything.
 
+## Changing the config while Carrier runs
+
+A running Carrier applies a changed `config.json` or `providers.json` when it is asked to reload, with no restart. The Mac app asks after each save, and `carrier reload` asks by hand, for an edit in the file (it prints `Reloaded`; it exits 1 with the problem when a file does not match, and also when Carrier is not running or is too old to reload). Nothing watches the files: an edit by hand that is never followed by `carrier reload` waits for the next start.
+
+The engine reads both files again, from the same config path and Carrier folder it started with, and checks them as a start does. A file that does not match is refused with the key named, the same lines a start would print, and Carrier goes on with the settings it had; fix the file and reload again.
+
+What follows a reload: everything the engine reads from those files, that is `pollIntervalMinutes`, `finishedWindowDays`, `logLevel`, the four `limits`, the repos with their roles, effort, persona and failover, the `profiles` and `orchestratorProfile`, and the accounts of `providers.json`. A reload also re-arms the next check from now with the interval then in force and asks for one, so a shorter interval does not wait out the old one and a repo just added is seen at once.
+
+Work already running keeps what it started with, and a change reaches what starts after it:
+
+- An agent run keeps the agent, account and time limit it was launched with.
+- An epic keeps the configuration it stored when it started (see [Things that are checked](#things-that-are-checked)); epics that start later use the new roles, effort, persona, failover and accounts, and a restarted epic takes the settings of that moment.
+- A limit is read when the decision is made: a changed `maxReviews` or `maxExecutionRetries` applies at the epic's next review or failure, and a `maxConcurrentEpics` lowered below the epics running only stops new ones from starting.
+- A repo taken out of `repos` has its epics parked as `repo_removed` where they were, its active agent runs stopped (they end interrupted) and no more calls to GitHub; adding it back restores them.
+- A profile removed while a running epic names it stops that epic's next run in `needs-human`, naming the profile; put the profile back and restart the epic.
+
+Still read only at start: the Carrier folder, the `--config` path and the one-instance lock, and updates of Carrier or of the agent CLIs. The chat host is separate and reads its own settings as [Chat configuration](#chat-configuration) says.
+
 ## The Carrier folder
 
 Carrier keeps everything it owns in one folder: `~/.carrier/`, or the one in `CARRIER_HOME`. The folder is only that: no key of the config and no `--config` changes it. `--config <file>` only chooses which config file to read (by default `<folder>/config.json`); to run a second Carrier, give it a second `CARRIER_HOME`.
@@ -71,7 +89,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 
 An AI provider represents an account/login setup for an AI harness (e.g. Claude Code with a specific `configDir`, Antigravity, or Codex). A provider defines the account and installation independently of the model.
 
-The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `config.json` and wherever `--config` points: [ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md). It is optional (without it there is one account per harness, see below), it is read when the engine starts, and a file that does not match stops it with the key named. A `config.json` that still has `providers` is refused and told to move it here.
+The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `config.json` and wherever `--config` points: [ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md). It is optional (without it there is one account per harness, see below), it is read when the engine starts and again on a [reload](#changing-the-config-while-carrier-runs), and a file that does not match stops the start, or is refused by the reload, with the key named. A `config.json` that still has `providers` is refused and told to move it here.
 
 ```json
 {
@@ -257,7 +275,7 @@ The reasons are in [ADR 0019](adr/0019-sessions-age-by-the-clock-and-an-automati
 
 ## Chat agents
 
-A chat (`carrier chat`) starts with one of the agents in `agents`. Each names an [account](#ai-providers) of `providers.json`, and a chat on it runs that account's harness with its login (`configDir`) and its binary (`command`), with the provider's defaults unless the agent says otherwise. Without `chat.json` the agents are `claude` and `codex`, each on the account of the same name; those accounts exist even without `providers.json`.
+A chat (`carrier chat`) starts with one of the agents in `agents`. Each names an [account](#ai-providers) of `providers.json`, and a chat on it runs that account's harness with its login (`configDir`) and its binary (`command`), with the provider's defaults unless the agent says otherwise. Without `agents` in `chat.json` the agents are the accounts of `providers.json` except Antigravity's, each named as its account (so `claude-work` is an agent as soon as it is an account, with no restart); without `providers.json` those are `claude` and `codex`.
 
 A chat applies every key of its account that starts the CLI: `configDir` and `command`, and also `autoCompact`, `idleCompaction` and `launchArgs`, as the engine does. For Claude they reach the SDK as `--autocompact`, `--settings '{"idleCompaction":…}'` and the launch arguments; for Codex, `app-server` starts with `-c model_auto_compact_token_limit=N` and then the launch arguments (a real `codex app-server` honours that pair, which the gated integration test of the Codex adapter checks). An account that sets none of them starts the CLI as before. In a chat, a `launchArgs` entry must be a long flag (`--chrome`, `--max-turns 5` or `--max-turns=5`) for Claude; any other entry stops the session from opening, naming its place and not its text. `displayName` and `enabled` mean nothing to a chat: any declared account may be named by an agent.
 

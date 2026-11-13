@@ -35,6 +35,13 @@ public struct AppPreferences {
     public static let outputLengthKey = "chat.outputLength"
     public static let confirmDeleteKey = "chat.confirmDelete"
     public static let showsReasoningKey = "chat.showReasoning"
+    public static let newSessionAgentKey = "chat.newSession.agent"
+    public static let newSessionModelKey = "chat.newSession.model"
+    public static let newSessionEffortKey = "chat.newSession.effort"
+    public static let newSessionAccessKey = "chat.newSession.access"
+    public static let dictationEnabledKey = "dictation.enabled"
+    public static let dictationModelKey = "dictation.model"
+    public static let dictationLanguageKey = "dictation.language"
 
     public static let defaultStyle = IconStyle.countAndBar
     public static let defaultAnimates = true
@@ -58,10 +65,22 @@ public struct AppPreferences {
     public static let defaultOutputLength = OutputLength.short
     public static let defaultConfirmDelete = true
     public static let defaultShowsReasoning = true
+    public static let defaultDictationEnabled = true
 
     private let defaults: UserDefaults
 
     public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+
+    /// What a new session opens with: the provider, its model and its reasoning. Each is empty when the person chose none, and the session
+    /// then takes the first provider that can work and that provider's own model and level.
+    public var newSessionStart: NewSessionStart {
+        NewSessionStart(
+            agent: defaults.string(forKey: Self.newSessionAgentKey) ?? "",
+            model: defaults.string(forKey: Self.newSessionModelKey) ?? "",
+            effort: defaults.string(forKey: Self.newSessionEffortKey) ?? "",
+            access: NewSessionStart.access(fromJSON: defaults.string(forKey: Self.newSessionAccessKey) ?? "")
+        )
+    }
 
     public var style: IconStyle {
         get { defaults.string(forKey: Self.styleKey).flatMap(IconStyle.init(rawValue:)) ?? Self.defaultStyle }
@@ -248,6 +267,29 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.confirmDeleteKey) }
     }
 
+    /// Whether the message box has a microphone: Dictation is on until the person turns it off.
+    public var dictationEnabled: Bool {
+        get { defaults.object(forKey: Self.dictationEnabledKey) as? Bool ?? Self.defaultDictationEnabled }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationEnabledKey) }
+    }
+
+    /// The id of the speech model the person chose; nil while they did not.
+    public var dictationModelID: String? {
+        get { defaults.string(forKey: Self.dictationModelKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationModelKey) }
+    }
+
+    /// The chosen speech model among those on offer: Apple's when none was chosen or the saved one is not on offer any more.
+    public func dictationModel(among models: [SpeechModel]) -> SpeechModel? {
+        models.first { $0.id == dictationModelID } ?? models.first { $0.recognizer == .apple }
+    }
+
+    /// The language the person chose, `automaticLanguage` or a base code; nil while they did not (`languageChoices` says what that is).
+    public var dictationLanguage: String? {
+        get { defaults.string(forKey: Self.dictationLanguageKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationLanguageKey) }
+    }
+
     /// Takes the keys of one page out, so it reads as its defaults again; the other pages are not touched.
     public func reset(_ page: SettingsPage) {
         for key in Self.keys(of: page) { defaults.removeObject(forKey: key) }
@@ -271,16 +313,43 @@ public struct AppPreferences {
             [
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
                 toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey, confirmDeleteKey,
+                newSessionAgentKey, newSessionModelKey, newSessionEffortKey, newSessionAccessKey,
             ]
         case .notifications:
             [
                 notifyNeedsYouKey, notifyReadyForTestKey, notifyProblemKey, notifyChatNeedsAttentionKey, notifyChatDoneKey, notifyOnlyWhenAwayKey,
                 notifyDockBadgeKey, notifySoundKey, notifyReminderKey, notifyQuietKey, notifyQuietStartKey, notifyQuietEndKey,
             ]
+        case .dictation: [dictationEnabledKey, dictationModelKey, dictationLanguageKey]
         case .keybindings: [ShortcutTable.key]
         // the Providers page only reads, the Updates page writes Sparkle's own preferences, and the Legacy pages keep their own settings and have no Reset
         case .providers, .updates, .engine, .behavior, .repos, .agents, .sessions, .health: []
         }
+    }
+}
+
+/// The provider (a chat agent's name), model and reasoning a new session opens with, and what it may do (the options about access, by the
+/// provider's own option id: Claude's permission mode, Codex's approvals and sandbox); an empty one is the provider's own.
+public struct NewSessionStart: Equatable {
+    public var agent: String
+    public var model: String
+    public var effort: String
+    public var access: [String: String]
+
+    public init(agent: String = "", model: String = "", effort: String = "", access: [String: String] = [:]) {
+        self.agent = agent
+        self.model = model
+        self.effort = effort
+        self.access = access
+    }
+
+    /// The access as it is kept in a preference: a JSON object of option and value. Anything else reads as none.
+    public static func access(fromJSON text: String) -> [String: String] {
+        (try? JSONDecoder().decode([String: String].self, from: Data(text.utf8))) ?? [:]
+    }
+
+    public static func json(fromAccess access: [String: String]) -> String {
+        (try? JSONEncoder().encode(access)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
     }
 }
 

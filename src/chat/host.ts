@@ -4,6 +4,7 @@ import { carrierHome } from '../config/default-path.ts';
 import { installFileLogging } from '../logging/logger.ts';
 import { realClock, type Clock } from '../orchestration/clock.ts';
 import { acquireLock } from '../storage/lock.ts';
+import { chatAgentsOf } from './account.ts';
 import { claudeChatRunner } from './claude.ts';
 import { codexChatRunner } from './codex.ts';
 import { chatConfigProblem, chatDirOf, chatLogsOf, chatStateOf, readChatConfig, type ChatSettings } from './config.ts';
@@ -90,7 +91,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   };
   const usage = createUsage({ ports: { ...deps.usage.ports, clock: deps.clock }, history: deps.usage.history, db, folder: carrierHome(), env: deps.env });
   const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock });
-  const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, onLiveChange: () => idle?.recheck() });
+  const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, onLiveChange: () => idle?.recheck() });
   // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
   let cancelPass = () => {};
   let stopped = false;

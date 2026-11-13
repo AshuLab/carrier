@@ -127,3 +127,52 @@ func aRepoThatIsNotOwnerSlashNameIsRefusedBeforeItIsSent(repo: String) throws {
     #expect(engine.commands == ["fileDiff", "fileDiff"])
     #expect(client.capabilities.contains(.fileDiff))
 }
+
+// MARK: reload
+
+@Test func reloadSendsTheRequestWithNoFieldsOnlyToAnEngineThatListsIt() throws {
+    let engine = FixtureEngine(capabilities: ["reload"], replies: ["reload": "null"])
+    defer { engine.stop() }
+    #expect(try connect(engine).reload())
+    #expect(engine.requests.count == 1 && Set(engine.requests[0].keys) == ["id", "cmd"] && engine.commands == ["reload"])
+
+    let older = FixtureEngine(capabilities: all)
+    defer { older.stop() }
+    #expect(try connect(older).reload() == false)
+    #expect(older.commands.isEmpty)
+}
+
+@Test func aRefusedReloadThrowsTheEnginesWordsAndLeavesTheCapability() throws {
+    let engine = FixtureEngine(capabilities: ["reload"], fail: ["reload"])
+    defer { engine.stop() }
+    let client = try connect(engine)
+    #expect(throws: ControlError.remote("internal error")) { try client.reload() }
+    #expect(client.capabilities == [.reload])
+}
+
+@Test func theOneFunctionSaysAppliedWhenTheEngineReloadedAndItsProblemWhenItDidNot() {
+    let engine = FixtureEngine(capabilities: ["reload"], replies: ["reload": "null"])
+    defer { engine.stop() }
+    #expect(reloadEngine(socketPath: engine.path) == .applied && engine.commands == ["reload"])
+
+    let refusing = FixtureEngine(capabilities: ["reload"], fail: ["reload"])
+    defer { refusing.stop() }
+    #expect(reloadEngine(socketPath: refusing.path) == .refused("internal error"))
+}
+
+@Test func anEngineThatSaysHelloAndThenLeavesIsOneThatDidNotAnswerAndIsNotTakenForOneThatApplied() {
+    let hello = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\":1000,\"version\":\"0.2.0\",\"capabilities\":[\"reload\"]}\n"
+    let leaving = TestServer { $0.send(hello) }
+    defer { leaving.stop() }
+    #expect(reloadEngine(socketPath: leaving.path) == .noAnswer)
+    #expect(reloadWords(.noAnswer) != nil && reloadWords(.refused("x")) == "Saved, but Carrier kept its settings: x")
+    #expect(reloadWords(.applied) == nil && reloadWords(.nobody) == nil)
+}
+
+@Test func withNoEngineOrOneThatDoesNotListReloadTheFunctionSendsNothingAndIsNotAnError() {
+    #expect(reloadEngine(socketPath: "/tmp/carrier-no-such-engine.sock") == .nobody)
+    // a running engine that cannot reload is told apart from a stopped Carrier: the page says it reads the files when it restarts
+    let older = FixtureEngine(capabilities: all)
+    defer { older.stop() }
+    #expect(reloadEngine(socketPath: older.path) == .unsupported && older.commands.isEmpty)
+}

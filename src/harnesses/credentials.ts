@@ -4,11 +4,19 @@ import type { GitHubProfile } from '../integrations/github.ts';
 import type { HostRunnerOptions } from './host-runner.ts';
 
 export interface CredentialsOptions {
-  profiles: Record<string, GitHubProfile>;
+  /** Read at each call, so a reload's profiles reach the next execution. */
+  profiles: () => Record<string, GitHubProfile>;
   /** A fresh token of the profile; Forge picks the App installation from the owner of `repo`. */
   mint: (profile: GitHubProfile, repo: string) => Promise<string>;
   /** Numeric GitHub id of the bot `<agent>[bot]`: the noreply commit email carries it. */
   botId?: (agent: string, token: string) => Promise<number>;
+}
+
+/** The profile of that name; a reload may have removed it from under a running epic, and then the run fails naming it. */
+export function declaredProfile(profiles: Record<string, GitHubProfile>, name: string): GitHubProfile {
+  const profile = profiles[name];
+  if (!profile) throw new Error(`profile "${name}" is not declared`);
+  return profile;
 }
 
 const botUser = z.object({ id: z.int().positive() });
@@ -38,8 +46,7 @@ export function botIdFromGitHub(fetchImpl: typeof fetch = fetch): (agent: string
  */
 export function profileCredentials({ profiles, mint, botId = botIdFromGitHub() }: CredentialsOptions): HostRunnerOptions['credentials'] {
   return async (task: AgentTask) => {
-    const profile = profiles[task.profile];
-    if (!profile) throw new Error(`profile "${task.profile}" is not declared`);
+    const profile = declaredProfile(profiles(), task.profile);
     const githubToken = await mint(profile, task.repo);
     if (profile.kind === 'gh') return { githubToken };
     const name = `${profile.agent}[bot]`;

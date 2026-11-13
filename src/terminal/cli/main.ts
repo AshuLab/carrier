@@ -51,6 +51,7 @@ else if (cli.flags.help) {
       case 'pause':
       case 'resume':
       case 'check':
+      case 'reload':
         exit = await (await import('./commands/control.ts')).controlCommand(cli.command, folder);
         break;
       case 'restart':
@@ -69,7 +70,7 @@ else if (cli.flags.help) {
         break;
       default:
         if (configPath === undefined) throw noConfig(usage(), '');
-        await (await import('./commands/run.ts')).runCommand(loadConfigFile(configPath, folder), folder); // runs until Ctrl+C
+        await (await import('./commands/run.ts')).runCommand(loadConfigFile(configPath, folder), folder, () => loadConfigFile(configPath, folder)); // runs until Ctrl+C
     }
     if (exit !== undefined) process.exit(exit); // otherwise the command keeps the process alive (running), or has nothing left to do
   } catch (error) {

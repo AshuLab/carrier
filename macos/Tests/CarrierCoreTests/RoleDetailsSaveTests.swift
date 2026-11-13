@@ -34,11 +34,11 @@ private func value(_ path: String, _ keys: String...) throws -> Any? {
 private func step(_ provider: String, _ model: String? = nil) -> FailoverStep { FailoverStep(provider: provider, model: model) }
 
 private func persona(name: String?, prompt: String?, role: AgentRole = .author, path: String) -> RoleSave {
-    saveGlobalPersona(name: name, prompt: prompt, role: role, path: path)
+    saveGlobalPersona(name: name, prompt: prompt, role: role, path: path, reload: { .applied })
 }
 
 private func failover(_ first: FailoverStep?, _ second: FailoverStep? = nil, role: AgentRole = .author, path: String) -> RoleSave {
-    saveGlobalFailover(first: first, second: second, role: role, path: path, accounts: accounts)
+    saveGlobalFailover(first: first, second: second, role: role, path: path, accounts: accounts, reload: { .applied })
 }
 
 @Test func aRolesPersonaWithOnlyANameOrOnlyAPromptIsWrittenAsSuch() throws {
@@ -141,6 +141,30 @@ private func failover(_ first: FailoverStep?, _ second: FailoverStep? = nil, rol
     #expect(try file(path) == before)
     // the same provider on another model, or on the account's own model, is a different step
     #expect(failover(step("claude"), step("claude", "other"), path: path) == .saved)
+}
+
+// MARK: the engine is asked to reload
+
+@Test func aSavedPersonaAndAFailoverAskTheEngineToReloadAfterTheWriteAndNeverAfterARefusedOne() throws {
+    let path = try temporaryConfig()
+    let engine = FakeReload(file: path)
+    #expect(saveGlobalPersona(name: "Ada", prompt: nil, role: .author, path: path, reload: engine.reload) == .saved)
+    #expect(engine.calls == 1 && engine.seen[0] == engine.now)
+    #expect(saveGlobalFailover(first: step("codex"), second: nil, role: .reviewer, path: path, accounts: accounts, reload: engine.reload) == .saved)
+    #expect(engine.calls == 2 && engine.seen[1] == engine.now)
+    // refused before writing, or no file: nothing is asked
+    #expect(saveGlobalPersona(name: String(repeating: "x", count: 41), prompt: nil, role: .author, path: path, reload: engine.reload) != .saved)
+    #expect(saveGlobalFailover(first: step("nope"), second: nil, role: .author, path: path, accounts: accounts, reload: engine.reload) != .saved)
+    #expect(saveGlobalPersona(name: "Ada", prompt: nil, role: .author, path: path + ".missing", reload: engine.reload) != .saved)
+    #expect(engine.calls == 2)
+}
+
+@Test func aPersonaTheEngineRefusedToApplyStaysSaved() throws {
+    let path = try temporaryConfig()
+    let engine = FakeReload(file: path, problem: "agents.author: bad")
+    let result = saveGlobalPersona(name: "Ada", prompt: nil, role: .author, path: path, reload: engine.reload)
+    #expect(result == .saved)
+    #expect(try value(path, "agents", "author", "persona") as? NSDictionary == ["name": "Ada"])
 }
 
 @Test func aStepKeepsItsOwnEffortAndAReadStepSaysIt() throws {

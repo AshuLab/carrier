@@ -32,7 +32,7 @@ test('the chat lives in <folder>/chat, and the socket in its state folder', () =
 
 test('without the file, or with an empty one, every setting has its default', () => {
   const defaults = {
-    agents: [{ name: 'claude', account: 'claude' }, { name: 'codex', account: 'codex' }],
+    agents: undefined,
     projectsFolder: join(folder, 'chat', 'projects'),
     githubCallTimeoutSeconds: 30,
     logLevel: 'info',

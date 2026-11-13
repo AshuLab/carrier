@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { defaultConfigPath } from '../../config/default-path.ts';
 
-export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'restart', 'chat', 'chat-host', 'usage'] as const;
+export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'chat', 'chat-host', 'usage'] as const;
 export type CommandName = (typeof commandNames)[number];
 
 export const usage = () => `Usage: carrier --config <path>          run the orchestrator
@@ -12,6 +12,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier status                    show once what the running Carrier is doing (exit 1: not running)
        carrier watch                     the live panel of the running Carrier; q leaves it running (exit 1: not running)
        carrier stop|pause|resume|check   stop Carrier, pause or resume intake, look at GitHub now
+       carrier reload                    make the running Carrier read config.json and providers.json again (exit 1: not running, or a file is wrong)
        carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>]   resume a stopped epic on the options you choose
        carrier chat --workspace <folder> [--agent <name>]   talk to an agent in a folder (starts the chat host if needed)
        carrier chat --resume <id>        go on with a closed chat session, after the end of its transcript

@@ -396,15 +396,22 @@ final class WindowController: NSObject, NSWindowDelegate {
     }
 
     /// Someone is looking when the app is active and the window is on screen: then the host and the engine are asked often.
-    func refreshPace() {
-        let shown = window.map { $0.isVisible && $0.isMiniaturized == false && $0.occlusionState.contains(.visible) } ?? false
-        PollPace.shared.set(attentive: NSApp.isActive && shown)
+    func refreshPace() { PollPace.shared.set(attentive: NSApp.isActive && windowIsShown) }
+
+    private var windowIsShown: Bool {
+        window.map { $0.isVisible && $0.isMiniaturized == false && $0.occlusionState.contains(.visible) } ?? false
     }
 
-    @objc private func windowShownOrHidden() { refreshPace() }
+    @objc private func windowShownOrHidden() {
+        refreshPace()
+        // hiding the window (minimized, or no pixel of it on screen: another Space, a full-screen app over it) ends the dictation as closing it and leaving
+        // the app do: nothing listens and writes unseen. A window that other windows only partly cover is still `.visible`, so it keeps listening.
+        if windowIsShown == false { MainActor.assumeIsolated { DictationController.shared.stop() } }
+    }
 
     @objc private func windowClosed() {
         PollPace.shared.set(attentive: false)
+        MainActor.assumeIsolated { DictationController.shared.stop() }
         // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()
         stop = nil

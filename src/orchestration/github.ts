@@ -12,6 +12,9 @@ export class GitHubUnavailable extends Error {
   }
 }
 
+/** GitHub answered a call that it cannot serve (not found, no access, invalid): about that repo or object, not about GitHub being down or the profile. */
+export class GitHubRejected extends Error {}
+
 /** Forge reported an authentication error for the profile the port acts as (the orchestrator's). Thrown by any GitHub call. */
 export class AuthError extends Error {
   readonly profile: string;

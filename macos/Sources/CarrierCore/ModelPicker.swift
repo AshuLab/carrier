@@ -15,6 +15,13 @@ public struct PickerAccount: Equatable, Identifiable {
     /// signed in and found: the others are shown only when a role already names them
     public var ready: Bool
     public var id: String { name }
+
+    public init(name: String, harness: String, icon: String, ready: Bool) {
+        self.name = name
+        self.harness = harness
+        self.icon = icon
+        self.ready = ready
+    }
 }
 
 /// The accounts to offer: the ones `providers` says are ready, and `current` when a role already names it, even when it cannot work now (it

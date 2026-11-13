@@ -101,6 +101,11 @@ struct ModelPickerButton: View {
     let accounts: [PickerAccount]
     let catalog: ModelCatalog
     var showsEffort = true
+    /// The note that a role's access is full: the chat's panel leaves it out, since the person chooses the access there.
+    var showsAccess = true
+    /// With `showsAccess` off: the access options of the provider (the chat's sliders), by their option id, and what moving one asks for.
+    var accessScales: [OptionScale] = []
+    var chooseAccess: (String, String) -> Void = { _, _ in }
     /// A role that may name no effort (a failover step, a repo's role): the first level of the slider says what it then does.
     var effortFallback: (label: String, detail: String)?
     /// Set for a repo's role: the first row of the list is "Same as everywhere", and the pill shows what that is.
@@ -204,7 +209,12 @@ struct ModelPickerButton: View {
                     color: { _, _ in Color.themeAccent },
                     commit: { index in if effortSteps.indices.contains(index) { pick(.effort(effortSteps[index].id)) } }
                 ) }
-                accessNote
+                if showsAccess { accessNote } else {
+                    ForEach(accessScales) { scale in
+                        let commit: (Int) -> Void = { index in if scale.steps.indices.contains(index) { chooseAccess(scale.id, scale.steps[index].id) } }
+                        if scale.isSwitch { SwitchRow(scale: scale, commit: commit) } else { ScaleRow(scale: scale, color: { index, count in riskColor(index, count) }, commit: commit) }
+                    }
+                }
             }
             if let noneTitle, shownProvider != nil {
                 Button { pick(.none); open = false } label: { Label(noneTitle, systemImage: "xmark").labelStyle(.titleAndIcon).frame(maxWidth: .infinity, alignment: .leading) }
@@ -212,7 +222,7 @@ struct ModelPickerButton: View {
                     .overlay(alignment: .top) { Divider() }
             }
         }
-        .frame(width: 380, height: showsEffort ? 580 : 440)
+        .frame(width: 380, height: showsEffort ? 580 + 90 * CGFloat(accessScales.count) : 440)
         .writingToolsBehavior(.disabled)
         .task { await catalog.load() }
     }

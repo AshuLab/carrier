@@ -1,6 +1,6 @@
 # macOS app: get to GitHub from slices and review threads
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

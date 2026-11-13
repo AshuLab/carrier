@@ -1,6 +1,6 @@
 # A file in the Files changed tab opens to the fragment that was edited
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

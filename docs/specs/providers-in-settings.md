@@ -1,6 +1,6 @@
 # Providers in Settings
 
-Status: spec
+Status: implemented (v0.2.0)
 
 Source: AshuLab/carrier#749
 

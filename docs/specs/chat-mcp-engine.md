@@ -1,6 +1,6 @@
 # The chat host serves an MCP of its own to the agents of its sessions
 
-Status: spec
+Status: implemented (unreleased)
 
 ## Problem
 

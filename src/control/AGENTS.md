@@ -27,6 +27,7 @@ The same steps serve the engine's `control.sock` and the chat host's `chat.sock`
    a stub in every fake `Controls`: `src/control/server.test.ts`, `epic-slices.test.ts`, `events.test.ts`, `sessions.test.ts`, `src/terminal/cli/control-client.test.ts` and the three in `src/terminal/cli/commands/status.test.ts` (chat: `controls()` in `src/chat/server.test.ts`).
 6. Golden reply: `golden(...)` in `src/control/replies.test.ts`, written by `UPDATE_FIXTURES=1 pnpm test` to `macos/Tests/Fixtures/reply-<name>.json` (and `macos/DevFixtures/` when it passes `dev`).
    The `chat-*.json` fixtures are written by hand.
+   A new capability changes `macos/Tests/Fixtures/capabilities.json` (`capabilities-contract.test.ts`); `ContractTests.swift` then fails until Swift has its case.
 7. Swift, under `macos/`:
    the case on `ControlClient.Capability` in `Sources/CarrierCore/ControlClient.swift`, shared by engine and chat (unknown names are dropped silently, so a missing case means the feature never shows);
    the request in `Sources/CarrierCore/ControlRequests.swift` (engine) or `ChatHost.swift` (chat);

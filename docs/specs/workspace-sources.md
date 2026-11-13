@@ -1,6 +1,6 @@
 # Workspace sources for a new session
 
-Status: spec
+Status: implemented (v0.1.0), superseded in part by [session-prepared-on-first-message](session-prepared-on-first-message.md)
 
 > The sentence that has the clone happen when the repository is chosen, and the stories that follow from it, are superseded by [a session is prepared when the first message is sent](session-prepared-on-first-message.md) and [0018](../adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md).
 

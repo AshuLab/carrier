@@ -1,6 +1,6 @@
 # The chat in the Carrier folder, started by the app
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

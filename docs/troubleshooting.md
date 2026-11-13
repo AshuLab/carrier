@@ -4,7 +4,7 @@ First step for almost everything: `carrier doctor` (it reads `~/.carrier/config.
 
 ## Start with the Health tab
 
-In the macOS app, open Settings and the Health tab first when **a session fails**, **your repositories do not load** or **the engine does not start**. It checks `git`, `gh` and the `claude` and `codex` CLIs and their logins, the `carrier` command, the chat host and the engine, and shows the checks of `carrier doctor` once the engine has a config. See [the Health tab](../macos/README.md#health-tab) for what each state means.
+In the macOS app, open Settings and the Health tab first when **a session fails**, **your repositories do not load** or **the engine does not start**. It checks `git`, `gh` and the `claude` and `codex` CLIs and their logins, the `carrier` command, the chat host and the engine, and shows the checks of `carrier doctor` once the engine has a config. See [the Health tab](macos/settings-legacy.md#health-tab) for what each state means.
 
 | Symptom | Look at | Usual cause and what to do |
 |---------|---------|----------------------------|

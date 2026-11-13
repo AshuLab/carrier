@@ -1,6 +1,6 @@
 # The pipeline strip shows where an epic is, with no times
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

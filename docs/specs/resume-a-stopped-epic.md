@@ -1,6 +1,6 @@
 # A stopped epic can be resumed from the app
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

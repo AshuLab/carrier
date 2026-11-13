@@ -1,6 +1,6 @@
 # 0014 - An epic chooses its agent option per role, and failover is opt-in
 
-- Status: proposed; the choice at the start of an epic and the shape of failover are superseded by [0021](0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)
+- Status: accepted; the choice at the start of an epic and the shape of failover are superseded by [0021](0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)
 - Date: 2026-10-27
 
 ## Context

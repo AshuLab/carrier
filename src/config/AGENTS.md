@@ -14,7 +14,8 @@ The engine's files are in `<folder>/engine/`: `state/` (`carrier.db`, `control.s
    The JSON Schema (`json-schema.ts`, served by `carrier schema`) leaves a key out of `required` only when it has a default here.
 3. `src/config/resolve.ts`: only if it is per repo or per role (`resolveRepoConfig`, `EffectiveRepoConfig`); keep it optional, older epics were stored without it.
 4. `src/terminal/cli/compose.ts`: read it **inside** a closure (`settings`, `snapshot`, `timeoutMs`), never once at start: `config` is replaced by `reload` ([ADR 0023](../../docs/adr/0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)).
-5. Swift, only if the app edits it: `macos/Sources/CarrierCore/EngineConfig.swift` repeats the default, the parse (`init(json:)`), the rule (`problems`) and the write (`applied(to:)`); the page is `BehaviorPage.swift` and `BehaviorTab.swift`.
+5. `UPDATE_FIXTURES=1 pnpm test` rewrites `macos/Tests/Fixtures/engine-config.json` (`engine-config-contract.test.ts`), and `ContractTests.swift` fails until `EngineConfig.swift` has the same defaults and refuses the same values.
+6. Swift, only if the app edits it: `macos/Sources/CarrierCore/EngineConfig.swift` repeats the default, the parse (`init(json:)`), the rule (`problems`) and the write (`applied(to:)`); the page is `BehaviorPage.swift` and `BehaviorTab.swift`.
 
 `providers.json`:
 
@@ -29,5 +30,5 @@ The engine's files are in `<folder>/engine/`: `state/` (`carrier.db`, `control.s
    The chat has no reload: the host reads the file again when it needs it.
 2. Swift: `macos/Sources/CarrierCore/SessionAges.swift`, only for the ages it edits.
 
-All three: `docs/configuration.md`, `macos/README.md` if Settings shows it, and `CHANGELOG.md`.
+All three: `docs/configuration.md`, the Settings pages in `docs/macos/` if Settings shows it, and `CHANGELOG.md`.
 The app's writers keep keys they do not know, and send `reload` after saving `config.json` or `providers.json`.

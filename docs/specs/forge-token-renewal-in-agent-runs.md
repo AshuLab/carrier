@@ -1,6 +1,6 @@
 # A bot's GitHub token does not run out in the middle of an agent execution
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

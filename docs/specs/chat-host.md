@@ -1,6 +1,6 @@
 # A chat host lets you talk to any provider's agent
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

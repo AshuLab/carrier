@@ -1,6 +1,6 @@
 # You can hold a session with an agent from the app
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

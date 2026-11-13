@@ -1,6 +1,6 @@
 # Settings apply without a restart
 
-Status: spec
+Status: implemented (v0.4.0)
 
 ## Problem
 

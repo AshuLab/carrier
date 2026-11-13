@@ -1,6 +1,6 @@
 # The sidebar names each epic by its title
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

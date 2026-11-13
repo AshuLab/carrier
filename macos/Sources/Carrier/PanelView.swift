@@ -57,6 +57,7 @@ struct PanelView: View {
         case .sessions: return "Sessions"
         case .session: return openSession.map(conversationTitle) ?? "Session"
         case .newSession: return "New session"
+        case .archive: return "Archive"
         case .usage: return "Usage"
         default: return "Carrier"
         }
@@ -73,6 +74,7 @@ struct PanelView: View {
         case .carrier: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
         case .sessions: sessionsPage(model.sessions.rows, by: sessionSort).subtitle
         case .session: openSession.map(conversationSubtitle) ?? ""
+        case .archive: archivePage(model.sessions.rows, by: archiveSort, query: "").subtitle
         case .usage: "Limits left and what was used, per account"
         default: ""
         }
@@ -200,46 +202,40 @@ struct PanelView: View {
             if shell.selection == .usage {
                 ToolbarItem(placement: .primaryAction) {
                     let checking = AppUsage.store.isRefreshing
-                    Button { AppUsage.refresher.checkAgain() } label: {
-                        Label(checking ? "Checking…" : "Check again", systemImage: "arrow.clockwise")
-                            .symbolEffect(.rotate, options: .repeating, isActive: checking)
-                            .labelStyle(.titleAndIcon)
-                    }
-                    // the toolbar's own glass is taller than this button needs: it draws the small grey capsule of the page's buttons instead
-                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                    .padding(.trailing, 10)
-                    .disabled(checking)
-                    .help("Asks every provider again, skipping the minute the chat host keeps its answer")
+                    ToolbarPillButton(title: checking ? "Checking…" : "Check again", icon: "arrow.clockwise", spinning: checking) { AppUsage.refresher.checkAgain() }
+                        .glassEffect(.regular, in: .capsule)
+                        .padding(.trailing, 10)
+                        .disabled(checking)
+                        .help("Asks every provider again, skipping the minute the chat host keeps its answer")
                 }
                 .sharedBackgroundVisibility(.hidden)
             }
             if let snapshot, shell.selection == .carrier {
-                // two pills: the check against GitHub, then what governs Carrier itself (intake and stopping)
+                // two glass pills: the check against GitHub, then what governs Carrier itself (intake and stopping)
                 ToolbarItem(placement: .primaryAction) {
                     // the engine polls on its own after the answer: the button says so until the next check is scheduled again
                     let checking = isChecking(snapshot, asked: checkAsked, now: Date())
-                    Button {
+                    ToolbarPillButton(title: checking ? "Checking…" : "Check now", icon: "arrow.clockwise", spinning: checking) {
                         checkAsked = CheckAsked(at: Date(), nextCheckAt: snapshot.nextCheckAt)
                         MenuControls.shared.checkNow()
-                    } label: {
-                        Label(checking ? "Checking…" : "Check now", systemImage: "arrow.clockwise")
-                            .symbolEffect(.rotate, options: .repeating, isActive: checking)
-                            .labelStyle(.titleAndIcon)
                     }
+                    .glassEffect(.regular, in: .capsule)
                     .disabled(checking)
                     .help(checking ? "Checking GitHub…" : "Check GitHub now")
                 }
+                .sharedBackgroundVisibility(.hidden)
                 ToolbarSpacer(.fixed, placement: .primaryAction)
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button { MenuControls.shared.pauseOrResume() } label: {
-                        Label(snapshot.paused ? "Resume" : "Pause", systemImage: snapshot.paused ? "play.fill" : "pause.fill").labelStyle(.titleAndIcon)
+                ToolbarItem(placement: .primaryAction) {
+                    HStack(spacing: 0) {
+                        ToolbarPillButton(title: snapshot.paused ? "Resume" : "Pause", icon: snapshot.paused ? "play.fill" : "pause.fill") { MenuControls.shared.pauseOrResume() }
+                            .help(snapshot.paused ? "Resume intake" : "Pause intake")
+                        ToolbarPillButton(title: "Stop", icon: "stop.fill", iconTint: .red) { MenuControls.shared.stopCarrier() }
+                            .help("Stop Carrier")
                     }
-                    .help(snapshot.paused ? "Resume intake" : "Pause intake")
-                    Button { MenuControls.shared.stopCarrier() } label: {
-                        Label { Text("Stop") } icon: { Image(systemName: "stop.fill").foregroundStyle(.red) }.labelStyle(.titleAndIcon)
-                    }
-                    .help("Stop Carrier")
+                    .glassEffect(.regular, in: .capsule)
+                    .padding(.trailing, 10)
                 }
+                .sharedBackgroundVisibility(.hidden)
             }
         }
         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready

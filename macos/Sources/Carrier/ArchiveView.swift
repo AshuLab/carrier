@@ -1,8 +1,8 @@
 import CarrierCore
 import SwiftUI
 
-/// The centre when the Archive row is selected: the title and count, one glass group with Search and Filter (which only sorts) and,
-/// on the right, Clear sessions…; the archived sessions under it. A row shows Open, Resume and Delete on hover
+/// The centre when the Archive row is selected: the toolbar carries one glass group with Search and Filter (which only sorts) and, apart,
+/// Clear sessions… (the window's title and count are `PanelView`'s), as Sessions does; the archived sessions under it. A row shows Open, Resume and Delete on hover
 /// (docs/specs/sessions-in-the-app.md, "Archive"). What it shows is `archivePage`; the search is not remembered, the sort is.
 struct ArchiveView: View {
     let rows: [SessionRow]
@@ -19,7 +19,6 @@ struct ArchiveView: View {
         let page = archivePage(rows, by: sort, query: query ?? "")
         let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         VStack(alignment: .leading, spacing: 0) {
-            header(page)
             if let empty = page.emptyState {
                 EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear search", { query = nil }) : nil)
             } else {
@@ -32,11 +31,12 @@ struct ArchiveView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 12).padding(.bottom, 16)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .toolbar { toolbar(canClear: page.canClear) }
     }
 
     /// Takes the session out of the archive and opens it; a refusal is told and the session stays where it was.
@@ -61,52 +61,46 @@ struct ArchiveView: View {
         }
     }
 
-    private func header(_ page: ArchivePage) -> some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Archive").font(.title2.weight(.semibold))
-                if page.subtitle.isEmpty == false { Text(page.subtitle).font(.caption).foregroundStyle(.secondary) }
-            }
-            .fixedSize()
+    @ToolbarContentBuilder private func toolbar(canClear: Bool) -> some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
             HStack(spacing: 0) {
                 searchHalf
-                Divider().frame(height: 16)
-                Button { sortOpen.toggle() } label: {
-                    Label("Filter", systemImage: "line.3.horizontal.decrease").padding(.horizontal, 12).padding(.vertical, 6).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $sortOpen, arrowEdge: .bottom) { sortPopover }
+                ToolbarPillButton(title: "Filter", icon: "line.3.horizontal.decrease") { sortOpen.toggle() }
+                    .popover(isPresented: $sortOpen, arrowEdge: .bottom) { sortPopover }
             }
             .glassEffect(.regular, in: .capsule)
-            Spacer(minLength: 0)
-            Button("Clear sessions…", action: clear)
-                .buttonStyle(.glass).buttonBorderShape(.capsule)
-                .disabled(page.canClear == false)
         }
-        .padding(.horizontal, 20).padding(.vertical, 12)
+        .sharedBackgroundVisibility(.hidden)
+        ToolbarSpacer(.fixed, placement: .primaryAction)
+        ToolbarItem(placement: .primaryAction) {
+            ToolbarPillButton(title: "Clear sessions…", icon: "trash", action: clear)
+                .glassEffect(.regular, in: .capsule)
+                .padding(.trailing, 10)
+                .disabled(canClear == false)
+        }
+        .sharedBackgroundVisibility(.hidden)
     }
 
     @ViewBuilder private var searchHalf: some View {
         if let text = Binding($query) {
             HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                Image(systemName: "magnifyingglass").font(.scaled(11, weight: .medium)).foregroundStyle(.secondary).frame(width: 16, height: 16).accessibilityHidden(true)
                 TextField("Search archived sessions", text: text)
-                    .textFieldStyle(.plain)
+                    .textFieldStyle(.plain).font(.scaled(12))
                     .focused($searching)
                     .onKeyPress(.escape) {
                         query = nil
                         return .handled
                     }
-                Button { query = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                Button { query = nil } label: { Image(systemName: "xmark.circle.fill").font(.scaled(11)).foregroundStyle(.secondary) }
                     .buttonStyle(.plain).help("Close search (Esc)").accessibilityLabel("Close search")
             }
-            .padding(.horizontal, 12).padding(.vertical, 6).frame(width: 220)
+            .padding(.horizontal, 11).frame(width: 220, height: ToolbarPillButton.height)
         } else {
-            Button {
+            ToolbarPillButton(title: "Search", icon: "magnifyingglass") {
                 query = ""
                 searching = true
-            } label: { Label("Search", systemImage: "magnifyingglass").padding(.horizontal, 12).padding(.vertical, 6).contentShape(Rectangle()) }
-                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -150,7 +144,8 @@ extension ArchiveSort {
     }
 }
 
-/// An archived session: title with its workspace, the agent, when it will be deleted and the age; on hover, Open, Resume and Delete.
+/// An archived session, drawn as the Sessions list draws its rows: the project's tile, the title with its workspace, what the clock will do
+/// with it (or why it is kept), where it worked, the agent and the age; on hover, Open, Resume and Delete take the place of the age.
 private struct ArchiveRow: View {
     private let timeChanges = TimeFormatChanges()
     let row: SessionRow
@@ -164,50 +159,56 @@ private struct ArchiveRow: View {
     @FocusState private var actionsFocused: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
-            // a button, so the keyboard and VoiceOver can open the session like a pointer does
-            Button(action: open) {
-                HStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
-                            Text(row.workspace).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                                .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
-                        }
-                        HStack(spacing: 6) {
-                            Text(row.agent)
-                            if let branch = row.branch { Text(branch).foregroundStyle(.blue) }
-                        }
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        if let note { Text(note).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
-                    }
-                    Spacer(minLength: 8)
+        let active = hovered || actionsFocused
+        HStack(alignment: .top, spacing: 12) {
+            ProjectIcon(name: row.workspace, colorKey: projectColorKey(row.base), working: false).environment(\.rowActive, active)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                    RowTag(text: row.workspace)
                 }
-                .contentShape(Rectangle())
+                if let note { Text(note).font(.callout).foregroundStyle(.secondary).lineLimit(2) }
+                meta
             }
-            .buttonStyle(.plain)
-            // faded out, not removed or made untouchable, so they stay in the keyboard's and VoiceOver's reach
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 6) {
+                Text(timeText(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    .accessibilityLabel(spokenAge(row.updatedAt, now: Date()))
+                ProviderMarks(names: row.providers)
+            }
+            .opacity(active ? 0 : 1)
+        }
+        // faded out, not removed or made untouchable, so they stay in the keyboard's and VoiceOver's reach
+        .overlay(alignment: .trailing) {
             HStack(spacing: 4) {
-                action("Open", "doc.text", open)
-                action("Resume", "arrow.uturn.backward", resume)
-                action("Delete", "trash", delete)
+                RowIconButton(symbol: "doc.text", title: "Open", action: open)
+                RowIconButton(symbol: "arrow.uturn.backward", title: "Resume", action: resume)
+                RowIconButton(symbol: "trash", title: "Delete", action: delete)
             }
             .focused($actionsFocused)
-            .opacity(hovered || actionsFocused ? 1 : 0)
-            Text(timeText(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                .accessibilityLabel(spokenAge(row.updatedAt, now: Date()))
+            .opacity(active ? 1 : 0)
         }
-        .padding(.horizontal, 8).padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: 10).fill(hovered ? Color.primary.opacity(0.07) : .clear))
+        .animation(.easeInOut(duration: 0.15), value: active)
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 12).fill(active ? Color.primary.opacity(0.07) : .clear))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: open)
         .onHover { hovered = $0 }
         .sessionContextMenu(row)
         .help(row.title)
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Open", open)
     }
 
-    private func action(_ name: String, _ icon: String, _ run: @escaping () -> Void) -> some View {
-        Button(action: run) {
-            Label(name, systemImage: icon).labelStyle(.titleAndIcon).font(.caption)
+    /// Where it worked, how many turns it took and the model of the last.
+    private var meta: some View {
+        HStack(spacing: 6) {
+            Label(row.branch ?? "Base folder", systemImage: row.branch == nil ? "folder" : "arrow.triangle.branch")
+                .labelStyle(.titleAndIcon).lineLimit(1).truncationMode(.middle)
+            if row.turns > 0 { Text("·"); Text(row.turns == 1 ? "1 turn" : "\(row.turns) turns") }
+            if let model = TurnSummary(model: row.model).shortModel { Text("·"); Text(model) }
         }
-        .buttonStyle(.bordered).controlSize(.small)
+        .font(.caption).foregroundStyle(.tertiary).lineLimit(1)
     }
 }

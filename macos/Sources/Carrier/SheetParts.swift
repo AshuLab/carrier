@@ -103,7 +103,8 @@ struct RailHeader: View {
 /// One choice of a rail: an icon tile, a title and a line, filled when it is the chosen one.
 struct RailRow: View {
     let title: String
-    let detail: String
+    /// The line under the title; nil leaves the row at one line (Settings' rail says it in the page's header).
+    let detail: String?
     let icon: String
     let selected: Bool
     var off = false
@@ -118,7 +119,7 @@ struct RailRow: View {
                     .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.themeAccent.opacity(0.18) : Color.secondary.opacity(0.12)))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).fontWeight(.medium)
-                    Text(detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(off ? 2 : 1)
+                    if let detail { Text(detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(off ? 2 : 1) }
                 }
                 Spacer(minLength: 0)
             }

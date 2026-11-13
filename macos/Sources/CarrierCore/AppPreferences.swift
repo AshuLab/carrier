@@ -256,7 +256,7 @@ public struct AppPreferences {
     // the pages that gain preferences add their keys here
     private static func keys(of page: SettingsPage) -> [String] {
         switch page {
-        case .general: [styleKey, animatesKey, showEpicsKey, confirmStopKey, timeStyleKey, clockHoursKey]
+        case .general: [styleKey, animatesKey, showEpicsKey, timeStyleKey, clockHoursKey]
         case .sidebar:
             [
                 SidebarStore.groupByKey, SidebarStore.sessionSortKey, SidebarStore.archiveSortKey, SidebarStore.archiveListSortKey, SidebarStore.showsIconKey,

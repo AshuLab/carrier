@@ -408,7 +408,6 @@ struct GeneralTabView: View {
     @AppStorage(AppPreferences.styleKey) private var style = AppPreferences.defaultStyle.rawValue
     @AppStorage(AppPreferences.animatesKey) private var animates = AppPreferences.defaultAnimates
     @AppStorage(showEpicsKey) private var showsEpics = AppPreferences.defaultShowsEpics
-    @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
     @AppStorage(AppPreferences.timeStyleKey) private var timeStyle = TimeStyle.relative.rawValue
     @AppStorage(AppPreferences.clockHoursKey) private var clockHours = ClockHours.system.rawValue
 
@@ -444,11 +443,6 @@ struct GeneralTabView: View {
                     )
                 }
                 displayPreview()
-            }
-            SettingsGroup(title: "Confirmations") {
-                SettingsTabRow(title: "Ask before stopping Carrier", detail: "Only when stopping would interrupt epics that are running", first: true) {
-                    Toggle("Ask before stopping Carrier", isOn: $confirmStop).labelsHidden().toggleStyle(.switch)
-                }
             }
         }
     }

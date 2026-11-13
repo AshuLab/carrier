@@ -29,6 +29,16 @@ import Observation
 
     public init(host: ChatHost) { self.host = host }
 
+    /// Any of the filters that narrow the history is on, so an empty chart can say it is the filters and offer to clear them.
+    public var hasActiveFilters: Bool { providerFilter != .all || sourceFilter != .all || searchText.trimmingCharacters(in: .whitespaces).isEmpty == false }
+
+    /// Puts provider, source and search back to all. The caller asks again with `load`.
+    public func clearFilters() {
+        providerFilter = .all
+        sourceFilter = .all
+        searchText = ""
+    }
+
     /// A click on a provider's row: filters by it, or by all again when it already is the filter. The caller asks again with `load`.
     public func toggleFilter(_ provider: UsageProviderFilter) { providerFilter = providerFilter.toggled(provider) }
 

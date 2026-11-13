@@ -7,7 +7,7 @@ import type { Providers } from '../config/providers.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ExecutionUsage, ModelUsage } from '../storage/executions.ts';
 import { readAgyRecords, type AgyRecord, type RowSource } from './agy.ts';
-import { createPriceOverrides, priceOf, type PriceOverride, type Tokens } from './pricing.ts';
+import { createPriceOverrides, normalizeModel, priceOf, type PriceOverride, type Tokens } from './pricing.ts';
 
 const log = createScopedLogger('usage');
 
@@ -52,9 +52,10 @@ export interface UsageRow {
 export interface UsageHistory {
   /** Epoch milliseconds of the start of the first day. */
   since: number;
-  days: (UsageRow & { date: string })[];
+  /** `providers` splits a day by who ran it (`local` for local compute and for a model priced `$0.00`), for a chart stacked by provider. */
+  days: (UsageRow & { date: string; providers: Partial<Record<HistoryHarness | 'local', UsageRow>> })[];
   totals: UsageRow;
-  byModel: (UsageRow & { model: string; provider: HistoryHarness | 'local'; isLocal: boolean; costStatus: 'priced' | 'unpriced' | 'local' })[];
+  byModel: (UsageRow & { model: string; provider: HistoryHarness | 'local'; isLocal: boolean; costStatus: 'priced' | 'unpriced' | 'local'; overridden: boolean })[];
   byWorkspace: (UsageRow & { workspace: string; source: HistorySource })[];
 }
 
@@ -342,9 +343,9 @@ function rollup(turns: Turn[], filter: HistoryFilter, since: number, overrides: 
     into.costUsd += costUsd;
     into.turns++;
   };
-  const days = new Map<string, UsageRow & { date: string }>();
+  const days = new Map<string, UsageHistory['days'][number]>();
   const cursor = new Date(since);
-  for (let i = 0; i < filter.days; i++, cursor.setDate(cursor.getDate() + 1)) days.set(dayKey(cursor.getTime()), { date: dayKey(cursor.getTime()), ...row() });
+  for (let i = 0; i < filter.days; i++, cursor.setDate(cursor.getDate() + 1)) days.set(dayKey(cursor.getTime()), { date: dayKey(cursor.getTime()), ...row(), providers: {} });
   const totals = row();
   const models = new Map<string, UsageHistory['byModel'][number] & { unpriced: boolean }>();
   const workspaces = new Map<string, UsageHistory['byWorkspace'][number]>();
@@ -359,12 +360,14 @@ function rollup(turns: Turn[], filter: HistoryFilter, since: number, overrides: 
     if (filter.provider !== undefined && filter.provider !== 'all' && filter.provider !== provider) continue;
     if (search !== '' && `${turn.model}\n${turn.workspace}`.toLowerCase().includes(search) === false) continue;
     add(day, turn.tokens, priced.costUsd);
+    add((day.providers[provider] ??= row()), turn.tokens, priced.costUsd);
     add(totals, turn.tokens, priced.costUsd);
     const modelKey = `${turn.model}\0${provider}`;
     let model = models.get(modelKey);
-    if (model === undefined) models.set(modelKey, (model = { ...row(), model: turn.model, provider, isLocal: provider === 'local', costStatus: 'local', unpriced: false }));
+    if (model === undefined) models.set(modelKey, (model = { ...row(), model: turn.model, provider, isLocal: provider === 'local', costStatus: 'local', overridden: false, unpriced: false }));
     add(model, turn.tokens, priced.costUsd);
     model.unpriced ||= priced.status === 'unpriced';
+    model.overridden ||= overrides.has(normalizeModel(turn.model));
     model.costStatus = model.unpriced ? 'unpriced' : provider === 'local' ? 'local' : 'priced';
     const workspaceKey = `${turn.workspace}\0${turn.source}`;
     let workspace = workspaces.get(workspaceKey);

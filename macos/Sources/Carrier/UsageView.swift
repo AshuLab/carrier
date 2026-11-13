@@ -9,8 +9,8 @@ enum AppUsage {
 }
 
 /// The Usage page of the sidebar foot: the live quotas pooled by provider in one card (`usageProviders` decides every row), each provider with
-/// its drawer. The consumption section comes in a later slice (docs/specs/usage-and-limits.md). The page has no automated test; the rows,
-/// the meters' shapes and the refresh triggers are `CarrierCore`'s.
+/// its drawer, then the consumption (`ConsumptionSection`, docs/specs/usage-and-limits.md). The page has no automated test; the rows, the
+/// meters' shapes, the numbers and the refresh triggers are `CarrierCore`'s.
 struct UsageView: View {
     let store: UsageStore
     private let refresher = AppUsage.refresher
@@ -55,6 +55,7 @@ struct UsageView: View {
                         }
                     }
                 }
+                ConsumptionSection(store: store)
             }
             .padding(18).frame(maxWidth: 760).frame(maxWidth: .infinity)
         }

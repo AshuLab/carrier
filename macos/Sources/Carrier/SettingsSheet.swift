@@ -14,8 +14,8 @@ struct SettingsSheet: View {
     @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
     @StateObject private var github = EngineIdentityStore()
     @State private var headerNote: SettingsHeaderNote?
-    /// What `carrier --version` and `node --version` printed for the programs the page shows; nil until read, or when they did not answer.
-    @State private var versions = ProgramVersions()
+    /// What `carrier --version` and `node --version` printed for the programs the page shows; nil while they are being read.
+    @State private var versions: ProgramVersions?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -68,7 +68,10 @@ struct SettingsSheet: View {
             case .engine:
                 // one container, so the versions are read once and not once per group
                 VStack(alignment: .leading, spacing: 14) { engine(notConfigured: notConfigured) }
-                    .task(id: versionsKey) { versions = await ProgramVersions.read(setup) }
+                    .task(id: versionsKey) {
+                        versions = nil
+                        versions = await ProgramVersions.read(setup)
+                    }
             case .behavior: BehaviorTabView()
             case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { tab = .agents })
             case .agents: AgentsTabView()
@@ -79,20 +82,22 @@ struct SettingsSheet: View {
         }
     }
 
-    /// Changes when a program the page shows does, so its version is read again.
-    private var versionsKey: String { "\(setup.carrier ?? "")|\(setup.settings.node)|\(setup.settings.path)" }
+    /// Changes when a program the page shows does, and when a detection ends (an upgrade keeps the path), so the versions are read again.
+    private var versionsKey: String { "\(setup.carrier ?? "")|\(setup.settings.node)|\(setup.settings.path)|\(setup.detecting)" }
 
     @ViewBuilder private func engine(notConfigured: String?) -> some View {
         if let notConfigured {
             Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
         }
         let programs = EnginePrograms(
-            carrier: setup.carrier, carrierIsOwn: setup.carrierIsOwn, carrierVersion: versions.carrier, setup: setup.settings, nodeVersion: versions.node
+            carrier: setup.carrier, carrierIsOwn: setup.carrierIsOwn, carrierVersion: versions?.carrier, setup: setup.settings, nodeVersion: versions?.node,
+            carrierRuns: setup.carrierRuns, versionsRead: versions != nil
         )
         let folder = carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
         ForEach(
             engineGroups(
-                configured: notConfigured == nil, programs: programs, identity: github.identity, folder: folder, home: NSHomeDirectory(),
+                configured: notConfigured == nil, programs: programs, identity: github.identity, identityFailure: github.failure, folder: folder,
+                home: NSHomeDirectory(),
                 exists: { FileManager.default.fileExists(atPath: $0) }
             ),
             id: \.title
@@ -106,10 +111,15 @@ struct SettingsSheet: View {
                         case .carrier: CarrierChoice(setup: setup, offersHomebrew: row.offersHomebrew)
                         case .node, .path: EmptyView()
                         case .lookAgain:
-                            Button { setup.detect(); start.refreshConfig() } label: {
-                                if setup.detecting { ProgressView().controlSize(.small).accessibilityLabel("Detecting") } else { Label("Detect", systemImage: "arrow.clockwise") }
+                            HStack(spacing: 8) {
+                                // beside the button, so the button keeps its size and its name while it works
+                                if setup.detecting { ProgressView().controlSize(.small).accessibilityLabel("Detecting") }
+                                Button { setup.detect(); start.refreshConfig() } label: { Label("Detect", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
+                                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(setup.detecting)
                             }
-                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(setup.detecting)
+                            .onChange(of: setup.detecting) { _, detecting in
+                                if detecting == false { AccessibilityNotification.Announcement(setup.message ?? "Detection finished").post() }
+                            }
                         case .orchestratorProfile: identityChoice(row.title)
                         case .carrierFolder, .logs, .startLog:
                             if let file = row.file {
@@ -125,8 +135,7 @@ struct SettingsSheet: View {
                 }
             }
         }
-        if let failure = github.failure { ProblemLine(text: failure) }
-        ReloadNote()
+        ReloadNote().padding(.horizontal, 4)
     }
 
     /// The default first, then the profiles of the file; an undeclared one the file names is on the list too (`EngineIdentity.choices`).
@@ -134,7 +143,7 @@ struct SettingsSheet: View {
         let identity = github.identity
         return ChoicePopUp(
             label: title,
-            options: [(value: String?.none, title: EngineIdentity.defaultTitle)] + (identity?.choices ?? []).map { (value: String?.some($0), title: $0) },
+            options: EngineIdentity.options(identity),
             selection: Binding(get: { identity?.current }, set: { if $0 != identity?.current { github.choose($0) } }),
             width: 180
         )
@@ -194,7 +203,8 @@ struct ReadinessBannerView: View {
                 Text(banner.detail).font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-            Button("Detect", action: detectAgain).disabled(detecting)
+            Button(action: detectAgain) { Label("Detect", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
+                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(detecting)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .background(RoundedRectangle(cornerRadius: 16).fill(tint.opacity(0.13)))

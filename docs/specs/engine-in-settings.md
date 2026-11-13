@@ -55,7 +55,7 @@ Testing seams, story by story:
 - Stories 2 to 4 and 9: the Engine page model's test, listing the groups, titles, descriptions and rows for a found `carrier`, a missing one, a script with `node`, a missing `node`, and for logs that exist and that do not.
 - Story 3: `AppPreferences` tests already read the stop confirmation; the General page model's test asserts the row is no longer there.
 - Stories 5 and 6: `SetupDetection` and `SetupController` tests already cover the override, `carrierPath`, `enginePath` and the detector with a fake shell.
-- Stories 7 and 8: `EngineConfigTests`-style tests of the new function: a profile written, the default removing the key, an undeclared profile kept, every other key and its order left as it is, a file that is not an object refused.
+- Stories 7 and 8: `EngineConfigTests`-style tests of the new function: a profile written, the default removing the key, an undeclared profile kept, every other key left as it is (the file is saved with sorted keys, like every writer of `config.json`), a file that is not an object refused.
 - Story 10: the banner model's test (`readinessBanner`) asserts the new text.
 - Story 11: no tests, a documentation change.
 - The views have no unit tests; the fixture build and the smoke check cover them.

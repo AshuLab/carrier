@@ -82,9 +82,13 @@ private func files(exists: @escaping (String) -> Bool, folder: String = "/h/.car
 
 private func programs(
     carrier: String? = "/opt/homebrew/bin/carrier", own: Bool = false, version: String? = "1.4.2",
-    node: String = "/opt/homebrew/bin/node", path: String = "/opt/homebrew/bin:/usr/bin", nodeVersion: String? = "v22.1.0"
+    node: String = "/opt/homebrew/bin/node", path: String = "/opt/homebrew/bin:/usr/bin", nodeVersion: String? = "v22.1.0", runs: Bool = true,
+    read: Bool = true
 ) -> EnginePrograms {
-    EnginePrograms(carrier: carrier, carrierIsOwn: own, carrierVersion: version, setup: SetupSettings(node: node, path: path), nodeVersion: nodeVersion)
+    EnginePrograms(
+        carrier: carrier, carrierIsOwn: own, carrierVersion: version, setup: SetupSettings(node: node, path: path), nodeVersion: nodeVersion,
+        carrierRuns: runs, versionsRead: read
+    )
 }
 
 private func programRows(_ programs: EnginePrograms) -> [EngineRow] { page(configured: true, programs: programs)[1].rows }
@@ -122,4 +126,43 @@ private func programRows(_ programs: EnginePrograms) -> [EngineRow] { page(confi
     let row = programRows(programs(node: "", path: "", nodeVersion: nil))[2]
     #expect(row.detail == "Not found yet, so the engine and the chat host start from the system's")
     #expect(row.note == "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin")
+}
+
+@Test func whileTheVersionsAreReadBothRowsSaySoAndHaveNoProblem() {
+    let rows = programRows(programs(version: nil, nodeVersion: nil, read: false))
+    #expect(rows[0].detail == "Reading version…" && rows[0].problem == nil)
+    #expect(rows[1].detail == "Reading version…" && rows[1].problem == nil)
+    #expect(programRows(programs(own: true, version: nil, read: false))[0].detail == "Your own carrier · Reading version…")
+}
+
+@Test func aProgramThatDidNotAnswerItsVersionIsAProblem() {
+    let rows = programRows(programs(version: nil, nodeVersion: nil))
+    #expect(rows[0].problem == "Did not answer “carrier --version”")
+    #expect(rows[1].problem == "Did not answer “node --version”" && rows[1].note == "/opt/homebrew/bin/node")
+}
+
+@Test func aCarrierThatIsNotThereAnyMoreKeepsItsPathAndSaysNothingRunsThere() {
+    let row = programRows(programs(carrier: "/Users/me/gone/carrier", own: true, version: nil, runs: false))[0]
+    #expect(row.note == "/Users/me/gone/carrier" && row.problem == "Nothing runs at this path" && row.offersHomebrew)
+}
+
+@Test func aScriptWithNoNodeIsNotAskedItsVersionSoItHasNoProblemOfItsOwn() {
+    let row = programRows(programs(carrier: "/Users/me/carrier/main.ts", own: true, version: nil, node: "", nodeVersion: nil))[0]
+    #expect(row.detail == "Your own carrier" && row.problem == nil)
+}
+
+@Test func aRefusedIdentitySaveIsTheProblemOfItsRow() {
+    let json = #"{"profiles":{"bot":{}},"orchestratorProfile":"gone"}"#
+    let groups = engineGroups(
+        configured: true, programs: programs(), identity: EngineIdentity(config: Data(json.utf8)), identityFailure: "The config file could not be read.",
+        folder: "/h/.carrier", home: "/h", exists: { _ in true }
+    )
+    #expect(groups[2].rows[0].problem == "The config file could not be read.")
+}
+
+@Test func theIdentityChoiceListsTheDefaultFirstThenTheProfiles() throws {
+    let identity = EngineIdentity(config: Data(#"{"profiles":{"zed":{},"bot":{}},"orchestratorProfile":"gone"}"#.utf8))
+    #expect(EngineIdentity.options(identity).map(\.title) == ["Author's identity", "bot", "zed", "gone"])
+    #expect(EngineIdentity.options(identity).map(\.value) == [nil, "bot", "zed", "gone"])
+    #expect(EngineIdentity.options(nil).map(\.title) == ["Author's identity"])
 }

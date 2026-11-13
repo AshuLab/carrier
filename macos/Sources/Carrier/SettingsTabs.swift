@@ -31,7 +31,9 @@ struct SettingsTabRow<Control: View>: View {
                     .font(mono ? .scaled(11.5, design: .monospaced) : .caption).lineLimit(2).truncationMode(.middle)
                 }
                 if let note {
+                    // cut in the middle to one line: the whole of it (a long PATH) is in the tooltip, and it can be selected to copy
                     Text(note).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
+                        .help(note).textSelection(.enabled)
                 }
             }
             Spacer(minLength: 8)

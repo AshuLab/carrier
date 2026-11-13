@@ -16,6 +16,8 @@ import SwiftUI
     /// nil is the default, which takes the key out of the file. The engine is asked to reload after the write; what it answers is `ReloadNote`'s.
     func choose(_ name: String?) {
         failure = saveOrchestratorProfile(name, path: configFilePath()).problem
+        // the failure is the row's problem, which is not read aloud by itself
+        if let failure { AccessibilityNotification.Announcement(failure).post() }
         load()
     }
 }

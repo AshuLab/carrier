@@ -24,6 +24,11 @@ public struct EngineIdentity: Equatable {
 
     /// The profiles the choice lists after the default.
     public var choices: [String] { declared + (undeclared.map { [$0] } ?? []) }
+
+    /// What the choice lists: the default (nil, which takes the key out) first, then `choices`. With no file to read it is the default alone.
+    public static func options(_ identity: EngineIdentity?) -> [(value: String?, title: String)] {
+        [(value: nil, title: defaultTitle)] + (identity?.choices ?? []).map { (value: $0, title: $0) }
+    }
 }
 
 /// `json` with `orchestratorProfile` set to `name`, or taken out when `name` is nil (the default); the file's other keys are left as they were.

@@ -25,7 +25,7 @@ public struct EngineFile: Equatable {
 public struct EngineRow: Equatable {
     public let id: EngineRowID
     public let title: String
-    public let detail: String
+    public var detail: String
     /// The quiet monospaced line under the detail: a path, or "Not found" in its place.
     public var note: String?
     /// The `carrier` row only: the person set their own, so the row offers "Use the Homebrew one".
@@ -43,13 +43,22 @@ public struct EnginePrograms: Equatable {
     public var carrierVersion: String?
     public var setup: SetupSettings
     public var nodeVersion: String?
+    /// Something runs at the `carrier` path: a script exists, anything else is executable.
+    public var carrierRuns: Bool
+    /// The versions have been read; false while `--version` is still running.
+    public var versionsRead: Bool
 
-    public init(carrier: String?, carrierIsOwn: Bool, carrierVersion: String?, setup: SetupSettings, nodeVersion: String?) {
+    public init(
+        carrier: String?, carrierIsOwn: Bool, carrierVersion: String?, setup: SetupSettings, nodeVersion: String?, carrierRuns: Bool = true,
+        versionsRead: Bool = true
+    ) {
         self.carrier = carrier
         self.carrierIsOwn = carrierIsOwn
         self.carrierVersion = carrierVersion
         self.setup = setup
         self.nodeVersion = nodeVersion
+        self.carrierRuns = carrierRuns
+        self.versionsRead = versionsRead
     }
 }
 
@@ -61,9 +70,11 @@ public struct EngineGroup: Equatable {
 /// `configured` is whether the engine has a config file: without one, starting when the app opens does nothing and the row says so.
 /// `programs` is what the Programs group shows, all of it read by the caller.
 /// `identity` is what that file says about the GitHub identity, nil when there is no file or it cannot be read (the row is then disabled by the view).
+/// `identityFailure` is why the last choice of identity was not saved; it is shown on that row.
 /// `folder` is the Carrier folder; `exists` says whether a path is there (a folder or a file).
 public func engineGroups(
-    configured: Bool, programs: EnginePrograms, identity: EngineIdentity?, folder: String, home: String, exists: (String) -> Bool
+    configured: Bool, programs: EnginePrograms, identity: EngineIdentity?, identityFailure: String? = nil, folder: String, home: String,
+    exists: (String) -> Bool
 ) -> [EngineGroup] {
     func file(_ id: EngineRowID, _ title: String, _ detail: String, _ path: String, _ action: EngineFile.Action) -> EngineRow {
         EngineRow(id: id, title: title, detail: detail, file: EngineFile(shown: tildePath(path, home: home), path: path, action: action, exists: exists(path)))
@@ -82,7 +93,7 @@ public func engineGroups(
             EngineRow(
                 id: .orchestratorProfile, title: "Carrier acts on GitHub as",
                 detail: configured ? "Reads issues and PRs and changes labels. Default is the author's identity" : "Available once the engine is configured",
-                problem: identityProblem(configured: configured, identity: identity)
+                problem: identityFailure ?? identityProblem(configured: configured, identity: identity)
             ),
         ]),
         EngineGroup(title: "Files", rows: [
@@ -99,24 +110,37 @@ private func identityProblem(configured: Bool, identity: EngineIdentity?) -> Str
     return identity.undeclared.map { "“\($0)” is not in profiles; it is kept until you pick another" }
 }
 
+/// What a row says of a version: still reading, the version, or that the program did not answer (a problem).
+private func versionLine(_ version: String?, read: Bool, program: String) -> (detail: String?, problem: String?) {
+    guard read else { return ("Reading version…", nil) }
+    guard let version else { return (nil, "Did not answer “\(program) --version”") }
+    return ("Version \(version.trimmingPrefix("v"))", nil)
+}
+
 private func programRows(_ programs: EnginePrograms) -> [EngineRow] {
     let setup = programs.setup
-    let carrierLine = [programs.carrierIsOwn ? "Your own carrier" : nil, programs.carrier == nil ? nil : programs.carrierVersion.map { "Version \($0)" }]
-        .compactMap { $0 }.joined(separator: " · ")
     let nodeFound = setup.node.isEmpty == false
-    let path = enginePath(detected: setup.path, node: setup.node)
+    var carrierRow = EngineRow(id: .carrier, title: "carrier", detail: "", note: programs.carrier ?? "Not found", offersHomebrew: programs.carrierIsOwn)
+    if let carrier = programs.carrier {
+        // a script with no node is not run for its version: the node row already says what is missing
+        let version = carrierNeedsNode(carrier) && nodeFound == false
+            ? (detail: nil, problem: nil) : versionLine(programs.carrierVersion, read: programs.versionsRead, program: "carrier")
+        carrierRow.detail = [programs.carrierIsOwn ? "Your own carrier" : nil, version.detail].compactMap { $0 }.joined(separator: " · ")
+        carrierRow.problem = programs.carrierRuns ? version.problem : "Nothing runs at this path"
+    }
+    var nodeRow = EngineRow(id: .node, title: "node", detail: "", note: nodeFound ? setup.node : "Not found")
+    if nodeFound {
+        let version = versionLine(programs.nodeVersion, read: programs.versionsRead, program: "node")
+        nodeRow.detail = version.detail ?? ""
+        nodeRow.problem = version.problem
+    }
     return [
-        EngineRow(
-            id: .carrier, title: "carrier", detail: carrierLine, note: programs.carrier ?? "Not found", offersHomebrew: programs.carrierIsOwn
-        ),
-        EngineRow(
-            id: .node, title: "node", detail: nodeFound ? programs.nodeVersion.map { "Version \($0.trimmingPrefix("v"))" } ?? "" : "",
-            note: nodeFound ? setup.node : "Not found"
-        ),
+        carrierRow,
+        nodeRow,
         EngineRow(
             id: .path, title: "PATH",
             detail: setup.path.isEmpty ? "Not found yet, so the engine and the chat host start from the system's" : "What the engine and the chat host run with",
-            note: path
+            note: enginePath(detected: setup.path, node: setup.node)
         ),
         EngineRow(
             id: .lookAgain, title: "Look for the tools again",

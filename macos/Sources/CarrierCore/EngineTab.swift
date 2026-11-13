@@ -22,6 +22,6 @@ public func readinessBanner(missing: [String], detecting: Bool) -> ReadinessBann
     let names = missing.joined(separator: " and ")
     return ReadinessBanner(
         state: .missing, title: "Start Carrier needs \(names)",
-        detail: "Install carrier with Homebrew, or use “Use another…” and then Detect under Programs."
+        detail: "Install carrier with Homebrew, or use “Use another…” and then Detect under Programs on the Engine page."
     )
 }

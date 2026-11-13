@@ -60,7 +60,7 @@ public struct EngineGroup: Equatable {
 
 /// `configured` is whether the engine has a config file: without one, starting when the app opens does nothing and the row says so.
 /// `programs` is what the Programs group shows, all of it read by the caller.
-/// `identity` is what that file says about the GitHub identity, nil when the file cannot be read (the row is then disabled by the view).
+/// `identity` is what that file says about the GitHub identity, nil when there is no file or it cannot be read (the row is then disabled by the view).
 /// `folder` is the Carrier folder; `exists` says whether a path is there (a folder or a file).
 public func engineGroups(
     configured: Bool, programs: EnginePrograms, identity: EngineIdentity?, folder: String, home: String, exists: (String) -> Bool
@@ -68,7 +68,7 @@ public func engineGroups(
     func file(_ id: EngineRowID, _ title: String, _ detail: String, _ path: String, _ action: EngineFile.Action) -> EngineRow {
         EngineRow(id: id, title: title, detail: detail, file: EngineFile(shown: tildePath(path, home: home), path: path, action: action, exists: exists(path)))
     }
-    let logs = folder + "/engine/logs"
+    let places = ["CARRIER_HOME": folder]
     return [
         EngineGroup(title: "Starting", rows: [
             EngineRow(
@@ -81,16 +81,22 @@ public func engineGroups(
         EngineGroup(title: "GitHub identity", rows: [
             EngineRow(
                 id: .orchestratorProfile, title: "Carrier acts on GitHub as",
-                detail: identity == nil ? "Available once the engine is configured" : "Reads issues and PRs and changes labels. Default is the author's identity",
-                problem: identity?.undeclared.map { "“\($0)” is not in profiles; it is kept until you pick another" }
+                detail: configured ? "Reads issues and PRs and changes labels. Default is the author's identity" : "Available once the engine is configured",
+                problem: identityProblem(configured: configured, identity: identity)
             ),
         ]),
         EngineGroup(title: "Files", rows: [
             file(.carrierFolder, "Carrier folder", "Where Carrier keeps its config, clones and logs", folder, .reveal),
-            file(.logs, "Logs", "What Carrier wrote while it ran", logs, .reveal),
-            file(.startLog, "Start log", "What the app saw the last time it started Carrier", logs + "/app-start.log", .open),
+            file(.logs, "Logs", "What Carrier wrote while it ran", engineLogsFolder(environment: places, home: home), .reveal),
+            file(.startLog, "Start log", "What the app saw the last time it started Carrier", engineStartLogPath(environment: places, home: home), .open),
         ]),
     ]
+}
+
+/// A file that is there but is not a JSON object says so; one that names an undeclared profile says it is kept.
+private func identityProblem(configured: Bool, identity: EngineIdentity?) -> String? {
+    guard let identity else { return configured ? "config.json in the Carrier folder could not be read or is not a JSON object" : nil }
+    return identity.undeclared.map { "“\($0)” is not in profiles; it is kept until you pick another" }
 }
 
 private func programRows(_ programs: EnginePrograms) -> [EngineRow] {

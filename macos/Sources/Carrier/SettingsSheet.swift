@@ -65,7 +65,10 @@ struct SettingsSheet: View {
             case .keybindings: KeybindingsTabView()
             case .updates: UpdatesTabView()
             case .providers: ProvidersTabView(openAgents: { tab = .agents })
-            case .engine: engine(notConfigured: notConfigured).task(id: versionsKey) { versions = await ProgramVersions.read(setup) }
+            case .engine:
+                // one container, so the versions are read once and not once per group
+                VStack(alignment: .leading, spacing: 14) { engine(notConfigured: notConfigured) }
+                    .task(id: versionsKey) { versions = await ProgramVersions.read(setup) }
             case .behavior: BehaviorTabView()
             case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { tab = .agents })
             case .agents: AgentsTabView()
@@ -77,7 +80,7 @@ struct SettingsSheet: View {
     }
 
     /// Changes when a program the page shows does, so its version is read again.
-    private var versionsKey: String { "\(setup.carrier ?? "")|\(setup.settings.node)" }
+    private var versionsKey: String { "\(setup.carrier ?? "")|\(setup.settings.node)|\(setup.settings.path)" }
 
     @ViewBuilder private func engine(notConfigured: String?) -> some View {
         if let notConfigured {
@@ -104,7 +107,7 @@ struct SettingsSheet: View {
                         case .node, .path: EmptyView()
                         case .lookAgain:
                             Button { setup.detect(); start.refreshConfig() } label: {
-                                if setup.detecting { ProgressView().controlSize(.small) } else { Label("Detect", systemImage: "arrow.clockwise") }
+                                if setup.detecting { ProgressView().controlSize(.small).accessibilityLabel("Detecting") } else { Label("Detect", systemImage: "arrow.clockwise") }
                             }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(setup.detecting)
                         case .orchestratorProfile: identityChoice(row.title)
@@ -115,15 +118,14 @@ struct SettingsSheet: View {
                                     if file.action == .reveal { NSWorkspace.shared.activateFileViewerSelecting([url]) } else { NSWorkspace.shared.open(url) }
                                 } label: { Label(file.buttonTitle, systemImage: file.exists ? (file.action == .reveal ? "folder" : "doc.text") : "questionmark.folder").labelStyle(.titleAndIcon) }
                                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(file.exists == false)
+                                    .accessibilityLabel("\(file.buttonTitle): \(row.title)")
                             }
                         }
                     }
                 }
             }
         }
-        if let failure = github.failure {
-            Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
-        }
+        if let failure = github.failure { ProblemLine(text: failure) }
         ReloadNote()
     }
 
@@ -133,7 +135,7 @@ struct SettingsSheet: View {
         return ChoicePopUp(
             label: title,
             options: [(value: String?.none, title: EngineIdentity.defaultTitle)] + (identity?.choices ?? []).map { (value: String?.some($0), title: $0) },
-            selection: Binding(get: { identity?.current }, set: { github.choose($0) }),
+            selection: Binding(get: { identity?.current }, set: { if $0 != identity?.current { github.choose($0) } }),
             width: 180
         )
         .disabled(identity == nil)
@@ -221,9 +223,11 @@ struct CarrierChoice: View {
     var body: some View {
         HStack(spacing: 8) {
             if offersHomebrew {
-                Button("Use the Homebrew one") { setup.carrierOverride = "" }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                Button { setup.carrierOverride = "" } label: { Label("Use the Homebrew one", systemImage: "arrow.uturn.backward").labelStyle(.titleAndIcon) }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
-            Button("Use another…") { choose() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+            Button { choose() } label: { Label("Use another…", systemImage: "folder.badge.plus").labelStyle(.titleAndIcon) }
+                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
         }
     }
 

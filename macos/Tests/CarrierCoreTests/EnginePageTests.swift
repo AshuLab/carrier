@@ -50,7 +50,10 @@ private func identityRow(_ json: String) -> EngineRow {
 
 @Test func aFileThatCannotBeReadHasNoIdentityAndTheRowSaysWhy() {
     #expect(EngineIdentity(config: Data("[]".utf8)) == nil && EngineIdentity(config: Data()) == nil)
-    #expect(page(configured: false)[2].rows[0].detail == "Available once the engine is configured")
+    let missing = page(configured: false)[2].rows[0]
+    #expect(missing.detail == "Available once the engine is configured" && missing.problem == nil)
+    let unreadable = page(configured: true, identity: nil)[2].rows[0]
+    #expect(unreadable.problem == "config.json in the Carrier folder could not be read or is not a JSON object")
 }
 
 private func files(exists: @escaping (String) -> Bool, folder: String = "/h/.carrier") -> [EngineRow] {

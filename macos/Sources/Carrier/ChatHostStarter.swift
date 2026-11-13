@@ -174,27 +174,11 @@ import Observation
 
     /// What `carrier --version` prints; nil, with the reason in the log, when the command fails or prints something else.
     static func installedVersion(_ command: StartCommand) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: command.program)
         // the chat host's own arguments end with its subcommand; what comes before it (the script, for a `node` start) stays
-        process.arguments = command.arguments.dropLast() + ["--version"]
-        process.environment = command.environment
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
-        process.standardInput = FileHandle.nullDevice
         do {
-            try process.run()
-            // ponytail: a `carrier` that hangs is ended after 5 s (killed 1 s later); a grandchild holding the pipe open could still block the read
-            DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
-                guard process.isRunning else { return }
-                process.terminate()
-                DispatchQueue.global().asyncAfter(deadline: .now() + 1) { if process.isRunning { kill(process.processIdentifier, SIGKILL) } }
-            }
-            let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            process.waitUntilExit()
-            if process.terminationStatus == 0, versionNumbers(text) != nil { return text.trimmingCharacters(in: .whitespacesAndNewlines) }
-            let how = process.terminationReason == .uncaughtSignal ? "did not answer in 5 seconds and was ended" : "failed (exit \(process.terminationStatus)) or printed something else"
+            let run = try shortRun(command.program, Array(command.arguments.dropLast()) + ["--version"], environment: command.environment)
+            if run.status == 0, versionNumbers(run.text) != nil { return run.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            let how = run.timedOut ? "did not answer in 5 seconds and was ended" : "failed (exit \(run.status)) or printed something else"
             FileHandle.standardError.write(Data("carrier: the chat host was left alone, `carrier --version` \(how)\n".utf8))
         } catch {
             FileHandle.standardError.write(Data("carrier: the chat host was left alone, `carrier --version` could not run: \(error)\n".utf8))

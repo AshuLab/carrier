@@ -137,9 +137,10 @@ private let profiled = Data(#"{"zeta":1,"profiles":{"bot":{}},"repos":[{"name":"
     #expect(object(applyingOrchestratorProfile("bot", to: file))["orchestratorProfile"] as? String == "bot")
 }
 
-@Test func theKeysOfASortedFileKeepTheirOrder() throws {
-    let sorted = Data("{\n  \"a\" : 1,\n  \"orchestratorProfile\" : \"x\",\n  \"z\" : 2\n}".utf8)
-    let text = String(decoding: try #require(applyingOrchestratorProfile("y", to: sorted)), as: UTF8.self)
+/// Like every writer of `config.json`, the identity writes the keys sorted: their values stay, their order does not.
+@Test func theIdentityWritesTheKeysSortedLikeEveryWriter() throws {
+    let unsorted = Data(#"{"z":2,"orchestratorProfile":"x","a":1}"#.utf8)
+    let text = String(decoding: try #require(applyingOrchestratorProfile("y", to: unsorted)), as: UTF8.self)
     #expect(text.contains("\"a\" : 1,\n  \"orchestratorProfile\" : \"y\",\n  \"z\" : 2"))
 }
 

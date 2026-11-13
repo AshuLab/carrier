@@ -1,0 +1,128 @@
+[
+  {
+    "name": "git",
+    "status": "ok"
+  },
+  {
+    "name": "gh",
+    "status": "ok"
+  },
+  {
+    "name": "forge agent acme-author can mint a token for acme/web",
+    "status": "ok",
+    "repo": "acme/web",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "forge agent acme-reviewer can mint a token for acme/web",
+    "status": "ok",
+    "repo": "acme/web",
+    "profiles": [
+      "acme-reviewer"
+    ]
+  },
+  {
+    "name": "forge agent acme-lead can mint a token for acme/web",
+    "status": "ok",
+    "repo": "acme/web",
+    "profiles": [
+      "acme-lead"
+    ]
+  },
+  {
+    "name": "your gh login can read acme/web",
+    "status": "ok",
+    "repo": "acme/web",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "acme/web has the Solve labels",
+    "status": "ok",
+    "repo": "acme/web",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "forge agent acme-author can mint a token for acme/api",
+    "status": "ok",
+    "repo": "acme/api",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "forge agent acme-reviewer can mint a token for acme/api",
+    "status": "fail",
+    "detail": "the GitHub App is not installed on acme/api",
+    "fix": "install the acme-reviewer app on acme/api, then run carrier doctor again",
+    "repo": "acme/api",
+    "profiles": [
+      "acme-reviewer"
+    ]
+  },
+  {
+    "name": "forge agent acme-lead can mint a token for acme/api",
+    "status": "ok",
+    "repo": "acme/api",
+    "profiles": [
+      "acme-lead"
+    ]
+  },
+  {
+    "name": "your gh login can read acme/api",
+    "status": "ok",
+    "repo": "acme/api",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "acme/api has the Solve labels",
+    "status": "fail",
+    "detail": "missing solve:epic, solve:epic:ready",
+    "fix": "run solve:setup in the repo, it creates them",
+    "repo": "acme/api",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "forge agent acme-author can mint a token for acme/a-really-long-repository-name-for-the-sidebar",
+    "status": "ok",
+    "repo": "acme/a-really-long-repository-name-for-the-sidebar",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "forge agent acme-reviewer can mint a token for acme/a-really-long-repository-name-for-the-sidebar",
+    "status": "ok",
+    "repo": "acme/a-really-long-repository-name-for-the-sidebar",
+    "profiles": [
+      "acme-reviewer"
+    ]
+  },
+  {
+    "name": "forge agent acme-lead can mint a token for acme/a-really-long-repository-name-for-the-sidebar",
+    "status": "ok",
+    "repo": "acme/a-really-long-repository-name-for-the-sidebar",
+    "profiles": [
+      "acme-lead"
+    ]
+  },
+  {
+    "name": "your gh login can read acme/a-really-long-repository-name-for-the-sidebar",
+    "status": "fail",
+    "detail": "Not Found",
+    "fix": "check the repo name and that your gh login can see it",
+    "repo": "acme/a-really-long-repository-name-for-the-sidebar",
+    "profiles": [
+      "acme-author"
+    ]
+  }
+]

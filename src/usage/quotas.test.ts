@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { homedir } from 'node:os';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { QUOTA_KEPT_MS, createQuotas } from './quotas.ts';
 import type { RpcChild, UsagePorts } from './types.ts';
@@ -57,6 +59,7 @@ function ports(overrides: Partial<UsagePorts> = {}) {
     run: async () => ({ code: 0, stdout: '{}' }),
     spawnRpc: fakeRpc().spawnRpc,
     files: { read: async () => { throw errorWith('ENOENT'); } },
+    keychain: async () => undefined,
     localModels: async () => { throw new Error('down'); },
     ...overrides,
   };
@@ -105,10 +108,38 @@ test('claude decimal places other than two scale the spend', async () => {
 });
 
 test('claude without a credentials file is missing; a file with no login, or a refused token, is signed out', async () => {
-  expect(await ports().quotas(claude)).toMatchObject({ status: 'missing', message: expect.stringContaining('Keychain is not read') });
+  expect(await ports().quotas(claude)).toMatchObject({ status: 'missing', message: expect.stringContaining('no Claude login found') });
   expect((await ports({ files: readsCredentials('{}') }).quotas(claude)).status).toBe('signed_out');
   expect((await ports({ files: readsCredentials('not json') }).quotas(claude)).status).toBe('signed_out');
   expect((await ports({ files: readsCredentials(), http: async () => ({ status: 401, json: {} }) }).quotas(claude)).status).toBe('signed_out');
+});
+
+const hashed = (dir: string) => `Claude Code-credentials-${createHash('sha256').update(dir).digest('hex').slice(0, 8)}`;
+
+test('claude with no file reads the login from the Keychain item named after its config folder, and never leaks the token', async () => {
+  const asked: string[] = [];
+  const { quotas } = ports({ keychain: async (service) => (asked.push(service), service === hashed('/cfg') ? credentials(NOW + 3_600_000) : undefined), http: async () => ({ status: 200, json: claudeUsage }) });
+  const snapshot = await quotas(claude);
+  expect(snapshot.status).toBe('ok');
+  expect(snapshot.planType).toBe('max');
+  expect(asked).toContain(hashed('/cfg'));
+  expect(asked).not.toContain('Claude Code-credentials');
+  expect(JSON.stringify([snapshot, logged])).not.toContain(SECRET);
+});
+
+test('claude default login is the bare Keychain item; another folder never falls back to it', async () => {
+  const bare = ports({ keychain: async (service) => (service === 'Claude Code-credentials' ? credentials(NOW + 3_600_000) : undefined), http: async () => ({ status: 200, json: claudeUsage }) });
+  expect((await bare.quotas({ provider: 'claude', configDir: `${homedir()}/.claude` })).status).toBe('ok');
+  const other = ports({ keychain: async (service) => (service === 'Claude Code-credentials' ? credentials(NOW + 3_600_000) : undefined), http: async () => ({ status: 200, json: claudeUsage }) });
+  expect((await other.quotas(claude)).status).toBe('missing');
+});
+
+test('claude Keychain that does not answer is unavailable, and an expired login says Claude Code renews it', async () => {
+  const denied = await ports({ keychain: async () => { throw errorWith('EACCES'); } }).quotas(claude);
+  expect(denied).toMatchObject({ status: 'unavailable', message: expect.stringContaining('Keychain') });
+  expect(JSON.stringify(denied)).not.toContain(SECRET);
+  const expired = await ports({ keychain: async () => credentials(NOW - 1) }).quotas(claude);
+  expect(expired).toMatchObject({ status: 'signed_out', message: expect.stringContaining('renews it') });
 });
 
 test('claude unavailable when the server errors or cannot be reached; timeout and other failures are errors', async () => {

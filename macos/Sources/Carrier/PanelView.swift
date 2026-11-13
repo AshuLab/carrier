@@ -73,6 +73,7 @@ struct PanelView: View {
         case .carrier: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
         case .sessions: sessionsPage(model.sessions.rows, by: sessionSort).subtitle
         case .session: openSession.map(conversationSubtitle) ?? ""
+        case .usage: "Limits left and what was used, per account"
         default: ""
         }
     }
@@ -195,6 +196,18 @@ struct PanelView: View {
             if let session = openSession {
                 ToolbarItem(placement: .primaryAction) { SessionPlacePill(row: session) }
                     .sharedBackgroundVisibility(.hidden)
+            }
+            if shell.selection == .usage {
+                ToolbarItem(placement: .primaryAction) {
+                    let checking = AppUsage.store.isRefreshing
+                    Button { AppUsage.refresher.checkAgain() } label: {
+                        Label(checking ? "Checking…" : "Check again", systemImage: "arrow.clockwise")
+                            .symbolEffect(.rotate, options: .repeating, isActive: checking)
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .disabled(checking)
+                    .help("Asks every provider again, skipping the minute the chat host keeps its answer")
+                }
             }
             if let snapshot, shell.selection == .carrier {
                 // two pills: the check against GitHub, then what governs Carrier itself (intake and stopping)

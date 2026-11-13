@@ -22,7 +22,7 @@ subset are in `macos/Sources/CarrierCore/Resources/FileIcons/SOURCE.txt`.
 
 ## LobeHub Icons
 
-The provider marks in `Carrier.app` (`macos/Sources/CarrierCore/Resources/ProviderIcons`: Claude, Codex, Antigravity) are
+The provider marks in `Carrier.app` (`macos/Sources/CarrierCore/Resources/ProviderIcons`: Claude, Codex, Antigravity, LM Studio, Ollama) are
 copied unchanged from the npm package `@lobehub/icons-static-svg` 1.98.0 of
 [LobeHub Icons](https://github.com/lobehub/lobe-icons). Copyright (c) 2023 LobeHub, under the MIT licence; the text
 ships inside the app, next to the icons. The licence covers the artwork files, not the marks, which are trademarks of
@@ -103,3 +103,25 @@ entries are NVIDIA's Parakeet TDT v3, with its Core ML conversion by FluidInfere
 of it by Moondream (<https://huggingface.co/moondream/parakeet-ultra>) that FluidInference converted. Parakeet Unified
 0.6B is listed under NVIDIA's licence, which governs NVIDIA's weights, although FluidInference's converted card says
 CC BY 4.0.
+
+## LiteLLM model prices
+
+The price table of the Usage page (`src/usage/prices.generated.ts`) is a subset of
+[LiteLLM](https://github.com/BerriAI/litellm)'s `model_prices_and_context_window.json`: the chat models of Anthropic,
+OpenAI and Google, converted to US dollars per million tokens by `src/usage/update-prices.ts` (`pnpm prices:update`).
+Copyright (c) 2023 Berri AI, under the MIT licence:
+
+```
+MIT License
+
+Copyright (c) 2023 Berri AI
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+The prices are LiteLLM's reading of each provider's public price page, an estimate and not a bill. The table is copied, not
+fetched at run time; refresh it with `pnpm prices:update` and commit the result.

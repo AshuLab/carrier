@@ -800,6 +800,7 @@ test('usage answers over the socket the quotas of each account and the history r
       throw new Error('no child in this test');
     },
     files: { read: async () => Promise.reject(Object.assign(new Error('gone'), { code: 'ENOENT' })) },
+    keychain: async () => undefined,
     localModels: async () => Promise.reject(new Error('down')),
   };
   const started = await startChatHost({ installLogging: () => {}, clock, exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, binaryFound: () => true, usage: { ports, history: realHistoryPorts } });

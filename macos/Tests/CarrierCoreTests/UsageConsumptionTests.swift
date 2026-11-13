@@ -85,6 +85,22 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
     #expect(abs(bars[6].total - 5.62) < 0.01)
 }
 
+@Test func theChartKnowsItsWeekendsAndTheNumbersAreGrouped() throws {
+    // 2026-11-07 is a Saturday
+    #expect(usageBars(try golden(), metric: .cost).map(\.weekend) == [true, true, false, false, false, false, false])
+    #expect(usageGrouped(1_234_567) == "1,234,567" && usageGrouped(999) == "999")
+    #expect(usageMoney(1234.5) == "$1,234.50" && usageMoney(31.2) == "$31.20" && usageMoney(0.001) == "<$0.01")
+}
+
+@Test func aDrawerGroupsItsRowsUnderTheirHeadings() {
+    let rows = [
+        UsageLine(title: "Credits", value: "None"), UsageLine(title: "GEMINI", heading: true), UsageLine(title: "Weekly"), UsageLine(title: "5h"),
+        UsageLine(title: "CLAUDE", heading: true), UsageLine(title: "Weekly"),
+    ]
+    let groups = usageLineGroups(rows)
+    #expect(groups.map(\.title) == [nil, "GEMINI", "CLAUDE"] && groups.map(\.lines.count) == [1, 2, 1])
+}
+
 @Test func theMetricChangesTheHeightsAndNotTheStack() throws {
     let snapshot = try golden()
     let tokens = usageBars(snapshot, metric: .tokens)
@@ -95,11 +111,11 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 @Test func theTooltipOfADaySaysEachProviderAndTheTotal() throws {
     let snapshot = try golden()
     let cost = usageTooltip(usageBars(snapshot, metric: .cost)[0], metric: .cost)
-    #expect(cost.title == "Nov 7" && cost.lines.map(\.provider) == ["Claude", "Codex", "Antigravity"] && cost.total == "$3.10")
+    #expect(cost.title == "Nov 7" && cost.weekday == "Saturday" && cost.lines.map(\.provider) == ["Claude", "Codex", "Antigravity"] && cost.total == "$3.10")
     #expect(cost.lines[1].value == "$0.93")
     let tokens = usageTooltip(usageBars(snapshot, metric: .tokens)[6], metric: .tokens)
     #expect(tokens.lines.map(\.provider) == ["Claude", "Codex", "Antigravity", "Local"] && tokens.total == "3.6M")
-    #expect(usageTooltip(usageBars(snapshot, metric: .cost)[3], metric: .cost) == UsageTooltip(title: "Nov 10", lines: [], total: "$0.00"))
+    #expect(usageTooltip(usageBars(snapshot, metric: .cost)[3], metric: .cost) == UsageTooltip(title: "Nov 10", weekday: "Tuesday", lines: [], total: "$0.00"))
 }
 
 @Test func aHostWithoutTheProviderSplitStillDecodes() throws {
@@ -125,6 +141,28 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
     #expect(rows.map(\.source) == ["Epic", "Chat", "External"])
     #expect(rows.map(\.name) == ["acme/web", "Projects/web", "Projects/scratch"])
     #expect(rows[1].path == "/Users/demo/Projects/web" && rows[0].cost == "$28.40" && rows[0].detail == "15M tokens · 190 turns")
+}
+
+@Test func theWorkspaceTableListsTheTopAndTotalsTheWholeRange() throws {
+    let snapshot = try golden()
+    #expect(usageWorkspaceRows(snapshot, limit: 2).count == 2)
+    #expect(usageWorkspaceTotal(snapshot).name == "Total · 3 workspaces")
+    #expect(usageWorkspaceTotal(snapshot, limit: 2).name == "Total · 3 workspaces, top 2 by tokens")
+    // the total is the range's, not the sum of the rows listed
+    #expect(usageWorkspaceTotal(snapshot, limit: 2).cost == usageMoney(snapshot.summary.costUsd))
+}
+
+@Test func theWorkspaceTableListsTheMostTokensFirst() throws {
+    let tokens = try golden().byWorkspace.map { usageTokenTotal($0.row.tokens) }.sorted(by: >)
+    let rows = usageWorkspaceRows(try golden())
+    #expect(rows.count == tokens.count)
+    #expect(rows.first?.detail.hasPrefix(usageCount(tokens[0])) == true)
+}
+
+@Test func theModelTableTotalsTheRangeAndSaysWhatIsLeftOut() throws {
+    let total = usageModelTotal(try golden())
+    #expect(total.model == "Total · 5 models, 1 unpriced not counted")
+    #expect(total.cost == usageMoney(try golden().summary.costUsd))
 }
 
 // MARK: override form

@@ -1,6 +1,6 @@
 # The app checks that Carrier has what it needs
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

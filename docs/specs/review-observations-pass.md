@@ -1,6 +1,6 @@
 # Review observations: the author answers what a review leaves before the epic is ready
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

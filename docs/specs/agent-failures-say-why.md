@@ -1,6 +1,6 @@
 # Agent failures say why
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

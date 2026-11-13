@@ -1,6 +1,6 @@
 # Carrier is installed with Homebrew
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

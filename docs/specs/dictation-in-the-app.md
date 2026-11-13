@@ -1,6 +1,6 @@
 # Dictation in the app
 
-Status: spec
+Status: implemented (v0.4.0)
 
 Source: AshuLab/carrier#856
 

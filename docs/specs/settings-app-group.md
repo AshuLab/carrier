@@ -1,6 +1,6 @@
 # Settings has a base and an App group
 
-Status: spec
+Status: implemented (v0.1.3)
 
 Source: AshuLab/carrier#677
 

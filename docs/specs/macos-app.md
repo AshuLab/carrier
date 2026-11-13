@@ -1,6 +1,6 @@
 # Carrier macOS app
 
-Status: spec
+Status: implemented (v0.1.0), superseded in part by [macos-app-redesign](macos-app-redesign.md)
 
 ## Problem
 

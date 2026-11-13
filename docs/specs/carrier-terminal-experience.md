@@ -1,6 +1,6 @@
 # Carrier in the terminal: as clear as the app, and able to run without one
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

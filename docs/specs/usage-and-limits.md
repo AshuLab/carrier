@@ -1,6 +1,6 @@
 # Usage and limits
 
-Status: spec
+Status: implemented (unreleased)
 
 ## Problem
 

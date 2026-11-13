@@ -1,6 +1,6 @@
 # 0006 - The engine records what the agents do as events in SQLite, with bounded and redacted output
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-21
 
 ## Context

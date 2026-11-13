@@ -1,6 +1,6 @@
 # macOS app: redesigned window and the data behind it
 
-Status: spec
+Status: implemented (v0.1.0), superseded in part by [sidebar-home-sessions-carrier](sidebar-home-sessions-carrier.md)
 
 ## Problem
 

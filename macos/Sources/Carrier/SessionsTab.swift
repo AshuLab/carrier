@@ -78,7 +78,8 @@ struct SessionsTabView: View {
                 }
             }
             SettingsGroup(title: "With these ages") {
-                let line = sessionAgesLine(draft, today: Date(), unparsable: unparsableFields)
+                // with chat.json unreadable the draft is only the defaults, not what the host will use
+                let line = unreadable ? nil : sessionAgesLine(draft, today: Date(), unparsable: unparsableFields)
                 if let line { SettingsTabRow(title: "A session you stop using today", detail: line, first: true) { EmptyView() } }
                 SettingsTabRow(title: "Left alone", detail: "A session that is working, waiting for you or open is looked at again later", first: line == nil) { EmptyView() }
             }

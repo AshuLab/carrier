@@ -1651,7 +1651,7 @@ private func tempFile() -> URL { FileManager.default.temporaryDirectory.appendin
 }
 
 
-// MARK: what Settings > Chat says a new session opens with
+// MARK: what Settings > Sessions says a new session opens with
 
 @MainActor private func draft(_ host: FakeChat, starting start: NewSessionStart) async -> NewSessionModel {
     let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, start: { start })
@@ -1708,7 +1708,7 @@ private let accessOptions = claudeOptions + [
 // MARK: what Settings > Sessions says a new session opens in
 
 @MainActor private func draft(_ host: FakeChat, workIn: WorkIn) async -> NewSessionModel {
-    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, workIn: { workIn })
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, workIn: { workIn })
     await model.load()
     return model
 }
@@ -1742,9 +1742,21 @@ private let accessOptions = claudeOptions + [
     let model = await draft(host, workIn: .newWorktree)
     await model.choose(folder: "/w/api")
     await model.useWorktree(false)
+    await model.fetchNow()
     #expect(model.worktree == false)
     // a plan sent for the base folder comes back on it
     model.restore(SessionPlan(agent: "claude", folder: "/w/api", text: "hi"))
     await model.load()
     #expect(model.folder == "/w/api" && model.worktree == false && model.text == "hi")
+}
+
+@MainActor @Test func aRepositoryToCloneOpensInANewWorktreeWhenWorkInSaysSo() async {
+    let host = FakeChat()
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
+    let base = await draft(host, workIn: .baseFolder)
+    await base.choose(repo: "AshuLab/carrier")
+    #expect(base.toClone && base.worktree == false)
+    let model = await draft(host, workIn: .newWorktree)
+    await model.choose(repo: "AshuLab/carrier")
+    #expect(model.toClone && model.worktree && model.worktreeName.isEmpty == false && model.startBranch == "main")
 }

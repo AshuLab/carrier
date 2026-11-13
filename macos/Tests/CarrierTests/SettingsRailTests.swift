@@ -4,15 +4,13 @@ import SwiftUI
 import Testing
 @testable import Carrier
 
-@Test @MainActor func theRailDrawsTheAppGroupWithNoHeadingThenCarrierThenLegacyWithTheirHeadings() {
+@Test @MainActor func theRailDrawsTheAppGroupWithNoHeadingThenChatCarrierAndLegacyWithTheirHeadings() {
     let sections = SettingsRail.sections
-    #expect(sections.map(\.group.heading) == [nil, "Carrier", "Legacy"])
-    // Dictation is in the App group right after Chat, whatever else the group holds
-    let app = sections[0].pages
-    #expect(app.first == .general && app.last == .updates)
-    #expect(app.firstIndex(of: .dictation) == app.firstIndex(of: .chat).map { $0 + 1 })
-    #expect(sections[1].pages == [.providers, .repos, .agents, .behavior])
-    #expect(sections[2].pages == [.engine, .sessions, .health])
+    #expect(sections.map(\.group.heading) == [nil, "Chat", "Carrier", "Legacy"])
+    #expect(sections[0].pages == [.general, .providers, .notifications, .appearance, .keybindings, .updates])
+    #expect(sections[1].pages == [.chat, .sidebar, .sessions, .dictation])
+    #expect(sections[2].pages == [.repos, .agents, .behavior])
+    #expect(sections[3].pages == [.engine, .health])
     // and the view is built from them
     let renderer = ImageRenderer(content: SettingsRail(page: .constant(.general)).frame(height: 700))
     #expect(renderer.cgImage != nil)

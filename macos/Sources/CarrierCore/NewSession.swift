@@ -91,7 +91,7 @@ public struct WatchNote: Equatable {
     @ObservationIgnored private var optionsAgent: String?
     /// What each agent offered when last asked, kept between drafts and launches.
     @ObservationIgnored private let offers: AgentOfferStore
-    /// What Settings > Chat says a new session opens with, read each time it is needed so a change shows in the next draft.
+    /// What Settings > Sessions says a new session opens with, read each time it is needed so a change shows in the next draft.
     @ObservationIgnored private let start: () -> NewSessionStart
     /// What Settings > Sessions says a new session opens in, read when the workspace answers.
     @ObservationIgnored private let workIn: () -> WorkIn
@@ -297,7 +297,7 @@ public struct WatchNote: Equatable {
     /// The workspace chip's ✕: drops the workspace and what depends on it (branch, worktree choice and name).
     public func clearWorkspace() { reset(folder: nil) }
 
-    /// Keeps the chosen provider while it can be chosen, else takes the one Settings > Chat names when it can work, else the first one
+    /// Keeps the chosen provider while it can be chosen, else takes the one Settings > Sessions names when it can work, else the first one
     /// that can; none when none can.
     public func pickAvailableAgent() {
         guard agents.contains(where: { $0.name == agent && $0.available }) == false else { return }
@@ -329,7 +329,7 @@ public struct WatchNote: Equatable {
         guard let name = agent, optionsAgent != name else { return }
         optionsAgent = name
         chosenOptions = [:]
-        // what Settings > Chat names: the model and reasoning go to the provider it names, the access to any provider that lists those options,
+        // what Settings > Sessions names: the model and reasoning go to the provider it names, the access to any provider that lists those options,
         // all as far as the provider lists them
         let wanted = start()
         if restoredOptions == nil {

@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-/// The Sessions tab: what a new session starts with, the two ages of the session clock (each a number of days or Never) and whether deleting
+/// The Sessions tab: what a new session starts with and where it opens, the two ages of the session clock (each a number of days or Never) and whether deleting
 /// asks first. An age is written to the chat's `chat.json` as it is changed (CarrierCore/SessionAges.swift); the chat host reads the file
 /// each pass, so nothing is restarted. Reset puts the preferences back and writes the default ages.
 struct SessionsTabView: View {
@@ -17,6 +17,7 @@ struct SessionsTabView: View {
     @AppStorage(AppPreferences.newSessionModelKey) private var startModel = ""
     @AppStorage(AppPreferences.newSessionEffortKey) private var startEffort = ""
     @AppStorage(AppPreferences.newSessionAccessKey) private var startAccess = ""
+    @AppStorage(AppPreferences.workInKey) private var workIn = AppPreferences.defaultWorkIn
     private let catalog = ModelCatalog.shared
 
     /// The providers the chat host lists, the ones whose binary was found marked ready.
@@ -64,6 +65,9 @@ struct SessionsTabView: View {
                         }
                     }
                     .task { await catalog.load() }
+                }
+                SettingsTabRow(title: "Work in", detail: "Where a new session opens. A new worktree is offered only for a git repository; the new session screen still changes it for that session") {
+                    ChoicePopUp(label: "Work in", options: WorkIn.allCases.map { (value: $0, title: $0.title) }, selection: $workIn, width: 160)
                 }
             }
             SettingsGroup(title: "Archive and delete") {

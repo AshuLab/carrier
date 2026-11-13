@@ -486,3 +486,18 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(store.sendKey == .commandReturn)
     #expect(try Data(contentsOf: weights) == Data("weights".utf8))
 }
+
+@Test func workInIsTheBaseFolderByDefaultSurvivesARelaunchFallsBackAndResetsWithSessionsOnly() {
+    let name = "workin-\(UUID().uuidString)"
+    let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(first.workIn == .baseFolder && AppPreferences.workInKey == "chat.newSession.workIn")
+    first.workIn = .newWorktree
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).workIn == .newWorktree)
+    first.reset(.chat)
+    #expect(first.workIn == .newWorktree)
+    first.reset(.sessions)
+    #expect(first.workIn == .baseFolder)
+    let defaults = UserDefaults(suiteName: "workin-\(UUID().uuidString)")!
+    defaults.set("somewhere", forKey: AppPreferences.workInKey)
+    #expect(AppPreferences(defaults: defaults).workIn == .baseFolder)
+}

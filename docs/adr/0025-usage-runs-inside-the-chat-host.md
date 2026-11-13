@@ -1,6 +1,6 @@
 # 0025 - Usage collection and serving run inside the chat host
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-11-12
 
 ## Context

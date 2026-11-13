@@ -1,6 +1,6 @@
 # Finished epics in view
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

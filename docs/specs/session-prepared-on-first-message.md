@@ -1,6 +1,6 @@
 # A session is prepared when the first message is sent
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

@@ -1,6 +1,6 @@
 # The repo list is browsed a page at a time
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

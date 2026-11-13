@@ -1,6 +1,6 @@
 # The Agent output tab reads as one quiet, ordered log
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

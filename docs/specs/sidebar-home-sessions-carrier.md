@@ -1,6 +1,6 @@
 # The sidebar keeps Home, Sessions and Carrier apart
 
-Status: spec
+Status: implemented (v0.1.0), superseded in part by [sidebar-flat-sections](sidebar-flat-sections.md)
 
 Superseded in part by [the flat sections](sidebar-flat-sections.md): the look of every row and of the selection, the Carrier card (now the Carrier section, with no counters), the Sessions badge (the count of open sessions, in grey), the place of Archive and the search and empty states. The rest of this spec stands.
 

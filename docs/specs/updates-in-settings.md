@@ -1,6 +1,6 @@
 # Updates in Settings
 
-Status: spec
+Status: implemented (v0.3.0)
 
 The app already updates itself ([carrier-updates-itself.md](carrier-updates-itself.md)): Sparkle checks when it opens and from time to time, and asks before it installs. This is the part of the app that shows it and lets a person drive it. It also shows the engine's own update, the `brew` step that follows an app update.
 

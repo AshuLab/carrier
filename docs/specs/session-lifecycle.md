@@ -1,6 +1,6 @@
 # A session has a lifecycle: it is archived and deleted by the clock
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

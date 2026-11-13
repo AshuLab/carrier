@@ -1,6 +1,6 @@
 # 0007 - Continue in Terminal: the engine sends a descriptor, the app builds and launches the command
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-21
 
 ## Context

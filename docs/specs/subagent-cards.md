@@ -1,6 +1,6 @@
 # The Agent output tab tells each slice of a ship session apart
 
-Status: spec
+Status: implemented (v0.1.0), superseded in part by [agent-output-quiet-log](agent-output-quiet-log.md)
 
 Superseded in part by [agent-output-quiet-log.md](agent-output-quiet-log.md): the slice row is no longer on a glass surface, rows follow event order instead of order of appearance, and an opened row has no indent. The title join, the count pills, the pull request and the lane hint stay as written here.
 

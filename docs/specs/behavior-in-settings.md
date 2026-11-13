@@ -1,6 +1,6 @@
 # Behavior in Settings
 
-Status: spec
+Status: implemented (v0.4.0)
 
 ## Problem
 

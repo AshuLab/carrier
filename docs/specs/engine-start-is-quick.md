@@ -1,6 +1,6 @@
 # The engine starts without waiting for GitHub
 
-Status: spec
+Status: implemented (v0.4.0)
 
 ## Problem
 

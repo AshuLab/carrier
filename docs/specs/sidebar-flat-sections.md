@@ -1,6 +1,6 @@
 # The sidebar's sections lose their cards and open flat
 
-Status: spec
+Status: implemented (v0.1.0)
 
 ## Problem
 

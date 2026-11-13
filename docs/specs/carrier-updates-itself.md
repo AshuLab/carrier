@@ -1,6 +1,6 @@
 # Carrier updates itself
 
-Status: spec
+Status: implemented (v0.2.0)
 
 ## Problem
 

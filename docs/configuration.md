@@ -10,7 +10,8 @@ A running Carrier applies a changed `config.json` or `providers.json` when it is
 
 The engine reads both files again, from the same config path and Carrier folder it started with, and checks them as a start does. A file that does not match is refused with the key named, the same lines a start would print, and Carrier goes on with the settings it had; fix the file and reload again.
 
-What follows a reload: everything the engine reads from those files, that is `pollIntervalMinutes`, `finishedWindowDays`, `logLevel`, the four `limits`, the repos with their roles, effort, persona and failover, the `profiles` and `orchestratorProfile`, and the accounts of `providers.json`. A reload also re-arms the next check from now with the interval then in force and asks for one, so a shorter interval does not wait out the old one and a repo just added is seen at once.
+What follows a reload: everything the engine reads from those files, that is `pollIntervalMinutes`, `finishedWindowDays`, `logLevel`, the five `limits`, the repos with their roles, effort, persona and failover, the `profiles` and `orchestratorProfile`, and the accounts of `providers.json`.
+A reload also re-arms the next check from now with the interval then in force and asks for one, so a shorter interval does not wait out the old one and a repo just added is seen at once.
 
 Work already running keeps what it started with, and a change reaches what starts after it:
 

@@ -2,7 +2,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { buildPrompt } from '../prompts/build-prompt.ts';
 import { childEnv, markerFor, type AgentCommand, type CommandContext, type HarnessAdapter, type LineSignal } from './common.ts';
+import type { ExecutionUsage } from '../storage/executions.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
+import { obj, tokens } from '../execution/usage.ts';
 import { boundOutput, caps, clean, type AgentEvent, type EventState } from '../execution/events.ts';
 
 /**
@@ -37,6 +39,11 @@ export function buildAgyCommand(task: AgentTask, ctx: CommandContext): AgentComm
 
 const usageLimitTexts = ['AI credits balance is too low', 'individual quota reached', 'exhausted your quota'];
 
+const agyUsage = (raw: unknown): ExecutionUsage => {
+  const u = obj(raw);
+  return { inputTokens: tokens(u.input_tokens), cachedInputTokens: tokens(u.cache_read_tokens), cacheWriteTokens: 0, outputTokens: tokens(u.output_tokens), reasoningTokens: tokens(u.thinking_tokens), costUsd: null };
+};
+
 // Shapes observed with agy 1.4.0: the first stdout line is `init` with the conversation id, written before the model is
 // called; a missing login prints "Authentication required" on stderr and ~60 s later ends with a `result` whose error is
 // "authentication failed or timed out"; resuming an unknown id does NOT fail: it exits 0 in a new conversation and only
@@ -51,18 +58,20 @@ export function parseAgyLine(line: string): LineSignal | undefined {
     return undefined;
   }
   if (event.event === 'init' && typeof event.conversation_id === 'string') return { session: event.conversation_id };
-  if (event.event === 'result' && event.result?.status === 'ERROR') {
+  if (event.event === 'result') {
+    const used = typeof event.result?.usage === 'object' && event.result.usage !== null ? { usage: agyUsage(event.result.usage) } : undefined;
+    if (event.result?.status !== 'ERROR') return used;
     const error = str(event.result.error);
-    if (error === 'authentication failed or timed out') return { authFailed: true };
+    if (error === 'authentication failed or timed out') return { authFailed: true, ...used };
     // No reset time in the text (docs/research/agent-usage-limit-signals.md).
     const usageLimit = error !== undefined && usageLimitTexts.some((text) => error.includes(text));
-    return { failure: { kind: usageLimit ? 'usage_limit' : 'api_error', detail: error ?? 'the run ended: ERROR' } };
+    return { failure: { kind: usageLimit ? 'usage_limit' : 'api_error', detail: error ?? 'the run ended: ERROR' }, ...used };
   }
   return undefined;
 }
 
 const str = (value: unknown) => (typeof value === 'string' ? value : undefined);
-const obj = (value: unknown): Record<string, unknown> => (typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {});
+
 
 // What the call acts on: the command or the path, else the first text parameter of a tool not seen before.
 function argOf(parameters: Record<string, unknown>): string {

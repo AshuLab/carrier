@@ -62,7 +62,10 @@ test('a lost conversation is only a stderr warning, and a missing login shows on
 test('a real recorded stream: only the init line is a signal and every line is JSON', () => {
   const lines = readFileSync(new URL('./agy-stream.fixture.jsonl', import.meta.url), 'utf8').trim().split('\n');
   const signals = lines.map(parseAgyLine).filter((signal) => signal !== undefined);
-  expect(signals).toEqual([{ session: '00000000-0000-4000-8000-000000000001' }]);
+  expect(signals).toEqual([
+    { session: '00000000-0000-4000-8000-000000000001' },
+    { usage: { inputTokens: 53094, cachedInputTokens: 7013, cacheWriteTokens: 0, outputTokens: 797, reasoningTokens: 548, costUsd: null } },
+  ]);
   const events = lines.map((line) => JSON.parse(line));
   expect(events[0].event).toBe('init');
   expect(events.at(-1)).toMatchObject({ event: 'result', result: { status: 'SUCCESS' } });
@@ -79,13 +82,21 @@ test('the prompt carries the 401 rule only when the context has a forgeAgent', (
   expect(buildAgyCommand(task, ctx).args.join('\n')).not.toContain('agent-forge');
 });
 
+test('agy usage: tolerates a malformed, negative or non-finite result.usage and a result without one', () => {
+  const result = (usage: unknown) => JSON.stringify({ event: 'result', result: { status: 'SUCCESS', usage } });
+  expect(parseAgyLine(result({ input_tokens: -5, output_tokens: 'x', thinking_tokens: null, cache_read_tokens: 3 }))?.usage).toMatchObject({ inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cachedInputTokens: 3 });
+  expect(parseAgyLine(result('nope'))).toBeUndefined();
+  expect(parseAgyLine(result(undefined))).toBeUndefined();
+});
+
 const errorResult = (error: string) => JSON.stringify({ event: 'result', result: { status: 'ERROR', error } });
 
 // Inferred from the changelog and the binary, not captured: replace it with a real capture (docs/research/agent-usage-limit-signals.md).
 test('parseAgyLine reads the ERROR result of the usage-limit fixture as usage_limit, with the error text as detail', () => {
   const lines = readFileSync(new URL('./agy-usage-limit.fixture.jsonl', import.meta.url), 'utf8').trim().split('\n');
   const signals = lines.map(parseAgyLine).filter((signal) => signal !== undefined);
-  expect(signals).toEqual([{ session: '00000000-0000-4000-8000-000000000001' }, { failure: { kind: 'usage_limit', detail: 'Your AI credits balance is too low to continue.' } }]);
+  const zero = { inputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0, reasoningTokens: 0, costUsd: null };
+  expect(signals).toEqual([{ session: '00000000-0000-4000-8000-000000000001' }, { failure: { kind: 'usage_limit', detail: 'Your AI credits balance is too low to continue.' }, usage: zero }]);
 });
 
 test('parseAgyLine reads each quota text as usage_limit and any other ERROR result as api_error', () => {

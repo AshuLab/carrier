@@ -177,9 +177,32 @@ test('parseClaudeLine reads session, auth and lost-session errors', () => {
   expect(parseClaudeLine('not json')).toBeUndefined();
 });
 
+const claudeResult = (extra: Record<string, unknown>) => JSON.stringify({ type: 'result', is_error: false, ...extra });
+
+test('claude usage: modelUsage entries are summed, with top-level cost ignored', () => {
+  const usage = parseClaudeLine(claudeResult({ total_cost_usd: 9, modelUsage: { a: { inputTokens: 1, outputTokens: 2, costUSD: 0.5 }, b: { inputTokens: 3, cacheReadInputTokens: 4, cacheCreationInputTokens: 5, thinkingTokens: 6, costUSD: 0.25 } } }))?.usage;
+  expect(usage).toMatchObject({ inputTokens: 4, cachedInputTokens: 4, cacheWriteTokens: 5, outputTokens: 2, reasoningTokens: 6, costUsd: 0.75 });
+  expect(Object.keys(usage?.byModel ?? {})).toEqual(['a', 'b']);
+});
+
+test('claude usage: an empty or absent modelUsage falls back to the top-level usage and total_cost_usd', () => {
+  const top = { input_tokens: 7, cache_read_input_tokens: 8, cache_creation_input_tokens: 9, output_tokens: 10, output_tokens_details: { thinking_tokens: 2 } };
+  const expected = { inputTokens: 7, cachedInputTokens: 8, cacheWriteTokens: 9, outputTokens: 10, reasoningTokens: 2, costUsd: 0.1 };
+  expect(parseClaudeLine(claudeResult({ modelUsage: {}, usage: top, total_cost_usd: 0.1 }))).toEqual({ usage: expected });
+  expect(parseClaudeLine(claudeResult({ usage: top, total_cost_usd: 0.1 }))).toEqual({ usage: expected });
+});
+
+test('claude usage: negative, non-finite and malformed values are 0 or null and never fail the line', () => {
+  expect(parseClaudeLine(claudeResult({ usage: { input_tokens: -3, output_tokens: 'x', cache_read_input_tokens: null }, total_cost_usd: 'free' }))?.usage).toEqual({ inputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0, reasoningTokens: 0, costUsd: null });
+  expect(parseClaudeLine(claudeResult({ modelUsage: { a: 'junk', b: { inputTokens: -1, costUSD: -2 } } }))?.usage).toMatchObject({ inputTokens: 0, costUsd: 0 });
+  expect(parseClaudeLine(claudeResult({ usage: 'junk', modelUsage: 5 }))).toBeUndefined();
+});
+
 test('parseClaudeLine reads the real 429 result as usage_limit', () => {
   const line = readFileSync(join(import.meta.dirname, 'claude-usage-limit.fixture.jsonl'), 'utf8').trim();
-  expect(parseClaudeLine(line)).toEqual({ failure: { kind: 'usage_limit', detail: "You've hit your session limit · resets 12:40pm (America/Montevideo)" } });
+  // The top-level usage is zero on a limit result; modelUsage holds the real totals and wins.
+  const model = { inputTokens: 66, cachedInputTokens: 1594034, cacheWriteTokens: 132737, outputTokens: 17614, reasoningTokens: 4255, costUsd: 0.7598399 };
+  expect(parseClaudeLine(line)).toEqual({ failure: { kind: 'usage_limit', detail: "You've hit your session limit · resets 12:40pm (America/Montevideo)" }, usage: { ...model, byModel: { 'claude-sonnet-5-5': model } } });
 });
 
 test('parseClaudeLine reads any other numeric API status as api_error, and ignores what is not an error with a number', () => {

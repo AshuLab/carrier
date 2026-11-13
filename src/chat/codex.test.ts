@@ -90,8 +90,9 @@ function replay(lines: Line[]) {
   return { transport, seen };
 }
 
-const deps = (transport: CodexTransport, over: Partial<CodexChatDeps> = {}): CodexChatDeps => ({ resolve: (command) => command ?? '/bin/codex', loggedIn: async () => true, spawn: () => transport, ...over });
-const openWith = async (lines: Line[], args: { resume?: string; options?: Record<string, string> } = {}) => {
+const deps = (transport: CodexTransport, over: Partial<CodexChatDeps> = {}): CodexChatDeps => ({ resolve: (command) => command ?? '/bin/codex', loggedIn: async () => true, spawn: () => transport, mcpWaitMs: 0, ...over });
+const mcp = { serverName: 'carrier-chat', url: 'http://127.0.0.1:1/mcp', token: 'secret-token' };
+const openWith = async (lines: Line[], args: { resume?: string; options?: Record<string, string>; mcp?: typeof mcp } = {}) => {
   const { transport, seen } = replay(lines);
   const conversation = await codexChatRunner(deps(transport)).open({ folder: '/work', env: { A: 'b' }, ...args });
   const events: ChatEvent[] = [];
@@ -279,6 +280,60 @@ test('a line it does not know is ignored and never throws; a server request it d
     { id: 78, error: { code: -32601, message: expect.any(String) } },
   ]);
   expect(conversation.options.length).toBeGreaterThan(0);
+});
+
+test('the chat MCP rides in the config of thread/start and of thread/resume, and is left out when none was handed over', async () => {
+  const config = { 'mcp_servers.carrier-chat': { url: mcp.url, default_tools_approval_mode: 'approve', http_headers: { Authorization: 'Bearer secret-token' } } };
+  const started = await openWith(main, { mcp });
+  expect(started.seen.written.find((m) => m.method === 'thread/start')!.params.config).toEqual(config);
+  const again = await openWith(resumed, { resume: threadId, mcp });
+  expect(again.seen.written.find((m) => m.method === 'thread/resume')!.params.config).toEqual(config);
+  const without = await openWith(main);
+  expect(without.seen.written.find((m) => m.method === 'thread/start')!.params).not.toHaveProperty('config');
+  expect(without.conversation.mcpProblem).toBeUndefined();
+});
+
+test("the chat MCP's elicitations are accepted, id 0 included; another server's and every other unknown request get -32601", async () => {
+  const { seen, transport } = await openWith(main, { mcp });
+  const before = seen.written.length;
+  transport.play({ id: 0, method: 'mcpServer/elicitation/request', params: { serverName: 'carrier-chat' } });
+  transport.play({ id: 5, method: 'mcpServer/elicitation/request', params: { serverName: 'other' } });
+  transport.play({ id: 6, method: 'item/fileChange/requestApproval', params: { serverName: 'carrier-chat' } });
+  expect(seen.written.slice(before)).toEqual([
+    { id: 0, result: { action: 'accept', content: {} } },
+    { id: 5, error: { code: -32601, message: expect.any(String) } },
+    { id: 6, error: { code: -32601, message: expect.any(String) } },
+  ]);
+});
+
+test('an MCP call is a tool_start and a tool_end: arguments and output when there are, err when it failed', async () => {
+  const { events, transport } = await openWith(main, { mcp });
+  const item = (patch: Line) => ({ type: 'mcpToolCall', id: 'call-1', server: 'carrier-chat', tool: 'capabilities', ...patch });
+  const play = (method: string, patch: Line) => transport.play({ method, params: { item: item(patch) } });
+  play('item/started', { arguments: { a: 1 }, status: 'inProgress' });
+  play('item/completed', { arguments: { a: 1 }, status: 'completed', result: { content: [{ type: 'text', text: 'one\ntwo' }] } });
+  play('item/started', { id: 'call-2' });
+  play('item/completed', { id: 'call-2', status: 'failed', error: { message: 'boom' } });
+  expect(events).toEqual([
+    { kind: 'tool_start', callId: 'call-1', tool: 'mcp__carrier-chat__capabilities', arg: '{"a":1}' },
+    { kind: 'tool_end', callId: 'call-1', tool: 'mcp__carrier-chat__capabilities', output: ['one', 'two'], status: 'ok' },
+    { kind: 'tool_start', callId: 'call-2', tool: 'mcp__carrier-chat__capabilities' },
+    { kind: 'tool_end', callId: 'call-2', tool: 'mcp__carrier-chat__capabilities', status: 'err' },
+  ]);
+});
+
+test('a startup failure of the chat MCP is its mcpProblem and open still succeeds; another server failing is not', async () => {
+  const failing = (name: string, status: string) => {
+    const at = main.findIndex((line) => line.dir === 'out' && line.method === 'thread/start');
+    return [...main.slice(0, at + 1), { dir: 'in', method: 'mcpServer/startupStatus/updated', params: { name, status, error: status === 'failed' ? 'connection refused' : null } }, ...main.slice(at + 1)];
+  };
+  expect((await openWith(failing('carrier-chat', 'failed'), { mcp })).conversation.mcpProblem).toBe('connection refused');
+  expect((await openWith(failing('carrier-chat', 'cancelled'), { mcp })).conversation.mcpProblem).toBe('its start was cancelled');
+  expect((await openWith(failing('carrier-chat', 'ready'), { mcp })).conversation.mcpProblem).toBeUndefined();
+  expect((await openWith(failing('other', 'failed'), { mcp })).conversation.mcpProblem).toBeUndefined();
+  // a Codex that never says how the MCP started does not hold the conversation: open waits for the bound and goes on
+  const { transport } = replay(main);
+  expect((await codexChatRunner(deps(transport, { mcpWaitMs: 30 })).open({ folder: '/work', env: {}, mcp })).mcpProblem).toBeUndefined();
 });
 
 test('open rejects with a reason when Codex is not installed, not logged in, or does not start or resume', async () => {

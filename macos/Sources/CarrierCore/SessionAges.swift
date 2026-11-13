@@ -79,3 +79,20 @@ public func applyingSessionAges(_ ages: SessionAges, to json: Data?) -> Data? {
     set(deleteKey, ages.delete, default: defaultDeleteAfterDays)
     return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
 }
+
+/// The line of the Sessions page about a session left alone from `today`, in dates: both ages count from the same last activity, so both
+/// dates are `today` plus each age. The year is written only for a date that is not in `today`'s year. nil while an age is refused (or its
+/// field is `unparsable`), since the dates would be a guess.
+public func sessionAgesLine(_ ages: SessionAges, today: Date, calendar: Calendar = .current, unparsable: Set<SessionAgeField> = []) -> String? {
+    guard sessionAgeProblems(ages, unparsable: unparsable).isEmpty else { return nil }
+    guard case .days(let archive) = ages.archive else { return "Is never archived or deleted" }
+    func date(after days: Int) -> String {
+        let day = calendar.date(byAdding: .day, value: days, to: today) ?? today
+        let formatter = DateFormatter()
+        let sameYear = calendar.component(.year, from: day) == calendar.component(.year, from: today)
+        (formatter.locale, formatter.calendar, formatter.timeZone, formatter.dateFormat) = (Locale(identifier: "en_US_POSIX"), calendar, calendar.timeZone, sameYear ? "MMM d" : "MMM d, yyyy")
+        return formatter.string(from: day)
+    }
+    guard case .days(let delete) = ages.delete else { return "Is archived on \(date(after: archive)) and never deleted. The age counts from its last activity" }
+    return "Is archived on \(date(after: archive)) and deleted on \(date(after: delete)). Both ages count from its last activity"
+}

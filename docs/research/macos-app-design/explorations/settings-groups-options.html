@@ -274,8 +274,6 @@ App: { icon:'🖥', head:false, pages:[
    {t:'Follow new output', d:'Scroll with the conversation while it arrives', c:'fn:cfollow'},
    {t:'Message times', d:'Format follows General > Time format', c:'fn:cts'},
    {h:'chatPrev'}]},
-  {t:'Sessions', rows:[
-   {t:'Ask before deleting a session', d:'Its worktree goes with it', c:'fn:cdel'}]},
   {t:'Reset', rows:[
    {t:'Restore the defaults', d:'Everything on this page goes back to how it came', c:'btn|ResetChat'}]}]},
  {id:'health', t:'Health', d:'What this Mac needs besides the agents', ic:'🩺', secs:[
@@ -349,10 +347,19 @@ Carrier: { icon:'📦', pages:[
  ]}
 ]},
 Chat: { icon:'💬', pages:[
- {id:'sessions', t:'Sessions', d:'When sessions age out', ic:'🕘', secs:[
-  {t:'Aging', rows:[
+ {id:'sessions', t:'Sessions', d:'How sessions start and age out', ic:'🕘', secs:[
+  {t:'New sessions', rows:[
+   {t:'Starts with', d:'The provider, model and reasoning a new session opens with; the message box still changes them for that session', c:'val|First that can work'},
+   {t:'Work in', d:'Where a new session opens. A new worktree is offered only for a git repository; the new session screen still changes it for that session', c:'val|The base folder'}]},
+  {t:'Archive and delete', rows:[
    {t:'Archive after', d:'A session with no activity goes to the Archive', c:'val|15 days'},
-   {t:'Delete after', d:'An archived session is deleted', c:'val|30 days'}]}]},
+   {t:'Delete after', d:'An archived session is deleted, with its worktree. Work that is not saved is kept', c:'val|30 days'},
+   {t:'Ask before deleting a session', d:'The question says that its worktree is removed with it', c:'fn:cdel'}]},
+  {t:'With these ages', rows:[
+   {t:'A session you stop using today', d:'Is archived on Nov 28 and deleted on Dec 13. Both ages count from its last activity', c:''},
+   {t:'Left alone', d:'A session that is working, waiting for you or open is looked at again later', c:''}]},
+  {t:'Reset', rows:[
+   {t:'Restore the defaults', d:'Everything on this page goes back to how it came', c:'btn|ResetSess'}]}]},
  {id:'cagents', t:'Agents', d:'Which providers the chat can start with, and how each one starts', ic:'🤖', add:'Add an agent (another account or model)', list:[
   {id:'claude', t:'Claude Code', ic:'✳', tg:'claude.t', sub:()=>TG['claude.t']?'Account claude · default model':'Off', secs:()=>agentSecs('claude','default','t')},
   {id:'codex', t:'Codex', ic:'◍', tg:'codex.t', sub:()=>TG['codex.t']?'Account codex · default model':'Off', secs:()=>agentSecs('codex','default','t')}
@@ -367,6 +374,21 @@ Chat: { icon:'💬', pages:[
 
 
 const AP={scheme:'System',theme:'Carrier',accent:null,tint:'Off',ts:100,density:'Comfortable',glass:true,font:'SF Mono',size:13,lh:'Normal',lig:true,wrap:true,nums:false,code:'Carrier',shapes:false,width:'Medium'};
+// The rail as the app has it today (docs: the Settings groups): pages are moved between the groups here, so each page's design stays where it was drawn.
+(function(){
+  const take=(g,id)=>D[g].pages.splice(D[g].pages.findIndex(p=>p.id===id),1)[0];
+  const stub=(id,t,d,ic)=>({id,t,d,ic,secs:[{t:'Not drawn in this file',rows:[{t:'This page exists in the app',d:'It has its own design',c:''}]}]});
+  const providers=take('Providers','providers'), health=take('App','health');
+  const side=take('App','side'), achat=take('App','achat'), sessions=take('Chat','sessions');
+  const parked=D.Chat.pages;   // Chat > Agents and Projects: not decided yet, so not in the rail
+  window.PARKED_CHAT=parked;
+  const app=D.App.pages; app.splice(1,0,providers); app.push(stub('updates','Updates','This version, and whether Carrier looks for a newer one by itself','⬇️'));
+  const chat={icon:'💬',pages:[achat,side,sessions,stub('dictation','Dictation','Speak instead of typing','🎙')]};
+  const legacy={icon:'🗄',pages:[stub('engine','Engine','How the app starts Carrier','🖥'),health]};
+  const carrier=D.Carrier;
+  Object.keys(D).forEach(k=>delete D[k]);
+  Object.assign(D,{App:{icon:'🖥',head:false,pages:app},Chat:chat,Carrier:carrier,Legacy:legacy});
+})();
 const DEF={...AP};
 const THEMES=[
  {n:'Carrier',d:{bg:'#1c1c1e',sd:'#2f2f33',a:'#0a84ff'},l:{bg:'#f2f2f7',sd:'#dcdce2',a:'#007aff'},plain:1},
@@ -455,7 +477,7 @@ const TG={'en.claude':1,'en.claude-work':0,'en.codex':1,'en.codex-local':0,'en.a
 const LOCK={'claude.c':1,'codex.c':1};
 function tg(k){if(TG[k]&&LOCK[k])return;TG[k]=!TG[k];draw('A');}
 const swTG=k=>'<div class="sg-sw '+(TG[k]?'on':'')+'" style="cursor:pointer'+(LOCK[k]&&TG[k]?';opacity:.5':'')+'" onclick="event.stopPropagation();tg(\''+k+'\')"></div>';
-function nav(g,p){state.A.g=g;state.A.p=p;draw('A');}
+function nav(g,p){g=Object.keys(D).find(k=>D[k].pages.some(x=>x.id===p))||g;state.A.g=g;state.A.p=p;draw('A');}
 const usedBy=k=>{const a=[TG[k+'.c']&&'Carrier',TG[k+'.t']&&'Chat'].filter(Boolean);return a.length?'Used by '+a.join(' and '):'Not used';};
 function mdPage(p,s){
   const v=x=>typeof x==='function'?x():x;
@@ -685,6 +707,7 @@ function ctl(c){
   if(c.startsWith('tg:')) return swTG(c.slice(3));
   if(c.startsWith('nav:')){const [t,l]=c.slice(4).split('|'),[g,p]=t.split('/');return '<button class="glass sm" onclick="nav(\''+g+'\',\''+p+'\')">'+l+'</button>';}
   if(c==='btn|ResetSide') return '<button class="glass sm" onclick="resetS()">Reset</button>';
+  if(c==='btn|ResetSess') return '<button class="glass sm">Reset</button>';
   if(c==='btn|ResetChat') return '<button class="glass sm" onclick="resetC()">Reset</button>';
   if(c==='btn|ResetKeys') return '<button class="glass sm" onclick="resetKeys()">Reset</button>';
   if(c.startsWith('kb:')) return kbCtl(c.slice(3));
@@ -703,7 +726,7 @@ function head(p,g){return '<div class="sg-ph"><div class="ic">'+p.ic+'</div><div
 function railRow(p,on,id){return '<div class="sg-r'+(on?' on':'')+'" data-id="'+id+'"><div class="ic">'+p.ic+'</div><div><b>'+p.t+'</b></div>'+'</div>';}
 
 const MODES = {
- A:{t:'A · Providers first-level, collections as master-detail', p:'App and Providers have no heading in the rail; Carrier and Chat have theirs. Click any page.'}
+ A:{t:'A · The rail as the app has it', p:'App has no heading; Chat, Carrier and Legacy have theirs. Click any page.'}
 };
 const state={};
 function draw(mode){
@@ -727,7 +750,7 @@ function draw(mode){
   el.querySelectorAll('[data-sel]').forEach(n=>n.onclick=()=>{s.sel[pg.id]=n.dataset.sel;ADD.open=null;ADD.last=null;RPK.open=0;draw(mode);});
   el.querySelectorAll('[data-g]').forEach(n=>n.onclick=()=>{s.g=n.dataset.g;s.p=D[s.g].pages[0].id;draw(mode);});
 }
-document.getElementById('opts').innerHTML=Object.entries(MODES).map(([m,o])=>{state[m]={g:'Providers',p:'providers',sel:{}};return '<div class="sg-opt"><h3>'+o.t+'</h3><p>'+o.p+'</p><div class="sg-sheet" id="sheet'+m+'"></div></div>';}).join('');
+document.getElementById('opts').innerHTML=Object.entries(MODES).map(([m,o])=>{state[m]={g:'App',p:'providers',sel:{}};return '<div class="sg-opt"><h3>'+o.t+'</h3><p>'+o.p+'</p><div class="sg-sheet" id="sheet'+m+'"></div></div>';}).join('');
 Object.keys(MODES).forEach(draw);
 </script>
 </body></html>

@@ -4,6 +4,9 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { argsOf, codexChatRunner, realCodexDeps } from './codex.ts';
 import { endGroup } from './group.ts';
+import { McpSessionRegistry, startMcpServer } from './mcp.ts';
+import { capabilities } from './mcp/capabilities.ts';
+import { realClock } from '../orchestration/clock.ts';
 import type { ChatConversation, ChatEvent } from './runner.ts';
 
 // The real Codex, through the user's own `codex` binary and login, in a temporary folder: two turns in one conversation,
@@ -73,6 +76,35 @@ describe.skipIf(!enabled)('the Codex chat adapter against the real Codex', () =>
       expect(said(await turn('What secret word did I ask you to remember earlier? Answer with just the word.'))).toContain('PINEAPPLE');
     } finally {
       await conversation.close();
+    }
+  });
+
+  test('a chat MCP that cannot be reached is reported as the conversation\'s mcpProblem, and the conversation still opens', { timeout: 60_000 }, async () => {
+    const conversation = await codexChatRunner().open({ folder, command: process.env.CARRIER_IT_CODEX_COMMAND, options: { effort: 'low' }, env: process.env, mcp: { serverName: 'carrier-chat', url: 'http://127.0.0.1:9/mcp', token: 'unused' } });
+    try {
+      expect(conversation.mcpProblem).toBeDefined();
+    } finally {
+      await conversation.close();
+    }
+  });
+
+  test('the agent calls the capabilities tool of the injected carrier-chat MCP, and the call shows as tool events', { timeout: 180_000 }, async () => {
+    const registry = new McpSessionRegistry(realClock);
+    const server = await startMcpServer({
+      registry,
+      tools: [capabilities],
+      sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ id, agent: 'it', harness: 'codex', folder, model: null, options: {} }), agents: () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }) },
+    });
+    const token = registry.issue({ sessionId: 's1', invocationId: 'i1' });
+    const conversation = await codexChatRunner().open({ folder, command: process.env.CARRIER_IT_CODEX_COMMAND, options: { effort: 'low', approvalPolicy: 'never' }, env: process.env, mcp: { serverName: 'carrier-chat', url: server.url, token } });
+    try {
+      const { events, turn } = watch(conversation);
+      expect(conversation.mcpProblem).toBeUndefined();
+      await turn('Call the capabilities tool of the carrier-chat MCP server once, then reply with just: DONE');
+      expect(events.some((e) => e.kind === 'tool_end' && e.tool === 'mcp__carrier-chat__capabilities' && e.status === 'ok')).toBe(true);
+    } finally {
+      await conversation.close();
+      await server.close();
     }
   });
 

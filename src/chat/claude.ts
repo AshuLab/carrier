@@ -19,6 +19,12 @@ const PERMISSION_MODES = [
   { id: 'dontAsk', label: "Don't ask" },
 ]; // `bypassPermissions` is left out: it needs a flag of its own and Carrier does not turn it on
 
+/** The variable of the claude process that holds the chat MCP's token; the header of the injected server names it. */
+const MCP_TOKEN_ENV = 'CARRIER_MCP_TOKEN';
+
+/** The statuses of an MCP server that cannot be used (`pending` is still connecting, and is not a failure). */
+const MCP_DOWN = ['failed', 'needs-auth', 'disabled', 'disconnected'];
+
 export type ClaudeChatDeps = {
   query: typeof sdkQuery;
   /** The `claude` to run: `command` when given, else the one found on the path. Throws when there is none. */
@@ -48,7 +54,7 @@ export const realClaudeDeps: ClaudeChatDeps = { query: sdkQuery, resolve: resolv
 
 export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, launch = {}, env }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env, mcp }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -60,7 +66,7 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
       const begin = async (from: string | undefined) => {
         const conversation = new ClaudeConversation(options, from);
         try {
-          await conversation.start(deps, { folder, binary, env, extraArgs });
+          await conversation.start(deps, { folder, binary, env, extraArgs, mcp });
         } catch (error) {
           await conversation.close();
           throw error;
@@ -116,6 +122,7 @@ class ClaudeConversation implements ChatConversation {
   private pid: number | undefined;
   private command: string | undefined;
   private chosen: Record<string, string>;
+  mcpProblem: string | undefined;
 
   constructor(chosen: Record<string, string>, resume: string | undefined) {
     this.chosen = chosen;
@@ -125,7 +132,7 @@ class ClaudeConversation implements ChatConversation {
     this.effort = chosen.effort ?? '';
   }
 
-  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null> }) {
+  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs, mcp }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null>; mcp?: { serverName: string; url: string; token: string } }) {
     const spawnOwn = deps.spawn && ((o: Parameters<NonNullable<ClaudeChatDeps['spawn']>>[0]) => {
       const child = deps.spawn!(o);
       this.pid = (child as { pid?: number }).pid;
@@ -136,7 +143,7 @@ class ClaudeConversation implements ChatConversation {
       prompt: this.input.iterable,
       options: {
         cwd: folder,
-        env,
+        env: mcp ? { ...env, [MCP_TOKEN_ENV]: mcp.token } : env,
         pathToClaudeCodeExecutable: binary,
         includePartialMessages: true,
         // by default Claude Code sends each thinking block with its text left out, so there is nothing to show; this asks for the summary
@@ -147,11 +154,25 @@ class ClaudeConversation implements ChatConversation {
         ...(this.chosen.permissionMode && { permissionMode: this.chosen.permissionMode as never }),
         ...(this.chosen.effort && { effort: this.chosen.effort as never }),
         ...(this.nativeId && { resume: this.nativeId }),
+        // The SDK writes `mcpServers` into the `argv` of the claude process, where any user of the machine can read it, so the header names the token and the token itself rides in that process's environment (Claude Code expands `${VAR}` in these headers). Never in `extraArgs`, never in a config file; its tools run without asking, as the chat host's own.
+        ...(mcp && {
+          mcpServers: { [mcp.serverName]: { type: 'http' as const, url: mcp.url, headers: { Authorization: `Bearer \${${MCP_TOKEN_ENV}}` } } },
+          allowedTools: [`mcp__${mcp.serverName}__*`],
+        }),
       },
     });
     const ready = await this.query.initializationResult();
     this.models = ready.models;
     this.slash = ready.commands ?? [];
+    // The reply of `initializationResult` carries no MCP verdict; `mcpServerStatus` does, and at once for a server that is down (checked against the real Claude Code). A status that cannot be read is no verdict: a broken MCP never blocks a chat.
+    if (mcp) {
+      try {
+        const injected = (await this.query.mcpServerStatus()).find((s) => s.name === mcp.serverName);
+        if (injected && MCP_DOWN.includes(injected.status)) this.mcpProblem = injected.error ? `${injected.status}: ${injected.error}` : injected.status;
+      } catch (error) {
+        log.warn('the status of the chat MCP could not be read', error);
+      }
+    }
     void this.pump();
   }
 

@@ -867,56 +867,9 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.diffStyleKey) private var diffStyle = AppPreferences.defaultDiffStyle
     @AppStorage(AppPreferences.outputLengthKey) private var outputLength = AppPreferences.defaultOutputLength
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
-    @AppStorage(AppPreferences.confirmDeleteKey) private var confirmDelete = AppPreferences.defaultConfirmDelete
-    @AppStorage(AppPreferences.newSessionAgentKey) private var startAgent = ""
-    @AppStorage(AppPreferences.newSessionModelKey) private var startModel = ""
-    @AppStorage(AppPreferences.newSessionEffortKey) private var startEffort = ""
-    @AppStorage(AppPreferences.newSessionAccessKey) private var startAccess = ""
-    private let catalog = ModelCatalog.shared
-
-    /// The providers the chat host lists, the ones whose binary was found marked ready.
-    private var startAccounts: [PickerAccount] {
-        catalog.agents.map { PickerAccount(name: $0.name, harness: $0.harness, icon: providerIconName(harness: $0.harness), ready: $0.found) }
-    }
-
-    /// The access options of the provider a new session opens on (the first that can work when none is named), each at the value chosen here
-    /// and else at the provider's own.
-    private var startAccessScales: [OptionScale] {
-        _ = catalog.offers  // the offers are kept in the store; this is what refreshes the view when they arrive
-        let chosen = NewSessionStart.access(fromJSON: startAccess)
-        let agent = startAgent.isEmpty ? catalog.agents.first { $0.found }?.name : startAgent
-        let options = agent.flatMap { AgentOfferStore.shared.offer($0)?.options } ?? []
-        return composerMenu(options.map { option in
-            guard let value = chosen[option.id], option.values.contains(where: { $0.id == value }) else { return option }
-            return ChatOption(id: option.id, label: option.label, values: option.values, current: value)
-        }).access
-    }
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.chat) }) {
-            SettingsGroup(title: "New sessions") {
-                SettingsTabRow(title: "Starts with", detail: "The provider, model and reasoning a new session opens with; the message box still changes them for that session", first: true) {
-                    ModelPickerButton(
-                        provider: startAgent.isEmpty ? nil : startAgent, model: startModel.isEmpty ? nil : startModel, effort: startEffort,
-                        accounts: startAccounts, catalog: catalog, showsAccess: false, accessScales: startAccessScales,
-                        chooseAccess: { option, value in
-                            var chosen = NewSessionStart.access(fromJSON: startAccess)
-                            chosen[option] = value
-                            startAccess = NewSessionStart.json(fromAccess: chosen)
-                        },
-                        effortFallback: (label: "Provider's own", detail: "The level the provider starts with."), allowsDefaultModel: true,
-                        noneTitle: "First provider that can work", placeholder: "First that can work"
-                    ) { pick in
-                        switch pick {
-                        case .account(let agent, let model): startAgent = agent; startModel = model ?? ""
-                        case .effort(let level): startEffort = level
-                        case .none: startAgent = ""; startModel = ""; startEffort = ""; startAccess = ""
-                        case .inherit: break
-                        }
-                    }
-                    .task { await catalog.load() }
-                }
-            }
             SettingsGroup(title: "Message box") {
                 SettingsTabRow(title: "Send with", detail: "The other key makes a new line", first: true) {
                     ChoicePopUp(label: "Send with", options: [(value: SendKey.return, title: "Return"), (value: .commandReturn, title: "\u{2318}Return")], selection: $sendKey)
@@ -955,11 +908,6 @@ struct ChatTabView: View {
                 }
                 SettingsTabRow(title: "Show reasoning", detail: "The agent's reasoning, folded under its message, when its host sends it") {
                     Toggle("Show reasoning", isOn: $showsReasoning).labelsHidden().toggleStyle(.switch)
-                }
-            }
-            SettingsGroup(title: "Sessions") {
-                SettingsTabRow(title: "Ask before deleting a session", detail: "The question says that its worktree is removed with it", first: true) {
-                    Toggle("Ask before deleting a session", isOn: $confirmDelete).labelsHidden().toggleStyle(.switch)
                 }
             }
         }

@@ -47,6 +47,8 @@ export type CodexChatDeps = {
   loggedIn: (binary: string, env: NodeJS.ProcessEnv) => Promise<boolean>;
   /** Starts `<binary> app-server` followed by `args`, as the leader of its own process group. */
   spawn: (binary: string, options: { cwd: string; env: NodeJS.ProcessEnv; args: string[] }) => CodexTransport;
+  /** How long `open` waits for the chat MCP to say whether it started; the real Codex answers in milliseconds. Default 5000. */
+  mcpWaitMs?: number;
 };
 
 const codexLoggedIn = (binary: string, env: NodeJS.ProcessEnv) =>
@@ -76,7 +78,7 @@ export const realCodexDeps: CodexChatDeps = { resolve: (command, env) => resolve
 
 export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, launch = {}, env }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env, mcp }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -86,7 +88,7 @@ export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner
       if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('Codex is not logged in; run "codex login" once to log in');
       const conversation = new CodexConversation(options, binary);
       try {
-        await conversation.start(deps, { folder, env, resume, launch });
+        await conversation.start(deps, { folder, env, resume, launch, mcp });
       } catch (error) {
         log.error('codex could not be started', error);
         await conversation.close();
@@ -99,6 +101,9 @@ export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner
 
 /** What follows `app-server`: the account's compaction as the `-c` pair `codex exec` takes, then its launch arguments. Empty when it sets none. */
 export const argsOf = ({ autoCompact, launchArgs = [] }: ChatLaunch) => [...(autoCompact === undefined ? [] : ['-c', `model_auto_compact_token_limit=${autoCompact}`]), ...launchArgs];
+
+/** An MCP call by the name Claude gives it, so that a transcript reads the same on either provider. */
+const mcpToolName = (item: { server?: unknown; tool?: unknown }) => `mcp__${String(item.server)}__${String(item.tool)}`;
 
 class CodexConversation implements ChatConversation {
   nativeId: string | undefined;
@@ -124,6 +129,11 @@ class CodexConversation implements ChatConversation {
   private closing = false;
   private chosen: Record<string, string>;
   private binary: string;
+  /** The key the chat MCP is registered under, when it was handed over: its elicitations are accepted for the person. */
+  private mcpServerName: string | undefined;
+  mcpProblem: string | undefined;
+  /** Called when the chat MCP reports that it started or failed, so `start` can stop waiting. */
+  private mcpSettled = () => {};
 
   constructor(chosen: Record<string, string>, binary: string) {
     this.chosen = chosen;
@@ -134,7 +144,9 @@ class CodexConversation implements ChatConversation {
     this.sandbox = chosen.sandbox ?? 'workspace-write';
   }
 
-  async start(deps: CodexChatDeps, { folder, env, resume, launch }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch }) {
+  async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string } | undefined }) {
+    this.mcpServerName = mcp?.serverName;
+    const settled = new Promise<void>((resolve) => (this.mcpSettled = resolve));
     this.transport = deps.spawn(this.binary, { cwd: folder, env, args: argsOf(launch) });
     this.transport.onLine((line) => this.receive(line));
     this.transport.onExit(() => this.ended());
@@ -142,9 +154,17 @@ class CodexConversation implements ChatConversation {
     const version = /\/(\d+\.\d+\.\d+)/.exec(String(hello?.userAgent))?.[1];
     if (version !== CODEX_APP_SERVER_VERSION) log.warn('codex app-server is not the version this adapter was written against', { found: version, expected: CODEX_APP_SERVER_VERSION });
     this.notify('initialized');
-    const params = { cwd: folder, approvalPolicy: this.approvalPolicy, sandbox: this.sandbox, ...(this.chosen.model && { model: this.chosen.model }) };
+    const params = { cwd: folder, approvalPolicy: this.approvalPolicy, sandbox: this.sandbox, ...(this.chosen.model && { model: this.chosen.model }),
+      // over the pipe, so that the token is in neither `argv` nor a config file
+      ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, default_tools_approval_mode: 'approve', http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
+    };
     const started = await this.request(resume === undefined ? 'thread/start' : 'thread/resume', resume === undefined ? params : { threadId: resume, ...params });
     this.nativeId = started.thread.id;
+    // Codex says how the MCP started in a notification after thread/start, not in its reply: wait for it, a little, so that a failure is known when `open` returns.
+    if (mcp !== undefined) {
+      let timer: NodeJS.Timeout | undefined;
+      await Promise.race([settled, new Promise<void>((resolve) => (timer = setTimeout(resolve, deps.mcpWaitMs ?? 5000)))]).finally(() => clearTimeout(timer));
+    }
     this.model = this.chosen.model ?? started.model ?? '';
     this.effort = this.chosen.effort ?? started.reasoningEffort ?? '';
     if (this.chosen.effort) this.overrides.effort = this.chosen.effort; // a thread takes no effort: the first turn carries it
@@ -323,6 +343,10 @@ class CodexConversation implements ChatConversation {
   }
 
   private serverRequest(requestId: number, method: string, params: any) {
+    if (method === 'mcpServer/elicitation/request' && this.mcpServerName !== undefined && params?.serverName === this.mcpServerName) {
+      this.respond(requestId, { action: 'accept', content: {} }); // the person never answers for Carrier's own tools
+      return;
+    }
     if (method !== 'item/commandExecution/requestApproval') {
       // A request left unanswered holds the turn: say the method is not there.
       log.warn('codex asked for something this adapter does not handle', { method });
@@ -359,8 +383,15 @@ class CodexConversation implements ChatConversation {
         return [];
       case 'item/agentMessage/delta':
         return typeof params?.delta === 'string' && params.delta !== '' ? [{ kind: 'delta', text: params.delta }] : [];
+      case 'mcpServer/startupStatus/updated':
+        if (this.mcpServerName !== undefined && params?.name === this.mcpServerName && (params.status === 'failed' || params.status === 'ready' || params.status === 'cancelled')) {
+          if (params.status !== 'ready') this.mcpProblem = typeof params.error === 'string' && params.error !== '' ? params.error : params.status === 'failed' ? 'it failed to start' : 'its start was cancelled';
+          this.mcpSettled();
+        }
+        return [];
       case 'item/started': {
         const item = params?.item;
+        if (item?.type === 'mcpToolCall' && typeof item.id === 'string') return [{ kind: 'tool_start', callId: item.id, tool: mcpToolName(item), ...(item.arguments !== undefined && { arg: JSON.stringify(item.arguments) }) }];
         return item?.type === 'commandExecution' && typeof item.id === 'string' ? [{ kind: 'tool_start', callId: item.id, tool: 'command', arg: typeof item.command === 'string' ? item.command : undefined }] : [];
       }
       case 'item/completed': {
@@ -372,6 +403,11 @@ class CodexConversation implements ChatConversation {
           return text === '' ? [] : [{ kind: 'reasoning', text }];
         }
         if (item?.type === 'agentMessage' && typeof item.text === 'string' && item.text !== '') return [{ kind: 'assistant', text: item.text }];
+        if (item?.type === 'mcpToolCall' && typeof item.id === 'string') {
+          const texts: unknown[] = Array.isArray(item.result?.content) ? item.result.content.map((c: { text?: unknown }) => c?.text) : [];
+          const output = texts.filter((t): t is string => typeof t === 'string' && t !== '').join('\n');
+          return [{ kind: 'tool_end', callId: item.id, tool: mcpToolName(item), ...(output !== '' && { output: output.split('\n') }), status: item.status === 'completed' && !item.error ? 'ok' : 'err' }];
+        }
         if (item?.type !== 'commandExecution' || typeof item.id !== 'string') return [];
         return [{ kind: 'tool_end', callId: item.id, tool: 'command', ...(typeof item.aggregatedOutput === 'string' && { output: item.aggregatedOutput.split('\n') }), status: item.status === 'completed' && item.exitCode === 0 ? 'ok' : 'err' }];
       }

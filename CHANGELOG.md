@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
+Settings gain an Engine page and a Sessions page, the chat's agent can reach back into Carrier, and Usage shows Claude's limits on a Mac with a clearer layout and a bigger price table.
+
 ### Added
 
 - Usage shows Claude on a Mac: when an account has no `.credentials.json`, the probe reads the login Claude Code keeps in the macOS Keychain (read only, never refreshed, never logged; macOS asks once to allow it), so the 5h and weekly windows appear. The price table is now LiteLLM's (MIT, copied into the engine; `pnpm prices:update` refreshes it), so far fewer models show `Unpriced · Map`.
@@ -180,7 +184,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/AshuLab/carrier/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/AshuLab/carrier/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/AshuLab/carrier/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AshuLab/carrier/compare/v0.1.4...v0.2.0

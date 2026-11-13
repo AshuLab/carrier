@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { Plan } from './plan.ts';
 
 export const sessionStates = ['working', 'waiting_approval', 'idle', 'preparing'] as const;
@@ -59,3 +59,17 @@ export const chatTurns = sqliteTable(
   },
   (table) => [index('chat_turns_session').on(table.sessionId)],
 );
+
+export const priceOverrideModes = ['zero', 'alias', 'custom'] as const;
+
+/** What the person said a model costs, keyed by the normalized model id; it wins over the built-in price table. */
+export const usagePriceOverrides = sqliteTable('usage_price_overrides', {
+  model: text().primaryKey(),
+  mode: text({ enum: priceOverrideModes }).notNull(),
+  aliasModel: text(), // alias: the catalog model whose price applies
+  inputUsdPerMillion: real(), // custom: a null cached or cache write rate falls back to the input rate
+  cachedInputUsdPerMillion: real(),
+  cacheWriteUsdPerMillion: real(),
+  outputUsdPerMillion: real(),
+  updatedAt: integer().notNull(), // ms since epoch
+});

@@ -1,7 +1,11 @@
 import { execFile, spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { open, readdir, readFile, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { realClock } from '../orchestration/clock.ts';
 import { listLocalModels } from '../harnesses/local.ts';
+import type { HistoryPorts } from './history.ts';
 import type { UsagePorts } from './types.ts';
 
 /** The ports on the real machine. The unit tests never use them; the gated integration test does. */
@@ -49,4 +53,43 @@ export const realUsagePorts: UsagePorts = {
   },
   files: { read: (path) => readFile(path, 'utf8') },
   localModels: (kind) => listLocalModels(kind),
+};
+
+/** The history's ports on the real machine. The unit tests use them over temporary folders. */
+export const realHistoryPorts: Omit<HistoryPorts, 'clock'> = {
+  files: {
+    async list(root, suffix) {
+      try {
+        return (await readdir(root, { recursive: true })).filter((name) => name.endsWith(suffix)).map((name) => join(root, name));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+        throw error;
+      }
+    },
+    stat: async (path) => {
+      const { size, mtimeMs } = await stat(path);
+      return { size, mtimeMs };
+    },
+    async read(path, from) {
+      const file = await open(path, 'r');
+      try {
+        const { size } = await file.stat();
+        const buffer = Buffer.alloc(Math.max(0, size - from));
+        const { bytesRead } = await file.read(buffer, 0, buffer.length, from);
+        return buffer.subarray(0, bytesRead);
+      } finally {
+        await file.close();
+      }
+    },
+  },
+  openReadonly(file) {
+    if (existsSync(file) === false) return undefined;
+    const db = new Database(file, { readonly: true, fileMustExist: true });
+    db.pragma('busy_timeout = 100');
+    return {
+      hasTable: (name) => db.prepare("select 1 from sqlite_master where type = 'table' and name = ?").get(name) !== undefined,
+      rows: (sql) => db.prepare(sql).iterate() as Iterable<Record<string, unknown>>,
+      close: () => void db.close(),
+    };
+  },
 };

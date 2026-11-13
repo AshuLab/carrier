@@ -10,6 +10,7 @@ struct SettingsSheet: View {
     @ObservedObject private var start = StartController.shared
     @Binding var tab: SettingsPage
     @AppStorage(startOnOpenKey) private var startOnOpen = false
+    @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
     @State private var headerNote: SettingsHeaderNote?
     @Environment(\.dismiss) private var dismiss
 
@@ -74,6 +75,18 @@ struct SettingsSheet: View {
         if let notConfigured {
             Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
         }
+        ForEach(engineGroups(configured: notConfigured == nil), id: \.title) { group in
+            SettingsGroup(title: group.title) {
+                ForEach(Array(group.rows.enumerated()), id: \.element.title) { index, row in
+                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0) {
+                        switch row.id {
+                        case .startOnOpen: Toggle(row.title, isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
+                        case .confirmStop: Toggle(row.title, isOn: $confirmStop).labelsHidden().toggleStyle(.switch)
+                        }
+                    }
+                }
+            }
+        }
         if banner.state == .ready {
             HStack(spacing: 12) {
                 HStack(spacing: 12) {
@@ -88,11 +101,6 @@ struct SettingsSheet: View {
                 Button("Detect again") { setup.detect(); start.refreshConfig() }.buttonStyle(SecondaryCapsuleButtonStyle())
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .settingsCard()
-            SettingsTabRow(title: "Start Carrier when the app opens", detail: notConfigured == nil ? "Carrier starts working on ready epics as soon as the app opens" : "Does nothing until the engine is configured", first: true) {
-                Toggle("Start Carrier when the app opens", isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
-            }
-            .padding(.horizontal, 14)
             .settingsCard()
         }
         Text("Advanced").font(.headline).padding(.top, 6).accessibilityAddTraits(.isHeader)

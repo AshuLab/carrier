@@ -6,19 +6,21 @@ import Testing
     #expect(SettingsPage.pages(in: .app) == [.general, .notifications, .appearance, .sidebar, .chat, .keybindings, .updates])
 }
 
-@Test func legacyHasItsHeadingAndHoldsEngineSessionsAndHealth() {
+@Test func legacyHasItsHeadingAndHoldsSessionsAndHealth() {
     #expect(SettingsPage.Group.legacy.heading == "Legacy")
-    #expect(SettingsPage.pages(in: .legacy) == [.engine, .sessions, .health])
+    #expect(SettingsPage.pages(in: .legacy) == [.sessions, .health])
 }
 
-@Test func theCarrierGroupHasItsHeadingAndHoldsProvidersThenReposAgentsAndBehavior() {
+@Test func theCarrierGroupHasItsHeadingAndHoldsProvidersThenReposAgentsBehaviorAndEngine() {
     #expect(SettingsPage.Group.carrier.heading == "Carrier")
-    #expect(SettingsPage.pages(in: .carrier) == [.providers, .repos, .agents, .behavior])
+    #expect(SettingsPage.pages(in: .carrier) == [.providers, .repos, .agents, .behavior, .engine])
     #expect(SettingsPage.providers.group == .carrier)
     #expect(SettingsPage.repos.group == .carrier)
     #expect(SettingsPage.agents.group == .carrier)
     #expect(SettingsPage.behavior.group == .carrier)
     #expect(SettingsPage.behavior.detail == "How Carrier runs epics")
+    #expect(SettingsPage.engine.group == .carrier)
+    #expect(SettingsPage.engine.detail == "How the app runs Carrier")
 }
 
 @Test func theRailListsTheAppGroupFirstAndEveryPageHasARow() {

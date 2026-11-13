@@ -70,7 +70,8 @@ private let idle = PanelSnapshot(
     store.confirmStop = false
     defaults.set(false, forKey: notifyProblemKey)
     store.reset(.general)
-    #expect(store.style == .countAndBar && store.animates && store.showsEpics && store.confirmStop)
+    // the stop confirmation is the Engine page's now: General's Reset leaves it as the person set it
+    #expect(store.style == .countAndBar && store.animates && store.showsEpics && store.confirmStop == false)
     #expect(defaults.object(forKey: AppPreferences.styleKey) == nil)
     #expect(defaults.object(forKey: notifyProblemKey) as? Bool == false)
 }

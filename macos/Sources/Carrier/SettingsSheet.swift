@@ -6,6 +6,7 @@ import SwiftUI
 /// right, closed by the corner button or Esc. The readiness banner shows over every section while something is missing or being looked for.
 struct SettingsSheet: View {
     let state: ConnectionState?
+    let canReload: Bool
     @ObservedObject var setup: SetupController = .shared
     @ObservedObject private var start = StartController.shared
     @Binding var tab: SettingsPage
@@ -57,12 +58,13 @@ struct SettingsSheet: View {
             case .appearance: AppearanceTabView()
             case .sidebar: SidebarTabView()
             case .chat: ChatTabView()
+            case .dictation: DictationTabView()
             case .keybindings: KeybindingsTabView()
             case .updates: UpdatesTabView()
             case .providers: ProvidersTabView(openAgents: { tab = .agents })
             case .engine: engine(banner, notConfigured: notConfigured)
             case .behavior: BehaviorTabView()
-            case .repos: ReposTabView(state: state, openAgents: { tab = .agents })
+            case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { tab = .agents })
             case .agents: AgentsTabView()
             case .sessions: SessionsTabView()
             case .notifications: NotificationsTabView()

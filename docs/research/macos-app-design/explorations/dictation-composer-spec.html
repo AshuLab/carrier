@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Dictation — the microphone in the message box</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* dc- = dictation composer. Sizes and structure follow MessageBox.swift: a glass box (radius 16, padding 16 / 14 / 12), the agent select on the
+   left of the bottom row and a circular glass Send (20 pt arrow, large control) on the right. The accent is the person's; teal only here. */
+body{--acc:#4fd1b8;--sec:rgba(235,235,245,.60);--ter:rgba(235,235,245,.30);--gl:rgba(255,255,255,.07);--glb:rgba(255,255,255,.12);--hov:rgba(235,235,245,.12)}
+body.light{--acc:#0e9f8b;--sec:rgba(60,60,67,.60);--ter:rgba(60,60,67,.30);--gl:rgba(255,255,255,.62);--glb:rgba(0,0,0,.10);--hov:rgba(60,60,67,.10)}
+.dc-win{width:min(820px,100%);border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;height:440px}
+.dc-chat{flex:1;padding:26px 40px 0;overflow:hidden;display:flex;flex-direction:column;gap:14px;justify-content:flex-end}
+.dc-u{align-self:flex-end;max-width:70%;background:var(--card2);border-radius:14px;padding:8px 12px;font-size:13px}
+.dc-a{max-width:80%;font-size:13px;color:var(--dim)}
+.dc-dock{padding:12px 40px 14px;position:relative}
+.dc-box{border-radius:16px;background:var(--gl);backdrop-filter:blur(30px);box-shadow:0 0 0 .5px var(--glb) inset,0 8px 24px rgba(0,0,0,.18);padding:14px 16px 12px;display:flex;flex-direction:column;gap:10px;position:relative}
+.dc-text{min-height:40px;font-size:13px;line-height:1.45;color:var(--text);white-space:pre-wrap}
+.dc-text .ph{color:var(--sec)}.dc-text .part{color:var(--sec)}
+.dc-text .caret{display:inline-block;width:1.5px;height:14px;background:var(--acc);vertical-align:-2px;margin-left:1px;animation:dcb 1s steps(1) infinite}
+@keyframes dcb{50%{opacity:0}}
+.dc-bot{display:flex;align-items:center;gap:8px}
+.dc-sel{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--sec);padding:4px 10px;border-radius:99px;background:var(--card);box-shadow:0 0 0 .5px var(--glb) inset;white-space:nowrap}
+.dc-cap{flex:1;text-align:right;font-size:12px;color:var(--sec);white-space:nowrap;padding-right:2px;overflow:hidden;text-overflow:ellipsis}
+.dc-cap b{color:var(--acc);font-weight:500}
+/* the microphone: an icon only, in the same 36 pt circle of hit and hover as Send; Send keeps its glass */
+.dc-m{width:36px;height:36px;border-radius:50%;border:0;background:none;display:grid;place-items:center;flex:none;cursor:default;color:var(--sec);transition:background .12s,color .12s}
+.dc-m:hover:not(.off),.dc-m.fh{background:var(--hov);color:var(--text)}
+.dc-m.hot,.dc-m.hot:hover{color:var(--acc)}
+.dc-m.off{opacity:.55}
+.dc-m svg{display:block;overflow:visible}
+.dc-c{width:36px;height:36px;border-radius:50%;border:0;display:grid;place-items:center;flex:none;cursor:default;color:var(--ter);background:var(--card2);box-shadow:0 0 0 .5px var(--glb) inset,0 1px 3px rgba(0,0,0,.15);transition:background .2s,color .2s}
+.dc-c.on{background:var(--acc);color:#06201b;box-shadow:none}body.light .dc-c.on{color:#fff}
+.dc-spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--ter);border-top-color:var(--text);animation:dcs .8s linear infinite}
+@keyframes dcs{to{transform:rotate(1turn)}}
+.dc-wave{flex:1;min-width:0;height:24px;display:flex;align-items:center;justify-content:flex-end;gap:2px;overflow:hidden;color:var(--acc)}
+.dc-wave i{display:block;width:2px;flex:none;border-radius:1px;background:currentColor;height:2px}
+/* the live box: the edge in three hues derived from the accent, a halo of it, and light that drifts in from the edges with the level */
+@property --ang{syntax:'<angle>';inherits:false;initial-value:0deg}
+@keyframes dcspin{to{--ang:360deg}}
+.dc-box.edge{--c1:var(--acc);--c2:oklch(from var(--acc) l c calc(h + 40));--c3:oklch(from var(--acc) l c calc(h - 40));--e:.5;--lv:.1;--gi:.3;--x1:30%;--y1:80%;--x2:70%;--y2:80%;--x3:50%;--y3:20%}
+.dc-box.fx3{--gi:.62}
+.dc-box>:not(.dc-fx):not(.dc-pop){position:relative;z-index:1}
+.dc-fx{position:absolute;inset:0;border-radius:16px;overflow:hidden;pointer-events:none;z-index:0}
+.fx-ring,.fx-halo{position:absolute;inset:0;border-radius:16px;background:conic-gradient(from var(--ang),var(--c1),var(--c2),var(--c3),var(--c1));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);animation:dcspin 7s linear infinite}
+.fx-ring{padding:1.5px;opacity:var(--e)}
+.fx-halo{padding:7px;filter:blur(8px);opacity:calc(var(--e) * .55)}
+.fx-glow{position:absolute;inset:0;-webkit-mask-image:radial-gradient(ellipse 80% 130% at 50% 55%,transparent 28%,#000 100%);mask-image:radial-gradient(ellipse 80% 130% at 50% 55%,transparent 28%,#000 100%)}
+.dc-box.fx3 .fx-glow{-webkit-mask-image:radial-gradient(ellipse 100% 150% at 50% 60%,rgba(0,0,0,.25) 10%,#000 100%);mask-image:radial-gradient(ellipse 100% 150% at 50% 60%,rgba(0,0,0,.25) 10%,#000 100%)}
+.fx-blob{position:absolute;width:260px;height:130px;border-radius:50%;filter:blur(16px);transform:translate(-50%,-50%) scale(calc(.7 + var(--lv) * .9));opacity:calc(var(--gi) * (.35 + var(--lv) * .65))}
+.fx-blob.b1{left:var(--x1);top:var(--y1);background:radial-gradient(closest-side,var(--c1),transparent)}
+.fx-blob.b2{left:var(--x2);top:var(--y2);background:radial-gradient(closest-side,var(--c2),transparent)}
+.fx-blob.b3{left:var(--x3);top:var(--y3);background:radial-gradient(closest-side,var(--c3),transparent)}
+.dc-box.fx1 .fx-halo,.dc-box.fx1 .fx-glow{display:none}
+body.rm .fx-ring,body.rm .fx-halo{animation:none}
+.dc-err{margin:8px 2px 0;font-size:12px;color:var(--red)}
+.dc-pop{position:absolute;right:56px;bottom:62px;width:290px;border-radius:14px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:12px 14px;z-index:4}
+.dc-pop b{display:block;font-size:13px;font-weight:600;margin-bottom:3px}.dc-pop span{display:block;font-size:12px;color:var(--sec);margin-bottom:10px}
+.dc-pop button{border:0;font:inherit;font-size:12px;font-weight:500;color:var(--text);padding:3px 11px;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--glb) inset;cursor:default}
+.dc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;margin-top:10px;max-width:1130px}
+.dc-st{background:var(--card);border-radius:16px;padding:14px 14px 12px;position:relative}
+.dc-st>h4{margin:0 0 8px;font-size:12.5px;font-weight:650}.dc-st>p{margin:8px 2px 0;color:var(--dim);font-size:12px}
+.dc-st.rec{box-shadow:0 0 0 1.5px var(--acc)}
+.dc-st .dc-box{box-shadow:0 0 0 .5px var(--glb) inset}
+.dc-st.tall{padding-bottom:130px}.dc-st .dc-pop{position:absolute;right:34px;top:calc(100% + 6px);bottom:auto}
+.dc-h2{font-size:15px;margin:34px 0 0}.dc-lead{color:var(--dim);max-width:860px;margin:2px 0 0}
+.gd{max-width:1130px;margin-top:34px}.gd h2{font-size:17px;margin:0 0 4px;font-weight:650}.gd>p{color:var(--dim);max-width:820px;margin:0 0 14px}
+.gd h3{font-size:13.5px;margin:26px 0 8px;font-weight:650}
+.gd table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--card);border-radius:12px;overflow:hidden}
+.gd th{text-align:left;font-size:11px;text-transform:uppercase;color:var(--faint);padding:8px 12px;font-weight:600}
+.gd td{padding:7px 12px;border-top:.5px solid var(--line);vertical-align:top}.gd td:first-child{white-space:nowrap;font-weight:550}
+.gd code{font:11.5px var(--mono);background:var(--card2);padding:1px 6px;border-radius:5px}
+.gd ul{margin:6px 0 0;padding-left:18px}.gd li{margin:4px 0;color:var(--dim)}.gd li b{color:var(--text)}
+.gd .box{background:var(--card);border-radius:12px;padding:12px 16px}
+.dc-h3{font-weight:400;color:var(--dim)}
+</style></head><body>
+<h1>Dictation — the microphone in the message box</h1>
+<div class="sub">The entry point of dictation: an icon in the message box, to the left of Send, with no button around it. While it listens there is no word: a visual element shows the sound moving, and that is what tells the person the Mac hears them. The first box is live: click the microphone. Three candidates for that element are side by side below it, then the states and the guide.</div>
+<div class="bar">
+  <button class="tog" onclick="document.body.classList.toggle('light')">Light / dark</button>
+  <button class="tog" id="bInd" onclick="cycleInd()">Indicator: C · accent edge</button>
+  <button class="tog" id="bFx" onclick="cycleFx()">Light: 3 · line + light</button>
+  <button class="tog" id="bRm" onclick="document.body.classList.toggle('rm');this.textContent='Reduce motion: '+(document.body.classList.contains('rm')?'on':'off')">Reduce motion: off</button>
+  <button class="tog" id="bMode" onclick="setMode()">Model: Live</button>
+  <button class="tog" id="bFirst" onclick="setFirst()">First use: off</button>
+  <button class="tog" id="bMic" onclick="setMic()">Microphone: allowed</button>
+</div>
+
+<div class="dc-win">
+  <div class="dc-chat"><div class="dc-u">Hay un test fallando en la rama</div><div class="dc-a">Claude Code · Sonnet — Look at the failing test in <span class="mono" style="font-size:12px">session-lifecycle.test.ts</span>; it expects the archive to wait 30 days.</div></div>
+  <div class="dc-dock" id="live"></div>
+</div>
+
+<h2 class="dc-h2">What says "listening" without a word: C, the accent edge, was chosen</h2>
+<p class="dc-lead">All three move with the voice (here a simulated one) and none writes anything. C is the design; A and B stay here as the record of what was compared.</p>
+<div class="dc-grid" id="inds"></div>
+
+<h2 class="dc-h2">C with color and light: level 3 was chosen</h2>
+<p class="dc-lead">The edge keeps the accent and gains two neighbouring hues (the accent's hue turned 40 degrees each way), so it works with whatever accent the person has picked. The simulated voice moves the light; turn on Reduce motion above to see what stays.</p>
+<div class="dc-grid" id="fxs"></div>
+
+<h2 class="dc-h2">States <span class="dc-h3">(drawn with the indicator selected above)</span></h2>
+<div class="dc-grid" id="states"></div>
+
+<div class="gd">
+<h2>Guide to build it</h2>
+<p>The button lives in <code>MessageBox.swift</code>, which both <code>ConversationView</code> and <code>NewSessionView</code> use, so it is written once. Sizes, weights and structure come from that file.</p>
+
+<h3>1. Where it goes, and where it does not</h3>
+<table><tr><th>Place</th><th>In the first cut</th></tr>
+<tr><td>Message box</td><td><b>Yes, while Dictation is on in Settings.</b> An icon button, <code>mic</code>, in the box's bottom row, left of Send: <code>HStack(spacing: 8) { dictation; button }</code>. With Dictation off the icon is not drawn, not drawn dimmed: the row is the agent select and Send, as it is today.</td></tr>
+<tr><td>Settings rail and page header</td><td>Yes, already drawn: <code>mic</code> on the Dictation page.</td></tr>
+<tr><td>Keybindings page</td><td>No. A "Dictate" row goes there when the shortcut arrives.</td></tr>
+<tr><td>Menu bar icon, overlay of partial text</td><td>No. They belong to the global dictation.</td></tr>
+<tr><td>macOS's own orange microphone dot</td><td>Appears by itself while the Mac listens; nothing to build.</td></tr></table>
+
+<h3>2. The button</h3>
+<table><tr><th>Part</th><th>Value</th></tr>
+<tr><td>Shape</td><td>No glass and no border: <code>.buttonStyle(.plain)</code> over a 36 × 36 frame, the same as Send's, with <code>contentShape(Circle())</code>. Send is the only button of the box with a drawn shape, which makes it the screen's one action.</td></tr>
+<tr><td>Hover and press</td><td>A circle of the same size and shape as Send's: secondary at 14% under the pointer, 20% pressed; the icon goes from secondary to primary. The two controls share one outline, so the row reads as a pair. A button with no border needs this, or it does not look pressable.</td></tr>
+<tr><td>Icon</td><td><code>Image(systemName: "mic")</code> at <code>.scaled(16, weight: .regular)</code>, the size it had inside the circle. Blocked: <code>mic.slash</code>.</td></tr>
+<tr><td>Alignment</td><td>Its center on Send's center, in a frame of the same 36 points, so the two circles line up in the <code>HStack</code>.</td></tr>
+<tr><td>Color</td><td>Idle: secondary, primary on hover. Listening: <code>Color.themeAccent</code>. Never red: red is for errors here, and a person who dictates is not in one.</td></tr>
+<tr><td>Words</td><td><b>None while it listens.</b> The two states where a spinner cannot say what is awaited keep a short caption in the bottom row, <code>.scaled(12)</code> secondary, right aligned: "Getting the model ready…" and "Transcribing…". The box can be as narrow as 320 points, so the caption sits in <code>ViewThatFits</code> and goes first when the row is tight.</td></tr>
+<tr><td>Tooltip</td><td>"Dictate" idle, "Stop dictation" while listening; the shortcut goes in it when there is one, as Send's does.</td></tr></table>
+
+<h3>3. What says "listening" without a word</h3>
+<table><tr><th></th><th>What it is</th><th>For</th><th>Against</th></tr>
+<tr><td>A · icon only</td><td>The microphone in the accent, its capsule filling from the bottom with the level, like the Mac's own Dictation.</td><td>The smallest change; costs no width.</td><td>On its own it is the quietest: a person who does not know the convention may not read "listening", and in a quiet room it hardly moves.</td></tr>
+<tr><td>B · waveform across the row</td><td>The free space between the agent select and the icon becomes a waveform of the last few seconds of level, scrolling to the left; the microphone turns solid in the accent.</td><td>Self-explanatory: a moving waveform next to a microphone is understood without a legend. It takes the width the row has, so it fits any window.</td><td>The row changes more than in the others. In a narrow box it has little room (it shows as many samples as fit, and is left out under 24 points).</td></tr>
+<tr><td>C · accent edge</td><td>The box's outline turns to the accent and breathes with the level, with the microphone filling as in A.</td><td>Readable from across the room; the whole box says "this is live".</td><td>It is the only one that touches the box, and it is a mode on the box itself, heavier than the others; a person typing while it is on sees an accent border around their text.</td></tr></table>
+<ul><li><b>Chosen: C.</b> The whole box says it is live, readable from across the room, and the row keeps its layout: nothing is added to it and nothing has to fit in a narrow window. A (the icon alone) was too quiet, and B (a waveform across the row) changed the row and needed a rule for narrow boxes. They are kept on this page as the record.</li>
+<li><b>Source.</b> The level comes from the audio capture of the core, which is shared by every recognizer, so it is computed once: the root mean square of each buffer, in decibels, with a noise floor (about −50 dB is zero) and a ceiling (about −10 dB is full), smoothed so it falls slower than it rises. Published about 15 times a second; the waveform keeps the last 64 samples, one bar each, so about four seconds. It is a pure function of the samples, the one piece of this feature that has a plain unit test.</li>
+<li><b>Drawing, in three layers over the box's glass and under its text</b>, all with <code>allowsHitTesting(false)</code> and the box's own radius (16):
+ <ul><li><b>The edge.</b> <code>RoundedRectangle(cornerRadius: 16).strokeBorder(AngularGradient(colors: [c1, c2, c3, c1], center: .center, angle: phase), lineWidth: 1.5)</code>. The angle turns slowly (about 50° a second) so the colors travel round the box. Its opacity follows the level, 40% in silence to 100% at full voice, so it is seen when nobody talks and breathes when they do.</li>
+ <li><b>The halo.</b> The same stroke, 7 points wide and blurred 8, at half the edge's opacity, clipped to the box: a glow just inside the line.</li>
+ <li><b>The light.</b> A <code>MeshGradient</code> (3 × 3 points; macOS 26 has it) whose points drift with the clock and whose brightness follows the level, masked so it is strongest toward the edges and keeps a quarter of its strength in the middle, where the text is. Its opacity tops at about 60% at full voice and moves with the level (35% of that in silence), so under the text it is about 15%.</li></ul>
+ The microphone fills with the level as in A, so the edge, the light and the icon agree. Everything comes and goes with <code>.animation(.smooth(duration: 0.2))</code>, as the box's other changes do.</li>
+<li><b>Colors.</b> Three, derived from <code>Color.themeAccent</code>: the accent itself and its hue turned 40° either way, same saturation and brightness. A fixed palette is out: the accent is the person's. With a gray or nearly gray accent (saturation under 15%) the hues do not turn; only brightness varies.</li>
+<li><b>Cost.</b> A <code>TimelineView(.animation(minimumInterval: 1.0 / 30))</code> that exists only while listening, with the blurred layers in a <code>drawingGroup()</code>; when listening stops the view is gone and nothing runs. To be measured on a battery in the real app.</li>
+<li><b>Reduce Motion.</b> The angle stops turning and the light stops drifting; the level still sets the brightness, because that is information. <b>Reduce Transparency:</b> the halo and the light go and the edge stays.</li>
+<li><b>Legibility.</b> Under the text the light is about 15% at full voice, and the partial text is secondary: on a bright accent the contrast has to be checked in the real app, light and dark. If it is not enough, the middle of the mask goes down before the edges do.</li>
+<li><b>The file drop.</b> A file dragged over the box already draws a veil and a dashed accent border. If both happen, the drop wins and the edge waits: the dashed border is the one that asks for an action.</li>
+<li><b>Motion.</b> The indicator is information, not decoration: it follows the voice also with Reduce Motion on. There is no ring or pulse, so nothing to switch off.</li></ul>
+
+<h3>4. States</h3>
+<table><tr><th>State</th><th>Icon</th><th>Bottom row</th><th>Text field</th><th>Send</th></tr>
+<tr><td>Idle</td><td><code>mic</code>, secondary</td><td>Agent select</td><td>As the person left it</td><td>As today</td></tr>
+<tr><td>Getting ready</td><td>Spinner, not pressable</td><td>"Getting the model ready…"</td><td>As it was</td><td>As today</td></tr>
+<tr><td>Listening, a model that gives live text</td><td>In the accent</td><td>The indicator, no words</td><td>Partial text in secondary at the caret, then solid when it is final</td><td>Disabled</td></tr>
+<tr><td>Listening, a model that gives text at the end</td><td>In the accent</td><td>The indicator, no words</td><td>Nothing is added</td><td>Disabled</td></tr>
+<tr><td>Transcribing</td><td>Spinner, not pressable</td><td>"Transcribing…"</td><td>Nothing yet</td><td>Disabled</td></tr>
+<tr><td>Microphone blocked</td><td><code>mic.slash</code>; a click opens a popover with Open System Settings</td><td>Agent select</td><td>As it was</td><td>As today</td></tr>
+<tr><td>Failed to start</td><td>Back to idle</td><td>Agent select</td><td>As it was</td><td>As today</td></tr>
+<tr><td>Dictation off in Settings</td><td>Not drawn</td><td>Agent select</td><td>As it was</td><td>As today</td></tr></table>
+<ul><li><b>Getting ready</b> covers the first time a model loads onto the Neural Engine and the time Apple takes to fetch the assets of a language: both take seconds and the person should see why nothing happens.</li>
+<li><b>Failed to start</b> is a red line under the box, <code>.scaled(12)</code>, like <code>model.refusal</code>, with the cause the core knows (no input device, another app holds the microphone).</li></ul>
+
+<h3>5. Behaviour <span class="dc-h3">(proposed; the spec confirms)</span></h3>
+<ul><li><b>Start and stop.</b> One click starts, the next stops: for now that is the only way to stop it. Escape and the other keys come with the shortcuts, later.</li>
+<li><b>Where the text goes.</b> At the caret, as a range the field knows is tentative: drawn in secondary and replaced as the model revises it, made normal on the final. Text already in the box is not touched.</li>
+<li><b>Typing while listening.</b> A key the person types ends the listening and keeps everything so far, so the box never has two writers.</li>
+<li><b>Enter while listening.</b> It ends the listening and does not send; Send is disabled until it stops, and a second Enter sends. A half sentence is never sent, and a model that gives its text at the end has no text yet to send.</li>
+<li><b>Leaving.</b> Switching session, closing the window or putting the app in the background stops the listening and keeps what was heard. It is not a gesture to stop but a rule so that nothing keeps recording unseen.</li>
+<li><b>Turning Dictation off</b> in Settings while listening stops it the same way.</li>
+<li><b>Privacy.</b> The audio stays in memory and is dropped when it stops, as the brief says.</li></ul>
+
+<h3>6. Accessibility</h3>
+<ul><li>Nothing on screen says "listening" in words, so the announcement has to: "Listening" when it starts, "Dictation stopped, 12 words added" when it ends, and the cause on a failure. Partial text is not announced, because it would speak over the person.</li>
+<li>Labels: "Dictate", "Stop dictation", "Dictation is getting ready", "Transcribing", "Microphone is not allowed". The waveform and the edge are hidden from VoiceOver.</li>
+<li>Reachable by keyboard in the box's order, before Send, with a focus ring as the other buttons have. The popover of a blocked microphone takes focus and Escape closes it.</li>
+<li>State is never color alone: the icon changes (<code>mic</code>, filled, <code>mic.slash</code>, a spinner) and, in B, the waveform moves in a place nothing else moves.</li></ul>
+
+<h3>7. Open</h3>
+<div class="box"><ul style="margin:0"><li><b>How much light.</b> Level 3, the loudest, was chosen. It is the one that can tire in a long dictation; level 2 (the same layers with the light at about half) is the fallback, and it is a single number to lower. The hue turn (40°) and the opacities are first numbers too.</li>
+<li><b>The edge's range.</b> 40% to 100% and 1.5 points are the first numbers. In light themes and with a very pale accent the 40% may be too faint; to be tuned in the real app, with the accents the person can pick.</li>
+<li><b>Icon size.</b> Kept at the 16 points it had inside the circle, as asked. Without the circle it reads smaller beside Send's 36, and at 16 the level fill of A is small. 18 would balance it and costs nothing in the row, since the hit and hover circle stay at 36. To be tried in the real app, at true pixels.</li>
+<li><b>The two spinner states keep their words.</b> A spinner does not say what is awaited, so "Getting the model ready…" and "Transcribing…" stay. If they should be wordless too, the tooltip would have to carry them.</li>
+<li><b>Escape</b> is not part of the first cut. When it arrives with the shortcuts, the box already uses it for the command list; the list should win, as it is the nearer.</li></ul></div>
+</div>
+
+<script>
+const PHRASE='revisa el último commit y dime si rompe algún test';
+const IND={A:'icon only',B:'waveform across the row',C:'accent edge'};
+let fx=3,ind='C',mode='live',first=false,mic='ok',st='idle',text='',partial='',timers=[],popup=false;
+const caps={idle:'',ready:'Getting the model ready…',listen:'',trans:'Transcribing…'};
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const MIC='<rect x="5.2" y="1" width="5.6" height="9.2" rx="2.8"/><path d="M3 7.6a5 5 0 0 0 10 0M8 12.6V15"/>';
+const svg=(inner)=>`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">${inner}</svg>`;
+const MICFILL='<rect x="5.2" y="1" width="5.6" height="9.2" rx="2.8" fill="currentColor"/><path d="M3 7.6a5 5 0 0 0 10 0M8 12.6V15"/>';
+function indicator(v){
+ if(v==='B')return svg(MICFILL); // the waveform carries the level, the icon is solid
+ return `<span class="ind" data-v="A">${svg(MIC+'<rect class="lv" x="5.2" y="9" width="5.6" height="1.2" rx="2.8" fill="currentColor" stroke="none"/>')}</span>`}
+const wave=()=>`<div class="dc-wave ind" data-v="B">${Array.from({length:64},()=>'<i></i>').join('')}</div>`;
+function box(o){ // o: {text,partial,state,pop,err,mic,ind,hover,live}
+ const t=o.text||'',p=o.partial||'',s=o.state||'idle',v=o.ind||ind;
+ const body=(!t&&!p&&s!=='listen')?'<span class="ph">Message the agent</span>':`${esc(t)}${p?`<span class="part">${(t?' ':'')+esc(p)}</span>`:''}${s==='listen'?'<span class="caret"></span>':''}`;
+ const hot=s==='listen',busy=s==='ready'||s==='trans',slash=o.mic==='no';
+ const icon=busy?'<span class="dc-spin"></span>':hot?indicator(v):slash?svg(MIC+'<path d="M2 2l12 12" stroke-width="1.6"/>'):svg(MIC);
+ const canSend=!!t&&s==='idle';
+ const fxl=o.fx||fx,edge=hot&&v==='C';
+ return `<div class="dc-box${edge?' edge fx'+fxl:''}">${edge?FX():''}${o.pop?`<div class="dc-pop"><b>Carrier can't use the microphone</b><span>macOS has it blocked for Carrier. Allow it in System Settings, then dictate again.</span><button>Open System Settings</button></div>`:''}
+ <div class="dc-text">${body}</div>
+ <div class="dc-bot"><span class="dc-sel">Claude Code · Sonnet <span style="opacity:.6">▾</span></span>${hot&&v==='B'?wave():`<span class="dc-cap">${caps[s]||''}</span>`}
+ ${o.nomic?'':`<button class="dc-m ${hot?'hot':''} ${busy?'off':''} ${o.hover?'fh':''}" title="${hot?'Stop dictation':'Dictate'}" aria-label="${hot?'Stop dictation':'Dictate'}" ${o.live?'onclick="clickMic()"':''}>${icon}</button>`}
+ <button class="dc-c ${canSend?'on':''}" aria-label="Send"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button></div></div>
+ ${o.err?`<div class="dc-err">${o.err}</div>`:''}`}
+const FX=()=>'<div class="dc-fx"><div class="fx-glow"><i class="fx-blob b1"></i><i class="fx-blob b2"></i><i class="fx-blob b3"></i></div><div class="fx-halo"></div><div class="fx-ring"></div></div>';
+function draw(){live.innerHTML=box({text,partial,state:st,mic,pop:popup,live:true})}
+function clear(){timers.forEach(clearTimeout);timers=[]}
+function later(f,ms){timers.push(setTimeout(f,ms))}
+function clickMic(){
+ if(st==='ready'||st==='trans')return;
+ if(mic==='no'){popup=!popup;draw();return}
+ if(st==='listen'){stop();return}
+ text='';partial='';popup=false;
+ if(first){st='ready';draw();later(()=>{first=false;bFirst.textContent='First use: off';listen()},1600)}else listen()}
+function listen(){
+ st='listen';draw();const w=PHRASE.split(' ');
+ if(mode==='live'){let i=0;(function nx(){if(st!=='listen')return;partial=w.slice(0,++i).join(' ');draw();if(i<w.length)later(nx,420)})()}}
+function stop(){
+ clear();
+ if(mode==='live'){text=PHRASE.split(' ').slice(0,Math.max(1,partial.split(' ').filter(Boolean).length)).join(' ');partial='';st='idle';draw()}
+ else{st='trans';draw();later(()=>{text=PHRASE;st='idle';draw()},1300)}}
+function setMode(){clear();mode=mode==='live'?'end':'live';bMode.textContent='Model: '+(mode==='live'?'Live':'When you stop');st='idle';text='';partial='';draw()}
+function setFirst(){first=!first;bFirst.textContent='First use: '+(first?'on':'off')}
+function setMic(){mic=mic==='ok'?'no':'ok';popup=false;bMic.textContent='Microphone: '+(mic==='ok'?'allowed':'blocked');draw()}
+const FXN={1:'line only',2:'line + glow',3:'line + light'};
+function cycleFx(){fx=fx%3+1;bFx.textContent='Light: '+fx+' · '+FXN[fx];draw();buildStates()}
+function cycleInd(){ind={A:'B',B:'C',C:'A'}[ind];bInd.textContent='Indicator: '+ind+' · '+IND[ind];draw();buildStates()}
+function frozen(h,p,o,cls=''){return o.pop?`<div class="dc-st tall"><h4>${h}</h4><p style="margin:0 2px 8px">${p}</p>${box(o)}</div>`:`<div class="dc-st ${cls}"><h4>${h}</h4>${box(o)}<p>${p}</p></div>`}
+function buildStates(){
+ states.innerHTML=[
+ frozen('Idle, empty','The microphone is a plain icon; Send is disabled and keeps its glass circle. They are told apart by their icons.',{state:'idle'}),
+ frozen('Idle, with text','Send takes the accent and is the only prominent thing in the box.',{state:'idle',text:'Hay un test fallando en la rama de sesiones'}),
+ frozen('Hover','A faint round fill, the size and shape of Send\u2019s circle, and the icon in primary. Without it a borderless icon would not read as a button.',{state:'idle',hover:true}),
+ frozen('Listening, live text','No word: the indicator moves with the voice; the partial text is secondary and follows the caret. Send is disabled until it stops.',{state:'listen',text:'Hay un test fallando.',partial:'revisa el último commit y dime si'}),
+ frozen('Listening, text at the end','A model too slow to follow the voice adds nothing yet; the indicator alone says it is listening.',{state:'listen'}),
+ frozen('Getting the model ready','First use, or Apple fetching a language. Not pressable, with the reason in words.',{state:'ready'}),
+ frozen('Transcribing','After stopping with a model that gives text at the end.',{state:'trans'}),
+ frozen('Dictation off in Settings','The icon is not drawn at all, not dimmed: the row is as it was before dictation existed.',{state:'idle',nomic:true}),
+ frozen('Failed to start','Back to idle, with the cause in red under the box, as a refused send does.',{state:'idle',err:'Couldn’t start the microphone: another app is using it.'}),
+ frozen('Microphone blocked','mic.slash; the click opens a popover with the way out.',{state:'idle',mic:'no',pop:true})].join('')}
+inds.innerHTML=['A','B','C'].map(v=>frozen(v+' · '+IND[v]+(v==='C'?' (chosen)':''),{A:'The mic fills with the level, nothing else changes. The quietest: in a quiet room it says little.',B:'The free space of the row becomes a waveform that scrolls, and the mic turns solid. Self-explanatory, and it takes the width the row has.',C:'The box\u2019s edge turns to the accent and breathes with the level, with the mic filling. Says it from across the room; it is the only one that touches the box.'}[v],{state:'listen',text:'Hay un test fallando.',partial:'revisa el último commit',ind:v},v==='C'?'rec':'')).join('');
+// one voice for every indicator on the page: speech bursts, pauses, and a level that rises fast and falls slower
+let lvl=.05,speaking=false,hist=new Array(64).fill(.05);
+setInterval(()=>{
+ if(Math.random()<.1)speaking=!speaking;
+ const tgt=speaking?.3+Math.random()*.65:.03+Math.random()*.05;
+ lvl+=(tgt-lvl)*(tgt>lvl?.6:.25);hist.push(lvl);hist.shift();
+ if(location.hash==='#loud')lvl=.95;
+ const now=Date.now();
+ document.querySelectorAll('.ind').forEach(n=>{
+  const v=n.dataset.v;
+  if(v==='A'){const r=n.querySelector('.lv'),h=Math.max(1.2,9.2*Math.min(1,lvl*1.15));r.setAttribute('y',10.2-h);r.setAttribute('height',h)}
+  else if(v==='B'){const bars=n.children,k=bars.length;for(let i=0;i<k;i++){const h=hist[hist.length-k+i]??.05,hh=Math.max(2,22*Math.min(1,h*1.1));bars[i].style.height=hh+'px';bars[i].style.opacity=(.3+.7*i/(k-1)).toFixed(2)}}
+ });
+ const t=document.body.classList.contains('rm')?0:now/1000,L=Math.min(1,lvl*1.15);
+ document.querySelectorAll('.dc-box.edge').forEach(b=>{const q=b.style;
+  q.setProperty('--e',(.4+.6*L).toFixed(2));q.setProperty('--lv',L.toFixed(3));
+  q.setProperty('--x1',(50+44*Math.sin(t*.9)).toFixed(1)+'%');q.setProperty('--y1',(82+14*Math.cos(t*1.3)).toFixed(1)+'%');
+  q.setProperty('--x2',(50+44*Math.sin(t*.7+2.1)).toFixed(1)+'%');q.setProperty('--y2',(78+16*Math.cos(t*1.1+1)).toFixed(1)+'%');
+  q.setProperty('--x3',(50+40*Math.sin(t*.5+4)).toFixed(1)+'%');q.setProperty('--y3',(22+16*Math.cos(t*.8+2)).toFixed(1)+'%')})
+},60);
+fxs.innerHTML=[1,2,3].map(n=>frozen(n+' · '+FXN[n]+(n===3?' (chosen)':''),{1:'Only the edge, now in three hues that turn. The calmest.',2:'The edge plus a soft halo and light that drifts in from the edges; the text zone stays clear.',3:'The same with the light stronger and reaching further into the box. The most alive, and the one that can tire: level 2 is the fallback if it does.'}[n],{state:'listen',text:'Hay un test fallando.',partial:'revisa el último commit',ind:'C',fx:n},n===3?'rec':'')).join('');
+draw();buildStates();
+</script></body></html>

@@ -163,6 +163,8 @@ public struct WatchNote: Equatable {
     @ObservationIgnored private let projectsFolder: () -> String
     @ObservationIgnored private let readConfig: () -> Data?
     @ObservationIgnored private let writeConfig: (Data) throws -> Void
+    @ObservationIgnored private let reload: Reload
+    @ObservationIgnored private let status: ReloadStatus
     @ObservationIgnored private let readChatConfig: () throws -> Data?
     @ObservationIgnored private let writeChatConfig: (Data) throws -> Void
     @ObservationIgnored private let carrierFolder: String
@@ -197,6 +199,8 @@ public struct WatchNote: Equatable {
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, watchEvery: Duration = .seconds(2),
         projectsFolder: @escaping () -> String = currentProjectsFolder,
         readConfig: @escaping () -> Data? = currentConfig, writeConfig: @escaping (Data) throws -> Void = writeCurrentConfig,
+        reload: @escaping Reload = { reloadEngine() },
+        status: ReloadStatus? = nil,
         readChatConfig: @escaping () throws -> Data? = currentChatConfig, writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
         carrierFolder: String = currentCarrierFolder()
     ) {
@@ -207,6 +211,8 @@ public struct WatchNote: Equatable {
         projectsPath = projectsFolder()
         self.readConfig = readConfig
         self.writeConfig = writeConfig
+        self.reload = reload
+        self.status = status ?? .shared
         self.readChatConfig = readChatConfig
         self.writeChatConfig = writeChatConfig
         self.carrierFolder = carrierFolder
@@ -542,9 +548,9 @@ public struct WatchNote: Equatable {
         return steps
     }
 
-    /// Adds `repo` to the config's `repos`, the file read again just now; the engine reads it when it starts, so nothing is restarted. What it
+    /// Adds `repo` to the config's `repos`, the file read again just now; the engine is then asked to reload, so nothing is restarted. What it
     /// came to is the session's `watchNotes`.
-    private func addToWatched(_ repo: String, session id: String) {
+    private func addToWatched(_ repo: String, session id: String) async {
         func failed(_ reason: String) { watchNotes[id] = WatchNote(text: "\(repo) could not be added to Carrier's list: \(reason).", failed: true) }
         guard let json = readConfig(), let names = configRepoNames(json: json) else {
             return failed("the config file could not be read or is not a JSON object")
@@ -555,7 +561,9 @@ public struct WatchNote: Equatable {
         do {
             try writeConfig(updated)
             watched = names + [repo]
-            watchNotes[id] = WatchNote(text: "Carrier will listen to \(repo) from its next start.", failed: false)
+            // the engine may take seconds: the page does not wait for it
+            let note = addedRepoNote(repo, outcome: await status.answer(reload))
+            watchNotes[id] = WatchNote(text: note.text, failed: note.failed)
         } catch {
             log("new session: could not write the config: \(error)")
             failed("the config file is not writable")
@@ -574,7 +582,7 @@ public struct WatchNote: Equatable {
             }
             if found.state != .preparing, found.preparation == nil {
                 pendingWatches[id] = nil
-                addToWatched(repo, session: id)
+                await addToWatched(repo, session: id)
             }
         }
     }

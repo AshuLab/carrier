@@ -35,6 +35,9 @@ struct ProvidersTabView: View {
             }
         }
         .task { await look() }
+        // what the engine said to a save belongs to the tool it was made on: it does not follow the person to another or out of the page
+        .onDisappear { store.dismissProblem() }
+        .onChange(of: selected) { store.dismissProblem() }
         // back from Terminal or an editor, where a login or a file may have changed
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await look() } }
     }
@@ -96,15 +99,21 @@ struct ProvidersTabView: View {
                             .lineLimit(2).truncationMode(.middle).copyOnHover(tool.path ?? line)
                     }
                 }
-                if let failure { Label(failure, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange) }
+                if let failure { ProblemLine(text: failure, font: .caption) }
+                // an editor that closed after a save the engine did not apply leaves its words here
+                if editing == nil, adding == nil {
+                    if let problem = store.editProblem { ProblemLine(text: problem, font: .caption) }
+                    // not a problem: said quietly, as the other pages say that Carrier reads it when it starts
+                    if let note = store.editNote { Label(note, systemImage: "info.circle").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                }
                 switch tool.status {
                 case .missing: EmptyStateView(icon: "arrow.down.circle", title: "\(tool.title) is not installed", line: "Not found on this Mac, so there are no accounts to show.").frame(minHeight: 260)
                 case .foundNotAdded:
                     VStack(alignment: .leading, spacing: 8) {
                         note("Found on this Mac and not added as an account yet.")
                         HStack(spacing: 10) {
-                            Button("Add") { Task { await store.add(harness: tool.id) } }.buttonStyle(SecondaryCapsuleButtonStyle())
-                            if let problem = store.addProblem { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
+                            Button("Add") { Task { await store.add(harness: tool.id) } }.buttonStyle(SecondaryCapsuleButtonStyle()).disabled(store.busy)
+                            if let problem = store.addProblem { ProblemLine(text: problem) }
                         }
                     }
                 default:

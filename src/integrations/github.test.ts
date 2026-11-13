@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { AuthError, GitHubUnavailable } from '../orchestration/github.ts';
-import { GhGitHub } from './github.ts';
+import { GhGitHub, type GitHubProfile } from './github.ts';
 
 // Stands in for `agent-forge`: logs its argv and answers with the first scripted reply whose `match`
 // is contained in the joined arguments. No shell involved anywhere.
@@ -41,9 +41,9 @@ afterEach(() => {
 function setup(replies: Reply[], timeoutMs = 10_000) {
   writeFileSync(join(dir, 'replies.json'), JSON.stringify(replies));
   const github = new GhGitHub({
-    profile: { kind: 'forge', agent: 'bot' },
+    profile: () => ({ kind: 'forge', agent: 'bot' }),
     cwd: () => dir,
-    timeoutMs,
+    timeoutMs: () => timeoutMs,
     executable: join(dir, 'fake-forge'),
   });
   const calls = () =>
@@ -65,9 +65,20 @@ describe('invocation', () => {
 
   test('a gh profile runs gh directly, without Forge arguments', async () => {
     writeFileSync(join(dir, 'replies.json'), JSON.stringify([{ match: 'labels', stdout: http(200, []) }]));
-    const github = new GhGitHub({ profile: { kind: 'gh' }, cwd: () => dir, timeoutMs: 5000, executable: join(dir, 'fake-forge') });
+    const github = new GhGitHub({ profile: () => ({ kind: 'gh' }), cwd: () => dir, timeoutMs: () => 5000, executable: join(dir, 'fake-forge') });
     await github.listLabels(repo);
     expect(JSON.parse(readFileSync(join(dir, 'calls.jsonl'), 'utf8').trim()).args.slice(0, 2)).toEqual(['api', '-i']);
+  });
+
+  test('the profile is read at each call, so a reload reaches the next one', async () => {
+    writeFileSync(join(dir, 'replies.json'), JSON.stringify([{ match: 'labels', stdout: http(200, []) }]));
+    let profile: GitHubProfile = { kind: 'forge', agent: 'first' };
+    const github = new GhGitHub({ profile: () => profile, cwd: () => dir, timeoutMs: () => 5000, executable: join(dir, 'fake-forge') });
+    await github.listLabels(repo);
+    profile = { kind: 'forge', agent: 'second' };
+    await github.listLabels(repo);
+    const agents = readFileSync(join(dir, 'calls.jsonl'), 'utf8').trim().split('\n').map((line) => (JSON.parse(line) as { args: string[] }).args[1]);
+    expect(agents).toEqual(['first', 'second']);
   });
 
   test('a repo that is not owner/name is refused before running anything', async () => {

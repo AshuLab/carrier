@@ -306,7 +306,7 @@ public struct AppPreferences {
     // the pages that gain preferences add their keys here
     private static func keys(of page: SettingsPage) -> [String] {
         switch page {
-        case .general: [styleKey, animatesKey, showEpicsKey, confirmStopKey, timeStyleKey, clockHoursKey]
+        case .general: [styleKey, animatesKey, showEpicsKey, timeStyleKey, clockHoursKey]
         case .sidebar:
             [
                 SidebarStore.groupByKey, SidebarStore.sessionSortKey, SidebarStore.archiveSortKey, SidebarStore.archiveListSortKey, SidebarStore.showsIconKey,
@@ -331,7 +331,7 @@ public struct AppPreferences {
             ]
         case .dictation: [dictationEnabledKey, dictationModelKey, dictationLanguageKey]
         case .keybindings: [ShortcutTable.key]
-        // the Providers page only reads, the Updates page writes Sparkle's own preferences, and the Legacy pages keep their own settings and have no Reset
+        // the Providers page only reads, the Updates page writes Sparkle's own preferences, the Carrier pages write config.json or (Engine) a few switches that have no Reset, and the Legacy page keeps its own settings
         case .providers, .updates, .engine, .behavior, .repos, .agents, .health: []
         }
     }

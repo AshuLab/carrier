@@ -14,18 +14,20 @@ import Testing
     #expect(SettingsPage.dictation.icon == "mic" && SettingsPage.dictation.detail == "Speak instead of typing")
 }
 
-@Test func legacyHasItsHeadingAndHoldsEngineAndHealth() {
+@Test func legacyHasItsHeadingAndHoldsHealth() {
     #expect(SettingsPage.Group.legacy.heading == "Legacy")
-    #expect(SettingsPage.pages(in: .legacy) == [.engine, .health])
+    #expect(SettingsPage.pages(in: .legacy) == [.health])
 }
 
-@Test func theCarrierGroupHasItsHeadingAndHoldsReposAgentsAndBehavior() {
+@Test func theCarrierGroupHasItsHeadingAndHoldsReposAgentsBehaviorAndEngine() {
     #expect(SettingsPage.Group.carrier.heading == "Carrier")
-    #expect(SettingsPage.pages(in: .carrier) == [.repos, .agents, .behavior])
+    #expect(SettingsPage.pages(in: .carrier) == [.repos, .agents, .behavior, .engine])
     #expect(SettingsPage.repos.group == .carrier)
     #expect(SettingsPage.agents.group == .carrier)
     #expect(SettingsPage.behavior.group == .carrier)
     #expect(SettingsPage.behavior.detail == "How Carrier runs epics")
+    #expect(SettingsPage.engine.group == .carrier)
+    #expect(SettingsPage.engine.detail == "How the app runs Carrier")
 }
 
 @Test func theRailListsTheAppGroupFirstAndEveryPageHasARow() {

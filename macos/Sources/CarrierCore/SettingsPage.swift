@@ -8,7 +8,8 @@ public enum SettingsPage: String, CaseIterable {
     case repos = "Repos"
     case agents = "Agents"
     case behavior = "Behavior"
-    case engine = "Engine", health = "Health"
+    case engine = "Engine"
+    case health = "Health"
 
     /// A group of the rail: the App one has no heading, Chat, Carrier and Legacy have their own.
     public enum Group: CaseIterable {
@@ -28,8 +29,8 @@ public enum SettingsPage: String, CaseIterable {
         switch self {
         case .general, .providers, .notifications, .appearance, .keybindings, .updates: .app
         case .chat, .sidebar, .sessions, .dictation: .chat
-        case .repos, .agents, .behavior: .carrier
-        case .engine, .health: .legacy
+        case .repos, .agents, .behavior, .engine: .carrier
+        case .health: .legacy
         }
     }
 
@@ -57,7 +58,7 @@ public enum SettingsPage: String, CaseIterable {
     /// The line under the title.
     public var detail: String {
         switch self {
-        case .general: "The menu bar and the questions Carrier asks"
+        case .general: "The menu bar and how times read"
         case .notifications: "What to tell you"
         case .appearance: "Theme, color, text size, density and the font of code"
         case .sidebar: "What the sessions list shows"
@@ -66,7 +67,7 @@ public enum SettingsPage: String, CaseIterable {
         case .keybindings: "The keys that run the app's actions"
         case .updates: "This version, and whether Carrier looks for a newer one by itself"
         case .providers: "The AI tools on this Mac and their accounts"
-        case .engine: "How the app starts Carrier"
+        case .engine: "How the app runs Carrier"
         case .behavior: "How Carrier runs epics"
         case .repos: "What Carrier watches"
         case .agents: "Who works on an epic and where it goes when its tokens run out"

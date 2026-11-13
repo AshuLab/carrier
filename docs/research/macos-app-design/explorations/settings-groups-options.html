@@ -152,6 +152,7 @@ body.light .apv{background:rgba(0,0,0,.05)}
     <li><b>Repos</b>: status, checks and the roles of each repo</li>
     <li><b>Agents</b>: the three roles, each with identity, provider, model, effort and what to do when it runs out of tokens</li>
     <li><b>Behavior</b></li>
+    <li><b>Engine</b>: start with the app, confirm stopping, which carrier and node, the GitHub identity, files and logs</li>
   </ul>
   <h3 style="margin-top:12px">Chat</h3><ul><li><b>Sessions</b></li><li><b>Agents</b>: which account, model, reasoning, permission</li><li><b>Projects</b></li></ul></div>
 </div>
@@ -193,9 +194,7 @@ App: { icon:'🖥', head:false, pages:[
    {t:'Show epics in the menu', d:'', c:'sw on'}]},
   {t:'Display', rows:[
    {t:'Time format', d:'How ages and times read: 11m, or 14:32', c:'val|Relative'},
-   {t:'Clock', d:'For clock times', c:'val|System'}]},
-  {t:'Confirmations', rows:[
-   {t:'Ask before stopping Carrier', d:'Only when it would interrupt epics', c:'sw on'}]}]},
+   {t:'Clock', d:'For clock times', c:'val|System'}]}]},
  {id:'notif', t:'Notifications', d:'What to tell you', ic:'🔔', saved:'app', secs:[
   {t:'Carrier', rows:[
    {t:'Needs attention', d:'An epic stopped and waits for a person', c:'sw on'},
@@ -329,6 +328,22 @@ Carrier: { icon:'📦', pages:[
   {t:'Housekeeping', rows:[
    {t:'Show finished epics for', d:'1 to 30 days', c:'val|15 days'}, {t:'GitHub call timeout', d:'Each short call', c:'val|30 s'}, {t:'Log level', d:'', c:'val|info'}]},
   {t:'Reset', rows:[{t:'Restore the defaults', d:'Everything on this page goes back to how it came', c:'btn|ResetBeh'}]}
+ ]},
+ {id:'engine', t:'Engine', d:'How the app runs Carrier', ic:'🚀', secs:[
+  {t:'Starting', rows:[
+   {t:'Start Carrier when the app opens', d:'Carrier starts working on ready epics as soon as the app opens', c:'sw on'},
+   {t:'Ask before stopping Carrier', d:'Only when it would interrupt epics', c:'sw on'}]},
+  {t:'Programs', rows:[
+   {t:'carrier', d:'/opt/homebrew/bin/carrier · version 0.4.1', c:'btn|Use another…'},
+   {t:'node', d:'/opt/homebrew/bin/node · v26.0.0', c:''},
+   {t:'PATH', d:'What the engine runs with: /opt/homebrew/bin:/Users/vemec/Library/pnpm/bin:/usr/bin…', c:''},
+   {t:'Look for the tools again', d:'Asks your shell where node and the PATH are. Use it after installing a tool while the app was open', c:'btn|Detect'}]},
+  {t:'GitHub identity', rows:[
+   {t:'Carrier acts on GitHub as', d:'Reads issues and PRs and changes labels. Default is the author’s identity', c:'val|carrier-author'}]},
+  {t:'Files', rows:[
+   {t:'Carrier folder', d:'~/.carrier', c:'btn|Reveal'},
+   {t:'Logs', d:'~/.carrier/engine/logs', c:'btn|Reveal'},
+   {t:'Start log', d:'What the app saw the last time it started Carrier', c:'btn|Open'}]}
  ]}
 ]},
 Chat: { icon:'💬', pages:[

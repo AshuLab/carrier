@@ -21,6 +21,20 @@ public func engineFolder(
     carrierFolder(environment: environment, home: home) + "/engine"
 }
 
+/// The engine's logs: `<folder>/engine/logs`.
+public func engineLogsFolder(
+    environment: [String: String] = ProcessInfo.processInfo.environment, home: String = NSHomeDirectory()
+) -> String {
+    engineFolder(environment: environment, home: home) + "/logs"
+}
+
+/// What the app saw the last time it started the engine: `<folder>/engine/logs/app-start.log`.
+public func engineStartLogPath(
+    environment: [String: String] = ProcessInfo.processInfo.environment, home: String = NSHomeDirectory()
+) -> String {
+    engineLogsFolder(environment: environment, home: home) + "/app-start.log"
+}
+
 /// The engine's control socket: `<folder>/engine/state/control.sock`.
 public func controlSocketPath(
     environment: [String: String] = ProcessInfo.processInfo.environment, home: String = NSHomeDirectory()

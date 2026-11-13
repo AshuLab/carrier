@@ -353,17 +353,39 @@ private let idle = PanelSnapshot(
     #expect(store.toolOutput == .collapsed && store.opensFailedCalls && store.outputLength == .short)
 }
 
-@Test func askingBeforeDeletingASessionIsOnByDefaultSurvivesARelaunchFallsBackAndResetsWithChat() {
+@Test func askingBeforeDeletingASessionIsOnByDefaultSurvivesARelaunchFallsBackAndResetsWithSessions() {
     let name = "delete-\(UUID().uuidString)"
     let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)
     #expect(first.confirmDelete)
     first.confirmDelete = false
     #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).confirmDelete == false)
     first.reset(.chat)
+    #expect(first.confirmDelete == false)
+    first.reset(.sessions)
     #expect(first.confirmDelete)
     let defaults = UserDefaults(suiteName: "delete-\(UUID().uuidString)")!
     defaults.set("never", forKey: AppPreferences.confirmDeleteKey)
     #expect(AppPreferences(defaults: defaults).confirmDelete)
+}
+
+@Test func whatANewSessionStartsWithIsReadFromTheSameKeysAsBeforeAndEachPageResetsItsOwn() {
+    let defaults = UserDefaults(suiteName: "start-\(UUID().uuidString)")!
+    #expect(AppPreferences.newSessionAgentKey == "chat.newSession.agent" && AppPreferences.newSessionModelKey == "chat.newSession.model")
+    #expect(AppPreferences.newSessionEffortKey == "chat.newSession.effort" && AppPreferences.newSessionAccessKey == "chat.newSession.access")
+    #expect(AppPreferences.confirmDeleteKey == "chat.confirmDelete")
+    defaults.set("codex", forKey: "chat.newSession.agent")
+    defaults.set("gpt-5", forKey: "chat.newSession.model")
+    defaults.set("high", forKey: "chat.newSession.effort")
+    defaults.set(NewSessionStart.json(fromAccess: ["sandbox": "read-only"]), forKey: "chat.newSession.access")
+    let store = AppPreferences(defaults: defaults)
+    store.sendKey = .commandReturn
+    let chosen = NewSessionStart(agent: "codex", model: "gpt-5", effort: "high", access: ["sandbox": "read-only"])
+    #expect(store.newSessionStart == chosen)
+    store.reset(.chat)
+    #expect(store.newSessionStart == chosen && store.sendKey == .return)
+    store.sendKey = .commandReturn
+    store.reset(.sessions)
+    #expect(store.newSessionStart == NewSessionStart() && store.sendKey == .commandReturn)
 }
 
 @Test func showReasoningIsOnByDefaultSurvivesARelaunchFallsBackAndResetsWithChat() {

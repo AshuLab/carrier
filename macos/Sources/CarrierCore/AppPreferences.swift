@@ -312,9 +312,10 @@ public struct AppPreferences {
         case .chat:
             [
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
-                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey, confirmDeleteKey,
-                newSessionAgentKey, newSessionModelKey, newSessionEffortKey, newSessionAccessKey,
+                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey,
             ]
+        // the ages of the session clock live in chat.json: the page's own Reset writes them back
+        case .sessions: [confirmDeleteKey, newSessionAgentKey, newSessionModelKey, newSessionEffortKey, newSessionAccessKey]
         case .notifications:
             [
                 notifyNeedsYouKey, notifyReadyForTestKey, notifyProblemKey, notifyChatNeedsAttentionKey, notifyChatDoneKey, notifyOnlyWhenAwayKey,
@@ -323,7 +324,7 @@ public struct AppPreferences {
         case .dictation: [dictationEnabledKey, dictationModelKey, dictationLanguageKey]
         case .keybindings: [ShortcutTable.key]
         // the Providers page only reads, the Updates page writes Sparkle's own preferences, and the Legacy pages keep their own settings and have no Reset
-        case .providers, .updates, .engine, .behavior, .repos, .agents, .sessions, .health: []
+        case .providers, .updates, .engine, .behavior, .repos, .agents, .health: []
         }
     }
 }

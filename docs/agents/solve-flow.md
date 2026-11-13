@@ -2,6 +2,9 @@
 
 This repo uses the **solve** skill set to take an idea from raw to shipped. Each step is a skill - invoke it however this agent invokes skills. The commands each step runs (tracker, branching, worktrees) are in `solve.md`.
 
+## Lanes
+Work reaches `main` one of two ways: an epic (this flow, slices merged into `feat/<feature>/epic`, then one integration PR) or the direct lane in `CONTRIBUTING.md` for a change outside an epic (one branch, one PR, no tickets). Only `main` is protected; epic branches have no required review or check, so `ship` merges slices unattended.
+
 ## Where to enter
 The entry point is what you already know, not whether it's a feature or a bug:
 - the problem isn't clear (can't yet say what hurts, for whom, how you'd know it's fixed) -> `sharpen`; a fuzzy bug enters here too
@@ -16,7 +19,7 @@ Each step consumes what the previous one left, so they run in order.
 - `to-spec` - turn the brief into a PRD, deciding where each story gets tested
 - `to-tickets` - break the PRD into vertical, agent-ready slices
 - `ship` - take a startable ticket to done: claim, build, close the loop (a PR). Handed the epic instead, it drains every slice in dependency order. It works in the shared tree by default; with worktree isolation (`solve.md` -> Worktrees) each epic drains in its own git worktree, so concurrent epics don't collide, and `land` removes it
-- `land` - once you've read the integration PR and accept it: merge it, then close out the epic branch, its worktree and the epic issue. The step a human starts
+- `land` - once you've read the integration PR and accept it: mark it ready, wait for CI (it runs only on a non-draft PR into `main`), merge it if green, then close out the epic branch, its worktree and the epic issue. The step a human starts
 
 ## Reviewing
 `ship` ends at a draft integration PR; a review pass sits between it and `land`. Nothing starts the review of the integration PR automatically: whoever is driving, a person or an agent, runs `code-review` on that PR.

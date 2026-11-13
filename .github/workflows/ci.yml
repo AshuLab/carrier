@@ -1,0 +1,29 @@
+# Typecheck and unit tests on a pull request into main. Slice PRs into an epic branch and drafts run nothing:
+# ship opens the integration PR as a draft, so this runs once a person marks it ready.
+# No paths filter: this job is the required check on main, and a workflow that never triggers leaves it pending forever.
+# A job skipped by its `if:` counts as passed, so a draft never blocks.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test

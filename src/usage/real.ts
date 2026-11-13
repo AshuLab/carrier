@@ -1,6 +1,7 @@
 import { execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { open, readdir, readFile, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { realClock } from '../orchestration/clock.ts';
@@ -52,6 +53,18 @@ export const realUsagePorts: UsagePorts = {
     };
   },
   files: { read: (path) => readFile(path, 'utf8') },
+  keychain: (service, account) =>
+    process.platform === 'darwin'
+      ? new Promise((resolve, reject) => {
+          // no shell, the system's own tool, a short wait: the first read of an item asks the person to allow it
+          execFile('/usr/bin/security', ['find-generic-password', '-a', account, '-s', service, '-w'], { timeout: 5000, env: { HOME: homedir() }, maxBuffer: 1024 * 1024 }, (error, stdout) => {
+            if (error === null) return resolve(stdout.trim());
+            // 44 is "the item could not be found"; anything else is a Keychain that did not answer
+            if ((error as { code?: unknown }).code === 44) return resolve(undefined);
+            reject(new Error('the Keychain did not answer'));
+          });
+        })
+      : Promise.resolve(undefined),
   localModels: (kind) => listLocalModels(kind),
 };
 

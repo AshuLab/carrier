@@ -1,0 +1,68 @@
+{
+  "checkedAt": 1794700800000,
+  "quotas": [
+    {
+      "account": "claude", "displayName": "Personal", "provider": "claude", "status": "ok", "checkedAt": 1794700790000, "planType": "max",
+      "windows": [
+        { "id": "five_hour", "label": "5h", "usedPercent": 42, "resetsAt": 1794711600000 },
+        { "id": "seven_day", "label": "Weekly", "usedPercent": 61.5, "resetsAt": 1795046400000 },
+        { "id": "seven_day_opus", "label": "Opus weekly", "group": "model_scoped", "usedPercent": 18, "resetsAt": 1795046400000 }
+      ],
+      "extraUsage": { "isEnabled": true, "monthlyLimitUsd": 50, "usedCreditsUsd": 12.4, "utilization": 24.8, "currency": "USD" }
+    },
+    { "account": "claude-work", "displayName": "Work", "provider": "claude", "status": "signed_out", "checkedAt": 1794700790000, "windows": [], "message": "Not signed in. Run claude and sign in." },
+    {
+      "account": "codex", "provider": "codex", "status": "rate_limited", "stale": true, "checkedAt": 1794699900000, "planType": "plus",
+      "windows": [
+        { "id": "primary", "label": "5h", "usedPercent": 87, "resetsAt": 1794708000000 },
+        { "id": "secondary", "label": "Weekly", "usedPercent": 35, "resetsAt": 1795132800000 },
+        { "id": "spark-primary", "label": "Spark 5h", "group": "spark", "usedPercent": 4, "resetLabel": "in 3 hours" }
+      ],
+      "message": "Codex is rate limiting the check; these are the last known numbers.",
+      "credits": { "hasCredits": true, "unlimited": false, "balance": "12.50" },
+      "rateLimitResetCredits": { "availableCount": 1, "credits": [] }
+    },
+    {
+      "account": "agy", "provider": "agy", "status": "ok", "checkedAt": 1794700795000,
+      "windows": [
+        { "id": "gemini-5h", "label": "5h", "group": "Gemini Models", "usedPercent": 10, "resetsAt": 1794712800000 },
+        { "id": "gemini-weekly", "label": "Weekly", "group": "Gemini Models", "usedPercent": 22, "resetsAt": 1795219200000 },
+        { "id": "claude-gpt-5h", "label": "5h", "group": "Claude and GPT models", "usedPercent": 55, "resetsAt": 1794709200000 },
+        { "id": "claude-gpt-weekly", "label": "Weekly", "group": "Claude and GPT models", "usedPercent": 48, "resetsAt": 1795219200000 },
+        { "id": "argon-5h", "label": "5h", "group": "Gemini 4 Argon", "usedPercent": 0, "resetsAt": 1794712800000 },
+        { "id": "argon-weekly", "label": "Weekly", "group": "Gemini 4 Argon", "usedPercent": 3, "resetsAt": 1795219200000 }
+      ],
+      "aiCreditsNotice": "AI credits: Unavailable via native CLI"
+    },
+    {
+      "account": "local", "displayName": "Local servers", "provider": "local", "status": "ok", "checkedAt": 1794700800000, "windows": [],
+      "servers": [
+        { "kind": "lmstudio", "running": false, "models": [] },
+        { "kind": "ollama", "running": true, "models": ["qwen3:8b", "llama3.2:3b"] }
+      ]
+    }
+  ],
+  "summary": { "tokens": { "input": 1840000, "cachedInput": 21400000, "cacheWrite": 910000, "output": 702000, "reasoning": 120000 }, "costUsd": 46.82, "turns": 318 },
+  "daily": [
+    { "date": "2026-11-07", "tokens": { "input": 120000, "cachedInput": 1500000, "cacheWrite": 60000, "output": 41000, "reasoning": 6000 }, "costUsd": 3.1, "turns": 22, "providers": {"claude": {"tokens": {"input": 66000, "cachedInput": 825000, "cacheWrite": 33000, "output": 22550, "reasoning": 3300}, "costUsd": 1.86, "turns": 13}, "codex": {"tokens": {"input": 36000, "cachedInput": 450000, "cacheWrite": 18000, "output": 12300, "reasoning": 1800}, "costUsd": 0.93, "turns": 6}, "agy": {"tokens": {"input": 12000, "cachedInput": 150000, "cacheWrite": 6000, "output": 4100, "reasoning": 600}, "costUsd": 0.31, "turns": 2}} },
+    { "date": "2026-11-08", "tokens": { "input": 310000, "cachedInput": 3900000, "cacheWrite": 150000, "output": 118000, "reasoning": 21000 }, "costUsd": 8.4, "turns": 61, "providers": {"claude": {"tokens": {"input": 170500, "cachedInput": 2145000, "cacheWrite": 82500, "output": 64900, "reasoning": 11550}, "costUsd": 5.04, "turns": 34}, "codex": {"tokens": {"input": 93000, "cachedInput": 1170000, "cacheWrite": 45000, "output": 35400, "reasoning": 6300}, "costUsd": 2.52, "turns": 18}, "agy": {"tokens": {"input": 31000, "cachedInput": 390000, "cacheWrite": 15000, "output": 11800, "reasoning": 2100}, "costUsd": 0.84, "turns": 6}} },
+    { "date": "2026-11-09", "tokens": { "input": 260000, "cachedInput": 3100000, "cacheWrite": 140000, "output": 97000, "reasoning": 14000 }, "costUsd": 7.2, "turns": 49, "providers": {"claude": {"tokens": {"input": 143000, "cachedInput": 1705000, "cacheWrite": 77000, "output": 53350, "reasoning": 7700}, "costUsd": 4.32, "turns": 29}, "codex": {"tokens": {"input": 78000, "cachedInput": 930000, "cacheWrite": 42000, "output": 29100, "reasoning": 4200}, "costUsd": 2.16, "turns": 14}, "agy": {"tokens": {"input": 26000, "cachedInput": 310000, "cacheWrite": 14000, "output": 9700, "reasoning": 1400}, "costUsd": 0.72, "turns": 4}, "local": {"tokens": {"input": 13000, "cachedInput": 155000, "cacheWrite": 7000, "output": 4850, "reasoning": 700}, "costUsd": 0, "turns": 2}} },
+    { "date": "2026-11-10", "tokens": { "input": 0, "cachedInput": 0, "cacheWrite": 0, "output": 0, "reasoning": 0 }, "costUsd": 0, "turns": 0, "providers": {} },
+    { "date": "2026-11-11", "tokens": { "input": 450000, "cachedInput": 5200000, "cacheWrite": 210000, "output": 160000, "reasoning": 30000 }, "costUsd": 11.9, "turns": 83, "providers": {"claude": {"tokens": {"input": 247500, "cachedInput": 2860000, "cacheWrite": 115500, "output": 88000, "reasoning": 16500}, "costUsd": 7.14, "turns": 47}, "codex": {"tokens": {"input": 135000, "cachedInput": 1560000, "cacheWrite": 63000, "output": 48000, "reasoning": 9000}, "costUsd": 3.57, "turns": 24}, "agy": {"tokens": {"input": 45000, "cachedInput": 520000, "cacheWrite": 21000, "output": 16000, "reasoning": 3000}, "costUsd": 1.19, "turns": 8}, "local": {"tokens": {"input": 22500, "cachedInput": 260000, "cacheWrite": 10500, "output": 8000, "reasoning": 1500}, "costUsd": 0, "turns": 4}} },
+    { "date": "2026-11-12", "tokens": { "input": 380000, "cachedInput": 4700000, "cacheWrite": 190000, "output": 150000, "reasoning": 25000 }, "costUsd": 10.6, "turns": 71, "providers": {"claude": {"tokens": {"input": 209000, "cachedInput": 2585000, "cacheWrite": 104500, "output": 82500, "reasoning": 13750}, "costUsd": 6.36, "turns": 40}, "codex": {"tokens": {"input": 114000, "cachedInput": 1410000, "cacheWrite": 57000, "output": 45000, "reasoning": 7500}, "costUsd": 3.18, "turns": 21}, "agy": {"tokens": {"input": 38000, "cachedInput": 470000, "cacheWrite": 19000, "output": 15000, "reasoning": 2500}, "costUsd": 1.06, "turns": 7}, "local": {"tokens": {"input": 19000, "cachedInput": 235000, "cacheWrite": 9500, "output": 7500, "reasoning": 1250}, "costUsd": 0, "turns": 3}} },
+    { "date": "2026-11-13", "tokens": { "input": 320000, "cachedInput": 3000000, "cacheWrite": 160000, "output": 136000, "reasoning": 24000 }, "costUsd": 5.62, "turns": 32, "providers": {"claude": {"tokens": {"input": 176000, "cachedInput": 1650000, "cacheWrite": 88000, "output": 74800, "reasoning": 13200}, "costUsd": 3.37, "turns": 19}, "codex": {"tokens": {"input": 96000, "cachedInput": 900000, "cacheWrite": 48000, "output": 40800, "reasoning": 7200}, "costUsd": 1.69, "turns": 9}, "agy": {"tokens": {"input": 32000, "cachedInput": 300000, "cacheWrite": 16000, "output": 13600, "reasoning": 2400}, "costUsd": 0.56, "turns": 3}, "local": {"tokens": {"input": 16000, "cachedInput": 150000, "cacheWrite": 8000, "output": 6800, "reasoning": 1200}, "costUsd": 0, "turns": 1}} }
+  ],
+  "byModel": [
+    { "model": "claude-opus-4-5", "provider": "claude", "isLocal": false, "costStatus": "priced", "tokens": { "input": 900000, "cachedInput": 12000000, "cacheWrite": 600000, "output": 380000, "reasoning": 0 }, "costUsd": 31.2, "turns": 160 },
+    { "model": "gpt-5-codex", "provider": "codex", "isLocal": false, "costStatus": "priced", "tokens": { "input": 700000, "cachedInput": 8000000, "cacheWrite": 0, "output": 290000, "reasoning": 120000 }, "costUsd": 15.62, "turns": 120 },
+    { "model": "gemini-4-argon", "provider": "agy", "isLocal": false, "costStatus": "unpriced", "tokens": { "input": 240000, "cachedInput": 1400000, "cacheWrite": 310000, "output": 32000, "reasoning": 0 }, "costUsd": 0, "turns": 30 },
+    { "model": "my-agent-model", "provider": "claude", "isLocal": false, "costStatus": "priced", "overridden": true, "tokens": { "input": 20000, "cachedInput": 40000, "cacheWrite": 0, "output": 9000, "reasoning": 0 }, "costUsd": 0.65, "turns": 4 },
+    { "model": "qwen3:8b", "provider": "local", "isLocal": true, "costStatus": "local", "tokens": { "input": 0, "cachedInput": 0, "cacheWrite": 0, "output": 0, "reasoning": 0 }, "costUsd": 0, "turns": 8 }
+  ],
+  "byWorkspace": [
+    { "workspace": "acme/web", "source": "epic", "tokens": { "input": 1100000, "cachedInput": 13000000, "cacheWrite": 500000, "output": 420000, "reasoning": 60000 }, "costUsd": 28.4, "turns": 190 },
+    { "workspace": "/Users/demo/Projects/web", "source": "chat", "tokens": { "input": 500000, "cachedInput": 6000000, "cacheWrite": 300000, "output": 190000, "reasoning": 40000 }, "costUsd": 13.1, "turns": 98 },
+    { "workspace": "/Users/demo/Projects/scratch", "source": "external", "tokens": { "input": 240000, "cachedInput": 2400000, "cacheWrite": 110000, "output": 92000, "reasoning": 20000 }, "costUsd": 5.32, "turns": 30 }
+  ],
+  "catalogModels": ["claude-opus-4-5", "claude-sonnet-4-5", "gpt-5-codex", "gemini-2-5-pro"]
+}

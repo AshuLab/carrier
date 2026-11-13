@@ -91,7 +91,7 @@ private final class GatedEngine: @unchecked Sendable {
 
 @MainActor @Test func anEngineThatDoesNotListReloadOrDidNotAnswerIsSaidSoAndNobodyToAskIsNot() {
     #expect(reloadWords(.nobody) == nil && reloadWords(.applied) == nil)
-    #expect(reloadWords(.unsupported)?.hasPrefix("Saved. This Carrier does not apply it while it runs") == true)
+    #expect(reloadWords(.unsupported) == nil)
     #expect(reloadWords(.noAnswer)?.contains("did not answer") == true)
 }
 
@@ -115,5 +115,4 @@ private final class GatedEngine: @unchecked Sendable {
     #expect(ReloadOutcome.unsupported.isProblem == false && ReloadOutcome.applied.isProblem == false && ReloadOutcome.nobody.isProblem == false)
     #expect(ReloadOutcome.refused("x").isProblem && ReloadOutcome.noAnswer.isProblem)
     #expect(reloadWords(.noAnswer)?.contains("may not have applied it") == true)
-    #expect(reloadWords(.unsupported)?.hasSuffix("it will read the file when it starts.") == true)
 }

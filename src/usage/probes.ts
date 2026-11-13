@@ -1,11 +1,12 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { homedir, userInfo } from 'node:os';
+import { join, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { localKinds } from '../harnesses/local.ts';
 import { ProbeError, type ExtraUsage, type QuotaSnapshot, type QuotaTarget, type QuotaWindow, type UsagePorts } from './types.ts';
 
-// What each probe asks the provider. The probes only read: a Claude token is never refreshed here, because a refresh rotates the
-// refresh token and could log the person out of Claude Code. Nothing a provider says is copied into an error: a message is ours, never theirs.
+// What each probe asks the provider. The probes only read: a Claude token (from its file or, on a Mac, its Keychain item) is never refreshed
+// here, because a refresh rotates the refresh token and could log the person out of Claude Code, and never leaves the probe. Nothing a provider says is copied into an error: a message is ours, never theirs.
 
 const PROBE_LIMIT_MS = 15_000;
 const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
@@ -39,7 +40,7 @@ async function call(ports: UsagePorts, request: Parameters<UsagePorts['http']>[0
 // ---- Claude
 
 const claudeCredentials = z.looseObject({
-  claudeAiOauth: z.looseObject({ accessToken: z.string().min(1), expiresAt: z.number().optional(), subscriptionType: z.string().nullish() }),
+  claudeAiOauth: z.looseObject({ accessToken: z.string().min(1), refreshToken: z.string().nullish(), expiresAt: z.number().optional(), subscriptionType: z.string().nullish() }),
 });
 const claudeWindow = z.object({ utilization: z.number(), resets_at: z.string().nullish() });
 const claudeExtra = z.object({
@@ -58,29 +59,70 @@ const claudeWindowOf = (id: string, label: string, raw: unknown): QuotaWindow[] 
   return [{ id, label, usedPercent: clamp(parsed.data.utilization), ...(resetsAt !== undefined && { resetsAt }) }];
 };
 
-/** The access token in the account's credentials file; an expired one means signed out (Claude Code itself renews it). */
-async function claudeToken(ports: UsagePorts, path: string) {
-  let text: string;
+const KEYCHAIN_SERVICE = 'Claude Code-credentials';
+
+/**
+ * The Keychain items a Claude login can be in: the default login's is the bare name, and an account with its own config folder has the name
+ * and the first eight hex digits of the SHA-256 of the folder as Claude Code was given it. That is a string, so the spellings a person may have
+ * used (as written, absolute, with `~`, with a trailing slash) are each tried. A folder that is not the default one never falls back to the bare
+ * name: that is another account's login.
+ */
+function claudeKeychainServices(configDir: string): string[] {
+  const home = homedir();
+  const absolute = resolve(configDir);
+  const spellings = new Set([configDir, absolute]);
+  if (absolute.startsWith(`${home}/`)) spellings.add(`~/${relative(home, absolute)}`);
+  for (const spelling of [...spellings]) spellings.add(spelling.endsWith('/') ? spelling.slice(0, -1) : `${spelling}/`);
+  const hashed = [...spellings].map((spelling) => `${KEYCHAIN_SERVICE}-${createHash('sha256').update(spelling.normalize('NFC')).digest('hex').slice(0, 8)}`);
+  return absolute === join(home, '.claude') ? [KEYCHAIN_SERVICE, ...hashed] : hashed;
+}
+
+/** What Claude Code's `security` item is filed under: the login name, or its own placeholder when that is not a plain name. */
+function claudeKeychainAccount(): string {
+  const name = process.env.USER ?? userInfo().username;
+  return /^[a-zA-Z0-9._-]+$/.test(name) ? name : 'claude-code-user';
+}
+
+/** The text of the account's login: its credentials file, or on a Mac the Keychain item Claude Code keeps it in. Never written, never logged. */
+async function claudeCredentialsText(ports: UsagePorts, configDir: string): Promise<string> {
   try {
-    text = await ports.files.read(path);
+    return await ports.files.read(join(configDir, '.credentials.json'));
   } catch {
-    throw new ProbeError('missing', 'no Claude credentials file for this account (a login kept in the macOS Keychain is not read)');
+    // no file: on a Mac the login is in the Keychain
   }
+  const account = claudeKeychainAccount();
+  for (const service of claudeKeychainServices(configDir)) {
+    let text: string | undefined;
+    try {
+      text = await ports.keychain(service, account);
+    } catch {
+      throw new ProbeError('unavailable', 'the macOS Keychain did not give the Claude login (it may have been denied; check again to be asked)');
+    }
+    if (text !== undefined) return text;
+  }
+  throw new ProbeError('missing', 'no Claude login found for this account, neither a credentials file nor a macOS Keychain item');
+}
+
+/** The access token of the login. An expired one is not refreshed: Claude Code renews it the next time it runs. */
+async function claudeToken(ports: UsagePorts, configDir: string) {
   let json: unknown;
   try {
-    json = JSON.parse(text);
-  } catch {
-    throw new ProbeError('signed_out', 'the Claude credentials file cannot be read');
+    json = JSON.parse(await claudeCredentialsText(ports, configDir));
+  } catch (error) {
+    if (error instanceof ProbeError) throw error;
+    throw new ProbeError('signed_out', 'the Claude credentials cannot be read');
   }
   const parsed = claudeCredentials.safeParse(json);
   if (parsed.success === false) throw new ProbeError('signed_out', 'the Claude credentials hold no login');
   const { claudeAiOauth: oauth } = parsed.data;
-  if (oauth.expiresAt !== undefined && oauth.expiresAt <= ports.clock.now()) throw new ProbeError('signed_out', 'the Claude login expired');
+  if (oauth.expiresAt !== undefined && oauth.expiresAt <= ports.clock.now()) {
+    throw new ProbeError('signed_out', oauth.refreshToken ? 'the Claude login expired; Claude Code renews it the next time it runs' : 'the Claude login expired; sign in again');
+  }
   return { accessToken: oauth.accessToken, plan: oauth.subscriptionType ?? undefined };
 }
 
 const claude: Probe = async (ports, { configDir = join(homedir(), '.claude') }) => {
-  const { accessToken, plan } = await claudeToken(ports, join(configDir, '.credentials.json'));
+  const { accessToken, plan } = await claudeToken(ports, configDir);
   const answer = await call(ports, { url: CLAUDE_USAGE_URL, headers: { authorization: `Bearer ${accessToken}`, 'anthropic-beta': 'oauth-2025-04-20', accept: 'application/json' }, timeoutMs: PROBE_LIMIT_MS });
   if (answer.status !== 200) throw httpFailure(answer.status);
   const body = z.looseObject({}).safeParse(answer.json);

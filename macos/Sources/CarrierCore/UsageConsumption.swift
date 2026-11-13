@@ -13,7 +13,14 @@ public func usageCount(_ count: Int) -> String {
     return String(format: "%.1f", Double(count) / size).replacingOccurrences(of: ".0", with: "") + suffix
 }
 
-public func usageMoney(_ amount: Double) -> String { amount > 0 && amount < 0.005 ? "<$0.01" : String(format: "$%.2f", amount) }
+private let english = Locale(identifier: "en_US")
+
+/// A whole number with thousands separators: `1,234`.
+public func usageGrouped(_ count: Int) -> String { count.formatted(.number.locale(english)) }
+
+public func usageMoney(_ amount: Double) -> String {
+    amount > 0 && amount < 0.005 ? "<$0.01" : "$" + amount.formatted(.number.precision(.fractionLength(2)).locale(english))
+}
 
 public let usageChartProviders = ["claude", "codex", "agy", "local"]
 
@@ -43,8 +50,8 @@ public func usageKpis(_ snapshot: UsageSnapshot) -> [UsageKpi] {
             title: "Est. API Cost", value: usageMoney(snapshot.summary.costUsd),
             footnote: unpriced > 0 ? "\(unpriced) unpriced \(unpriced == 1 ? "model is" : "models are") not counted" : nil
         ),
-        UsageKpi(title: "Total Tokens", value: usageCount(usageTokenTotal(snapshot.summary.tokens)), footnote: "\(snapshot.summary.turns) turns"),
-        UsageKpi(title: "Local Compute", value: "$0.00", footnote: localTurns > 0 ? "\(localTurns) local turns" : "No local models used"),
+        UsageKpi(title: "Total Tokens", value: usageCount(usageTokenTotal(snapshot.summary.tokens)), footnote: "\(usageGrouped(snapshot.summary.turns)) turns"),
+        UsageKpi(title: "Local Compute", value: "$0.00", footnote: localTurns > 0 ? "\(usageGrouped(localTurns)) local turns" : "No local models used"),
         UsageKpi(title: "Active Epics / Chats", value: epics + chats == 0 ? "—" : "\(epics) / \(chats)", footnote: "Repos and folders with work"),
     ]
 }
@@ -66,8 +73,22 @@ public struct UsageBar: Equatable, Identifiable {
     public var label: String
     public var segments: [UsageSegment]
     public var total: Double
+    /// A Saturday or a Sunday: the chart tints its column.
+    public var weekend = false
     public var id: String { date }
 }
+
+/// 1 is Sunday and 7 Saturday; the date is the host's `YYYY-MM-DD`.
+private func weekday(_ date: String) -> Int? {
+    let parts = date.split(separator: "-").compactMap { Int($0) }
+    guard parts.count == 3 else { return nil }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+    guard let day = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])) else { return nil }
+    return calendar.component(.weekday, from: day)
+}
+
+private func isWeekend(_ date: String) -> Bool { [1, 7].contains(weekday(date) ?? 0) }
 
 public func usageValue(_ row: UsageRow, _ metric: UsageMetric) -> Double {
     metric == .cost ? row.costUsd : Double(usageTokenTotal(row.tokens))
@@ -88,7 +109,7 @@ public func usageBars(_ snapshot: UsageSnapshot, metric: UsageMetric) -> [UsageB
             guard let row = day.providers[provider], row.turns > 0 else { return nil }
             return UsageSegment(provider: provider, value: usageValue(row, metric), turns: row.turns)
         }
-        return UsageBar(date: day.date, label: dayLabel(day.date), segments: segments, total: segments.map(\.value).reduce(0, +))
+        return UsageBar(date: day.date, label: dayLabel(day.date), segments: segments, total: segments.map(\.value).reduce(0, +), weekend: isWeekend(day.date))
     }
 }
 
@@ -99,6 +120,8 @@ public struct UsageTooltipLine: Equatable {
 
 public struct UsageTooltip: Equatable {
     public var title: String
+    /// `Saturday`.
+    public var weekday: String
     public var lines: [UsageTooltipLine]
     public var total: String
 }
@@ -106,7 +129,7 @@ public struct UsageTooltip: Equatable {
 /// What the tooltip of a day says: its providers and their share in the metric, and the total; a day with no work says so in `lines`.
 public func usageTooltip(_ bar: UsageBar, metric: UsageMetric) -> UsageTooltip {
     UsageTooltip(
-        title: bar.label,
+        title: bar.label, weekday: weekday(bar.date).map { ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][$0 - 1] } ?? "",
         lines: bar.segments.map { UsageTooltipLine(provider: usageProviderTitle($0.provider), value: usageFormat($0.value, metric)) },
         total: usageFormat(bar.total, metric)
     )
@@ -154,15 +177,39 @@ public struct UsageWorkspaceRow: Equatable, Identifiable {
     public var cost: String
 }
 
-public func usageWorkspaceRows(_ snapshot: UsageSnapshot) -> [UsageWorkspaceRow] {
-    snapshot.byWorkspace.map { workspace in
+/// How many workspaces the table lists: the ones that spent the most tokens.
+public let usageWorkspaceLimit = 10
+
+public func usageWorkspaceRows(_ snapshot: UsageSnapshot, limit: Int = usageWorkspaceLimit) -> [UsageWorkspaceRow] {
+    snapshot.byWorkspace.sorted { (usageTokenTotal($0.row.tokens), $0.row.costUsd) > (usageTokenTotal($1.row.tokens), $1.row.costUsd) }.prefix(limit).map { workspace in
         let parts = workspace.workspace.split(separator: "/", omittingEmptySubsequences: true)
         let name = workspace.workspace.hasPrefix("/") ? parts.suffix(2).joined(separator: "/") : workspace.workspace
         return UsageWorkspaceRow(
             id: "\(workspace.source)/\(workspace.workspace)", name: name.isEmpty ? "Unknown" : name, path: workspace.workspace, source: usageSourceTitle(workspace.source),
-            detail: "\(usageCount(usageTokenTotal(workspace.row.tokens))) tokens · \(workspace.row.turns) turns", cost: usageMoney(workspace.row.costUsd)
+            detail: "\(usageCount(usageTokenTotal(workspace.row.tokens))) tokens · \(usageGrouped(workspace.row.turns)) turns", cost: usageMoney(workspace.row.costUsd)
         )
     }
+}
+
+/// The foot of the model table: the whole range's tokens and cost, and what the cost leaves out.
+public func usageModelTotal(_ snapshot: UsageSnapshot) -> UsageModelRow {
+    let count = snapshot.byModel.count
+    let unpriced = snapshot.byModel.filter { $0.costStatus == .unpriced }.count
+    let title = "Total · \(count) \(count == 1 ? "model" : "models")" + (unpriced > 0 ? ", \(unpriced) unpriced not counted" : "")
+    return UsageModelRow(
+        id: "total", model: title, provider: "", detail: tokenDetail(snapshot.summary.tokens), cost: usageMoney(snapshot.summary.costUsd), unpriced: false, overridden: false
+    )
+}
+
+/// The foot of the workspace table: the whole range's numbers, not only the rows listed, and how many workspaces there were.
+public func usageWorkspaceTotal(_ snapshot: UsageSnapshot, limit: Int = usageWorkspaceLimit) -> UsageWorkspaceRow {
+    let count = snapshot.byWorkspace.count
+    let noun = count == 1 ? "workspace" : "workspaces"
+    let title = count > limit ? "Total · \(count) workspaces, top \(limit) by tokens" : "Total · \(count) \(noun)"
+    return UsageWorkspaceRow(
+        id: "total", name: title, path: "", source: "",
+        detail: "\(usageCount(usageTokenTotal(snapshot.summary.tokens))) tokens · \(usageGrouped(snapshot.summary.turns)) turns", cost: usageMoney(snapshot.summary.costUsd)
+    )
 }
 
 // MARK: Price override

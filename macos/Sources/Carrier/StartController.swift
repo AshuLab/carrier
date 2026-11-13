@@ -170,9 +170,16 @@ struct StartCarrierButton: View {
         let missing = setup.missing
         VStack(spacing: 6) {
             HStack {
-                Button { start.start() } label: { Label("Start Carrier", systemImage: "play.fill") }
-                    .buttonStyle(PrimaryCapsuleButtonStyle(large: true))
-                    .disabled(missing.isEmpty == false || start.configExists == false || start.starting)
+                let blocked = missing.isEmpty == false || start.configExists == false || start.starting
+                Button { start.start() } label: {
+                    Label("Start Carrier", systemImage: "play.fill").labelStyle(.titleAndIcon).font(.scaled(14, weight: .semibold))
+                        .foregroundStyle(blocked ? Color.secondary : .white)
+                        .padding(.horizontal, 22).padding(.vertical, 10).contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                // the accent is a light pastel on the dark themes: darkened for the tint so the white label reads over any window behind it
+                .glassEffect(blocked ? .regular : .regular.tint(Color.themeAccent.mix(with: .black, by: 0.4)).interactive(), in: .capsule)
+                .disabled(blocked)
                 if start.starting {
                     ProgressView().controlSize(.small)
                     Text("Starting…").foregroundStyle(.secondary)

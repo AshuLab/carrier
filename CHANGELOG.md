@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Antigravity's Reasoning slider runs from Low to High, left to right; it followed the order `agy models` printed the levels in, which put High first.
 - A repo that GitHub refuses (a mistyped name, no access) no longer stops Carrier from polling the other repos; its error shows in its own check.
 - A long message in the header of a Settings page goes under the title when it does not fit, and VoiceOver reads it.
 - Settings > Providers opens with the tools already listed, since the Mac is looked at when the app opens and not when the page does.

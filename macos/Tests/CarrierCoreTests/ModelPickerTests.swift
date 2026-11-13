@@ -58,8 +58,9 @@ private let icons = ["pro": "claude", "teams": "claude", "codex": "codex", "agy"
 @Test func antigravityModelsAreListedByFamilyAndTheLevelChoosesTheId() {
     let models = parseAgyModels("""
     Fetching available models...
-    gemini-4-argon-medium\tGemini 4 Argon (Medium)
     gemini-4-argon-high\tGemini 4 Argon (High)
+    gemini-4-argon-low\tGemini 4 Argon (Low)
+    gemini-4-argon-medium\tGemini 4 Argon (Medium)
     gemini-4-hydrogen-xhigh\tGemini 4 Hydrogen (XHigh)
     gpt-oss-120b-medium\tGPT-OSS 120B (Medium)
     plain\tPlain
@@ -67,7 +68,7 @@ private let icons = ["pro": "claude", "teams": "claude", "codex": "codex", "agy"
     let families = agyFamilies(models)
     #expect(families.map(\.id) == ["gemini-4-argon", "gemini-4-hydrogen", "gpt-oss-120b", "plain"])
     #expect(families.map(\.label) == ["Gemini 4 Argon", "Gemini 4 Hydrogen", "GPT-OSS 120B", "Plain"])
-    #expect(families[0].levels == ["medium", "high"] && families[3].levels.isEmpty)
+    #expect(families[0].levels == ["low", "medium", "high"] && families[3].levels.isEmpty)
     #expect(splitAgyID("gemini-4-argon-high") == (family: "gemini-4-argon", level: "high") && splitAgyID("plain").level == nil)
     // the level it had stays when the new family has it; else the middle one; a family with no levels is its own id
     #expect(agyModelID(families[0], keeping: "high") == "gemini-4-argon-high")

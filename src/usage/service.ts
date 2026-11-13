@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import type { ChatAgent } from '../chat/config.ts';
 import type { ChatDb } from '../chat/db.ts';
 import { ChatRefused } from '../chat/runner.ts';
 import { providersProblem, readProvidersFile, type Providers } from '../config/providers.ts';
@@ -23,6 +24,8 @@ export interface UsageDeps {
   db: ChatDb;
   /** The Carrier folder: `providers.json` and the engine's database are read from it. */
   folder: string;
+  /** The chat's agents now, to tell which account a chat session ran on. */
+  agents: () => ChatAgent[];
   env: NodeJS.ProcessEnv;
   home?: string;
 }
@@ -39,7 +42,7 @@ function accountsOf(providers: Providers): { account: string; displayName?: stri
  * What `usage` and `usageOverride` answer from the chat host: live quotas per account of `providers.json` and the history of what was
  * used, from the folders each account's CLI writes (its own config folder, else the environment's, else the CLI's default).
  */
-export function createUsage({ ports, history: historyPorts, db, folder, env, home = homedir() }: UsageDeps) {
+export function createUsage({ ports, history: historyPorts, db, folder, agents, env, home = homedir() }: UsageDeps) {
   const quotas = createQuotas(ports);
   const history = createHistory({ ...historyPorts, clock: ports.clock }, { chat: db, engineDbFile: enginePlacesOf(folder).db });
   const overrides = createPriceOverrides(db, () => ports.clock.now());
@@ -61,7 +64,7 @@ export function createUsage({ ports, history: historyPorts, db, folder, env, hom
       const providers = account === undefined ? read.providers : Object.fromEntries(Object.entries(read.providers).filter(([name]) => name === account));
       const asked = accountsOf(providers).filter((a) => account === undefined || a.account === account).filter((a) => provider === 'all' || a.target.provider === provider);
       const snapshots: (QuotaSnapshot & { account: string; displayName?: string })[] = await Promise.all(asked.map(async (a) => ({ account: a.account, ...(a.displayName !== undefined && { displayName: a.displayName }), ...(await quotas(a.target, { refresh })) })));
-      const past = await history({ days, provider, source, ...(search !== undefined && { search }) }, { accounts: read.providers, roots: rootsOf(providers) });
+      const past = await history({ days, provider, source, ...(search !== undefined && { search }), ...(account !== undefined && { account }) }, { accounts: read.providers, agents: agents(), roots: rootsOf(providers) });
       return { checkedAt: ports.clock.now(), quotas: snapshots, summary: past.totals, daily: past.days, byModel: past.byModel, byWorkspace: past.byWorkspace, catalogModels: Object.keys(catalog) };
     },
     usageOverride(request: UsageOverrideArgs) {

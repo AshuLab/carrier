@@ -1,4 +1,4 @@
-# 0023 - Usage collection and serving run inside the chat host
+# 0025 - Usage collection and serving run inside the chat host
 
 - Status: proposed
 - Date: 2026-11-12
@@ -11,7 +11,7 @@ Today Carrier runs two detached processes under the Carrier folder ([0016](0016-
 
 ## Decision
 
-We run live quota probing, local JSONL scanning, and historical aggregation in a dedicated, self-contained usage module served by the chat host behind a new `usage` capability on `chat.sock`, while `carrier usage` in the CLI calls the same TypeScript module directly (or queries the running host). The engine continues to record its own epic execution token and cost data in `carrier.db` (`executions`), which the usage module reads in read-only mode alongside `chat.db` (`chat_turns`), `providers.json`, and local Claude/Codex session logs.
+We run live quota probing, local JSONL scanning, and historical aggregation in a dedicated, self-contained usage module served by the chat host behind a new `usage` capability on `chat.sock`, while `carrier usage` in the CLI asks the same host over `chat.sock`, starting it when none runs. The engine continues to record its own epic execution token and cost data in `carrier.db` (`executions`), which the usage module reads in read-only mode alongside `chat.db` (`chat_turns`), `providers.json`, and local Claude/Codex session logs.
 
 ## Alternatives considered
 
@@ -22,6 +22,8 @@ Putting usage inside the engine (`control.sock`). It reuses a socket when epics 
 Polling directly from the macOS Swift app. It splits provider CLI/OAuth/JSONL parsing between Swift and TypeScript, breaks `carrier usage` CLI parity, and loses the login-shell `PATH` and `providers.json` runtime resolution already wired in Node.
 
 ## Consequences
+
+What is built for Claude is the file-only path: the probe reads the account's plaintext `.credentials.json` and asks the OAuth usage endpoint, never refreshes a token and never reads the Keychain, so an account whose login lives only in the macOS Keychain reports `missing` (its message says the Keychain is not read). Asking through the Claude Agent SDK's `get_usage`, which would reach that login inside the user's own `claude` binary, is a deferred follow-up. A snapshot's status is one of `ok`, `signed_out`, `missing`, `unavailable`, `rate_limited` and `error`, with a `stale` flag when a rate-limited probe kept the last known windows.
 
 The macOS app stays a client of two sockets (`control.sock` and `chat.sock`) and gets usage updates through the existing host connection, capability handshake, and update-restart flow. Keeping the usage collector and scanner isolated in their own module preserves a clean extraction seam if a future requirement (such as background quota alerts while the app is completely quit) ever justifies promoting it to a third daemon.
 

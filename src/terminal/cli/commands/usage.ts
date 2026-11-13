@@ -7,6 +7,8 @@ const DAYS = ['7', '14', '30'];
 const PROVIDERS = ['all', 'claude', 'codex', 'agy', 'local'];
 const SOURCES = ['all', 'epic', 'chat', 'external'];
 const ROWS = 10;
+/** The host answers once every account's probe (up to 15 s each, in parallel) and the first read of the logs are done; the app waits as long. */
+export const USAGE_TIMEOUT_MS = 45_000;
 
 type Tokens = { input: number; cachedInput: number; cacheWrite: number; output: number };
 type Row = { tokens: Tokens; costUsd: number; turns: number };
@@ -71,7 +73,12 @@ export async function usageCommand(
   const days = oneOf('days', flags.days, DAYS) ?? '30';
   const provider = oneOf('provider', flags.provider, PROVIDERS);
   const source = oneOf('source', flags.source, SOURCES);
-  const client = await hostClient(chatSocketOf(), start);
+  const client = await hostClient(chatSocketOf(), start, USAGE_TIMEOUT_MS);
+  // an older host would only answer "invalid request"
+  if (client.hello.capabilities.includes('usage') === false) {
+    client.close();
+    throw new CliError(1, 'The chat host that is running is older than this command and does not have usage. Stop it with `carrier chat --stop` (when no session is working); the next `carrier usage` starts a new one.');
+  }
   let reply: Reply;
   try {
     reply = (await client.request('usage', { days: Number(days), ...(flags.refresh && { refresh: true }), ...(provider !== undefined && { provider }), ...(source !== undefined && { source }) })) as Reply;

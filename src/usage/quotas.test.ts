@@ -105,7 +105,7 @@ test('claude decimal places other than two scale the spend', async () => {
 });
 
 test('claude without a credentials file is missing; a file with no login, or a refused token, is signed out', async () => {
-  expect((await ports().quotas(claude)).status).toBe('missing');
+  expect(await ports().quotas(claude)).toMatchObject({ status: 'missing', message: expect.stringContaining('Keychain is not read') });
   expect((await ports({ files: readsCredentials('{}') }).quotas(claude)).status).toBe('signed_out');
   expect((await ports({ files: readsCredentials('not json') }).quotas(claude)).status).toBe('signed_out');
   expect((await ports({ files: readsCredentials(), http: async () => ({ status: 401, json: {} }) }).quotas(claude)).status).toBe('signed_out');

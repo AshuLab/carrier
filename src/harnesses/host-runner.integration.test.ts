@@ -140,6 +140,7 @@ describe('host runner with a fake claude binary', () => {
     expect(await runner.run(taskIn('usage-limit', { model: 'usage_limit' })).done).toEqual({
       exit: 'failed',
       sessionId: expect.any(String),
+      usage: expect.any(Object),
       failure: { kind: 'usage_limit', detail: "You've hit your session limit · resets 12:40pm (America/Montevideo)", exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null },
     });
   });

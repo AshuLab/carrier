@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -8,8 +9,14 @@ import { FakeClock } from '../../../orchestration/fake.ts';
 import { realHistoryPorts } from '../../../usage/real.ts';
 import type { UsagePorts } from '../../../usage/types.ts';
 import { CliError } from '../cli-error.ts';
+import * as controlClient from '../control-client.ts';
 import { connectControl } from '../control-client.ts';
-import { usageCommand } from './usage.ts';
+import { USAGE_TIMEOUT_MS, usageCommand } from './usage.ts';
+
+vi.mock('../control-client.ts', async (original) => {
+  const real = await original<typeof import('../control-client.ts')>();
+  return { ...real, connectControl: vi.fn(real.connectControl) };
+});
 
 
 const NOW = Date.UTC(2026, 10, 13, 12);
@@ -116,4 +123,27 @@ test('a refusal of the host is a CliError with its words', async () => {
   await host();
   writeFileSync(join(root, 'providers.json'), JSON.stringify({ providers: { claude: { harness: 'claude', autoCompact: '300000' } } }));
   await expect(usageCommand({}, { start: never })).rejects.toMatchObject({ code: 1, lines: [expect.stringContaining('providers.claude.autoCompact')] });
+});
+
+test('the usage request waits as long as the probes and the first read of the logs can take, not the 5 s of other requests', async () => {
+  await host();
+  vi.mocked(controlClient.connectControl).mockClear();
+  expect(await usageCommand({ json: true }, { start: never })).toBe(0);
+  expect(USAGE_TIMEOUT_MS).toBe(45_000);
+  expect(controlClient.connectControl).toHaveBeenCalledWith(join(root, 'chat', 'state', 'chat.sock'), { timeoutMs: USAGE_TIMEOUT_MS });
+});
+
+test('an older chat host whose hello does not list usage is told apart, and no usage request is sent', async () => {
+  const requests: string[] = [];
+  const server = createServer((socket) => {
+    socket.setEncoding('utf8');
+    socket.write(`${JSON.stringify({ event: 'hello', protocol: 1, pid: 1, startedAt: 1, version: '0.0.1', capabilities: ['agents', 'list'] })}\n`);
+    socket.on('data', (chunk: string) => requests.push(...chunk.split('\n').filter(Boolean)));
+  });
+  mkdirSync(join(root, 'chat', 'state'), { recursive: true });
+  await new Promise<void>((resolve) => server.listen(join(root, 'chat', 'state', 'chat.sock'), resolve));
+  stops.push(() => new Promise((resolve) => server.close(() => resolve())));
+  await expect(usageCommand({}, { start: never })).rejects.toMatchObject({ code: 1, lines: [expect.stringContaining('carrier chat --stop')] });
+  expect(requests).toEqual([]);
+  expect(never).not.toHaveBeenCalled();
 });

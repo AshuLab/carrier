@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import type { ChatAgent } from '../chat/config.ts';
 import { openChatDatabase } from '../chat/db.ts';
 import { chatTurns, sessions } from '../chat/schema.ts';
 import type { Providers } from '../config/providers.ts';
@@ -13,7 +14,8 @@ import { createHistory, type HistoryFilter, type HistoryPorts, type HistoryRoots
 import { createPriceOverrides } from './pricing.ts';
 import { realHistoryPorts } from './real.ts';
 
-vi.mock('@ashulab/universal-logger', () => ({ createScopedLogger: () => ({ debug() {}, info() {}, warn() {}, error() {} }) }));
+const warn = vi.hoisted(() => vi.fn());
+vi.mock('@ashulab/universal-logger', () => ({ createScopedLogger: () => ({ debug() {}, info() {}, warn, error() {} }) }));
 
 const NOW = new Date(2026, 10, 13, 12).getTime(); // local noon, so the day does not depend on the time zone
 const HOUR = 3_600_000;
@@ -35,11 +37,11 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 const roots = (): HistoryRoots => ({ claude: [join(dir, 'claude')], codex: [join(dir, 'codex')], agy: [join(dir, 'agy')] });
-function setup(accounts: Providers = {}) {
+function setup(accounts: Providers = {}, agents: ChatAgent[] = []) {
   const chat = openChatDatabase(join(dir, 'chat.db'));
   const engineDbFile = join(dir, 'engine', 'carrier.db');
   const history = createHistory(ports, { chat, engineDbFile });
-  return { chat, engineDbFile, run: (filter: HistoryFilter = week, r = roots()) => history(filter, { accounts, roots: r }) };
+  return { chat, engineDbFile, run: (filter: HistoryFilter = week, r = roots()) => history(filter, { accounts, agents, roots: r }) };
 }
 const write = (path: string, lines: string[]) => (mkdirSync(join(path, '..'), { recursive: true }), writeFileSync(path, lines.map((l) => `${l}\n`).join('')));
 
@@ -60,11 +62,11 @@ function insertChat(chat: ReturnType<typeof openChatDatabase>, o: { id: string; 
   chat.insert(chatTurns).values({ sessionId: o.id, startedAt: o.at ?? NOW - HOUR, model: o.model === undefined ? 'claude-sonnet-4-5' : o.model, outcome: 'ok', durationMs: 1, toolCalls: 0, usage: o.usage }).run();
 }
 
-function insertEpicRun(file: string, o: { executionId: string; sessionId: string | null; harness?: string; provider?: string | null; model?: string; usage: ExecutionUsage | null; repo?: string }) {
+function insertEpicRun(file: string, o: { executionId: string; sessionId: string | null; harness?: string; provider?: string | null; option?: string | null; model?: string; usage: ExecutionUsage | null; repo?: string }) {
   mkdirSync(join(file, '..'), { recursive: true });
   const db = openDatabase(file);
   const epic = db.insert(epics).values({ repo: o.repo ?? 'acme/app', issue: Math.floor(Math.random() * 1e9) }).returning().get();
-  db.insert(executions).values({ executionId: o.executionId, epicId: epic.id, stage: 'ship', sessionId: o.sessionId, harness: o.harness ?? 'claude', model: o.model ?? 'claude-sonnet-4-5', provider: o.provider ?? null, usage: o.usage, resultPath: '/r.json', startedAt: NOW - 2 * HOUR, finishedAt: NOW - HOUR }).run();
+  db.insert(executions).values({ executionId: o.executionId, epicId: epic.id, stage: 'ship', sessionId: o.sessionId, harness: o.harness ?? 'claude', model: o.model ?? 'claude-sonnet-4-5', provider: o.provider ?? null, option: o.option ?? null, usage: o.usage, resultPath: '/r.json', startedAt: NOW - 2 * HOUR, finishedAt: NOW - HOUR }).run();
   db.$client.close();
 }
 const usage = (inputTokens: number, outputTokens: number, costUsd: number | null = null): ExecutionUsage => ({ inputTokens, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens, reasoningTokens: 0, costUsd });
@@ -213,6 +215,15 @@ test('an epic run is read from the engine database by model, with the cost the C
   expect(result.byWorkspace).toMatchObject([{ workspace: 'acme/app', source: 'epic', turns: 2 }]);
 });
 
+test('an epic run with no usage leaves its session to the external transcripts', async () => {
+  const { engineDbFile, run } = setup();
+  insertEpicRun(engineDbFile, { executionId: 'e1', sessionId: 'S-KILLED', usage: null }); // killed before its result, or from before usage was recorded
+  write(join(dir, 'claude', 'p', 'a.jsonl'), [claudeLine({ id: 'm1', session: 'S-KILLED', input: 77 })]);
+  const result = await run();
+  expect(result.totals.tokens.input).toBe(77);
+  expect(result.byWorkspace).toMatchObject([{ source: 'external', turns: 1 }]);
+});
+
 test('a session in several sources counts once, in the first of epic, chat, external', async () => {
   const { chat, engineDbFile, run } = setup();
   insertEpicRun(engineDbFile, { executionId: 'e1', sessionId: 'S-EPIC', usage: usage(1000, 0) });
@@ -233,8 +244,8 @@ test('a session in several sources counts once, in the first of epic, chat, exte
 // ---- Cost
 
 test('local compute costs $0.00 and is tagged, whatever harness ran it', async () => {
-  const { chat, engineDbFile, run } = setup({ 'claude-lm': { harness: 'claude', provider: 'lmstudio' } });
-  insertChat(chat, { id: 's1', agent: 'claude-lm', model: 'qwen3-coder', usage: { input_tokens: 400, output_tokens: 40 } });
+  const { chat, engineDbFile, run } = setup({ 'claude-lm': { harness: 'claude', provider: 'lmstudio' } }, [{ name: 'qwen', account: 'claude-lm' }]);
+  insertChat(chat, { id: 's1', agent: 'qwen', model: 'qwen3-coder', usage: { input_tokens: 400, output_tokens: 40 } }); // the agent's account is on a local server
   insertChat(chat, { id: 's2', agent: 'claude', usage: { input_tokens: 1_000_000 } });
   insertEpicRun(engineDbFile, { executionId: 'e1', sessionId: 'x', provider: 'ollama', model: 'llama', usage: usage(900, 90, 7) });
   const result = await run();
@@ -294,6 +305,30 @@ test('days, provider, source and search narrow the rollup and the chart has one 
   expect((await run({ days: 7, search: 'OPUS' })).totals.tokens.input).toBe(8);
   expect((await run({ days: 7, search: 'acme/web' })).totals.tokens.input).toBe(8);
   expect((await run({ days: 7, search: 'nothing like it' })).totals).toMatchObject({ turns: 0, costUsd: 0 });
+});
+
+test('an account narrows the epic runs to the ones on it and the chat turns to its agents; `local` is the local servers', async () => {
+  const accounts: Providers = { work: { harness: 'claude' }, home: { harness: 'claude' }, 'claude-lm': { harness: 'claude', provider: 'lmstudio' } };
+  const { chat, engineDbFile, run } = setup(accounts, [{ name: 'coder', account: 'work' }, { name: 'qwen', account: 'claude-lm' }]);
+  insertEpicRun(engineDbFile, { executionId: 'e1', sessionId: 'a', option: 'work', usage: usage(1, 0) });
+  insertEpicRun(engineDbFile, { executionId: 'e2', sessionId: 'b', option: 'home', usage: usage(2, 0) });
+  insertEpicRun(engineDbFile, { executionId: 'e3', sessionId: 'c', option: null, usage: usage(4, 0) }); // from before the account was recorded
+  insertChat(chat, { id: 's1', agent: 'coder', usage: { input_tokens: 8 } });
+  insertChat(chat, { id: 's2', agent: 'qwen', usage: { input_tokens: 16 } });
+  insertChat(chat, { id: 's3', agent: 'gone', usage: { input_tokens: 32 } }); // an agent no longer in chat.json
+  write(join(dir, 'claude', 'p', 'a.jsonl'), [claudeLine({ id: 'm1', session: 'ext', input: 64 })]);
+  expect((await run({ days: 7 })).totals.tokens.input).toBe(127);
+  expect((await run({ days: 7, account: 'work' })).totals.tokens.input).toBe(1 + 8 + 64); // the external scan is narrowed by its roots, not here
+  expect((await run({ days: 7, account: 'home' }, { claude: [], codex: [], agy: [] })).totals.tokens.input).toBe(2);
+  expect((await run({ days: 7, account: 'local' }, { claude: [], codex: [], agy: [] })).totals.tokens.input).toBe(16);
+});
+
+test('a folder that cannot be listed is skipped and logged by the error name alone', async () => {
+  warn.mockClear();
+  ports.files.list = () => Promise.reject(Object.assign(new Error('EACCES: permission denied, /secret'), { name: 'PermissionError' }));
+  const { run } = setup();
+  expect((await run()).totals.turns).toBe(0);
+  expect(warn).toHaveBeenCalledWith('a usage folder could not be listed', { name: 'PermissionError' });
 });
 
 test('a folder that does not exist is no source', async () => {

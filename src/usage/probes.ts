@@ -64,7 +64,7 @@ async function claudeToken(ports: UsagePorts, path: string) {
   try {
     text = await ports.files.read(path);
   } catch {
-    throw new ProbeError('missing', 'no Claude credentials file for this account');
+    throw new ProbeError('missing', 'no Claude credentials file for this account (a login kept in the macOS Keychain is not read)');
   }
   let json: unknown;
   try {

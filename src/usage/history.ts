@@ -3,6 +3,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { eq, gte, isNotNull } from 'drizzle-orm';
 import type { ChatDb } from '../chat/db.ts';
 import { chatTurns, sessions } from '../chat/schema.ts';
+import type { ChatAgent } from '../chat/config.ts';
 import type { Providers } from '../config/providers.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ExecutionUsage, ModelUsage } from '../storage/executions.ts';
@@ -21,6 +22,11 @@ export interface HistoryFilter {
   source?: 'all' | HistorySource;
   /** A word of the model or of the workspace, whatever the case. */
   search?: string;
+  /**
+   * An account of `providers.json`, or `local` for the local servers: Carrier's epic runs and chat turns that ran on it. The external scans
+   * are not filtered here; the caller narrows them by passing only that account's roots.
+   */
+  account?: string;
 }
 
 /** The folders the external scans walk: Claude's `projects`, Codex's `sessions` and Antigravity's `conversations`, one per account. */
@@ -67,6 +73,8 @@ interface Turn {
   harness: HistoryHarness;
   model: string;
   workspace: string;
+  /** The account of `providers.json` it ran on, when Carrier knows it. */
+  account?: string;
   isLocal: boolean;
   tokens: Tokens;
   reportedCostUsd: number | null;
@@ -141,8 +149,15 @@ async function scanLines<T>(ports: HistoryPorts, cache: Map<string, Cached<T>>, 
 }
 
 /** The files of the roots, read through the cache; a file that cannot be read is skipped and the cache forgets files that are gone. */
+function listed(ports: HistoryPorts, root: string, suffix: string): Promise<string[]> {
+  return ports.files.list(root, suffix).catch((error: unknown) => {
+    log.warn('a usage folder could not be listed', { name: error instanceof Error ? error.name : typeof error });
+    return [];
+  });
+}
+
 async function scanRoots<T>(ports: HistoryPorts, cache: Map<string, Cached<T>>, roots: string[], suffix: string, fresh: () => T, onLine: (state: T, line: string, path: string) => void): Promise<[string, T][]> {
-  const paths = new Set((await Promise.all(roots.map((root) => ports.files.list(root, suffix).catch(() => [])))).flat());
+  const paths = new Set((await Promise.all(roots.map((root) => listed(ports, root, suffix)))).flat());
   for (const path of cache.keys()) if (paths.has(path) === false) cache.delete(path);
   const states: [string, T][] = [];
   for (const path of paths) {
@@ -243,18 +258,19 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
     }
     if (db === undefined) return result;
     try {
-      for (const row of db.rows('select x.sessionId, x.harness, x.model, x.provider, x.usage, x.startedAt, x.finishedAt, e.repo from executions x join epics e on e.id = x.epicId')) {
+      // `option` is the account of providers.json the run was started on (config/resolve.ts); null on a run from before it was recorded.
+      for (const row of db.rows('select x.sessionId, x.harness, x.model, x.provider, x.option, x.usage, x.startedAt, x.finishedAt, e.repo from executions x join epics e on e.id = x.epicId')) {
         const harness = row.harness;
         if (harness !== 'claude' && harness !== 'codex' && harness !== 'agy') continue;
+        if (typeof row.usage !== 'string') continue; // a run with no usage leaves its session to the other sources
         const sessionId = text(row.sessionId);
         if (sessionId !== undefined) result.keys.add(`${harness}:${sessionId}`);
-        if (typeof row.usage !== 'string') continue;
         const usage = JSON.parse(row.usage) as ExecutionUsage;
         const parts: [string, ModelUsage][] = Object.entries(usage.byModel ?? { [text(row.model) ?? 'unknown']: usage });
         for (const [model, part] of parts) {
           const tokens = modelTokens(part);
           const cost = part.costUsd;
-          if (spent(tokens) > 0) result.turns.push({ at: Number(row.finishedAt ?? row.startedAt), source: 'epic', harness, model, workspace: text(row.repo) ?? '', isLocal: row.provider === 'lmstudio' || row.provider === 'ollama', tokens, reportedCostUsd: typeof cost === 'number' ? cost : null });
+          if (spent(tokens) > 0) result.turns.push({ at: Number(row.finishedAt ?? row.startedAt), source: 'epic', harness, model, workspace: text(row.repo) ?? '', account: text(row.option), isLocal: row.provider === 'lmstudio' || row.provider === 'ollama', tokens, reportedCostUsd: typeof cost === 'number' ? cost : null });
         }
       }
     } catch (error) {
@@ -265,7 +281,8 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
     return result;
   }
 
-  function chatSide(since: number, accounts: Providers): { turns: Turn[]; keys: Set<string> } {
+  function chatSide(since: number, accounts: Providers, agents: ChatAgent[]): { turns: Turn[]; keys: Set<string> } {
+    const accountOf = new Map(agents.map((a) => [a.name, a.account]));
     const keys = new Set(deps.chat.select({ nativeId: sessions.nativeId, harness: sessions.harness }).from(sessions).where(isNotNull(sessions.nativeId)).all().map((s) => `${s.harness}:${s.nativeId}`));
     const rows = deps.chat
       .select({ nativeId: sessions.nativeId, harness: sessions.harness, agent: sessions.agent, folder: sessions.folder, at: chatTurns.startedAt, model: chatTurns.model, usage: chatTurns.usage })
@@ -274,11 +291,16 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
       .where(gte(chatTurns.startedAt, since))
       .all();
     // ponytail: a Claude result's total_cost_usd may run across the whole session, so a chat turn is priced from the table and not from it.
-    const turns = rows.map((r): Turn => ({ key: r.nativeId === null ? undefined : `${r.harness}:${r.nativeId}`, at: r.at, source: 'chat', harness: r.harness, model: r.model ?? 'unknown', workspace: r.folder, isLocal: accounts[r.agent]?.provider !== undefined, tokens: chatTokens(r.harness, r.usage ?? {}), reportedCostUsd: null }));
+    // A session stores its agent's name; the agent names its account, and the account says whether it runs on a local server.
+    const turns = rows.map((r): Turn => {
+      const account = accountOf.get(r.agent);
+      return { key: r.nativeId === null ? undefined : `${r.harness}:${r.nativeId}`, at: r.at, source: 'chat', harness: r.harness, model: r.model ?? 'unknown', workspace: r.folder, ...(account !== undefined && { account }), isLocal: account !== undefined && accounts[account]?.provider !== undefined, tokens: chatTokens(r.harness, r.usage ?? {}), reportedCostUsd: null };
+    });
     return { turns: turns.filter((t) => spent(t.tokens) > 0), keys };
   }
 
-  return async function history(filter: HistoryFilter, { accounts, roots }: { accounts: Providers; roots: HistoryRoots }): Promise<UsageHistory> {
+  /** `agents` are the chat's agents, to tell the account a chat session ran on. */
+  return async function history(filter: HistoryFilter, { accounts, agents, roots }: { accounts: Providers; agents: ChatAgent[]; roots: HistoryRoots }): Promise<UsageHistory> {
     const now = ports.clock.now();
     const first = new Date(now);
     first.setHours(0, 0, 0, 0);
@@ -286,9 +308,10 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
     const since = first.getTime();
 
     const epic = epicTurns();
-    const chat = chatSide(since, accounts);
-    const turns: Turn[] = [...epic.turns];
-    for (const t of chat.turns) if (t.key === undefined || epic.keys.has(t.key) === false) turns.push(t);
+    const chat = chatSide(since, accounts, agents);
+    // ponytail: a run or session whose account is not known (an epic run from before `option`, an agent gone from chat.json) is left out of an account's view.
+    const onAccount = (t: Turn) => filter.account === undefined || t.account === filter.account || (filter.account === 'local' && t.isLocal);
+    const turns: Turn[] = [...epic.turns, ...chat.turns.filter((t) => t.key === undefined || epic.keys.has(t.key) === false)].filter(onAccount);
     const taken = new Set([...epic.keys, ...chat.keys]);
 
     const merged = new Map<string, External>();
@@ -309,7 +332,7 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
   };
 
   async function scanAgy(dirs: string[]): Promise<External[]> {
-    const paths = new Set((await Promise.all(dirs.map((dir) => ports.files.list(dir, '.db').catch(() => [])))).flat());
+    const paths = new Set((await Promise.all(dirs.map((dir) => listed(ports, dir, '.db')))).flat());
     for (const path of agyCache.keys()) if (paths.has(path) === false) agyCache.delete(path);
     const found: External[] = [];
     for (const path of paths) {

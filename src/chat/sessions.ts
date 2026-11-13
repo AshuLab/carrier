@@ -12,6 +12,7 @@ import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
 import { realMachine, type Machine } from '../doctor/detect.ts';
 import { createHealth, realProbes, type HealthProbes } from './health.ts';
+import type { McpSessionRegistry } from './mcp.ts';
 import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
 import type { Plan, Step, StepEvent } from './plan.ts';
@@ -58,6 +59,8 @@ type Live = {
   /** True while the `message` step of a preparation waits for the agent's first answer. */
   awaitingAnswer?: boolean;
   cancelIdle?: () => void;
+  /** The invocation its MCP token was issued for. */
+  invocationId: string;
 };
 
 export type ChatSessionsDeps = {
@@ -82,7 +85,12 @@ export type ChatSessionsDeps = {
   ages: () => SessionAges;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
+  /** The chat MCP: the registry that issues each conversation's token and the URL of the endpoint, which is undefined when the host could not start it. Without this a host has no MCP and says nothing of it. */
+  mcp?: { registry: McpSessionRegistry; url: () => string | undefined };
 };
+
+/** The key the chat MCP is registered under in each harness, so it cannot collide with a server the person configured. */
+const MCP_SERVER_NAME = 'carrier-chat';
 
 /** Refuses, naming the option, one the provider does not list or a value it does not offer for it. */
 function checkOption(options: ChatOption[], id: string, value: string) {
@@ -102,7 +110,7 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, onLiveChange }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, onLiveChange, mcp }: ChatSessionsDeps) {
   const listed = () => (typeof agents === 'function' ? agents() : agents);
   const health = createHealth({ agents, clock, binaryFound, probes });
   const providers = createProviders({ clock, machine, binaryFound });
@@ -113,6 +121,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const deleting = new Set<string>();
   let clients = 0;
 
+  const exists = (sessionId: string) => db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, sessionId)).get() !== undefined;
   const row = (sessionId: string) => {
     const found = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
     if (found === undefined) throw new ChatRefused('There is no such session');
@@ -219,6 +228,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const live = lives.get(sessionId);
     if (live === undefined) return {};
     lives.delete(sessionId);
+    revoke(live.invocationId);
     live.cancelIdle?.();
     db.update(sessions).set({ state: 'idle', pid: null, pgid: null, command: null }).where(eq(sessions.id, sessionId)).run();
     try {
@@ -249,7 +259,16 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   };
   type Launch = ReturnType<typeof launchOf>;
 
-  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string }) {
+  /** A fresh invocation for one conversation of a real session, with the MCP to hand its runner: none when the host has no endpoint. */
+  const issueMcp = (sessionId: string) => {
+    const invocationId = randomUUID();
+    const url = mcp?.url();
+    if (mcp === undefined || url === undefined) return { invocationId, args: undefined };
+    return { invocationId, args: { serverName: MCP_SERVER_NAME, url, token: mcp.registry.issue({ sessionId, invocationId, capabilities: ['read'] }) } };
+  };
+  const revoke = (invocationId: string) => mcp?.registry.revokeByInvocation(invocationId);
+
+  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string; mcp?: { serverName: string; url: string; token: string } }) {
     try {
       return await runner.open({ ...args, command, launch, env });
     } catch (error) {
@@ -280,8 +299,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   }
 
   /** Makes a conversation the live one of a session. */
-  const attach = (sessionId: string, conversation: ChatConversation, state: State = 'idle') => {
-    const live: Live = { conversation, state, streaming: '', approvals: new Map() };
+  const attach = (sessionId: string, conversation: ChatConversation, invocationId: string, state: State = 'idle') => {
+    const live: Live = { conversation, state, streaming: '', approvals: new Map(), invocationId };
     lives.set(sessionId, live);
     const { pid = null, pgid = null, command = null } = conversation.process ?? {};
     db.update(sessions).set({ pid, pgid, command }).where(eq(sessions.id, sessionId)).run();
@@ -302,6 +321,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       }
       close({ sessionId }).catch((error) => log.error('dropping a session whose agent ended failed', error));
     });
+    // A conversation without the MCP stays usable; the person is told.
+    if (mcp !== undefined && (mcp.url() === undefined || conversation.mcpProblem !== undefined)) {
+      store(sessionId, { kind: 'notice', text: conversation.mcpProblem === undefined ? "Carrier's own tools are not available in this session: the host could not start them." : `The agent could not use Carrier's own tools (${conversation.mcpProblem}), so it works without them.` });
+    }
     armIdle(sessionId, live);
     onLiveChange();
     return live;
@@ -389,17 +412,22 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const { chosen } = launch;
       const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...plan.options };
       let conversation: ChatConversation | undefined;
+      const issued = issueMcp(sessionId);
       try {
-        conversation = await openConversation(launch, { folder, options });
+        conversation = await openConversation(launch, { folder, options, mcp: issued.args });
         for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
       } catch (error) {
+        revoke(issued.invocationId);
         await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
         if (error instanceof ChatRefused === false) log.error('preparing a session failed at the agent', error);
         return failStep(sessionId, 'agent', error instanceof ChatRefused ? error.message : 'The agent could not be started');
       }
-      if (signal.aborted) return void (await conversation.close().catch((closing) => log.error('closing the agent of a cancelled preparation failed', closing)));
+      if (signal.aborted) {
+        revoke(issued.invocationId);
+        return void (await conversation.close().catch((closing) => log.error('closing the agent of a cancelled preparation failed', closing)));
+      }
       stepEvent(sessionId, 'agent', 'done');
-      const live = attach(sessionId, conversation, 'preparing');
+      const live = attach(sessionId, conversation, issued.invocationId, 'preparing');
       stepEvent(sessionId, 'message', 'running');
       live.awaitingAnswer = true;
       live.turn = { startedAt: clock.now(), toolCalls: 0 };
@@ -439,6 +467,20 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   /** What each agent offered when it was last asked (a draft lists the models before a session exists), kept ten minutes. */
   const offered = new Map<string, { at: number; offer: Promise<{ options: ChatOption[]; commands: ChatCommand[] }> }>();
 
+  /** Each agent with its account's harness and whether that account's binary is found; one whose account is missing or Antigravity's is not found, and `unknown` for its harness when it has none. */
+  const listAgents = () => {
+    const providers = readAccounts();
+    return listed().map((chosen) => {
+      try {
+        const { harness, command } = chatAccount(providers, chosen);
+        return { name: chosen.name, harness, model: chosen.model, found: binaryFound(command ?? harness) };
+      } catch (error) {
+        if (error instanceof ChatRefused === false) throw error;
+        return { name: chosen.name, harness: providers[chosen.account]?.harness ?? 'unknown', model: chosen.model, found: false };
+      }
+    });
+  };
+
   return {
     liveCount: () => new Set([...lives.keys(), ...preparing.keys()]).size,
     clientJoined() {
@@ -450,22 +492,24 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       for (const [sessionId, live] of lives) armIdle(sessionId, live);
     },
 
-    /** Each agent with its account's harness and whether that account's binary is found; one whose account is missing or Antigravity's is not found, and `unknown` for its harness when it has none. */
-    agents: () => {
-      const providers = readAccounts();
-      return listed().map((chosen) => {
-        try {
-          const { harness, command } = chatAccount(providers, chosen);
-          return { name: chosen.name, harness, model: chosen.model, found: binaryFound(command ?? harness) };
-        } catch (error) {
-          if (error instanceof ChatRefused === false) throw error;
-          return { name: chosen.name, harness: providers[chosen.account]?.harness ?? 'unknown', model: chosen.model, found: false };
-        }
-      });
-    },
+    agents: listAgents,
 
     health,
     providers,
+
+    /** What the chat MCP asks of the host. */
+    mcpView: {
+      exists,
+      live: (sessionId: string) => lives.has(sessionId),
+      snapshot: (sessionId: string) => {
+        const { id, agent, harness, folder, options: stored } = row(sessionId);
+        const live = lives.get(sessionId);
+        const options = live === undefined ? (stored ?? {}) : Object.fromEntries(live.conversation.options.map((option) => [option.id, option.current]));
+        return { id, agent, harness, folder, model: options.model ?? null, options };
+      },
+      agents: listAgents,
+      health: () => health({}),
+    },
 
     /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
     list: ({ archived = false }: { archived?: boolean }) => {
@@ -488,15 +532,17 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const made = worktree === undefined ? undefined : await exclusive(() => createWorktree(git, real, worktree));
       let conversation: ChatConversation | undefined;
       let created: typeof sessions.$inferSelect;
+      const sessionId = randomUUID(); // before the runner opens: its MCP token belongs to this session
+      const issued = issueMcp(sessionId);
       // One step: a worktree whose session could not be created is taken away again.
       try {
-        conversation = await openConversation(launch, { folder: made?.path ?? real, options: chosenOptions });
+        conversation = await openConversation(launch, { folder: made?.path ?? real, options: chosenOptions, mcp: issued.args });
         for (const [id, value] of Object.entries(chosenOptions)) checkOption(conversation.options, id, value);
         const now = clock.now();
         created = db
           .insert(sessions)
           .values({
-            id: randomUUID(),
+            id: sessionId,
             agent: chosen.name,
             harness: launch.harness,
             folder: made?.path ?? real,
@@ -509,11 +555,12 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
           .returning()
           .get();
       } catch (error) {
+        revoke(issued.invocationId);
         await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
         if (made !== undefined) await removeWorktree(git, made);
         throw error;
       }
-      attach(created.id, conversation);
+      attach(created.id, conversation, issued.invocationId);
       return { session: summary(created), options: conversation.options };
     },
 
@@ -602,18 +649,27 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const launch = launchOf(chosen);
       const folder = checkFolder(current.folder, carrierHome());
       // a session that never got a native id (nothing was said) has nothing to resume: it starts again, as it was opened
-      const conversation = await openConversation(launch, { folder, options: current.options ?? {}, ...(current.nativeId !== null && { resume: current.nativeId }) });
+      const issued = issueMcp(sessionId);
+      let conversation: ChatConversation;
+      try {
+        conversation = await openConversation(launch, { folder, options: current.options ?? {}, mcp: issued.args, ...(current.nativeId !== null && { resume: current.nativeId }) });
+      } catch (error) {
+        revoke(issued.invocationId);
+        throw error;
+      }
       if (lives.has(sessionId)) {
-        // another client resumed it while this one waited for the provider
+        // another client resumed it while this one waited for the provider: only this one's token goes
+        revoke(issued.invocationId);
         await conversation.close();
         return { session: summary(row(sessionId)), options: lives.get(sessionId)!.conversation.options };
       }
-      if (deleting.has(sessionId)) {
-        // the session was deleted while this one waited for the provider: nothing may stay attached to its folder
+      if (deleting.has(sessionId) || !exists(sessionId)) {
+        // the session was deleted (or is being) while this one waited for the provider: nothing may stay attached to its folder
+        revoke(issued.invocationId);
         await conversation.close();
         throw new ChatRefused('This session is being deleted');
       }
-      attach(sessionId, conversation);
+      attach(sessionId, conversation, issued.invocationId);
       if (conversation.startedOver) {
         // The dead id goes: with it kept, every wake that closes before a first message would try it again and say this again. The notice keeps it.
         store(sessionId, { kind: 'notice', text: 'The agent could not find this conversation, so this is a new one in the same folder: it does not remember what is above.', ...(current.nativeId !== null && { lostNativeId: current.nativeId }) });

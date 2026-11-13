@@ -32,7 +32,7 @@ const resumed = segmentsOf(processes[1]!);
 const sessionId = recording.find((line) => line.host === 'sessionId')!.id as string;
 
 /** A `query` that answers each message with the next segment: the provider's lines, stopping where the recording asked the person (an approval) or called interrupt. */
-function replay(segments: Segment[]) {
+function replay(segments: Segment[], mcpServers?: { name: string; status: string; error?: string }[]) {
   const seen = { options: undefined as any, calls: [] as string[], permissions: [] as any[] };
   let interrupted: () => void;
   const gate = new Promise<void>((resolve) => (interrupted = resolve));
@@ -59,6 +59,7 @@ function replay(segments: Segment[]) {
           { name: 'exit', description: 'Leave', argumentHint: '', builtin: true },
         ],
       }),
+      mcpServerStatus: async () => mcpServers ?? [],
       interrupt: async () => (seen.calls.push('interrupt'), interrupted(), undefined),
       setModel: async (model?: string) => void seen.calls.push(`setModel ${model}`),
       setPermissionMode: async (mode: string) => void seen.calls.push(`setPermissionMode ${mode}`),
@@ -321,6 +322,43 @@ test('an account\'s compaction and launch arguments reach the SDK as extraArgs, 
   expect(await run({ autoCompact: 300000 })).toMatchObject({ autocompact: '300000' });
   await expect(run({ launchArgs: ['-v'] })).rejects.toThrow('launchArgs entry 1 is not a --flag');
   await expect(run({ launchArgs: ['--chrome', '--a', 'secret-value', 'stray'] })).rejects.toThrow(/^(?!.*secret-value).*entry 4 /); // a stray token is refused by place, never by text
+});
+
+const mcp = { serverName: 'carrier-chat', url: 'http://127.0.0.1:4000/mcp', token: 'tok-secret' };
+
+test('the chat MCP is handed to the SDK with its tools pre-approved, on a fresh open and on a resume; the token rides in the process environment, and neither extraArgs nor the mcpServers the SDK turns into argv hold it', async () => {
+  for (const resume of [undefined, sessionId]) {
+    const { query, seen } = replay([]);
+    const conversation = await claudeChatRunner(deps(query)).open({ folder: '/work', env: { PATH: '/bin' }, mcp, ...(resume && { resume }) });
+    expect(seen.options.mcpServers).toEqual({ 'carrier-chat': { type: 'http', url: mcp.url, headers: { Authorization: 'Bearer ${CARRIER_MCP_TOKEN}' } } });
+    expect(seen.options.env).toEqual({ PATH: '/bin', CARRIER_MCP_TOKEN: 'tok-secret' });
+    expect(seen.options.allowedTools).toEqual(['mcp__carrier-chat__*']);
+    expect(seen.options.resume).toBe(resume);
+    expect(JSON.stringify(seen.options.extraArgs)).not.toContain('tok-secret');
+    expect(conversation.mcpProblem).toBeUndefined();
+  }
+});
+
+test('without the chat MCP (a probe, or a host that could not bind it) the SDK gets no mcpServers and no wildcard', async () => {
+  const { query, seen } = replay([]);
+  await claudeChatRunner(deps(query)).open({ folder: '/work', env: {} });
+  expect(seen.options).not.toHaveProperty('mcpServers');
+  expect(seen.options.env).not.toHaveProperty('CARRIER_MCP_TOKEN');
+  expect(seen.options).not.toHaveProperty('allowedTools');
+});
+
+test('a chat MCP the SDK reports as down is the conversation\'s mcpProblem, and open still succeeds; a connected or silent one is none', async () => {
+  const open = async (servers?: { name: string; status: string; error?: string }[]) =>
+    (await claudeChatRunner(deps(replay([], servers).query)).open({ folder: '/work', env: {}, mcp })).mcpProblem;
+  expect(await open([{ name: 'other', status: 'connected' }, { name: 'carrier-chat', status: 'failed', error: 'connect ECONNREFUSED' }])).toBe('failed: connect ECONNREFUSED');
+  expect(await open([{ name: 'carrier-chat', status: 'disconnected' }])).toBe('disconnected');
+  expect(await open([{ name: 'carrier-chat', status: 'connected' }])).toBeUndefined();
+  expect(await open([{ name: 'carrier-chat', status: 'pending' }])).toBeUndefined();
+  expect(await open([{ name: 'other', status: 'failed' }])).toBeUndefined();
+  expect(await open()).toBeUndefined();
+  const unreadable = replay([]).query;
+  const query = ((args: Parameters<typeof sdkQuery>[0]) => Object.assign(unreadable(args), { mcpServerStatus: async () => Promise.reject(new Error('no status')) })) as unknown as typeof sdkQuery;
+  expect((await claudeChatRunner(deps(query)).open({ folder: '/work', env: {}, mcp })).mcpProblem).toBeUndefined();
 });
 
 // Through the host's sessions, over a temporary SQLite: the person's message, the agent's and the turn are stored, and the native id lands on the session.

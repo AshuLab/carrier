@@ -57,3 +57,30 @@ private func clip(_ name: String) throws -> [CarrierCore.AudioBuffer] {
     for await event in events { seen.append(event) }
     #expect(seen == [.final("")])
 }
+
+// The conversion of the capture, with no system assets: a negative rate is a converter that cannot be made, and every buffer is dropped.
+private func feed(_ buffers: [CarrierCore.AudioBuffer]) async throws -> (fed: Bool, delivered: Int) {
+    let format = try #require(AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false))
+    let (audio, capture) = AsyncStream<CarrierCore.AudioBuffer>.makeStream()
+    for buffer in buffers { capture.yield(buffer) }
+    capture.finish()
+    var delivered = 0
+    let fed = try await AppleRecognizer.feed(audio, to: format) { _ in delivered += 1 }
+    return (fed, delivered)
+}
+
+private let unconvertible = CarrierCore.AudioBuffer(samples: Array(repeating: 0.1, count: 1600), sampleRate: -1)
+private let convertible = CarrierCore.AudioBuffer(samples: Array(repeating: 0.1, count: 1600), sampleRate: 16_000)
+
+@Test func aConversionThatDropsEveryBufferFailsWithACauseInsteadOfEndingInNothingSaid() async throws {
+    let failure = await #expect(throws: DictationFailure.self) {
+        _ = try await feed(Array(repeating: unconvertible, count: AppleRecognizer.droppedLimit))
+    }
+    #expect(failure?.cause.isEmpty == false)
+}
+
+@Test func aFewDroppedBuffersAreNotAFailure() async throws {
+    let few = Array(repeating: unconvertible, count: AppleRecognizer.droppedLimit - 1)
+    let result = try await feed(few + [convertible])
+    #expect(result.fed && result.delivered == 1)
+}

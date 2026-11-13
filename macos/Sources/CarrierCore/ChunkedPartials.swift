@@ -36,6 +36,14 @@ public struct ChunkPolicy: Sendable {
     static let longestSegment = 12.0
     /// The words of the agreement the last of which stay tentative.
     static let heldBack = 2
+    /// A segment never grows past this, the window Parakeet takes in one go: it is closed as a pause would, even in the middle of a word, so
+    /// that noise, an unstable model or an empty agreement cannot make every pass longer than the one before.
+    // ponytail: the cut can split a word and the model hears the tail without its context; a cut at the quietest frame near the end would not
+    static let hardLimit = 15.0
+    /// A model that gives its text at the end keeps the whole audio, so the audio is ended here: two minutes is what a model of the at-the-end
+    /// side (Whisper, RTF about 0.1) transcribes inside the session's 30 s wait for the answer, and about 23 MB of samples at 48 kHz.
+    // ponytail: the rest is not heard; resampling to 16 kHz as it comes would lift the ceiling to the wait for the answer, not to memory
+    static let longestAtTheEnd = 120.0
 
     public struct Pass: Sendable, Equatable {
         public enum Kind: Sendable { case tentative, closing, final }
@@ -84,6 +92,7 @@ public struct ChunkPolicy: Sendable {
         }
         guard partials else {
             samples += buffer.samples
+            if Double(samples.count) >= Self.longestAtTheEnd * sampleRate { ended = true }
             return
         }
         for sample in buffer.samples {
@@ -94,6 +103,7 @@ public struct ChunkPolicy: Sendable {
             if frameFill == frameLength {
                 frameFill = 0
                 endFrame()
+                if Double(samples.count) >= Self.hardLimit * sampleRate { closeSegment() }
             }
         }
     }
@@ -110,8 +120,9 @@ public struct ChunkPolicy: Sendable {
         if quietFrames == Int((Self.pause * 100).rounded()), Double(speechFrames) >= Self.minimumSpeech * 100 { closeSegment() }
     }
 
+    /// The segment ends here: with enough speech its last pass is asked for, without it the audio is only dropped.
     private mutating func closeSegment() {
-        waiting.append(Pass(kind: .closing, segment: segment, samples: samples, sampleRate: sampleRate))
+        if Double(speechFrames) >= Self.minimumSpeech * 100 { waiting.append(Pass(kind: .closing, segment: segment, samples: samples, sampleRate: sampleRate)) }
         segment += 1
         samples = []
         speechFrames = 0
@@ -134,7 +145,7 @@ public struct ChunkPolicy: Sendable {
                 isComplete = true
                 return nil
             }
-            let padded = samples + Array(repeating: 0, count: max(0, minimumSamples - samples.count))
+            let padded = samples.count < minimumSamples ? samples + Array(repeating: 0, count: minimumSamples - samples.count) : samples
             return Pass(kind: .final, segment: segment, samples: padded, sampleRate: sampleRate)
         }
         guard partials, Double(speechFrames) >= Self.minimumSpeech * 100, Double(sinceRequest) >= Self.interval * sampleRate else { return nil }
@@ -212,41 +223,44 @@ public struct ChunkedRecognizer: Sendable {
             feed.yield(.ended)
         }
         let loop = Task {
-            var policy = ChunkPolicy(partials: partials)
-            var running = false
-            var shown = ""
-            for await input in inputs {
-                switch input {
-                case .audio(let buffer): policy.add(buffer)
-                case .ended: policy.end()
-                case .done(let pass, .success(let words)):
-                    running = false
-                    policy.finish(pass, words: words)
-                case .done(_, .failure(let failure)):
-                    out.yield(.failed(failure))
-                    out.finish()
-                    return
-                }
-                if running == false, let pass = policy.nextPass() {
-                    running = true
-                    Task {
-                        do {
-                            feed.yield(.done(pass, .success(try await transcriber.transcribe(pass.samples, sampleRate: pass.sampleRate))))
-                        } catch {
-                            feed.yield(.done(pass, .failure(DictationFailure("The speech model stopped: \((error as? DictationFailure)?.cause ?? error.localizedDescription)"))))
+            // the passes are children of the loop: cancelling it cancels the pass in flight, which would else go on over the whole audio
+            await withTaskGroup(of: Void.self) { passes in
+                var policy = ChunkPolicy(partials: partials)
+                var running = false
+                var shown = ""
+                for await input in inputs {
+                    switch input {
+                    case .audio(let buffer): policy.add(buffer)
+                    case .ended: policy.end()
+                    case .done(let pass, .success(let words)):
+                        running = false
+                        policy.finish(pass, words: words)
+                    case .done(_, .failure(let failure)):
+                        out.yield(.failed(failure))
+                        out.finish()
+                        return
+                    }
+                    if running == false, let pass = policy.nextPass() {
+                        running = true
+                        passes.addTask {
+                            do {
+                                feed.yield(.done(pass, .success(try await transcriber.transcribe(pass.samples, sampleRate: pass.sampleRate))))
+                            } catch {
+                                feed.yield(.done(pass, .failure(DictationFailure("The speech model stopped: \((error as? DictationFailure)?.cause ?? error.localizedDescription)"))))
+                            }
                         }
                     }
+                    if policy.isComplete {
+                        out.yield(.final(policy.text))
+                        break
+                    }
+                    if policy.text != shown, policy.text.isEmpty == false {
+                        shown = policy.text
+                        out.yield(.partial(shown))
+                    }
                 }
-                if policy.isComplete {
-                    out.yield(.final(policy.text))
-                    break
-                }
-                if policy.text != shown, policy.text.isEmpty == false {
-                    shown = policy.text
-                    out.yield(.partial(shown))
-                }
+                out.finish()
             }
-            out.finish()
         }
         out.onTermination = { _ in
             reader.cancel()

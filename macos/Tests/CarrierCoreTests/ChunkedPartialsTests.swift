@@ -136,6 +136,46 @@ func withFewerThanTwoAgreedWordsAfterTheLastTwoNothingIsSettledAt12s(before: [Ti
     #expect(policy.text == now.map(\.text).joined(separator: " "))
 }
 
+@Test func aSegmentIsClosedAt15sWhateverThePassesSayEvenWithNoPauseAndNothingAgreed() {
+    var policy = ChunkPolicy(partials: true)
+    for second in 1...14 {
+        policy.add(speech(1))
+        policy.finish(policy.nextPass()!, words: words(second % 2))  // passes that never agree: the 12 s rule settles nothing
+    }
+    #expect(policy.settled.isEmpty)
+    policy.add(speech(1))
+    let closing = policy.nextPass()
+    #expect(closing?.kind == .closing && closing?.samples.count == Int(15 * rate))
+    policy.finish(closing!, words: words(3))
+    #expect(policy.settled == ["w0", "w1", "w2"])
+    policy.add(speech(1))
+    #expect(policy.nextPass()?.samples.count == Int(rate), "the next segment starts from nothing")
+}
+
+@Test func aNoisyRoomOrAnEmptyResultNeverMakesASegmentLongerThan15s() {
+    var policy = ChunkPolicy(partials: true)
+    for _ in 0..<60 {
+        policy.add(speech(1))
+        while let pass = policy.nextPass() {
+            #expect(pass.samples.count <= Int(15 * rate))
+            policy.finish(pass, words: [])
+        }
+    }
+    // a silence with nothing said is dropped too, with no pass
+    var quiet = ChunkPolicy(partials: true)
+    quiet.add(silence(20))
+    #expect(quiet.nextPass() == nil)
+    quiet.add(speech(0.5))
+    #expect(quiet.nextPass()?.samples.count == Int(5.5 * rate))
+}
+
+@Test func aModelAtTheEndStopsListeningAfterTwoMinutesAndGetsThoseTwoMinutes() {
+    var policy = ChunkPolicy(partials: false)
+    for _ in 0..<150 { policy.add(speech(1)) }
+    let pass = policy.nextPass()
+    #expect(pass?.kind == .final && pass?.samples.count == Int(120 * rate))
+}
+
 @Test func theStopAsksForOnePassOverWhatIsNotSettledAndTheTextIsFinal() {
     var policy = ChunkPolicy(partials: true)
     policy.add(speech(1.5))
@@ -310,6 +350,35 @@ private func capture() -> (AsyncStream<AudioBuffer>, AsyncStream<AudioBuffer>.Co
     for await _ in events {}
     #expect(await batch.mostAtOnce == 1)
     #expect(await batch.passes.count < 5, "the late passes did not queue up")
+}
+
+/// A model that never answers, and sees whether it was cancelled.
+private actor Hanging: BatchTranscriber {
+    private(set) var calls = 0
+    private(set) var cancelled = false
+
+    func transcribe(_ samples: [Float], sampleRate: Double) async throws -> [TimedWord] {
+        calls += 1
+        do { try await Task.sleep(for: .seconds(60)) } catch {
+            cancelled = true
+            throw error
+        }
+        return []
+    }
+}
+
+@Test func endingTheEventsCancelsThePassInFlight() async throws {
+    let batch = Hanging()
+    let (audio, input) = capture()
+    let events = ChunkedRecognizer(batch, partials: true).recognize(audio)
+    let listening = Task { for await _ in events {} }
+    input.yield(speech(1.2))
+    for _ in 0..<200 where await batch.calls == 0 { try await Task.sleep(for: .milliseconds(10)) }
+    #expect(await batch.calls == 1)
+    listening.cancel()
+    for _ in 0..<200 where await batch.cancelled == false { try await Task.sleep(for: .milliseconds(10)) }
+    #expect(await batch.cancelled, "the pass kept running over the whole audio")
+    #expect(await batch.calls == 1)
 }
 
 @Test func aFailureOfTheModelIsAFailureWithItsCause() async {

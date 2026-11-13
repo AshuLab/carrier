@@ -8,6 +8,9 @@ import Speech
 /// page, which starts on the first language of macOS that it supports.
 final class AppleRecognizer: Recognizer, @unchecked Sendable {
     static let modelID = "apple.speech-analyzer"
+    /// Buffers in a row that the conversion may drop (about a second and a half of capture) before the dictation fails: a broken conversion
+    /// would else end in an empty "nothing said".
+    static let droppedLimit = 20
 
     let id = RecognizerID.apple
     let models: [SpeechModel]
@@ -60,12 +63,13 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
             return events
         }
         Task {
+            let (inputs, input) = AsyncStream<AnalyzerInput>.makeStream()
+            var heard: Task<String, Error>?
             do {
                 guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
                     throw DictationFailure("Apple's speech recognition has no audio format for this Mac.")
                 }
-                let (inputs, input) = AsyncStream<AnalyzerInput>.makeStream()
-                let heard = Task { () -> String in
+                let results = Task { () -> String in
                     // a final result closes a stretch of speech; the volatile ones that follow are the words still being heard
                     var settled = ""
                     do {
@@ -77,56 +81,41 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
                     } catch is CancellationError {}  // what cancelAndFinishNow ends the results with
                     return settled.trimmingCharacters(in: .whitespaces)
                 }
+                heard = results
                 try await analyzer.start(inputSequence: inputs)
-                var converter: CaptureConverter?
-                var fed = false
-                for await buffer in audio {
-                    if converter == nil { converter = CaptureConverter(from: buffer.sampleRate, to: format) }
-                    if let converted = converter?.convert(buffer) {
-                        input.yield(AnalyzerInput(buffer: converted))
-                        fed = true
-                    }
-                }
+                let fed = try await Self.feed(audio, to: format) { input.yield(AnalyzerInput(buffer: $0)) }
                 input.finish()
                 // no audio at all ends in an empty final, not in the failure the analyzer would raise
                 if fed { try await analyzer.finalizeAndFinishThroughEndOfInput() } else { await analyzer.cancelAndFinishNow() }
-                out.yield(.final(try await heard.value))
+                out.yield(.final(try await results.value))
             } catch {
+                // nothing is left listening to the results or holding the analyzer
+                heard?.cancel()
+                input.finish()
+                await analyzer.cancelAndFinishNow()
                 out.yield(.failed(error as? DictationFailure ?? DictationFailure("Apple's speech recognition stopped: \(error.localizedDescription)")))
             }
             out.finish()
         }
         return events
     }
-}
 
-/// Puts the capture's mono Float samples in the format a recognizer asks for.
-final class CaptureConverter {
-    private let source: AVAudioFormat
-    private let target: AVAudioFormat
-    private let converter: AVAudioConverter
-
-    init?(from sampleRate: Double, to target: AVAudioFormat) {
-        guard let source = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false),
-              let converter = AVAudioConverter(from: source, to: target) else { return nil }
-        (self.source, self.target, self.converter) = (source, target, converter)
-    }
-
-    func convert(_ heard: CarrierCore.AudioBuffer) -> AVAudioPCMBuffer? {
-        guard heard.samples.isEmpty == false, let input = AVAudioPCMBuffer(pcmFormat: source, frameCapacity: AVAudioFrameCount(heard.samples.count)),
-              let channel = input.floatChannelData?[0] else { return nil }
-        heard.samples.withUnsafeBufferPointer { channel.update(from: $0.baseAddress!, count: heard.samples.count) }
-        input.frameLength = AVAudioFrameCount(heard.samples.count)
-        let capacity = AVAudioFrameCount(Double(heard.samples.count) * target.sampleRate / source.sampleRate) + 16
-        guard let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else { return nil }
-        var consumed = false
-        var failure: NSError?
-        converter.convert(to: output, error: &failure) { _, status in
-            if consumed { status.pointee = .noDataNow; return nil }
-            consumed = true
-            status.pointee = .haveData
-            return input
+    /// The capture's buffers in the analyzer's format; whether any was fed. A conversion that drops `droppedLimit` buffers in a row is a failure.
+    static func feed(_ audio: AsyncStream<CarrierCore.AudioBuffer>, to format: AVAudioFormat, deliver: (AVAudioPCMBuffer) -> Void) async throws -> Bool {
+        var converter: CaptureConverter?
+        var fed = false
+        var dropped = 0
+        for await buffer in audio where buffer.samples.isEmpty == false {
+            if converter == nil { converter = CaptureConverter(from: buffer.sampleRate, to: format) }
+            guard let converted = converter?.convert(buffer) else {
+                dropped += 1
+                guard dropped < droppedLimit else { throw DictationFailure("Apple's speech recognition could not convert the audio of the microphone.") }
+                continue
+            }
+            dropped = 0
+            deliver(converted)
+            fed = true
         }
-        return failure == nil && output.frameLength > 0 ? output : nil
+        return fed
     }
 }

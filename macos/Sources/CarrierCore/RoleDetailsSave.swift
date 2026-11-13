@@ -5,7 +5,7 @@ import Foundation
 // stays. The persona's limits are the ones of a repo's role (`RoleFields.problems`, RepoRoleSave.swift).
 
 /// Reads the file, lets `edit` change it (a returned value stops the save, nothing is written) and writes it back.
-private func updateConfig(path: String, _ edit: (inout [String: Any]) -> RoleSave?) -> RoleSave {
+private func updateConfig(path: String, reload: AfterWrite, _ edit: (inout [String: Any]) -> RoleSave?) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), var file = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any] else {
         return .failed("The config file could not be read.")
@@ -13,7 +13,7 @@ private func updateConfig(path: String, _ edit: (inout [String: Any]) -> RoleSav
     if let stop = edit(&file) { return stop }
     do {
         try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]).write(to: url, options: .atomic)
-        return .saved
+        return written(reload)
     } catch {
         FileHandle.standardError.write(Data("carrier: saving \(path) failed: \(error)\n".utf8))
         return .failed("Could not save the config file: \(error.localizedDescription)")
@@ -22,14 +22,14 @@ private func updateConfig(path: String, _ edit: (inout [String: Any]) -> RoleSav
 
 /// Sets the global `role`'s persona to `name` and `prompt`, either one alone or both; nil for both removes it. A text given but empty, a name over
 /// 40 characters or with a line break, or a prompt over 4000 characters is refused before writing.
-public func saveGlobalPersona(name: String?, prompt: String?, role: AgentRole, path: String) -> RoleSave {
+public func saveGlobalPersona(name: String?, prompt: String?, role: AgentRole, path: String, reload: AfterWrite = reloadInBackground) -> RoleSave {
     for (label, text) in [("name", name), ("prompt", prompt)] where text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
         return .refused("The persona’s \(label) cannot be empty. Leave it out instead.")
     }
     let persona = RolePersona(name: name, prompt: prompt)
     let problems = RoleFields(persona: persona).normalized().problems(profiles: [], accounts: [])
     if problems.isEmpty == false { return .refused(problems.joined(separator: " ")) }
-    return updateConfig(path: path) { file in
+    return updateConfig(path: path, reload: reload) { file in
         var agents = file["agents"] as? [String: Any] ?? [:]
         guard var entry = agents[role.rawValue] as? [String: Any] else { return .refused("\(role.title) has no entry in config.json. Add it there first.") }
         let clean = RoleFields(persona: persona).normalized().persona
@@ -43,7 +43,7 @@ public func saveGlobalPersona(name: String?, prompt: String?, role: AgentRole, p
 /// Sets the first two steps of the global `role`'s failover to `first` and `second`, and keeps the steps after them that the file has. Both nil
 /// is Switch automatically off: the role's list is removed. Each step needs a declared provider; a step equal to another of the list or to the
 /// role's own provider and model is refused (the engine's rule, `failover.roles.<role>.<n>`), with its position.
-public func saveGlobalFailover(first: FailoverStep?, second: FailoverStep?, role: AgentRole, path: String, accounts: [String]) -> RoleSave {
+public func saveGlobalFailover(first: FailoverStep?, second: FailoverStep?, role: AgentRole, path: String, accounts: [String], reload: AfterWrite = reloadInBackground) -> RoleSave {
     if first == nil, second != nil { return .refused("Then needs a First step.") }
     func clean(_ step: FailoverStep) -> FailoverStep {
         let model = step.model?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -57,7 +57,7 @@ public func saveGlobalFailover(first: FailoverStep?, second: FailoverStep?, role
     for (index, step) in edited.enumerated() where accounts.contains(step.provider) == false {
         return .refused("\(index == 0 ? "First" : "Then"): “\(step.provider)” is not an account of providers.json. Pick another one.")
     }
-    return updateConfig(path: path) { file in
+    return updateConfig(path: path, reload: reload) { file in
         guard let own = (file["agents"] as? [String: Any])?[role.rawValue] as? [String: Any] else {
             return .refused("\(role.title) has no entry in config.json. Add it there first.")
         }

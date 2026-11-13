@@ -60,6 +60,22 @@ public enum RoleSave: Equatable {
     case failed(String)
 }
 
+extension RoleSave {
+    /// What the page shows where it shows a save that did not work; nil when all went through.
+    public var problem: String? {
+        switch self {
+        case .saved: nil
+        case .refused(let words), .failed(let words): words
+        }
+    }
+}
+
+/// `.saved` after the write, and the engine asked (what it answers is `ReloadStatus`'s, not the save's). Call it only after the write worked.
+func written(_ reload: AfterWrite) -> RoleSave {
+    _ = reload()
+    return .saved
+}
+
 /// `json` with `repo`'s `role` set to the `fields` that are set, other keys of the entry kept; the entry goes when nothing is left. With `fields`
 /// nil (Reset) the whole entry goes, and `agents` with it when it was the last. nil when `json` has no such repo.
 func applyingRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, to json: Data) -> Data? {
@@ -84,7 +100,7 @@ func applyingRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, to j
 
 /// Saves `fields` as the repo's own `role` (nil resets it) in the file at `path`, read just now. A profile or account that is not declared
 /// is refused before anything is written.
-public func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String]) -> RoleSave {
+public func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String], reload: AfterWrite = reloadInBackground) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), let roles = repoRoles(json: current, repo: repo) else {
         return .failed("The config file could not be read.")
@@ -94,7 +110,7 @@ public func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, p
     guard let updated = applyingRepoRole(fields, role: role, repo: repo, to: current) else { return .failed("\(repo) is no longer in the config file.") }
     do {
         try updated.write(to: url, options: .atomic)
-        return .saved
+        return written(reload)
     } catch {
         FileHandle.standardError.write(Data("carrier: saving \(path) failed: \(error)\n".utf8))
         return .failed("Could not save the config file: \(error.localizedDescription)")

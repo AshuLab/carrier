@@ -76,18 +76,19 @@ struct AccountEditor: View {
                         }
                     }
                 }
-                if let problem = store.editProblem { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
+                if let problem = store.editProblem { ProblemLine(text: problem) }
                 HStack(spacing: 10) {
                     Button(role: .destructive) {
                         Task { if await store.remove(name: account.name) { close() } }
                     } label: { Label("Remove", systemImage: "trash") }
+                    .disabled(store.busy)
                     .help("Removes \(account.name) from providers.json; refused while a role or a chat names it")
                     Spacer()
-                    Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }
+                    Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }.disabled(store.busy)
                     Button {
                         Task { if await store.save(name: account.name, draft: draft) { close() } }
                     } label: { Label("Save", systemImage: "checkmark") }
-                    .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(problems.isEmpty == false || draft == saved)
+                    .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(problems.isEmpty == false || draft == saved || store.busy)
                 }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
                 .padding(.top, 10)
@@ -133,14 +134,14 @@ struct AddAccountForm: View {
                     TextField("~/.\(harness)-work", text: $folder).settingsField(width: 240)
                 }
             }
-            if let message = problem ?? store.editProblem { Label(message, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
+            if let message = problem ?? store.editProblem { ProblemLine(text: message) }
             HStack(spacing: 10) {
                 Spacer()
-                Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }
+                Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }.disabled(store.busy)
                 Button {
                     Task { if await store.addAccount(name: name, harness: harness, configDir: folder) { close() } }
                 } label: { Label("Add", systemImage: "plus") }
-                .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(name.isEmpty || problem != nil)
+                .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(name.isEmpty || problem != nil || store.busy)
             }
             .buttonStyle(SecondaryCapsuleButtonStyle())
             .padding(.top, 10)

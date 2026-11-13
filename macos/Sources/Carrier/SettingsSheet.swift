@@ -6,6 +6,7 @@ import SwiftUI
 /// right, closed by the corner button or Esc. The readiness banner shows over every section while something is missing or being looked for.
 struct SettingsSheet: View {
     let state: ConnectionState?
+    let canReload: Bool
     @ObservedObject var setup: SetupController = .shared
     @ObservedObject private var start = StartController.shared
     @Binding var tab: SettingsPage
@@ -58,12 +59,13 @@ struct SettingsSheet: View {
             case .appearance: AppearanceTabView()
             case .sidebar: SidebarTabView()
             case .chat: ChatTabView()
+            case .dictation: DictationTabView()
             case .keybindings: KeybindingsTabView()
             case .updates: UpdatesTabView()
             case .providers: ProvidersTabView(openAgents: { tab = .agents })
             case .engine: engine(banner, notConfigured: notConfigured)
             case .behavior: BehaviorTabView()
-            case .repos: ReposTabView(state: state, openAgents: { tab = .agents })
+            case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { tab = .agents })
             case .agents: AgentsTabView()
             case .sessions: SessionsTabView()
             case .notifications: NotificationsTabView()
@@ -76,14 +78,22 @@ struct SettingsSheet: View {
         if let notConfigured {
             Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
         }
-        ForEach(engineGroups(configured: notConfigured == nil, identity: github.identity), id: \.title) { group in
+        ForEach(engineGroups(configured: notConfigured == nil, identity: github.identity, folder: carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()), home: NSHomeDirectory(), exists: { FileManager.default.fileExists(atPath: $0) }), id: \.title) { group in
             SettingsGroup(title: group.title) {
                 ForEach(Array(group.rows.enumerated()), id: \.element.title) { index, row in
-                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0, problem: row.problem) {
+                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0, note: row.file?.shown, problem: row.problem) {
                         switch row.id {
                         case .startOnOpen: Toggle(row.title, isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
                         case .confirmStop: Toggle(row.title, isOn: $confirmStop).labelsHidden().toggleStyle(.switch)
                         case .orchestratorProfile: identityChoice(row.title)
+                        case .carrierFolder, .logs, .startLog:
+                            if let file = row.file {
+                                Button {
+                                    let url = URL(fileURLWithPath: file.path)
+                                    if file.action == .reveal { NSWorkspace.shared.activateFileViewerSelecting([url]) } else { NSWorkspace.shared.open(url) }
+                                } label: { Label(file.buttonTitle, systemImage: file.exists ? (file.action == .reveal ? "folder" : "doc.text") : "questionmark.folder").labelStyle(.titleAndIcon) }
+                                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(file.exists == false)
+                            }
                         }
                     }
                 }
@@ -92,6 +102,7 @@ struct SettingsSheet: View {
         if let failure = github.failure {
             Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
         }
+        ReloadNote()
         if banner.state == .ready {
             HStack(spacing: 12) {
                 HStack(spacing: 12) {

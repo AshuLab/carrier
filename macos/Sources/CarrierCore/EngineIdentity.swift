@@ -1,7 +1,7 @@
 import Foundation
 
 // The GitHub identity the engine acts as: `orchestratorProfile` of `config.json`, one of the file's `profiles`. Left out of the file it is the
-// author's profile, so choosing the default removes the key. The engine reads it when it starts.
+// author's profile, so choosing the default removes the key. The engine is asked to reload after the write (EngineReload.swift).
 
 public struct EngineIdentity: Equatable {
     /// The title of the choice that removes the key
@@ -32,4 +32,10 @@ public func applyingOrchestratorProfile(_ name: String?, to json: Data) -> Data?
     guard var file = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return nil }
     if let name { file["orchestratorProfile"] = name } else { file.removeValue(forKey: "orchestratorProfile") }
     return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+}
+
+/// Writes the choice into the file at `path`, read just now so another tab's save in between is not lost, and asks the engine to reload once it
+/// is written. `.failed` when the file cannot be read or is not an object (nothing is written, nothing asked).
+public func saveOrchestratorProfile(_ name: String?, path: String, reload: AfterWrite = reloadInBackground) -> RoleSave {
+    saveConfig(path: path, unusable: "The config file could not be read.", edit: { applyingOrchestratorProfile(name, to: $0) }, reload: reload)
 }

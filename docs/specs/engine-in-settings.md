@@ -43,7 +43,7 @@ The pages and their groups are the cases of `SettingsPage` in CarrierCore, so th
 
 Engine's groups, rows, titles and descriptions are a pure model in CarrierCore, in the style of the models of the other Settings pages, and the view only draws it: the paths, versions and existence of the files are inputs of the model, so what a row says with `carrier` missing, a `.ts` override, no `PATH` yet or no log yet is tested without a window.
 
-`orchestratorProfile` is written by a function in CarrierCore that takes the file's bytes and returns the new bytes, like the other `applying…` functions that edit `config.json`; the page writes it as the Behavior page writes its values, so when the reload epic makes every writer ask the engine to reload, this writer is one more of them. Until then the engine reads it when it starts, and the row does not say when.
+`orchestratorProfile` is written by a function in CarrierCore that takes the file's bytes and returns the new bytes, like the other `applying…` functions that edit `config.json`; the page writes it as the Behavior page writes its values, and after its own successful write it asks the engine to reload as every other writer does (the `AfterWrite` of `EngineReload.swift`), showing a problem the engine answers where the page shows a failure to save. So the choice applies to the next epic with no restart, and the row does not need to say when.
 
 The readiness banner stays a pure function of what is missing and whether the shell is working (`readinessBanner`); only its text changes, and it shows where it shows today.
 

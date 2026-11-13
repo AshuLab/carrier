@@ -76,9 +76,10 @@ public func repoEpics(_ repo: String, snapshot: PanelSnapshot?) -> RepoEpics? {
     )
 }
 
-/// The confirmation under the list when the person presses ✕ on a repo.
-public func removalText(_ epics: RepoEpics?) -> String {
-    let when = " It takes effect when you save; Revert puts it back."
+/// The confirmation under the list when the person presses ✕ on a repo. `appliesNow`: Carrier applies the change while it runs
+/// (`appliesWhileRunning`); else it reads the list when it starts.
+public func removalText(_ epics: RepoEpics?, appliesNow: Bool) -> String {
+    let when = appliesNow ? " It takes effect right away." : " Carrier reads the list when it starts."
     guard let epics else {
         return "Its epics, if it has any, stop where they are, untouched, and continue if you add the repo again. Nothing is deleted." + when
     }
@@ -118,11 +119,11 @@ public func repoRows(draft: [String], saved: [String], snapshot: PanelSnapshot?)
     draft.map { name in
         let epics = repoEpics(name, snapshot: snapshot)
         if saved.contains(name) == false {
-            return RepoRow(name: name, health: .unknown, line: "Not checked yet · Carrier looks at it after it starts with the new list", epics: nil, isNew: true)
+            return RepoRow(name: name, health: .unknown, line: "Not checked yet", epics: nil, isNew: true)
         }
         guard let snapshot else { return RepoRow(name: name, health: .unknown, line: "Carrier is stopped", epics: nil, isNew: false) }
         guard let watched = snapshot.watched?.first(where: { $0.repo == name }) else {
-            return RepoRow(name: name, health: .unknown, line: "Carrier has not loaded it yet · it does after a restart", epics: epics, isNew: false)
+            return RepoRow(name: name, health: .unknown, line: "Not in use yet", epics: epics, isNew: false)
         }
         if watched.ok == false {
             return RepoRow(name: name, health: .error, line: watched.error ?? "GitHub refused it", epics: epics, isNew: false, isLoaded: true)

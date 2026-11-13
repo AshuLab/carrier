@@ -35,6 +35,9 @@ public struct AppPreferences {
     public static let outputLengthKey = "chat.outputLength"
     public static let confirmDeleteKey = "chat.confirmDelete"
     public static let showsReasoningKey = "chat.showReasoning"
+    public static let dictationEnabledKey = "dictation.enabled"
+    public static let dictationModelKey = "dictation.model"
+    public static let dictationLanguageKey = "dictation.language"
 
     public static let defaultStyle = IconStyle.countAndBar
     public static let defaultAnimates = true
@@ -58,6 +61,7 @@ public struct AppPreferences {
     public static let defaultOutputLength = OutputLength.short
     public static let defaultConfirmDelete = true
     public static let defaultShowsReasoning = true
+    public static let defaultDictationEnabled = true
 
     private let defaults: UserDefaults
 
@@ -248,6 +252,29 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.confirmDeleteKey) }
     }
 
+    /// Whether the message box has a microphone: Dictation is on until the person turns it off.
+    public var dictationEnabled: Bool {
+        get { defaults.object(forKey: Self.dictationEnabledKey) as? Bool ?? Self.defaultDictationEnabled }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationEnabledKey) }
+    }
+
+    /// The id of the speech model the person chose; nil while they did not.
+    public var dictationModelID: String? {
+        get { defaults.string(forKey: Self.dictationModelKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationModelKey) }
+    }
+
+    /// The chosen speech model among those on offer: Apple's when none was chosen or the saved one is not on offer any more.
+    public func dictationModel(among models: [SpeechModel]) -> SpeechModel? {
+        models.first { $0.id == dictationModelID } ?? models.first { $0.recognizer == .apple }
+    }
+
+    /// The language the person chose, `automaticLanguage` or a base code; nil while they did not (`languageChoices` says what that is).
+    public var dictationLanguage: String? {
+        get { defaults.string(forKey: Self.dictationLanguageKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationLanguageKey) }
+    }
+
     /// Takes the keys of one page out, so it reads as its defaults again; the other pages are not touched.
     public func reset(_ page: SettingsPage) {
         for key in Self.keys(of: page) { defaults.removeObject(forKey: key) }
@@ -277,6 +304,7 @@ public struct AppPreferences {
                 notifyNeedsYouKey, notifyReadyForTestKey, notifyProblemKey, notifyChatNeedsAttentionKey, notifyChatDoneKey, notifyOnlyWhenAwayKey,
                 notifyDockBadgeKey, notifySoundKey, notifyReminderKey, notifyQuietKey, notifyQuietStartKey, notifyQuietEndKey,
             ]
+        case .dictation: [dictationEnabledKey, dictationModelKey, dictationLanguageKey]
         case .keybindings: [ShortcutTable.key]
         // the Providers page only reads, the Updates page writes Sparkle's own preferences, and the Legacy pages keep their own settings and have no Reset
         case .providers, .updates, .engine, .behavior, .repos, .agents, .sessions, .health: []

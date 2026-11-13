@@ -19,7 +19,7 @@ const ids: Record<string, number> = { 'artanis-agent': 325794106, 'tassadar-agen
 test('a Forge profile gets its own token and the bot commit identity with the numeric bot id', async () => {
   const minted: string[] = [];
   const credentials = profileCredentials({
-    profiles,
+    profiles: () => profiles,
     mint: async (profile, repo) => (minted.push(`${profile.kind === 'forge' ? profile.agent : 'gh'}@${repo}`), `ghs_${profile.kind === 'forge' ? profile.agent : 'gh'}_${minted.length}`),
     botId: async (agent) => ids[agent]!,
   });
@@ -40,7 +40,7 @@ test('a Forge profile gets its own token and the bot commit identity with the nu
 
 test('a gh profile keeps the user\'s own login: its token, no identity override, no bot lookup', async () => {
   const credentials = profileCredentials({
-    profiles,
+    profiles: () => profiles,
     mint: async (profile) => (profile.kind === 'gh' ? 'gho_mine' : 'unexpected'),
     botId: async () => Promise.reject(new Error('must not be asked')),
   });
@@ -48,7 +48,7 @@ test('a gh profile keeps the user\'s own login: its token, no identity override,
 });
 
 test('the token goes to the child environment and to nothing else of the command', async () => {
-  const credentials = profileCredentials({ profiles, mint: async () => 'ghs_SECRET', botId: async () => 7 });
+  const credentials = profileCredentials({ profiles: () => profiles, mint: async () => 'ghs_SECRET', botId: async () => 7 });
   const command = buildClaudeCommand(task('author'), { binary: '/real/claude', baseEnv: { PATH: '/bin' }, ...(await credentials(task('author'))) });
   expect(command.env).toMatchObject({
     GH_TOKEN: 'ghs_SECRET', GITHUB_TOKEN: 'ghs_SECRET',
@@ -59,7 +59,7 @@ test('the token goes to the child environment and to nothing else of the command
 });
 
 test('a Forge failure, an unknown profile or a bot lookup that fails is auth_failed for the runner, without starting the agent', async () => {
-  const failing = (mint: () => Promise<string>, botId = async () => 1) => new HostAgentRunner({ binaries: { claude: '/does/not/exist' }, credentials: profileCredentials({ profiles, mint, botId }) });
+  const failing = (mint: () => Promise<string>, botId = async () => 1) => new HostAgentRunner({ binaries: { claude: '/does/not/exist' }, credentials: profileCredentials({ profiles: () => profiles, mint, botId }) });
   for (const [runner, profile] of [
     [failing(async () => Promise.reject(new Error('could not mint a token for artanis-agent: Agent not found: artanis-agent'))), 'author'],
     [failing(async () => 'ghs_x'), 'ghost'],
@@ -71,6 +71,24 @@ test('a Forge failure, an unknown profile or a bot lookup that fails is auth_fai
     expect((await run.done).exit).toBe('auth_failed');
     expect(output.join('')).toContain(`no GitHub token for profile "${profile}"`);
   }
+});
+
+test('profiles that change between two calls: the second call mints and signs as the current profile, and a removed one is refused naming it', async () => {
+  let current: Record<string, GitHubProfile> = { author: { kind: 'forge', agent: 'artanis-agent' } };
+  const minted: string[] = [];
+  const credentials = profileCredentials({
+    profiles: () => current,
+    mint: async (profile) => (minted.push(profile.kind === 'forge' ? profile.agent : 'gh'), 'ghs_t'),
+    botId: async (agent) => ids[agent]!,
+  });
+  expect(await credentials(task('author'))).toMatchObject({ forgeAgent: 'artanis-agent', gitIdentity: { name: 'artanis-agent[bot]' } });
+
+  current = { author: { kind: 'forge', agent: 'tassadar-agent' } };
+  expect(await credentials(task('author'))).toMatchObject({ forgeAgent: 'tassadar-agent', gitIdentity: { name: 'tassadar-agent[bot]', email: '42+tassadar-agent[bot]@users.noreply.github.com' } });
+
+  current = {};
+  await expect(credentials(task('author'))).rejects.toThrow('profile "author" is not declared');
+  expect(minted).toEqual(['artanis-agent', 'tassadar-agent']);
 });
 
 test('botIdFromGitHub asks the public users endpoint with the token, once per agent, and rejects what is not an id', async () => {

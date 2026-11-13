@@ -33,3 +33,4 @@ A status that names a later record means that record changed part or all of this
 | 0023 | [The engine reloads its configuration on request, and running work keeps what it started with](0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md) | accepted |
 | 0024 | [The chat MCP lives in the chat host and is injected per session](0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md) | accepted |
 | 0025 | [Usage collection and serving run inside the chat host](0025-usage-runs-inside-the-chat-host.md) | accepted |
+| 0026 | [The embedded terminal runs in-process with GhosttyKit and restores layout across launches](0026-embedded-terminal-runs-in-process-with-ghosttykit.md) | accepted |

@@ -93,3 +93,12 @@ What the person sees: [dictation](../docs/macos/dictation.md).
 
 The logic is `CarrierCore/Dictation.swift` (the boundary and the registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the scripted recognizer and capture of `ScriptedDictation.swift`.
 `DictationController` holds the switch so both boxes read it.
+
+## Embedded terminal
+
+The embedded terminal UI chrome and triggers are deferred ([the spec](../docs/specs/embedded-terminal-core.md), [ADR 0026](../docs/adr/0026-embedded-terminal-runs-in-process-with-ghosttykit.md)).
+
+The pure domain model (`TerminalOwner`, `TerminalTab`, `TerminalPane`, `SplitNode`, `TerminalRegistry`, directory validation, URL policy), persistence (`TerminalWorkspaceFileStore` writing `<Carrier folder>/app/terminals.json`), settings (`TerminalSettings` on `AppPreferences.terminal`) and light/dark palette profiles (`terminalAppearanceProfile` in `Theme.swift`) live in `CarrierCore` (`TerminalCore.swift`, `TerminalPersistence.swift`, `TerminalSettings.swift`) and are tested in `TerminalCoreTests`.
+`Carrier/TerminalHost.swift` (`CarrierTerminalStore`, `GhosttyTerminalProcessInspector`) caches live `GhosttyKit` surfaces by `paneId`, hot-reloads settings and manages search, interrupts and process-alive close confirmation; `Carrier/CarrierTerminalView.swift` (`CarrierTerminalView`, `MountedTerminalSurface`) mounts each pane's surface and visibility token; both are tested in `CarrierTerminalStoreTests`.
+Session removal and app quit hooks live in `CarrierCore/ChatArchive.swift` (`SessionActions`), `Carrier/WindowController.swift` (`PanelModel`) and `Carrier/AppDelegate.swift` (`applicationShouldTerminate`, `applicationWillTerminate`), tested in `ChatSessionsTests` and `CarrierTerminalStoreTests`.
+`libghostty-spm` (`GhosttyTerminal`) is linked by the `Carrier` target only, and `build-app.sh` / `scripts/check-app.sh` copy and verify `GhosttyKit_GhosttyTerminal.bundle` and `THIRD-PARTY-NOTICES.md` (`ThirdPartyNoticesTests`).

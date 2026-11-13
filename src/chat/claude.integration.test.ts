@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { claudeChatRunner } from './claude.ts';
+import { claudeChatRunner, realClaudeDeps } from './claude.ts';
 import { realClock } from '../orchestration/clock.ts';
 import { McpSessionRegistry, startMcpServer } from './mcp.ts';
 import { capabilities } from './mcp/capabilities.ts';
@@ -127,11 +127,14 @@ describe.skipIf(!enabled)('the Claude chat adapter against the real Claude', () 
       sessions: { exists: () => true, live: () => true, snapshot: () => view, agents: () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }) },
     });
     const token = registry.issue({ sessionId: 's1', invocationId: 'i1' });
-    const own = await claudeChatRunner().open({ folder, command: process.env.CARRIER_IT_CLAUDE_COMMAND, options: { model: 'haiku', permissionMode: 'default' }, env: process.env, mcp: { serverName: 'carrier-chat', url: server.url, token } });
+    const argvs: string[] = [];
+    const runner = claudeChatRunner({ ...realClaudeDeps, spawn: (o) => (argvs.push(o.args.join(' ')), realClaudeDeps.spawn!(o)) });
+    const own = await runner.open({ folder, command: process.env.CARRIER_IT_CLAUDE_COMMAND, options: { model: 'haiku', permissionMode: 'default' }, env: process.env, mcp: { serverName: 'carrier-chat', url: server.url, token } });
     const events: ChatEvent[] = [];
     own.onEvent((event) => events.push(event));
     try {
       expect(own.mcpProblem).toBeUndefined();
+      expect(argvs.join(' ')).not.toContain(token); // the process list shows the name of the variable, never the token
       own.send('Call the capabilities tool of the carrier-chat MCP server once, then reply with just the folder it reports for the session.');
       await expect.poll(() => events.some((e) => e.kind === 'turn_end'), { timeout: 150_000, interval: 200 }).toBe(true);
       expect(events.some((e) => e.kind === 'approval')).toBe(false); // pre-approved

@@ -21,7 +21,7 @@ const MAX_BODY_BYTES = 1024 * 1024;
 
 // ---- tokens ----
 
-type McpToken = { sessionId: string; invocationId: string; capabilities: ReadonlySet<McpCapability>; issuedAt: number; lastAliveAt: number };
+type McpToken = { sessionId: string; invocationId: string; capabilities: ReadonlySet<McpCapability>; lastAliveAt: number };
 
 const hashOf = (rawToken: string) => createHash('sha256').update(rawToken).digest('hex');
 
@@ -37,7 +37,7 @@ export class McpSessionRegistry {
   issue(args: { sessionId: string; invocationId: string; capabilities?: McpCapability[] }): string {
     const rawToken = randomBytes(32).toString('base64url');
     const now = this.clock.now();
-    this.records.set(hashOf(rawToken), { sessionId: args.sessionId, invocationId: args.invocationId, capabilities: new Set(args.capabilities ?? ['read']), issuedAt: now, lastAliveAt: now });
+    this.records.set(hashOf(rawToken), { sessionId: args.sessionId, invocationId: args.invocationId, capabilities: new Set(args.capabilities ?? ['read']), lastAliveAt: now });
     return rawToken;
   }
 
@@ -76,17 +76,11 @@ export type McpTool<Input extends z.ZodType = z.ZodType> = {
   handler: (args: z.infer<Input>, ctx: McpInvocationContext) => Promise<unknown> | unknown;
 };
 
-const registered = new Map<string, McpTool>();
-
-/** The only way a tool exists: one without a valid access level, or with a name already taken, does not register. */
+/** The only way a tool exists: one without a valid access level does not. The host owns the list it serves, and the server refuses one that names a tool twice. */
 export function defineTool<Input extends z.ZodType>(tool: McpTool<Input>): McpTool<Input> {
   if (!accessLevels.includes(tool.access)) throw new Error(`Tool ${tool.name} declares no valid access level`);
-  if (registered.has(tool.name)) throw new Error(`Tool ${tool.name} is already registered`);
-  registered.set(tool.name, tool as McpTool);
   return tool;
 }
-
-export const registeredTools = (): McpTool[] => [...registered.values()];
 
 // ---- server ----
 
@@ -118,8 +112,9 @@ const rpcError = (id: string | number | null, code: number, message: string) => 
 const toolResult = (text: string, isError: boolean) => ({ content: [{ type: 'text', text }], isError });
 
 /** Loopback HTTP MCP server on `127.0.0.1`, an ephemeral port, `/mcp`. Every request needs the bearer token of a live conversation. */
-export async function startMcpServer(deps: { registry: McpSessionRegistry; sessions: McpSessions; tools?: McpTool[] }): Promise<McpServer> {
-  const tools = new Map((deps.tools ?? registeredTools()).map((tool) => [tool.name, tool]));
+export async function startMcpServer(deps: { registry: McpSessionRegistry; sessions: McpSessions; tools: McpTool[] }): Promise<McpServer> {
+  const tools = new Map(deps.tools.map((tool) => [tool.name, tool]));
+  if (tools.size !== deps.tools.length) throw new Error('A tool is listed twice');
 
   const send = (res: ServerResponse, status: number, body?: unknown, headers: Record<string, string> = {}) => {
     res.writeHead(status, body === undefined ? headers : { 'content-type': 'application/json', ...headers });

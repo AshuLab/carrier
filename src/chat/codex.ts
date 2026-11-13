@@ -161,7 +161,10 @@ class CodexConversation implements ChatConversation {
     const started = await this.request(resume === undefined ? 'thread/start' : 'thread/resume', resume === undefined ? params : { threadId: resume, ...params });
     this.nativeId = started.thread.id;
     // Codex says how the MCP started in a notification after thread/start, not in its reply: wait for it, a little, so that a failure is known when `open` returns.
-    if (mcp !== undefined) await Promise.race([settled, new Promise<void>((resolve) => setTimeout(resolve, deps.mcpWaitMs ?? 5000).unref())]);
+    if (mcp !== undefined) {
+      let timer: NodeJS.Timeout | undefined;
+      await Promise.race([settled, new Promise<void>((resolve) => (timer = setTimeout(resolve, deps.mcpWaitMs ?? 5000)))]).finally(() => clearTimeout(timer));
+    }
     this.model = this.chosen.model ?? started.model ?? '';
     this.effort = this.chosen.effort ?? started.reasoningEffort ?? '';
     if (this.chosen.effort) this.overrides.effort = this.chosen.effort; // a thread takes no effort: the first turn carries it
@@ -382,7 +385,7 @@ class CodexConversation implements ChatConversation {
         return typeof params?.delta === 'string' && params.delta !== '' ? [{ kind: 'delta', text: params.delta }] : [];
       case 'mcpServer/startupStatus/updated':
         if (this.mcpServerName !== undefined && params?.name === this.mcpServerName && (params.status === 'failed' || params.status === 'ready' || params.status === 'cancelled')) {
-          if (params.status === 'failed') this.mcpProblem = typeof params.error === 'string' && params.error !== '' ? params.error : 'it failed to start';
+          if (params.status !== 'ready') this.mcpProblem = typeof params.error === 'string' && params.error !== '' ? params.error : params.status === 'failed' ? 'it failed to start' : 'its start was cancelled';
           this.mcpSettled();
         }
         return [];

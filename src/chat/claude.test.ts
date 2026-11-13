@@ -326,11 +326,12 @@ test('an account\'s compaction and launch arguments reach the SDK as extraArgs, 
 
 const mcp = { serverName: 'carrier-chat', url: 'http://127.0.0.1:4000/mcp', token: 'tok-secret' };
 
-test('the chat MCP is handed to the SDK in memory with its tools pre-approved, on a fresh open and on a resume, and never in extraArgs', async () => {
+test('the chat MCP is handed to the SDK with its tools pre-approved, on a fresh open and on a resume; the token rides in the process environment, and neither extraArgs nor the mcpServers the SDK turns into argv hold it', async () => {
   for (const resume of [undefined, sessionId]) {
     const { query, seen } = replay([]);
-    const conversation = await claudeChatRunner(deps(query)).open({ folder: '/work', env: {}, mcp, ...(resume && { resume }) });
-    expect(seen.options.mcpServers).toEqual({ 'carrier-chat': { type: 'http', url: mcp.url, headers: { Authorization: 'Bearer tok-secret' } } });
+    const conversation = await claudeChatRunner(deps(query)).open({ folder: '/work', env: { PATH: '/bin' }, mcp, ...(resume && { resume }) });
+    expect(seen.options.mcpServers).toEqual({ 'carrier-chat': { type: 'http', url: mcp.url, headers: { Authorization: 'Bearer ${CARRIER_MCP_TOKEN}' } } });
+    expect(seen.options.env).toEqual({ PATH: '/bin', CARRIER_MCP_TOKEN: 'tok-secret' });
     expect(seen.options.allowedTools).toEqual(['mcp__carrier-chat__*']);
     expect(seen.options.resume).toBe(resume);
     expect(JSON.stringify(seen.options.extraArgs)).not.toContain('tok-secret');
@@ -342,6 +343,7 @@ test('without the chat MCP (a probe, or a host that could not bind it) the SDK g
   const { query, seen } = replay([]);
   await claudeChatRunner(deps(query)).open({ folder: '/work', env: {} });
   expect(seen.options).not.toHaveProperty('mcpServers');
+  expect(seen.options.env).not.toHaveProperty('CARRIER_MCP_TOKEN');
   expect(seen.options).not.toHaveProperty('allowedTools');
 });
 

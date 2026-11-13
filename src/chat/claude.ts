@@ -20,6 +20,8 @@ const PERMISSION_MODES = [
 ]; // `bypassPermissions` is left out: it needs a flag of its own and Carrier does not turn it on
 
 /** The statuses of an MCP server that cannot be used (`pending` is still connecting, and is not a failure). */
+/** The variable of the claude process that holds the chat MCP's token; the header of the injected server names it. */
+const MCP_TOKEN_ENV = 'CARRIER_MCP_TOKEN';
 const MCP_DOWN = ['failed', 'needs-auth', 'disabled', 'disconnected'];
 
 export type ClaudeChatDeps = {
@@ -140,7 +142,7 @@ class ClaudeConversation implements ChatConversation {
       prompt: this.input.iterable,
       options: {
         cwd: folder,
-        env,
+        env: mcp ? { ...env, [MCP_TOKEN_ENV]: mcp.token } : env,
         pathToClaudeCodeExecutable: binary,
         includePartialMessages: true,
         // by default Claude Code sends each thinking block with its text left out, so there is nothing to show; this asks for the summary
@@ -151,9 +153,9 @@ class ClaudeConversation implements ChatConversation {
         ...(this.chosen.permissionMode && { permissionMode: this.chosen.permissionMode as never }),
         ...(this.chosen.effort && { effort: this.chosen.effort as never }),
         ...(this.nativeId && { resume: this.nativeId }),
-        // The chat MCP is handed over in memory, never in `extraArgs` (they are `argv`) and never in a config file; its tools run without asking, as the chat host's own.
+        // The SDK writes `mcpServers` into the `argv` of the claude process, where any user of the machine can read it, so the header names the token and the token itself rides in that process's environment (Claude Code expands `${VAR}` in these headers). Never in `extraArgs`, never in a config file; its tools run without asking, as the chat host's own.
         ...(mcp && {
-          mcpServers: { [mcp.serverName]: { type: 'http' as const, url: mcp.url, headers: { Authorization: `Bearer ${mcp.token}` } } },
+          mcpServers: { [mcp.serverName]: { type: 'http' as const, url: mcp.url, headers: { Authorization: `Bearer \${${MCP_TOKEN_ENV}}` } } },
           allowedTools: [`mcp__${mcp.serverName}__*`],
         }),
       },

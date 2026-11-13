@@ -328,6 +328,7 @@ test('a startup failure of the chat MCP is its mcpProblem and open still succeed
     return [...main.slice(0, at + 1), { dir: 'in', method: 'mcpServer/startupStatus/updated', params: { name, status, error: status === 'failed' ? 'connection refused' : null } }, ...main.slice(at + 1)];
   };
   expect((await openWith(failing('carrier-chat', 'failed'), { mcp })).conversation.mcpProblem).toBe('connection refused');
+  expect((await openWith(failing('carrier-chat', 'cancelled'), { mcp })).conversation.mcpProblem).toBe('its start was cancelled');
   expect((await openWith(failing('carrier-chat', 'ready'), { mcp })).conversation.mcpProblem).toBeUndefined();
   expect((await openWith(failing('other', 'failed'), { mcp })).conversation.mcpProblem).toBeUndefined();
   // a Codex that never says how the MCP started does not hold the conversation: open waits for the bound and goes on

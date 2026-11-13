@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test } from 'vitest';
 import { z } from 'zod';
 import { FakeClock } from '../orchestration/fake.ts';
 import { capabilities } from './mcp/capabilities.ts';
-import { accessLevels, defineTool, McpSessionRegistry, registeredTools, startMcpServer, type McpServer } from './mcp.ts';
+import { defineTool, McpSessionRegistry, startMcpServer, type McpServer } from './mcp.ts';
 import { ChatRefused } from './runner.ts';
 
 const DAY = 24 * 60 * 60_000;
@@ -15,7 +15,6 @@ let existing: Set<string>;
 let liveOnes: Set<string>;
 let seen: { args: unknown; ctx: unknown }[];
 
-// names are unique per file: `defineTool` registers globally
 const echo = defineTool({
   name: 'test_echo',
   description: 'Reads, for any token',
@@ -91,7 +90,7 @@ test('the registry issues 32 random bytes as base64url and keeps only their hash
   const keys = [...(registry as any).records.keys()];
   expect(keys).toContain(createHash('sha256').update(a).digest('hex'));
   expect(JSON.stringify([...(registry as any).records.values()])).not.toContain(a);
-  expect(registry.lookup(a)).toMatchObject({ sessionId: 's1', invocationId: 'i1', capabilities: new Set(['read']), issuedAt: 0 });
+  expect(registry.lookup(a)).toMatchObject({ sessionId: 's1', invocationId: 'i1', capabilities: new Set(['read']) });
 });
 
 test('a token expires after 24 hours without activity and a valid lookup refreshes it', () => {
@@ -255,19 +254,15 @@ test('actsAsSession needs the act capability and a live session', async () => {
   expect((await call(token, 'test_change', {})).result).toMatchObject({ isError: true, content: [{ text: 'This session is not live' }] });
 });
 
-test('every registered tool declares a valid access level, and one that does not cannot register', () => {
-  expect(registeredTools().length).toBeGreaterThanOrEqual(tools.length);
-  for (const tool of registeredTools()) expect(accessLevels, tool.name).toContain(tool.access);
+test('a tool that declares no valid access level cannot be defined, and a server refuses a tool listed twice', async () => {
   const spec = { description: 'x', input: z.strictObject({}), handler: () => 1 };
   expect(() => defineTool({ name: 'test_no_access', ...spec } as any)).toThrow('no valid access level');
   expect(() => defineTool({ name: 'test_bad_access', access: 'writes', ...spec } as any)).toThrow('no valid access level');
-  expect(() => defineTool({ name: 'test_echo', access: 'reads', ...spec })).toThrow('already registered');
-  expect(registeredTools().map((t) => t.name)).not.toContain('test_no_access');
+  await expect(startMcpServer({ registry, sessions: {} as any, tools: [echo, echo] })).rejects.toThrow('listed twice');
 });
 
 test('capabilities is a readsAsSession tool that takes no arguments and answers what the session lends it', async () => {
   expect(capabilities).toMatchObject({ name: 'capabilities', access: 'readsAsSession' });
-  expect(registeredTools().map((t) => t.name)).toContain('capabilities');
   const view = { id: 's1', agent: 'a', harness: 'claude', folder: '/work', model: null, options: {} };
   const own = await startMcpServer({
     registry,

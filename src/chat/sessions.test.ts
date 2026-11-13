@@ -1793,6 +1793,24 @@ test('a preparation cancelled while its agent opens revokes the token of the con
   expect(s.claude.conversations[0]?.closed ?? true).toBe(true);
 });
 
+test('a resume whose session was deleted while it waited for the provider revokes its token, closes the agent and is refused', async () => {
+  const { registry, extra } = withMcp();
+  const s = setup(undefined, extra);
+  const { session } = await s.sessions.open({ agent: 'claude', folder: work });
+  await s.sessions.close({ sessionId: session.id });
+  const open = s.claude.open.bind(s.claude);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  s.claude.open = async (args) => (await gate, open(args));
+  const resuming = s.sessions.resume({ sessionId: session.id });
+  const refused = expect(resuming).rejects.toThrow('being deleted');
+  await s.sessions.delete({ sessionId: session.id }); // finishes before the provider answers: `deleting` is clear again
+  release();
+  await refused;
+  expect(tokensLive(registry)).toBe(0);
+  expect(s.claude.conversations.at(-1)!.closed).toBe(true);
+});
+
 test('agentOptions probes get no MCP and mint no token', async () => {
   const { registry, extra } = withMcp();
   const s = setup(undefined, extra);

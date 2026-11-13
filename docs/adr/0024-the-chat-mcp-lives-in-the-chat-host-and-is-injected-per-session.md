@@ -1,4 +1,4 @@
-# 0024 - The chat MCP lives in the chat host and is injected per session, never into the engine's agents
+# 0024 - The chat MCP lives in the chat host and is injected per session
 
 - Status: accepted
 - Date: 2026-11-12
@@ -13,7 +13,7 @@ The engine runs agents on epics unattended, for hours. An agent there that could
 
 The MCP server runs inside the chat host process, on loopback, and is part of the chat's state under `<folder>/chat/`. The engine has no code that starts it or hands it to an agent, and a test fails if any harness of the engine is given MCP configuration.
 
-It is injected when a real session opens or resumes and for that session only, under the server key `carrier-chat` through the options each harness takes in memory or over its stdio pipe (the SDK's query options for Claude, the `config` of `thread/start` and `thread/resume` for Codex), never in CLI `argv` and never written to the user's CLI configuration. Disposable option-listing probes get no MCP. Every real session has it; it is on by default, with no off switch in the first version.
+It is injected when a real session opens or resumes and for that session only, under the server key `carrier-chat` through what each harness takes without a file: for Claude the SDK's query options, where the header names an environment variable (`Authorization: Bearer ${CARRIER_MCP_TOKEN}`, which Claude Code expands) and the token itself rides in the environment of that one process, because the SDK writes `mcpServers` into the `argv` of the process, which any user of the machine can read; for Codex the `config` of `thread/start` and `thread/resume` over its stdio pipe. The token is never in CLI `argv` and never written to the user's CLI configuration. Never into the engine's agents. The MCP is verified on Codex 0.167.2 only: an older Codex that does not know `default_tools_approval_mode` is expected to ignore it, so its tools would ask or be refused under "Never ask", and the chat still opens. Disposable option-listing probes get no MCP. Every real session has it; it is on by default, with no off switch in the first version.
 
 Each live conversation has its own credential, random, kept hashed in memory and never stored, keyed to the conversation instance and its session so concurrent resumes or failed opens revoke cleanly, and revoked when the session closes. The tools of the MCP are grouped in toolkits and every tool declares an access level, enforced by the server before its handler runs. A tool without one does not register.
 

@@ -121,6 +121,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const deleting = new Set<string>();
   let clients = 0;
 
+  const exists = (sessionId: string) => db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, sessionId)).get() !== undefined;
   const row = (sessionId: string) => {
     const found = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
     if (found === undefined) throw new ChatRefused('There is no such session');
@@ -498,7 +499,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     /** What the chat MCP asks of the host. */
     mcpView: {
-      exists: (sessionId: string) => db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, sessionId)).get() !== undefined,
+      exists,
       live: (sessionId: string) => lives.has(sessionId),
       snapshot: (sessionId: string) => {
         const { id, agent, harness, folder, options: stored } = row(sessionId);
@@ -662,8 +663,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         await conversation.close();
         return { session: summary(row(sessionId)), options: lives.get(sessionId)!.conversation.options };
       }
-      if (deleting.has(sessionId)) {
-        // the session was deleted while this one waited for the provider: nothing may stay attached to its folder
+      if (deleting.has(sessionId) || !exists(sessionId)) {
+        // the session was deleted (or is being) while this one waited for the provider: nothing may stay attached to its folder
         revoke(issued.invocationId);
         await conversation.close();
         throw new ChatRefused('This session is being deleted');

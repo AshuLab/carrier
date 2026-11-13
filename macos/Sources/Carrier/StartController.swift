@@ -42,24 +42,6 @@ final class StartController: ObservableObject {
         }
     }
 
-    /// Stops the running Carrier, waits for its socket to go, starts it again. `done` is called on the main thread with whether
-    /// it came up; a failed start shows its own alert. The Behavior tab asks the person before it calls this.
-    func restart(done: @escaping (Bool) -> Void) {
-        NotificationWatcher.app.expectStop()
-        let path = controlSocketPath()
-        DispatchQueue.global().async {
-            do { try send(.stop, socketPath: path) } catch {
-                FileHandle.standardError.write(Data("carrier: restart: stop failed: \(error)\n".utf8))
-                DispatchQueue.main.async { done(false) }
-                return
-            }
-            // ponytail: polls the socket for 15 s, no signal from the engine that it is gone
-            let deadline = Date().addingTimeInterval(15)
-            while ControlClient.connect(path: path) != nil, Date() < deadline { Thread.sleep(forTimeInterval: 0.25) }
-            DispatchQueue.main.async { self.start(done: done) }
-        }
-    }
-
     /// For the self-test: what a press would do, without doing it (it would start the real Carrier).
     func selfTest(state: ConnectionState) -> String {
         let item = startMenuState(state: state, starting: starting, missing: missing, configExists: configExists)

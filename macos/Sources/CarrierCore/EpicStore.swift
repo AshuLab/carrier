@@ -8,6 +8,8 @@ import Observation
     public var folds = SessionFolds()
     /// Whether the engine's hello lists `resumeEpic`.
     public internal(set) var canResume = false
+    /// Whether the engine's hello lists `reload`: the settings pages then say Carrier applies a save to the next epic.
+    public internal(set) var canReload = false
     /// Whether the engine's hello lists `fileDiff`: without it the file rows do not open.
     public internal(set) var canOpenFiles = false
     /// The file rows opened in each epic's Files changed tab.
@@ -31,6 +33,7 @@ import Observation
                 DispatchQueue.main.async {
                     self?.canResume = capabilities.contains(.resumeEpic)
                     self?.canOpenFiles = capabilities.contains(.fileDiff)
+                    self?.canReload = capabilities.contains(.reload)
                 }
             },
             onUpdate: { [weak self] key, value in DispatchQueue.main.async { self?.data[key] = value } }

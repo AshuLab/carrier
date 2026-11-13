@@ -50,7 +50,7 @@ _Avoid_: implementer, developer.
 **Reviewer** - Agent that reviews the final PR in a separate checkout, publishes findings and verifies the fixes. Its GitHub profile differs from the author's, unless the user chose a shared identity.
 _Avoid_: external reviewer, review bot.
 
-**Carrier folder** - The one folder where Carrier keeps everything it owns: `~/.carrier/` by default, changed with `CARRIER_HOME`. It holds the engine's config (`config.json`) and one subfolder per process, each with its own state, logs and lock: `engine/` (with its `state/`, `logs/`, `repos/`, `worktrees/` and `reviews/`) and `chat/` (with its config `chat.json`, its `projects/` and its `worktrees/`). Solve never receives it ([0016](adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)). It is independent of where the app's code lives or from where it is started.
+**Carrier folder** - The one folder where Carrier keeps everything it owns: `~/.carrier/` by default, changed with `CARRIER_HOME`. It holds the engine's config (`config.json`) and one subfolder per process, each with its own state, logs and lock: `engine/` (with its `state/`, `logs/`, `repos/`, `worktrees/` and `reviews/`), `chat/` (with its config `chat.json`, its `projects/` and its `worktrees/`) and `app/` (the Mac app's, with `models/`, the speech models a person downloads, and `logs/`, with `dictation.log`). Solve never receives it ([0016](adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)). It is independent of where the app's code lives or from where it is started.
 _Avoid_: shared root, root, Carrier home (that is the app's page of the Carrier world), data folder, workspace (it is an epic's checkout, inside `engine/worktrees/`).
 
 **Config level** - One of the four places a setting lives, by who reads it: the engine's `config.json`, the chat's `chat/chat.json`, the app's preferences (user defaults, read only by the app) and `providers.json`, the accounts that the engine and the chat host both read ([0020](adr/0020-accounts-live-in-a-file-both-processes-read.md)). A setting lives in one level and no process reads another's, except the accounts. The chat host starts with neither `chat.json` nor `providers.json`; the engine needs its own `config.json`.
@@ -193,6 +193,9 @@ _Avoid_: fallback, automatic retry (an execution retry repeats the same provider
 **Role** - One of the three jobs of an epic: Author, Reviewer and Lead reviewer (optional). Each has a GitHub identity, an account, a model, an effort and an optional persona, and its own failover chain. There are no others and the user cannot make more; the same role can differ for one repo.
 _Avoid_: agent (the AI that runs a role; and in Agent Forge, a bot), persona (a role's name and prompt, not the role).
 
+**Reload** - The engine reading `config.json` and `providers.json` again while it runs, when the app or `carrier reload` asks, and applying them if they are valid; if not, it keeps what it has and says why. What is running keeps what it started with (an agent run its agent and timeout, an epic the configuration it stored) and what starts later uses the new settings.
+_Avoid_: restart (Carrier keeps running and nothing is interrupted), refresh, hot reload.
+
 **Homebrew tap** - Our repository of Homebrew recipes, `AshuLab/homebrew-tap`: the formula `carrier` (the engine and the chat host, from the npm package) and the cask `carrier` (the app). A person installs with `brew install ashulab/tap/carrier`. Homebrew loads a tap's code only once it is trusted, and the full name trusts just that item ([0017](adr/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)).
 _Avoid_: repo (it is not where the code lives), registry, package (the npm package is what the formula installs).
 
@@ -217,7 +220,7 @@ _Avoid_: setup (that is a repository's own scripts, out of scope), provisioning,
 **Session lifecycle** - The life of a user session: created by its first message, worked in, then archived or deleted by the person or by the clock. A session idle for 15 days is archived and an archived one idle for 30 days is deleted, both from its last activity and both configurable in `chat.json`; a delete by the clock spares a session with unsaved work ([0019](adr/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md)).
 _Avoid_: expiry, retention, auto-clean.
 
-**Settings group** - One heading of the Settings rail, by what its pages configure: App (how the app looks and behaves on this Mac: the app's preferences, a config level), Carrier (the engine, its `config.json`) and Chat (the chat host, its `chat.json`). App has no heading in the rail and comes first; Carrier and Chat have theirs. A page belongs to one group, and the group says where its settings live without the page naming a file.
+**Settings group** - One heading of the Settings rail, by what its pages configure: App (how the app looks and behaves on this Mac: the app's preferences, a config level, and what both processes share, the accounts of `providers.json`), Chat (the chat host, its `chat.json`) and Carrier (the engine, its `config.json`). App has no heading in the rail and comes first; Chat and Carrier have theirs, in that order. A page belongs to one group, and the group says where its settings live without the page naming a file.
 _Avoid_: tab (a page is a row of the rail, not a tab), section (that is a part of a page, or a sidebar section), category.
 
 **Legacy group** - The Settings group that holds the pages that existed before the groups (Engine, Sessions, Health; Behavior has moved to the Carrier group) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
@@ -234,3 +237,15 @@ _Avoid_: permission (that is the harness's own, asked of the person), scope, rol
 
 **MCP token** - The random secret that identifies one session to the chat MCP and carries its capabilities. It is kept hashed and only in memory, and ends when the session closes or sits idle.
 _Avoid_: session id (that is the session's own), API key, login.
+
+**Dictation** - Speaking to write: the app listens through the microphone and puts the recognized text where the person is typing. The first cut starts from a button in the chat composer and fills that field; a shortcut and typing into other apps come after, on the same core.
+_Avoid_: voice input, transcription (a recording turned into text afterwards), speech-to-text (that is what a recognizer does).
+
+**Recognizer** - The piece of software that turns audio into text, each with its own list of speech models: Apple's SpeechAnalyzer, FluidAudio (Parakeet, Nemotron) and Whisper. A person picks a recognizer and then one of its models. It runs inside the app, not in the engine.
+_Avoid_: engine (that is Carrier's orchestrator, and the app has an Engine page), backend, provider (that is who serves an agent's model), ASR or STT engine.
+
+**Speech model** - What a recognizer runs, taken from one fixed list in the app: its name, recognizer, size, languages, how it gives partial text and its licence. It is downloaded by the person from the app, never bundled with it and never fetched from a free URL; Apple's are managed by the system.
+_Avoid_: model alone (that is the language model an account's agent uses), voice, checkpoint.
+
+**Partial text** - What a dictation shows while the person is still speaking, before it is final. A recognizer gives it natively, or the core makes it by transcribing the audio so far at short intervals when the model is fast enough, or there is none and the text arrives when the person stops.
+_Avoid_: live transcription, preview, interim result.

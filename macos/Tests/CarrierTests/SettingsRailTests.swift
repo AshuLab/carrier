@@ -7,7 +7,10 @@ import Testing
 @Test @MainActor func theRailDrawsTheAppGroupWithNoHeadingThenCarrierThenLegacyWithTheirHeadings() {
     let sections = SettingsRail.sections
     #expect(sections.map(\.group.heading) == [nil, "Carrier", "Legacy"])
-    #expect(sections[0].pages == [.general, .notifications, .appearance, .sidebar, .chat, .keybindings, .updates])
+    // Dictation is in the App group right after Chat, whatever else the group holds
+    let app = sections[0].pages
+    #expect(app.first == .general && app.last == .updates)
+    #expect(app.firstIndex(of: .dictation) == app.firstIndex(of: .chat).map { $0 + 1 })
     #expect(sections[1].pages == [.providers, .repos, .agents, .behavior])
     #expect(sections[2].pages == [.engine, .sessions, .health])
     // and the view is built from them

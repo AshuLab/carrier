@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { acquireLock } from '../storage/lock.ts';
 import type { EpicReply, EventsReply, FileDiffReply, FilesReply } from './replies.ts';
+import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
 import { socketPathFits, startControlServer } from './server.ts';
 
@@ -30,7 +31,7 @@ const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
 function fakeControls() {
   const state = { paused: false, polls: 0, repoPages: [] as number[] };
   const logs = vi.fn((id: string, count: number) => (id === executionId ? ['one', 'two', 'three'].slice(-count) : []));
-  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve() } };
+  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve(), reload: () => {} } };
 }
 
 const stop = async () => {};
@@ -75,7 +76,7 @@ async function client() {
 test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
   await open();
   const c = await client();
-  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic'] });
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'reload'] });
   expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
   expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
 });
@@ -280,6 +281,36 @@ test('resumeEpic that fails for any other reason is an "internal error" without 
   expect(reply).toEqual({ id: 2, ok: false, error: 'internal error' });
   expect(JSON.stringify(reply)).not.toContain('ghp_secret');
   expect(await c.ask('{"id":3,"cmd":"snapshot"}')).toMatchObject({ id: 3, ok: true });
+});
+
+test('reload asks the engine to reload and answers ok', async () => {
+  const reload = vi.fn();
+  await open(undefined, { ...fakeControls().controls, reload });
+  expect(await (await client()).ask('{"id":4,"cmd":"reload"}')).toEqual({ id: 4, ok: true });
+  expect(reload).toHaveBeenCalledTimes(1);
+});
+
+test('reload refused is the problem in the reply, as the lines a start would print', async () => {
+  const problem = 'Invalid config /c/config.json:\n  limits.maxReviews: Too small';
+  await open(undefined, { ...fakeControls().controls, reload: () => { throw new ReloadRefused(problem); } });
+  expect(await (await client()).ask('{"id":4,"cmd":"reload"}')).toEqual({ id: 4, ok: false, error: problem });
+});
+
+test('reload that fails for any other reason is an "internal error" without the reason, and the server goes on', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  await open(undefined, { ...fakeControls().controls, reload: () => { throw new Error('token ghp_secret'); } });
+  const c = await client();
+  const reply = await c.ask('{"id":2,"cmd":"reload"}');
+  expect(reply).toEqual({ id: 2, ok: false, error: 'internal error' });
+  expect(JSON.stringify(reply)).not.toContain('ghp_secret');
+  expect(await c.ask('{"id":3,"cmd":"snapshot"}')).toMatchObject({ id: 3, ok: true });
+});
+
+test('reload with any field is refused as an invalid request, without reaching the engine', async () => {
+  const reload = vi.fn();
+  await open(undefined, { ...fakeControls().controls, reload });
+  expect(await (await client()).ask('{"id":4,"cmd":"reload","file":"x"}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  expect(reload).not.toHaveBeenCalled();
 });
 
 test('the hello no longer lists agentOptions and chooseOptions is refused as an invalid request, without reaching the engine', async () => {

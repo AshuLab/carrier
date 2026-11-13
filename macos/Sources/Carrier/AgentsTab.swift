@@ -27,6 +27,7 @@ struct AgentsTabView: View {
             if let page {
                 flow(page)
                 if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
+                ReloadNote().padding(.horizontal, 4)
                 if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
                 if let note = page.bots.note { Text(note).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
             } else {
@@ -52,28 +53,28 @@ struct AgentsTabView: View {
 
     /// Writes the change, then reads the file back so the page shows what is there, whether it was saved or refused.
     private func save(_ change: RoleChange, role: AgentRole, page: AgentsPage) -> RoleSave {
-        if role == .leadReviewer, turningOnLead { return fillLead(change, page: page) }
-        let result = saveGlobalRole(change, role: role, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
-        let reason: String?
-        switch result {
-        case .saved: reason = nil
-        case .refused(let why), .failed(let why): reason = why
-        }
+        save([change], role: role, page: page)
+    }
+
+    /// Several changes of one pick are one write and one ask of the engine.
+    private func save(_ changes: [RoleChange], role: AgentRole, page: AgentsPage) -> RoleSave {
+        if role == .leadReviewer, turningOnLead { return fillLead(changes, page: page) }
+        let result = saveGlobalRole(changes, role: role, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
         load()
-        problem = reason
+        problem = result.problem
         return result
     }
 
     /// The Details and failover cards write through here (`saveGlobalPersona`, `saveGlobalFailover`; tested in `RoleDetailsSaveTests`), then read the file back.
     private func saveDetails(_ result: RoleSave) -> Bool {
         load()
-        if case .refused(let why) = result { problem = why } else if case .failed(let why) = result { problem = why }
+        problem = result.problem
         return result == .saved
     }
 
     /// A choice for the role being turned on: kept in the draft, and written only when identity, provider and model are all there.
-    private func fillLead(_ change: RoleChange, page: AgentsPage) -> RoleSave {
-        leadDraft.apply(change)
+    private func fillLead(_ changes: [RoleChange], page: AgentsPage) -> RoleSave {
+        changes.forEach { leadDraft.apply($0) }
         guard leadDraft.isComplete else { return .saved }
         let result = turnLeadReviewerOn(leadDraft, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
         if result == .saved {
@@ -81,7 +82,7 @@ struct AgentsTabView: View {
             leadDraft = LeadReviewerDraft()
         }
         load()
-        if case .refused(let why) = result { problem = why } else if case .failed(let why) = result { problem = why }
+        problem = result.problem
         return result
     }
 
@@ -96,7 +97,7 @@ struct AgentsTabView: View {
             turningOnLead = false
             let result = turnLeadReviewerOff(path: configFilePath())
             load()
-            if case .refused(let why) = result { problem = why } else if case .failed(let why) = result { problem = why }
+            problem = result.problem
         }
     }
 
@@ -172,15 +173,15 @@ struct AgentsTabView: View {
                         ) { pick in
                             switch pick {
                             case .account(let account, let model):
-                                // the model belongs to the account's provider: they are written one after the other, the provider first
-                                if account != row.fields.provider { _ = save(.provider(account), role: row.role, page: page) }
-                                if let model { _ = save(.model(model), role: row.role, page: page) }
+                                // the model belongs to the account's provider: written together, in one save
+                                let changes = (account != row.fields.provider ? [RoleChange.provider(account)] : []) + (model.map { [RoleChange.model($0)] } ?? [])
+                                if changes.isEmpty == false { _ = save(changes, role: row.role, page: page) }
                             case .effort(let level): _ = save(.effort(level.isEmpty ? nil : level), role: row.role, page: page)
                             case .none, .inherit: break
                             }
                         }
                     }
-                    if let problem { Text(problem).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
+                    if let problem { ProblemLine(text: problem, font: .caption).textSelection(.enabled).padding(.vertical, 8) }
                 }
                 SettingsGroup(title: "Details") {
                     SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {

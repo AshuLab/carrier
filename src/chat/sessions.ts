@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, isNotNull, ne } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
-import { chatAccount, readAccounts } from './account.ts';
+import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
 import type { ChatAgent, ChatSettings } from './config.ts';
 import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
@@ -65,8 +65,8 @@ type Live = {
 
 export type ChatSessionsDeps = {
   db: ChatDb;
-  /** The agents a chat can start with, in the order `chat.json` lists them. */
-  agents: ChatAgent[];
+  /** The agents a chat can start with, in the order `chat.json` lists them, or the accounts of `providers.json`. */
+  agents: ChatAgents;
   clock: Clock;
   /** The runner of each harness; a harness with none cannot be opened. */
   runners: Partial<Record<Harness, ChatRunner>>;
@@ -111,6 +111,7 @@ export function binaryFound(command: string): boolean {
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
 export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, onLiveChange, mcp }: ChatSessionsDeps) {
+  const listed = () => (typeof agents === 'function' ? agents() : agents);
   const health = createHealth({ agents, clock, binaryFound, probes });
   const providers = createProviders({ clock, machine, binaryFound });
   const lives = new Map<string, Live>();
@@ -451,7 +452,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
   /** What a plan needs to run, refusing in words one that cannot. A project's or a repository's folder is the one it will be made or cloned at. */
   const targetOf = (plan: Plan) => {
-    const chosen = agents.find((candidate) => candidate.name === plan.agent);
+    const chosen = listed().find((candidate) => candidate.name === plan.agent);
     if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${plan.agent}"`);
     return { launch: launchOf(chosen), folder: plan.workspace.kind === 'project' ? projectFolder(plan.workspace.name) : plan.workspace.kind === 'repo' ? projects.repoFolder(plan.workspace.repo) : checkFolder(plan.workspace.folder, carrierHome()) };
   };
@@ -468,7 +469,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   /** Each agent with its account's harness and whether that account's binary is found; one whose account is missing or Antigravity's is not found, and `unknown` for its harness when it has none. */
   const listAgents = () => {
     const providers = readAccounts();
-    return agents.map((chosen) => {
+    return listed().map((chosen) => {
       try {
         const { harness, command } = chatAccount(providers, chosen);
         return { name: chosen.name, harness, model: chosen.model, found: binaryFound(command ?? harness) };
@@ -522,7 +523,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     },
 
     async open({ agent, folder, options, worktree }: { agent: string; folder: string; options?: Record<string, string>; worktree?: { from: string; name?: string } }) {
-      const chosen = agents.find((candidate) => candidate.name === agent);
+      const chosen = listed().find((candidate) => candidate.name === agent);
       if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
       const real = checkFolder(folder, carrierHome());
       const launch = launchOf(chosen);
@@ -613,7 +614,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
      * nobody's, reads what it lists and ends it. Kept ten minutes, and a failure is not kept.
      */
     async agentOptions({ agent }: { agent: string }) {
-      const chosen = agents.find((candidate) => candidate.name === agent);
+      const chosen = listed().find((candidate) => candidate.name === agent);
       if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
       const launch = launchOf(chosen);
       const known = offered.get(agent);
@@ -642,7 +643,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const present = lives.get(sessionId);
       if (present !== undefined) return { session: summary(current), options: present.conversation.options };
       if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
-      const chosen = agents.find((candidate) => candidate.name === current.agent);
+      const chosen = listed().find((candidate) => candidate.name === current.agent);
       if (chosen === undefined) throw new ChatRefused(`The agent "${current.agent}" of this session is not configured any more`);
       const launch = launchOf(chosen);
       const folder = checkFolder(current.folder, carrierHome());

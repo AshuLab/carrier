@@ -71,14 +71,14 @@ extension RoleRow {
 }
 
 /// Turns the Lead reviewer on with a complete `draft`; an incomplete one is refused before the file is read.
-public func turnLeadReviewerOn(_ draft: LeadReviewerDraft, path: String, accounts: [String], bots: [String]) -> RoleSave {
+public func turnLeadReviewerOn(_ draft: LeadReviewerDraft, path: String, accounts: [String], bots: [String], reload: AfterWrite = reloadInBackground) -> RoleSave {
     guard draft.isComplete else { return .refused("The lead reviewer needs \(draft.missing.joined(separator: ", ")).") }
-    return saveGlobalRole(draft.changes, role: .leadReviewer, path: path, accounts: accounts, bots: bots, creating: true)
+    return saveGlobalRole(draft.changes, role: .leadReviewer, path: path, accounts: accounts, bots: bots, creating: true, reload: reload)
 }
 
 /// Turns the Lead reviewer off: removes `agents.leadReviewer` and `failover.roles.leadReviewer` from the file at `path`, read just now, and keeps
 /// every other key. A file that already has neither is left as it is.
-public func turnLeadReviewerOff(path: String) -> RoleSave {
+public func turnLeadReviewerOff(path: String, reload: AfterWrite = reloadInBackground) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), var file = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any] else {
         return .failed("The config file could not be read.")
@@ -98,7 +98,7 @@ public func turnLeadReviewerOff(path: String) -> RoleSave {
     do {
         let updated = try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         try updated.write(to: url, options: .atomic)
-        return .saved
+        return written(reload)
     } catch {
         FileHandle.standardError.write(Data("carrier: saving \(path) failed: \(error)\n".utf8))
         return .failed("Could not save the config file: \(error.localizedDescription)")

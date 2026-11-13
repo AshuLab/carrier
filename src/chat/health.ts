@@ -3,7 +3,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { cliLoggedIn } from '../doctor/doctor.ts';
 import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
-import { chatAccount, readAccounts } from './account.ts';
+import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
 import type { ChatAgent } from './config.ts';
 
 const log = createScopedLogger('chat');
@@ -52,7 +52,7 @@ export async function gitState({ binaryFound, probes }: { binaryFound: (command:
 }
 
 /** The health of what the chat needs, kept for thirty seconds unless a refresh is asked; the probes of one request run in parallel. */
-export function createHealth({ agents, clock, binaryFound, probes }: { agents: ChatAgent[]; clock: Clock; binaryFound: (command: string) => boolean; probes: HealthProbes }) {
+export function createHealth({ agents, clock, binaryFound, probes }: { agents: ChatAgents; clock: Clock; binaryFound: (command: string) => boolean; probes: HealthProbes }) {
   // A probe that fails, or does not answer in time, is `unknown`: the race holds even for a probe that ignores its own timeout.
   const limited = (probe: () => Promise<ToolState>) =>
     new Promise<ToolState>((resolve) => {
@@ -73,9 +73,10 @@ export function createHealth({ agents, clock, binaryFound, probes }: { agents: C
   };
   const agent = async ({ harness, command, configDir }: NonNullable<ReturnType<typeof accountOf>>) => (binaryFound(command ?? harness) ? signedIn(probes.loggedIn(harness, { configDir, command }, PROBE_LIMIT_MS)) : 'missing');
   const probe = async (): Promise<Health> => {
-    const accounts = agents.map(accountOf);
+    const listed = typeof agents === 'function' ? agents() : agents;
+    const accounts = listed.map(accountOf);
     const [git, ghState, ...states] = await Promise.all([limited(() => gitState({ binaryFound, probes })), limited(gh), ...accounts.map((account) => (account === undefined ? 'unknown' : limited(() => agent(account))))]);
-    return { git, gh: ghState, agents: agents.map(({ name }, index) => ({ name, harness: accounts[index]?.harness ?? 'unknown', state: states[index]! })) };
+    return { git, gh: ghState, agents: listed.map(({ name }, index) => ({ name, harness: accounts[index]?.harness ?? 'unknown', state: states[index]! })) };
   };
 
   let kept: { at: number; health: Promise<Health> } | undefined;

@@ -136,7 +136,7 @@ public protocol NotificationCentre {
 public final class NotificationWatcher {
     private let centre: NotificationCentre
     private let now: () -> Date
-    /// Until when a stop is the app's own (Stop in the menu, the restart of a Settings tab); nil when none was asked for.
+    /// Until when a stop is the app's own (Stop in the menu, the start of the chat host); nil when none was asked for.
     private var expectedStopUntil: Date?
     /// Read on every snapshot, so a switch takes effect at once. An epic that changed while its switch was off is not notified
     /// when the switch goes on: the snapshot is remembered either way.

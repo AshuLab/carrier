@@ -15,6 +15,13 @@ public struct PickerAccount: Equatable, Identifiable {
     /// signed in and found: the others are shown only when a role already names them
     public var ready: Bool
     public var id: String { name }
+
+    public init(name: String, harness: String, icon: String, ready: Bool) {
+        self.name = name
+        self.harness = harness
+        self.icon = icon
+        self.ready = ready
+    }
 }
 
 /// The accounts to offer: the ones `providers` says are ready, and `current` when a role already names it, even when it cannot work now (it
@@ -74,7 +81,7 @@ public func parseAgyModels(_ output: String) -> [ModelOption] {
 public struct AgyFamily: Equatable, Identifiable {
     public var id: String
     public var label: String
-    /// the levels the family has, in the order `agy models` printed them
+    /// the levels the family has, lowest to highest (`agy models` prints them in any order, and the slider reads left to right)
     public var levels: [String]
 }
 
@@ -84,7 +91,7 @@ public func splitAgyID(_ id: String) -> (family: String, level: String?) {
     return (id, nil)
 }
 
-/// The families of the models `parseAgyModels` read, in the order they first appear.
+/// The families of the models `parseAgyModels` read, in the order they first appear, each with its levels from low to high.
 public func agyFamilies(_ models: [ModelOption]) -> [AgyFamily] {
     var families: [AgyFamily] = []
     for model in models {
@@ -98,7 +105,12 @@ public func agyFamilies(_ models: [ModelOption]) -> [AgyFamily] {
             families.append(AgyFamily(id: family, label: label, levels: level.map { [$0] } ?? []))
         }
     }
-    return families
+    // the slider runs low to high whatever order `agy models` printed them in
+    return families.map { family in
+        var sorted = family
+        sorted.levels.sort { (roleEfforts.firstIndex(of: $0) ?? 0) < (roleEfforts.firstIndex(of: $1) ?? 0) }
+        return sorted
+    }
 }
 
 /// The id to write for a family: at the level the role had when the family has it, else the middle one, else the first; a family with no levels is

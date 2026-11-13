@@ -9,13 +9,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - The agent of a chat session can reach back into Carrier: the chat host serves an MCP of its own (`carrier-chat`, loopback only, on by default) to the Claude and Codex agents of its sessions, each with a token that stops working when the session closes, and its first tool, `capabilities`, tells the agent which session it is in, which agents are configured and ready, and whether `git` and `gh` work. The agents of an epic never see it.
+
+## [0.4.0] - 2026-11-13
+
+Settings apply without a restart, the message box dictates, and a role's model is chosen in the chat's own panel; new sessions start with the provider, model, reasoning and access set in Settings > Chat, and the chat offers every account of `providers.json`.
+
+### Added
+
+- Settings > Chat has a New sessions group that chooses the provider, model and reasoning a new session opens with, in the same panel as the message box; with none chosen it takes the first provider that can work and that provider's own model and level. It also chooses what the agent may do (its access), as far as the provider lists it. The message box still changes all of it for one session.
+- Dictation: a microphone icon in the message box listens and writes what you say at the caret, in a lighter colour while it is still a guess, with a line round the box that moves with your voice; a typed key or Enter stops it and keeps the text, Escape cancels it and keeps what was already on the screen, Tab leaves the box for the microphone, a partial is underlined as well as tinted, minimizing the window stops it, and VoiceOver announces each state. Settings > Dictation chooses the model (Apple's recognizer, which needs no download; Parakeet, Nemotron and the other FluidAudio models; Whisper through WhisperKit) and the language, and downloads, cancels and deletes the models, which live under `~/.carrier/app/models` and are never bundled with the app (the licences of what is linked do ship, in the app's `Resources/Licenses`). The only permission it asks for is the microphone's. Parakeet TDT v3 shows words while you speak; the models that cannot keep up say "When you stop" and show the text at the end.
 - Settings > Agents chooses a role's model in a panel, as the chat's message box does, and nobody types a model name any more: the providers that can work as tabs (a signed-out one is left out unless the role already uses it), a search over their models (a name the list lacks can be used as typed), the reasoning slider, and a note that a role has full access because epics run on their own. The steps of "When it runs out of tokens" use the same panel, with "Default model" as the first choice and, for the second step, "No second step". A role's list on the left shows the provider's mark, the model and the reasoning.
 - A step of a role's failover can name its own `effort` (`{ "provider": "codex", "model": "gpt-5", "effort": "low" }`); without it the step keeps the effort the role was running with, as before. Settings > Agents sets it from the same panel as the model.
 - The dialog that adds repos from GitHub has filters (all, private, public; one owner; hide the ones already watched) and a search with a magnifying glass.
 - `docs/macos-ui.md` is the guide to how the Mac app is drawn: the buttons, the line between rows, fields, selects, rows that open a form, lists, menus and empty states, with the mistakes already made. `AGENTS.md` points to it.
+- `carrier reload` (and a `reload` request on the control socket) makes a running Carrier read `config.json` and `providers.json` again and run on them without a restart; it prints "Reloaded", or the problem with the key named and exit 1 when a file is wrong, and then changes nothing. Running work keeps what it started with; a repo removed from the config parks its epics and stops its runs, and adding it back resumes them ([configuration](docs/configuration.md#changing-the-config-while-carrier-runs)).
+- The Mac app asks a running Carrier to reload after every save of `config.json` or `providers.json`, and shows what Carrier answers where the page shows a failure to save; with Carrier stopped it says nothing, and with one too old to reload it says quietly that Carrier will read it when it starts.
 
 ### Changed
 
+- Settings rail: Providers moves up to the first group, with General, because the engine and the chat both use its accounts; Chat, Sidebar and Dictation get a Chat group of their own; Carrier keeps Repos, Agents and Behavior.
 - Settings pages share one design. Selects are the Mac's own pop-up in the neutral colour and not the violet menu; text fields have a quiet fill and the theme's accent as their ring; the line between two rows is lighter; buttons that do something have an icon (Save, Cancel, Remove, Add, Reset, Check again, Open on GitHub, Send a test and the others); a row that opens an editor shows a chevron and opens when clicked anywhere on it (Providers' accounts, Repos' roles). Settings closes with an ✕ at the top right, or Esc: the Done button and the foot are gone.
 - Providers: empty states for a tool that is not installed or a server that is not running; the editor of an account has more room between its fields, and Auto-compact after is a choice (Use default, auto, 100,000 to 1,000,000 tokens) in place of a text.
 - Repos: a role shows the mark of its provider and its settings with a label on each (Identity, Account, Model, Effort); Defaults is an item of its own under the roles; Add repo is the last row of the list; the cards of Ready for Carrier turn a spinner each while the doctor runs, and the note under them is gone; the form of a role chooses its provider, model and reasoning from the same panel as Agents ("Same as everywhere" is its first choice), and it, the search and the dialog that adds repos use the new fields and rows; the menu of a repo and the buttons over its page have icons.
@@ -25,9 +37,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings' Behavior page moves from the Legacy group to the Carrier group, after Agents, and its line under the title reads "How Carrier runs epics"; Legacy keeps Engine, Sessions and Health.
 - Settings' Behavior page regroups its eight values by the question each answers: Pace, When something goes wrong and Housekeeping, with new titles and descriptions; the values, their rules and what is written to `config.json` do not change.
 - Settings' Behavior page ends with a Reset group, a card "Restore the defaults" with a Reset button that puts the eight values back to the engine's defaults, in place of the "Reset to defaults" button of its footer; the page's header says "Saved" beside the title when a value is written, and a failed save or an unreadable file shows its message there, in orange; the standing note "Saved as you change them · Carrier reads these when it starts" is gone.
+- Settings notes say whether a change is applied now, waits for the next start (Carrier stopped or too old to reload) or was refused, and the last answer stays on the page when you leave it and come back.
 
 ### Fixed
 
+- The chat offers every account of `providers.json` but Antigravity's as a provider, so a second Claude login is there to start a session on; before, only `claude` and `codex` were, unless `chat.json` listed more. An `agents` key in `chat.json` still says exactly which.
+- Antigravity's Reasoning slider runs from Low to High, left to right; it followed the order `agy models` printed the levels in, which put High first.
+- A repo that GitHub refuses (a mistyped name, no access) no longer stops Carrier from polling the other repos; its error shows in its own check.
+- A long message in the header of a Settings page goes under the title when it does not fit, and VoiceOver reads it.
 - Settings > Providers opens with the tools already listed, since the Mac is looked at when the app opens and not when the page does.
 - The row "Tool output" in Settings > Chat was missing its line, and the pop-ups of a row switched off (Quiet hours, From and Until) did not look off.
 - A chat session whose Claude conversation is gone from Claude Code's own folder (so it answered "Claude could not resume that conversation" on every try) now opens a new conversation in the same folder, with a plain line in the history saying that the agent does not remember what came before (the banner of a failed turn is for failures).
@@ -147,7 +164,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/AshuLab/carrier/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/AshuLab/carrier/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AshuLab/carrier/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/AshuLab/carrier/compare/v0.1.3...v0.1.4

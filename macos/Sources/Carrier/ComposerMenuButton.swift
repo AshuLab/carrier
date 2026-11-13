@@ -194,7 +194,7 @@ private let panelWidth: CGFloat = 380
 let panelMargin: CGFloat = 18
 
 /// Green for the careful end of a scale, orange in the middle, red for the free end.
-private func riskColor(_ index: Int, _ count: Int) -> Color {
+func riskColor(_ index: Int, _ count: Int) -> Color {
     let t = count < 2 ? 0 : Double(index) / Double(count - 1)
     return t < 0.34 ? .green : t < 0.67 ? .orange : .red
 }
@@ -272,7 +272,7 @@ struct ScaleRow: View {
 
 /// An option with two values as a switch at the right of its row: on is the freer one, named as the row; the line under it says what the
 /// current value lets it do.
-private struct SwitchRow: View {
+struct SwitchRow: View {
     let scale: OptionScale
     let commit: (Int) -> Void
     @State private var pending: Int?

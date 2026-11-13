@@ -19,7 +19,7 @@ A project comes from a folder the person picks, from a GitHub URL (`owner/repo` 
 
 The GitHub login is the person's own: the account that is active in `gh` when they pick. The chat host uses it to list and to clone, never the engine's profile, and the token goes to git in the environment and not in argv, as the engine does. When `gh` is missing or not signed in, the draft says so in words.
 
-The chat has a list of its own. The engine config's `repos` are not offered as workspaces. Carrier watching a repository is a separate choice, offered when a project comes from GitHub and on by default: choosing it adds `{ "name": "owner/repo" }` to the engine config's `repos`, and the engine, which reads the config when it starts, begins to listen from its next start with a clone and worktrees of its own.
+The chat has a list of its own. The engine config's `repos` are not offered as workspaces. Carrier watching a repository is a separate choice, offered when a project comes from GitHub and on by default: choosing it adds `{ "name": "owner/repo" }` to the engine config's `repos`, and the engine begins to listen with a clone and worktrees of its own: at once if it lists `reload`, else from its next start ([ADR 0023](0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)).
 
 ## Alternatives considered
 
@@ -41,6 +41,6 @@ Disk use grows with what the person brings in, in a folder they can see and clea
 
 The chat can open a repository the person can only read: an agent can change the local clone and the person cannot push it. That is the person's call, as it is with any folder.
 
-Choosing to watch a repository changes the engine's config file and takes effect at the engine's next start; the app says so and does not restart anything on its own.
+Choosing to watch a repository changes the engine's config file and takes effect when the engine next reads its config: at once if it lists `reload`, else at its next start ([ADR 0023](0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)); the app says which and does not restart anything on its own.
 
 The chat needs `gh` on the machine and signed in for anything from GitHub; a folder the person picks does not.

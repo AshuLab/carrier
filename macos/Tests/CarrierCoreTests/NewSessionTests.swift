@@ -655,11 +655,11 @@ private func projectsRoot(_ names: [String]) throws -> String {
     }
 }
 
-@MainActor private func popover(_ host: FakeChat, projects: String = "/nowhere", config: FakeConfig? = nil) async -> NewSessionModel {
+@MainActor private func popover(_ host: FakeChat, projects: String = "/nowhere", config: FakeConfig? = nil, reload: @escaping Reload = { .applied }) async -> NewSessionModel {
     let config = config ?? FakeConfig()
     let model = NewSessionModel(
         host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, watchEvery: .milliseconds(5), projectsFolder: { projects },
-        readConfig: { config.json }, writeConfig: { try config.write($0) }
+        readConfig: { config.json }, writeConfig: { try config.write($0) }, reload: reload
     )
     await model.load()
     return model
@@ -988,17 +988,17 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
 }
 
 /// A draft that chose `repo`, wrote its first message and sent it: the session `opened` exists and the repository waits for its `message` step.
-@MainActor private func sentForRepo(_ host: FakeChat, config: FakeConfig, repo: String = "AshuLab/carrier") async -> NewSessionModel {
+@MainActor private func sentForRepo(_ host: FakeChat, config: FakeConfig, repo: String = "AshuLab/carrier", reload: @escaping Reload = { .applied }) async -> NewSessionModel {
     host.branchesOf[repo] = RepoBranches(defaultBranch: "main", branches: ["main"])
     host.active = [listed(opened, "running")]
-    let model = await popover(host, config: config)
+    let model = await popover(host, config: config, reload: reload)
     await model.choose(repo: repo)
     model.text = "hello"
     #expect(await model.send() == opened)
     return model
 }
 
-@MainActor @Test func theRepositoryIsAddedToTheConfigOnlyOnceTheMessageStepIsDoneKeepingEverythingElseAndSaysItListensFromTheNextStart() async throws {
+@MainActor @Test func theRepositoryIsAddedToTheConfigOnlyOnceTheMessageStepIsDoneKeepingEverythingElseAndSaysCarrierAppliesItToTheNextEpic() async throws {
     let config = FakeConfig("""
     {"note": "kept", "limits": {"maxReviews": 7}, "repos": [{"name": "acme/web", "agents": {"author": {"profile": "p"}}}]}
     """)
@@ -1018,11 +1018,59 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     let repos = try #require(file["repos"] as? [[String: Any]])
     #expect(repos.map { $0["name"] as? String } == ["acme/web", "AshuLab/carrier"] && repos[0]["agents"] != nil && repos[1].keys.sorted() == ["name"])
     #expect(file["note"] as? String == "kept" && (file["limits"] as? [String: Any])?["maxReviews"] as? Int == 7)
-    #expect(model.watchNotes[opened] == WatchNote(text: "Carrier will listen to AshuLab/carrier from its next start.", failed: false))
+    await settle { model.watchNotes[opened] != nil }
+    #expect(model.watchNotes[opened] == WatchNote(text: "Carrier applies AshuLab/carrier to the next epic", failed: false))
     // once: looking again changes nothing
     await model.settleWatches()
     try await Task.sleep(for: .milliseconds(30))
     #expect(config.writes == 1 && host.clones.isEmpty)
+}
+
+@MainActor @Test func theEngineIsAskedToReloadAfterTheRepositoryIsWrittenAndNeverWhenItWasNot() async throws {
+    let config = FakeConfig()
+    var asked: [Data?] = []
+    let host = FakeChat()
+    let model = await sentForRepo(host, config: config, reload: { asked.append(config.json); return .applied })
+    host.active = [listed(opened, "failed")]
+    await model.settleWatches()
+    #expect(asked.isEmpty)
+    host.active = [listed(opened, "answered")]
+    await settle { asked.count == 1 }
+    #expect(config.writes == 1 && asked.count == 1 && asked[0] == config.json)
+    // a config that cannot be written: nothing was written, nothing is asked
+    let stuck = FakeConfig()
+    stuck.unwritable = true
+    var askedAgain = 0
+    let other = FakeChat()
+    let blocked = await sentForRepo(other, config: stuck, reload: { askedAgain += 1; return .applied })
+    other.active = [listed(opened, "answered")]
+    await settle { blocked.watchNotes[opened] != nil }
+    #expect(blocked.watchNotes[opened]?.failed == true && askedAgain == 0)
+}
+
+@MainActor @Test func aRepositoryTheEngineRefusedToApplyIsInTheListAndTheNoteSaysWhatTheEngineAnswered() async {
+    let config = FakeConfig()
+    let host = FakeChat()
+    let model = await sentForRepo(host, config: config, reload: { .refused("repos.1.name: bad") })
+    host.active = [listed(opened, "answered")]
+    await settle { model.watchNotes[opened] != nil }
+    #expect(configRepoNames(json: config.json ?? Data()) == ["acme/web", "AshuLab/carrier"])
+    #expect(model.watchNotes[opened] == WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier kept its settings: repos.1.name: bad", failed: true))
+}
+
+@MainActor @Test func withNoEngineToAskTheNoteSaysItIsReadAtStartAndWithOneThatDidNotAnswerItSaysSo() async {
+    for (outcome, note) in [
+        (ReloadOutcome.nobody, WatchNote(text: "Carrier reads AshuLab/carrier when it starts", failed: false)),
+        (.unsupported, WatchNote(text: "Carrier reads AshuLab/carrier when it starts", failed: false)),
+        (.noAnswer, WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier did not answer: it may not have applied it.", failed: true)),
+    ] {
+        let config = FakeConfig()
+        let host = FakeChat()
+        let model = await sentForRepo(host, config: config, reload: { outcome })
+        host.active = [listed(opened, "answered")]
+        await settle { model.watchNotes[opened] != nil }
+        #expect(configRepoNames(json: config.json ?? Data()) == ["acme/web", "AshuLab/carrier"] && model.watchNotes[opened] == note)
+    }
 }
 
 @MainActor @Test func aPreparationThatFailedAndThenWorksAfterTryAgainAddsTheRepositoryThen() async {
@@ -1109,7 +1157,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     host.projects = { projectsFolder(chatJSON: chat.json, carrierFolder: "/Users/x/.carrier", home: NSHomeDirectory()) }
     let model = NewSessionModel(
         host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: host.projects,
-        readConfig: { engine.json }, writeConfig: { try engine.write($0) },
+        readConfig: { engine.json }, writeConfig: { try engine.write($0) }, reload: { .applied },
         readChatConfig: { chat.json }, writeChatConfig: { try chat.write($0) }, carrierFolder: "/Users/x/.carrier"
     )
     await model.load()
@@ -1134,7 +1182,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     return NewSessionModel(
         host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in },
         projectsFolder: { projectsFolder(chatJSON: chat.json, carrierFolder: folder, home: NSHomeDirectory()) },
-        readConfig: { engine.json }, writeConfig: { try engine.write($0) },
+        readConfig: { engine.json }, writeConfig: { try engine.write($0) }, reload: { .applied },
         readChatConfig: { chat.json }, writeChatConfig: { try chat.write($0) }, carrierFolder: folder
     )
 }
@@ -1602,3 +1650,57 @@ private func tempFile() -> URL { FileManager.default.temporaryDirectory.appendin
     #expect(Set(host.optionAsks) == ["claude", "codex"] && store.offer("codex") == offer("gpt") && store.offer("gone") == nil)
 }
 
+
+// MARK: what Settings > Chat says a new session opens with
+
+@MainActor private func draft(_ host: FakeChat, starting start: NewSessionStart) async -> NewSessionModel {
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, start: { start })
+    await model.load()
+    return model
+}
+
+@MainActor @Test func aNewDraftOpensOnTheProviderSettingsNamesWhenItCanWorkElseOnTheFirstThatCan() async {
+    let host = FakeChat()
+    host.agents = [ChatAgent(name: "codex", harness: "codex", found: true), ChatAgent(name: "claude", harness: "claude", found: true)]
+    #expect(await draft(host).agent == "codex")
+    #expect(await draft(host, starting: NewSessionStart(agent: "claude")).agent == "claude")
+    // one that is gone or cannot work is not taken
+    #expect(await draft(host, starting: NewSessionStart(agent: "gone")).agent == "codex")
+    host.agents = [ChatAgent(name: "codex", harness: "codex", found: false), ChatAgent(name: "claude", harness: "claude", found: true)]
+    #expect(await draft(host, starting: NewSessionStart(agent: "codex")).agent == "claude")
+}
+
+@MainActor @Test func theModelAndReasoningSettingsNamesGoToItsProviderAsFarAsItListsThem() async {
+    let host = FakeChat()
+    host.offered["claude"] = claudeOptions
+    let model = await draft(host, starting: NewSessionStart(agent: "claude", model: "haiku", effort: "max"))
+    await model.loadOptions()
+    // the model is listed and taken; "max" is not listed and is left out
+    #expect(model.chosenOptions == ["model": "haiku"])
+    // a provider that is not the named one starts from its own values
+    let other = await draft(host, starting: NewSessionStart(agent: "codex", model: "haiku", effort: "low"))
+    await other.loadOptions()
+    #expect(other.agent == "claude" && other.chosenOptions.isEmpty)
+}
+
+private let accessOptions = claudeOptions + [
+    ChatOption(id: "permissionMode", label: "Permission mode", values: [.init(id: "default", label: "Ask"), .init(id: "acceptEdits", label: "Accept edits")], current: "default"),
+]
+
+@MainActor @Test func theAccessSettingsNamesGoToAnyProviderThatListsItAndNothingElse() async {
+    let host = FakeChat()
+    host.offered["claude"] = accessOptions
+    let model = await draft(host, starting: NewSessionStart(access: ["permissionMode": "acceptEdits", "sandbox": "read-only"]))
+    await model.loadOptions()
+    #expect(model.agent == "claude" && model.chosenOptions == ["permissionMode": "acceptEdits"])
+    // the model of the named provider and the access come together
+    let both = await draft(host, starting: NewSessionStart(agent: "claude", model: "haiku", access: ["permissionMode": "acceptEdits"]))
+    await both.loadOptions()
+    #expect(both.chosenOptions == ["model": "haiku", "permissionMode": "acceptEdits"])
+}
+
+@Test func theAccessIsKeptAsJSONAndABadOneReadsAsNone() {
+    let access = ["permissionMode": "acceptEdits", "sandbox": "read-only"]
+    #expect(NewSessionStart.access(fromJSON: NewSessionStart.json(fromAccess: access)) == access)
+    #expect(NewSessionStart.access(fromJSON: "").isEmpty && NewSessionStart.access(fromJSON: "[1]").isEmpty)
+}

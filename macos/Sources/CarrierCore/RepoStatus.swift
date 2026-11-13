@@ -1,10 +1,8 @@
 import Foundation
 
 /// The Status card of a repo's page, from the list's row: what the running engine knows of it, where Carrier's clone is and the repo
-/// on GitHub. A repo the engine has not loaded, and every repo while Carrier is stopped, has no epics and no last check, only a note.
+/// on GitHub. A repo the engine has not loaded, and every repo while Carrier is stopped, has no epics and no last check, only a note (`notLoaded`, from `settingsNote`).
 public struct RepoStatus: Equatable {
-    public static let notLoaded = "Carrier reads it when it starts"
-
     /// "None ready · 1 running"; nil when the engine does not know the repo
     public var epics: String?
     /// "Checked 2m ago", or the engine's error; nil when the engine does not know the repo
@@ -20,11 +18,11 @@ public struct RepoStatus: Equatable {
     public var gitHubURL: URL?
 }
 
-public func repoStatus(_ row: RepoRow, engine: String, home: String = NSHomeDirectory(), cloneExists: Bool) -> RepoStatus {
+public func repoStatus(_ row: RepoRow, engine: String, home: String = NSHomeDirectory(), cloneExists: Bool, notLoaded: String) -> RepoStatus {
     let path = row.clonePath(engine: engine)
     var status = RepoStatus(clone: tildePath(path, home: home), clonePath: path, canRevealClone: cloneExists, gitHubURL: row.gitHubURL)
     guard row.isLoaded, let epics = row.epics else {
-        status.note = RepoStatus.notLoaded
+        status.note = notLoaded
         return status
     }
     status.epics = [epics.queued > 0 ? "\(epics.queued) ready" : "None ready", epics.running > 0 ? "\(epics.running) running" : "none running"]

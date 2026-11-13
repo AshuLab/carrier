@@ -49,20 +49,36 @@ terms; Carrier always points the SDK at the user's own `claude` binary and does 
 The Carrier app (`macos/Package.swift`, the `Carrier` target only) links the Swift package
 [FluidAudio](https://github.com/FluidInference/FluidAudio), pinned to 0.18.3, to run the Parakeet and Nemotron speech
 models on Core ML for dictation. Copyright the FluidInference authors, under the Apache License 2.0 (its `LICENSE` names
-no individual holder; the text is at <https://www.apache.org/licenses/LICENSE-2.0>). Carrier does not modify it. The
-speech models are not part of the app: a person downloads them from inside it.
+no individual holder). Carrier does not modify it. The speech models are not part of the app: a person downloads them
+from inside it.
+
+FluidAudio is linked statically with works of its own that come with their own terms, and so the app carries FluidAudio's
+`ThirdPartyLicenses` folder whole:
+
+- `text-processing-rs` (`NemoTextProcessing`), a prebuilt library of FluidInference under the Apache License 2.0. It
+  includes NVIDIA NeMo Text Processing (Apache-2.0), `rustfst` and `flate2` (MIT or Apache-2.0) and other permissive Rust
+  crates; its notice is `NemoTextProcessing-LICENSE.md`.
+- `fastcluster` (`FastClusterWrapper`), by Daniel Muellner and Google Inc., under the BSD licence, which asks that a binary
+  distribution reproduce its copyright notice, conditions and disclaimer: `fastcluster-LICENSE.md`.
+- The rest of that folder (VBx, the text frontends of the Kokoro and LuxTTS voices) is not used by dictation and comes with
+  the library.
+
+The texts of FluidAudio and of what it carries ship inside the app, in `Contents/Resources/Licenses/FluidAudio`.
 
 ## WhisperKit
 
 The Carrier app (`macos/Package.swift`, the `Carrier` target only) links `WhisperKit`, a library of the Swift package
 [argmax-oss-swift](https://github.com/argmaxinc/argmax-oss-swift), pinned to 1.1.1, to run the Whisper speech models on
 Core ML for dictation. Copyright (c) 2024 argmax, inc., under the MIT licence. Carrier does not modify it. The speech
-models are not part of the app: a person downloads them from inside it.
+models are not part of the app: a person downloads them from inside it. Its `LICENSE` and `NOTICES` ship inside the app, in
+`Contents/Resources/Licenses/argmax-oss-swift`.
 
 Part of the package is derived from the [swift-transformers](https://github.com/huggingface/swift-transformers) project
 of Hugging Face (Copyright 2022 Hugging Face SAS) and is distributed under the Apache License 2.0, as modified by Argmax,
-Inc. (<https://www.apache.org/licenses/LICENSE-2.0>); the package's own notice for it is
-[`NOTICES`](https://github.com/argmaxinc/argmax-oss-swift/blob/v1.1.1/NOTICES).
+Inc. (<https://www.apache.org/licenses/LICENSE-2.0>); the package's own notice for it, with the full text of the Apache
+License, is its [`NOTICES`](https://github.com/argmaxinc/argmax-oss-swift/blob/v1.1.1/NOTICES), the file that ships.
+
+This file ships inside the app as well, in `Contents/Resources/Licenses/THIRD-PARTY-NOTICES.md`.
 
 ## Speech models
 

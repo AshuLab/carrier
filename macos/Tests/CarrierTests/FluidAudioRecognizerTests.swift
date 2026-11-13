@@ -61,6 +61,15 @@ private let parakeet = model("parakeet-tdt-v3")
     #expect(ModelHub.offlineMode)
 }
 
+@Test func onlyALostConnectionIsToldAsNoConnectionAndABadResponseKeepsItsDescription() {
+    #expect(FluidAudioDownloader.failure(URLError(.notConnectedToInternet)) == .noConnection)
+    #expect(FluidAudioDownloader.failure(DownloadError.downloadFailed(path: "x", underlying: URLError(.timedOut))) == .noConnection)
+    #expect(FluidAudioDownloader.failure(URLError(.badServerResponse)) == nil)
+    #expect(FluidAudioDownloader.failure(DownloadError.downloadFailed(path: "x", underlying: URLError(.fileDoesNotExist))) == nil)
+    #expect(FluidAudioDownloader.failure(DownloadError.invalidArtifact(path: "x", reason: "size")) == .didNotCheck)
+    #expect(FluidAudioDownloader.failure(CocoaError(.fileWriteOutOfSpace)) == .noSpace)
+}
+
 /// CARRIER_IT_DICTATION names a folder that holds the models, as the app keeps them: `<folder>/fluidaudio/<model>/<repository>`.
 private func modelsRoot(for model: SpeechModel) throws -> URL {
     let root = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["CARRIER_IT_DICTATION"]))

@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - "macos/**"
+      - "THIRD-PARTY-NOTICES.md"
       - ".github/workflows/macos-app.yml"
 
 jobs:

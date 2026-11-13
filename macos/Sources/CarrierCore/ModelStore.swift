@@ -2,8 +2,8 @@ import Foundation
 import Observation
 
 // The speech models a person has on disk (docs/specs/dictation-in-the-app.md, stories 9 and 10): their states, the download with its progress,
-// the cancel, the retry and the delete, behind a downloader port. The real downloaders arrive with their recognizers; a fixture build
-// uses `FixtureModelDownloader`.
+// the cancel, the retry and the delete, behind a downloader port. The real downloaders belong to their recognizers (FluidAudio and WhisperKit);
+// a fixture build uses `FixtureModelDownloader`.
 
 /// Why a download failed, in words for the person: what they caused or can fix, not a bug.
 public enum ModelDownloadFailure: Error, Equatable, Sendable {
@@ -14,6 +14,17 @@ public enum ModelDownloadFailure: Error, Equatable, Sendable {
         case .noConnection: "No connection"
         case .noSpace: "No space on the disk"
         case .didNotCheck: "The file did not check"
+        }
+    }
+
+    /// What a failure of the network or the disk tells the person, as the table has it: only the causes that are theirs to fix. A bad response or
+    /// a 404 is not "No connection"; nil for those and for anything else, which is told with its description.
+    public init?(_ error: Error) {
+        switch error {
+        case let error as URLError where [.notConnectedToInternet, .networkConnectionLost, .timedOut].contains(error.code): self = .noConnection
+        case let error as CocoaError where error.code == .fileWriteOutOfSpace: self = .noSpace
+        case let error as POSIXError where error.code == .ENOSPC: self = .noSpace
+        default: return nil
         }
     }
 }
@@ -42,18 +53,23 @@ public enum ModelState: Equatable, Sendable {
     /// The size of the files under `root`.
     public private(set) var usedBytes: Int64 = 0
     private var inFlight: [String: ModelState] = [:]
-    private var onDisk: Set<String> = []
+    /// Bumped when the disk changes under a model (a download ends, a delete): the marker is read at each `state(of:)`, so a model that
+    /// registers late is still seen as downloaded, and this is what makes a view that reads the state ask again.
+    private var revision = 0
     @ObservationIgnored private var tasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private let models: @MainActor () -> [SpeechModel]
     @ObservationIgnored private let downloader: any ModelDownloader
     @ObservationIgnored private let inUse: @MainActor () -> String?
     @ObservationIgnored private let log: @MainActor (DictationFailure) -> Void
     @ObservationIgnored private let announce: @MainActor (String) -> Void
+    @ObservationIgnored private let freeSpace: @MainActor (URL) -> Int64?
 
     /// `models` is the list on offer (it may grow as recognizers register), `inUse` the id of the model dictation uses, which has no delete.
+    /// `freeSpace` is what the volume of the folder has free; nil (unknown) does not stop a download.
     public init(
         root: URL, models: @escaping @MainActor () -> [SpeechModel], downloader: any ModelDownloader, inUse: @escaping @MainActor () -> String?,
-        log: @escaping @MainActor (DictationFailure) -> Void = { _ in }, announce: @escaping @MainActor (String) -> Void = { _ in }
+        log: @escaping @MainActor (DictationFailure) -> Void = { _ in }, announce: @escaping @MainActor (String) -> Void = { _ in },
+        freeSpace: @escaping @MainActor (URL) -> Int64? = ModelStore.availableBytes
     ) {
         self.root = root
         self.models = models
@@ -61,6 +77,7 @@ public enum ModelState: Equatable, Sendable {
         self.inUse = inUse
         self.log = log
         self.announce = announce
+        self.freeSpace = freeSpace
         removePartials()
         refresh()
     }
@@ -74,17 +91,25 @@ public enum ModelState: Equatable, Sendable {
         return root.appending(path: model.recognizer.rawValue.lowercased()).appending(path: name)
     }
 
+    /// A folder with its marker is downloaded, whatever else is known: the disk is the authority, so a model that was on it before the store
+    /// knew the recognizer is never offered for download over its own files.
     public func state(of model: SpeechModel) -> ModelState {
-        guard model.bytes != nil else { return .downloaded }
-        return inFlight[model.id] ?? (onDisk.contains(model.id) ? .downloaded : .notDownloaded)
+        _ = revision
+        guard model.bytes != nil, hasMarker(model) == false else { return .downloaded }
+        return inFlight[model.id] ?? .notDownloaded
     }
 
     /// Starts the download of a listed model that is not downloaded (a failed one is tried again): only the person's action calls this.
     public func download(_ id: String) {
-        guard let model = models().first(where: { $0.id == id }), model.bytes != nil else { return }
+        guard let model = models().first(where: { $0.id == id }), let bytes = model.bytes else { return }
         switch state(of: model) {
         case .notDownloaded, .failed: break
         case .downloading, .downloaded: return
+        }
+        // ponytail: each download is checked alone; downloads that run in parallel are not summed, the first to find the disk full fails with this
+        if let free = freeSpace(root), free < bytes {
+            fail(model, ModelDownloadFailure.noSpace.cause)
+            return
         }
         inFlight[id] = .downloading(0)
         tasks[id] = Task { await run(model) }
@@ -122,17 +147,32 @@ public enum ModelState: Equatable, Sendable {
             inFlight[model.id] = nil
             announce("Downloaded \(model.name)")
         } catch {
-            try? FileManager.default.removeItem(at: folder)
+            // a folder that holds the marker is a model that is there: whatever this run did, it never removes one
+            if hasMarker(model) == false { try? FileManager.default.removeItem(at: folder) }
             if Task.isCancelled || error is CancellationError {
                 inFlight[model.id] = nil
             } else {
-                let cause = (error as? ModelDownloadFailure)?.cause ?? "Download failed: \(error.localizedDescription)"
-                inFlight[model.id] = .failed(cause)
-                log(DictationFailure("Downloading \(model.name) failed: \(cause)"))
+                fail(model, (error as? ModelDownloadFailure)?.cause ?? "Download failed: \(error.localizedDescription)")
             }
         }
         tasks[model.id] = nil
         refresh()
+    }
+
+    private func fail(_ model: SpeechModel, _ cause: String) {
+        inFlight[model.id] = .failed(cause)
+        log(DictationFailure("Downloading \(model.name) failed: \(cause)"))
+    }
+
+    private func hasMarker(_ model: SpeechModel) -> Bool {
+        FileManager.default.fileExists(atPath: folder(for: model).appending(path: Self.marker).path)
+    }
+
+    /// What the volume that holds `url` has free for the person's use, from the nearest folder that exists.
+    public nonisolated static func availableBytes(at url: URL) -> Int64? {
+        var folder = url
+        while FileManager.default.fileExists(atPath: folder.path) == false, folder.pathComponents.count > 1 { folder = folder.deletingLastPathComponent() }
+        return (try? folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage
     }
 
     private func progressed(_ id: String, _ fraction: Double) {
@@ -152,7 +192,7 @@ public enum ModelState: Equatable, Sendable {
 
     private func refresh() {
         let fileManager = FileManager.default
-        onDisk = Set(models().filter { fileManager.fileExists(atPath: folder(for: $0).appending(path: Self.marker).path) }.map(\.id))
+        revision += 1
         let files = fileManager.enumerator(at: root, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey])
         usedBytes = (files?.allObjects as? [URL] ?? []).reduce(0) { total, file in
             let values = try? file.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])

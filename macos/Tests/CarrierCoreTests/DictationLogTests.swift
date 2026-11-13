@@ -32,3 +32,21 @@ private struct NoInput: Error, LocalizedError { var errorDescription: String? { 
     log.append(DictationFailure("second\nline"))
     #expect(try String(contentsOfFile: log.path, encoding: .utf8).split(separator: "\n").count == 2)
 }
+
+@Test func theHomeFolderIsWrittenAsATildeAndTheFileIsCappedWithOneBackup() throws {
+    let folder = NSTemporaryDirectory() + "carrier-dictation-log-\(UUID().uuidString)"
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let log = DictationLog(carrierFolder: folder, home: "/Users/someone", limit: 200)
+    log.append(DictationFailure("Tiny could not be loaded from /Users/someone/.carrier/app/models/whisper/tiny (missing)"))
+    var text = try String(contentsOfFile: log.path, encoding: .utf8)
+    #expect(text.contains("someone") == false)
+    #expect(text.contains("~/.carrier/app/models/whisper/tiny"))
+
+    for number in 0..<10 { log.append(DictationFailure("failure number \(number) with some more words to fill the file up")) }
+    text = try String(contentsOfFile: log.path, encoding: .utf8)
+    let backup = try String(contentsOfFile: log.path + ".1", encoding: .utf8)
+    #expect(text.utf8.count < 400)
+    #expect(backup.utf8.count >= 200)
+    #expect(text.contains("failure number 9"))
+    #expect(FileManager.default.fileExists(atPath: log.path + ".2") == false)
+}

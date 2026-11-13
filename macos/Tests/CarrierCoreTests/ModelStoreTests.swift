@@ -50,9 +50,13 @@ private func temporaryRoot() throws -> URL {
 }
 
 @MainActor private func store(
-    _ root: URL, _ script: Script, holds: Bool = true, inUse: String? = nil, log: @escaping @MainActor (DictationFailure) -> Void = { _ in }
+    _ root: URL, _ script: Script, holds: Bool = true, inUse: String? = nil, log: @escaping @MainActor (DictationFailure) -> Void = { _ in },
+    freeSpace: @escaping @MainActor (URL) -> Int64? = { _ in nil }
 ) -> ModelStore {
-    ModelStore(root: root, models: { [apple, parakeet, tiny] }, downloader: FakeDownloader(script: script, holds: holds), inUse: { inUse }, log: log)
+    ModelStore(
+        root: root, models: { [apple, parakeet, tiny] }, downloader: FakeDownloader(script: script, holds: holds), inUse: { inUse }, log: log,
+        freeSpace: freeSpace
+    )
 }
 
 private func filesUnder(_ root: URL) -> [String] {
@@ -210,4 +214,76 @@ func aFailureSaysItsCauseAndLeavesNothingBehind(failure: ModelDownloadFailure) a
     #expect(store.state(of: failing) == .failed("No connection"))
     #expect(store.state(of: working) == .downloaded)
     #expect(store.usedBytes == (working.bytes ?? 0) / 1000)
+}
+
+/// The app makes the store before FluidAudio and Whisper register, so a model that is already on disk joins the list after the store looked.
+@MainActor @Test func aModelOnDiskThatJoinsTheListLaterIsDownloadedAndNeverDownloadedOverItself() async throws {
+    let root = try temporaryRoot()
+    let first = store(root, Script([.succeeds]), holds: false)
+    first.download(parakeet.id)
+    await first.settled()
+
+    var listed: [SpeechModel] = []
+    let script = Script([.fails(DictationFailure("boom"))])
+    let late = ModelStore(root: root, models: { listed }, downloader: FakeDownloader(script: script, holds: false), inUse: { nil })
+    listed = [apple, parakeet, tiny]
+    #expect(late.state(of: parakeet) == .downloaded)
+    #expect(late.usedBytes == 1_500)
+    late.download(parakeet.id)
+    await late.settled()
+    #expect(late.state(of: parakeet) == .downloaded)
+    #expect(await script.ends.count == 1, "the downloader was not called")
+    #expect(filesUnder(root) == ["fluidaudio/parakeet/complete", "fluidaudio/parakeet/tokenizer.json", "fluidaudio/parakeet/weights.bin"])
+    #expect(late.delete(parakeet.id))
+}
+
+@MainActor @Test func aFailedOrCancelledRunNeverRemovesAFolderThatHoldsTheMarker() async throws {
+    for failing in [true, false] {
+        let root = try temporaryRoot()
+        let script = Script([.fails(DictationFailure("boom"))])
+        let store = store(root, script)
+        store.download(parakeet.id)
+        await waitForProgress(store, parakeet)
+        // another copy of the app finished the same model while this one ran
+        try Data().write(to: store.folder(for: parakeet).appending(path: ModelStore.marker))
+        if failing { await script.release() } else { store.cancel(parakeet.id) }
+        await store.settled()
+        #expect(filesUnder(root).contains("fluidaudio/parakeet/complete"))
+        #expect(store.state(of: parakeet) == .downloaded)
+    }
+}
+
+@MainActor @Test func aDownloadThatDoesNotFitFailsWithNoSpaceAndStartsNothing() async throws {
+    let root = try temporaryRoot()
+    var logged: [String] = []
+    let script = Script([.succeeds])
+    let tight = store(root, script, log: { logged.append($0.cause) }, freeSpace: { _ in parakeet.bytes! - 1 })
+    tight.download(parakeet.id)
+    await tight.settled()
+    #expect(tight.state(of: parakeet) == .failed("No space on the disk"))
+    #expect(logged == ["Downloading fluidaudio.parakeet failed: No space on the disk"])
+    #expect(await script.ends.count == 1)
+    #expect(filesUnder(root).isEmpty)
+
+    let fits = store(root, Script([.succeeds]), holds: false, freeSpace: { _ in parakeet.bytes! })
+    fits.download(parakeet.id)
+    await fits.settled()
+    #expect(fits.state(of: parakeet) == .downloaded)
+}
+
+@Test func onlyTheCausesThePersonCanFixAreToldAsTheirOwn() {
+    #expect(ModelDownloadFailure(URLError(.notConnectedToInternet)) == .noConnection)
+    #expect(ModelDownloadFailure(URLError(.networkConnectionLost)) == .noConnection)
+    #expect(ModelDownloadFailure(URLError(.timedOut)) == .noConnection)
+    #expect(ModelDownloadFailure(URLError(.badServerResponse)) == nil)
+    #expect(ModelDownloadFailure(URLError(.fileDoesNotExist)) == nil)
+    #expect(ModelDownloadFailure(URLError(.cancelled)) == nil)
+    #expect(ModelDownloadFailure(CocoaError(.fileWriteOutOfSpace)) == .noSpace)
+    #expect(ModelDownloadFailure(POSIXError(.ENOSPC)) == .noSpace)
+    #expect(ModelDownloadFailure(DictationFailure("boom")) == nil)
+}
+
+@Test func theFreeSpaceIsReadFromTheNearestFolderThatExists() throws {
+    let missing = FileManager.default.temporaryDirectory.appending(path: "carrier-nothing-\(UUID().uuidString)/app/models")
+    #expect(try #require(ModelStore.availableBytes(at: missing)) > 0)
 }

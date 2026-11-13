@@ -35,6 +35,25 @@ private func model(_ name: String) -> SpeechModel { WhisperKitRecognizer.entries
     #expect(WhisperKitRecognizer.tokenizerFiles(entry, in: folder).path == folder.path + "/models/openai/whisper-large-v3")
 }
 
+/// The library fetches a tokenizer from the Hub when its own load of the local one fails, so a damaged one is caught before it: no model in the
+/// folder, so any load of the kit would fail some other way, and nothing is written, so nothing was fetched.
+@Test func aDamagedTokenizerFailsWithItsCauseBeforeTheLibraryCouldFetchAnother() async throws {
+    let tiny = model("tiny")
+    let entry = try #require(WhisperKitRecognizer.entry(of: tiny))
+    let root = FileManager.default.temporaryDirectory.appending(path: "carrier-tokenizer-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = WhisperKitRecognizer.tokenizerFiles(entry, in: ModelStore.folder(in: root, for: tiny))
+    try FileManager.default.createDirectory(at: files, withIntermediateDirectories: true)
+    try Data(#"{"model": {"vocab": {"a": 0"#.utf8).write(to: files.appending(path: "tokenizer.json"))  // cut short
+    try Data("{}".utf8).write(to: files.appending(path: "tokenizer_config.json"))
+    let before = try FileManager.default.subpathsOfDirectory(atPath: root.path).sorted()
+
+    let failure = await #expect(throws: DictationFailure.self) { try await recognizer(in: root).prepare(tiny) }
+    #expect(failure?.cause.contains("Whisper Tiny") == true)
+    #expect(failure?.cause.contains("tokenizer.json") == true, "the cause names the file: \(failure?.cause ?? "-")")
+    #expect(try FileManager.default.subpathsOfDirectory(atPath: root.path).sorted() == before, "nothing was fetched")
+}
+
 /// CARRIER_IT_DICTATION names a folder that holds the models, as the app keeps them: `<folder>/whisper/<model>/models/<repository>/<folder>`.
 private func modelsRoot(for model: SpeechModel) throws -> URL {
     let root = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["CARRIER_IT_DICTATION"]))

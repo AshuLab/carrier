@@ -223,6 +223,9 @@ struct FluidAudioDownloader: ModelDownloader {
 
     func download(_ model: SpeechModel, into folder: URL, progress: @MainActor @Sendable (Double) -> Void) async throws {
         guard let engine = FluidAudioRecognizer.engine(of: model) else { throw DictationFailure("\(model.name) is not a model of FluidAudio.") }
+        // the library reads REGISTRY_URL and MODEL_REGISTRY_URL from the environment the app was launched with unless this is set: only Hugging Face
+        // ponytail: its HF_TOKEN, if the environment has one, is still sent to that host: the library offers no switch for it (`huggingFaceToken` is internal)
+        ModelRegistry.baseURL = "https://huggingface.co"
         Self.going(1)
         defer { Self.going(-1) }
         // the library's callback cannot hold the port's non-escaping `progress`: its fractions cross a stream, in order, to a loop that calls it
@@ -254,14 +257,11 @@ struct FluidAudioDownloader: ModelDownloader {
     }
 
     /// What the person caused or can fix, as the table tells it; nil for anything else.
-    private static func failure(_ error: Error) -> ModelDownloadFailure? {
+    static func failure(_ error: Error) -> ModelDownloadFailure? {
         switch error {
         case DownloadError.downloadFailed(_, let underlying): failure(underlying)
         case DownloadError.invalidArtifact: .didNotCheck
-        case let error as URLError where error.code != .cancelled: .noConnection
-        case let error as CocoaError where error.code == .fileWriteOutOfSpace: .noSpace
-        case let error as POSIXError where error.code == .ENOSPC: .noSpace
-        default: nil
+        default: ModelDownloadFailure(error)
         }
     }
 }

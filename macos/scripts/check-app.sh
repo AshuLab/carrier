@@ -18,6 +18,11 @@ otool -l Carrier.app/Contents/MacOS/Carrier | grep -A2 LC_RPATH | grep -q "path 
 F=Carrier.app/Contents/Frameworks/Sparkle.framework
 [ -f "$F/Versions/B/Sparkle" ] || fail "Sparkle.framework is not in the app"
 [ -L "$F/Sparkle" ] && [ -L "$F/Versions/Current" ] || fail "Sparkle.framework lost its symlinks"
+# the licences of FluidAudio (and of what it vendors), WhisperKit (with swift-transformers) and the repository's notices travel with the binary
+L=Carrier.app/Contents/Resources/Licenses
+for f in FluidAudio/LICENSE FluidAudio/ThirdPartyLicenses/NemoTextProcessing-LICENSE.md FluidAudio/ThirdPartyLicenses/fastcluster-LICENSE.md argmax-oss-swift/LICENSE argmax-oss-swift/NOTICES THIRD-PARTY-NOTICES.md; do
+  [ -s "$L/$f" ] || fail "$L/$f is not in the app"
+done
 codesign --verify --deep --strict Carrier.app || fail "codesign --verify --deep --strict failed"
 
 ./build-app.sh 0.1.4 >/dev/null

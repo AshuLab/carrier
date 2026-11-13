@@ -48,6 +48,14 @@ cp -R Tests/Fixtures "$APP/Contents/Resources/Fixtures"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # SwiftPM's resource bundle of CarrierCore: the file icons and the licence text that goes with them
 cp -R .build/release/Carrier_CarrierCore.bundle "$APP/Contents/Resources/"
+# the licences of what is linked in: FluidAudio (Apache-2.0) with the notices of what it vendors (NemoTextProcessing, fastcluster, ...),
+# argmax-oss-swift (MIT) with its NOTICES (swift-transformers, Apache-2.0), and the repository's own notices file
+LICENSES="$APP/Contents/Resources/Licenses"
+mkdir -p "$LICENSES/FluidAudio" "$LICENSES/argmax-oss-swift"
+cp .build/checkouts/FluidAudio/LICENSE "$LICENSES/FluidAudio/LICENSE"
+cp -R .build/checkouts/FluidAudio/ThirdPartyLicenses "$LICENSES/FluidAudio/ThirdPartyLicenses"
+cp .build/checkouts/argmax-oss-swift/LICENSE .build/checkouts/argmax-oss-swift/NOTICES "$LICENSES/argmax-oss-swift/"
+cp ../THIRD-PARTY-NOTICES.md "$LICENSES/THIRD-PARTY-NOTICES.md"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -81,6 +89,13 @@ for svg in Sources/CarrierCore/Resources/FileIcons/*.svg; do
   [ -f "$ICONS/$(basename "$svg")" ] || { echo "error: $APP lacks the icon $(basename "$svg")" >&2; exit 1; }
 done
 grep -q "Permission is hereby granted" "$ICONS/LICENSE" || { echo "error: $APP lacks the Material Icon Theme licence text" >&2; exit 1; }
+# the licence texts must be in the app: the ones the libraries ask to be kept with a binary distribution
+grep -q "Apache License" "$LICENSES/FluidAudio/LICENSE" || { echo "error: $APP lacks the FluidAudio licence text" >&2; exit 1; }
+grep -q "Redistributions in binary form must reproduce" "$LICENSES/FluidAudio/ThirdPartyLicenses/fastcluster-LICENSE.md" || { echo "error: $APP lacks the fastcluster licence text" >&2; exit 1; }
+grep -q "text-processing-rs" "$LICENSES/FluidAudio/ThirdPartyLicenses/NemoTextProcessing-LICENSE.md" || { echo "error: $APP lacks the notice of NemoTextProcessing" >&2; exit 1; }
+grep -q "Permission is hereby granted" "$LICENSES/argmax-oss-swift/LICENSE" || { echo "error: $APP lacks the WhisperKit licence text" >&2; exit 1; }
+grep -q "swift-transformers" "$LICENSES/argmax-oss-swift/NOTICES" || { echo "error: $APP lacks the notice of swift-transformers" >&2; exit 1; }
+grep -q "FluidAudio" "$LICENSES/THIRD-PARTY-NOTICES.md" || { echo "error: $APP lacks the third-party notices" >&2; exit 1; }
 codesign --force --deep --sign - "$APP"
 echo "built $APP"
 if [ "$OPEN" = true ]; then open "$APP"; fi

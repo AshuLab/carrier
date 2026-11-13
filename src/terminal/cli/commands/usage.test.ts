@@ -53,6 +53,7 @@ const ports: UsagePorts = {
     throw new Error('no child in this test');
   },
   files: { read: async (path) => (await import('node:fs/promises')).readFile(path, 'utf8') },
+  keychain: async () => undefined,
   localModels: async () => Promise.reject(new Error('down')),
 };
 const host = async () => {

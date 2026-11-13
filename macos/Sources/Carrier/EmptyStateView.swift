@@ -9,16 +9,19 @@ struct EmptyStateView: View {
     let line: String
     /// An optional button under the line, for a state the person can get out of by themselves.
     let action: (title: String, run: () -> Void)?
+    /// The symbol before the button's words.
+    let actionIcon: String?
 
     init(state: EmptyState, action: (title: String, run: () -> Void)? = nil) {
         self.init(icon: state.icon, title: state.title, line: state.line, action: action)
     }
 
-    init(icon: String, title: String, line: String, action: (title: String, run: () -> Void)? = nil) {
+    init(icon: String, title: String, line: String, action: (title: String, run: () -> Void)? = nil, actionIcon: String? = nil) {
         self.icon = icon
         self.title = title
         self.line = line
         self.action = action
+        self.actionIcon = actionIcon
     }
 
     var body: some View {
@@ -35,7 +38,10 @@ struct EmptyStateView: View {
             Text(line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true).frame(minWidth: 200, maxWidth: 280)
             if let action {
-                Button(action.title, action: action.run).buttonStyle(.glass).buttonBorderShape(.capsule).padding(.top, 8)
+                Button(action: action.run) {
+                    if let actionIcon { Label(action.title, systemImage: actionIcon).labelStyle(.titleAndIcon) } else { Text(action.title) }
+                }
+                .buttonStyle(SecondaryCapsuleButtonStyle()).padding(.top, 8)
             }
         }
         .padding(22)

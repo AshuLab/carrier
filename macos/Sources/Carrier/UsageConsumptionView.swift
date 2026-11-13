@@ -25,6 +25,7 @@ struct ConsumptionSection: View {
         }
         .onChange(of: store.days) { reload() }
         .onChange(of: store.sourceFilter) { reload() }
+        .onChange(of: store.providerFilter) { reload() }
         // the search asks a moment after the last key, not at every one
         .task(id: store.searchText) {
             guard store.searchText != searched else { return }
@@ -41,34 +42,22 @@ struct ConsumptionSection: View {
     // MARK: filters
 
     private var filters: some View {
-        FlowLayout(spacing: 8) {
-            Picker("Metric", selection: $store.metric) {
-                Text("Cost ($)").tag(UsageMetric.cost)
-                Text("Tokens").tag(UsageMetric.tokens)
-            }
-            .pickerStyle(.segmented).labelsHidden().frame(width: 150)
-            Picker("Range", selection: $store.days) {
-                ForEach([7, 14, 30], id: \.self) { Text("\($0)d").tag($0) }
-            }
-            .pickerStyle(.segmented).labelsHidden().frame(width: 140)
-            ChoicePopUp(
-                label: "Source", options: [(.all, "All sources"), (.epic, "Epic"), (.chat, "Chat"), (.external, "External")], selection: $store.sourceFilter, width: 130
+        HStack(spacing: 8) {
+            SegmentedChoice(
+                options: [(UsageMetric.cost, "Cost", "dollarsign.circle"), (.tokens, "Tokens", "number")], selection: $store.metric
             )
-            if store.providerFilter != .all {
-                FilterChip(title: usageProviderTitle(store.providerFilter.rawValue), icon: "xmark", on: true) {
-                    store.providerFilter = .all
-                    reload()
-                }
-                .help("Showing \(usageProviderTitle(store.providerFilter.rawValue)) only; click to show all providers")
-            }
-            if let account = store.accountFilterTitle {
-                FilterChip(title: account, icon: "xmark", on: true) {
-                    store.accountFilter = nil
-                    reload()
-                }
-                .help("Showing \(account) only; click to show all accounts")
-            }
-            TextField("Search model or workspace", text: $store.searchText).settingsField(width: 210, icon: "magnifyingglass")
+            .accessibilityLabel("Metric")
+            SegmentedChoice(options: [7, 14, 30, 90].map { ($0, "\($0)d", nil) }, selection: $store.days).accessibilityLabel("Range")
+            ChoicePopUp(
+                label: "Provider",
+                options: [(.all, "All providers"), (.claude, "Claude"), (.codex, "Codex"), (.agy, "Antigravity"), (.local, "Local")],
+                selection: $store.providerFilter, width: 130
+            )
+            ChoicePopUp(
+                label: "Source", options: [(.all, "All sources"), (.epic, "Epic"), (.chat, "Chat"), (.external, "External")], selection: $store.sourceFilter, width: 120
+            )
+            Spacer(minLength: 8)
+            TextField("Search model or workspace", text: $store.searchText).settingsField(width: 200, icon: "magnifyingglass")
         }
     }
 
@@ -98,22 +87,31 @@ struct ConsumptionSection: View {
     // MARK: chart
 
     private func chart(_ snapshot: UsageSnapshot) -> some View {
-        SettingsTabCard {
+        let bars = usageBars(snapshot, metric: store.metric)
+        return SettingsTabCard {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Daily \(store.metric == .cost ? "estimated API cost" : "tokens")").sectionLabel()
                 if usageIsEmpty(snapshot) {
                     if store.hasActiveFilters {
                         EmptyStateView(
                             icon: "chart.bar", title: "Nothing matches these filters", line: "Clear them to see all of the last \(store.days) days.",
-                            action: ("Clear filters", { store.clearFilters(); reload() })
+                            action: ("Clear filters", { store.clearFilters(); reload() }), actionIcon: "xmark"
                         )
                         .frame(minHeight: 220)
                     } else {
                         EmptyStateView(icon: "chart.bar", title: "No usage in the last \(store.days) days", line: "Epics, chats and terminal sessions show here once they run.")
                             .frame(minHeight: 220)
                     }
+                } else if bars.contains(where: { $0.total > 0 }) {
+                    DailyChart(bars: bars, metric: store.metric)
                 } else {
-                    DailyChart(bars: usageBars(snapshot, metric: store.metric), metric: store.metric)
+                    // every bar is zero (all the models are unpriced): a chart of zeros draws nothing and looks broken
+                    EmptyStateView(
+                        icon: "chart.bar", title: "No cost to chart",
+                        line: "The models used have no price yet, so no cost is counted. Map them below, or look at the tokens.",
+                        action: ("Show tokens", { store.metric = .tokens }), actionIcon: "number"
+                    )
+                    .frame(minHeight: 220)
                 }
             }
             .padding(.vertical, 12)
@@ -125,12 +123,13 @@ struct ConsumptionSection: View {
     private func modelTable(_ snapshot: UsageSnapshot) -> some View {
         let rows = usageModelRows(snapshot)
         return VStack(alignment: .leading, spacing: 6) {
-            Text("By model").sectionLabel()
+            Text("By model").sectionLabel().padding(.leading, 14)
             SettingsTabCard {
                 if rows.isEmpty { emptyRow("No models used") }
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 { SettingsDivider() }
                     HStack(spacing: 12) {
+                        UsageProviderMark(title: row.provider, size: 16).frame(width: 20)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(row.model).font(.scaled(12, weight: .medium)).lineLimit(1).truncationMode(.middle)
                             Text(row.provider).font(.scaled(11)).foregroundStyle(.secondary)
@@ -140,6 +139,10 @@ struct ConsumptionSection: View {
                         costCell(row).frame(width: 150, alignment: .trailing)
                     }
                     .padding(.vertical, 9).frame(minHeight: 40)
+                }
+                if rows.isEmpty == false {
+                    let total = usageModelTotal(snapshot)
+                    UsageFooter(title: total.model, detail: total.detail, cost: total.cost ?? "")
                 }
             }
         }
@@ -163,12 +166,13 @@ struct ConsumptionSection: View {
     private func workspaceTable(_ snapshot: UsageSnapshot) -> some View {
         let rows = usageWorkspaceRows(snapshot)
         return VStack(alignment: .leading, spacing: 6) {
-            Text("By workspace & source").sectionLabel()
+            Text("By workspace & source").sectionLabel().padding(.leading, 14)
             SettingsTabCard {
                 if rows.isEmpty { emptyRow("No workspaces used") }
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 { SettingsDivider() }
                     HStack(spacing: 12) {
+                        Image(systemName: sourceSymbol(row.source)).font(.scaled(13)).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(row.name).font(.scaled(12, weight: .medium)).lineLimit(1).truncationMode(.middle).help(row.path)
                             Text(row.source).font(.scaled(11)).foregroundStyle(.secondary)
@@ -179,12 +183,61 @@ struct ConsumptionSection: View {
                     }
                     .padding(.vertical, 9).frame(minHeight: 40)
                 }
+                if rows.isEmpty == false {
+                    let total = usageWorkspaceTotal(snapshot)
+                    UsageFooter(title: total.name, detail: total.detail, cost: total.cost)
+                }
             }
+        }
+    }
+
+    /// The sidebar's own symbols: Carrier's epics, the chat's bubbles, a terminal for what ran outside both.
+    private func sourceSymbol(_ source: String) -> String {
+        switch source {
+        case "Epic": "paperplane"
+        case "Chat": "bubble.left.and.bubble.right"
+        default: "terminal"
         }
     }
 
     private func emptyRow(_ text: String) -> some View {
         Text(text).font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 14)
+    }
+}
+
+/// The foot of a table: the total, on a band of its own that reaches a little past the rows' text so it reads as a sum and not as one more row.
+private struct UsageFooter: View {
+    let title: String
+    let detail: String
+    let cost: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "sum").font(.scaled(13, weight: .semibold)).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
+            Text(title).font(.scaled(12, weight: .semibold)).lineLimit(1).truncationMode(.tail)
+            Spacer(minLength: 8)
+            Text(detail).font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
+            Text(cost).font(.scaled(13, weight: .semibold)).monospacedDigit().frame(width: 150, alignment: .trailing)
+        }
+        .padding(.vertical, 9).padding(.horizontal, 8).frame(minHeight: 40)
+        .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.07)))
+        .padding(.horizontal, -8).padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A provider's logo in the text colour, from the bundled icons; the local servers have none and get a computer.
+struct UsageProviderMark: View {
+    /// `Claude`, `Codex`, `Antigravity` or `Local`.
+    let title: String
+    var size: CGFloat = 16
+
+    var body: some View {
+        if AgentAvatar.mark(title.lowercased()) != nil {
+            ProviderMark(name: title.lowercased(), size: size).foregroundStyle(.primary).accessibilityHidden(true)
+        } else {
+            Image(systemName: "desktopcomputer").font(.scaled(size - 3)).foregroundStyle(.secondary).accessibilityHidden(true)
+        }
     }
 }
 
@@ -220,22 +273,33 @@ private struct DailyChart: View {
             .accessibilityValue(worth)
     }
 
+    /// A day with nothing used: a low grey stub, so it reads as "no use" and not as a missing day.
+    @ChartContentBuilder
+    private func quietMark(_ bar: UsageBar, floor: Double) -> some ChartContent {
+        let day: PlottableValue<String> = .value("Day", bar.label)
+        let level: PlottableValue<Double> = .value("No use", floor)
+        BarMark(x: day, y: level).foregroundStyle(Color.primary.opacity(0.16)).accessibilityLabel("\(bar.label), no use")
+    }
+
     var body: some View {
         // one label in a few, so thirty days do not run into each other
         let step = max(1, Int((Double(bars.count) / 7).rounded(.up)))
         let titles = usageChartProviders.map(usageProviderTitle)
         let valueName: String = metric == .cost ? "Cost" : "Tokens"
+        let floor: Double = (bars.map(\.total).max() ?? 0) * 0.012
         Chart {
             ForEach(bars) { bar in
                 ForEach(bar.segments) { segment in
                     segmentMark(bar, segment, valueName)
                 }
+                if bar.total == 0 { quietMark(bar, floor: floor) }
             }
             if let shown {
                 RuleMark(x: .value("Day", shown.label)).foregroundStyle(Color.secondary.opacity(0.25))
-                    .annotation(position: .top, spacing: 4, overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) { Tooltip(tooltip: usageTooltip(shown, metric: metric)) }
             }
         }
+        // every day has its column, with or without marks: the axis only knows the days that have one
+        .chartXScale(domain: bars.map(\.label))
         .chartForegroundStyleScale(domain: titles, range: titles.map { providerColors[$0] ?? .gray })
         .chartXAxis { AxisMarks(values: bars.enumerated().filter { $0.offset % step == 0 }.map(\.element.label)) { _ in AxisValueLabel() } }
         .chartYAxis {
@@ -244,21 +308,55 @@ private struct DailyChart: View {
                 AxisValueLabel { if let amount = value.as(Double.self) { Text(usageFormat(amount, metric)) } }
             }
         }
+        .chartBackground { proxy in weekendBands(proxy) }
         .chartLegend(position: .bottom, alignment: .leading)
         .chartOverlay { proxy in
-            GeometryReader { geometry in
-                Rectangle().fill(.clear).contentShape(Rectangle())
-                    .onContinuousHover { phase in
-                        if case .active(let point) = phase { hovered = day(at: point, proxy, geometry) } else { hovered = nil }
-                    }
-                    .onTapGesture { point in
-                        let tapped = day(at: point, proxy, geometry)
-                        pinned = pinned == tapped ? nil : tapped
-                    }
+            ZStack(alignment: .topLeading) {
+                GeometryReader { geometry in
+                    Rectangle().fill(.clear).contentShape(Rectangle())
+                        .onContinuousHover { phase in
+                            if case .active(let point) = phase { hovered = day(at: point, proxy, geometry) } else { hovered = nil }
+                        }
+                        .onTapGesture { point in
+                            let tapped = day(at: point, proxy, geometry)
+                            pinned = pinned == tapped ? nil : tapped
+                        }
+                }
+                tooltipLayer(proxy)
             }
         }
         .frame(height: 220)
         .accessibilityLabel("Daily \(metric == .cost ? "cost" : "tokens") by provider")
+    }
+
+    /// The tooltip beside the hovered day, on the side with more room. It is a view of the overlay and not a chart annotation: an annotation
+    /// is drawn without the bundled provider marks.
+    @ViewBuilder private func tooltipLayer(_ proxy: ChartProxy) -> some View {
+        GeometryReader { geometry in
+            if let shown, let frame = proxy.plotFrame, let x = proxy.position(forX: shown.label) {
+                let plot: CGRect = geometry[frame]
+                let left: Bool = x > plot.width / 2
+                Tooltip(tooltip: usageTooltip(shown, metric: metric))
+                    .offset(x: plot.minX + x + (left ? -224 : 12), y: plot.minY + 6)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// A faint column behind each Saturday and Sunday, so the weekends read at a glance.
+    @ViewBuilder private func weekendBands(_ proxy: ChartProxy) -> some View {
+        GeometryReader { geometry in
+            if let frame = proxy.plotFrame {
+                let plot: CGRect = geometry[frame]
+                let band: CGFloat = plot.width / CGFloat(max(bars.count, 1))
+                ForEach(bars.filter(\.weekend)) { bar in
+                    if let x = proxy.position(forX: bar.label) {
+                        Rectangle().fill(Color.primary.opacity(0.06)).frame(width: band, height: plot.height).position(x: plot.minX + x, y: plot.midY)
+                    }
+                }
+            }
+        }
+        .allowsHitTesting(false).accessibilityHidden(true)
     }
 
     private func day(at point: CGPoint, _ proxy: ChartProxy, _ geometry: GeometryProxy) -> String? {
@@ -267,29 +365,39 @@ private struct DailyChart: View {
     }
 }
 
+/// The chart's tooltip, drawn as the cards are: the window's own colour with a lift, a one point edge, a day and its weekday on top, a line per
+/// provider with its mark and the total under a line.
 private struct Tooltip: View {
     let tooltip: UsageTooltip
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(tooltip.title).font(.scaled(11, weight: .semibold))
-            if tooltip.lines.isEmpty { Text("No usage").font(.scaled(11)).foregroundStyle(.secondary) }
-            ForEach(tooltip.lines, id: \.provider) { line in
-                HStack(spacing: 8) {
-                    Circle().fill(providerColors[line.provider] ?? .gray).frame(width: 7, height: 7)
-                    Text(line.provider).font(.scaled(11))
-                    Spacer(minLength: 10)
-                    Text(line.value).font(.scaled(11)).monospacedDigit()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(tooltip.title).font(.scaled(12, weight: .semibold))
+                Text(tooltip.weekday).font(.scaled(11)).foregroundStyle(.secondary)
+            }
+            if tooltip.lines.isEmpty { Text("No use").font(.scaled(11)).foregroundStyle(.secondary) }
+            VStack(spacing: 5) {
+                ForEach(tooltip.lines, id: \.provider) { line in
+                    HStack(spacing: 8) {
+                        Circle().fill(providerColors[line.provider] ?? .gray).frame(width: 7, height: 7)
+                        UsageProviderMark(title: line.provider, size: 12).frame(width: 14)
+                        Text(line.provider).font(.scaled(11))
+                        Spacer(minLength: 14)
+                        Text(line.value).font(.scaled(11)).monospacedDigit()
+                    }
                 }
             }
             if tooltip.lines.count > 1 {
                 SettingsDivider()
-                HStack { Text("Total").font(.scaled(11, weight: .semibold)); Spacer(minLength: 10); Text(tooltip.total).font(.scaled(11, weight: .semibold)).monospacedDigit() }
+                HStack { Text("Total").font(.scaled(11, weight: .semibold)); Spacer(minLength: 14); Text(tooltip.total).font(.scaled(11, weight: .semibold)).monospacedDigit() }
             }
         }
-        .frame(width: 170).padding(8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
+        .frame(width: 200).padding(12)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.themeWindow))
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.07)))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
+        .shadow(color: .black.opacity(0.25), radius: 8, y: 3)
     }
 }
 

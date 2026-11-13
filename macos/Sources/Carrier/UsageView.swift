@@ -19,17 +19,6 @@ struct UsageView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Usage").font(.title3.weight(.semibold))
-                        Text("Limits left and what was used, per account").font(.callout).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if store.isRefreshing { ProgressView().controlSize(.small) }
-                    Button { refresher.checkAgain() } label: { Label("Check again", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
-                        .buttonStyle(HoverTextButtonStyle(tint: nil))
-                        .disabled(store.isRefreshing).help("Asks every provider again, skipping the minute the chat host keeps its answer")
-                }
                 // an older host is a normal state after an update: told quietly, as an engine too old to reload is
                 let tooOld = store.error == usageNeedsNewerHost
                 if tooOld {
@@ -38,8 +27,11 @@ struct UsageView: View {
                 if let problem = (tooOld ? nil : store.error) ?? failure { ProblemLine(text: problem) }
                 if store.quotas.isEmpty, store.error == nil {
                     SettingsTabCard {
-                        Text(store.isLoading ? "Asking the chat host…" : "No accounts to show")
-                            .font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 14)
+                        if store.isLoading {
+                            LoadingStateView(title: "Loading usage", line: "Checking your limits and what you have spent.").frame(minHeight: 240)
+                        } else {
+                            EmptyStateView(icon: "chart.bar", title: "No accounts to show", line: "Limits show here once a provider is set up.").frame(minHeight: 240)
+                        }
                     }
                 } else {
                     // the countdowns follow the clock while the data waits for the next ask
@@ -49,12 +41,9 @@ struct UsageView: View {
                             ForEach(Array(providers.enumerated()), id: \.element.id) { index, provider in
                                 if index > 0 { SettingsDivider() }
                                 ProviderBlock(
-                                    provider: provider, filtered: store.providerFilter == provider.id.asFilter,
-                                    open: store.expandedProviders.contains(provider.id),
-                                    toggleFilter: { store.toggleFilter(provider.id.asFilter); Task { await store.load() } },
+                                    provider: provider, open: store.expandedProviders.contains(provider.id),
                                     toggleOpen: { store.toggleProvider(provider.id) }, checkAgain: { refresher.checkAgain() },
-                                    signIn: { signIn($0, provider: provider.id) }, filteredAccount: store.accountFilter,
-                                    toggleAccount: { store.toggleAccount($0, provider: provider.id); Task { await store.load() } }
+                                    signIn: { signIn($0, provider: provider.id) }
                                 )
                             }
                         }
@@ -62,7 +51,7 @@ struct UsageView: View {
                 }
                 ConsumptionSection(store: store)
             }
-            .padding(18).frame(maxWidth: 760).frame(maxWidth: .infinity)
+            .padding(.vertical, 18).padding(.horizontal, 32).frame(maxWidth: .infinity)
         }
         .onAppear { refresher.appear() }
         .onDisappear { refresher.disappear() }
@@ -88,80 +77,51 @@ struct UsageView: View {
     }
 }
 
-private extension String {
-    var asFilter: UsageProviderFilter { UsageProviderFilter(rawValue: self) ?? .all }
-}
-
-/// A provider's header row and, open, its drawer. A click on the row filters the consumption by the provider; the chevron opens the drawer.
+/// A provider's header row and, open, its drawer. The whole row opens and closes the drawer; the filters by provider are in the filters row.
 private struct ProviderBlock: View {
     let provider: UsageProviderRow
-    let filtered: Bool
     let open: Bool
-    let toggleFilter: () -> Void
     let toggleOpen: () -> Void
     let checkAgain: () -> Void
     let signIn: (String) -> Void
-    let filteredAccount: String?
-    let toggleAccount: (String) -> Void
-    @State private var hovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                Button(action: toggleFilter) {
-                    HStack(spacing: 12) {
-                        usageMark(provider.mark, provider.title)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(provider.title).font(.scaled(13, weight: .semibold))
-                            Text(provider.subtitle).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                        .frame(width: 150, alignment: .leading)
-                        ForEach(Array(provider.meters.enumerated()), id: \.offset) { _, meter in
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(meter.kind.rawValue).foregroundStyle(.secondary)
-                                    Spacer()
-                                    Text("\(Int((meter.shape.used * 100).rounded()))%").monospacedDigit()
-                                }
-                                .font(.scaled(11))
-                                QuotaBar(shape: meter.shape)
-                            }
-                            .frame(width: 104)
-                        }
-                        Spacer(minLength: 0)
-                        if provider.stale {
-                            StatusChip(text: "Stale", tint: .orange)
-                                .help("The provider is rate limiting the check: these are the last known numbers")
-                        }
-                        if let reset = provider.earliestReset {
-                            Text(reset).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
-                        }
+            Button(action: toggleOpen) {
+                HStack(spacing: 12) {
+                    UsageProviderMark(title: provider.title, size: 18).frame(width: 22)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(provider.title).font(.scaled(13, weight: .semibold))
+                        Text(provider.subtitle).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
                     }
-                    .contentShape(Rectangle())
+                    .frame(width: 150, alignment: .leading)
+                    ForEach(Array(provider.meters.enumerated()), id: \.offset) { _, meter in
+                        QuotaMeter(label: meter.kind.rawValue, shape: meter.shape).frame(width: 130)
+                    }
+                    Spacer(minLength: 0)
+                    if provider.stale {
+                        StatusChip(text: "Stale", tint: .orange)
+                            .help("The provider is rate limiting the check: these are the last known numbers")
+                    }
+                    if let reset = provider.earliestReset {
+                        Text(reset).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    usageMark(provider.mark, provider.title)
+                    Image(systemName: "chevron.right").font(.scaled(10, weight: .bold)).foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(open ? 90 : 0))
+                        .frame(width: 24, height: 24).background(Circle().fill(Color.primary.opacity(0.08)))
                 }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(filtered ? .isSelected : [])
-                .help(filtered ? "Showing the consumption of \(provider.title) only; click to show all" : "Show the consumption of \(provider.title) only")
-                Button(action: toggleOpen) {
-                    Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).rotationEffect(.degrees(open ? 90 : 0))
-                        .frame(width: 24, height: 24).contentShape(Rectangle())
-                }
-                .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel(open ? "Hide \(provider.title) details" : "Show \(provider.title) details")
+                .padding(.vertical, 12).frame(minHeight: 46).contentShape(Rectangle())
             }
-            .padding(.vertical, 12).frame(minHeight: 46)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(filtered ? 0.12 : hovered ? 0.05 : 0)).padding(.horizontal, -8))
-            .onHover { hovered = $0 }
+            .buttonStyle(.plain)
+            .accessibilityHint(open ? "Hides the details" : "Shows the details")
             if open {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(provider.accounts) { account in
-                        // the local servers filter by their provider: they are no account of providers.json
-                        let selected = provider.id == "local" ? filtered : filteredAccount == account.id
-                        AccountBlock(
-                            account: account, selected: selected, checkAgain: checkAgain, signIn: { signIn(account.id) }, toggle: { toggleAccount(account.id) }
-                        )
+                        AccountBlock(account: account, alone: provider.accounts.count == 1, checkAgain: checkAgain, signIn: { signIn(account.id) })
                     }
                 }
-                .padding(.leading, 28).padding(.bottom, 8)
+                .padding(.leading, 34).padding(.bottom, 8)
             }
         }
         .animation(.easeOut(duration: 0.12), value: open)
@@ -176,83 +136,156 @@ private func usageMark(_ mark: UsageMark, _ label: String) -> StatusMark {
     }
 }
 
-/// One account or server pool of a drawer: its status, its actions and every row the provider gave. A click on it filters the consumption by
-/// the account (a second click shows all again); its buttons keep their own clicks.
+/// One account or server pool of a drawer. Its own header (name, status, actions) shows only when it says something the provider's row does
+/// not: several accounts, a status that is not ok, or an action. Under it, the rows in a panel per heading.
 private struct AccountBlock: View {
     let account: UsageAccountRow
-    let selected: Bool
+    let alone: Bool
     let checkAgain: () -> Void
     let signIn: () -> Void
-    let toggle: () -> Void
-    @State private var hovered = false
+
+    private var showsHeader: Bool { alone == false || account.mark != .ok || account.canSignIn || account.stale }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text(account.title).font(.scaled(12, weight: .semibold))
-                Text(account.status).font(.scaled(11)).foregroundStyle(.secondary)
-                if account.stale { StatusChip(text: "Stale", tint: .orange) }
-                Spacer()
-                if account.canSignIn { Button("Sign in", action: signIn).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and signs this account in") }
-                if account.mark != .ok { Button("Check again", action: checkAgain).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small) }
+        VStack(alignment: .leading, spacing: 14) {
+            if showsHeader {
+                HStack(spacing: 8) {
+                    Text(account.title).font(.scaled(12, weight: .semibold))
+                    Text(account.status).font(.scaled(11)).foregroundStyle(.secondary)
+                    if account.stale { StatusChip(text: "Stale", tint: .orange) }
+                    Spacer()
+                    if account.canSignIn { Button("Sign in", action: signIn).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and signs this account in") }
+                    if account.mark != .ok { Button("Check again", action: checkAgain).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small) }
+                }
             }
             if let note = account.note { Text(note).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-            ForEach(Array(account.lines.enumerated()), id: \.offset) { _, line in LineRow(line: line) }
+            ForEach(Array(usageLineGroups(account.lines).enumerated()), id: \.offset) { _, group in
+                LineGroupView(group: group)
+            }
         }
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(selected ? 0.12 : hovered ? 0.05 : 0)).padding(.horizontal, -8))
-        .onHover { hovered = $0 }
-        .onTapGesture(perform: toggle)
-        .help(selected ? "Showing the consumption of \(account.title) only; click to show all" : "Show the consumption of \(account.title) only")
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityAction(named: selected ? "Show all consumption" : "Show the consumption of \(account.title) only", toggle)
+        .padding(.vertical, 8)
     }
 }
 
+/// The rows under one heading, on a panel of their own with a line between them; a row with nothing but its words is a note under the panel.
+private struct LineGroupView: View {
+    let group: UsageLineGroup
+
+    var body: some View {
+        let rows = group.lines.filter { $0.shape != nil || $0.value != nil || $0.detail != nil }
+        let notes = group.lines.filter { $0.shape == nil && $0.value == nil && $0.detail == nil }
+        VStack(alignment: .leading, spacing: 6) {
+            if let title = group.title { Text(title).sectionLabel().padding(.leading, 4) }
+            if rows.isEmpty == false {
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { index, line in
+                        if index > 0 { SettingsDivider() }
+                        LineRow(line: line).padding(.vertical, 9)
+                    }
+                }
+                .padding(.horizontal, 12).background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.05)))
+            }
+            ForEach(Array(notes.enumerated()), id: \.offset) { _, line in
+                Text(line.title).font(.scaled(11)).foregroundStyle(.secondary).padding(.leading, 4)
+            }
+        }
+    }
+}
+
+/// A row of a panel, in columns that line up from one row to the next: a meter row (name, bar, percent, reset), a server (its mark, name,
+/// address and state) or a plain fact (name and value).
 private struct LineRow: View {
     let line: UsageLine
 
     var body: some View {
-        if line.heading {
-            Text(line.title).sectionLabel().padding(.top, 4)
-        } else if let shape = line.shape {
-            HStack(spacing: 10) {
-                Text(line.title).font(.scaled(12)).lineLimit(1).frame(width: 130, alignment: .leading)
-                QuotaBar(shape: shape).frame(maxWidth: 200)
-                Text(line.value ?? "").font(.scaled(11)).monospacedDigit().frame(width: 36, alignment: .trailing)
-                Text(line.reset ?? "").font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
+        if let shape = line.shape {
+            HStack(spacing: 14) {
+                Text(line.title).font(.scaled(12)).lineLimit(1).frame(width: 90, alignment: .leading)
+                QuotaBar(shape: shape).frame(maxWidth: 360)
+                QuotaPercent(shape: shape).frame(width: 44, alignment: .trailing)
+                Text(line.reset ?? "").font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).frame(width: 120, alignment: .leading)
                 Spacer(minLength: 0)
             }
-        } else {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 10) {
-                    Text(line.title).font(.scaled(12)).foregroundStyle(line.value == nil ? .secondary : .primary)
-                    if let value = line.value { Text(value).font(.scaled(12)).foregroundStyle(.secondary) }
+        } else if let detail = line.detail {
+            HStack(alignment: .top, spacing: 12) {
+                UsageProviderMark(title: line.title.replacingOccurrences(of: " ", with: ""), size: 16).frame(width: 20)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(line.title).font(.scaled(12, weight: .medium))
+                    Text(detail).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                if let detail = line.detail { Text(detail).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                Spacer(minLength: 8)
+                if let value = line.value { ServerState(text: value) }
+            }
+        } else {
+            HStack(spacing: 10) {
+                Text(line.title).font(.scaled(12))
+                Spacer(minLength: 8)
+                Text(line.value ?? "").font(.scaled(12)).foregroundStyle(.secondary)
             }
         }
     }
 }
 
-/// A 4 pt track: the use that stays solid and, after it, the use the next reset gives back, hatched.
-private struct QuotaBar: View {
-    let shape: MeterShape
+/// A server's state as the host words it: a dot, green while it is ready and grey otherwise, and the words (never the colour alone).
+private struct ServerState: View {
+    let text: String
 
     var body: some View {
-        let tint = shape.used >= 0.9 ? Color.orange : Color.themeAccent
+        HStack(spacing: 6) {
+            Circle().fill(text == "Ready" ? Color.green : Color.secondary.opacity(0.6)).frame(width: 7, height: 7)
+            Text(text).font(.scaled(11)).foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// A quota's track, 8 pt: the use that stays is solid (the theme's accent, orange from 90 %) and the use the next reset gives back is hatched
+/// after it. The pieces below are the ones to use for any percentage: `QuotaPercent` is its number, `QuotaMeter` a label, the number and the bar.
+struct QuotaBar: View {
+    let shape: MeterShape
+    var height: CGFloat = 8
+
+    var body: some View {
+        let tint = quotaTint(shape)
         GeometryReader { geometry in
             let width = geometry.size.width
             ZStack(alignment: .leading) {
-                Color.primary.opacity(0.1)
-                tint.frame(width: width * shape.solid)
-                Hatch().stroke(tint, lineWidth: 1).background(tint.opacity(0.3)).frame(width: width * shape.hatched).offset(x: width * shape.solid)
+                Color.primary.opacity(0.12)
+                LinearGradient(colors: [tint.opacity(0.8), tint], startPoint: .leading, endPoint: .trailing).frame(width: width * shape.solid)
+                Hatch().stroke(tint, lineWidth: 1.5).background(tint.opacity(0.3)).frame(width: width * shape.hatched).offset(x: width * shape.solid)
             }
             .clipShape(Capsule())
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
         }
-        .frame(height: 4).accessibilityHidden(true)
+        .frame(height: height).animation(.easeOut(duration: 0.25), value: shape.used).accessibilityHidden(true)
+    }
+}
+
+private func quotaTint(_ shape: MeterShape) -> Color { shape.used >= 0.9 ? .orange : .themeAccent }
+
+/// The percent of a quota: bold, and orange where the bar is.
+struct QuotaPercent: View {
+    let shape: MeterShape
+
+    var body: some View {
+        Text("\(Int((shape.used * 100).rounded()))%").font(.scaled(11, weight: .semibold)).monospacedDigit()
+            .foregroundStyle(shape.used >= 0.9 ? Color.orange : Color.primary)
+    }
+}
+
+/// A quota with its name and percent above its bar: the provider rows' meters.
+struct QuotaMeter: View {
+    let label: String
+    let shape: MeterShape
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(label).font(.scaled(11)).foregroundStyle(.secondary)
+                Spacer()
+                QuotaPercent(shape: shape)
+            }
+            QuotaBar(shape: shape)
+        }
     }
 }
 
@@ -263,7 +296,7 @@ private struct Hatch: Shape {
         while x < rect.width {
             path.move(to: CGPoint(x: x, y: rect.maxY))
             path.addLine(to: CGPoint(x: x + rect.height, y: rect.minY))
-            x += 3
+            x += 4
         }
         return path
     }

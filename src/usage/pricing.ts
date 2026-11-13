@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { ChatDb } from '../chat/db.ts';
 import { usagePriceOverrides } from '../chat/schema.ts';
+import { litellmPrices } from './prices.generated.ts';
 
 /** US dollars per million tokens. */
 export interface Rates {
@@ -36,36 +37,13 @@ export function normalizeModel(model: string): string {
     .replace(/-(?:extra-low|low|medium|high|xhigh|tiered|thinking)$/, '');
 }
 
-const rate = (input: number, cachedInput: number, cacheWrite: number, output: number): Rates => ({ input, cachedInput, cacheWrite, output });
-const opus = rate(15, 1.5, 18.75, 75);
-const sonnet = rate(3, 0.3, 3.75, 15);
-const gpt5 = rate(1.25, 0.125, 1.25, 10);
-const gemini25Pro = rate(1.25, 0.31, 1.25, 10);
-
 /**
- * The built-in table, by normalized id. A model that is not here is `unpriced` and stays visible: the person maps it or prices it
- * (ponytail: a short list of the common models; a bundled LiteLLM-style catalog replaces it when this one proves too short).
+ * The price table, by normalized id: LiteLLM's (`prices.generated.ts`, refreshed with `pnpm prices:update`). A model that is not here is
+ * `unpriced` and stays visible: the person maps it or prices it.
  */
-export const catalog: Readonly<Record<string, Rates>> = {
-  'claude-opus-4-5': rate(5, 0.5, 6.25, 25),
-  'claude-opus-4-1': opus,
-  'claude-opus-4': opus,
-  'claude-sonnet-4-5': sonnet,
-  'claude-sonnet-4': sonnet,
-  'claude-haiku-4-5': rate(1, 0.1, 1.25, 5),
-  'claude-3-5-haiku': rate(0.8, 0.08, 1, 4),
-  'gpt-5': gpt5,
-  'gpt-5-codex': gpt5,
-  'gpt-5-1': gpt5,
-  'gpt-5-1-codex': gpt5,
-  'gpt-5-mini': rate(0.25, 0.025, 0.25, 2),
-  'gpt-5-nano': rate(0.05, 0.005, 0.05, 0.4),
-  'gemini-2-5-pro': gemini25Pro,
-  'gemini-2-5-flash': rate(0.3, 0.03, 0.3, 2.5),
-  'gemini-2-5-flash-lite': rate(0.1, 0.01, 0.1, 0.4),
-  'gemini-3-pro': rate(2, 0.2, 2, 12),
-  'gemini-3-flash': rate(0.5, 0.05, 0.5, 3),
-};
+export const catalog: Readonly<Record<string, Rates>> = Object.fromEntries(
+  Object.entries(litellmPrices).map(([id, [input, cachedInput, cacheWrite, output]]) => [id, { input, cachedInput, cacheWrite, output }]),
+);
 
 /** A turn's price: a local model is `$0.00`, an unpriced one has no cost to add up and says so. */
 export type Priced = { costUsd: number; status: 'priced' | 'local' } | { costUsd: 0; status: 'unpriced' };

@@ -173,7 +173,8 @@ struct SettingsRail: View {
                                 .padding(.leading, 8).padding(.top, 10).accessibilityAddTraits(.isHeader)
                         }
                         ForEach(section.pages, id: \.self) { row in
-                            RailRow(title: row.rawValue, detail: row.detail, icon: row.icon, selected: page == row) { page = row }
+                            RailRow(title: row.rawValue, detail: nil, icon: row.icon, selected: page == row) { page = row }
+                                .help(row.detail)
                         }
                     }
                 }

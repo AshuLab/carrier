@@ -125,6 +125,47 @@ struct FilterChip: View {
     }
 }
 
+/// A few choices that exclude each other, in one grey capsule: the chosen one is a lighter capsule inside it, never the accent. Every choice
+/// has the same type and padding whether chosen or not, so nothing changes size when the choice moves (Usage's metric and range).
+struct SegmentedChoice<Value: Hashable>: View {
+    let options: [(value: Value, title: String, icon: String?)]
+    @Binding var selection: Value
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(Array(options.enumerated()), id: \.offset) { _, option in
+                Segment(title: option.title, icon: option.icon, on: selection == option.value) { selection = option.value }
+            }
+        }
+        .padding(3).background(Capsule().fill(Color.primary.opacity(0.07)))
+        .accessibilityElement(children: .contain)
+    }
+
+    private struct Segment: View {
+        let title: String
+        let icon: String?
+        let on: Bool
+        let action: () -> Void
+        @State private var hovered = false
+
+        var body: some View {
+            Button(action: action) {
+                HStack(spacing: 5) {
+                    if let icon { Image(systemName: icon).font(.scaled(10, weight: .semibold)) }
+                    Text(title).font(.scaled(12, weight: .medium))
+                }
+                .foregroundStyle(on ? Color.primary : Color.secondary)
+                .padding(.horizontal, 12).padding(.vertical, 4)
+                .background(Capsule().fill(Color.primary.opacity(on ? 0.16 : hovered ? 0.07 : 0)))
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain).onHover { hovered = $0 }
+            .animation(.easeOut(duration: 0.12), value: hovered)
+            .accessibilityAddTraits(on ? .isSelected : [])
+        }
+    }
+}
+
 /// A row whose control is wide (a text of several lines): the title and the detail on top and the control under them, the whole width of the card.
 struct SettingsStackedRow<Control: View>: View {
     let title: String

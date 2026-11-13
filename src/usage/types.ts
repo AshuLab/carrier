@@ -69,6 +69,8 @@ export interface UsagePorts {
   run(command: string, args: string[], options: { env: NodeJS.ProcessEnv; timeoutMs: number }): Promise<{ code: number; stdout: string }>;
   spawnRpc(command: string, args: string[], env: NodeJS.ProcessEnv): RpcChild;
   files: { read(path: string): Promise<string> };
+  /** The text of a generic-password item of the macOS login Keychain, read and never written. `undefined` when there is no such item or this is not a Mac; rejects when the Keychain did not answer (denied, locked, timed out). */
+  keychain(service: string, account: string): Promise<string | undefined>;
   /** The models a local server has; rejects when it does not answer. */
   localModels(kind: LocalProvider): Promise<string[]>;
 }

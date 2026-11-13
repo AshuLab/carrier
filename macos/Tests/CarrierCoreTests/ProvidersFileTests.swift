@@ -444,7 +444,7 @@ private var work: AccountDraft {
     #expect(store.editProblem == nil)
 }
 
-@MainActor @Test func anOlderEngineThatDoesNotReloadIsAPlainNoteNotAProblemAndLeavingThePageClearsWhatItSaid() async throws {
+@MainActor @Test func anOlderEngineThatDoesNotReloadSaysNothingAndARefusalIsAProblem() async throws {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
@@ -454,9 +454,7 @@ private var work: AccountDraft {
     let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { _ in }, reload: { answer })
 
     #expect(await store.addAccount(name: "claude-work", harness: "claude", configDir: ""))
-    #expect(store.editProblem == nil && store.editNote == "Saved. This Carrier does not apply it while it runs: it will read the file when it starts.")
-    // the person leaves the page: nothing of it stays for the next visit
-    store.dismissProblem()
+    // an older engine is told to nobody: nothing to show, problem or note
     #expect(store.editProblem == nil && store.editNote == nil)
     // a refusal is a problem, and the next save the engine applied clears both
     answer = .refused("agents.author.provider: bad")

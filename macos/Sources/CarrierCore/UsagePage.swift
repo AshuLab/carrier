@@ -49,6 +49,24 @@ public struct UsageLine: Equatable {
     public var heading = false
 }
 
+/// The rows of a drawer between two headings: the heading's title (none for rows before the first one) and what is under it.
+public struct UsageLineGroup: Equatable {
+    public var title: String?
+    public var lines: [UsageLine]
+}
+
+public func usageLineGroups(_ lines: [UsageLine]) -> [UsageLineGroup] {
+    var groups: [UsageLineGroup] = []
+    for line in lines {
+        if line.heading { groups.append(UsageLineGroup(title: line.title, lines: [])) } else if groups.isEmpty {
+            groups.append(UsageLineGroup(title: nil, lines: [line]))
+        } else {
+            groups[groups.count - 1].lines.append(line)
+        }
+    }
+    return groups
+}
+
 public struct UsageAccountRow: Equatable, Identifiable {
     public var id: String
     public var title: String

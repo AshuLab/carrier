@@ -3,5 +3,5 @@ Licence: MIT (see LICENSE, the upstream repository text unchanged).
 Pinned release: npm package @lobehub/icons-static-svg 1.98.0.
 Tarball: https://registry.npmjs.org/@lobehub/icons-static-svg/-/icons-static-svg-1.98.0.tgz
 Integrity: sha512-soyLV2g74ujV+9BBymPwXrorJ+kQsEz7WvVd4uzhN2wZnd4Jbyc2FsmyjZBosGaufOirCs1RGJQlLe6l9bjwLg==
-Files: claude.svg, codex.svg, antigravity.svg, copied unchanged from the package's icons/ folder.
-The marks themselves are trademarks of Anthropic, OpenAI and Google; the MIT licence covers the artwork files, not the marks.
+Files: claude.svg, codex.svg, antigravity.svg, lmstudio.svg, ollama.svg, copied unchanged from the package's icons/ folder.
+The marks themselves are trademarks of Anthropic, OpenAI, Google, LM Studio and Ollama; the MIT licence covers the artwork files, not the marks.

@@ -49,6 +49,10 @@ struct MessageBox<Selects: View>: View {
     @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
     @AppStorage(AppPreferences.correctsSpellingKey) private var correctsSpelling = AppPreferences.defaultCorrectsSpelling
 
+    /// The message `fire` wrote into the box to send it, so that the box does not take its pasted blocks for a message that came back and turn
+    /// them into cards again before the send has read it (the card stayed and nothing was sent).
+    @State private var fired: String?
+
     private struct Pasted: Identifiable, Equatable {
         let id = UUID()
         var text: String
@@ -106,6 +110,11 @@ struct MessageBox<Selects: View>: View {
                 )
                 .onChange(of: text) { _, now in
                     highlighted = 0
+                    // the message this box just put together to send is not one that came back: it goes, and its blocks stay blocks
+                    if now == fired {
+                        fired = nil
+                        return
+                    }
                     // a message that came back (a refused send, a queued one taken back to edit) has its pasted texts in blocks: they are cards again
                     guard now.contains("```pasted") else { return }
                     let split = splitPastes(now)
@@ -327,7 +336,10 @@ struct MessageBox<Selects: View>: View {
         if ready {
             var message = messageWithPastes(text.trimmingCharacters(in: .whitespacesAndNewlines), pastes: pastes.map(\.text).filter { $0.allSatisfy(\.isWhitespace) == false })
             if attachments.isEmpty == false { message = messageWithAttachments(message, files: attachments) }
-            if message != text { text = message }
+            if message != text {
+                fired = message
+                text = message
+            }
             pastes = []
             attachments = []
         }

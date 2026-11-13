@@ -107,62 +107,66 @@ struct SessionsHomeView: View {
         filter = SessionFilter()
     }
 
-    /// What the toolbar carries (the window's title and count are `PanelView`'s): Search and Filter in one pill, New session apart,
-    /// as the primary action.
+    /// What the toolbar carries (the window's title and count are `PanelView`'s): Search and Filter in one glass pill, New session apart,
+    /// as the primary action. Both are drawn here at 28 pt with the glass material on their own shape: the toolbar's own glass is taller than
+    /// these labels need and cannot be made smaller.
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            searchItem
-            filterItem
+        ToolbarItem(placement: .primaryAction) {
+            HStack(spacing: 0) {
+                searchItem
+                filterItem
+            }
+            .glassEffect(.regular, in: .capsule)
         }
+        .sharedBackgroundVisibility(.hidden)
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             // the accent is a light pastel on the dark themes: darkened for the fill so the white label reads over any window behind it
-            Button(action: newSession) { Label("New session", systemImage: "plus").labelStyle(.titleAndIcon).foregroundStyle(.white) }
-                .buttonStyle(.glassProminent)
-                .tint(Color.themeAccent.mix(with: .black, by: 0.4))
-                .help("New session")
+            Button(action: newSession) {
+                HStack(spacing: 5) {
+                    Image(systemName: "plus").font(.scaled(11, weight: .semibold))
+                    Text("New session").font(.scaled(12, weight: .medium))
+                }
+                .foregroundStyle(.white).padding(.horizontal, 13).frame(height: ToolbarPillButton.height).contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.tint(Color.themeAccent.mix(with: .black, by: 0.4)).interactive(), in: .capsule)
+            .padding(.trailing, 10)
+            .help("New session")
         }
+        .sharedBackgroundVisibility(.hidden)
     }
 
     @ViewBuilder private var searchItem: some View {
         if query != nil {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 // a fixed box, so the magnifier sits on the field's centre line and clear of the pill's rounded edge
-                Image(systemName: "magnifyingglass").font(.body).foregroundStyle(.secondary).frame(width: 18, height: 18).accessibilityHidden(true)
+                Image(systemName: "magnifyingglass").font(.scaled(11, weight: .medium)).foregroundStyle(.secondary).frame(width: 16, height: 16).accessibilityHidden(true)
                 // not `Binding($query)`: its getter force-unwraps and crashes once the query is nil
                 TextField("Search sessions", text: Binding(get: { query ?? "" }, set: { query = $0 }))
-                    .textFieldStyle(.plain)
+                    .textFieldStyle(.plain).font(.scaled(12))
                     .focused($searching)
                     .onKeyPress(.escape) {
                         query = nil
                         return .handled
                     }
-                Button { query = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                Button { query = nil } label: { Image(systemName: "xmark.circle.fill").font(.scaled(11)).foregroundStyle(.secondary) }
                     .buttonStyle(.plain).help("Close search (Esc)").accessibilityLabel("Close search")
             }
-            .padding(.horizontal, 8).frame(width: 220)
+            .padding(.horizontal, 11).frame(width: 220, height: ToolbarPillButton.height)
         } else {
-            Button {
+            ToolbarPillButton(title: "Search", icon: "magnifyingglass") {
                 query = ""
                 searching = true
-            } label: { Label("Search", systemImage: "magnifyingglass").labelStyle(.titleAndIcon) }
+            }
         }
     }
 
     private var filterItem: some View {
-        Button { filterOpen.toggle() } label: {
-            HStack(spacing: 6) {
-                Label("Filter", systemImage: "line.3.horizontal.decrease").labelStyle(.titleAndIcon)
-                if filter.count > 0 {
-                    Text("\(filter.count)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
-                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.themeAccent))
-                        .accessibilityLabel("\(filter.count) filters applied")
-                }
+        ToolbarPillButton(title: "Filter", icon: "line.3.horizontal.decrease", badge: filter.count) { filterOpen.toggle() }
+            .popover(isPresented: $filterOpen, arrowEdge: .bottom) {
+                SessionFilterPopover(sort: $sort, filter: $filter, agents: Set(sessions.rows.map(\.agent)).sorted())
             }
-        }
-        .popover(isPresented: $filterOpen, arrowEdge: .bottom) {
-            SessionFilterPopover(sort: $sort, filter: $filter, agents: Set(sessions.rows.map(\.agent)).sorted())
-        }
     }
 
     private var chips: some View {
@@ -278,8 +282,8 @@ private struct SessionHomeRow: View {
                 HStack(spacing: 6) {
                     if pinned { Image(systemName: "pin.fill").font(.scaled(10)).foregroundStyle(.secondary).accessibilityLabel("Pinned") }
                     Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
-                    if showsWorkspace { tag(row.workspace) }
-                    if row.archived { tag("Archived") }
+                    if showsWorkspace { RowTag(text: row.workspace) }
+                    if row.archived { RowTag(text: "Archived") }
                 }
                 status
                 meta
@@ -335,29 +339,15 @@ private struct SessionHomeRow: View {
 
     private var actionButtons: some View {
         HStack(spacing: 4) {
-            iconButton(pinned ? "pin.slash" : "pin", pinned ? "Unpin" : "Pin", selected: pinned) {
+            RowIconButton(symbol: pinned ? "pin.slash" : "pin", title: pinned ? "Unpin" : "Pin", selected: pinned) {
                 let ids = pinnedIds(pinnedStored)
                 pinnedStored = storedPins(pinned ? ids.subtracting([row.id]) : ids.union([row.id]))
             }
             if row.archived {
-                iconButton("arrow.uturn.backward", "Restore") { Task { if let refusal = await actions.restore(row.id) { tell(refusal) } } }
+                RowIconButton(symbol: "arrow.uturn.backward", title: "Restore") { Task { if let refusal = await actions.restore(row.id) { tell(refusal) } } }
             } else {
-                iconButton("archivebox", "Archive") { Task { if let refusal = await actions.archive(row.id) { tell(refusal) } } }
+                RowIconButton(symbol: "archivebox", title: "Archive") { Task { if let refusal = await actions.archive(row.id) { tell(refusal) } } }
             }
         }
-    }
-
-    /// A round button; one that is on (a pinned session's Pin) wears the accent.
-    private func iconButton(_ symbol: String, _ title: String, selected: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol).font(.scaled(12)).foregroundStyle(selected ? Color.themeAccent : .secondary).frame(width: 28, height: 28)
-                .background(Circle().fill(selected ? Color.themeAccent.opacity(0.2) : Color.secondary.opacity(0.14)))
-        }
-        .buttonStyle(.plain).help(title).accessibilityLabel(title).accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
-    private func tag(_ text: String) -> some View {
-        Text(text).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-            .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
     }
 }

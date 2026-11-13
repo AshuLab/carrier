@@ -2,7 +2,7 @@ import CarrierCore
 import SwiftUI
 
 /// The Sessions tab: what a new session starts with and where it opens, the two ages of the session clock (each a number of days or Never) and whether deleting
-/// asks first. An age is written to the chat's `chat.json` as it is changed (CarrierCore/SessionAges.swift); the chat host reads the file
+/// asks first, and, in dates, what the ages do to a session left alone from today. An age is written to the chat's `chat.json` as it is changed (CarrierCore/SessionAges.swift); the chat host reads the file
 /// each pass, so nothing is restarted. Reset puts the preferences back and writes the default ages.
 struct SessionsTabView: View {
     @State private var saved = SessionAges()
@@ -38,9 +38,9 @@ struct SessionsTabView: View {
         }).access
     }
 
-    private var problems: [SessionAgeField: String] {
-        sessionAgeProblems(draft, unparsable: Set(unparsable.map { $0 == "archive" ? .archive : .delete }))
-    }
+    private var unparsableFields: Set<SessionAgeField> { Set(unparsable.map { $0 == "archive" ? .archive : .delete }) }
+
+    private var problems: [SessionAgeField: String] { sessionAgeProblems(draft, unparsable: unparsableFields) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -76,6 +76,11 @@ struct SessionsTabView: View {
                 SettingsTabRow(title: "Ask before deleting a session", detail: "The question says that its worktree is removed with it") {
                     Toggle("Ask before deleting a session", isOn: $confirmDelete).labelsHidden().toggleStyle(.switch)
                 }
+            }
+            SettingsGroup(title: "With these ages") {
+                let line = sessionAgesLine(draft, today: Date(), unparsable: unparsableFields)
+                if let line { SettingsTabRow(title: "A session you stop using today", detail: line, first: true) { EmptyView() } }
+                SettingsTabRow(title: "Left alone", detail: "A session that is working, waiting for you or open is looked at again later", first: line == nil) { EmptyView() }
             }
             if let failure { Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
             SettingsGroup(title: "Reset") {

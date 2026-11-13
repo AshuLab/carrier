@@ -63,3 +63,43 @@ private func object(_ data: Data?) throws -> [String: Any] {
     #expect(sessionAgeProblems(off, unparsable: [.archive])[.archive] == "Must be a number")
     #expect(sessionAgeProblems(SessionAges(), unparsable: [.delete])[.delete] == "Must be a number")
 }
+
+private let utc: Calendar = {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    return calendar
+}()
+
+private func line(_ ages: SessionAges, on year: Int, _ month: Int, _ day: Int, unparsable: Set<SessionAgeField> = []) -> String? {
+    let today = utc.date(from: DateComponents(year: year, month: month, day: day, hour: 23, minute: 30))!
+    return sessionAgesLine(ages, today: today, calendar: utc, unparsable: unparsable)
+}
+
+@Test func theLineSaysWhenASessionLeftAloneFromTodayIsArchivedAndDeleted() {
+    #expect(line(SessionAges(), on: 2026, 11, 13) == "Is archived on Nov 28 and deleted on Dec 13. Both ages count from its last activity")
+    #expect(line(SessionAges(archive: .days(7), delete: .days(10)), on: 2026, 11, 13) == "Is archived on Nov 20 and deleted on Nov 23. Both ages count from its last activity")
+}
+
+@Test func theLineForNeverSaysNothingGoesOrThatItIsNeverDeleted() {
+    #expect(line(SessionAges(archive: .never, delete: .days(30)), on: 2026, 11, 13) == "Is never archived or deleted")
+    #expect(line(SessionAges(archive: .never, delete: .never), on: 2026, 11, 13) == "Is never archived or deleted")
+    #expect(line(SessionAges(archive: .days(15), delete: .never), on: 2026, 11, 13) == "Is archived on Nov 28 and never deleted. The age counts from its last activity")
+}
+
+@Test func theLineIsNotShownWhileAnAgeIsRefused() {
+    #expect(line(SessionAges(archive: .days(30), delete: .days(30)), on: 2026, 11, 13) == nil)
+    #expect(line(SessionAges(archive: .days(0), delete: .days(30)), on: 2026, 11, 13) == nil)
+    #expect(line(SessionAges(), on: 2026, 11, 13, unparsable: [.archive]) == nil)
+}
+
+@Test func theYearIsWrittenOnlyForADateThatIsNotInThisYear() {
+    #expect(line(SessionAges(), on: 2026, 12, 20) == "Is archived on Jan 4, 2027 and deleted on Jan 19, 2027. Both ages count from its last activity")
+    #expect(line(SessionAges(), on: 2026, 12, 1) == "Is archived on Dec 16 and deleted on Dec 31. Both ages count from its last activity")
+    #expect(line(SessionAges(archive: .days(15), delete: .days(45)), on: 2026, 12, 1) == "Is archived on Dec 16 and deleted on Jan 15, 2027. Both ages count from its last activity")
+}
+
+@Test func theDatesCrossTheEndOfAMonthAndALeapDay() {
+    #expect(line(SessionAges(archive: .days(3), delete: .days(10)), on: 2026, 1, 30) == "Is archived on Feb 2 and deleted on Feb 9. Both ages count from its last activity")
+    #expect(line(SessionAges(archive: .days(1), delete: .days(2)), on: 2028, 2, 28) == "Is archived on Feb 29 and deleted on Mar 1. Both ages count from its last activity")
+    #expect(line(SessionAges(archive: .days(1), delete: .days(2)), on: 2026, 2, 28) == "Is archived on Mar 1 and deleted on Mar 2. Both ages count from its last activity")
+}

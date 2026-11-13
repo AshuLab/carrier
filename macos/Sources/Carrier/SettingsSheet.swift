@@ -12,6 +12,8 @@ struct SettingsSheet: View {
     @AppStorage(startOnOpenKey) private var startOnOpen = false
     @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
     @State private var headerNote: SettingsHeaderNote?
+    /// What `carrier --version` and `node --version` printed for the programs the page shows; nil until read, or when they did not answer.
+    @State private var versions = ProgramVersions()
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -60,7 +62,7 @@ struct SettingsSheet: View {
             case .keybindings: KeybindingsTabView()
             case .updates: UpdatesTabView()
             case .providers: ProvidersTabView(openAgents: { tab = .agents })
-            case .engine: engine(banner, notConfigured: notConfigured)
+            case .engine: engine(notConfigured: notConfigured).task(id: versionsKey) { versions = await ProgramVersions.read(setup) }
             case .behavior: BehaviorTabView()
             case .repos: ReposTabView(state: state, openAgents: { tab = .agents })
             case .agents: AgentsTabView()
@@ -71,40 +73,35 @@ struct SettingsSheet: View {
         }
     }
 
-    @ViewBuilder private func engine(_ banner: ReadinessBanner, notConfigured: String?) -> some View {
+    /// Changes when a program the page shows does, so its version is read again.
+    private var versionsKey: String { "\(setup.carrier ?? "")|\(setup.settings.node)" }
+
+    @ViewBuilder private func engine(notConfigured: String?) -> some View {
         if let notConfigured {
             Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
         }
-        ForEach(engineGroups(configured: notConfigured == nil), id: \.title) { group in
+        let programs = EnginePrograms(
+            carrier: setup.carrier, carrierIsOwn: setup.carrierIsOwn, carrierVersion: versions.carrier, setup: setup.settings, nodeVersion: versions.node
+        )
+        ForEach(engineGroups(configured: notConfigured == nil, programs: programs), id: \.title) { group in
             SettingsGroup(title: group.title) {
                 ForEach(Array(group.rows.enumerated()), id: \.element.title) { index, row in
-                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0) {
+                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0, note: row.note) {
                         switch row.id {
                         case .startOnOpen: Toggle(row.title, isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
                         case .confirmStop: Toggle(row.title, isOn: $confirmStop).labelsHidden().toggleStyle(.switch)
+                        case .carrier: CarrierChoice(setup: setup, offersHomebrew: row.offersHomebrew)
+                        case .node, .path: EmptyView()
+                        case .lookAgain:
+                            Button { setup.detect(); start.refreshConfig() } label: {
+                                if setup.detecting { ProgressView().controlSize(.small) } else { Label("Detect", systemImage: "arrow.clockwise") }
+                            }
+                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(setup.detecting)
                         }
                     }
                 }
             }
         }
-        if banner.state == .ready {
-            HStack(spacing: 12) {
-                HStack(spacing: 12) {
-                    StatusDot(found: notConfigured == nil)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(notConfigured == nil ? "Carrier is ready to start" : "Carrier cannot start yet").fontWeight(.semibold)
-                        Text(setup.carrier ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                    }
-                }
-                .accessibilityElement(children: .combine)
-                Spacer(minLength: 8)
-                Button("Detect again") { setup.detect(); start.refreshConfig() }.buttonStyle(SecondaryCapsuleButtonStyle())
-            }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .settingsCard()
-        }
-        Text("Advanced").font(.headline).padding(.top, 6).accessibilityAddTraits(.isHeader)
-        UseThisCarrierField(setup: setup)
     }
 }
 
@@ -157,7 +154,7 @@ struct ReadinessBannerView: View {
                 Text(banner.detail).font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-            Button("Detect again", action: detectAgain).disabled(detecting)
+            Button("Detect", action: detectAgain).disabled(detecting)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .background(RoundedRectangle(cornerRadius: 16).fill(tint.opacity(0.13)))
@@ -178,19 +175,17 @@ struct StatusDot: View {
     }
 }
 
-/// The advanced setting: a `carrier` to run instead of the Homebrew one, a path as typed (a `.ts` or `.js` one runs under `node`).
-struct UseThisCarrierField: View {
+/// The buttons of the `carrier` row: choose another one (a path as chosen; a `.ts` or `.js` one runs under `node`), and go back to the Homebrew one.
+struct CarrierChoice: View {
     @ObservedObject var setup: SetupController
+    let offersHomebrew: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Use this carrier").fontWeight(.medium)
-            HStack {
-                TextField("Use this carrier", text: $setup.carrierOverride, prompt: Text("/opt/homebrew/bin/carrier"))
-                    .textFieldStyle(.roundedBorder).font(.system(.caption, design: .monospaced))
-                Button("Choose…") { choose() }
+        HStack(spacing: 8) {
+            if offersHomebrew {
+                Button("Use the Homebrew one") { setup.carrierOverride = "" }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
-            Text("Leave it empty to use the Homebrew one. A path ending in .ts or .js runs with node.").font(.caption).foregroundStyle(.secondary)
+            Button("Use another…") { choose() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
         }
     }
 

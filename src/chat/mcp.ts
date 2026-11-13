@@ -5,6 +5,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { version } from '../control/server.ts';
 import type { Clock } from '../orchestration/clock.ts';
+import type { Health } from './health.ts';
 import { ChatRefused } from './runner.ts';
 
 const log = createScopedLogger('chat');
@@ -65,7 +66,7 @@ export class McpSessionRegistry {
 
 // ---- tools ----
 
-export type McpInvocationContext = { sessionId: string; invocationId: string };
+export type McpInvocationContext = { sessionId: string; invocationId: string; sessions: McpSessions };
 
 export type McpTool<Input extends z.ZodType = z.ZodType> = {
   name: string;
@@ -95,6 +96,12 @@ export type McpSessions = {
   exists(sessionId: string): boolean;
   /** Whether the session has a live conversation in the host. */
   live(sessionId: string): boolean;
+  /** What the session is, from its row and its live options: nothing that says where a binary or a login is on this machine. */
+  snapshot(sessionId: string): { id: string; agent: string; harness: string; folder: string; model: string | null; options: Record<string, string> };
+  /** The configured chat agents. */
+  agents(): { name: string; harness: string; model?: string; found: boolean }[];
+  /** The verdicts of the health check (kept thirty seconds); never starts an agent. */
+  health(): Promise<Health>;
 };
 
 export type McpServer = { url: string; close(): Promise<void> };
@@ -159,7 +166,7 @@ export async function startMcpServer(deps: { registry: McpSessionRegistry; sessi
     const args = tool.input.safeParse(call.data.arguments === undefined ? {} : call.data.arguments);
     if (!args.success) return { result: toolResult(`Invalid arguments: ${z.prettifyError(args.error)}`, true) };
     try {
-      const out = await tool.handler(args.data, { sessionId: token.sessionId, invocationId: token.invocationId });
+      const out = await tool.handler(args.data, { sessionId: token.sessionId, invocationId: token.invocationId, sessions: deps.sessions });
       return { result: toolResult(JSON.stringify(out ?? null), false) };
     } catch (error) {
       if (error instanceof ChatRefused) return { result: toolResult(error.message, true) };

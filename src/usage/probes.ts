@@ -4,13 +4,11 @@ import { z } from 'zod';
 import { localKinds } from '../harnesses/local.ts';
 import { ProbeError, type ExtraUsage, type QuotaSnapshot, type QuotaTarget, type QuotaWindow, type UsagePorts } from './types.ts';
 
-// What each probe asks the provider. The probes only read; the one write is Claude's refreshed token, which has to be saved
-// because a refresh rotates the refresh token. Nothing a provider says is copied into an error: a message is ours, never theirs.
+// What each probe asks the provider. The probes only read: a Claude token is never refreshed here, because a refresh rotates the
+// refresh token and could log the person out of Claude Code. Nothing a provider says is copied into an error: a message is ours, never theirs.
 
 const PROBE_LIMIT_MS = 15_000;
 const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
-const CLAUDE_TOKEN_URL = 'https://platform.claude.com/v1/oauth/token';
-const CLAUDE_CLIENT_ID = '9d1c250a-e61b-47d0-8d68-20b4ce1b1f28'; // Claude Code's public OAuth client
 
 /** What a probe found; `status` is `ok` unless it says otherwise. */
 type Probe = (ports: UsagePorts, target: QuotaTarget) => Promise<Omit<QuotaSnapshot, 'provider' | 'status' | 'checkedAt'> & { status?: QuotaSnapshot['status'] }>;
@@ -41,7 +39,7 @@ async function call(ports: UsagePorts, request: Parameters<UsagePorts['http']>[0
 // ---- Claude
 
 const claudeCredentials = z.looseObject({
-  claudeAiOauth: z.looseObject({ accessToken: z.string().min(1), refreshToken: z.string().optional(), expiresAt: z.number().optional(), subscriptionType: z.string().nullish() }),
+  claudeAiOauth: z.looseObject({ accessToken: z.string().min(1), expiresAt: z.number().optional(), subscriptionType: z.string().nullish() }),
 });
 const claudeWindow = z.object({ utilization: z.number(), resets_at: z.string().nullish() });
 const claudeExtra = z.object({
@@ -60,7 +58,7 @@ const claudeWindowOf = (id: string, label: string, raw: unknown): QuotaWindow[] 
   return [{ id, label, usedPercent: clamp(parsed.data.utilization), ...(resetsAt !== undefined && { resetsAt }) }];
 };
 
-/** The credentials file of the account, refreshed (and saved) when its token has expired. */
+/** The access token in the account's credentials file; an expired one means signed out (Claude Code itself renews it). */
 async function claudeToken(ports: UsagePorts, path: string) {
   let text: string;
   try {
@@ -77,27 +75,8 @@ async function claudeToken(ports: UsagePorts, path: string) {
   const parsed = claudeCredentials.safeParse(json);
   if (parsed.success === false) throw new ProbeError('signed_out', 'the Claude credentials hold no login');
   const { claudeAiOauth: oauth } = parsed.data;
-  if (oauth.expiresAt === undefined || oauth.expiresAt > ports.clock.now()) return { accessToken: oauth.accessToken, plan: oauth.subscriptionType ?? undefined };
-  if (oauth.refreshToken === undefined) throw new ProbeError('signed_out', 'the Claude login expired');
-
-  const answer = await call(ports, {
-    url: CLAUDE_TOKEN_URL,
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: oauth.refreshToken, client_id: CLAUDE_CLIENT_ID }),
-    timeoutMs: PROBE_LIMIT_MS,
-  });
-  if (answer.status === 400 || answer.status === 401) throw new ProbeError('signed_out', 'the Claude login expired');
-  if (answer.status !== 200) throw httpFailure(answer.status);
-  const renewed = z.object({ access_token: z.string().min(1), refresh_token: z.string().optional(), expires_in: z.number().positive() }).safeParse(answer.json);
-  if (renewed.success === false) throw new ProbeError('error', 'the Claude token refresh was not understood');
-  const next = { ...oauth, accessToken: renewed.data.access_token, refreshToken: renewed.data.refresh_token ?? oauth.refreshToken, expiresAt: ports.clock.now() + renewed.data.expires_in * 1000 };
-  try {
-    await ports.files.write(path, JSON.stringify({ ...(json as object), claudeAiOauth: next }));
-  } catch {
-    throw new ProbeError('error', 'the refreshed Claude login could not be saved');
-  }
-  return { accessToken: next.accessToken, plan: oauth.subscriptionType ?? undefined };
+  if (oauth.expiresAt !== undefined && oauth.expiresAt <= ports.clock.now()) throw new ProbeError('signed_out', 'the Claude login expired');
+  return { accessToken: oauth.accessToken, plan: oauth.subscriptionType ?? undefined };
 }
 
 const claude: Probe = async (ports, { configDir = join(homedir(), '.claude') }) => {

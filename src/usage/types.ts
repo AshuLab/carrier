@@ -68,7 +68,7 @@ export interface UsagePorts {
   /** Runs a command to its end with stdin closed. Rejects with `code` `ENOENT` (no such binary) or `ETIMEDOUT`. */
   run(command: string, args: string[], options: { env: NodeJS.ProcessEnv; timeoutMs: number }): Promise<{ code: number; stdout: string }>;
   spawnRpc(command: string, args: string[], env: NodeJS.ProcessEnv): RpcChild;
-  files: { read(path: string): Promise<string>; write(path: string, text: string): Promise<void> };
+  files: { read(path: string): Promise<string> };
   /** The models a local server has; rejects when it does not answer. */
   localModels(kind: LocalProvider): Promise<string[]>;
 }

@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { realClock } from '../orchestration/clock.ts';
 import { listLocalModels } from '../harnesses/local.ts';
 import type { UsagePorts } from './types.ts';
@@ -47,14 +47,6 @@ export const realUsagePorts: UsagePorts = {
       },
     };
   },
-  files: {
-    read: (path) => readFile(path, 'utf8'),
-    // The login file is a secret and the CLI reads it: replace it whole, with the mode it had.
-    async write(path, text) {
-      const temporary = `${path}.carrier-${process.pid}`;
-      await writeFile(temporary, text, { mode: 0o600 });
-      await rename(temporary, path);
-    },
-  },
+  files: { read: (path) => readFile(path, 'utf8') },
   localModels: (kind) => listLocalModels(kind),
 };

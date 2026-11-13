@@ -11,7 +11,6 @@ beforeEach(() => void (logged.length = 0));
 
 const SECRET = 'sk-ant-SECRET-token';
 const REFRESH = 'sk-ant-REFRESH-token';
-const NEW_SECRET = 'sk-ant-NEW-token';
 
 const NOW = 1_800_000_000_000;
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -57,7 +56,7 @@ function ports(overrides: Partial<UsagePorts> = {}) {
     http: async () => ({ status: 200, json: {} }),
     run: async () => ({ code: 0, stdout: '{}' }),
     spawnRpc: fakeRpc().spawnRpc,
-    files: { read: async () => { throw errorWith('ENOENT'); }, write: async () => {} },
+    files: { read: async () => { throw errorWith('ENOENT'); } },
     localModels: async () => { throw new Error('down'); },
     ...overrides,
   };
@@ -72,7 +71,7 @@ const claudeUsage = {
   extra_usage: { is_enabled: true, monthly_limit: 8000, used_credits: 1250, utilization: 15.6, currency: 'USD' },
 };
 const claude = { provider: 'claude', configDir: '/cfg' } as const;
-const readsCredentials = (text = credentials(NOW + 1000)) => ({ read: async () => text, write: async () => {} });
+const readsCredentials = (text = credentials(NOW + 3_600_000)) => ({ read: async () => text });
 
 // ---- Claude
 
@@ -137,39 +136,23 @@ test('claude rate limited with nothing known has no windows and is not stale', a
   expect(limited.stale).toBeUndefined();
 });
 
-test('claude refreshes an expired token, saves the rotated login whole, and queries with the new token', async () => {
-  const writes: [string, string][] = [];
-  const asked: Parameters<UsagePorts['http']>[0][] = [];
-  const { quotas } = ports({
-    files: { read: async () => credentials(NOW - 1), write: async (path, text) => void writes.push([path, text]) },
-    http: async (r) => (asked.push(r), r.method === 'POST' ? { status: 200, json: { access_token: NEW_SECRET, refresh_token: 'rotated', expires_in: 3600 } } : { status: 200, json: claudeUsage }),
-  });
-  const snapshot = await quotas(claude);
-  expect(snapshot.status).toBe('ok');
-  expect(asked[1]!.headers!.authorization).toBe(`Bearer ${NEW_SECRET}`);
-  expect(writes).toHaveLength(1);
-  expect(writes[0]![0]).toBe('/cfg/.credentials.json');
-  expect(JSON.parse(writes[0]![1])).toEqual({ other: 'kept', claudeAiOauth: { accessToken: NEW_SECRET, refreshToken: 'rotated', subscriptionType: 'max', expiresAt: NOW + 3_600_000 } });
-  expect(JSON.stringify(snapshot)).not.toContain(NEW_SECRET);
-});
-
-test('claude whose refresh is refused is signed out and queries nothing', async () => {
+test('claude with an expired token is signed out; it is never refreshed here and queries nothing', async () => {
   const asked: string[] = [];
-  const { quotas } = ports({ files: readsCredentials(credentials(NOW - 1)), http: async (r) => (asked.push(r.url), { status: 400, json: {} }) });
+  const { quotas } = ports({ files: readsCredentials(credentials(NOW - 1)), http: async (r) => (asked.push(r.url), { status: 200, json: claudeUsage }) });
   expect((await quotas(claude)).status).toBe('signed_out');
-  expect(asked).toHaveLength(1);
+  expect(asked).toHaveLength(0);
 });
 
 test('no token, credential, or provider text reaches a snapshot or the log', async () => {
   const outcomes = [
     await ports({ files: readsCredentials(), http: async () => { throw errorWith('ECONNREFUSED'); } }).quotas(claude),
-    await ports({ files: readsCredentials(credentials(NOW - 1)), http: async () => ({ status: 500, json: { error: SECRET } }) }).quotas(claude),
+    await ports({ files: readsCredentials(), http: async () => ({ status: 500, json: { error: SECRET } }) }).quotas(claude),
     await ports({ files: readsCredentials(), http: async () => undefined as never }).quotas(claude), // an unexpected failure
     await ports({ run: async () => { throw errorWith('EACCES'); } }).quotas({ provider: 'agy' }),
     await ports({ spawnRpc: fakeRpc({ limits: { error: { message: `rate limits unreadable ${SECRET}` } } }).spawnRpc }).quotas({ provider: 'codex' }),
   ];
   expect(outcomes.map((o) => o.status)).toEqual(['unavailable', 'unavailable', 'error', 'error', 'error']);
-  for (const text of [JSON.stringify(outcomes), JSON.stringify(logged)]) for (const secret of [SECRET, REFRESH, NEW_SECRET]) expect(text).not.toContain(secret);
+  for (const text of [JSON.stringify(outcomes), JSON.stringify(logged)]) for (const secret of [SECRET, REFRESH]) expect(text).not.toContain(secret);
   expect(logged.length).toBeGreaterThan(0);
 });
 

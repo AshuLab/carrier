@@ -129,10 +129,10 @@ public func reloadInBackground() -> ReloadOutcome? {
 /// What the page says when the file is saved and the engine did not apply it: nil when it did, there was no one to ask, or the answer is on its way.
 public func reloadWords(_ outcome: ReloadOutcome) -> String? {
     switch outcome {
-    case .applied, .nobody: nil
+    // an older Carrier that cannot reload reads the file when it starts: nothing to tell, the next Carrier applies it live
+    case .applied, .nobody, .unsupported: nil
     case .refused(let problem): "Saved, but Carrier kept its settings: \(problem)"
     case .noAnswer: "Saved, but Carrier did not answer: it may not have applied it."
-    case .unsupported: "Saved. This Carrier does not apply it while it runs: it will read the file when it starts."
     }
 }
 

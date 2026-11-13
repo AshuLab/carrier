@@ -1,0 +1,24 @@
+# Usage
+
+The Usage page: the live quotas of each provider and the history of what was used.
+
+## Quotas
+
+The Usage row (below Settings in the foot) selects `Selection.usage`: `Carrier/UsageView.swift` shows what `UsageStore` (`CarrierCore/UsageStore.swift`) got from the chat host's `usage` request.
+The live quotas are one `SettingsTabCard` list with a row each for Claude, Codex, Antigravity and Local Servers (a provider with no quota has none): `usageProviders` (`CarrierCore/UsagePage.swift`) decides every row from the quotas and a clock, and the view only draws it.
+A row has the 16 pt `StatusMark`, the provider's status words, the pooled `5h` and `Weekly` meters (4 px track, clamped to [0, 1]; the use that the earliest reset gives back is drawn hatched after the solid part, `meterShape`), a `Stale` badge when the numbers are the last known ones behind a rate limit, the earliest reset still ahead (`Resets in 2h 14m`, kept current by a one-minute timeline) and a chevron.
+The chevron opens the drawer with every account: Claude's `5h`/`Weekly`, model-scoped windows, extra usage spend and limit, `Sign in` (the Providers page's Terminal script) for a signed-out account (the probe never refreshes a token: an expired login is `signed_out`) and `Check again`; Codex's limits (every `rateLimitsByLimitId` entry), plan, credits and reset credits; Antigravity's three pools with their own resets and `AI credits: Unavailable via native CLI`; Local Servers' LM Studio and Ollama readiness, loaded models and `$0 local compute`.
+A click on the rest of a provider's row toggles `providerFilter` (`UsageStore.toggleFilter`) and asks again; the list keeps showing the quotas of every provider (`UsageStore.quotas`) while the host narrows the history.
+`UsageRefresher` (`CarrierCore/UsageRefresher.swift`) holds the five refresh triggers: the page appearing, the app becoming active while it is open, `Check again` (`refresh: true`, skipping the host's one-minute cache), a usage-limit stop (`usageLimitEntered`: an epic entering `needsHumanKind == "usage_limit"` in `PanelModel.state`, or a chat turn whose new error row says a quota ran out, `ConversationModel.onQuotaError`; both ask with `refresh: true`), and a 60 s timer that runs only between `appear` and `disappear`.
+
+## Consumption
+
+Under the quotas is the consumption (`Carrier/UsageConsumptionView.swift`, `ConsumptionSection`; `CarrierCore/UsageConsumption.swift` decides every number and word): a card of four columns (`usageKpis`: Est.
+API Cost, with a footnote in orange while models are unpriced because their cost is missing and not zero; Total Tokens as input + cache read + cache write + output, reasoning being part of output; Local Compute, always `$0.00`; Active Epics / Chats, the repos and folders with epic or chat work, `—` with none), the filter strip (a `Cost ($)` / `Tokens` switch that only changes what is drawn, `7d` / `14d` / `30d`, a Source pop-up, a removable `FilterChip` for the provider chosen in the quota list above, and a search of models and workspaces asked 350 ms after the last key; each of the others asks the host again through `UsageStore.load`) and the daily chart, native SwiftUI Charts stacked by provider in the order Claude, Codex, Antigravity, Local (`usageBars` from the `providers` split the host gives each day).
+Hovering a day shows its breakdown and a click keeps it until a second click (`usageTooltip`: each provider that ran that day with its share in the metric, and the total).
+A period or a filter with no turns draws an empty state instead, `Nothing matches these filters` with a Clear filters button while a filter is on (`UsageStore.hasActiveFilters`, `clearFilters`) or `No usage in the last N days`.
+`By model` (`usageModelRows`) shows `in · cache · out` (cache being read plus write), `$0.00 · Local` for local compute and an orange `Unpriced · Map` button for a model the price table does not know; a model the person priced (`overridden` in the host's reply) shows a `Custom` badge that opens the same sheet.
+`By workspace & source` (`usageWorkspaceRows`) groups by repository or folder and `Epic` / `Chat` / `External`.
+The Map sheet offers `$0.00 local`, a catalog model (`catalogModels`), custom `$/1M` rates (input and output required, cached read and cache write optional, each finite, from 0 to 10 000) and `Clear` for a model already priced; `UsageOverrideDraft.check` validates before `usageOverride` is called and says which field is wrong, the sheet keeps what was typed when the host refuses, and a save asks `usage` again so the cost follows.
+`CarrierCore/UsageModels.swift` holds the tolerant `Codable` mirror of the reply and the `usageOverride` request; `ChatHost.usage` and `usageOverride` check the hello's `usage` and `usageOverride` capabilities and, with an older host, say to restart it (`usageNeedsNewerHost`).
+Under `--fixture` the host answers `Tests/Fixtures/chat-usage.json`.

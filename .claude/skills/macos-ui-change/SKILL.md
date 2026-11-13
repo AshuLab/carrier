@@ -16,7 +16,7 @@ A build that only compiles proves nothing: open the app and look.
 5. **Check every state**: long values, missing, error, empty, and light and dark ([docs/macos-ui.md](../../../docs/macos-ui.md) says how each is drawn).
 6. **Scripted checks**, with SIGPIPE ignored as in step 4: `--fixture --selftest <log>` (last line `end: process still alive ...`, and `animating=0` on `rings, window closed`) and `--fixture --smoke-window` (widths and layout lines). What they print is in [macos/README.md](../../../macos/README.md#test).
 7. **Same checks as CI**, from `macos/`: `swift build`, `scripts/test-ci.sh`, `scripts/check-app.sh`.
-8. **Close the loop**: a new or changed piece updates docs/macos-ui.md in the same change; `macos/README.md` if the behavior changed; a CHANGELOG line if a user can see it.
+8. **Close the loop**: a new or changed piece updates docs/macos-ui.md in the same change; `docs/macos/` if the behavior changed; a CHANGELOG line if a user can see it.
 
 Quit a dev build by its PID, never `osascript ... to quit`: that also quits the installed Carrier.
 For a real chat host behind the app instead of fixtures, use the dev-sandbox skill.

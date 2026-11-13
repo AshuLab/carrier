@@ -30,5 +30,5 @@ The engine's files are in `<folder>/engine/`: `state/` (`carrier.db`, `control.s
    The chat has no reload: the host reads the file again when it needs it.
 2. Swift: `macos/Sources/CarrierCore/SessionAges.swift`, only for the ages it edits.
 
-All three: `docs/configuration.md`, `macos/README.md` if Settings shows it, and `CHANGELOG.md`.
+All three: `docs/configuration.md`, the Settings pages in `docs/macos/` if Settings shows it, and `CHANGELOG.md`.
 The app's writers keep keys they do not know, and send `reload` after saving `config.json` or `providers.json`.

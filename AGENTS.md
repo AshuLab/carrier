@@ -30,7 +30,7 @@ Each folder has one job (the folder tree is in [CONTRIBUTING.md](CONTRIBUTING.md
 - `doctor`: the checks, their remedies and the one detector of harnesses and accounts ([detail](src/doctor/AGENTS.md)).
 - `prompts`: what the agents are told ([detail](src/prompts/AGENTS.md)).
 - `orchestration` (the engine, behind the `GitHub` port), `execution` (the `AgentRunner`/`Workspaces` ports, result import), `harnesses` (Claude/Codex/Antigravity runners), `integrations`, `storage`, `logging`: as their names say.
-- `macos`: the native app, a client of the socket; it has its own README, build and tests.
+- `macos`: the native app, a client of the socket; it has its own README, build and tests, and its code map is [`macos/AGENTS.md`](macos/AGENTS.md) (what it does, area by area, is in `docs/macos/`).
 
 ## Conventions
 

@@ -6,9 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-13
+
+Settings apply without a restart, the message box dictates, and a role's model is chosen in the chat's own panel; new sessions start with the provider, model, reasoning and access set in Settings > Chat, and the chat offers every account of `providers.json`.
+
 ### Added
 
 - Engine in Settings: the Engine page of the Mac app moves from the Legacy group to the Carrier group, after Behavior, and holds everything a person sets about running Carrier on this Mac, with no note about saving (each control is written as it is changed); its line under the title reads "How the app runs Carrier". Starting has "Start Carrier when the app opens" and "Ask before stopping Carrier", which leaves General (a person who had it off still has it off; General's Reset no longer touches that switch). Programs shows the `carrier`, the `node` and the `PATH` the app runs Carrier with, each with its path and version ("Not found" when the app does not find one); "Use another…" on `carrier` opens a file picker, in place of the advanced field "Use this carrier" (and "Use the Homebrew one" goes back); and "Look for the tools again" has a Detect button, in place of "Detect again"; the banner that says something is missing points to them. GitHub identity has "Carrier acts on GitHub as", which chooses which of the profiles in `config.json` the engine uses to read issues and PRs and change labels: choosing a profile writes `orchestratorProfile`, the default (the author's identity) takes the key out of the file, a profile the file names but does not declare shows in orange and is kept until another is picked, and the engine is asked to reload after the write so the choice applies without a restart. Files has "Carrier folder", "Logs" and "Start log", each with its path (`~` for the home folder): Reveal shows the folder in Finder and Open opens the start log, and a row whose folder or file does not exist yet has its button disabled and says "Not created yet". The page the stopped-Carrier view opens is still Engine.
+- Settings > Chat has a New sessions group that chooses the provider, model and reasoning a new session opens with, in the same panel as the message box; with none chosen it takes the first provider that can work and that provider's own model and level. It also chooses what the agent may do (its access), as far as the provider lists it. The message box still changes all of it for one session.
 - Dictation: a microphone icon in the message box listens and writes what you say at the caret, in a lighter colour while it is still a guess, with a line round the box that moves with your voice; a typed key or Enter stops it and keeps the text, Escape cancels it and keeps what was already on the screen, Tab leaves the box for the microphone, a partial is underlined as well as tinted, minimizing the window stops it, and VoiceOver announces each state. Settings > Dictation chooses the model (Apple's recognizer, which needs no download; Parakeet, Nemotron and the other FluidAudio models; Whisper through WhisperKit) and the language, and downloads, cancels and deletes the models, which live under `~/.carrier/app/models` and are never bundled with the app (the licences of what is linked do ship, in the app's `Resources/Licenses`). The only permission it asks for is the microphone's. Parakeet TDT v3 shows words while you speak; the models that cannot keep up say "When you stop" and show the text at the end.
 - Settings > Agents chooses a role's model in a panel, as the chat's message box does, and nobody types a model name any more: the providers that can work as tabs (a signed-out one is left out unless the role already uses it), a search over their models (a name the list lacks can be used as typed), the reasoning slider, and a note that a role has full access because epics run on their own. The steps of "When it runs out of tokens" use the same panel, with "Default model" as the first choice and, for the second step, "No second step". A role's list on the left shows the provider's mark, the model and the reasoning.
 - A step of a role's failover can name its own `effort` (`{ "provider": "codex", "model": "gpt-5", "effort": "low" }`); without it the step keeps the effort the role was running with, as before. Settings > Agents sets it from the same panel as the model.
@@ -19,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Settings rail: Providers moves up to the first group, with General, because the engine and the chat both use its accounts; Chat, Sidebar and Dictation get a Chat group of their own; Carrier keeps Repos, Agents and Behavior.
 - Settings pages share one design. Selects are the Mac's own pop-up in the neutral colour and not the violet menu; text fields have a quiet fill and the theme's accent as their ring; the line between two rows is lighter; buttons that do something have an icon (Save, Cancel, Remove, Add, Reset, Check again, Open on GitHub, Send a test and the others); a row that opens an editor shows a chevron and opens when clicked anywhere on it (Providers' accounts, Repos' roles). Settings closes with an ✕ at the top right, or Esc: the Done button and the foot are gone.
 - Providers: empty states for a tool that is not installed or a server that is not running; the editor of an account has more room between its fields, and Auto-compact after is a choice (Use default, auto, 100,000 to 1,000,000 tokens) in place of a text.
 - Repos: a role shows the mark of its provider and its settings with a label on each (Identity, Account, Model, Effort); Defaults is an item of its own under the roles; Add repo is the last row of the list; the cards of Ready for Carrier turn a spinner each while the doctor runs, and the note under them is gone; the form of a role chooses its provider, model and reasoning from the same panel as Agents ("Same as everywhere" is its first choice), and it, the search and the dialog that adds repos use the new fields and rows; the menu of a repo and the buttons over its page have icons.
@@ -32,6 +38,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The chat offers every account of `providers.json` but Antigravity's as a provider, so a second Claude login is there to start a session on; before, only `claude` and `codex` were, unless `chat.json` listed more. An `agents` key in `chat.json` still says exactly which.
+- Antigravity's Reasoning slider runs from Low to High, left to right; it followed the order `agy models` printed the levels in, which put High first.
 - A repo that GitHub refuses (a mistyped name, no access) no longer stops Carrier from polling the other repos; its error shows in its own check.
 - A long message in the header of a Settings page goes under the title when it does not fit, and VoiceOver reads it.
 - Settings > Providers opens with the tools already listed, since the Mac is looked at when the app opens and not when the page does.
@@ -153,7 +161,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/AshuLab/carrier/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/AshuLab/carrier/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AshuLab/carrier/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/AshuLab/carrier/compare/v0.1.3...v0.1.4

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Settings — Dictation page</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* dp- = dictation page */
+.dp-opts{display:grid;grid-template-columns:minmax(min(900px,100%),960px);gap:34px;align-items:start;margin-top:8px}
+.dp-opt>h3{margin:0 0 2px;font-size:14px}.dp-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:760px}
+.dp-sheet{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);overflow:hidden}
+.dp-bar{height:44px;display:flex;align-items:center;gap:7px;padding:0 16px;border-bottom:.5px solid var(--line)}
+.dp-bar i{width:11px;height:11px;border-radius:50%;display:block}
+.dp-bar i:nth-child(1){background:#ff5f57}.dp-bar i:nth-child(2){background:#febc2e}.dp-bar i:nth-child(3){background:#28c840}
+.dp-bar span{margin-left:10px;color:var(--dim);font-size:12.5px}.dp-bar b{color:var(--text);font-weight:600}
+.dp-page{padding:22px 26px 26px}
+.dp-ph{display:flex;gap:12px;align-items:center;margin-bottom:16px}
+.dp-ph .ic{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;font-size:16px;background:color-mix(in srgb,var(--blue) 18%,transparent)}
+.dp-ph b{font-size:16px;font-weight:650;display:block}.dp-ph span{color:var(--dim);font-size:12.5px}
+.dp-sect{margin:22px 0 6px;font-size:13px;font-weight:650;display:flex;gap:8px;align-items:center}
+.dp-sect small{font-weight:400;color:var(--dim);font-size:12px}
+.dp-card{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.dp-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:.5px solid var(--line);min-height:46px}.dp-row:first-child{border:0}
+.dp-row .t{flex:1;min-width:0}.dp-row .t b{display:block;font-weight:550}.dp-row .t span{display:block;color:var(--dim);font-size:12px;margin-top:1px}
+.dp-sel{appearance:none;border:0;font:inherit;font-size:12.5px;color:var(--text);background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23999' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center;padding:5px 28px 5px 11px;border-radius:8px;box-shadow:0 0 0 .5px var(--line) inset;min-width:170px}
+.dp-seg{display:flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.dp-seg button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px;cursor:default;white-space:nowrap}
+.dp-seg button.on{background:rgba(255,255,255,.16);color:var(--text)}
+body.light .dp-seg button.on{background:var(--win);box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.dp-seg em{font-style:normal;color:var(--faint);margin-left:4px;font-weight:400}
+.dp-btn{border:0;font:inherit;font-size:12px;font-weight:550;color:var(--text);cursor:default;padding:4px 12px;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset;white-space:nowrap}
+.dp-btn.pri{background:var(--blue);color:#fff}.dp-btn.red{color:var(--red)}.dp-btn:hover{filter:brightness(1.12)}
+.dp-ic{border:0;background:none;color:var(--faint);cursor:default;font-size:13px;padding:2px 5px;border-radius:6px}.dp-ic:hover{color:var(--red);background:var(--card)}
+.dp-prog{display:flex;gap:8px;align-items:center;min-width:150px;font-size:11.5px;color:var(--dim)}.dp-prog .bar2{flex:1}.dp-prog .bar2 span{background:var(--blue)}
+.dp-mrow{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:.5px solid var(--line)}.dp-mrow:first-child{border:0}
+.dp-mrow.on{background:var(--sel);margin:0 -14px;padding:10px 14px;border-radius:10px;border-color:transparent}
+.dp-rad{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:0 0 0 1.5px var(--faint) inset}
+.dp-rad.on{box-shadow:0 0 0 4.5px var(--blue) inset}.dp-rad.off{opacity:.35}
+.dp-mrow .t{flex:1;min-width:0}.dp-mrow .t b{font-weight:550}.dp-mrow .t span{display:block;color:var(--dim);font-size:12px;margin-top:1px}
+.dp-chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.dp-chip{display:inline-flex;gap:4px;align-items:center;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:550;background:var(--card2);color:var(--dim)}
+.dp-chip.live{background:color-mix(in srgb,var(--green) 20%,transparent);color:var(--green)}
+.dp-chip.chunk{background:color-mix(in srgb,var(--blue) 22%,transparent);color:var(--blue)}
+.dp-chip.end{background:color-mix(in srgb,var(--orange) 20%,transparent);color:var(--orange)}
+.dp-chip.use{background:var(--blue);color:#fff}
+.dp-act{display:flex;gap:6px;align-items:center;justify-content:flex-end;min-width:150px}
+.dp-hint{margin:8px 2px 0;color:var(--dim);font-size:12px}
+.dp-sum{display:flex;gap:16px;align-items:center;padding:14px 16px;border-radius:14px;background:color-mix(in srgb,var(--blue) 12%,transparent);box-shadow:0 0 0 .5px color-mix(in srgb,var(--blue) 40%,transparent) inset}
+.dp-sum .mic{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--blue);color:#fff;font-size:18px;flex:none}
+.dp-sum .t{flex:1;min-width:0}.dp-sum .t b{font-size:15px;font-weight:650}.dp-sum .t span{display:block;color:var(--dim);font-size:12.5px;margin-top:2px}
+.dp-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.dp-tbl th{text-align:left;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:9px 8px;border-bottom:.5px solid var(--line)}
+.dp-tbl td{padding:9px 8px;border-top:.5px solid var(--line);vertical-align:middle}
+.dp-tbl tr:first-child td{border-top:0}
+.dp-tbl tr.on td{background:var(--sel)}.dp-tbl tr.on td:first-child{border-radius:10px 0 0 10px}.dp-tbl tr.on td:last-child{border-radius:0 10px 10px 0}
+.dp-tbl td b{font-weight:550}.dp-tbl td small{display:block;color:var(--dim);font-size:11.5px}
+.dp-step{display:flex;gap:10px;align-items:baseline;margin:20px 0 6px}
+.dp-step i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:700;background:var(--blue);color:#fff;flex:none;transform:translateY(3px)}
+.dp-step b{font-size:13px;font-weight:650}.dp-step span{color:var(--dim);font-size:12px}
+.dp-rdesc{margin:8px 2px 0;color:var(--dim);font-size:12.5px}
+.dp-foot{max-width:900px;margin:26px 0 0;color:var(--dim);font-size:12.5px}.dp-foot b{color:var(--text)}
+</style></head><body>
+<h1>Settings — Dictation page</h1>
+<div class="sub">One question: how do we lay out the page so the <b>recognizer</b>, the <b>speech model</b> and the <b>language</b> are understood without friction? Three ways to organize the same data. Everything is clickable: filter, Use, Download (simulated), Delete, language. The state is shared, so what you change in one option shows in the others.</div>
+<div class="bar"><button class="tog" onclick="document.body.classList.toggle('light')">Light / dark</button><button class="tog" onclick="reset()">Reset state</button></div>
+
+<div class="dp-opts">
+  <div class="dp-opt"><h3>A — One list, filter by recognizer</h3>
+    <p>What you asked for: the whole list, with chips to filter by recognizer. Choosing a model chooses its recognizer; the recognizer is a label on the row, not a step. Active model and language sit on top.</p>
+    <div class="dp-sheet"><div class="dp-bar"><i></i><i></i><i></i><span>Settings › App › <b>Dictation</b></span></div><div class="dp-page" id="va"></div></div></div>
+
+  <div class="dp-opt"><h3>B — Recognizer first, then its models</h3>
+    <p>Three numbered steps: pick the recognizer, pick one of its models, pick the language. Mirrors how the code is built and explains each recognizer in a line. The cost: the full list is never on screen at once.</p>
+    <div class="dp-sheet"><div class="dp-bar"><i></i><i></i><i></i><span>Settings › App › <b>Dictation</b></span></div><div class="dp-page" id="vb"></div></div></div>
+
+  <div class="dp-opt"><h3>C — Summary card + comparison table</h3>
+    <p>A card says what dictation uses right now and lets you change the language there. Below, a table to compare every model by size, languages, partial text and licence. Best for choosing between models; the densest.</p>
+    <div class="dp-sheet"><div class="dp-bar"><i></i><i></i><i></i><span>Settings › App › <b>Dictation</b></span></div><div class="dp-page" id="vc"></div></div></div>
+</div>
+
+<div class="dp-foot">
+<b>Partial text labels.</b> <span class="dp-chip live">Live</span> the model streams it itself. <span class="dp-chip chunk">Live · chunked</span> the model is fast, so Carrier transcribes the audio so far every moment (steadiness still to be measured in a prototype). <span class="dp-chip end">At the end</span> too slow for that: the text arrives when you stop.<br><br>
+<b>Placeholders.</b> Sizes are approximate. Nemotron's language list is unconfirmed (FluidAudio's docs say 8, FluidVoice's about 40). "Recognizer" is a provisional label. Apple is built into macOS: nothing to download here, and it needs one language, not Automatic. The microphone row shows only the permission state.
+</div>
+
+<script>
+const M=[
+ {id:'apple',rec:'Apple',name:'Apple Speech',size:0,langs:'Your macOS languages',auto:false,part:'live',lic:'Apple (system)',desc:'Built into macOS'},
+ {id:'tdt3',rec:'FluidAudio',name:'Parakeet TDT v3',size:500,langs:'25 languages',auto:true,part:'chunk',lic:'CC-BY-4.0'},
+ {id:'eou',rec:'FluidAudio',name:'Parakeet EOU 120M',size:250,langs:'English only',auto:false,part:'live',lic:'NVIDIA Open Model'},
+ {id:'nem',rec:'FluidAudio',name:'Nemotron streaming 0.6B',size:670,langs:'Multilingual*',auto:true,part:'live',lic:'NVIDIA Open Model'},
+ {id:'wt',rec:'Whisper',name:'Whisper Tiny',size:75,langs:'99 languages',auto:true,part:'chunk',lic:'MIT'},
+ {id:'ws',rec:'Whisper',name:'Whisper Small',size:470,langs:'99 languages',auto:true,part:'chunk',lic:'MIT'},
+ {id:'wl',rec:'Whisper',name:'Whisper Large v3',size:2900,langs:'99 languages',auto:true,part:'end',lic:'MIT'}];
+const REC={Apple:'Built into macOS. Nothing to download; one language at a time.',
+ FluidAudio:'Parakeet and Nemotron on the Neural Engine. The fastest, with live text.',
+ Whisper:'OpenAI Whisper: 99 languages, from tiny to large; the large ones only give text at the end.'};
+const PART={live:['Live','live'],chunk:['Live · chunked','chunk'],end:['At the end','end']};
+const LANGS=['Spanish','English','Portuguese','French','German','Italian'];
+const init=()=>({active:'tdt3',have:{apple:1,tdt3:1,wt:1},dl:{},filter:'All',brec:'FluidAudio',lang:'Automatic'});
+let S=init(),timer=null;
+const m=id=>M.find(x=>x.id===id), act=()=>m(S.active);
+const sz=x=>x.size?(x.size>=1000?(x.size/1000).toFixed(1)+' GB':x.size+' MB'):'System';
+const langOpts=x=>x.id==='eou'?['English']:(x.auto?['Automatic']:[]).concat(LANGS);
+function lang(){const o=langOpts(act());if(!o.includes(S.lang))S.lang=o[0];return S.lang}
+function langSel(){const x=act();return `<select class="dp-sel" onchange="S.lang=this.value;draw()">${langOpts(x).map(o=>`<option${o===lang()?' selected':''}>${o}</option>`).join('')}</select>`}
+function langHint(){const x=act();return x.auto&&lang()==='Automatic'?`${x.name} picks the language as you speak, so you can mix Spanish and English.`:x.id==='eou'?'This model only understands English.':`${x.name} listens in one language: ${lang()}. Switch to a model that detects the language to mix them.`}
+function chips(x){const p=PART[x.part];return `<span class="dp-chip ${p[1]}">${p[0]}</span><span class="dp-chip">${x.lic}</span>`}
+function action(x){
+ if(S.active===x.id)return `<span class="dp-chip use">In use</span>`;
+ if(S.dl[x.id]!==undefined)return `<div class="dp-prog"><div class="bar2"><span style="width:${S.dl[x.id]}%"></span></div>${Math.round(S.dl[x.id])}%<button class="dp-ic" title="Cancel" onclick="go('${x.id}','cancel')">✕</button></div>`;
+ if(S.have[x.id])return `<button class="dp-btn pri" onclick="go('${x.id}','use')">Use</button>${x.size?`<button class="dp-ic" title="Delete the download" onclick="go('${x.id}','del')">🗑</button>`:''}`;
+ return `<button class="dp-btn" onclick="go('${x.id}','dl')">Download · ${sz(x)}</button>`}
+function micRow(){return `<div class="dp-row"><div class="t"><b>Microphone</b><span>Carrier asks macOS the first time you dictate.</span></div><span class="dp-chip live">Allowed</span></div>`}
+function ph(){return `<div class="dp-ph"><div class="ic">🎙</div><div><b>Dictation</b><span>Speak into the chat composer. The audio never leaves this Mac.</span></div></div>`}
+
+function rowA(x,withRec){return `<div class="dp-mrow${S.active===x.id?' on':''}"><div class="dp-rad ${S.active===x.id?'on':S.have[x.id]?'':'off'}"></div><div class="t"><b>${x.name}</b>${withRec?` <span style="display:inline;margin-left:6px">${x.rec}</span>`:''}<span>${sz(x)} · ${x.langs}${x.auto?' · detects language':''}</span><div class="dp-chips">${chips(x)}</div></div><div class="dp-act">${action(x)}</div></div>`}
+function viewA(){
+ const recs=['All','Apple','FluidAudio','Whisper'],n=r=>r==='All'?M.length:M.filter(x=>x.rec===r).length;
+ const list=M.filter(x=>S.filter==='All'||x.rec===S.filter);
+ return ph()+`<div class="dp-card">${micRow()}<div class="dp-row"><div class="t"><b>Speech model</b><span>${act().rec}</span></div><b>${act().name}</b></div><div class="dp-row"><div class="t"><b>Language</b><span>${langHint()}</span></div>${langSel()}</div></div>
+ <div class="dp-sect">Speech models <small>${M.length} available · downloaded here, not bundled with the app</small><span class="sp1"></span><div class="dp-seg">${recs.map(r=>`<button class="${S.filter===r?'on':''}" onclick="S.filter='${r}';draw()">${r}<em>${n(r)}</em></button>`).join('')}</div></div>
+ <div class="dp-card">${list.map(x=>rowA(x,S.filter==='All')).join('')}</div>`}
+function viewB(){
+ const rs=['Apple','FluidAudio','Whisper'],list=M.filter(x=>x.rec===S.brec);
+ return ph()+`<div class="dp-sum"><div class="mic">🎙</div><div class="t"><b>Dictating with ${act().name}</b><span>${act().rec} · ${PART[act().part][0]} · ${lang()}</span></div></div>
+ <div class="dp-step"><i>1</i><b>Recognizer</b><span>what turns your voice into text</span></div>
+ <div class="dp-seg" style="display:inline-flex">${rs.map(r=>`<button class="${S.brec===r?'on':''}" onclick="S.brec='${r}';draw()">${r}</button>`).join('')}</div>
+ <div class="dp-rdesc">${REC[S.brec]}</div>
+ <div class="dp-step"><i>2</i><b>Model</b><span>${list.length} for ${S.brec}</span></div>
+ <div class="dp-card">${list.map(x=>rowA(x,false)).join('')}</div>
+ <div class="dp-step"><i>3</i><b>Language</b><span>${langHint()}</span></div>
+ <div class="dp-card"><div class="dp-row"><div class="t"><b>Language</b></div>${langSel()}</div>${micRow()}</div>`}
+function viewC(){
+ const recs=['All','Apple','FluidAudio','Whisper'],list=M.filter(x=>S.filter==='All'||x.rec===S.filter);
+ return ph()+`<div class="dp-sum"><div class="mic">🎙</div><div class="t"><b>${act().name}</b><span>${act().rec} · ${sz(act())} · ${PART[act().part][0]}</span></div><div style="text-align:right"><div style="color:var(--dim);font-size:11.5px;margin-bottom:4px">Language</div>${langSel()}</div></div>
+ <div class="dp-hint">${langHint()}</div>
+ <div class="dp-sect">Speech models<span class="sp1"></span><div class="dp-seg">${recs.map(r=>`<button class="${S.filter===r?'on':''}" onclick="S.filter='${r}';draw()">${r}</button>`).join('')}</div></div>
+ <div class="dp-card" style="padding:4px 6px"><table class="dp-tbl"><tr><th>Model</th><th>Size</th><th>Languages</th><th>Partial text</th><th>Licence</th><th></th></tr>
+ ${list.map(x=>`<tr class="${S.active===x.id?'on':''}"><td><b>${x.name}</b><small>${x.rec}</small></td><td>${sz(x)}</td><td>${x.langs}${x.auto?'<small>detects language</small>':''}</td><td><span class="dp-chip ${PART[x.part][1]}">${PART[x.part][0]}</span></td><td>${x.lic}</td><td><div class="dp-act" style="min-width:120px">${action(x)}</div></td></tr>`).join('')}</table></div>
+ <div class="dp-card" style="margin-top:12px">${micRow()}</div>`}
+function draw(){va.innerHTML=viewA();vb.innerHTML=viewB();vc.innerHTML=viewC()}
+function go(id,a){
+ if(a==='use'){S.active=id;S.brec=m(id).rec}
+ if(a==='dl'){S.dl[id]=0;if(!timer)timer=setInterval(tick,180)}
+ if(a==='cancel')delete S.dl[id];
+ if(a==='del'){delete S.have[id]}
+ draw()}
+function tick(){let any=false;for(const id in S.dl){S.dl[id]+=7+Math.random()*6;if(S.dl[id]>=100){delete S.dl[id];S.have[id]=1}else any=true}
+ if(!any){clearInterval(timer);timer=null}draw()}
+function reset(){S=init();if(timer){clearInterval(timer);timer=null}draw()}
+draw();
+</script></body></html>

@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Dictation page — design spec</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* ds- = dictation spec. Every size, weight, color and gap below is taken from the Settings code (SettingsTabs.swift, SheetParts.swift,
+   BehaviorTab.swift), written as macOS points at the default text size. The accent is the person's; teal here only to look like the app. */
+body{--acc:#4fd1b8;--sec:rgba(235,235,245,.60);--ter:rgba(235,235,245,.30);--fill:rgba(235,235,245,.042);--rail:rgba(235,235,245,.036);--hov:rgba(235,235,245,.085);--pri:rgba(255,255,255,.09);--prih:rgba(255,255,255,.15);--prib:rgba(255,255,255,.10);--div:rgba(255,255,255,.10)}
+body.light{--acc:#0e9f8b;--sec:rgba(60,60,67,.60);--ter:rgba(60,60,67,.30);--fill:rgba(60,60,67,.045);--rail:rgba(60,60,67,.04);--hov:rgba(60,60,67,.09);--pri:rgba(0,0,0,.07);--prih:rgba(0,0,0,.11);--prib:rgba(0,0,0,.10);--div:rgba(0,0,0,.10)}
+.ds-sheet{width:min(1130px,100%);height:700px;border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;margin-top:6px}
+body.full .ds-sheet{height:auto}
+.ds-body{flex:1;display:flex;min-height:0}
+.ds-rail{width:250px;flex:none;padding:24px 16px 14px;background:var(--rail);display:flex;flex-direction:column;gap:4px;overflow:auto}
+.ds-rh{padding:0 8px 8px}.ds-rh b{display:block;font-size:15px;font-weight:600}.ds-rh span{display:block;font-size:11px;color:var(--sec)}
+.ds-gh{margin:10px 0 0 8px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ter)}
+.ds-r{display:flex;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;cursor:default}
+.ds-r:hover:not(.on){background:var(--hov)}.ds-r.on{background:color-mix(in srgb,var(--acc) 22%,transparent)}
+.ds-r .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:13px;background:rgba(128,128,128,.12);color:var(--sec);flex:none}
+.ds-r.on .ic{background:color-mix(in srgb,var(--acc) 18%,transparent);color:var(--acc)}
+.ds-r b{display:block;font-size:13px;font-weight:500}.ds-r small{display:block;font-size:11px;color:var(--sec);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.ds-page{flex:1;min-width:0;overflow:auto}
+.ds-ph{display:flex;gap:12px;align-items:center;padding:24px 24px 12px}
+.ds-ph .ic{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;font-size:16px;background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc)}
+.ds-ph b{display:block;font-size:15px;font-weight:600}.ds-ph span{display:block;font-size:12px;color:var(--sec);margin-top:2px}
+.ds-pb{padding:8px 24px 24px;display:flex;flex-direction:column;gap:12px}
+.ds-gt{display:flex;align-items:center;margin:8px 0 6px 14px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--sec)}.ds-gt .sp1{flex:1}
+.ds-card{border-radius:14px;background:var(--fill);padding:0 14px}
+.ds-row{display:flex;align-items:center;gap:12px;padding:10px 0;min-height:46px;border-top:.5px solid var(--div)}.ds-row.first{border-top:0}
+.ds-row .t{flex:1;min-width:0}.ds-row .t b{display:block;font-size:13px;font-weight:500}.ds-row .t span{display:block;font-size:10px;color:var(--sec);margin-top:1px}
+.ds-pop{appearance:none;border:0;font:inherit;font-size:13px;color:var(--acc);background:var(--pri) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='12'%3E%3Cpath d='M1 4.5l3-3 3 3M1 7.5l3 3 3-3' fill='none' stroke='%23999' stroke-width='1.3'/%3E%3C/svg%3E") no-repeat right 9px center;padding:3px 26px 3px 11px;border-radius:7px;box-shadow:0 0 0 .5px var(--prib) inset}
+.ds-seg{display:flex;gap:1px;background:var(--pri);border-radius:99px;padding:2px;margin-right:2px;text-transform:none}
+.ds-seg button{border:0;background:none;color:var(--sec);font:inherit;font-size:12px;font-weight:500;padding:2px 11px;border-radius:99px;cursor:default;white-space:nowrap}
+.ds-seg button.on{background:var(--prih);color:var(--text)}
+.ds-cap{border:0;font:inherit;font-size:12px;font-weight:500;color:var(--text);cursor:default;padding:3px 11px;border-radius:99px;background:var(--pri);box-shadow:0 0 0 .5px var(--prib) inset;white-space:nowrap}
+.ds-cap:hover{background:var(--prih)}.ds-cap.pri{background:var(--acc);color:#fff;box-shadow:none;font-size:13px;padding:6px 16px}
+body:not(.light) .ds-cap.pri{color:#06201b}
+.ds-ib{border:0;background:none;color:var(--sec);cursor:default;font-size:12px;padding:3px 6px;border-radius:6px}.ds-ib:hover{background:var(--hov)}
+.ds-chip{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:500;background:var(--pri);color:var(--sec);white-space:nowrap}
+.ds-chip.acc{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc)}
+.ds-chip.g{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.ds-chip.r{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
+.ds-th,.ds-m{display:grid;grid-template-columns:20px minmax(190px,1fr) 64px 150px 104px 158px;gap:10px;align-items:center}
+.ds-th{padding:9px 0 6px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--sec)}
+.ds-m{padding:8px;border-radius:8px;border-top:.5px solid var(--div);cursor:default;margin:0 -8px;position:relative}
+.ds-m.first{border-top:0}.ds-m.have:hover:not(.on){background:var(--hov)}.ds-m.on{background:color-mix(in srgb,var(--acc) 22%,transparent);border-top-color:transparent}
+.ds-m.on+.ds-m{border-top-color:transparent}
+.ds-m b{display:block;font-size:13px;font-weight:500}.ds-m small{display:block;font-size:10px;color:var(--sec);margin-top:1px}
+.ds-m .n{font-size:12px;font-variant-numeric:tabular-nums}
+.ds-m .l{font-size:12px}
+.ds-rad{width:15px;height:15px;border-radius:50%;box-shadow:0 0 0 1.5px var(--ter) inset}.ds-rad.on{box-shadow:0 0 0 4.5px var(--acc) inset}
+.ds-act{display:flex;gap:6px;align-items:center;justify-content:flex-end}
+.ds-prog{display:flex;gap:8px;align-items:center;width:100%;font-size:10px;color:var(--sec);font-variant-numeric:tabular-nums}
+.ds-prog i{flex:1;height:4px;border-radius:2px;background:var(--pri);overflow:hidden;display:block}.ds-prog i span{display:block;height:100%;background:var(--acc)}
+.ds-err{font-size:10px;color:var(--red)}
+/* the switch of the Dictation row: as the toggles of General */
+.ds-sw{width:38px;height:22px;border-radius:99px;background:var(--pri);position:relative;flex:none;box-shadow:0 0 0 .5px var(--prib) inset;cursor:default}
+.ds-sw::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .15s}
+.ds-sw.on{background:var(--acc)}.ds-sw.on::after{left:18px}
+.ds-dim{opacity:.4;pointer-events:none}
+.ds-foot{display:flex;justify-content:flex-end;padding:12px 20px;border-top:.5px solid var(--div)}
+/* guide */
+.gd{max-width:1130px;margin-top:34px}.gd h2{font-size:17px;margin:0 0 4px;font-weight:650}.gd>p{color:var(--dim);max-width:820px;margin:0 0 14px}
+.gd h3{font-size:13.5px;margin:26px 0 8px;font-weight:650}
+.gd table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--card);border-radius:12px;overflow:hidden}
+.gd th{text-align:left;font-size:11px;text-transform:uppercase;color:var(--faint);padding:8px 12px;font-weight:600}
+.gd td{padding:7px 12px;border-top:.5px solid var(--line);vertical-align:top}.gd td:first-child{white-space:nowrap;font-weight:550}
+.gd code{font:11.5px var(--mono);background:var(--card2);padding:1px 6px;border-radius:5px}
+.gd ul{margin:6px 0 0;padding-left:18px}.gd li{margin:4px 0;color:var(--dim)}.gd li b{color:var(--text)}
+.gd .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.gd .box{background:var(--card);border-radius:12px;padding:12px 16px}
+.gd .box h4{margin:0 0 4px;font-size:12.5px}
+.gd .flag{background:color-mix(in srgb,var(--orange) 14%,transparent)}
+</style></head><body>
+<h1>Dictation page — design spec</h1>
+<div class="sub">The chosen design (option C of the first prototype, refined) drawn with the real tokens of the app's Settings, and below it the guide to build it. Everything on the page is interactive: filter, click a downloaded row to use it, Download (simulated; Whisper Large fails on purpose so you see Retry), the trash, the language and the microphone state.</div>
+<div class="bar"><button class="tog" onclick="document.body.classList.toggle('light')">Light / dark</button><button class="tog" onclick="S.mic=S.mic==='ok'?'no':'ok';draw()">Microphone: allowed / denied</button><button class="tog" onclick="reset()">Reset state</button><button class="tog" onclick="document.body.classList.toggle('full')">Fixed sheet / full height</button></div>
+
+<div class="ds-sheet"><div class="ds-body">
+  <div class="ds-rail">
+    <div class="ds-rh"><b>Settings</b><span>How Carrier runs here</span></div>
+    <div class="ds-r"><span class="ic">⚙</span><div><b>General</b><small>The menu bar and the questions Carrier asks</small></div></div>
+    <div class="ds-r"><span class="ic">🔔</span><div><b>Notifications</b><small>What to tell you</small></div></div>
+    <div class="ds-r"><span class="ic">🖌</span><div><b>Appearance</b><small>Theme, color, text size, density and the font of code</small></div></div>
+    <div class="ds-r"><span class="ic">▭</span><div><b>Sidebar</b><small>What the sessions list shows</small></div></div>
+    <div class="ds-r"><span class="ic">💬</span><div><b>Chat</b><small>The message box and the conversation</small></div></div>
+    <div class="ds-r on"><span class="ic">🎙</span><div><b>Dictation</b><small>Speak instead of typing</small></div></div>
+    <div class="ds-r"><span class="ic">⌨</span><div><b>Keybindings</b><small>The keys that run the app's actions</small></div></div>
+    <div class="ds-gh">Carrier</div>
+    <div class="ds-r"><span class="ic">◍</span><div><b>Providers</b><small>The AI tools on this Mac and their accounts</small></div></div>
+    <div class="ds-r"><span class="ic">▤</span><div><b>Repos</b><small>What Carrier watches</small></div></div>
+    <div class="ds-r"><span class="ic">◎</span><div><b>Agents</b><small>Who works on an epic</small></div></div>
+  </div>
+  <div class="ds-page" id="pg"></div>
+</div><div class="ds-foot"><button class="ds-cap pri">Done</button></div></div>
+
+<div class="gd">
+<h2>Guide to build it</h2>
+<p>What to reuse, what is new, the tokens, the states and the accessibility. Sizes are SwiftUI's macOS text styles at the default text size (<code>.title3</code> 15, <code>.body</code> 13, <code>.callout</code> 12, <code>.subheadline</code> 11, <code>.caption</code> and <code>.caption2</code> 10), read from the code, not measured from a screenshot.</p>
+
+<h3>1. Register the page</h3>
+<table><tr><th>SettingsPage.swift</th><th></th></tr>
+<tr><td>case</td><td><code>.dictation = "Dictation"</code>, placed between <code>.chat</code> and <code>.keybindings</code>: the rail is built in the order of the cases.</td></tr>
+<tr><td>group</td><td><code>.app</code>: it configures this Mac, not the engine or the chat host.</td></tr>
+<tr><td>icon · detail</td><td><code>"mic"</code> · <code>"Speak instead of typing"</code></td></tr></table>
+
+<h3>2. Reuse as is</h3>
+<table><tr><th>Part of the page</th><th>Component that already exists</th></tr>
+<tr><td>Header</td><td><code>SettingsPageHeader</code>: icon 16 medium in the accent on a 36 × 36 tile (radius 8, accent at 16%), title <code>.title3</code> semibold, line <code>.callout</code> secondary.</td></tr>
+<tr><td>Page body and Reset</td><td><code>SettingsPageBody(reset:)</code>: groups 12 apart; the Reset row is its own card at the end, <code>SecondaryCapsuleButtonStyle</code>. The reset restores the recognizer, model and language and does not delete downloads.</td></tr>
+<tr><td>Group of rows</td><td><code>SettingsGroup(title:)</code> over <code>SettingsTabCard</code> (padding 14, radius 14, secondary at 7%) with <code>SettingsTabRow</code> (title <code>.medium</code>, line <code>.caption</code> secondary, 10 vertical, 46 minimum, divider above all but the first).</td></tr>
+<tr><td>Speech model, Language</td><td><code>Picker</code> with the menu style, <code>.labelsHidden().fixedSize()</code>, as in Icon style and Time format (accent text). The model one lists the downloaded models only.</td></tr>
+<tr><td>Dictation switch</td><td>The first row of the first card, a <code>SettingsTabRow</code> with <code>Toggle(...).labelsHidden().toggleStyle(.switch)</code>, as "Animate the icon" is in General. Title "Dictation", line "The microphone shows in the message box".</td></tr>
+<tr><td>Rail entry</td><td><code>RailRow</code>, no changes.</td></tr>
+<tr><td>Buttons</td><td>Download, Retry, Show in Finder, Open System Settings: <code>SecondaryCapsuleButtonStyle</code> with <code>.controlSize(.small)</code>. Done is the sheet's <code>PrimaryCapsuleButtonStyle</code>, the only accent button on the screen.</td></tr>
+<tr><td>Row that is a button</td><td><code>HoverRow</code> for the model rows: faint fill under the pointer (secondary at 14%), the accent at 22% when it is the chosen one, as the rail does.</td></tr></table>
+
+<h3>3. New</h3>
+<table><tr><th>Piece</th><th>What it is</th></tr>
+<tr><td><code>SettingsGroup</code> accessory</td><td>The group's title row needs a trailing control for the recognizer filter. Add an optional <code>accessory</code> view to <code>SettingsGroup</code>; the default stays as it is.</td></tr>
+<tr><td><code>SpeechModelRow</code></td><td>A <code>HoverRow</code> laid out in fixed columns, 20 (radio) · flexible (name and recognizer · licence) · 64 (size) · 150 (languages) · 104 (text appears) · 158 (action), 10 apart, row padding 8, dividers in the card like the rest. Build it with <code>HStack</code> and fixed widths, not SwiftUI's <code>Table</code>: a <code>Table</code> inside a scrolling page brings its own scrolling and look, and the card style would be lost.</td></tr>
+<tr><td>Column header</td><td>A row of <code>.caption2</code> semibold secondary uppercase, the same style as a group's title.</td></tr>
+<tr><td><code>StatusChip</code></td><td>A capsule with <code>.caption</code> medium text, 8 across and 1 up, filled with its color at 16%: accent for Live, neutral (primary at 9%, secondary text) for When you stop, green for Allowed, red for Not allowed. The app has several private chips (<code>EpicView</code>, <code>ReviewTabView</code>, <code>ReposTab</code>, <code>AttachmentChip</code>) and no shared one; this is the moment to make one.</td></tr>
+<tr><td>Download state</td><td>A model has one of: not downloaded, downloading (a thin accent bar, the percentage with <code>.monospacedDigit()</code>, a cancel button), failed (a red <code>.caption</code> reason and Retry), downloaded, in use. The state comes from the core; the row only draws it.</td></tr></table>
+
+<h3>4. Tokens</h3>
+<table><tr><th>Element</th><th>Font</th><th>Color</th><th>Spacing</th></tr>
+<tr><td>Page title</td><td><code>.title3</code> semibold (15)</td><td>primary</td><td>header 24 left and top, 12 below</td></tr>
+<tr><td>Page line</td><td><code>.callout</code> (12)</td><td>secondary</td><td>2 under the title</td></tr>
+<tr><td>Group title</td><td><code>.caption2</code> semibold, uppercase (10)</td><td>secondary</td><td>14 in, 8 above, 6 below</td></tr>
+<tr><td>Row title</td><td><code>.body</code> medium (13)</td><td>primary</td><td>10 vertical, 46 minimum</td></tr>
+<tr><td>Row line</td><td><code>.caption</code> (10)</td><td>secondary</td><td>1 under the title</td></tr>
+<tr><td>Model name</td><td><code>.body</code> medium (13)</td><td>primary, also when it is not downloaded</td><td>row 8 all round</td></tr>
+<tr><td>Recognizer · licence</td><td><code>.caption</code> (10)</td><td>secondary</td><td>1 under the name</td></tr>
+<tr><td>Size, languages</td><td><code>.callout</code> (12), size with <code>.monospacedDigit()</code></td><td>primary</td><td></td></tr>
+<tr><td>Chip</td><td><code>.caption</code> medium (10)</td><td>its tint, on its tint at 16%</td><td>8 × 1</td></tr>
+<tr><td>Button</td><td><code>.callout</code> medium (12)</td><td>primary</td><td>11 × 3, small</td></tr>
+<tr><td>Chosen row</td><td></td><td>accent at 22% fill, filled radio in the accent</td><td>radius 8</td></tr>
+<tr><td>Cards</td><td></td><td>secondary at 7%</td><td>14 in, radius 14</td></tr></table>
+<ul><li><b>Color.</b> Everything colored comes from the theme: <code>Color.themeAccent</code>, never a literal. Green and red are the system's and appear only for the microphone state and for errors.</li>
+<li><b>Text size.</b> Views take their sizes from the system styles or <code>.scaled</code>, so the Appearance text-size slider reaches them; no fixed point sizes.</li></ul>
+
+<h3>5. What the first prototype got wrong</h3>
+<table><tr><th>Was</th><th>Is</th><th>Why</th></tr>
+<tr><td>Row title bold (600)</td><td>Medium (500)</td><td>Settings titles are <code>.fontWeight(.medium)</code>; semibold is for headers and group titles.</td></tr>
+<tr><td>Row line 11.5</td><td>10 (<code>.caption</code>)</td><td>It was larger than the page's own rows, so this page looked louder than the others.</td></tr>
+<tr><td>Group title in the faintest grey, with letter spacing</td><td>Secondary, no spacing</td><td>The group's title is secondary; the tertiary grey is the rail's heading. SwiftUI adds no tracking to <code>uppercased()</code>.</td></tr>
+<tr><td>20 between blocks</td><td>12, and 8 above the title</td><td>The page body spaces groups by 12.</td></tr>
+<tr><td>Rail icon 30, selected fill 16%</td><td>28, selected 22% (tile 18%)</td><td>It is <code>RailRow</code>'s.</td></tr>
+<tr><td>"When you stop" in orange</td><td>Neutral chip</td><td>Orange is this app's warning color (the banners, the not-found dot). Slower text is a trait of the model, not a problem.</td></tr>
+<tr><td>Dashed circle on models not downloaded</td><td>No radio, an empty column</td><td>The dashed circle read as a disabled option. A model with no radio is plainly one you do not have yet; its name stays primary.</td></tr>
+<tr><td>Sizes and percentages in a proportional face</td><td>Tabular digits</td><td>The column does not shake while a download counts up.</td></tr></table>
+
+<h3>6. States and behaviour <span style="font-weight:400;color:var(--dim)">(proposed; the spec confirms)</span></h3>
+<div class="two">
+<div class="box"><h4>The page</h4><ul>
+<li><b>Off.</b> The switch is the one row that stays live in its card; the rows under it (Speech model, Language, Microphone) and the whole Speech models group are drawn at 40% and take no clicks. Storage and Reset stay live, so a person can free the disk with the feature off. The line under the switch says what off means. Off removes the microphone from the message box, asks macOS for nothing and never listens; what was downloaded stays on disk. Turning it off while a dictation is on stops it and keeps the text.</li>
+<li><b>First use.</b> Apple's model in use, nothing downloaded, Language on the language of macOS (Apple takes one language, so Automatic is not offered).</li>
+<li><b>Choosing.</b> The popup lists downloaded models; a click on a downloaded row does the same. Choosing a model changes what Language offers, and a language it does not take falls back to the first it offers.</li>
+<li><b>Deleting.</b> Only a downloaded model that is not in use has a trash; Apple's has none, it is the system's. To free the one in use, switch first.</li>
+<li><b>Storage.</b> The size of the downloaded models, in the Carrier folder, and Show in Finder.</li></ul></div>
+<div class="box"><h4>Errors</h4><ul>
+<li><b>Download failed.</b> The reason in red in the action column, and Retry. The reason is the cause the core knows (no connection, no space on the disk, the file did not check), not a generic message.</li>
+<li><b>Microphone denied.</b> A red chip and Open System Settings, which opens the Microphone pane; the line says what it stops.</li>
+<li><b>Cancelled download.</b> The row returns to Download with no trace left on disk.</li>
+<li><b>Quit mid-download.</b> The partial file is deleted at the next start; the row shows Download.</li></ul></div></div>
+
+<h3>7. Accessibility <span style="font-weight:400;color:var(--dim)">(proposed)</span></h3>
+<ul><li>A model row is one button: its label reads the name, recognizer, size, languages and how the text appears, and it carries the selected trait when it is in use. The trash and Retry are their own buttons with labels ("Delete Whisper Tiny").</li>
+<li>The progress is a value, "Downloading Parakeet TDT v3, 40 percent", updated at most each 10 percent so VoiceOver does not talk over the person; the finish is announced.</li>
+<li>Group titles and the page title carry the header trait, as the other pages do. Color never carries a state alone: the chips and the radio have words and shapes too.</li>
+<li>Every control works from the keyboard; the filter is a segmented picker, and the rows are reachable in order.</li></ul>
+
+<h3>8. Where the screenshot and the code differ</h3>
+<div class="box flag"><ul style="margin:0"><li>The screenshot of the app shows <b>Reset</b> in the accent and <b>Providers</b> above the CARRIER heading. In <code>main</code>, Reset is the neutral <code>SecondaryCapsuleButtonStyle</code> and Providers is in the Carrier group. The running build is probably from another branch. This page follows the code, with the layout of the screenshot, and keeps Done as the only accent button; if the newer build changed that on purpose, change Reset here too.</li></ul></div>
+</div>
+
+<script>
+const M=[
+ {id:'apple',rec:'Apple',name:'Apple Speech',size:0,langs:'Your macOS languages',auto:false,part:'live',lic:'built into macOS'},
+ {id:'tdt3',rec:'FluidAudio',name:'Parakeet TDT v3',size:500,langs:'25 languages',auto:true,part:'chunk',lic:'CC-BY-4.0'},
+ {id:'eou',rec:'FluidAudio',name:'Parakeet EOU 120M',size:450,langs:'English only',auto:false,part:'live',lic:'NVIDIA Open Model'},
+ {id:'nemen',rec:'FluidAudio',name:'Nemotron Streaming EN',size:630,langs:'English only',auto:false,part:'live',lic:'NVIDIA Open Model'},
+ {id:'nem',rec:'FluidAudio',name:'Nemotron 3.5 Multilingual',size:650,langs:'8 languages',auto:true,part:'live',lic:'OpenMDW-1.1'},
+ {id:'wt',rec:'Whisper',name:'Whisper Tiny',size:75,langs:'99 languages',auto:true,part:'chunk',lic:'MIT'},
+ {id:'ws',rec:'Whisper',name:'Whisper Small',size:470,langs:'99 languages',auto:true,part:'chunk',lic:'MIT'},
+ {id:'wl',rec:'Whisper',name:'Whisper Large v3 Turbo',size:630,langs:'99 languages',auto:true,part:'end',lic:'MIT'}];
+const LANGS=['Spanish','English','Portuguese','French','German','Italian'];
+const TIP={live:'The model streams the text itself.',chunk:'Carrier transcribes what you have said every moment; the model is fast enough for it.',end:'Too slow to follow you: the text arrives when you stop.'};
+const init=()=>({active:'tdt3',have:{apple:1,tdt3:1,wt:1},dl:{},fail:{},filter:'All',lang:'Automatic',mic:'ok',on:true});
+let S=init(),timer=null;
+const m=id=>M.find(x=>x.id===id),act=()=>m(S.active);
+const sz=x=>x.size?(x.size>=1000?(x.size/1000).toFixed(1)+' GB':x.size+' MB'):'System';
+const langOpts=x=>x.langs==='English only'?['English']:(x.auto?['Automatic']:[]).concat(LANGS);
+function lang(){const o=langOpts(act());if(!o.includes(S.lang))S.lang=o[0];return S.lang}
+function hint(){const x=act();return x.auto&&lang()==='Automatic'?'Picks the language as you speak, so you can mix Spanish and English':x.langs==='English only'?'This model only understands English':`${x.name} listens in one language; pick a model that detects it to mix them`}
+const part=x=>x.part==='end'?`<span class="ds-chip" title="${TIP.end}">When you stop</span>`:`<span class="ds-chip acc" title="${TIP[x.part]}">Live</span>`;
+function action(x){
+ if(S.dl[x.id]!==undefined)return `<div class="ds-prog"><i><span style="width:${S.dl[x.id]}%"></span></i>${Math.round(S.dl[x.id])}%<button class="ds-ib" title="Cancel" onclick="event.stopPropagation();go('${x.id}','cancel')">✕</button></div>`;
+ if(S.fail[x.id])return `<span class="ds-err">No connection</span><button class="ds-cap" onclick="go('${x.id}','dl')">Retry</button>`;
+ if(S.have[x.id])return S.active===x.id||!x.size?'':`<button class="ds-ib" title="Delete ${x.name}" onclick="event.stopPropagation();go('${x.id}','del')">🗑</button>`;
+ return `<button class="ds-cap" onclick="go('${x.id}','dl')">Download · ${sz(x)}</button>`}
+function micRow(){return S.mic==='ok'
+ ?`<div class="ds-row"><div class="t"><b>Microphone</b><span>Carrier asks macOS the first time you dictate</span></div><span class="ds-chip g">✓ Allowed</span></div>`
+ :`<div class="ds-row"><div class="t"><b>Microphone</b><span>macOS has it blocked for Carrier, so dictation cannot listen</span></div><span class="ds-chip r">Not allowed</span><button class="ds-cap">Open System Settings</button></div>`}
+function view(){
+ const have=M.filter(x=>S.have[x.id]),recs=['All','Apple','FluidAudio','Whisper'];
+ const list=M.filter(x=>S.filter==='All'||x.rec===S.filter);
+ const used=M.filter(x=>S.have[x.id]).reduce((a,x)=>a+x.size,0);
+ return `<div class="ds-ph"><div class="ic">🎙</div><div><b>Dictation</b><span>Speak instead of typing</span></div></div>
+ <div class="ds-pb">
+ <div><div class="ds-gt">Dictation</div>
+ <div class="ds-card">
+  <div class="ds-row first"><div class="t"><b>Dictation</b><span>${S.on?'The microphone shows in the message box':'Off: no microphone in the message box, nothing listens'}</span></div><div class="ds-sw${S.on?' on':''}" role="switch" aria-checked="${S.on}" aria-label="Dictation" onclick="S.on=!S.on;draw()"></div></div>
+  <div class="${S.on?'':'ds-dim'}">
+  <div class="ds-row"><div class="t"><b>Speech model</b><span>${act().rec} · ${sz(act())} · ${act().part==='end'?'text arrives when you stop':'text appears as you speak'}</span></div>
+   <select class="ds-pop" onchange="S.active=this.value;draw()">${have.map(x=>`<option value="${x.id}"${x.id===S.active?' selected':''}>${x.name}</option>`).join('')}</select></div>
+  <div class="ds-row"><div class="t"><b>Language</b><span>${hint()}</span></div>
+   <select class="ds-pop" onchange="S.lang=this.value;draw()">${langOpts(act()).map(o=>`<option${o===lang()?' selected':''}>${o}</option>`).join('')}</select></div>
+  ${micRow()}
+  </div>
+ </div></div>
+ <div class="${S.on?'':'ds-dim'}"><div class="ds-gt">Speech models<span class="sp1"></span><div class="ds-seg">${recs.map(r=>`<button class="${S.filter===r?'on':''}" onclick="S.filter='${r}';draw()">${r}</button>`).join('')}</div></div>
+ <div class="ds-card" style="padding-bottom:6px"><div class="ds-th"><span></span><span>Model</span><span>Size</span><span>Languages</span><span>Text appears</span><span></span></div>
+ ${list.map((x,i)=>`<div class="ds-m${i===0?' first':''}${S.have[x.id]?' have':''}${S.active===x.id?' on':''}" ${S.have[x.id]?`onclick="S.active='${x.id}';draw()"`:''}>
+  <span>${S.have[x.id]?`<span class="ds-rad${S.active===x.id?' on':''}" style="display:block"></span>`:''}</span>
+  <div><b>${x.name}</b><small>${x.rec} · ${x.lic}</small></div><span class="n">${sz(x)}</span>
+  <div class="l">${x.langs}${x.auto?'<small>Detects the language</small>':''}</div><div>${part(x)}</div>
+  <div class="ds-act">${action(x)}</div></div>`).join('')}</div></div>
+ <div><div class="ds-gt">Storage</div><div class="ds-card"><div class="ds-row first"><div class="t"><b>Downloaded models</b><span>${used>=1000?(used/1000).toFixed(1)+' GB':used+' MB'} in the Carrier folder</span></div><button class="ds-cap">Show in Finder</button></div></div></div>
+ <div class="ds-card"><div class="ds-row first"><div class="t"><b>Reset</b><span>Puts this page back to how it came</span></div><button class="ds-cap" onclick="reset(true)">Reset</button></div></div>
+ </div>`}
+function draw(){pg.innerHTML=view()}
+function go(id,a){
+ if(a==='dl'){delete S.fail[id];S.dl[id]=0;if(!timer)timer=setInterval(tick,180)}
+ if(a==='cancel')delete S.dl[id];
+ if(a==='del')delete S.have[id];
+ draw()}
+function tick(){let any=false;for(const id in S.dl){S.dl[id]+=7+Math.random()*6;
+  if(id==='wl'&&S.dl[id]>40){delete S.dl[id];S.fail[id]=1}
+  else if(S.dl[id]>=100){delete S.dl[id];S.have[id]=1}else any=true}
+ if(!any){clearInterval(timer);timer=null}draw()}
+function reset(keep){const h=S.have;S=init();if(keep){S.have=h;if(!h[S.active])S.active='apple'}if(timer){clearInterval(timer);timer=null}draw()}
+if(location.hash==='#full')document.body.classList.add('full');
+draw();
+</script></body></html>

@@ -279,15 +279,27 @@ func roleSummary(_ fields: RoleFields) -> Text {
 }
 
 /// A group of a tab: a small uppercase title over a card of rows.
-struct SettingsGroup<Content: View>: View {
+struct SettingsGroup<Content: View, Accessory: View>: View {
     let title: String
+    @ViewBuilder var accessory: Accessory
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).sectionLabel().padding(.leading, 14).padding(.top, 8)
+            HStack {
+                Text(title).sectionLabel()
+                Spacer(minLength: 8)
+                accessory
+            }
+            .padding(.leading, 14).padding(.top, 8)
             SettingsTabCard { content }
         }
+    }
+}
+
+extension SettingsGroup where Accessory == EmptyView {
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.init(title: title, accessory: { EmptyView() }, content: content)
     }
 }
 

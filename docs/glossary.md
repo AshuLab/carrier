@@ -50,7 +50,7 @@ _Avoid_: implementer, developer.
 **Reviewer** - Agent that reviews the final PR in a separate checkout, publishes findings and verifies the fixes. Its GitHub profile differs from the author's, unless the user chose a shared identity.
 _Avoid_: external reviewer, review bot.
 
-**Carrier folder** - The one folder where Carrier keeps everything it owns: `~/.carrier/` by default, changed with `CARRIER_HOME`. It holds the engine's config (`config.json`) and one subfolder per process, each with its own state, logs and lock: `engine/` (with its `state/`, `logs/`, `repos/`, `worktrees/` and `reviews/`) and `chat/` (with its config `chat.json`, its `projects/` and its `worktrees/`). Solve never receives it ([0016](adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)). It is independent of where the app's code lives or from where it is started.
+**Carrier folder** - The one folder where Carrier keeps everything it owns: `~/.carrier/` by default, changed with `CARRIER_HOME`. It holds the engine's config (`config.json`) and one subfolder per process, each with its own state, logs and lock: `engine/` (with its `state/`, `logs/`, `repos/`, `worktrees/` and `reviews/`), `chat/` (with its config `chat.json`, its `projects/` and its `worktrees/`) and `app/` (the Mac app's, with `models/`, the speech models a person downloads, and `logs/`, with `dictation.log`). Solve never receives it ([0016](adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)). It is independent of where the app's code lives or from where it is started.
 _Avoid_: shared root, root, Carrier home (that is the app's page of the Carrier world), data folder, workspace (it is an epic's checkout, inside `engine/worktrees/`).
 
 **Config level** - One of the four places a setting lives, by who reads it: the engine's `config.json`, the chat's `chat/chat.json`, the app's preferences (user defaults, read only by the app) and `providers.json`, the accounts that the engine and the chat host both read ([0020](adr/0020-accounts-live-in-a-file-both-processes-read.md)). A setting lives in one level and no process reads another's, except the accounts. The chat host starts with neither `chat.json` nor `providers.json`; the engine needs its own `config.json`.
@@ -222,3 +222,15 @@ _Avoid_: tab (a page is a row of the rail, not a tab), section (that is a part o
 
 **Legacy group** - The Settings group that holds the pages that existed before the groups (Engine, Sessions, Health; Behavior has moved to the Carrier group) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
 _Avoid_: old settings, misc, other.
+
+**Dictation** - Speaking to write: the app listens through the microphone and puts the recognized text where the person is typing. The first cut starts from a button in the chat composer and fills that field; a shortcut and typing into other apps come after, on the same core.
+_Avoid_: voice input, transcription (a recording turned into text afterwards), speech-to-text (that is what a recognizer does).
+
+**Recognizer** - The piece of software that turns audio into text, each with its own list of speech models: Apple's SpeechAnalyzer, FluidAudio (Parakeet, Nemotron) and Whisper. A person picks a recognizer and then one of its models. It runs inside the app, not in the engine.
+_Avoid_: engine (that is Carrier's orchestrator, and the app has an Engine page), backend, provider (that is who serves an agent's model), ASR or STT engine.
+
+**Speech model** - What a recognizer runs, taken from one fixed list in the app: its name, recognizer, size, languages, how it gives partial text and its licence. It is downloaded by the person from the app, never bundled with it and never fetched from a free URL; Apple's are managed by the system.
+_Avoid_: model alone (that is the language model an account's agent uses), voice, checkpoint.
+
+**Partial text** - What a dictation shows while the person is still speaking, before it is final. A recognizer gives it natively, or the core makes it by transcribing the audio so far at short intervals when the model is fast enough, or there is none and the text arrives when the person stops.
+_Avoid_: live transcription, preview, interim result.

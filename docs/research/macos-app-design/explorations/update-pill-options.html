@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Update pill — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--acc:#e5486b;--warn:#ff9f0a;--text:#ece6ea;--dim:rgba(236,230,234,.55);--glowA:rgba(201,160,255,.95);--glowB:rgba(120,170,255,.8);
+  --spring:cubic-bezier(.34,1.45,.5,1);--ease:cubic-bezier(.2,.8,.2,1)}
+*{box-sizing:border-box}
+body{margin:0;padding:34px 40px 60px;background:#1b1418;color:var(--text);font:13px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.u-intro{color:var(--dim);max-width:900px;margin:0 0 18px}
+.u-bar{display:flex;gap:14px;align-items:center;margin-bottom:22px;flex-wrap:wrap}
+.u-bar label{display:flex;gap:6px;align-items:center;color:var(--dim)}
+.u-btn{border:0;border-radius:99px;padding:6px 13px;background:rgba(255,255,255,.09);color:var(--text);font:500 12px -apple-system;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.15)}
+.u-btn:hover{background:rgba(255,255,255,.14)}
+.u-btn.main{background:var(--acc);color:#fff}
+.u-opts{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.u-opt{width:420px}
+.u-opt h3{margin:0 0 2px;font-size:14px}
+.u-opt p{margin:0 0 10px;color:var(--dim);font-size:12.5px;min-height:74px}
+.u-ctl{display:flex;gap:8px;align-items:center;margin-top:10px}
+.u-state{margin-left:auto;font:11px ui-monospace,Menlo;color:var(--dim)}
+
+/* the window: sidebar + a slice of the detail */
+.u-win{position:relative;height:250px;border-radius:14px;overflow:hidden;background:#2a1f25;box-shadow:0 20px 50px rgba(0,0,0,.45),inset 0 0 0 .5px rgba(255,255,255,.12);display:flex}
+.u-side{width:268px;background:#33242c;position:relative}
+.u-detail{flex:1;border-left:.5px solid rgba(0,0,0,.4)}
+.u-dtitle{height:52px;display:flex;align-items:center;gap:10px;padding:0 10px;border-bottom:.5px solid rgba(0,0,0,.35)}
+.u-tog{width:30px;height:30px;border-radius:15px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.14)}
+.u-tl{position:absolute;left:20px;top:20px;display:flex;gap:8px}
+.u-tl i{width:12px;height:12px;border-radius:6px;background:#ff5f57}.u-tl i:nth-child(2){background:#febc2e}.u-tl i:nth-child(3){background:#28c840}
+.u-slot{position:absolute;left:88px;top:13px;height:26px;display:flex;align-items:center}
+.u-rows{position:absolute;top:60px;left:8px;right:8px}
+.u-row{height:36px;border-radius:9px;display:flex;align-items:center;padding:0 12px;gap:9px;color:var(--text);font-weight:600}
+.u-row.sel{background:#9c2f45}
+.u-row i{width:14px;height:14px;border-radius:4px;background:rgba(255,255,255,.4)}
+.u-row.g{color:var(--dim);font-weight:500;height:30px}
+
+/* ---- the pill, shared ---- */
+@property --ga{syntax:"<angle>";initial-value:0deg;inherits:false}
+@keyframes g-rot{to{--ga:360deg}}
+@keyframes sh{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes pop{0%{transform:scale(0)}60%{transform:scale(1.35)}100%{transform:scale(1)}}
+@keyframes bounce{0%{transform:scale(.3)}55%{transform:scale(1.3)}100%{transform:scale(1)}}
+@keyframes shake{0%,100%{translate:0}20%{translate:-3px}40%{translate:3px}60%{translate:-2px}80%{translate:2px}}
+@keyframes breathe{0%,100%{box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16),0 1px 2px rgba(0,0,0,.3),0 0 0 0 transparent}50%{box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16),0 1px 2px rgba(0,0,0,.3),0 0 14px 1px rgba(229,72,107,.45)}}
+@keyframes bob{0%,100%{translate:0 -1px}50%{translate:0 1.5px}}
+@keyframes flash{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.9)}}
+
+.p{position:relative;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px 0 8px;border-radius:13px;border:0;
+  background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16),0 1px 2px rgba(0,0,0,.3);backdrop-filter:blur(14px);
+  color:var(--text);font:500 12px/1 -apple-system,sans-serif;cursor:default;white-space:nowrap;
+  transition:padding .45s var(--spring),gap .45s var(--spring),transform .5s var(--spring),opacity .3s,background .35s,filter .4s,color .3s}
+.p:hover{background:rgba(255,255,255,.13)}
+.p:active{transform:scale(.94)}
+.p.none{opacity:0;transform:scale(.2);pointer-events:none}
+/* the glow that runs round the edge, as the chat's thinking card */
+.p::after{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1.3px;pointer-events:none;
+  background:conic-gradient(from var(--ga),transparent 0 62%,var(--glowA) 82%,var(--glowB) 90%,transparent 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+  opacity:0;transition:opacity .5s;animation:g-rot 2.2s linear infinite}
+.p.glow::after{opacity:1}
+.p.glow{box-shadow:inset 0 0 0 .5px rgba(255,255,255,.12),0 0 14px rgba(170,140,255,.22)}
+.p.breathe{animation:breathe 3.2s ease-in-out infinite}
+
+.ico{position:relative;width:14px;height:14px;flex:none;color:var(--acc);transition:width .45s var(--spring),height .45s var(--spring),color .3s}
+.ico svg{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;
+  opacity:0;transform:scale(.4) rotate(-40deg);filter:blur(2px);transition:opacity .25s,transform .45s var(--spring),filter .3s}
+.p[data-i=down] .i-down,.p[data-i=restart] .i-restart,.p[data-i=check] .i-check,.p[data-i=warn] .i-warn{opacity:1;transform:none;filter:none}
+.p[data-i=check] .i-check{color:#30d158;animation:bounce .5s var(--spring)}
+.p[data-i=warn] .ico{color:var(--warn)}
+.p.bob .i-down{animation:bob 1s ease-in-out infinite}
+
+.lbl{position:relative;display:inline-block;height:16px;overflow:hidden;width:0;transition:width .45s var(--spring)}
+.lbl span{position:absolute;left:0;top:0;line-height:16px;font-variant-numeric:tabular-nums;transition:transform .32s var(--ease),opacity .32s,filter .32s}
+.lbl span.pre{transform:translateY(90%);opacity:0;filter:blur(2px)}
+.lbl span.out{transform:translateY(-90%);opacity:0;filter:blur(2px)}
+.shim .lbl span:not(.out){background:linear-gradient(90deg,rgba(236,230,234,.5) 30%,#fff 50%,rgba(236,230,234,.5) 70%);background-size:200% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:sh 2.2s linear infinite}
+.shim1 .lbl span:not(.out){background:linear-gradient(90deg,var(--text) 30%,#fff 45%,var(--acc) 50%,#fff 55%,var(--text) 70%);background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:sh 1.3s ease-out 1}
+
+/* progress ring (A and C) */
+.ring{position:absolute;inset:0;width:26px;height:26px;transform:rotate(-90deg);pointer-events:none;opacity:0;transition:opacity .3s}
+.ring circle{fill:none;stroke-width:2;stroke-linecap:round}
+.ring .trk{stroke:rgba(255,255,255,.12)}
+.ring .bar{stroke:var(--acc);stroke-dasharray:72.3;stroke-dashoffset:72.3;transition:stroke-dashoffset .35s var(--ease),stroke .3s;filter:drop-shadow(0 0 3px rgba(229,72,107,.8))}
+.p.ringon .ring{opacity:1}
+.p.failed .ring .bar{stroke:var(--warn);filter:drop-shadow(0 0 3px rgba(255,159,10,.7))}
+.burst{position:absolute;inset:0;border-radius:inherit;box-shadow:0 0 0 2px #30d158;opacity:0;pointer-events:none}
+.p.flash .burst{animation:flash .6s ease-out}
+.p.shake{animation:shake .4s}
+.pct{position:absolute;inset:0;display:grid;place-items:center;font:600 8px/1 -apple-system;color:var(--text);opacity:0;transition:opacity .25s;font-variant-numeric:tabular-nums}
+
+/* ---- A: Bloom ---- */
+.A.dot{padding:0;gap:0;width:8px;height:8px;background:var(--acc);animation:pop .4s var(--spring);box-shadow:0 0 10px rgba(229,72,107,.8)}
+.A.dot .ico{width:0}
+.A.round{padding:0 6px;gap:0}
+.A.round .ico{color:var(--text)}
+.A.round .i-down{transform:scale(.72)}
+.A.ready{background:rgba(229,72,107,.2);box-shadow:inset 0 0 0 .5px rgba(229,72,107,.6)}
+
+/* ---- B: Glass ---- */
+.B .fill{display:none}
+.B.enter{opacity:0;transform:translateX(-12px);filter:blur(6px)}
+.B.glow .ico{color:var(--text)}
+.B[data-i=check] .i-check{color:var(--text)}
+.B.ready .ico{color:var(--acc)}
+.B.failed .ico{color:var(--warn)}
+
+/* ---- C: Orbit ---- */
+.C.round{padding:0 6px;gap:0}
+.C .cdot{position:absolute;top:-1px;right:-1px;width:8px;height:8px;border-radius:4px;background:var(--acc);box-shadow:0 0 0 2px #33242c;transform:scale(0);transition:transform .4s var(--spring)}
+.C.badge .cdot{transform:scale(1)}
+.C.badge .cdot::after{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--acc);animation:flash 1.8s ease-out infinite}
+.C.dl .ico{opacity:0}
+.C.dl .pct{opacity:1}
+.C.ready{background:linear-gradient(90deg,rgba(201,160,255,.18),rgba(229,72,107,.22))}
+
+body.rm *,body.rm *::after,body.rm *::before{animation:none!important;transition:none!important}
+</style></head>
+<body>
+<h1>Update pill — options</h1>
+<p class="u-intro">Where it lives: the sidebar's title bar, after the window's buttons. The flow is the same in the three: a scheduled check finds a version → the pill appears → click downloads it, in place, with its progress → when it is ready the pill says <b>Restart</b> → click installs and relaunches. The glow that runs round the edge and the shimmer are the chat's thinking card's. Click the pill to move it on; the buttons below each one replay it.</p>
+<div class="u-bar">
+  <button class="u-btn main" id="all">Play all</button>
+  <label><input type="checkbox" id="failnext"> The download fails</label>
+  <label><input type="checkbox" id="rm"> Reduce Motion</label>
+</div>
+
+<div class="u-opts">
+  <div class="u-opt" data-opt="A">
+    <h3>A · Bloom</h3>
+    <p>A red dot pops after the window's buttons and blooms into <b>↓ 0.5.1</b>, breathing softly. The download folds it into a circle: a ring fills while the thinking glow runs round it. When it ends a tick bounces and it opens again into <b>Restart</b>, shimmering.</p>
+  </div>
+  <div class="u-opt" data-opt="B">
+    <h3>B · Glass</h3>
+    <p>The pill slides in from the window's buttons, out of a blur, and stays glass the whole time. The download keeps its shape: the version rolls to the percent, the arrow bobs and the thinking glow runs round the edge. When it ends a tick bounces, the words roll to <b>Restart</b> and its words shimmer.</p>
+  </div>
+  <div class="u-opt" data-opt="C">
+    <h3>C · Orbit</h3>
+    <p>The quietest: only a round ↓ with a pulsing red dot, like a badge; the version opens beside it when the pointer is over it. The download draws the ring with the percent inside and the glow orbiting. Done, it opens into <b>Restart</b> with the violet-to-red tint of a thought.</p>
+  </div>
+</div>
+
+<template id="win">
+  <div class="u-win">
+    <div class="u-side">
+      <div class="u-tl"><i></i><i></i><i></i></div>
+      <div class="u-slot"></div>
+      <div class="u-rows">
+        <div class="u-row sel"><i></i>Home</div>
+        <div class="u-row"><i></i>Sessions</div>
+        <div class="u-row g">Needs you</div>
+        <div class="u-row"><i></i>Which migration…</div>
+      </div>
+    </div>
+    <div class="u-detail"><div class="u-dtitle"><div class="u-tog"></div><b>Carrier</b></div></div>
+  </div>
+</template>
+<template id="pill">
+  <button class="p none">
+    <span class="fill"><i></i></span>
+    <svg class="ring" viewBox="0 0 26 26"><circle class="trk" cx="13" cy="13" r="11.5"/><circle class="bar" cx="13" cy="13" r="11.5"/></svg>
+    <span class="burst"></span>
+    <span class="ico">
+      <svg class="i-down" viewBox="0 0 16 16"><path d="M8 2.5v8M4.6 7.3 8 10.7l3.4-3.4M3.5 13.5h9"/></svg>
+      <svg class="i-restart" viewBox="0 0 16 16"><path d="M12.6 8.2A4.6 4.6 0 1 1 11.2 4.8M12 2.4v2.9H9.1"/></svg>
+      <svg class="i-check" viewBox="0 0 16 16"><path d="M3.8 8.4 6.6 11.2 12.2 5"/></svg>
+      <svg class="i-warn" viewBox="0 0 16 16"><path d="M8 3.8v5M8 11.8v.3"/></svg>
+    </span>
+    <span class="pct"></span>
+    <span class="cdot"></span>
+    <span class="lbl"></span>
+  </button>
+</template>
+
+<script>
+const VERSION = "0.5.1";
+const $ = (s, r = document) => r.querySelector(s);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+function setLabel(p, text) {
+  const lbl = $(".lbl", p);
+  lbl.querySelectorAll("span:not(.out)").forEach(o => { o.classList.add("out"); setTimeout(() => o.remove(), 350); });
+  if (!text) { lbl.style.width = "0px"; return; }
+  const s = document.createElement("span");
+  s.className = "pre"; s.textContent = text; lbl.appendChild(s);
+  lbl.style.width = s.offsetWidth + "px";
+  void s.offsetWidth; s.classList.remove("pre");
+}
+// the number changes without a roll, so the percent does not flicker
+function setNumber(p, text) {
+  const s = $(".lbl span:not(.out)", p);
+  if (!s) return setLabel(p, text);
+  s.textContent = text; $(".lbl", p).style.width = s.offsetWidth + "px";
+}
+const icon = (p, i) => p.dataset.i = i || "";
+const ring = (p, pct) => $(".ring .bar", p).style.strokeDashoffset = 72.3 * (1 - pct / 100);
+const only = (p, opt, ...cls) => p.className = ["p", opt, ...cls].join(" ");
+
+// what each option does at each step; the driver below is shared
+const options = {
+  A: {
+    async appear(p) { icon(p); setLabel(p, ""); only(p, "A", "dot"); await wait(450);
+      only(p, "A", "breathe", "shim1"); icon(p, "down"); setLabel(p, VERSION); },
+    start(p) { setLabel(p, ""); only(p, "A", "round", "ringon", "glow", "bob"); icon(p, "down"); ring(p, 0); },
+    progress(p, v) { ring(p, v); },
+    async ready(p) { ring(p, 100); only(p, "A", "round", "ringon", "flash"); icon(p, "check"); await wait(650);
+      only(p, "A", "ready", "shim"); icon(p, "restart"); setLabel(p, "Restart"); },
+    async fail(p) { only(p, "A", "round", "ringon", "failed", "shake"); icon(p, "warn"); await wait(700);
+      only(p, "A", "failed"); setLabel(p, "Retry"); },
+  },
+  B: {
+    async appear(p) { only(p, "B", "enter"); icon(p, "down"); setLabel(p, ""); await wait(60);
+      only(p, "B", "shim1"); setLabel(p, VERSION); },
+    start(p) { only(p, "B", "glow", "bob"); setLabel(p, "0%"); },
+    progress(p, v) { setNumber(p, Math.round(v) + "%"); },
+    async ready(p) { only(p, "B", "glow"); icon(p, "check"); setLabel(p, "Ready"); await wait(750);
+      only(p, "B", "ready", "shim"); icon(p, "restart"); setLabel(p, "Restart"); },
+    async fail(p) { only(p, "B", "failed", "shake"); icon(p, "warn"); setLabel(p, "Retry"); },
+  },
+  C: {
+    async appear(p) { setLabel(p, ""); icon(p, "down"); only(p, "C", "round", "badge"); },
+    hover(p, on) { if (p.classList.contains("badge")) setLabel(p, on ? VERSION : ""); p.classList.toggle("round", !on || !p.classList.contains("badge")); },
+    start(p) { setLabel(p, ""); only(p, "C", "round", "ringon", "glow", "dl"); ring(p, 0); $(".pct", p).textContent = "0"; },
+    progress(p, v) { ring(p, v); $(".pct", p).textContent = Math.round(v); },
+    async ready(p) { ring(p, 100); only(p, "C", "round", "ringon", "flash"); icon(p, "check"); await wait(650);
+      only(p, "C", "ready", "shim"); icon(p, "restart"); setLabel(p, "Restart"); },
+    async fail(p) { only(p, "C", "round", "ringon", "failed", "shake"); icon(p, "warn"); await wait(700);
+      only(p, "C", "failed"); setLabel(p, "Retry"); },
+  },
+};
+
+function mount(card) {
+  const key = card.dataset.opt, o = options[key];
+  card.appendChild($("#win").content.cloneNode(true));
+  const p = $("#pill").content.firstElementChild.cloneNode(true);
+  $(".u-slot", card).appendChild(p);
+  const ctl = document.createElement("div");
+  ctl.className = "u-ctl";
+  ctl.innerHTML = `<button class="u-btn" data-a="found">Update found</button><button class="u-btn" data-a="reset">Reset</button><span class="u-state"></span>`;
+  card.appendChild(ctl);
+  let state = "none", run = 0;
+  const show = s => { state = s; $(".u-state", card).textContent = s; };
+
+  async function reset() { run++; only(p, key, "none"); icon(p); setLabel(p, ""); ring(p, 0); $(".fill i", p).style.width = "0"; show("none"); }
+  async function found() { await reset(); await wait(250); await o.appear(p); show("available"); }
+  async function download() {
+    const me = ++run, fails = $("#failnext").checked;
+    o.start(p); show("downloading");
+    let v = 0;
+    while (v < 100) {
+      await wait(140 + Math.random() * 160);
+      if (me !== run) return;
+      v = Math.min(100, v + 3 + Math.random() * 7);
+      if (fails && v > 58) { await o.fail(p); show("failed"); return; }
+      o.progress(p, v);
+    }
+    await wait(250); await o.ready(p); show("ready");
+  }
+  async function restart() {
+    run++; only(p, key, "shim"); setLabel(p, "Restarting…"); show("restarting"); await wait(1400);
+    only(p, key, "none"); await wait(500); show("none (relaunched)");
+  }
+  p.addEventListener("click", () => {
+    if (state === "available" || state === "failed") download();
+    else if (state === "ready") restart();
+  });
+  if (o.hover) { p.addEventListener("mouseenter", () => state === "available" && o.hover(p, true)); p.addEventListener("mouseleave", () => state === "available" && o.hover(p, false)); }
+  ctl.addEventListener("click", e => { const a = e.target.dataset.a; if (a === "found") found(); if (a === "reset") reset(); });
+  card.play = async () => { await found(); await wait(1600); download(); };
+  reset();
+}
+
+document.querySelectorAll(".u-opt").forEach(mount);
+$("#all").onclick = () => document.querySelectorAll(".u-opt").forEach(c => c.play());
+$("#rm").onchange = e => document.body.classList.toggle("rm", e.target.checked);
+if (location.search.includes("rm")) { $("#rm").checked = true; document.body.classList.add("rm"); }
+setTimeout(() => $("#all").click(), 400);
+</script>
+</body></html>

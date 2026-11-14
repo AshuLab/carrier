@@ -275,7 +275,7 @@ private struct DoneMark: View {
 }
 
 /// A light that sweeps over the text it is on, in the primary colour over the secondary one the text has.
-private struct Shimmer: ViewModifier {
+struct Shimmer: ViewModifier {
     let active: Bool
 
     func body(content: Content) -> some View {
@@ -294,10 +294,12 @@ private struct Shimmer: ViewModifier {
 
 /// The glow on the card's edge. Working, a bright arc goes round once every few seconds. Waiting for the person, it does not go anywhere: the
 /// whole edge is lit and breathes, as a light that waits. Without `moves` it is still: the arc, or the edge half lit.
-private struct GlowEdge: View {
+struct GlowEdge: View {
     let color: Color
     let waiting: Bool
     let moves: Bool
+    /// The card's corners; the update pill passes half its height, a capsule.
+    var cornerRadius: CGFloat = 12
 
     var body: some View {
         if moves {
@@ -314,12 +316,12 @@ private struct GlowEdge: View {
 
     /// `level` from 0 to 1: how lit the edge is.
     private func breathing(_ level: Double) -> some View {
-        RoundedRectangle(cornerRadius: 12).strokeBorder(color.opacity(0.25 + 0.65 * level), lineWidth: 1.2)
+        RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(color.opacity(0.25 + 0.65 * level), lineWidth: 1.2)
             .shadow(color: color.opacity(0.35 * level), radius: 6)
     }
 
     private func arc(_ degrees: Double) -> some View {
-        RoundedRectangle(cornerRadius: 12).strokeBorder(
+        RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(
             AngularGradient(stops: [.init(color: .clear, location: 0), .init(color: .clear, location: 0.62), .init(color: color.opacity(0.95), location: 0.82),
                                     .init(color: color.opacity(0.4), location: 0.92), .init(color: .clear, location: 1)], center: .center, angle: .degrees(degrees)),
             lineWidth: 1.2

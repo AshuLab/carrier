@@ -153,12 +153,19 @@ struct GhosttyTerminalProcessInspector: TerminalProcessInspecting {
                 self.continuation = continuation
             }
 
-            func finish(with result: TerminalProcessInspectionResult) {
+            func finish(
+                with result: TerminalProcessInspectionResult,
+                logMessage: String? = nil,
+                log: (@Sendable (String) -> Void)? = nil
+            ) {
                 lock.lock()
                 let shouldResume = completed == false
                 completed = true
                 lock.unlock()
                 if shouldResume {
+                    if let logMessage, let log {
+                        log(logMessage)
+                    }
                     continuation.resume(returning: result)
                 }
             }
@@ -180,12 +187,15 @@ struct GhosttyTerminalProcessInspector: TerminalProcessInspecting {
             let drainQueue = DispatchQueue.global(qos: .userInitiated)
 
             let timeoutWork = DispatchWorkItem {
+                let message = "timed out inspecting terminal processes after \(timeoutSeconds)s"
+                state.finish(
+                    with: TerminalProcessInspectionResult(inspectionError: message),
+                    logMessage: message,
+                    log: log
+                )
                 if process.isRunning {
                     process.terminate()
                 }
-                let message = "timed out inspecting terminal processes after \(timeoutSeconds)s"
-                log(message)
-                state.finish(with: TerminalProcessInspectionResult(inspectionError: message))
             }
 
             process.terminationHandler = { terminated in
@@ -199,8 +209,11 @@ struct GhosttyTerminalProcessInspector: TerminalProcessInspecting {
                             return
                         }
                         let reason = stderrText.isEmpty ? "exit status \(terminated.terminationStatus)" : stderrText
-                        log("process inspection returned non-zero status: \(reason)")
-                        state.finish(with: TerminalProcessInspectionResult(inspectionError: reason))
+                        state.finish(
+                            with: TerminalProcessInspectionResult(inspectionError: reason),
+                            logMessage: "process inspection returned non-zero status: \(reason)",
+                            log: log
+                        )
                         return
                     }
 
@@ -220,8 +233,11 @@ struct GhosttyTerminalProcessInspector: TerminalProcessInspecting {
                 pipeGroup.leave()
                 timeoutWork.cancel()
                 let message = "failed to inspect terminal processes with \(executablePath): \(error.localizedDescription)"
-                log(message)
-                state.finish(with: TerminalProcessInspectionResult(inspectionError: error.localizedDescription))
+                state.finish(
+                    with: TerminalProcessInspectionResult(inspectionError: error.localizedDescription),
+                    logMessage: message,
+                    log: log
+                )
                 return
             }
 

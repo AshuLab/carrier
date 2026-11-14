@@ -17,14 +17,22 @@ Selecting a standalone terminal (`Selection.terminal(id:)`) shows `TerminalDetai
 The terminal surface extends under the translucent top toolbar across the full detail height, while top-right pane controls are inset below `safeAreaInsets.top` (`topControlsInset`) so they stay clear of toolbar buttons.
 The tab strip (`Carrier/TerminalTabBarView.swift`, `TerminalTabBarView`) sits along the bottom edge with drag reordering, inline rename popovers, `+` to add a tab in the active tab's folder, Close Tab / Close Other Tabs in the context menu and middle-click or `×` to close a tab.
 Hovering near the top of a pane reveals floating glass controls (`TerminalPaneHeaderView`) to split right, split down, zoom or restore a split pane, drag a pane to another pane's edge to move it or center to swap (`terminalDropZone`), equalize splits or detach a pane into a new tab.
-Split dividers (`SplitContainerView`) and the session drawer edge (`SessionTerminalDrawerView`) resize on drag with `AppKit` resize cursors managed by `hoverCursor`.
+Split dividers (`SplitContainerView`) and the drawer's top edge (`TerminalDrawerView`) resize on drag with `AppKit` resize cursors managed by `hoverCursor`.
 
 ## Session terminal drawer
 
 Open chat sessions show a Show Terminal / Hide Terminal glass pill in the toolbar (`PanelView.swift`).
-Toggling it opens or hides `SessionTerminalDrawerView` under `ConversationView`, persisted in `WindowShell.terminalDrawerSessions` for the window session and sized by `@AppStorage("terminal.drawerHeight")`.
+Toggling it opens or hides `TerminalDrawerView` under `ConversationView`, persisted in `WindowShell.terminalDrawerOwners` for the window session and sized by `@AppStorage("terminal.drawerHeight")`.
 The drawer starts a `TerminalOwner.session` tab in the session's folder on first open, reuses the shared bottom-tab chrome with a collapse chevron on the right and collapses automatically when its last tab closes.
 Archiving or deleting a session closes and prunes its terminal tabs (`SessionActions`, `ChatSessionsPoller`).
+
+## Epic Continue in Terminal drawer
+
+When an epic run exposes a validated resume descriptor in `SessionSectionsView`, clicking **Continue in Terminal** opens `TerminalDrawerView` beneath `EpicView` for `TerminalOwner.epic(repo:issue:)`.
+Instead of launching an external terminal app, `embeddedResumeLaunch(_:)` runs the validated interactive login shell command inside the epic's working tree with any scoped `CLAUDE_CONFIG_DIR` or `CODEX_HOME` environment variables.
+When the resumed agent process exits, its pane closes automatically and collapses the drawer when no tabs remain.
+Clicking the drawer's close (`×`) button closes its epic tabs with running-process confirmation when enabled.
+Control returns to Carrier only when you explicitly trigger the epic's **Resume** action.
 
 ## Bottom-anchored Zsh prompt and Clear
 
@@ -35,4 +43,5 @@ Pressing `⌘K` while a terminal pane has focus runs `CarrierTerminalStore.clear
 ## Persistence and migration
 
 Workspace layout, tab order and split trees are persisted in `<Carrier folder>/app/terminals.json` (`0600`) without environment variables (`TerminalWorkspaceFileStore`).
+Ephemeral `TerminalOwner.epic` tabs are excluded from both persistence export and restore so resumed CLI processes and their scoped environment variables never respawn across app launches.
 On launch, `PanelView` calls `CarrierTerminalStore.migrateLegacyQuickTabsToStandalone()` so any saved `.quick` tabs from earlier versions become standalone `.terminal` entries.

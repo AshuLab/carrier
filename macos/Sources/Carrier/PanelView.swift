@@ -122,18 +122,50 @@ struct PanelView: View {
     }
 
     private func toggleSessionTerminal(for session: SessionRow) {
-        if model.shell.isTerminalDrawerOpen(for: session.id) {
+        let owner = TerminalOwner.session(session.id)
+        if model.shell.isTerminalDrawerOpen(for: owner) {
             withAnimation(.smooth(duration: 0.25)) {
-                model.shell.setTerminalDrawerOpen(false, for: session.id)
+                model.shell.setTerminalDrawerOpen(false, for: owner)
             }
             return
         }
-        if terminalStore.tabs(for: .session(session.id)).isEmpty {
-            _ = terminalStore.openTab(for: .session(session.id), workingDirectory: session.folder)
+        if terminalStore.tabs(for: owner).isEmpty {
+            _ = terminalStore.openTab(for: owner, workingDirectory: session.folder)
         }
         withAnimation(.smooth(duration: 0.25)) {
-            model.shell.setTerminalDrawerOpen(true, for: session.id)
+            model.shell.setTerminalDrawerOpen(true, for: owner)
         }
+    }
+
+    /// Launches a validated epic Continue-in-Terminal session inside the epic's integrated bottom drawer.
+    private func continueEpicInTerminal(epic: EpicRef, section: SessionSection, resume: ValidResume) {
+        let owner = TerminalOwner.epic(repo: epic.repo, issue: epic.issue)
+        let launch = embeddedResumeLaunch(resume)
+        let tab = terminalStore.openTab(
+            for: owner,
+            workingDirectory: launch.workingDirectory,
+            envVars: launch.envVars,
+            command: launch.command,
+            title: "\(section.agent) · \(section.role)",
+            activate: true
+        )
+        withAnimation(.smooth(duration: 0.25)) {
+            model.shell.setTerminalDrawerOpen(true, for: owner)
+        }
+        terminalStore.focus(paneId: tab.activePaneId)
+    }
+
+    /// Bottom terminal drawer target for the currently selected chat session or epic, if any.
+    private var activeDrawerTarget: (owner: TerminalOwner, defaultDirectory: String, isSessionDrawer: Bool)? {
+        if case .session(let id) = model.shell.selection, let session = openSession {
+            return (.session(id), session.folder, true)
+        }
+        if let epic {
+            let owner = TerminalOwner.epic(repo: epic.subject.repo, issue: epic.subject.issue)
+            let directory = terminalStore.activeTab(for: owner)?.workingDirectory ?? NSHomeDirectory()
+            return (owner, directory, false)
+        }
+        return nil
     }
 
     var body: some View {
@@ -171,7 +203,10 @@ struct PanelView: View {
                                 subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files),
                                 sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, files: data?.files,
                                 plan: queuedPlan(epic.subject), resume: resumeCard(epic.subject).map { ($0, model.epics) },
-                                fileDiffs: epics.canOpenFiles ? FileDiffs(open: Binding(get: { epics.openFiles[ref] ?? [] }, set: { epics.openFiles[ref] = $0 }), shown: $epics.filesTabShown, fragments: data?.fragments ?? [:]) : nil
+                                fileDiffs: epics.canOpenFiles ? FileDiffs(open: Binding(get: { epics.openFiles[ref] ?? [] }, set: { epics.openFiles[ref] = $0 }), shown: $epics.filesTabShown, fragments: data?.fragments ?? [:]) : nil,
+                                onContinueInTerminal: { section, resume in
+                                    continueEpicInTerminal(epic: ref, section: section, resume: resume)
+                                }
                             )
                                 .id("\(epic.subject.repo)#\(epic.subject.issue)")
                         } else if shell.selection == .sessions {
@@ -217,24 +252,41 @@ struct PanelView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if case .session(let id) = shell.selection,
-                       let session = openSession,
-                       shell.isTerminalDrawerOpen(for: id) {
-                        SessionTerminalDrawerView(
+                    if let target = activeDrawerTarget,
+                       shell.isTerminalDrawerOpen(for: target.owner) {
+                        TerminalDrawerView(
                             store: terminalStore,
-                            sessionId: id,
-                            defaultDirectory: session.folder,
+                            owner: target.owner,
+                            defaultDirectory: target.defaultDirectory,
+                            openDefaultTabIfEmpty: target.isSessionDrawer,
+                            dismissIcon: target.isSessionDrawer ? "chevron.down" : "xmark",
+                            dismissLabel: target.isSessionDrawer ? "Hide terminal" : "Close terminal",
                             height: Binding(
                                 get: { CGFloat(terminalDrawerHeight) },
                                 set: { terminalDrawerHeight = Double($0) }
                             ),
                             maxHeight: max(220, windowSize.height * 0.6),
-                            hideDrawer: {
+                            dismissDrawer: {
+                                if target.isSessionDrawer {
+                                    withAnimation(.smooth(duration: 0.25)) {
+                                        shell.setTerminalDrawerOpen(false, for: target.owner)
+                                    }
+                                } else {
+                                    Task {
+                                        guard await terminalStore.closeAll(for: target.owner) else { return }
+                                        withAnimation(.smooth(duration: 0.25)) {
+                                            shell.setTerminalDrawerOpen(false, for: target.owner)
+                                        }
+                                    }
+                                }
+                            },
+                            autoHideOnEmpty: {
                                 withAnimation(.smooth(duration: 0.25)) {
-                                    shell.setTerminalDrawerOpen(false, for: id)
+                                    shell.setTerminalDrawerOpen(false, for: target.owner)
                                 }
                             }
                         )
+                        .id(target.owner)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
@@ -278,7 +330,7 @@ struct PanelView: View {
                 }
             }
             if let session = openSession {
-                let drawerOpen = shell.isTerminalDrawerOpen(for: session.id)
+                let drawerOpen = shell.isTerminalDrawerOpen(for: .session(session.id))
                 ToolbarItem(placement: .primaryAction) { SessionPlacePill(row: session) }
                     .sharedBackgroundVisibility(.hidden)
                 ToolbarSpacer(.fixed, placement: .primaryAction)

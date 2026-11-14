@@ -579,21 +579,24 @@ struct TerminalDetailView: View {
     }
 }
 
-/// Bottom resizable drawer mounted under an active session conversation, initialized in that session's working folder.
-struct SessionTerminalDrawerView: View {
+/// Bottom resizable drawer mounted under an active session conversation or epic view.
+struct TerminalDrawerView: View {
     let store: CarrierTerminalStore
-    let sessionId: String
+    let owner: TerminalOwner
     let defaultDirectory: String
+    var openDefaultTabIfEmpty: Bool = true
+    var dismissIcon: String = "chevron.down"
+    var dismissLabel: String = "Hide terminal"
     @Binding var height: CGFloat
     let maxHeight: CGFloat
-    let hideDrawer: () -> Void
+    let dismissDrawer: () -> Void
+    let autoHideOnEmpty: () -> Void
 
     @State private var dragStartHeight: CGFloat?
     @State private var resizeHovered = false
 
     private static let minHeight: CGFloat = 180
 
-    private var owner: TerminalOwner { .session(sessionId) }
     private var tabs: [TerminalTab] { store.tabs(for: owner) }
     private var activeTab: TerminalTab? { store.activeTab(for: owner) ?? tabs.first }
 
@@ -607,13 +610,15 @@ struct SessionTerminalDrawerView: View {
                 activeTabId: activeTab?.id,
                 addTabLabel: "New terminal tab",
                 onSelectTab: { store.selectTab($0, for: owner) },
-                onAddTab: { _ = store.openTab(for: owner, workingDirectory: defaultDirectory) },
+                onAddTab: {
+                    _ = store.openTab(for: owner, workingDirectory: activeTab?.workingDirectory ?? defaultDirectory)
+                },
                 onCloseTab: { id in Task { _ = await store.closeTab(id: id) } },
                 onCloseOtherTabs: { keepingId in
                     Task { _ = await store.closeOtherTabs(except: keepingId, for: owner) }
                 },
                 trailingAccessory: {
-                    IconButton(icon: "chevron.down", name: "Hide terminal", action: hideDrawer)
+                    IconButton(icon: dismissIcon, name: dismissLabel, action: dismissDrawer)
                 }
             )
             SettingsDivider()
@@ -633,14 +638,14 @@ struct SessionTerminalDrawerView: View {
         .frame(height: clampedHeight)
         .background(Color.themeWindow)
         .onAppear { ensureTabExists() }
-        .onChange(of: sessionId) { _, _ in ensureTabExists() }
+        .onChange(of: owner) { _, _ in ensureTabExists() }
         .onChange(of: tabs.isEmpty) { _, isEmpty in
-            if isEmpty { hideDrawer() }
+            if isEmpty { autoHideOnEmpty() }
         }
     }
 
     private func ensureTabExists() {
-        if store.tabs(for: owner).isEmpty {
+        if openDefaultTabIfEmpty, store.tabs(for: owner).isEmpty {
             _ = store.openTab(for: owner, workingDirectory: defaultDirectory)
         }
     }

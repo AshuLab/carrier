@@ -1,19 +1,23 @@
 import Foundation
 
-/// Owns a group of terminal tabs inside Carrier: a chat session drawer, a standalone Terminal sidebar group, or legacy quick tabs.
+/// Owns a group of terminal tabs inside Carrier: a chat session drawer, an epic Continue-in-Terminal drawer, a standalone Terminal sidebar group, or legacy quick tabs.
 public enum TerminalOwner: Hashable, Codable, Sendable {
     case session(String)
+    case epic(repo: String, issue: Int)
     case terminal(UUID)
     case quick
 
     private enum CodingKeys: String, CodingKey {
         case kind
         case sessionId
+        case repo
+        case issue
         case terminalId
     }
 
     private enum Kind: String, Codable {
         case session
+        case epic
         case terminal
         case quick
     }
@@ -23,6 +27,11 @@ public enum TerminalOwner: Hashable, Codable, Sendable {
         switch try container.decode(Kind.self, forKey: .kind) {
         case .session:
             self = .session(try container.decode(String.self, forKey: .sessionId))
+        case .epic:
+            self = .epic(
+                repo: try container.decode(String.self, forKey: .repo),
+                issue: try container.decode(Int.self, forKey: .issue)
+            )
         case .terminal:
             self = .terminal(try container.decode(UUID.self, forKey: .terminalId))
         case .quick:
@@ -36,6 +45,10 @@ public enum TerminalOwner: Hashable, Codable, Sendable {
         case .session(let id):
             try container.encode(Kind.session, forKey: .kind)
             try container.encode(id, forKey: .sessionId)
+        case .epic(let repo, let issue):
+            try container.encode(Kind.epic, forKey: .kind)
+            try container.encode(repo, forKey: .repo)
+            try container.encode(issue, forKey: .issue)
         case .terminal(let id):
             try container.encode(Kind.terminal, forKey: .kind)
             try container.encode(id, forKey: .terminalId)
@@ -759,8 +772,12 @@ public struct TerminalRegistry: Equatable, Sendable {
             case (.none, .some): return false
             case (.none, .none): return a.uuidString < b.uuidString
             }
-        case (.terminal, .session): return true
-        case (.session, .terminal): return false
+        case (.terminal, _): return true
+        case (_, .terminal): return false
+        case (.epic(let r1, let i1), .epic(let r2, let i2)):
+            return r1 == r2 ? i1 < i2 : r1 < r2
+        case (.epic, .session): return true
+        case (.session, .epic): return false
         case (.session(let a), .session(let b)): return a < b
         }
     }

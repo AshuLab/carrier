@@ -13,6 +13,7 @@ struct SessionSectionsView: View {
     let epic: EpicRef
     let list: SessionList
     @Binding var folds: SessionFolds
+    var onContinueInTerminal: (SessionSection, ValidResume) -> Void = { _, _ in }
     @State private var outputs = OutputFolds()
     @State private var groups = GroupFolds()
     @State private var slices = SliceFolds()
@@ -33,7 +34,9 @@ struct SessionSectionsView: View {
                 if open {
                     TranscriptRows(content: section.body, outputs: $outputs, groups: $groups, slices: $slices)
                     if let result = section.result { ResultCardView(card: result, open: folds.isResultOpen(section)) { folds.toggleResult(section) } }
-                    ContinueInTerminalView(section: section)
+                    ContinueInTerminalView(section: section) { resume in
+                        onContinueInTerminal(section, resume)
+                    }
                     SessionCard.foot
                 }
                 Color.clear.frame(height: 10)

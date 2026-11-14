@@ -18,6 +18,7 @@ struct EpicView: View {
     var resume: (card: ResumeCard, store: EpicStore)?
     /// The file rows that are open and their fragments; nil when the engine cannot be asked (the rows do not open).
     var fileDiffs: FileDiffs?
+    var onContinueInTerminal: (SessionSection, ValidResume) -> Void = { _, _ in }
     @State private var tab = EpicTab.agentOutput
     /// Whether the page is at its end: a session that starts scrolls it into view only then, so reading further up is not interrupted.
     @State private var atEnd = true
@@ -76,7 +77,12 @@ struct EpicView: View {
                     EmptyStateView(state: .noActivity).frame(minHeight: 260)
                 }
             } else {
-                SessionSectionsView(epic: EpicRef(repo: subject.repo, issue: subject.issue), list: sessions, folds: $folds)
+                SessionSectionsView(
+                    epic: EpicRef(repo: subject.repo, issue: subject.issue),
+                    list: sessions,
+                    folds: $folds,
+                    onContinueInTerminal: onContinueInTerminal
+                )
             }
         case .filesChanged:
             FilesChangedView(files: files, fileDiffs: fileDiffs)

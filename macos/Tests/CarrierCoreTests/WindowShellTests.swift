@@ -60,17 +60,24 @@ import Testing
     }
 }
 
-@Test func sessionTerminalDrawerTogglesPerSessionAndClearsOnReset() {
+@Test func sessionTerminalDrawerTogglesPerOwnerAndClearsOnReset() {
     let shell = WindowShell()
-    #expect(shell.isTerminalDrawerOpen(for: "s1") == false)
-    shell.toggleTerminalDrawer(for: "s1")
-    #expect(shell.isTerminalDrawerOpen(for: "s1"))
-    #expect(shell.isTerminalDrawerOpen(for: "s2") == false)
-    shell.setTerminalDrawerOpen(false, for: "s1")
-    #expect(shell.isTerminalDrawerOpen(for: "s1") == false)
-    shell.setTerminalDrawerOpen(true, for: "s2")
+    let sessionOne = TerminalOwner.session("s1")
+    let sessionTwo = TerminalOwner.session("s2")
+    let epicOwner = TerminalOwner.epic(repo: "org/repo", issue: 42)
+    #expect(shell.isTerminalDrawerOpen(for: sessionOne) == false)
+    shell.toggleTerminalDrawer(for: sessionOne)
+    #expect(shell.isTerminalDrawerOpen(for: sessionOne))
+    #expect(shell.isTerminalDrawerOpen(for: sessionTwo) == false)
+    #expect(shell.isTerminalDrawerOpen(for: epicOwner) == false)
+    shell.toggleTerminalDrawer(for: epicOwner)
+    #expect(shell.isTerminalDrawerOpen(for: epicOwner))
+    shell.setTerminalDrawerOpen(false, for: sessionOne)
+    #expect(shell.isTerminalDrawerOpen(for: sessionOne) == false)
+    shell.setTerminalDrawerOpen(true, for: sessionTwo)
     shell.reset()
-    #expect(shell.isTerminalDrawerOpen(for: "s2") == false)
+    #expect(shell.isTerminalDrawerOpen(for: sessionTwo) == false)
+    #expect(shell.isTerminalDrawerOpen(for: epicOwner) == false)
 }
 
 @Test func aSessionChosenFromAnywhereOpensSessions() {

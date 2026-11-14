@@ -56,17 +56,48 @@ public func validateResume(_ descriptor: ResumeDescriptor, engine: String) -> Re
     return .success(ValidResume(harness: descriptor.harness, sessionId: descriptor.sessionId, cwd: folder, configDir: configDir))
 }
 
-/// The two steps of the command, every value single-quoted: `cd '<folder>'` and `CLAUDE_CONFIG_DIR='<dir>' claude --resume '<id>'`.
-private func resumeSteps(_ resume: ValidResume) -> (cd: String, run: String) {
-    let variable = [("claude", "CLAUDE_CONFIG_DIR"), ("codex", "CODEX_HOME")].first { $0.0 == resume.harness }?.1
-    let environment = variable.flatMap { name in resume.configDir.map { "\(name)=\(shellQuote($0)) " } } ?? ""
+/// Validated launch specification for opening a resumable epic session in the embedded terminal drawer.
+public struct EmbeddedResumeLaunch: Equatable, Sendable {
+    public let workingDirectory: String
+    public let envVars: [String: String]
+    /// Interactive login shell command so user PATH entries resolve harness binaries and exiting closes the pane cleanly.
+    public let command: String
+    /// Human-readable command shown in tooltips.
+    public let displayCommand: String
+}
+
+private func resumeConfigEnvironmentVariable(for harness: String) -> String? {
+    [("claude", "CLAUDE_CONFIG_DIR"), ("codex", "CODEX_HOME")].first { $0.0 == harness }?.1
+}
+
+private func resumeRunCommand(_ resume: ValidResume) -> String {
     let id = shellQuote(resume.sessionId)
-    let run = switch resume.harness {
+    return switch resume.harness {
     case "codex": "codex resume \(id)"
     case "agy": "agy --conversation \(id)"
     default: "claude --resume \(id)"
     }
-    return ("cd \(shellQuote(resume.cwd))", environment + run)
+}
+
+/// The two steps of the command, every value single-quoted: `cd '<folder>'` and `CLAUDE_CONFIG_DIR='<dir>' claude --resume '<id>'`.
+private func resumeSteps(_ resume: ValidResume) -> (cd: String, run: String) {
+    let environment = resumeConfigEnvironmentVariable(for: resume.harness)
+        .flatMap { name in resume.configDir.map { "\(name)=\(shellQuote($0)) " } } ?? ""
+    return ("cd \(shellQuote(resume.cwd))", environment + resumeRunCommand(resume))
+}
+
+/// Builds the folder, scoped config environment variables, and login-shell command for Carrier's embedded Ghostty drawer.
+public func embeddedResumeLaunch(_ resume: ValidResume) -> EmbeddedResumeLaunch {
+    var envVars: [String: String] = [:]
+    if let envName = resumeConfigEnvironmentVariable(for: resume.harness), let configDir = resume.configDir {
+        envVars[envName] = configDir
+    }
+    return EmbeddedResumeLaunch(
+        workingDirectory: resume.cwd,
+        envVars: envVars,
+        command: "/bin/zsh -il -c \(shellQuote(resumeRunCommand(resume)))",
+        displayCommand: resumeCommand(resume)
+    )
 }
 
 /// The command of the mockup's block: `cd '<folder>' && CLAUDE_CONFIG_DIR='<dir>' claude --resume '<id>'`.

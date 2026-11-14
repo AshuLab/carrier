@@ -839,4 +839,62 @@ struct CarrierTerminalStoreTests {
 
         store.teardownAll()
     }
+
+    @Test func epicContinueInTerminalSkipsPersistenceAndAutoClosesOnProcessExit() async throws {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("carrier-epic-terminal-\(UUID().uuidString)", isDirectory: true)
+        let engineDir = tempRoot.appendingPathComponent("engine", isDirectory: true)
+        let cloneDir = engineDir.appendingPathComponent("clone", isDirectory: true)
+        let configDir = tempRoot.appendingPathComponent("config", isDirectory: true)
+        let terminalsFile = tempRoot.appendingPathComponent("terminals.json")
+        try FileManager.default.createDirectory(at: cloneDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let resume = try validateResume(
+            ResumeDescriptor(
+                harness: "claude",
+                sessionId: "91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f20",
+                cwd: cloneDir.path,
+                configDir: configDir.path
+            ),
+            engine: engineDir.path
+        ).get()
+        let launch = embeddedResumeLaunch(resume)
+        let owner = TerminalOwner.epic(repo: "AshuLab/carrier", issue: 42)
+
+        let fileStore = TerminalWorkspaceFileStore(fileURL: terminalsFile)
+        let store = CarrierTerminalStore(
+            fileStore: fileStore,
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: FakeProcessInspector()
+        )
+        let tab = store.openTab(
+            for: owner,
+            workingDirectory: launch.workingDirectory,
+            envVars: launch.envVars,
+            command: launch.command,
+            title: "Claude · Author"
+        )
+        let state = try #require(store.state(for: tab.activePaneId) as TerminalViewState?)
+        #expect(state.configuration.workingDirectory == launch.workingDirectory)
+        #expect(state.configuration.command == launch.command)
+        #expect(state.configuration.envVars == launch.envVars)
+
+        // Epic resume tabs remain ephemeral in terminals.json even when saved synchronously.
+        store.saveWorkspaceNow()
+        let saved = fileStore.load()
+        #expect(saved?.workspaces.contains { $0.owner == owner } != true)
+
+        // When the resumed CLI exits cleanly, Ghostty invokes onClose(false) and the tab closes automatically.
+        state.onClose?(false)
+        let autoClosed = await waitUntil { store.tabs(for: owner).isEmpty }
+        #expect(autoClosed)
+
+        store.teardownAll()
+    }
 }

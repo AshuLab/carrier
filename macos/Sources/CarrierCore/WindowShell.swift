@@ -99,8 +99,8 @@ public struct ArchiveRequest: Equatable {
     public var open: OpenSection?
     public var sidebarShown = true
     public var inspectorShown = true
-    /// Session ids whose bottom embedded-terminal drawer is currently expanded.
-    public var terminalDrawerSessions: Set<String> = []
+    /// Terminal owners (chat sessions or epics) whose bottom embedded-terminal drawer is currently expanded.
+    public var terminalDrawerOwners: Set<TerminalOwner> = []
     /// The last ⌘F, for the open section's search to show itself.
     public private(set) var searchRequest: SearchRequest?
     /// The last request to the open conversation.
@@ -128,20 +128,20 @@ public struct ArchiveRequest: Equatable {
     public func toggleSidebar() { sidebarShown.toggle() }
     public func toggleInspector() { inspectorShown.toggle() }
 
-    public func isTerminalDrawerOpen(for sessionId: String) -> Bool {
-        terminalDrawerSessions.contains(sessionId)
+    public func isTerminalDrawerOpen(for owner: TerminalOwner) -> Bool {
+        terminalDrawerOwners.contains(owner)
     }
 
-    public func setTerminalDrawerOpen(_ open: Bool, for sessionId: String) {
+    public func setTerminalDrawerOpen(_ open: Bool, for owner: TerminalOwner) {
         if open {
-            terminalDrawerSessions.insert(sessionId)
+            terminalDrawerOwners.insert(owner)
         } else {
-            terminalDrawerSessions.remove(sessionId)
+            terminalDrawerOwners.remove(owner)
         }
     }
 
-    public func toggleTerminalDrawer(for sessionId: String) {
-        setTerminalDrawerOpen(isTerminalDrawerOpen(for: sessionId) == false, for: sessionId)
+    public func toggleTerminalDrawer(for owner: TerminalOwner) {
+        setTerminalDrawerOpen(isTerminalDrawerOpen(for: owner) == false, for: owner)
     }
 
     /// Runs a shortcut: a selection as a click on it would, ⌘F as a request to the open section (nothing with both folded). The
@@ -173,7 +173,7 @@ public struct ArchiveRequest: Equatable {
         self.open = open
         sidebarShown = true
         inspectorShown = true
-        terminalDrawerSessions = []
+        terminalDrawerOwners = []
         settingsShown = false
         searchRequest = nil
         conversationRequest = nil

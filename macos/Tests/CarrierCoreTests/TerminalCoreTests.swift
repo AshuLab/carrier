@@ -532,4 +532,49 @@ struct TerminalCoreTests {
         #expect(registry.terminalOrder == [secondGroup])
         #expect(registry.standaloneTerminals().map(\.id) == [secondGroup])
     }
+
+    @Test func epicOwnerRoundTripsDeterministicallyAndIsExcludedFromPersistence() throws {
+        let epic41 = TerminalOwner.epic(repo: "org/repo", issue: 41)
+        let epic42 = TerminalOwner.epic(repo: "org/repo", issue: 42)
+        let encodedOwner = try JSONEncoder().encode(epic42)
+        let decodedOwner = try JSONDecoder().decode(TerminalOwner.self, from: encodedOwner)
+        #expect(decodedOwner == epic42)
+
+        var registry = TerminalRegistry()
+        _ = registry.openTab(owner: .session("s1"), spec: TerminalLaunchSpec(workingDirectory: "/existing/s1"))
+        let epicTab = registry.openTab(
+            owner: epic42,
+            spec: TerminalLaunchSpec(
+                workingDirectory: "/existing/epic",
+                envVars: ["CLAUDE_CONFIG_DIR": "/secret/config"],
+                command: "/bin/zsh -il -c 'claude --resume '\''sess-1'\'''",
+                title: "Claude · Author"
+            )
+        )
+        _ = registry.openTab(owner: epic41, spec: TerminalLaunchSpec(workingDirectory: "/existing/epic-41"))
+        let standaloneId = UUID()
+        _ = registry.openTab(owner: .terminal(standaloneId), spec: TerminalLaunchSpec(workingDirectory: "/existing/api", title: "API"))
+        _ = registry.openTab(owner: .quick, spec: TerminalLaunchSpec(workingDirectory: "/existing/quick"))
+
+        #expect(registry.tabs(for: epic42).map(\.id) == [epicTab.id])
+        #expect(registry.workspaces.map(\.owner) == [.quick, .terminal(standaloneId), epic41, epic42, .session("s1")])
+
+        // Ephemeral epic resume tabs must not be persisted or restored across app launches.
+        let exported = registry.exportPersistedWorkspace()
+        #expect(exported.workspaces.contains { $0.owner == epic41 || $0.owner == epic42 } == false)
+
+        var injectedWorkspace = exported
+        injectedWorkspace.workspaces.append(
+            TerminalWorkspace(owner: epic42, tabs: [epicTab], activeTabId: epicTab.id)
+        )
+
+        let restored = TerminalRegistry(
+            restoring: injectedWorkspace,
+            knownSessionIds: ["s1"],
+            fallbackDirectory: "/fallback",
+            directoryExists: { _ in true }
+        )
+        #expect(restored.tabs(for: epic42).isEmpty)
+        #expect(restored.standaloneTerminals().map(\.id) == [standaloneId])
+    }
 }

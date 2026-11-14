@@ -9,58 +9,42 @@ struct WorkspaceTerminalOpener: TerminalOpener {
     }
 }
 
-/// Under an open session that is not running: a row of the log's own, edge to edge, that opens a Terminal on the command. The
-/// command (and, for a stopped session, what it will do) is its tooltip. Nothing for a session with no descriptor (running) or one
-/// the validation refuses.
+/// Under an open epic session that is not running: a row of the log's own, edge to edge, that opens the embedded terminal
+/// drawer on the validated command. Nothing for a session with no descriptor (running) or one the validation refuses.
 struct ContinueInTerminalView: View {
     let section: SessionSection
-    @State private var failure: String?
+    let onContinue: (ValidResume) -> Void
     @State private var hovered = false
 
     var body: some View {
         if let descriptor = section.resume {
             let engine = engineFolder()
             if case .success(let valid) = validateResume(descriptor, engine: engine) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Button { open(descriptor, engine: engine) } label: {
-                        HStack(spacing: LogMetrics.gap) {
-                            Image(systemName: "apple.terminal").font(.scaled(12)).foregroundStyle(.secondary)
-                                .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
-                            HStack(spacing: 4) {
-                                Text("Continue in Terminal").fontWeight(.medium)
-                                Text("· resumes this session").foregroundStyle(.secondary)
-                            }
-                            .font(.scaled(12)).lineLimit(1)
-                            Spacer(minLength: 0)
+                Button { onContinue(valid) } label: {
+                    HStack(spacing: LogMetrics.gap) {
+                        Image(systemName: "terminal").font(.scaled(12)).foregroundStyle(.secondary)
+                            .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
+                        HStack(spacing: 4) {
+                            Text("Continue in Terminal").fontWeight(.medium)
+                            Text("· resumes this session").foregroundStyle(.secondary)
                         }
-                        .padding(.horizontal, LogMetrics.iconColumn)
-                        .frame(maxWidth: .infinity, minHeight: LogMetrics.groupLine, alignment: .leading)
-                        .background(Color.primary.opacity(hovered ? 0.05 : 0))
-                        .contentShape(Rectangle())
+                        .font(.scaled(12)).lineLimit(1)
+                        Spacer(minLength: 0)
                     }
-                    .buttonStyle(.plain)
-                    .onHover { hovered = $0 }
-                    .help(section.state == .stopped
-                        ? "Opens a new Terminal in the folder it started in and resumes \(section.agent) so you can keep talking to it.\n\(resumeCommand(valid))"
-                        : resumeCommand(valid))
-                    .accessibilityHint("Opens Terminal and resumes this session")
-                    if let failure {
-                        Text(failure).font(.caption).foregroundStyle(.red).padding(.horizontal, LogMetrics.iconColumn).padding(.bottom, 8)
-                    }
+                    .padding(.horizontal, LogMetrics.iconColumn)
+                    .frame(maxWidth: .infinity, minHeight: LogMetrics.groupLine, alignment: .leading)
+                    .background(Color.primary.opacity(hovered ? 0.05 : 0))
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .onHover { hovered = $0 }
+                .help(section.state == .stopped
+                    ? "Opens the terminal panel below in the folder it started in and resumes \(section.agent) so you can keep talking to it.\n\(resumeCommand(valid))"
+                    : resumeCommand(valid))
+                .accessibilityHint("Opens the terminal panel and resumes this session")
                 // the card's foot gives the bottom 12 pt
                 .sessionRow()
             }
-        }
-    }
-
-    private func open(_ descriptor: ResumeDescriptor, engine: String) {
-        do {
-            try continueInTerminal(descriptor, engine: engine, opener: WorkspaceTerminalOpener())
-            failure = nil
-        } catch {
-            NSLog("Carrier: continue in Terminal failed: %@", String(describing: error))
-            failure = "Could not open Terminal."
         }
     }
 }

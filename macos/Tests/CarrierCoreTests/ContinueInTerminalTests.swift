@@ -301,3 +301,29 @@ private final class RecordingOpener: TerminalOpener {
         #expect(scratch.rejection(scratch.descriptor(cwd: scratch.engine + "/" + name)) == .badFolder)
     }
 }
+
+@Test func embeddedResumeLaunchScopesEnvAndCommandForEachHarness() throws {
+    let scratch = try Scratch()
+    defer { scratch.remove() }
+
+    let claude = try validateResume(scratch.descriptor("claude", config: scratch.config), engine: scratch.engine).get()
+    let claudeLaunch = embeddedResumeLaunch(claude)
+    #expect(claudeLaunch.workingDirectory == scratch.inside)
+    #expect(claudeLaunch.envVars == ["CLAUDE_CONFIG_DIR": scratch.config])
+    #expect(claudeLaunch.command == #"/bin/zsh -il -c 'claude --resume '\''\#(id)'\'''"#)
+    #expect(claudeLaunch.displayCommand == resumeCommand(claude))
+
+    let codex = try validateResume(scratch.descriptor("codex", config: scratch.config), engine: scratch.engine).get()
+    let codexLaunch = embeddedResumeLaunch(codex)
+    #expect(codexLaunch.workingDirectory == scratch.inside)
+    #expect(codexLaunch.envVars == ["CODEX_HOME": scratch.config])
+    #expect(codexLaunch.command == #"/bin/zsh -il -c 'codex resume '\''\#(id)'\'''"#)
+    #expect(codexLaunch.displayCommand == resumeCommand(codex))
+
+    let agy = try validateResume(scratch.descriptor("agy", config: scratch.config), engine: scratch.engine).get()
+    let agyLaunch = embeddedResumeLaunch(agy)
+    #expect(agyLaunch.workingDirectory == scratch.inside)
+    #expect(agyLaunch.envVars.isEmpty)
+    #expect(agyLaunch.command == #"/bin/zsh -il -c 'agy --conversation '\''\#(id)'\'''"#)
+    #expect(agyLaunch.displayCommand == resumeCommand(agy))
+}

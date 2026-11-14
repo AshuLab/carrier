@@ -227,6 +227,12 @@ struct TerminalCoreTests {
         let permissions = attributes[.posixPermissions] as? NSNumber
         #expect(permissions?.intValue == 0o600)
 
+        // Re-saving over permissive 0644 permissions enforces 0600 again.
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: fileURL.path)
+        #expect(store.save(registry.exportPersistedWorkspace()))
+        let tightenedAttributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        #expect((tightenedAttributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+
         let loaded = store.load()
         #expect(loaded != nil)
         #expect(loggedMessages.values.isEmpty)
@@ -304,8 +310,8 @@ struct TerminalCoreTests {
         #expect(try Data(contentsOf: backupURL) == corruptBytes)
         #expect(FileManager.default.fileExists(atPath: fileURL.path) == false)
 
-        // Unsupported schema versions log why the file was skipped and leave it intact on disk.
-        let futureData = try JSONEncoder().encode(future)
+        // Unsupported schema versions (including future incompatible body shapes) log why skipped and leave the file intact on disk.
+        let futureData = Data(#"{"schemaVersion":999,"workspaces":[{"futureField":true}]}"#.utf8)
         try futureData.write(to: fileURL)
         #expect(store.loadResult() == .rejected(.unsupportedSchema(999)))
         #expect(loggedMessages.count == 2)
@@ -411,6 +417,15 @@ struct TerminalCoreTests {
 
         prefs.resetTerminal()
         #expect(prefs.terminal == TerminalSettings())
+
+        // Newlines and control characters in font names are rejected so Ghostty config cannot be injected.
+        #expect(TerminalSettings.cleanFontFamily("Menlo\ncommand = /bin/sh") == nil)
+        #expect(TerminalSettings.cleanFontFamily("JetBrains Mono\u{0000}") == nil)
+        #expect(TerminalSettings.cleanFontFamily(MonospaceSettings.systemFamily) == nil)
+        let injected = TerminalSettings(fontFamilyOverride: "Menlo\ncommand = /bin/sh")
+        #expect(injected.fontFamilyOverride == nil)
+        #expect(injected.effectiveFontFamily(appMonospace: MonospaceSettings(family: "Menlo")) == "Menlo")
+        #expect(injected.effectiveFontFamily(appMonospace: MonospaceSettings(family: "Bad\nFont")) == nil)
     }
 
     @Test func urlAllowlistAllowsOnlyHTTPAndHTTPSWithHost() {

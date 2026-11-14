@@ -5,10 +5,6 @@ import Foundation
 import GhosttyTerminal
 import Observation
 
-private struct AppearanceCacheKey: Equatable {
-    let profile: TerminalAppearanceProfile
-}
-
 /// Manages embedded Ghostty terminal tabs, split panes, pane-keyed platform view caching, search/selection,
 /// settings synchronization, workspace persistence, and process close confirmation.
 @MainActor
@@ -52,7 +48,7 @@ final class CarrierTerminalStore {
     @ObservationIgnored private var persistTask: Task<Void, Never>?
     @ObservationIgnored private var defaultsObserver: NSObjectProtocol?
     @ObservationIgnored private var appearanceObserver: NSKeyValueObservation?
-    @ObservationIgnored private var lastAppliedAppearance: AppearanceCacheKey?
+    @ObservationIgnored private var lastAppliedAppearance: TerminalAppearanceProfile?
     @ObservationIgnored private var hasLoadedOrMutatedPersistence: Bool
     @ObservationIgnored private var persistenceWriteBlocked = false
     @ObservationIgnored private var missingSessionsInPreviousPoll: Set<String> = []
@@ -96,7 +92,7 @@ final class CarrierTerminalStore {
             terminalConfiguration: config
         )
         self.controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(resolvedScheme))
-        self.lastAppliedAppearance = AppearanceCacheKey(profile: profile)
+        self.lastAppliedAppearance = profile
 
         if let initialRegistry {
             self.registry = initialRegistry
@@ -166,33 +162,33 @@ final class CarrierTerminalStore {
             title: title,
             customTitle: customTitle
         )
-        let tab = registry.openTab(owner: owner, spec: spec, activate: activate)
-        if case .session(let sessionId) = owner {
-            missingSessionsInPreviousPoll.remove(sessionId)
+        return persistMutation {
+            let tab = registry.openTab(owner: owner, spec: spec, activate: activate)
+            if case .session(let sessionId) = owner {
+                missingSessionsInPreviousPoll.remove(sessionId)
+            }
+            return tab
         }
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
-        return tab
     }
 
     func selectTab(_ tabId: UUID, for owner: TerminalOwner? = nil) {
-        registry.selectTab(id: tabId, for: owner)
-        if let activePaneId = registry.tab(id: tabId)?.activePaneId {
-            focus(paneId: activePaneId)
+        persistMutation {
+            registry.selectTab(id: tabId, for: owner)
+            if let activePaneId = registry.tab(id: tabId)?.activePaneId {
+                focus(paneId: activePaneId)
+            }
         }
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
     }
 
     @discardableResult
     func moveTab(_ tabId: UUID, toIndex index: Int) -> Bool {
         let moved = registry.moveTab(id: tabId, toIndex: index)
         if moved {
-            if let paneId = registry.tab(id: tabId)?.activePaneId {
-                focus(paneId: paneId)
+            persistMutation {
+                if let paneId = registry.tab(id: tabId)?.activePaneId {
+                    focus(paneId: paneId)
+                }
             }
-            hasLoadedOrMutatedPersistence = true
-            saveWorkspaceNow()
         }
         return moved
     }
@@ -206,11 +202,11 @@ final class CarrierTerminalStore {
     ) -> Bool {
         let moved = registry.moveTab(id: tabId, toOwner: destinationOwner, atIndex: index, activate: activate)
         if moved {
-            if activate, let paneId = registry.tab(id: tabId)?.activePaneId {
-                focus(paneId: paneId)
+            persistMutation {
+                if activate, let paneId = registry.tab(id: tabId)?.activePaneId {
+                    focus(paneId: paneId)
+                }
             }
-            hasLoadedOrMutatedPersistence = true
-            saveWorkspaceNow()
         }
         return moved
     }
@@ -241,44 +237,44 @@ final class CarrierTerminalStore {
         guard let created = registry.splitPane(targetPaneId, edge: edge, spec: spec, ratio: ratio, activate: activate) else {
             return nil
         }
-        if activate { focus(paneId: created.id) }
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
-        return created
+        return persistMutation {
+            if activate { focus(paneId: created.id) }
+            return created
+        }
     }
 
     func selectPane(_ paneId: UUID) {
-        registry.selectPane(id: paneId)
-        focus(paneId: paneId)
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
+        persistMutation {
+            registry.selectPane(id: paneId)
+            focus(paneId: paneId)
+        }
     }
 
     func setSplitRatio(inTab tabId: UUID, at path: [SplitBranch], ratio: Double) {
-        registry.setSplitRatio(inTab: tabId, at: path, ratio: ratio)
-        hasLoadedOrMutatedPersistence = true
-        schedulePersist()
+        persistMutation(immediate: false) {
+            registry.setSplitRatio(inTab: tabId, at: path, ratio: ratio)
+        }
     }
 
     func equalizeSplits(inTab tabId: UUID) {
-        registry.equalizeSplits(inTab: tabId)
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
+        persistMutation {
+            registry.equalizeSplits(inTab: tabId)
+        }
     }
 
     func toggleZoom(paneId: UUID) {
-        registry.toggleZoom(paneId: paneId)
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
+        persistMutation {
+            registry.toggleZoom(paneId: paneId)
+        }
     }
 
     @discardableResult
     func movePane(_ sourcePaneId: UUID, toTarget targetPaneId: UUID, edge: SplitEdge, ratio: Double = 0.5) -> Bool {
         let moved = registry.movePane(sourcePaneId, toTarget: targetPaneId, edge: edge, ratio: ratio)
         if moved {
-            focus(paneId: sourcePaneId)
-            hasLoadedOrMutatedPersistence = true
-            saveWorkspaceNow()
+            persistMutation {
+                focus(paneId: sourcePaneId)
+            }
         }
         return moved
     }
@@ -287,8 +283,7 @@ final class CarrierTerminalStore {
     func swapPanes(_ firstPaneId: UUID, _ secondPaneId: UUID) -> Bool {
         let swapped = registry.swapPanes(firstPaneId, secondPaneId)
         if swapped {
-            hasLoadedOrMutatedPersistence = true
-            saveWorkspaceNow()
+            persistMutation {}
         }
         return swapped
     }
@@ -302,17 +297,17 @@ final class CarrierTerminalStore {
     ) -> TerminalTab? {
         let detached = registry.detachPaneToNewTab(paneId, toOwner: targetOwner, atIndex: index, activate: activate)
         if detached != nil {
-            if activate { focus(paneId: paneId) }
-            hasLoadedOrMutatedPersistence = true
-            saveWorkspaceNow()
+            persistMutation {
+                if activate { focus(paneId: paneId) }
+            }
         }
         return detached
     }
 
     func renamePane(_ paneId: UUID, customTitle: String?) {
-        registry.renamePane(paneId, customTitle: customTitle)
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
+        persistMutation {
+            registry.renamePane(paneId, customTitle: customTitle)
+        }
     }
 
     /// Reconciles live session terminals with an authoritative list from the chat host,
@@ -333,11 +328,11 @@ final class CarrierTerminalStore {
     func pruneSessions(keeping knownSessionIds: Set<String>) {
         let removedPaneIds = registry.pruneSessions(keeping: knownSessionIds)
         guard removedPaneIds.isEmpty == false else { return }
-        for paneId in removedPaneIds {
-            tearDown(paneId: paneId)
+        persistMutation {
+            for paneId in removedPaneIds {
+                tearDown(paneId: paneId)
+            }
         }
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
     }
 
     // MARK: - Pane-Keyed Ghostty Views, Search & Input
@@ -437,9 +432,8 @@ final class CarrierTerminalStore {
             scheme: resolvedScheme,
             preferences: prefs
         )
-        let cacheKey = AppearanceCacheKey(profile: profile)
-        guard cacheKey != lastAppliedAppearance else { return }
-        lastAppliedAppearance = cacheKey
+        guard profile != lastAppliedAppearance else { return }
+        lastAppliedAppearance = profile
 
         controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(resolvedScheme))
         _ = controller.setTheme(TerminalAppearanceMapper.ghosttyTheme(for: profile.theme, preferences: prefs))
@@ -477,15 +471,12 @@ final class CarrierTerminalStore {
 
     @discardableResult
     func closePane(id paneId: UUID, force: Bool = false) async -> Bool {
-        guard registry.pane(id: paneId) != nil else { return false }
-        let target = TerminalCloseTarget.pane(paneId)
         if force == false {
-            guard pendingCloseTargets.insert(target).inserted else { return false }
-            defer { pendingCloseTargets.remove(target) }
-            if await pendingConfirmation(for: target) != nil {
-                return false
-            }
-            guard isTornDown == false, registry.pane(id: paneId) != nil else { return false }
+            return await confirmAndCloseIfNeeded(
+                target: .pane(paneId),
+                stillExists: { registry.pane(id: paneId) != nil },
+                forceClose: { forceClosePane(id: paneId) }
+            )
         }
         return forceClosePane(id: paneId)
     }
@@ -493,23 +484,20 @@ final class CarrierTerminalStore {
     @discardableResult
     func forceClosePane(id paneId: UUID) -> Bool {
         guard registry.closePane(id: paneId) != nil else { return false }
-        tearDown(paneId: paneId)
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
-        return true
+        return persistMutation {
+            tearDown(paneId: paneId)
+            return true
+        }
     }
 
     @discardableResult
     func closeTab(id tabId: UUID, force: Bool = false) async -> Bool {
-        guard registry.tab(id: tabId) != nil else { return false }
-        let target = TerminalCloseTarget.tab(tabId)
         if force == false {
-            guard pendingCloseTargets.insert(target).inserted else { return false }
-            defer { pendingCloseTargets.remove(target) }
-            if await pendingConfirmation(for: target) != nil {
-                return false
-            }
-            guard isTornDown == false, registry.tab(id: tabId) != nil else { return false }
+            return await confirmAndCloseIfNeeded(
+                target: .tab(tabId),
+                stillExists: { registry.tab(id: tabId) != nil },
+                forceClose: { forceCloseTab(id: tabId) }
+            )
         }
         return forceCloseTab(id: tabId)
     }
@@ -517,28 +505,25 @@ final class CarrierTerminalStore {
     @discardableResult
     func forceCloseTab(id tabId: UUID) -> Bool {
         guard let tab = registry.tab(id: tabId) else { return false }
-        let paneIds = tab.orderedPaneIds
-        _ = registry.closeTab(id: tabId)
-        for paneId in paneIds {
-            tearDown(paneId: paneId)
+        return persistMutation {
+            let paneIds = tab.orderedPaneIds
+            _ = registry.closeTab(id: tabId)
+            for paneId in paneIds {
+                tearDown(paneId: paneId)
+            }
+            return true
         }
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
-        return true
     }
 
     @discardableResult
     func closeAll(for owner: TerminalOwner, force: Bool = false) async -> Bool {
-        let paneIds = registry.allPaneIds(for: owner)
-        guard paneIds.isEmpty == false else { return true }
-        let target = TerminalCloseTarget.owner(owner)
+        guard registry.allPaneIds(for: owner).isEmpty == false else { return true }
         if force == false {
-            guard pendingCloseTargets.insert(target).inserted else { return false }
-            defer { pendingCloseTargets.remove(target) }
-            if await pendingConfirmation(for: target) != nil {
-                return false
-            }
-            guard isTornDown == false else { return false }
+            return await confirmAndCloseIfNeeded(
+                target: .owner(owner),
+                stillExists: { registry.allPaneIds(for: owner).isEmpty == false },
+                forceClose: { forceCloseAll(for: owner) }
+            )
         }
         return forceCloseAll(for: owner)
     }
@@ -547,13 +532,31 @@ final class CarrierTerminalStore {
     func forceCloseAll(for owner: TerminalOwner) -> Bool {
         let paneIds = registry.allPaneIds(for: owner)
         guard paneIds.isEmpty == false else { return true }
-        _ = registry.closeAll(for: owner)
-        for paneId in paneIds {
-            tearDown(paneId: paneId)
+        return persistMutation {
+            _ = registry.closeAll(for: owner)
+            for paneId in paneIds {
+                tearDown(paneId: paneId)
+            }
+            return true
         }
-        hasLoadedOrMutatedPersistence = true
-        saveWorkspaceNow()
-        return true
+    }
+
+    private func confirmAndCloseIfNeeded(
+        target: TerminalCloseTarget,
+        stillExists: () -> Bool,
+        forceClose: () -> Bool
+    ) async -> Bool {
+        guard stillExists() else { return false }
+        guard pendingCloseTargets.insert(target).inserted else { return false }
+        defer { pendingCloseTargets.remove(target) }
+        if let question = await pendingConfirmation(for: target) {
+            guard isTornDown == false, stillExists() else { return false }
+            guard onCloseConfirmationNeeded?(target, question) == true else {
+                return false
+            }
+        }
+        guard isTornDown == false, stillExists() else { return false }
+        return forceClose()
     }
 
     private func inspectProcesses(for target: TerminalCloseTarget) async -> (running: [TerminalActiveProcess], error: String?) {
@@ -655,9 +658,9 @@ final class CarrierTerminalStore {
             .compactMap { $0 }
             .removeDuplicates()
             .sink { [weak self] cwd in
-                self?.registry.updatePaneWorkingDirectory(cwd, forPane: paneId)
-                self?.hasLoadedOrMutatedPersistence = true
-                self?.schedulePersist()
+                self?.persistMutation(immediate: false) {
+                    self?.registry.updatePaneWorkingDirectory(cwd, forPane: paneId)
+                }
             }
             .store(in: &bag)
 
@@ -705,6 +708,18 @@ final class CarrierTerminalStore {
         }
         appearanceObserver?.invalidate()
         appearanceObserver = nil
+    }
+
+    @discardableResult
+    private func persistMutation<T>(immediate: Bool = true, _ body: () -> T) -> T {
+        let result = body()
+        hasLoadedOrMutatedPersistence = true
+        if immediate {
+            saveWorkspaceNow()
+        } else {
+            schedulePersist()
+        }
+        return result
     }
 
     private func schedulePersist() {

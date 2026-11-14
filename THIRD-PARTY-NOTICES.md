@@ -84,10 +84,36 @@ This file ships inside the app as well, in `Contents/Resources/Licenses/THIRD-PA
 
 The Carrier app (`macos/Package.swift`, the `Carrier` target only) links `GhosttyTerminal` from
 [libghostty-spm](https://github.com/Lakr233/libghostty-spm) (pinned to 2.2.2026111302, Copyright (c) 2026 @Lakr233, MIT
-License), which wraps [Ghostty](https://github.com/ghostty-org/ghostty)'s prebuilt `GhosttyKit.xcframework` (`libghostty`,
-MIT License) and [DisplayLink](https://github.com/Lakr233/DisplayLink) (pinned to 3.0.1, Copyright (c) 2024 Lakr Aream,
-MIT License). Their licence texts ship inside the app in `Contents/Resources/Licenses/libghostty-spm/LICENSE` and
-`Contents/Resources/Licenses/DisplayLink/LICENSE`.
+License), which wraps [Ghostty](https://github.com/ghostty-org/ghostty)'s prebuilt `GhosttyKit.xcframework` (`libghostty`
+and `xterm-ghostty` terminfo, MIT License, Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors) and
+[DisplayLink](https://github.com/Lakr233/DisplayLink) (pinned to 3.0.1, Copyright (c) 2024 Lakr Aream, MIT License).
+Their bundled MIT licence texts ship inside the app in `Contents/Resources/Licenses/libghostty-spm/LICENSE` and
+`Contents/Resources/Licenses/DisplayLink/LICENSE`, and Ghostty's upstream MIT notice is included below.
+
+```text
+MIT License
+
+Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR OTHERWISE, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ## Speech models
 

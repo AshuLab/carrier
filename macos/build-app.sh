@@ -102,6 +102,7 @@ grep -q "swift-transformers" "$LICENSES/argmax-oss-swift/NOTICES" || { echo "err
 grep -q "MIT License" "$LICENSES/libghostty-spm/LICENSE" || { echo "error: $APP lacks the libghostty-spm licence text" >&2; exit 1; }
 grep -q "MIT License" "$LICENSES/DisplayLink/LICENSE" || { echo "error: $APP lacks the DisplayLink licence text" >&2; exit 1; }
 grep -q "FluidAudio" "$LICENSES/THIRD-PARTY-NOTICES.md" || { echo "error: $APP lacks the third-party notices" >&2; exit 1; }
+grep -q "Mitchell Hashimoto" "$LICENSES/THIRD-PARTY-NOTICES.md" || { echo "error: $APP lacks the Ghostty MIT copyright notice" >&2; exit 1; }
 [ -d "$APP/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/terminfo" ] || { echo "error: $APP lacks GhosttyKit_GhosttyTerminal.bundle terminfo database" >&2; exit 1; }
 [ -d "$APP/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/Ghostty" ] || { echo "error: $APP lacks GhosttyKit_GhosttyTerminal.bundle Ghostty resources" >&2; exit 1; }
 codesign --force --deep --sign - "$APP"

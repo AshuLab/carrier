@@ -260,7 +260,7 @@ _Avoid_: estimated cost, API-equivalent spend, subscription quota.
 _Avoid_: bill, invoice, credits, real spend.
 
 **Terminal owner** - The Carrier context that owns a group of embedded terminal tabs (`session` for a chat session, or `quick` for standalone quick terminals), defining their lifecycle boundary and default working folder.
-_Avoid_: workspace, thread, terminal parent.
+_Avoid_: project workspace (in Carrier UI and docs, workspace means the project folder), thread, terminal parent.
 
 **Terminal tab** - One named workspace item inside a terminal owner's strip that holds a binary split tree of one or more terminal panes, tracks its active and zoomed pane, and can be reordered, restored on launch, or closed as a unit.
 _Avoid_: terminal session (session already refers to an agent conversation).

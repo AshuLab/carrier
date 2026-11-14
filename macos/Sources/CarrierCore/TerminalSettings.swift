@@ -103,6 +103,11 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), trimmed.isEmpty == false else {
             return nil
         }
+        guard trimmed != MonospaceSettings.systemFamily,
+              trimmed.unicodeScalars.contains(where: { CharacterSet.newlines.contains($0) || CharacterSet.controlCharacters.contains($0) }) == false
+        else {
+            return nil
+        }
         return trimmed
     }
 
@@ -126,11 +131,7 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
     }
 
     public func effectiveFontFamily(appMonospace: MonospaceSettings) -> String? {
-        let raw = fontFamilyOverride ?? appMonospace.family
-        guard raw != MonospaceSettings.systemFamily, raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            return nil
-        }
-        return raw
+        Self.cleanFontFamily(fontFamilyOverride ?? appMonospace.family)
     }
 
     public func effectiveFontSize(appMonospace: MonospaceSettings) -> Double {

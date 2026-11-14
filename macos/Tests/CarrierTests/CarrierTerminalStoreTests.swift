@@ -10,8 +10,12 @@ import Testing
 private final class FakeProcessInspector: TerminalProcessInspecting {
     var runningByStateId: [ObjectIdentifier: [String]] = [:]
     var inspectionError: String?
+    var delayNanoseconds: UInt64 = 0
 
     func inspectActiveCommands(in panes: [TerminalPaneInspectionInput]) async -> TerminalProcessInspectionResult {
+        if delayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
+        }
         if let inspectionError {
             return TerminalProcessInspectionResult(inspectionError: inspectionError)
         }
@@ -224,13 +228,49 @@ struct CarrierTerminalStoreTests {
         prefs.terminal = settings
         #expect(await store.pendingConfirmation(for: .pane(busyPane)) == nil)
 
-        // Inspector failure fails safe conservatively with a verification-error confirmation when pref is enabled.
+        // Inspector failure fails safe conservatively without leaking raw process error details into user copy.
         settings.confirmCloseRunningProcess = true
         prefs.terminal = settings
         inspector.runningByStateId = [:]
         inspector.inspectionError = "ps failed"
         let errorQuestion = await store.pendingConfirmation(for: .pane(busyPane))
-        #expect(errorQuestion?.message.contains("ps failed") == true)
+        #expect(errorQuestion?.message.contains("Could not verify running commands") == true)
+        #expect(errorQuestion?.message.contains("ps failed") == false)
+        let quitErrorQuestion = await store.pendingConfirmation(for: .all)
+        #expect(quitErrorQuestion?.title == "Quit Carrier?")
+        let archiveErrorQuestion = await store.pendingConfirmation(for: .owners([session]), removalKind: .archive)
+        #expect(archiveErrorQuestion?.title == "Archive session?")
+
+        // Many running commands summarize to at most 3 and use the singular/plural pronoun consistently.
+        inspector.inspectionError = nil
+        inspector.runningByStateId[ObjectIdentifier(busyState)] = ["cmd-a", "cmd-b", "cmd-c", "cmd-d", "cmd-e"]
+        let manyCommandsQuestion = await store.pendingConfirmation(for: .owners([session]), removalKind: .archive)
+        #expect(manyCommandsQuestion?.title.hasPrefix("Archive session with running terminal") == true)
+        #expect(manyCommandsQuestion?.confirm == "Archive")
+        #expect(manyCommandsQuestion?.message.contains("and 2 more") == true)
+        #expect(manyCommandsQuestion?.message.contains("terminate them.") == true)
+
+        // Single running command uses singular pronoun cleanly and clips overlong titles.
+        let longTitle = String(repeating: "A", count: 80)
+        let longCopy = terminalConfirmationQuestion(
+            for: .tab(tab.id),
+            running: [TerminalActiveProcess(paneId: busyPane, paneTitle: longTitle, commands: ["vite"])],
+            targetTitle: longTitle
+        )
+        #expect(longCopy.title.count < 70)
+        #expect(longCopy.title.contains("\u{2026}") == true)
+        #expect(longCopy.message.contains("terminate it.") == true)
+
+        // Non-forced closePane / closeTab / closeAll honor onCloseConfirmationNeeded approval/denial.
+        var promptedTargets: [TerminalCloseTarget] = []
+        store.onCloseConfirmationNeeded = { target, _ in
+            promptedTargets.append(target)
+            return false
+        }
+        #expect(await store.closePane(id: busyPane, force: false) == false)
+        #expect(await store.closeTab(id: tab.id, force: false) == false)
+        #expect(await store.closeAll(for: session, force: false) == false)
+        #expect(promptedTargets == [.pane(busyPane), .tab(tab.id), .owner(session)])
 
         // Forced close tears down state, callbacks, and view synchronously.
         #expect(await store.closeAll(for: session, force: true))
@@ -275,7 +315,7 @@ struct CarrierTerminalStoreTests {
     }
 
     @Test(.enabled(if: ProcessInfo.processInfo.environment["CARRIER_IT_TERMINAL"] != nil))
-    func liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection() async {
+    func liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection() async throws {
         let (prefs, cleanup) = makeIsolatedPreferences()
         defer { cleanup() }
 
@@ -355,6 +395,49 @@ struct CarrierTerminalStoreTests {
         // Send Ctrl+C to terminate sleep and verify clearScrollback dispatches cleanly.
         #expect(store.sendInterrupt(paneId: paneId))
         #expect(store.clearScrollback(paneId: paneId))
+
+        // Start a child process, capture its PID, force-close the workspace, and confirm child process exits.
+        #expect(store.paste("sleep 30", paneId: paneId))
+        #expect(state.sendKey(.enter))
+        var runningChildPid: pid_t?
+        if let tty = store.platformView(for: paneId)?.ttyName, tty.isEmpty == false {
+            for _ in 0..<25 {
+                if let pid = Self.findChildPID(named: "sleep", tty: tty) {
+                    runningChildPid = pid
+                    break
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
+        let capturedPid = try #require(runningChildPid)
+        #expect(await store.closeAll(for: .quick, force: true))
+        let exited = await waitUntil(timeoutSeconds: 3.0) {
+            Darwin.kill(capturedPid, 0) != 0 && errno == ESRCH
+        }
+        #expect(exited)
+    }
+
+    private static func findChildPID(named command: String, tty: String) -> pid_t? {
+        let shortTTY = tty.hasPrefix("/dev/") ? String(tty.dropFirst(5)) : tty
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/ps")
+        process.arguments = ["-o", "pid=", "-o", "comm=", "-t", shortTTY]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard let output = String(data: data, encoding: .utf8) else { return nil }
+        for line in output.split(whereSeparator: \.isNewline) {
+            let parts = line.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+            guard parts.count == 2, let pid = Int32(parts[0]) else { continue }
+            let name = URL(fileURLWithPath: String(parts[1])).lastPathComponent
+            if name == command {
+                return pid
+            }
+        }
+        return nil
     }
 
     @Test func parsesBatchedPSOutputAndLogsInspectorErrors() async throws {
@@ -571,5 +654,39 @@ struct CarrierTerminalStoreTests {
         store.reconcileKnownSessions(["s-one"])
         #expect(store.tabs(for: s1).count == 1)
         #expect(store.tabs(for: s2).isEmpty)
+    }
+
+    @Test func concurrentOnCloseCallbacksCoalesceIntoSingleConfirmationPrompt() async {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let inspector = FakeProcessInspector()
+        inspector.delayNanoseconds = 60_000_000
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: inspector
+        )
+        let tab = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let paneId = tab.activePaneId
+        let state = store.state(for: paneId)!
+        inspector.runningByStateId[ObjectIdentifier(state)] = ["node"]
+
+        var prompts: [Question] = []
+        store.onCloseConfirmationNeeded = { _, question in
+            prompts.append(question)
+            return false
+        }
+
+        // Overlapping close triggers on the same pane while inspection is in flight must produce only one prompt.
+        state.onClose?(true)
+        state.onClose?(true)
+        #expect(await waitUntil { prompts.count == 1 })
+        try? await Task.sleep(nanoseconds: 120_000_000)
+        #expect(prompts.count == 1)
+        #expect(store.pane(id: paneId) != nil)
+
+        store.teardownAll()
     }
 }

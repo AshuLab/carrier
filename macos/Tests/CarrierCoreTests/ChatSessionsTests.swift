@@ -215,6 +215,20 @@ private func rig(_ host: FakeHost) -> (ChatSessionsPoller, Clock, () -> [Session
     #expect(authoritativeSnapshots.count == 2)
     #expect(authoritativeSnapshots.last == Set(["a", "x"]))
 
+    // A cached archived snapshot (within archivedEvery) must NOT emit authoritative IDs
+    // even when active shrinks, preventing premature two-poll pruning of sessions archived externally.
+    host.active = []
+    clock.now.addTimeInterval(1)
+    await poller.poll()
+    #expect(authoritativeSnapshots.count == 2)
+
+    // Once archivedEvery elapses and archived refreshes cleanly, authoritative IDs are emitted again.
+    host.archived = [try session("x"), try session("a")]
+    clock.now.addTimeInterval(5)
+    await poller.poll()
+    #expect(authoritativeSnapshots.count == 3)
+    #expect(authoritativeSnapshots.last == Set(["a", "x"]))
+
     // Initial or periodic archived list failure must also suppress authoritative pruning.
     let partialHost = FakeHost()
     partialHost.active = [try session("live")]

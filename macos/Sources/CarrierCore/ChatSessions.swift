@@ -68,7 +68,6 @@ public final class ChatSessionsPoller {
     private let onChange: ([SessionRow]) -> Void
     private var archived: [ChatSession] = []
     private var archivedAt: Date?
-    private var hasArchivedSnapshot = false
     /// Set from any thread by `invalidateArchived`.
     private let stale = Mutex(false)
 
@@ -93,26 +92,23 @@ public final class ChatSessionsPoller {
         guard let active = try? await host.list(archived: false) else {
             archived = []
             archivedAt = nil
-            hasArchivedSnapshot = false
             return onChange([])
         }
         let invalidated = stale.withLock { flag in
             defer { flag = false }
             return flag
         }
-        var archivedRefreshFailed = false
+        var archivedRefreshedThisPoll = false
         if invalidated || (archivedAt.map({ now().timeIntervalSince($0) >= archivedEvery }) ?? true) {
             if let listed = try? await host.list(archived: true) {
                 archived = listed
                 archivedAt = now()
-                hasArchivedSnapshot = true
-            } else {
-                archivedRefreshFailed = true
+                archivedRefreshedThisPoll = true
             }
         }
         let combined = active + archived
         onChange(sessionRows(combined))
-        if hasArchivedSnapshot && archivedRefreshFailed == false {
+        if archivedRefreshedThisPoll {
             onAuthoritativeSessionIds(Set(combined.map(\.id)))
         }
     }

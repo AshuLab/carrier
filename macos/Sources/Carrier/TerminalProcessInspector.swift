@@ -210,9 +210,14 @@ struct GhosttyTerminalProcessInspector: TerminalProcessInspecting {
                 }
             }
 
+            pipeGroup.enter()
+            pipeGroup.enter()
+
             do {
                 try process.run()
             } catch {
+                pipeGroup.leave()
+                pipeGroup.leave()
                 timeoutWork.cancel()
                 let message = "failed to inspect terminal processes with \(executablePath): \(error.localizedDescription)"
                 log(message)
@@ -221,12 +226,10 @@ struct GhosttyTerminalProcessInspector: TerminalProcessInspecting {
             }
 
             // Drain stdout and stderr concurrently so output above the pipe buffer never deadlocks.
-            pipeGroup.enter()
             drainQueue.async {
                 state.stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
                 pipeGroup.leave()
             }
-            pipeGroup.enter()
             drainQueue.async {
                 state.stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
                 pipeGroup.leave()

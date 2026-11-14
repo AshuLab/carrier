@@ -171,6 +171,13 @@ public struct TerminalWorkspaceFileStore: Sendable {
             log("could not read terminal workspace at \(fileURL.path): \(error.localizedDescription)")
             return .rejected(.unreadable)
         }
+        // Probe schemaVersion before decoding the full snapshot so future schemas with changed fields
+        // are recognized cleanly and write-protected instead of being misclassified as corrupt JSON.
+        if let header = try? JSONDecoder().decode(SchemaVersionHeader.self, from: data),
+           header.schemaVersion != PersistedTerminalWorkspace.currentSchemaVersion {
+            log("ignoring terminal workspace at \(fileURL.path) with unsupported schemaVersion \(header.schemaVersion)")
+            return .rejected(.unsupportedSchema(header.schemaVersion))
+        }
         let decoded: PersistedTerminalWorkspace
         do {
             decoded = try JSONDecoder().decode(PersistedTerminalWorkspace.self, from: data)
@@ -188,6 +195,10 @@ public struct TerminalWorkspaceFileStore: Sendable {
             return .rejected(.unsupportedSchema(decoded.schemaVersion))
         }
         return .loaded(decoded)
+    }
+
+    private struct SchemaVersionHeader: Decodable {
+        let schemaVersion: Int
     }
 
     @discardableResult
@@ -236,15 +247,6 @@ public struct TerminalWorkspaceFileStore: Sendable {
         } catch {
             log("could not save terminal workspace at \(fileURL.path): \(error.localizedDescription)")
             return false
-        }
-    }
-
-    public func removeFile() {
-        guard let fileURL, FileManager.default.fileExists(atPath: fileURL.path) else { return }
-        do {
-            try FileManager.default.removeItem(at: fileURL)
-        } catch {
-            log("could not remove terminal workspace at \(fileURL.path): \(error.localizedDescription)")
         }
     }
 

@@ -29,7 +29,7 @@ That would simplify the initial slice, but breaks normal desktop terminal expect
 
 ## Consequences
 
-`Carrier.app` ships the statically linked `GhosttyKit.xcframework` and `GhosttyTerminal` resource bundle (`terminfo` and shell integration) with third-party notices updated accordingly, gaining GPU-accelerated rendering, shell integration (CWD tracking, prompt markers, command exit codes), and native close-confirmation primitives (`ghostty_surface_needs_confirm_quit`).
+`Carrier.app` ships the statically linked `GhosttyKit.xcframework` and `GhosttyTerminal` resource bundle (`terminfo` and shell integration) with third-party notices updated accordingly, gaining GPU-accelerated rendering, shell integration (CWD tracking, prompt markers, command exit codes), and native close-confirmation primitives (`TerminalViewState.onClose(processAlive:)`).
 
 Because terminals run inside `Carrier.app`, running child processes exit when the user quits Carrier (gated by close confirmation when active processes exist), while the tab and split structure plus working directories restore cleanly on the next launch.
-Extracting persistent out-of-process PTY survival later would still be possible behind the `GhosttyTerminal` `InMemoryTerminalSession` backend seam if Carrier ever needs long-lived background dev servers across app restarts.
+Extracting persistent out-of-process PTY survival later would still be possible behind a separate session backend if Carrier ever needs long-lived background dev servers across app restarts.

@@ -37,7 +37,7 @@ Terminal preferences live in a dedicated `TerminalSettings` model backed by `App
 Each of Carrier's nine light and dark themes maps to complete, high-contrast `background`, `foreground`, `selectionBackground`, `selectionForeground`, `cursorColor`, and `minimumContrast` values.
 
 **Persistence and restore.**
-Whenever the terminal workspace structure or active `workingDirectory` changes (debounced cleanly), the store writes `<Carrier folder>/app/terminals.json` ([0016](../adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)), skipping persistence under `--fixture` / `--selftest` runs.
+Whenever the terminal workspace structure mutates (tab/pane create, split, move, rename, or close), the store writes `<Carrier folder>/app/terminals.json` immediately ([0016](../adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)), while continuous split-ratio drags and shell `workingDirectory` updates are debounced; persistence is skipped under `--fixture` / `--selftest` runs.
 On app launch, Carrier restores each owner's tabs, binary split tree, ratios, active tab/pane, zoom, titles, and validated working directories by spawning fresh shells in those positions.
 
 **Process confirmation and teardown.**
@@ -76,7 +76,7 @@ Terminal link activation (`isAllowedTerminalURL`) permits only `http` and `https
 
 **Persistence file location and format.**
 Persisted layout uses JSON (`Codable`, versioned `schemaVersion: 1`) written atomically with `0600` permissions in `<Carrier folder>/app/terminals.json` ([0016](../adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)), stripping `envVars` so environment secrets never hit disk.
-Unrecognized future schema versions are logged and write-protected for that launch so later terminal edits never overwrite the newer file, while corrupt files are logged and moved to a timestamped `.bak` copy before recovering persistence.
+`SchemaVersionHeader` is decoded before the full snapshot so unrecognized future schema versions are logged and write-protected for that launch (newer files are never overwritten), while corrupt files are logged and moved to a timestamped `.bak` copy before recovering persistence.
 Stale session ids are pruned only after two consecutive authoritative session snapshots omit them (`ChatSessionsPoller.onAuthoritativeSessionIds`, never when the chat host is unreachable or incomplete), and removed worktree directories fall back safely on restore.
 
 **Testing seams per story.**

@@ -34,3 +34,4 @@ A status that names a later record means that record changed part or all of this
 | 0024 | [The chat MCP lives in the chat host and is injected per session](0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md) | accepted |
 | 0025 | [Usage collection and serving run inside the chat host](0025-usage-runs-inside-the-chat-host.md) | accepted; its file-only Claude login is extended to the Keychain by [0026](0026-claude-usage-reads-the-login-from-the-keychain-and-never-refreshes-it.md) |
 | 0026 | [Claude's usage reads the login from the macOS Keychain, and never refreshes it](0026-claude-usage-reads-the-login-from-the-keychain-and-never-refreshes-it.md) | accepted |
+| 0027 | [The embedded terminal runs in-process with GhosttyKit and restores layout across launches](0027-embedded-terminal-runs-in-process-with-ghosttykit.md) | accepted |

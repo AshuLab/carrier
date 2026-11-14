@@ -10,6 +10,7 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 ## Tests
 
 The gated tests of Apple's recognizer (`AppleRecognizerTests`, with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`) and of FluidAudio's models (`FluidAudioRecognizerTests`, one run per entry: the Spanish clip, or an English one made with `say` (`hello-en.wav`) for the English-only models, gives text, and partial text first for the native ones, twice in a row with the same loaded model; no speech gives an empty final; a Parakeet folder with a file removed fails with its cause and is not downloaded again) run only with `CARRIER_IT_DICTATION` set; for FluidAudio it names a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`); Whisper's (`WhisperKitRecognizerTests`, in the same folder under `<folder>/whisper/<model>/models/...`) give text from the Spanish clip for each of the four models and an empty final for no speech, and a copy of the tiny folder with a model file or the tokenizer removed fails with its cause and fetches nothing.
+The embedded-terminal live shell integration test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection` in `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell process in an offscreen `NSWindow` and runs only when `CARRIER_IT_TERMINAL=1` is set.
 
 ## Starting Carrier and the chat host
 
@@ -93,3 +94,12 @@ What the person sees: [dictation](../docs/macos/dictation.md).
 
 The logic is `CarrierCore/Dictation.swift` (the boundary and the registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the scripted recognizer and capture of `ScriptedDictation.swift`.
 `DictationController` holds the switch so both boxes read it.
+
+## Embedded terminal
+
+The embedded terminal UI chrome and triggers are not yet wired in `Carrier.app`, so `CarrierTerminalStore.shared` is dormant until the UI PR mounts the first surface ([the spec](../docs/specs/embedded-terminal-core.md), [ADR 0027](../docs/adr/0027-embedded-terminal-runs-in-process-with-ghosttykit.md)).
+
+The pure domain model (`TerminalOwner`, `TerminalTab`, `TerminalPane`, `SplitNode`, `TerminalRegistry`, directory validation, URL policy), persistence (`TerminalWorkspaceFileStore` writing `<Carrier folder>/app/terminals.json` at `0600` without `envVars`), settings (`TerminalSettings` on `AppPreferences.terminal`) and theme appearance profiles (`TerminalAppearanceProfile` in `TerminalSettings.swift`) live in `CarrierCore` (`TerminalCore.swift`, `TerminalSplitTree.swift`, `TerminalPersistence.swift`, `TerminalSettings.swift`) and are tested in `TerminalCoreTests`.
+`Carrier/TerminalHost.swift` (`CarrierTerminalStore`), `Carrier/TerminalAppearance.swift` (`TerminalAppearanceMapper`), `Carrier/TerminalProcessInspector.swift` (`GhosttyTerminalProcessInspector`), `Carrier/TerminalConfirmationCopy.swift` and `Carrier/CarrierTerminalView.swift` (`CarrierTerminalView`, `MountedTerminalSurface`) cache live `GhosttyKit` surfaces by `paneId`, hot-reload settings and handle batched off-main-thread process inspection and close confirmation; these are tested in `CarrierTerminalStoreTests`, while the live login-shell smoke test is gated behind `CARRIER_IT_TERMINAL`.
+Session archiving/deleting and authoritative poller hooks live in `CarrierCore/ChatArchive.swift` (`SessionActions`), `CarrierCore/ChatSessions.swift` (`ChatSessionsPoller.onAuthoritativeSessionIds`), `Carrier/WindowController.swift` (`PanelModel`) and `Carrier/AppDelegate.swift` (`applicationShouldTerminate`, `applicationWillTerminate`), with the underlying poller and store quit/prune behavior tested in `ChatSessionsTests` and `CarrierTerminalStoreTests` while `AppDelegate`/`WindowController`/`SessionActions` view wiring itself has no UI test.
+`libghostty-spm` (`GhosttyTerminal`) is linked by the `Carrier` target only, and `build-app.sh` / `scripts/check-app.sh` copy and verify `GhosttyKit_GhosttyTerminal.bundle` and `THIRD-PARTY-NOTICES.md` (`ThirdPartyNoticesTests`).

@@ -18,11 +18,16 @@ otool -l Carrier.app/Contents/MacOS/Carrier | grep -A2 LC_RPATH | grep -q "path 
 F=Carrier.app/Contents/Frameworks/Sparkle.framework
 [ -f "$F/Versions/B/Sparkle" ] || fail "Sparkle.framework is not in the app"
 [ -L "$F/Sparkle" ] && [ -L "$F/Versions/Current" ] || fail "Sparkle.framework lost its symlinks"
-# the licences of FluidAudio (and of what it vendors), WhisperKit (with swift-transformers) and the repository's notices travel with the binary
+# the licences of FluidAudio (and of what it vendors), WhisperKit (with swift-transformers), libghostty-spm/DisplayLink and the repository's notices travel with the binary
 L=Carrier.app/Contents/Resources/Licenses
-for f in FluidAudio/LICENSE FluidAudio/ThirdPartyLicenses/NemoTextProcessing-LICENSE.md FluidAudio/ThirdPartyLicenses/fastcluster-LICENSE.md argmax-oss-swift/LICENSE argmax-oss-swift/NOTICES THIRD-PARTY-NOTICES.md; do
+for f in FluidAudio/LICENSE FluidAudio/ThirdPartyLicenses/NemoTextProcessing-LICENSE.md FluidAudio/ThirdPartyLicenses/fastcluster-LICENSE.md argmax-oss-swift/LICENSE argmax-oss-swift/NOTICES libghostty-spm/LICENSE DisplayLink/LICENSE THIRD-PARTY-NOTICES.md; do
   [ -s "$L/$f" ] || fail "$L/$f is not in the app"
 done
+[ -d Carrier.app/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/terminfo ] || fail "GhosttyKit_GhosttyTerminal.bundle terminfo database is not in the app"
+[ -d Carrier.app/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/Ghostty ] || fail "GhosttyKit_GhosttyTerminal.bundle Ghostty resources are not in the app"
+grep -q "Copyright (c) 2017 Ryan Caloras" Carrier.app/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/Ghostty/shell-integration/bash/LICENSE-bash-preexec.md || fail "bash-preexec license missing from GhosttyKit_GhosttyTerminal.bundle"
+grep -q "Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors" "$L/THIRD-PARTY-NOTICES.md" || fail "Ghostty copyright notice missing from $L/THIRD-PARTY-NOTICES.md"
+grep -q "OUT OF OR IN CONNECTION WITH THE SOFTWARE" "$L/THIRD-PARTY-NOTICES.md" || fail "Ghostty MIT text missing from $L/THIRD-PARTY-NOTICES.md"
 codesign --verify --deep --strict Carrier.app || fail "codesign --verify --deep --strict failed"
 
 ./build-app.sh 0.1.4 >/dev/null

@@ -64,16 +64,24 @@ public final class ChatSessionsPoller {
     private let host: ChatHost
     private let archivedEvery: TimeInterval
     private let now: () -> Date
+    private let onAuthoritativeSessionIds: (Set<String>) -> Void
     private let onChange: ([SessionRow]) -> Void
     private var archived: [ChatSession] = []
     private var archivedAt: Date?
     /// Set from any thread by `invalidateArchived`.
     private let stale = Mutex(false)
 
-    public init(host: ChatHost, archivedEvery: TimeInterval = 5, now: @escaping () -> Date = Date.init, onChange: @escaping ([SessionRow]) -> Void) {
+    public init(
+        host: ChatHost,
+        archivedEvery: TimeInterval = 5,
+        now: @escaping () -> Date = Date.init,
+        onAuthoritativeSessionIds: @escaping (Set<String>) -> Void = { _ in },
+        onChange: @escaping ([SessionRow]) -> Void
+    ) {
         self.host = host
         self.archivedEvery = archivedEvery
         self.now = now
+        self.onAuthoritativeSessionIds = onAuthoritativeSessionIds
         self.onChange = onChange
     }
 
@@ -90,10 +98,18 @@ public final class ChatSessionsPoller {
             defer { flag = false }
             return flag
         }
-        if invalidated || (archivedAt.map({ now().timeIntervalSince($0) >= archivedEvery }) ?? true), let listed = try? await host.list(archived: true) {
-            archived = listed
-            archivedAt = now()
+        var archivedRefreshedThisPoll = false
+        if invalidated || (archivedAt.map({ now().timeIntervalSince($0) >= archivedEvery }) ?? true) {
+            if let listed = try? await host.list(archived: true) {
+                archived = listed
+                archivedAt = now()
+                archivedRefreshedThisPoll = true
+            }
         }
-        onChange(sessionRows(active + archived))
+        let combined = active + archived
+        onChange(sessionRows(combined))
+        if archivedRefreshedThisPoll {
+            onAuthoritativeSessionIds(Set(combined.map(\.id)))
+        }
     }
 }

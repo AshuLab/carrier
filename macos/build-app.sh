@@ -48,13 +48,17 @@ cp -R Tests/Fixtures "$APP/Contents/Resources/Fixtures"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # SwiftPM's resource bundle of CarrierCore: the file icons and the licence text that goes with them
 cp -R .build/release/Carrier_CarrierCore.bundle "$APP/Contents/Resources/"
+# GhosttyTerminal's bundled shell integration and terminfo database
+cp -R .build/release/GhosttyKit_GhosttyTerminal.bundle "$APP/Contents/Resources/"
 # the licences of what is linked in: FluidAudio (Apache-2.0) with the notices of what it vendors (NemoTextProcessing, fastcluster, ...),
-# argmax-oss-swift (MIT) with its NOTICES (swift-transformers, Apache-2.0), and the repository's own notices file
+# argmax-oss-swift (MIT) with its NOTICES (swift-transformers, Apache-2.0), libghostty-spm/Ghostty + DisplayLink (MIT), and the repository's own notices file
 LICENSES="$APP/Contents/Resources/Licenses"
-mkdir -p "$LICENSES/FluidAudio" "$LICENSES/argmax-oss-swift"
+mkdir -p "$LICENSES/FluidAudio" "$LICENSES/argmax-oss-swift" "$LICENSES/libghostty-spm" "$LICENSES/DisplayLink"
 cp .build/checkouts/FluidAudio/LICENSE "$LICENSES/FluidAudio/LICENSE"
 cp -R .build/checkouts/FluidAudio/ThirdPartyLicenses "$LICENSES/FluidAudio/ThirdPartyLicenses"
 cp .build/checkouts/argmax-oss-swift/LICENSE .build/checkouts/argmax-oss-swift/NOTICES "$LICENSES/argmax-oss-swift/"
+cp .build/checkouts/libghostty-spm/LICENSE "$LICENSES/libghostty-spm/LICENSE"
+cp .build/checkouts/DisplayLink/LICENSE "$LICENSES/DisplayLink/LICENSE"
 cp ../THIRD-PARTY-NOTICES.md "$LICENSES/THIRD-PARTY-NOTICES.md"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -95,7 +99,14 @@ grep -q "Redistributions in binary form must reproduce" "$LICENSES/FluidAudio/Th
 grep -q "text-processing-rs" "$LICENSES/FluidAudio/ThirdPartyLicenses/NemoTextProcessing-LICENSE.md" || { echo "error: $APP lacks the notice of NemoTextProcessing" >&2; exit 1; }
 grep -q "Permission is hereby granted" "$LICENSES/argmax-oss-swift/LICENSE" || { echo "error: $APP lacks the WhisperKit licence text" >&2; exit 1; }
 grep -q "swift-transformers" "$LICENSES/argmax-oss-swift/NOTICES" || { echo "error: $APP lacks the notice of swift-transformers" >&2; exit 1; }
+grep -q "MIT License" "$LICENSES/libghostty-spm/LICENSE" || { echo "error: $APP lacks the libghostty-spm licence text" >&2; exit 1; }
+grep -q "MIT License" "$LICENSES/DisplayLink/LICENSE" || { echo "error: $APP lacks the DisplayLink licence text" >&2; exit 1; }
 grep -q "FluidAudio" "$LICENSES/THIRD-PARTY-NOTICES.md" || { echo "error: $APP lacks the third-party notices" >&2; exit 1; }
+grep -q "Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors" "$LICENSES/THIRD-PARTY-NOTICES.md" || { echo "error: $APP lacks the Ghostty MIT copyright notice" >&2; exit 1; }
+grep -q "OUT OF OR IN CONNECTION WITH THE SOFTWARE" "$LICENSES/THIRD-PARTY-NOTICES.md" || { echo "error: $APP lacks the Ghostty MIT licence text" >&2; exit 1; }
+[ -d "$APP/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/terminfo" ] || { echo "error: $APP lacks GhosttyKit_GhosttyTerminal.bundle terminfo database" >&2; exit 1; }
+[ -d "$APP/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/Ghostty" ] || { echo "error: $APP lacks GhosttyKit_GhosttyTerminal.bundle Ghostty resources" >&2; exit 1; }
+grep -q "Copyright (c) 2017 Ryan Caloras" "$APP/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/Ghostty/shell-integration/bash/LICENSE-bash-preexec.md" || { echo "error: $APP lacks LICENSE-bash-preexec.md" >&2; exit 1; }
 codesign --force --deep --sign - "$APP"
 echo "built $APP"
 if [ "$OPEN" = true ]; then open "$APP"; fi

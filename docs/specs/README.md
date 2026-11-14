@@ -79,3 +79,7 @@ Specs of one area that build on each other are listed oldest first.
 ## macOS app: dictation
 
 - [dictation-in-the-app](dictation-in-the-app.md): dictating into the message box with local speech models. Implemented (v0.4.0).
+
+## macOS app: terminal
+
+- [embedded-terminal-core](embedded-terminal-core.md): native `GhosttyKit` terminal core with tabs, split panes, persistence, settings, and process close guards. Implemented (core only; UI unwired, unreleased).

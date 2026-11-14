@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var triedStartOnOpen = false
     /// The combinations the main menu was built with (MainMenu.swift).
     var shortcutsInMenu: [KeyCombo?] = []
+    private var isConfirmingTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // before the menu, whose "Check for Updates…" item is the updater controller's
@@ -184,7 +185,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // A menu bar app keeps running with no windows.
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { false }
 
-    func applicationWillTerminate(_ notification: Notification) { fixtureServer?.stop() }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard fixtureServer == nil, Self.selfTestPath() == nil else { return .terminateNow }
+        return MainActor.assumeIsolated {
+            guard isConfirmingTermination == false else { return .terminateCancel }
+            guard let store = CarrierTerminalStore.sharedIfInitialized, store.hasLiveSurfaces else {
+                return .terminateNow
+            }
+            isConfirmingTermination = true
+            Task { @MainActor [weak self] in
+                defer { self?.isConfirmingTermination = false }
+                let question = await store.pendingConfirmation(for: .all)
+                let shouldTerminate = question.map(ask) ?? true
+                sender.reply(toApplicationShouldTerminate: shouldTerminate)
+            }
+            return .terminateLater
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { CarrierTerminalStore.sharedIfInitialized?.teardownAll() }
+        fixtureServer?.stop()
+    }
 
     /// `--fixture [folder]`: the folder of golden files, by default the ones inside the app bundle. nil without the flag.
     private static func fixturesPath() -> String? {

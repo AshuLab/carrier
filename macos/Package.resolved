@@ -1,5 +1,5 @@
 {
-  "originHash" : "70267e877c834e7321d53de1d442c164a93351655ef6a24b6c4e120362f78423",
+  "originHash" : "9467f0c39887d262789e08f1d8073aebf478d65c78a4423125c6cb100780079f",
   "pins" : [
     {
       "identity" : "argmax-oss-swift",
@@ -11,12 +11,30 @@
       }
     },
     {
+      "identity" : "displaylink",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lakr233/DisplayLink.git",
+      "state" : {
+        "revision" : "41bea2661e04bebcb1c4f15fc0b6197850100fdd",
+        "version" : "3.0.1"
+      }
+    },
+    {
       "identity" : "fluidaudio",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/FluidInference/FluidAudio",
       "state" : {
         "revision" : "c8b41f98eae668794dd0083bbe028fe7e6585051",
         "version" : "0.18.3"
+      }
+    },
+    {
+      "identity" : "libghostty-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lakr233/libghostty-spm.git",
+      "state" : {
+        "revision" : "41694d165597b356ed30e2c76b68cc83c8442682",
+        "version" : "2.2.2026111302"
       }
     },
     {

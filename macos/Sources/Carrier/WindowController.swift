@@ -12,7 +12,24 @@ import SwiftUI
     let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
     /// Archive, restore and delete; `startMonitor` makes the lists read again after each.
-    let actions = SessionActions(host: SocketChatHost())
+    let actions: SessionActions = {
+        let actions = SessionActions(host: SocketChatHost())
+        actions.confirmSessionRemoval = { kind, sessionIds in
+            guard let store = CarrierTerminalStore.sharedIfInitialized,
+                  let question = await store.pendingConfirmation(
+                      for: .owners(sessionIds.map { .session($0) }),
+                      removalKind: kind
+                  )
+            else {
+                return true
+            }
+            return ask(question)
+        }
+        actions.didRemoveSession = { sessionId in
+            CarrierTerminalStore.sharedIfInitialized?.forceCloseAll(for: .session(sessionId))
+        }
+        return actions
+    }()
     var collapse = SidebarCollapse()
     /// The chat host's sessions (`ChatSessionsPoller`), with which of them are unread.
     var sessions = Sessions()
@@ -24,6 +41,13 @@ import SwiftUI
     func adopt(_ rows: [SessionRow]) {
         hostRows = rows
         refreshUnread()
+    }
+
+    /// Prunes persisted/live session terminals only after two consecutive healthy chat-host polls omit them.
+    @MainActor
+    func reconcileKnownSessions(_ knownIds: Set<String>) {
+        CarrierTerminalStore.lastKnownSessionIds = knownIds
+        CarrierTerminalStore.sharedIfInitialized?.reconcileKnownSessions(knownIds)
     }
 
     /// Sets `unread` again: when the list changes and when the open session does. The session on screen is seen as it moves.
@@ -450,10 +474,18 @@ final class WindowController: NSObject, NSWindowDelegate {
             }
         )
         Thread.detachNewThread { monitor.run() }
-        let sessions = ChatSessionsPoller(host: SocketChatHost()) { rows in
-            // only a change is published: an equal list at every poll would rebuild an open context menu under the pointer
-            DispatchQueue.main.async { if stop.isSet == false { model.adopt(rows) } }
-        }
+        let sessions = ChatSessionsPoller(
+            host: SocketChatHost(),
+            onAuthoritativeSessionIds: { knownIds in
+                DispatchQueue.main.async {
+                    if stop.isSet == false { model.reconcileKnownSessions(knownIds) }
+                }
+            },
+            onChange: { rows in
+                // only a change is published: an equal list at every poll would rebuild an open context menu under the pointer
+                DispatchQueue.main.async { if stop.isSet == false { model.adopt(rows) } }
+            }
+        )
         DispatchQueue.main.async { model.actions.changed = { sessions.invalidateArchived() } }
         Task.detached {
             repeat {

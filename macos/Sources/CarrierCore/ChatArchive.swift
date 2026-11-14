@@ -62,6 +62,12 @@ public struct Question: Equatable {
     public let title: String
     public let message: String
     public let confirm: String
+
+    public init(title: String, message: String, confirm: String) {
+        self.title = title
+        self.message = message
+        self.confirm = confirm
+    }
 }
 
 /// What a worktree holds that deleting would lose, in words: "3 uncommitted files and 2 commits that exist nowhere else"; nil when it holds nothing.
@@ -148,6 +154,12 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
     ].filter { $0.isEmpty == false }
 }
 
+public enum SessionRemovalKind: Sendable {
+    case archive
+    case delete
+    case clear
+}
+
 /// Archives, restores and deletes sessions through the host. Each call returns what the host refused, in words, nil when it worked;
 /// `changed` is told after a success so the lists are read again.
 @Observable public final class SessionActions {
@@ -155,6 +167,8 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private let preferences: AppPreferences
     @ObservationIgnored public var changed: () -> Void = {}
+    @ObservationIgnored public var confirmSessionRemoval: @MainActor (SessionRemovalKind, [String]) async -> Bool = { _, _ in true }
+    @ObservationIgnored public var didRemoveSession: @MainActor (String) -> Void = { _ in }
 
     public init(
         host: ChatHost, preferences: AppPreferences = AppPreferences(),
@@ -165,11 +179,19 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
         self.log = log
     }
 
-    public func archive(_ id: String) async -> String? { await run("archive", id) { try await $0.archive(id, true) } }
+    public func archive(_ id: String) async -> String? {
+        guard await confirmSessionRemoval(.archive, [id]) else { return nil }
+        let refusal = await run("archive", id) { try await $0.archive(id, true) }
+        if refusal == nil { await didRemoveSession(id) }
+        return refusal
+    }
 
     public func restore(_ id: String) async -> String? { await run("restore", id) { try await $0.archive(id, false) } }
 
-    public func delete(_ id: String) async -> String? { await run("delete", id) { try await $0.delete(id) } }
+    public func delete(_ id: String) async -> String? {
+        guard await confirmSessionRemoval(.delete, [id]) else { return nil }
+        return await deleteConfirmedSession(id)
+    }
 
     /// Ends the turn that is in progress.
     public func stop(_ id: String) async -> String? { await run("stop", id) { try await $0.interrupt(id) } }
@@ -206,14 +228,29 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
 
     /// Deletes each session; one the host refuses does not stop the rest, and a host that stops answering does.
     public func clear(_ ids: [String]) async -> String? {
+        guard ids.isEmpty == false, await confirmSessionRemoval(.clear, ids) else { return nil }
         var deleted = 0
         var refusal: String?
+        let summary = { (message: String) in "Deleted \(deleted) of \(ids.count) archived sessions. \(message)" }
         for id in ids {
-            let failed = await delete(id)
-            if let failed, refusal == nil { refusal = failed }
-            if failed == nil { deleted += 1 } else if failed == ConversationModel.words(ControlError.closed) { break }
+            if let failed = await deleteConfirmedSession(id) {
+                if refusal == nil { refusal = failed }
+                if failed == ConversationModel.words(ControlError.closed) {
+                    return refusal.map(summary)
+                }
+            } else {
+                deleted += 1
+            }
         }
-        return refusal.map { "Deleted \(deleted) of \(ids.count) archived sessions. \($0)" }
+        return refusal.map(summary)
+    }
+
+    private func deleteConfirmedSession(_ id: String) async -> String? {
+        if let failed = await run("delete", id, { try await $0.delete(id) }) {
+            return failed
+        }
+        await didRemoveSession(id)
+        return nil
     }
 
     private struct Refusal: Error { let words: String }

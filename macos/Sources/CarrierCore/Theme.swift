@@ -1,7 +1,7 @@
 import Foundation
 
 /// A color the theme hands out: components from 0 to 1, so the value is pure and the app turns it into a `Color`.
-public struct RGBA: Equatable {
+public struct RGBA: Equatable, Sendable {
     public var red: Double, green: Double, blue: Double, alpha: Double
 
     public init(red: Double, green: Double, blue: Double, alpha: Double = 1) {
@@ -24,11 +24,11 @@ public struct RGBA: Equatable {
 }
 
 /// The two versions a theme is drawn in; the color scheme picks the one that shows.
-public enum ThemeScheme: CaseIterable { case light, dark }
+public enum ThemeScheme: CaseIterable, Sendable { case light, dark }
 
 /// The nine themes of the gallery. A theme sets the color of the windows, the color of the sidebar and an accent of its own, each for
 /// the light and the dark version (`docs/research/macos-app-design/theme-reach.md`: nothing else a theme says is promised).
-public enum Theme: String, CaseIterable {
+public enum Theme: String, CaseIterable, Codable, Sendable {
     case carrier, graphite, ocean, forest, sunset, paper, rose, lavender, midnight
 
     public var title: String { rawValue.capitalized }

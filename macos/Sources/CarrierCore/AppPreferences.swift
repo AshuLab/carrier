@@ -43,6 +43,16 @@ public struct AppPreferences {
     public static let dictationEnabledKey = "dictation.enabled"
     public static let dictationModelKey = "dictation.model"
     public static let dictationLanguageKey = "dictation.language"
+    public static let terminalThemeKey = "terminal.theme"
+    public static let terminalFontFamilyKey = "terminal.font.family"
+    public static let terminalFontSizeKey = "terminal.font.size"
+    public static let terminalFontLigaturesKey = "terminal.font.ligatures"
+    public static let terminalCursorStyleKey = "terminal.cursor.style"
+    public static let terminalCursorBlinkKey = "terminal.cursor.blink"
+    public static let terminalPaddingXKey = "terminal.padding.x"
+    public static let terminalPaddingYKey = "terminal.padding.y"
+    public static let terminalMinimumContrastKey = "terminal.minimumContrast"
+    public static let terminalConfirmCloseKey = "terminal.confirmCloseRunningProcess"
 
     public static let defaultStyle = IconStyle.countAndBar
     public static let defaultAnimates = true
@@ -296,6 +306,63 @@ public struct AppPreferences {
     public var dictationLanguage: String? {
         get { defaults.string(forKey: Self.dictationLanguageKey) }
         nonmutating set { defaults.set(newValue, forKey: Self.dictationLanguageKey) }
+    }
+
+    /// Settings for the embedded terminal (theme override, font overrides, cursor, padding, contrast, close confirmation).
+    public var terminal: TerminalSettings {
+        get {
+            TerminalSettings(
+                themeOverride: defaults.string(forKey: Self.terminalThemeKey).flatMap(Theme.init(rawValue:)),
+                fontFamilyOverride: defaults.string(forKey: Self.terminalFontFamilyKey),
+                fontSizeOverride: defaults.object(forKey: Self.terminalFontSizeKey) as? Double,
+                fontLigaturesOverride: defaults.object(forKey: Self.terminalFontLigaturesKey) as? Bool,
+                cursorStyle: defaults.string(forKey: Self.terminalCursorStyleKey).flatMap(TerminalCursorStyleChoice.init(rawValue:)) ?? TerminalSettings.defaultCursorStyle,
+                cursorBlink: defaults.object(forKey: Self.terminalCursorBlinkKey) as? Bool ?? TerminalSettings.defaultCursorBlink,
+                paddingX: defaults.object(forKey: Self.terminalPaddingXKey) as? Double ?? TerminalSettings.defaultPaddingX,
+                paddingY: defaults.object(forKey: Self.terminalPaddingYKey) as? Double ?? TerminalSettings.defaultPaddingY,
+                minimumContrast: defaults.object(forKey: Self.terminalMinimumContrastKey) as? Double ?? TerminalSettings.defaultMinimumContrast,
+                confirmCloseRunningProcess: defaults.object(forKey: Self.terminalConfirmCloseKey) as? Bool ?? TerminalSettings.defaultConfirmCloseRunningProcess
+            )
+        }
+        nonmutating set {
+            if let theme = newValue.themeOverride {
+                defaults.set(theme.rawValue, forKey: Self.terminalThemeKey)
+            } else {
+                defaults.removeObject(forKey: Self.terminalThemeKey)
+            }
+            if let family = TerminalSettings.cleanFontFamily(newValue.fontFamilyOverride) {
+                defaults.set(family, forKey: Self.terminalFontFamilyKey)
+            } else {
+                defaults.removeObject(forKey: Self.terminalFontFamilyKey)
+            }
+            if let size = newValue.fontSizeOverride {
+                defaults.set(TerminalSettings.clampFontSize(size), forKey: Self.terminalFontSizeKey)
+            } else {
+                defaults.removeObject(forKey: Self.terminalFontSizeKey)
+            }
+            if let ligatures = newValue.fontLigaturesOverride {
+                defaults.set(ligatures, forKey: Self.terminalFontLigaturesKey)
+            } else {
+                defaults.removeObject(forKey: Self.terminalFontLigaturesKey)
+            }
+            defaults.set(newValue.cursorStyle.rawValue, forKey: Self.terminalCursorStyleKey)
+            defaults.set(newValue.cursorBlink, forKey: Self.terminalCursorBlinkKey)
+            defaults.set(TerminalSettings.clampPadding(newValue.paddingX), forKey: Self.terminalPaddingXKey)
+            defaults.set(TerminalSettings.clampPadding(newValue.paddingY), forKey: Self.terminalPaddingYKey)
+            defaults.set(TerminalSettings.clampMinimumContrast(newValue.minimumContrast), forKey: Self.terminalMinimumContrastKey)
+            defaults.set(newValue.confirmCloseRunningProcess, forKey: Self.terminalConfirmCloseKey)
+        }
+    }
+
+    public static let terminalKeys: [String] = [
+        terminalThemeKey, terminalFontFamilyKey, terminalFontSizeKey, terminalFontLigaturesKey,
+        terminalCursorStyleKey, terminalCursorBlinkKey, terminalPaddingXKey, terminalPaddingYKey,
+        terminalMinimumContrastKey, terminalConfirmCloseKey,
+    ]
+
+    /// Clears only embedded terminal settings back to defaults.
+    public func resetTerminal() {
+        for key in Self.terminalKeys { defaults.removeObject(forKey: key) }
     }
 
     /// Takes the keys of one page out, so it reads as its defaults again; the other pages are not touched.

@@ -2,6 +2,11 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
+enum EmptyStateActionStyle {
+    case secondary
+    case accentGlass
+}
+
 /// Icon, title and one line, centred in the space it is given; neutral colours.
 struct EmptyStateView: View {
     let icon: String
@@ -11,17 +16,31 @@ struct EmptyStateView: View {
     let action: (title: String, run: () -> Void)?
     /// The symbol before the button's words.
     let actionIcon: String?
+    let actionStyle: EmptyStateActionStyle
 
-    init(state: EmptyState, action: (title: String, run: () -> Void)? = nil) {
-        self.init(icon: state.icon, title: state.title, line: state.line, action: action)
+    init(
+        state: EmptyState,
+        action: (title: String, run: () -> Void)? = nil,
+        actionIcon: String? = nil,
+        actionStyle: EmptyStateActionStyle = .secondary
+    ) {
+        self.init(icon: state.icon, title: state.title, line: state.line, action: action, actionIcon: actionIcon, actionStyle: actionStyle)
     }
 
-    init(icon: String, title: String, line: String, action: (title: String, run: () -> Void)? = nil, actionIcon: String? = nil) {
+    init(
+        icon: String,
+        title: String,
+        line: String,
+        action: (title: String, run: () -> Void)? = nil,
+        actionIcon: String? = nil,
+        actionStyle: EmptyStateActionStyle = .secondary
+    ) {
         self.icon = icon
         self.title = title
         self.line = line
         self.action = action
         self.actionIcon = actionIcon
+        self.actionStyle = actionStyle
     }
 
     var body: some View {
@@ -38,10 +57,17 @@ struct EmptyStateView: View {
             Text(line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true).frame(minWidth: 200, maxWidth: 280)
             if let action {
-                Button(action: action.run) {
-                    if let actionIcon { Label(action.title, systemImage: actionIcon).labelStyle(.titleAndIcon) } else { Text(action.title) }
+                switch actionStyle {
+                case .secondary:
+                    Button(action: action.run) {
+                        if let actionIcon { Label(action.title, systemImage: actionIcon).labelStyle(.titleAndIcon) } else { Text(action.title) }
+                    }
+                    .buttonStyle(SecondaryCapsuleButtonStyle())
+                    .padding(.top, 8)
+                case .accentGlass:
+                    AccentGlassPillButton(title: action.title, icon: actionIcon, action: action.run)
+                        .padding(.top, 8)
                 }
-                .buttonStyle(SecondaryCapsuleButtonStyle()).padding(.top, 8)
             }
         }
         .padding(22)

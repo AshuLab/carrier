@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Standalone terminals in the sidebar: each terminal has its own tabs and split panes, a Terminals overview page, and a bottom tab bar while the terminal surface extends under the translucent top header.
+- Middle-click closes terminal tabs, sidebar terminal rows, and session rows in the sidebar.
+- Interactive Zsh terminals anchor the prompt to the bottom of the viewport and preserve that position on `Cmd+K` clear.
+
+### Changed
+
+- Unified the terminal workspace, empty states, and toolbar pill controls with the rest of the app's glass styling.
+
 ## [0.5.0] - 2026-11-13
 
 Settings gain an Engine page and a Sessions page, the chat's agent can reach back into Carrier, and Usage shows Claude's limits on a Mac with a clearer layout and a bigger price table.

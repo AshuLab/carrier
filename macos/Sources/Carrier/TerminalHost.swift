@@ -36,6 +36,7 @@ final class CarrierTerminalStore {
     @ObservationIgnored private let fileStore: TerminalWorkspaceFileStore
     @ObservationIgnored private let preferences: AppPreferences
     @ObservationIgnored private let processInspector: any TerminalProcessInspecting
+    @ObservationIgnored private let zshShimDirectory: URL
     @ObservationIgnored private let persistDebounceNanoseconds: UInt64
 
     /// Cached Ghostty surface state per `paneId` (reordering tabs or moving panes preserves live shells).
@@ -48,6 +49,7 @@ final class CarrierTerminalStore {
     @ObservationIgnored private var persistTask: Task<Void, Never>?
     @ObservationIgnored private var defaultsObserver: NSObjectProtocol?
     @ObservationIgnored private var appearanceObserver: NSKeyValueObservation?
+    @ObservationIgnored private var keyMonitor: Any?
     @ObservationIgnored private var lastAppliedAppearance: TerminalAppearanceProfile?
     @ObservationIgnored private var hasLoadedOrMutatedPersistence: Bool
     @ObservationIgnored private var persistenceWriteBlocked = false
@@ -63,6 +65,7 @@ final class CarrierTerminalStore {
         preferences: AppPreferences = AppPreferences(),
         scheme: ThemeScheme? = nil,
         processInspector: (any TerminalProcessInspecting)? = nil,
+        zshShimDirectory: URL? = nil,
         persistDebounceNanoseconds: UInt64 = 250_000_000,
         observesSystemAppearance: Bool = false,
         knownSessionIds: Set<String>? = nil,
@@ -76,6 +79,10 @@ final class CarrierTerminalStore {
         self.fileStore = resolvedStore
         self.preferences = preferences
         self.processInspector = processInspector ?? GhosttyTerminalProcessInspector()
+        self.zshShimDirectory = zshShimDirectory ?? TerminalZshBottomPromptShim.defaultDirectory(
+            carrierFolder: resolvedStore.fileURL?.deletingLastPathComponent()
+                ?? URL(fileURLWithPath: currentCarrierFolder(), isDirectory: true)
+        )
         self.persistDebounceNanoseconds = persistDebounceNanoseconds
 
         let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(preferences.colorScheme)
@@ -122,11 +129,13 @@ final class CarrierTerminalStore {
 
         if observesSystemAppearance {
             installAppearanceObservers()
+            installKeyMonitor()
         }
     }
 
     isolated deinit {
         removeAppearanceObservers()
+        removeKeyMonitor()
     }
 
     // MARK: - Queries
@@ -138,8 +147,33 @@ final class CarrierTerminalStore {
     func activePane(for owner: TerminalOwner) -> TerminalPane? { registry.activePane(for: owner) }
     func tab(id tabId: UUID) -> TerminalTab? { registry.tab(id: tabId) }
     func pane(id paneId: UUID) -> TerminalPane? { registry.pane(id: paneId) }
+    func standaloneTerminals() -> [StandaloneTerminalSummary] { registry.standaloneTerminals() }
+    func standaloneTerminal(id: UUID) -> StandaloneTerminalSummary? { registry.standaloneTerminal(id: id) }
 
     // MARK: - Tab & Split Workspace Operations
+
+    @discardableResult
+    func createStandaloneTerminal(
+        workingDirectory: String?,
+        fallbackDirectory: String = NSHomeDirectory()
+    ) -> UUID {
+        let terminalId = UUID()
+        _ = openTab(
+            for: .terminal(terminalId),
+            workingDirectory: workingDirectory,
+            fallbackDirectory: fallbackDirectory,
+            activate: true
+        )
+        return terminalId
+    }
+
+    func migrateLegacyQuickTabsToStandalone() {
+        let legacyQuickTabs = registry.tabs(for: .quick)
+        guard legacyQuickTabs.isEmpty == false else { return }
+        for tab in legacyQuickTabs {
+            _ = moveTab(tab.id, toOwner: .terminal(tab.id), activate: true)
+        }
+    }
 
     @discardableResult
     func openTab(
@@ -310,6 +344,12 @@ final class CarrierTerminalStore {
         }
     }
 
+    func renameTab(_ tabId: UUID, customTitle: String?) {
+        persistMutation {
+            registry.renameTab(id: tabId, customTitle: customTitle)
+        }
+    }
+
     /// Reconciles live session terminals with an authoritative list from the chat host,
     /// pruning only sessions missing from two consecutive authoritative snapshots.
     func reconcileKnownSessions(_ knownSessionIds: Set<String>) {
@@ -405,7 +445,76 @@ final class CarrierTerminalStore {
 
     @discardableResult
     func clearScrollback(paneId: UUID) -> Bool {
-        viewStates[paneId]?.performBindingAction("clear_screen") ?? false
+        guard let state = viewStates[paneId] else { return false }
+        guard preferences.terminal.pinPromptToBottom,
+              registry.pane(id: paneId)?.command == nil
+        else {
+            return state.performBindingAction("clear_screen")
+        }
+
+        let input = TerminalPaneInspectionInput(
+            paneId: paneId,
+            state: state,
+            platformView: platformViews[paneId]
+        )
+        Task { @MainActor [weak self] in
+            guard let self, self.isTornDown == false, let liveState = self.viewStates[paneId] else { return }
+            let result = await self.processInspector.inspectActiveCommands(in: [input])
+            guard self.isTornDown == false, self.viewStates[paneId] === liveState else { return }
+            let cleared = liveState.performBindingAction("clear_screen")
+            let hasForegroundCommand = (result.commandsByPane[paneId]?.isEmpty == false)
+            if cleared, hasForegroundCommand == false, self.preferences.terminal.pinPromptToBottom {
+                _ = liveState.sendKey(.l, modifiers: .ctrl)
+            }
+        }
+        return true
+    }
+
+    func focusedPaneId(for responder: NSResponder?) -> UUID? {
+        guard let responderView = responder as? NSView else { return nil }
+        for (paneId, terminalView) in platformViews {
+            if responderView === terminalView || responderView.isDescendant(of: terminalView) {
+                return paneId
+            }
+        }
+        return nil
+    }
+
+    private struct MainThreadEventBox: @unchecked Sendable {
+        let event: NSEvent?
+    }
+
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let boxed = MainThreadEventBox(event: event)
+            return MainActor.assumeIsolated {
+                guard let self else { return boxed }
+                return MainThreadEventBox(event: self.handleKeyDownEvent(boxed.event!))
+            }.event
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
+        }
+    }
+
+    func handleKeyDownEvent(_ event: NSEvent) -> NSEvent? {
+        let relevantModifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        guard isTornDown == false,
+              preferences.terminal.pinPromptToBottom,
+              event.type == .keyDown,
+              relevantModifiers == .command,
+              event.charactersIgnoringModifiers?.lowercased() == "k",
+              let paneId = focusedPaneId(for: NSApp?.keyWindow?.firstResponder)
+        else {
+            return event
+        }
+        clearScrollback(paneId: paneId)
+        return nil
     }
 
     func selectedText(paneId: UUID) -> String? {
@@ -516,6 +625,16 @@ final class CarrierTerminalStore {
     }
 
     @discardableResult
+    func closeOtherTabs(except keepingTabId: UUID, for owner: TerminalOwner, force: Bool = false) async -> Bool {
+        selectTab(keepingTabId, for: owner)
+        let otherIds = registry.tabs(for: owner).map(\.id).filter { $0 != keepingTabId }
+        for otherId in otherIds {
+            guard await closeTab(id: otherId, force: force) else { return false }
+        }
+        return true
+    }
+
+    @discardableResult
     func closeAll(for owner: TerminalOwner, force: Bool = false) async -> Bool {
         guard registry.allPaneIds(for: owner).isEmpty == false else { return true }
         if force == false {
@@ -587,6 +706,7 @@ final class CarrierTerminalStore {
             saveWorkspaceNow()
         }
         removeAppearanceObservers()
+        removeKeyMonitor()
 
         let livePaneIds = Array(Set(viewStates.keys).union(platformViews.keys))
         for paneId in livePaneIds {
@@ -603,13 +723,28 @@ final class CarrierTerminalStore {
 
     // MARK: - Private Builders & Teardown
 
+    private func resolvedEnvVars(for pane: TerminalPane) -> [String: String] {
+        guard preferences.terminal.pinPromptToBottom, pane.command == nil else {
+            return pane.envVars
+        }
+        guard (try? TerminalZshBottomPromptShim.prepareDirectory(zshShimDirectory)) != nil else {
+            return pane.envVars
+        }
+        return TerminalZshBottomPromptShim.mergedEnvironment(
+            baseEnvVars: pane.envVars,
+            shimDirectory: zshShimDirectory,
+            pinPromptToBottom: true,
+            command: pane.command
+        )
+    }
+
     private func buildState(for pane: TerminalPane) -> TerminalViewState {
         let paneId = pane.id
         let state = TerminalViewState(controller: controller)
         state.configuration = TerminalSurfaceOptions(
             backend: .exec,
             workingDirectory: pane.workingDirectory,
-            envVars: pane.envVars,
+            envVars: resolvedEnvVars(for: pane),
             command: pane.command,
             waitAfterCommand: pane.waitAfterCommand
         )
@@ -660,6 +795,20 @@ final class CarrierTerminalStore {
             .sink { [weak self] cwd in
                 self?.persistMutation(immediate: false) {
                     self?.registry.updatePaneWorkingDirectory(cwd, forPane: paneId)
+                }
+            }
+            .store(in: &bag)
+
+        state.$isFocused
+            .removeDuplicates()
+            .filter { $0 }
+            .sink { [weak self] _ in
+                guard let self, self.isTornDown == false else { return }
+                if let location = self.registry.location(ofPaneId: paneId),
+                   self.registry.tab(id: location.tabId)?.activePaneId != paneId {
+                    self.persistMutation(immediate: false) {
+                        self.registry.selectPane(id: paneId)
+                    }
                 }
             }
             .store(in: &bag)

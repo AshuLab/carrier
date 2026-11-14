@@ -1,17 +1,20 @@
 import Foundation
 
-/// Owns a group of terminal tabs inside Carrier: either a chat session or the standalone quick terminal drawer.
+/// Owns a group of terminal tabs inside Carrier: a chat session drawer, a standalone Terminal sidebar group, or legacy quick tabs.
 public enum TerminalOwner: Hashable, Codable, Sendable {
     case session(String)
+    case terminal(UUID)
     case quick
 
     private enum CodingKeys: String, CodingKey {
         case kind
         case sessionId
+        case terminalId
     }
 
     private enum Kind: String, Codable {
         case session
+        case terminal
         case quick
     }
 
@@ -20,6 +23,8 @@ public enum TerminalOwner: Hashable, Codable, Sendable {
         switch try container.decode(Kind.self, forKey: .kind) {
         case .session:
             self = .session(try container.decode(String.self, forKey: .sessionId))
+        case .terminal:
+            self = .terminal(try container.decode(UUID.self, forKey: .terminalId))
         case .quick:
             self = .quick
         }
@@ -31,6 +36,9 @@ public enum TerminalOwner: Hashable, Codable, Sendable {
         case .session(let id):
             try container.encode(Kind.session, forKey: .kind)
             try container.encode(id, forKey: .sessionId)
+        case .terminal(let id):
+            try container.encode(Kind.terminal, forKey: .kind)
+            try container.encode(id, forKey: .terminalId)
         case .quick:
             try container.encode(Kind.quick, forKey: .kind)
         }
@@ -221,11 +229,12 @@ public struct TerminalRegistry: Equatable, Sendable {
     public private(set) var tabsById: [UUID: TerminalTab] = [:]
     public private(set) var orderByOwner: [TerminalOwner: [UUID]] = [:]
     public private(set) var activeTabByOwner: [TerminalOwner: UUID] = [:]
+    public private(set) var terminalOrder: [UUID] = []
 
     public init() {}
 
     public var owners: [TerminalOwner] {
-        Array(orderByOwner.keys)
+        orderByOwner.keys.sorted(by: ownerSortOrder)
     }
 
     public var allTabs: [TerminalTab] {
@@ -238,6 +247,18 @@ public struct TerminalRegistry: Equatable, Sendable {
 
     public func tabs(for owner: TerminalOwner) -> [TerminalTab] {
         (orderByOwner[owner] ?? []).compactMap { tabsById[$0] }
+    }
+
+    public func standaloneTerminals() -> [StandaloneTerminalSummary] {
+        terminalOrder.compactMap { standaloneTerminal(id: $0) }
+    }
+
+    public func standaloneTerminal(id: UUID) -> StandaloneTerminalSummary? {
+        let tabs = tabs(for: .terminal(id))
+        guard tabs.isEmpty == false, let activeTab = activeTab(for: .terminal(id)) ?? tabs.first else {
+            return nil
+        }
+        return StandaloneTerminalSummary(id: id, tabs: tabs, activeTab: activeTab)
     }
 
     public func activeTabId(for owner: TerminalOwner) -> UUID? {
@@ -354,6 +375,9 @@ public struct TerminalRegistry: Equatable, Sendable {
         }
         orderByOwner.removeValue(forKey: owner)
         activeTabByOwner.removeValue(forKey: owner)
+        if case .terminal(let id) = owner {
+            terminalOrder.removeAll { $0 == id }
+        }
         return removed
     }
 
@@ -609,6 +633,12 @@ public struct TerminalRegistry: Equatable, Sendable {
         tabsById[tab.id] = tab
     }
 
+    public mutating func renameTab(id tabId: UUID, customTitle: String?) {
+        guard var tab = tabsById[tabId] else { return }
+        tab.customTitle = TerminalPane.cleanCustomTitle(customTitle)
+        tabsById[tabId] = tab
+    }
+
     public mutating func updatePaneWorkingDirectory(_ workingDirectory: String, forPane paneId: UUID) {
         let trimmed = workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false,
@@ -643,6 +673,7 @@ public struct TerminalRegistry: Equatable, Sendable {
         tabsById = [:]
         orderByOwner = [:]
         activeTabByOwner = [:]
+        terminalOrder = []
         for workspace in cleanWorkspaces where workspace.tabs.isEmpty == false {
             var order = orderByOwner[workspace.owner] ?? []
             for var tab in workspace.tabs {
@@ -654,6 +685,9 @@ public struct TerminalRegistry: Equatable, Sendable {
             }
             guard order.isEmpty == false else { continue }
             orderByOwner[workspace.owner] = order
+            if case .terminal(let id) = workspace.owner, terminalOrder.contains(id) == false {
+                terminalOrder.append(id)
+            }
             if let preferredActive = workspace.activeTabId, order.contains(preferredActive) {
                 activeTabByOwner[workspace.owner] = preferredActive
             } else if activeTabByOwner[workspace.owner] == nil {
@@ -666,6 +700,9 @@ public struct TerminalRegistry: Equatable, Sendable {
         var cleanTab = tab
         cleanTab.normalize()
         tabsById[cleanTab.id] = cleanTab
+        if case .terminal(let id) = cleanTab.owner, terminalOrder.contains(id) == false {
+            terminalOrder.append(id)
+        }
         var order = orderByOwner[cleanTab.owner] ?? []
         if let requestedIndex {
             let bounded = min(max(requestedIndex, 0), order.count)
@@ -687,6 +724,9 @@ public struct TerminalRegistry: Equatable, Sendable {
         if order.isEmpty {
             orderByOwner.removeValue(forKey: owner)
             activeTabByOwner.removeValue(forKey: owner)
+            if case .terminal(let terminalId) = owner {
+                terminalOrder.removeAll { $0 == terminalId }
+            }
         } else {
             orderByOwner[owner] = order
             if activeTabByOwner[owner] == id {
@@ -708,8 +748,19 @@ public struct TerminalRegistry: Equatable, Sendable {
     private func ownerSortOrder(_ lhs: TerminalOwner, _ rhs: TerminalOwner) -> Bool {
         switch (lhs, rhs) {
         case (.quick, .quick): return false
-        case (.quick, .session): return true
-        case (.session, .quick): return false
+        case (.quick, _): return true
+        case (_, .quick): return false
+        case (.terminal(let a), .terminal(let b)):
+            let ia = terminalOrder.firstIndex(of: a)
+            let ib = terminalOrder.firstIndex(of: b)
+            switch (ia, ib) {
+            case (.some(let x), .some(let y)): return x < y
+            case (.some, .none): return true
+            case (.none, .some): return false
+            case (.none, .none): return a.uuidString < b.uuidString
+            }
+        case (.terminal, .session): return true
+        case (.session, .terminal): return false
         case (.session(let a), .session(let b)): return a < b
         }
     }
@@ -751,4 +802,90 @@ public func isAllowedTerminalURL(_ raw: String) -> Bool {
         return false
     }
     return true
+}
+
+/// Abbreviates a folder path for terminal chrome by replacing the user's home directory prefix with `~`.
+public func abbreviatedTerminalPath(_ path: String, home: String = NSHomeDirectory()) -> String {
+    let trimmedHome = home.hasSuffix("/") ? String(home.dropLast()) : home
+    guard trimmedHome.isEmpty == false else { return path }
+    if path == trimmedHome { return "~" }
+    if path.hasPrefix(trimmedHome + "/") {
+        return "~" + path.dropFirst(trimmedHome.count)
+    }
+    return path
+}
+
+/// Toolbar subtitle for the Terminal home view, matching `Sessions`.
+public func terminalsSubtitle(count: Int) -> String {
+    switch count {
+    case 0: "No terminals"
+    case 1: "1 terminal"
+    default: "\(count) terminals"
+    }
+}
+
+/// One standalone terminal group listed in the sidebar/home, owning one or more tabs.
+public struct StandaloneTerminalSummary: Identifiable, Equatable, Sendable {
+    public let id: UUID
+    public let tabs: [TerminalTab]
+    public let activeTab: TerminalTab
+
+    public var title: String { activeTab.title }
+    public var workingDirectory: String { activeTab.workingDirectory }
+    public var tabCount: Int { tabs.count }
+    public var totalPaneCount: Int { tabs.reduce(0) { $0 + $1.paneCount } }
+
+    public init(id: UUID, tabs: [TerminalTab], activeTab: TerminalTab) {
+        self.id = id
+        self.tabs = tabs
+        self.activeTab = activeTab
+    }
+}
+
+/// Filters standalone terminal groups by active title, folder, or any contained tab/pane title or folder.
+public func filteredStandaloneTerminals(_ terminals: [StandaloneTerminalSummary], query: String) -> [StandaloneTerminalSummary] {
+    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.isEmpty == false else { return terminals }
+    return terminals.filter { summary in
+        summary.tabs.contains { tab in
+            tab.title.localizedCaseInsensitiveContains(trimmed)
+                || tab.workingDirectory.localizedCaseInsensitiveContains(trimmed)
+                || tab.orderedPanes.contains { $0.displayTitle.localizedCaseInsensitiveContains(trimmed) }
+        }
+    }
+}
+
+/// Filters standalone terminal tabs by title, working directory, or pane titles.
+public func filteredTerminalTabs(_ tabs: [TerminalTab], query: String) -> [TerminalTab] {
+    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.isEmpty == false else { return tabs }
+    return tabs.filter { tab in
+        tab.title.localizedCaseInsensitiveContains(trimmed)
+            || tab.workingDirectory.localizedCaseInsensitiveContains(trimmed)
+            || tab.orderedPanes.contains { $0.displayTitle.localizedCaseInsensitiveContains(trimmed) }
+    }
+}
+
+/// Drop target zone computed when dragging one terminal pane onto another.
+public enum TerminalDropZone: Equatable, Sendable {
+    case edge(SplitEdge)
+    case swap
+}
+
+/// Maps pointer coordinates within a pane rect of size `(width, height)` into a split-edge move or center swap.
+public func terminalDropZone(x: Double, y: Double, width: Double, height: Double) -> TerminalDropZone {
+    guard width > 0, height > 0 else { return .swap }
+    let nx = min(max(x / width, 0), 1)
+    let ny = min(max(y / height, 0), 1)
+    let margin = 0.25
+    let leftDist = nx
+    let rightDist = 1 - nx
+    let topDist = ny
+    let bottomDist = 1 - ny
+    let best = min(leftDist, rightDist, topDist, bottomDist)
+    guard best <= margin else { return .swap }
+    if best == leftDist { return .edge(.leading) }
+    if best == rightDist { return .edge(.trailing) }
+    if best == topDist { return .edge(.top) }
+    return .edge(.bottom)
 }

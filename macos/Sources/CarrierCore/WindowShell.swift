@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 // What the window's shell holds apart from Carrier's data: what is selected and which side columns are shown
@@ -10,6 +11,8 @@ public enum Selection: Hashable {
     case session(id: String)
     /// The draft of a session that does not exist yet.
     case newSession
+    case terminals
+    case terminal(id: UUID)
     case archive
     case carrier
     /// The Usage page of the sidebar foot, under Settings: quotas and consumption, not a section with a list of its own.
@@ -17,8 +20,8 @@ public enum Selection: Hashable {
     case epic(repo: String, issue: Int)
 }
 
-/// Which of the Sessions, Carrier and Archive sections is unfolded; the others are folded.
-public enum OpenSection: String { case sessions, carrier, archive }
+/// Which of the Sessions, Terminal, Carrier and Archive sections is unfolded; the others are folded.
+public enum OpenSection: String { case sessions, terminal, carrier, archive }
 
 /// The modifier keys a shortcut can carry.
 public struct ShortcutModifiers: OptionSet {
@@ -80,6 +83,7 @@ public struct ArchiveRequest: Equatable {
             if selection == .newSession { newSessionOpened += 1 }
             switch selection {
             case .sessions, .session, .newSession: open = .sessions
+            case .terminals, .terminal: open = .terminal
             case .carrier, .epic: open = .carrier
             case .archive: open = .archive
             case .home, .usage: break
@@ -95,6 +99,8 @@ public struct ArchiveRequest: Equatable {
     public var open: OpenSection?
     public var sidebarShown = true
     public var inspectorShown = true
+    /// Session ids whose bottom embedded-terminal drawer is currently expanded.
+    public var terminalDrawerSessions: Set<String> = []
     /// The last ⌘F, for the open section's search to show itself.
     public private(set) var searchRequest: SearchRequest?
     /// The last request to the open conversation.
@@ -121,6 +127,22 @@ public struct ArchiveRequest: Equatable {
 
     public func toggleSidebar() { sidebarShown.toggle() }
     public func toggleInspector() { inspectorShown.toggle() }
+
+    public func isTerminalDrawerOpen(for sessionId: String) -> Bool {
+        terminalDrawerSessions.contains(sessionId)
+    }
+
+    public func setTerminalDrawerOpen(_ open: Bool, for sessionId: String) {
+        if open {
+            terminalDrawerSessions.insert(sessionId)
+        } else {
+            terminalDrawerSessions.remove(sessionId)
+        }
+    }
+
+    public func toggleTerminalDrawer(for sessionId: String) {
+        setTerminalDrawerOpen(isTerminalDrawerOpen(for: sessionId) == false, for: sessionId)
+    }
 
     /// Runs a shortcut: a selection as a click on it would, ⌘F as a request to the open section (nothing with both folded). The
     /// session shortcuts read `sessions` in the order `sort` gives the sidebar; with none open, next picks the first and previous the last.
@@ -151,6 +173,7 @@ public struct ArchiveRequest: Equatable {
         self.open = open
         sidebarShown = true
         inspectorShown = true
+        terminalDrawerSessions = []
         settingsShown = false
         searchRequest = nil
         conversationRequest = nil

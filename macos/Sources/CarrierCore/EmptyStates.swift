@@ -3,7 +3,7 @@
 
 public enum EmptyState: CaseIterable {
     case reviewNotStarted, noFilesChanged, noSlices, waitingForSlot, nothingWaiting, nothingNeedsYou, idle, nothingToTest, noActivity
-    case welcome, noSessions, noSessionsMatch, nothingArchived, noResults, noEpics
+    case welcome, noSessions, noSessionsMatch, nothingArchived, noResults, noEpics, noTerminals
 
     public var icon: String {
         switch self {
@@ -23,6 +23,7 @@ public enum EmptyState: CaseIterable {
         // the nearest SF Symbol to the exploration's struck magnifier
         case .noResults: "minus.magnifyingglass"
         case .noEpics: "paperplane"
+        case .noTerminals: "terminal"
         }
     }
 
@@ -43,6 +44,7 @@ public enum EmptyState: CaseIterable {
         case .nothingArchived: "Nothing archived"
         case .noResults: "No results"
         case .noEpics: "No epics yet"
+        case .noTerminals: "No terminals yet"
         }
     }
 
@@ -63,6 +65,7 @@ public enum EmptyState: CaseIterable {
         case .nothingArchived: "Archived sessions are kept here."
         case .noResults: "Nothing matches your search."
         case .noEpics: "Label an issue solve:epic:ready and Carrier will pick it up."
+        case .noTerminals: "Terminal sessions you start are listed here."
         }
     }
 

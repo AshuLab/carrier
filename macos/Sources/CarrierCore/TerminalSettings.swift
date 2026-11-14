@@ -59,6 +59,7 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
     public static let defaultPaddingY: Double = 8
     public static let defaultMinimumContrast: Double = 3.0
     public static let defaultConfirmCloseRunningProcess = true
+    public static let defaultPinPromptToBottom = true
 
     /// Explicit theme override; `nil` follows Carrier's global app theme.
     public var themeOverride: Theme?
@@ -74,6 +75,8 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
     public var paddingY: Double
     public var minimumContrast: Double
     public var confirmCloseRunningProcess: Bool
+    /// Anchors new interactive Zsh prompts at the bottom row of the viewport (Warp-style) without touching user dotfiles.
+    public var pinPromptToBottom: Bool
 
     public init(
         themeOverride: Theme? = nil,
@@ -85,7 +88,8 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
         paddingX: Double = Self.defaultPaddingX,
         paddingY: Double = Self.defaultPaddingY,
         minimumContrast: Double = Self.defaultMinimumContrast,
-        confirmCloseRunningProcess: Bool = Self.defaultConfirmCloseRunningProcess
+        confirmCloseRunningProcess: Bool = Self.defaultConfirmCloseRunningProcess,
+        pinPromptToBottom: Bool = Self.defaultPinPromptToBottom
     ) {
         self.themeOverride = themeOverride
         self.fontFamilyOverride = Self.cleanFontFamily(fontFamilyOverride)
@@ -97,6 +101,7 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
         self.paddingY = Self.clampPadding(paddingY)
         self.minimumContrast = Self.clampMinimumContrast(minimumContrast)
         self.confirmCloseRunningProcess = confirmCloseRunningProcess
+        self.pinPromptToBottom = pinPromptToBottom
     }
 
     public static func cleanFontFamily(_ raw: String?) -> String? {

@@ -37,3 +37,54 @@ struct ToolbarPillButton: View {
         .animation(.easeOut(duration: 0.12), value: hovered)
     }
 }
+
+/// Accent glass capsule pill button at `ToolbarPillButton.height` (28 pt), shared between headers and primary empty-state CTAs.
+struct AccentGlassPillButton: View {
+    let title: String
+    var icon: String? = nil
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let icon {
+                    Image(systemName: icon).font(.scaled(11, weight: .semibold))
+                }
+                Text(title).font(.scaled(12, weight: .medium))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 13)
+            .frame(height: ToolbarPillButton.height)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.tint(Color.themeAccent.mix(with: .black, by: 0.4)).interactive(), in: .capsule)
+    }
+}
+
+/// Compact icon-only button sized to `ToolbarPillButton.height` (28 pt) for grouped `.glassEffect(.regular, in: .capsule)` toolbars.
+struct ToolbarGlassIconButton: View {
+    let icon: String
+    let name: String
+    let action: () -> Void
+    @State private var hovered = false
+    @Environment(\.isEnabled) private var enabled
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.scaled(11, weight: .medium))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 10)
+                .frame(height: ToolbarPillButton.height)
+                .background(Capsule().fill(Color.primary.opacity(hovered && enabled ? 0.1 : 0)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .opacity(enabled ? 1 : 0.5)
+        .animation(.easeOut(duration: 0.12), value: hovered)
+        .help(name)
+        .accessibilityLabel(name)
+    }
+}

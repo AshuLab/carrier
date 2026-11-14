@@ -28,8 +28,9 @@ struct SidebarView: View {
     let snapshot: PanelSnapshot?
     let state: ConnectionState?
     let sessions: Sessions
+    let terminalStore: CarrierTerminalStore
     @Binding var selection: Selection
-    /// Which of Sessions, Carrier and Archive is unfolded, nil when all are folded.
+    /// Which of Sessions, Terminal, Carrier and Archive is unfolded, nil when all are folded.
     @Binding var open: OpenSection?
     @Binding var groupBy: GroupBy
     @Binding var sessionSort: SessionSort
@@ -42,6 +43,8 @@ struct SidebarView: View {
     let openSettings: () -> Void
     /// The + of a workspace's header: a new session in that folder.
     let newSessionIn: (String) -> Void
+    let newTerminal: () -> Void
+    let closeTerminal: (UUID) -> Void
     /// Carrier's search: not remembered between launches.
     @State private var searching = false
     @State private var query = ""
@@ -69,7 +72,17 @@ struct SidebarView: View {
                     open: Binding(get: { open == .sessions || open == .archive }, set: { open = $0 ? .sessions : nil }),
                     searchRequest: searchRequest, newSession: { selection = .newSession }, newSessionIn: newSessionIn
                 )
-                // Carrier is under Sessions while it is the open section, with its epics; otherwise it is a row in the foot
+                TerminalRows(
+                    store: terminalStore,
+                    selection: $selection,
+                    selected: selection == .terminals,
+                    select: { selection = .terminals },
+                    open: Binding(get: { open == .terminal }, set: { open = $0 ? .terminal : nil }),
+                    searchRequest: searchRequest,
+                    newTerminal: newTerminal,
+                    closeTerminal: closeTerminal
+                )
+                // Carrier is under Terminal while it is the open section, with its epics; otherwise it is a row in the foot
                 if open == .carrier { carrierRow(epicCount: epicCount) }
                 if let snapshot, open == .carrier {
                     LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {

@@ -62,7 +62,7 @@ public extension TerminalRegistry {
 
         for workspace in persisted.workspaces {
             switch workspace.owner {
-            case .quick:
+            case .quick, .terminal:
                 break
             case .session(let sessionId):
                 if let knownSessionIds, knownSessionIds.contains(sessionId) == false {

@@ -689,4 +689,154 @@ struct CarrierTerminalStoreTests {
 
         store.teardownAll()
     }
+
+    @Test func renameTabAndCloseOtherTabsKeepTargetSelected() async {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: FakeProcessInspector()
+        )
+        let first = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let second = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let third = store.openTab(for: .quick, workingDirectory: "/tmp")
+
+        store.renameTab(second.id, customTitle: "Server")
+        #expect(store.tab(id: second.id)?.title == "Server")
+
+        let closed = await store.closeOtherTabs(except: second.id, for: .quick)
+        #expect(closed == true)
+        #expect(store.tabs(for: .quick).map(\.id) == [second.id])
+        #expect(store.activeTabId(for: .quick) == second.id)
+        #expect(store.tab(id: first.id) == nil)
+        #expect(store.tab(id: third.id) == nil)
+
+        store.teardownAll()
+    }
+
+    @Test func standaloneTerminalsHaveIndependentTabsAndMigrateLegacyQuickTabs() async {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: FakeProcessInspector()
+        )
+
+        let legacyQuick = store.openTab(for: .quick, workingDirectory: "/tmp", title: "Legacy")
+        store.migrateLegacyQuickTabsToStandalone()
+        #expect(store.tabs(for: .quick).isEmpty)
+        #expect(store.standaloneTerminals().map(\.id) == [legacyQuick.id])
+
+        let secondGroup = store.createStandaloneTerminal(workingDirectory: "/tmp")
+        let addedTab = store.openTab(for: .terminal(secondGroup), workingDirectory: "/tmp")
+        #expect(store.standaloneTerminals().count == 2)
+        #expect(store.tabs(for: .terminal(legacyQuick.id)).count == 1)
+        #expect(store.tabs(for: .terminal(secondGroup)).count == 2)
+        #expect(store.activeTabId(for: .terminal(secondGroup)) == addedTab.id)
+
+        // Closing the only tab in the legacy group removes that group cleanly without affecting the second group.
+        let closedLegacy = await store.closeTab(id: legacyQuick.id)
+        #expect(closedLegacy == true)
+        #expect(store.standaloneTerminals().map(\.id) == [secondGroup])
+        #expect(store.tabs(for: .terminal(secondGroup)).count == 2)
+
+        store.teardownAll()
+    }
+
+    @Test func injectsBottomPromptZshShimWithoutMutatingPersistedPaneEnv() {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("carrier-store-shim-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let shimDir = tempRoot.appendingPathComponent("shim", isDirectory: true)
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: FakeProcessInspector(),
+            zshShimDirectory: shimDir
+        )
+
+        let tab = store.openTab(
+            for: .quick,
+            workingDirectory: "/tmp",
+            envVars: ["FOO": "bar"]
+        )
+        let state = store.state(for: tab.activePaneId)
+        #expect(state?.configuration.envVars["ZDOTDIR"] == shimDir.path)
+        #expect(state?.configuration.envVars["FOO"] == "bar")
+        #expect(store.registry.pane(id: tab.activePaneId)?.envVars == ["FOO": "bar"])
+        #expect(FileManager.default.fileExists(atPath: shimDir.appendingPathComponent(".zshrc").path))
+
+        // Explicit commands skip the interactive prompt shim.
+        let cmdTab = store.openTab(
+            for: .quick,
+            workingDirectory: "/tmp",
+            envVars: ["FOO": "baz"],
+            command: "/bin/echo ok"
+        )
+        let cmdState = store.state(for: cmdTab.activePaneId)
+        #expect(cmdState?.configuration.envVars == ["FOO": "baz"])
+
+        // Disabling the preference disables shim injection on newly created panes.
+        var terminal = prefs.terminal
+        terminal.pinPromptToBottom = false
+        prefs.terminal = terminal
+        let optOutTab = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let optOutState = store.state(for: optOutTab.activePaneId)
+        #expect(optOutState?.configuration.envVars["ZDOTDIR"] == nil)
+
+        store.teardownAll()
+    }
+
+    @Test func cmdKKeyMonitorPassesThroughOutsideFocusedTerminalAndHonorsClearScrollbackToggle() async throws {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let inspector = FakeProcessInspector()
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: inspector
+        )
+        let tab = store.openTab(for: .quick, workingDirectory: "/tmp")
+        // Realize the cached TerminalViewState just as MountedTerminalSurface does on appear.
+        _ = store.state(for: tab.activePaneId)
+        let event = try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: .command,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "k",
+            charactersIgnoringModifiers: "k",
+            isARepeat: false,
+            keyCode: 40
+        ))
+
+        // Outside a focused terminal view, Cmd+K passes through untouched.
+        #expect(store.focusedPaneId(for: NSTextView()) == nil)
+        #expect(store.handleKeyDownEvent(event) === event)
+
+        // Headless clearScrollback schedules inspection when bottom pinning is enabled and falls back synchronously when disabled.
+        #expect(store.clearScrollback(paneId: tab.activePaneId) == true)
+        var terminal = prefs.terminal
+        terminal.pinPromptToBottom = false
+        prefs.terminal = terminal
+        #expect(store.handleKeyDownEvent(event) === event)
+        #expect(store.clearScrollback(paneId: tab.activePaneId) == false)
+
+        store.teardownAll()
+    }
 }

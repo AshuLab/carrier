@@ -53,6 +53,7 @@ public struct AppPreferences {
     public static let terminalPaddingYKey = "terminal.padding.y"
     public static let terminalMinimumContrastKey = "terminal.minimumContrast"
     public static let terminalConfirmCloseKey = "terminal.confirmCloseRunningProcess"
+    public static let terminalPinPromptToBottomKey = "terminal.pinPromptToBottom"
 
     public static let defaultStyle = IconStyle.countAndBar
     public static let defaultAnimates = true
@@ -321,7 +322,8 @@ public struct AppPreferences {
                 paddingX: defaults.object(forKey: Self.terminalPaddingXKey) as? Double ?? TerminalSettings.defaultPaddingX,
                 paddingY: defaults.object(forKey: Self.terminalPaddingYKey) as? Double ?? TerminalSettings.defaultPaddingY,
                 minimumContrast: defaults.object(forKey: Self.terminalMinimumContrastKey) as? Double ?? TerminalSettings.defaultMinimumContrast,
-                confirmCloseRunningProcess: defaults.object(forKey: Self.terminalConfirmCloseKey) as? Bool ?? TerminalSettings.defaultConfirmCloseRunningProcess
+                confirmCloseRunningProcess: defaults.object(forKey: Self.terminalConfirmCloseKey) as? Bool ?? TerminalSettings.defaultConfirmCloseRunningProcess,
+                pinPromptToBottom: defaults.object(forKey: Self.terminalPinPromptToBottomKey) as? Bool ?? TerminalSettings.defaultPinPromptToBottom
             )
         }
         nonmutating set {
@@ -351,13 +353,14 @@ public struct AppPreferences {
             defaults.set(TerminalSettings.clampPadding(newValue.paddingY), forKey: Self.terminalPaddingYKey)
             defaults.set(TerminalSettings.clampMinimumContrast(newValue.minimumContrast), forKey: Self.terminalMinimumContrastKey)
             defaults.set(newValue.confirmCloseRunningProcess, forKey: Self.terminalConfirmCloseKey)
+            defaults.set(newValue.pinPromptToBottom, forKey: Self.terminalPinPromptToBottomKey)
         }
     }
 
     public static let terminalKeys: [String] = [
         terminalThemeKey, terminalFontFamilyKey, terminalFontSizeKey, terminalFontLigaturesKey,
         terminalCursorStyleKey, terminalCursorBlinkKey, terminalPaddingXKey, terminalPaddingYKey,
-        terminalMinimumContrastKey, terminalConfirmCloseKey,
+        terminalMinimumContrastKey, terminalConfirmCloseKey, terminalPinPromptToBottomKey,
     ]
 
     /// Clears only embedded terminal settings back to defaults.

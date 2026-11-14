@@ -9,6 +9,8 @@ struct PanelView: View {
     @AppStorage(SidebarStore.groupByKey) private var groupBy = GroupBy.status
     @AppStorage(SidebarStore.sessionSortKey) private var sessionSort = SessionSort.workspace
     @AppStorage(SidebarStore.archiveSortKey) private var archiveSort = ArchiveSort.dateArchived
+    @AppStorage("terminal.drawerHeight") private var terminalDrawerHeight: Double = 260
+    private let terminalStore = CarrierTerminalStore.shared
     /// The last Check now pressed from the toolbar, for the button to say it is checking.
     @State private var checkAsked: CheckAsked?
     /// The window's size, for the sheets over it.
@@ -57,6 +59,8 @@ struct PanelView: View {
         case .sessions: return "Sessions"
         case .session: return openSession.map(conversationTitle) ?? "Session"
         case .newSession: return "New session"
+        case .terminals: return "Terminal"
+        case .terminal(let id): return terminalStore.standaloneTerminal(id: id)?.title ?? "Terminal"
         case .archive: return "Archive"
         case .usage: return "Usage"
         default: return "Carrier"
@@ -74,10 +78,18 @@ struct PanelView: View {
         case .carrier: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
         case .sessions: sessionsPage(model.sessions.rows, by: sessionSort).subtitle
         case .session: openSession.map(conversationSubtitle) ?? ""
+        case .terminals: terminalsSubtitle(count: terminalStore.standaloneTerminals().count)
+        case .terminal(let id): terminalSubtitle(for: id)
         case .archive: archivePage(model.sessions.rows, by: archiveSort, query: "").subtitle
         case .usage: "Limits left and what was used, per account"
         default: ""
         }
+    }
+
+    private func terminalSubtitle(for terminalId: UUID) -> String {
+        guard let summary = terminalStore.standaloneTerminal(id: terminalId) else { return "" }
+        let path = abbreviatedTerminalPath(summary.workingDirectory)
+        return summary.tabCount > 1 ? "\(path) · \(summary.tabCount) tabs" : path
     }
 
     /// The pages that are an empty state for now; Home does not depend on the engine.
@@ -93,6 +105,43 @@ struct PanelView: View {
         return false
     }
 
+    private func createNewTerminal() {
+        let terminalId = terminalStore.createStandaloneTerminal(workingDirectory: NSHomeDirectory())
+        model.shell.selection = .terminal(id: terminalId)
+    }
+
+    private func closeStandaloneTerminal(_ id: UUID) {
+        Task {
+            guard await terminalStore.closeAll(for: .terminal(id)) else { return }
+            reconcileSelectedTerminal()
+        }
+    }
+
+    private func reconcileSelectedTerminal() {
+        guard case .terminal(let currentId) = model.shell.selection else { return }
+        guard terminalStore.standaloneTerminal(id: currentId) == nil else { return }
+        if let nextId = terminalStore.standaloneTerminals().first?.id {
+            model.shell.selection = .terminal(id: nextId)
+        } else {
+            model.shell.selection = .terminals
+        }
+    }
+
+    private func toggleSessionTerminal(for session: SessionRow) {
+        if model.shell.isTerminalDrawerOpen(for: session.id) {
+            withAnimation(.smooth(duration: 0.25)) {
+                model.shell.setTerminalDrawerOpen(false, for: session.id)
+            }
+            return
+        }
+        if terminalStore.tabs(for: .session(session.id)).isEmpty {
+            _ = terminalStore.openTab(for: .session(session.id), workingDirectory: session.folder)
+        }
+        withAnimation(.smooth(duration: 0.25)) {
+            model.shell.setTerminalDrawerOpen(true, for: session.id)
+        }
+    }
+
     var body: some View {
         @Bindable var shell = model.shell
         @Bindable var epics = model.epics
@@ -101,10 +150,10 @@ struct PanelView: View {
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: $groupBy, sessionSort: $sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() }, newSessionIn: { path in
+            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, terminalStore: terminalStore, selection: $shell.selection, open: $shell.open, groupBy: $groupBy, sessionSort: $sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() }, newSessionIn: { path in
                 model.newSession.start(in: path)
                 shell.selection = .newSession
-            })
+            }, newTerminal: createNewTerminal, closeTerminal: closeStandaloneTerminal)
                 .onChange(of: shell.open) { SidebarStore().open = shell.open }
                 // leaving a session takes what it did as seen; opening one is seen at once, not at the next poll
                 .onChange(of: shell.selection) { old, _ in
@@ -112,48 +161,86 @@ struct PanelView: View {
                 }
                 // the menu or the + while the draft is open: it starts blank again
                 .onChange(of: shell.newSessionOpened) { model.newSession.blank() }
+                .onChange(of: terminalStore.standaloneTerminals().map(\.id)) { reconcileSelectedTerminal() }
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
             // resizes and the app dies with "more Update Constraints passes than there are views"
             HStack(spacing: 0) {
-                Group {
-                    if let epic {
-                        let ref = EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)
-                        let data = model.epics.data[ref]
-                        let over: Bool = if case .ended = epic.subject { true } else { false }
-                        EpicView(
-                            subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files),
-                            sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, files: data?.files,
-                            plan: queuedPlan(epic.subject), resume: resumeCard(epic.subject).map { ($0, model.epics) },
-                            fileDiffs: epics.canOpenFiles ? FileDiffs(open: Binding(get: { epics.openFiles[ref] ?? [] }, set: { epics.openFiles[ref] = $0 }), shown: $epics.filesTabShown, fragments: data?.fragments ?? [:]) : nil
-                        )
-                            .id("\(epic.subject.repo)#\(epic.subject.issue)")
-                    } else if shell.selection == .sessions {
-                        SessionsHomeView(sessions: model.sessions, sort: $sessionSort, newSession: { shell.selection = .newSession }) { shell.selection = .session(id: $0) }
-                    } else if shell.selection == .archive {
-                        ArchiveView(rows: model.sessions.rows, sort: $archiveSort) { shell.selection = .session(id: $0) }
-                    } else if shell.selection == .usage {
-                        UsageView(store: AppUsage.store)
-                    } else if shell.selection == .newSession {
-                        NewSessionView(model: model.newSession, openHealth: shell.openHealth) { shell.selection = .session(id: $0) }
-                    } else if let emptyPage {
-                        EmptyStateView(state: emptyPage)
-                    } else if case .session(let id) = shell.selection {
-                        ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest) { plan in
-                            model.newSession.restore(plan)
-                            shell.selection = .newSession
-                        }.id(id)
-                    } else if case .running(let snapshot)? = model.state {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 26) {
-                                Running(snapshot: snapshot, selection: $shell.selection)
+                VStack(spacing: 0) {
+                    Group {
+                        if let epic {
+                            let ref = EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)
+                            let data = model.epics.data[ref]
+                            let over: Bool = if case .ended = epic.subject { true } else { false }
+                            EpicView(
+                                subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files),
+                                sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, files: data?.files,
+                                plan: queuedPlan(epic.subject), resume: resumeCard(epic.subject).map { ($0, model.epics) },
+                                fileDiffs: epics.canOpenFiles ? FileDiffs(open: Binding(get: { epics.openFiles[ref] ?? [] }, set: { epics.openFiles[ref] = $0 }), shown: $epics.filesTabShown, fragments: data?.fragments ?? [:]) : nil
+                            )
+                                .id("\(epic.subject.repo)#\(epic.subject.issue)")
+                        } else if shell.selection == .sessions {
+                            SessionsHomeView(sessions: model.sessions, sort: $sessionSort, newSession: { shell.selection = .newSession }) { shell.selection = .session(id: $0) }
+                        } else if shell.selection == .terminals {
+                            TerminalsHomeView(
+                                store: terminalStore,
+                                newTerminal: createNewTerminal,
+                                select: { shell.selection = .terminal(id: $0) },
+                                closeTerminal: closeStandaloneTerminal
+                            )
+                        } else if case .terminal(let id) = shell.selection {
+                            TerminalDetailView(
+                                store: terminalStore,
+                                terminalId: id,
+                                newTerminal: createNewTerminal
+                            )
+                            .id(id)
+                        } else if shell.selection == .archive {
+                            ArchiveView(rows: model.sessions.rows, sort: $archiveSort) { shell.selection = .session(id: $0) }
+                        } else if shell.selection == .usage {
+                            UsageView(store: AppUsage.store)
+                        } else if shell.selection == .newSession {
+                            NewSessionView(model: model.newSession, openHealth: shell.openHealth) { shell.selection = .session(id: $0) }
+                        } else if let emptyPage {
+                            EmptyStateView(state: emptyPage)
+                        } else if case .session(let id) = shell.selection {
+                            ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest) { plan in
+                                model.newSession.restore(plan)
+                                shell.selection = .newSession
+                            }.id(id)
+                        } else if case .running(let snapshot)? = model.state {
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 26) {
+                                    Running(snapshot: snapshot, selection: $shell.selection)
+                                }
+                                .padding(18)
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
                             }
-                            .padding(18)
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                        } else {
+                            // Carrier is not answering (or has not yet): what to do about it
+                            StoppedView(state: model.state, openSettings: { shell.showSettings(.engine) })
                         }
-                    } else {
-                        // Carrier is not answering (or has not yet): what to do about it
-                        StoppedView(state: model.state, openSettings: { shell.showSettings(.engine) })
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if case .session(let id) = shell.selection,
+                       let session = openSession,
+                       shell.isTerminalDrawerOpen(for: id) {
+                        SessionTerminalDrawerView(
+                            store: terminalStore,
+                            sessionId: id,
+                            defaultDirectory: session.folder,
+                            height: Binding(
+                                get: { CGFloat(terminalDrawerHeight) },
+                                set: { terminalDrawerHeight = Double($0) }
+                            ),
+                            maxHeight: max(220, windowSize.height * 0.6),
+                            hideDrawer: {
+                                withAnimation(.smooth(duration: 0.25)) {
+                                    shell.setTerminalDrawerOpen(false, for: id)
+                                }
+                            }
+                        )
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
                 // only an epic has something to inspect; the other pages are a single column. The panel runs up behind the
@@ -196,8 +283,19 @@ struct PanelView: View {
                 }
             }
             if let session = openSession {
+                let drawerOpen = shell.isTerminalDrawerOpen(for: session.id)
                 ToolbarItem(placement: .primaryAction) { SessionPlacePill(row: session) }
                     .sharedBackgroundVisibility(.hidden)
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        toggleSessionTerminal(for: session)
+                    } label: {
+                        Label(drawerOpen ? "Hide Terminal" : "Show Terminal", systemImage: drawerOpen ? "terminal.fill" : "terminal")
+                    }
+                    .help(drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))")
+                    .accessibilityLabel(drawerOpen ? "Hide terminal" : "Show terminal")
+                }
             }
             if shell.selection == .usage {
                 ToolbarItem(placement: .primaryAction) {
@@ -251,6 +349,7 @@ struct PanelView: View {
             Task { if let refusal = await model.actions.archive(id) { tell(refusal) } }
         }
         .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }
+        .onAppear { terminalStore.migrateLegacyQuickTabsToStandalone() }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }
         .environment(\.windowSize, windowSize)
     }
@@ -267,7 +366,7 @@ private struct Running: View {
         case .epic(let repo, let issue):
             // not in the snapshot (any more)
             Text("\(repo) #\(issue)")
-        case .home, .sessions, .session, .newSession, .archive, .usage:
+        case .home, .sessions, .session, .newSession, .terminals, .terminal, .archive, .usage:
             EmptyView()  // PanelView shows these pages
         }
     }

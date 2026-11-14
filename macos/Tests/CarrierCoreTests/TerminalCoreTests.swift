@@ -178,6 +178,23 @@ struct TerminalCoreTests {
         #expect(registry.tab(id: tabA.id) == nil)
     }
 
+    @Test func renameTabOverridesTitleAndBlankClearsCustomTitle() {
+        var registry = TerminalRegistry()
+        let tab = registry.openTab(
+            owner: .quick,
+            spec: TerminalLaunchSpec(workingDirectory: "/tmp/project", title: "zsh")
+        )
+        #expect(registry.tab(id: tab.id)?.title == "zsh")
+
+        registry.renameTab(id: tab.id, customTitle: "  Backend  ")
+        #expect(registry.tab(id: tab.id)?.customTitle == "Backend")
+        #expect(registry.tab(id: tab.id)?.title == "Backend")
+
+        registry.renameTab(id: tab.id, customTitle: "   ")
+        #expect(registry.tab(id: tab.id)?.customTitle == nil)
+        #expect(registry.tab(id: tab.id)?.title == "zsh")
+    }
+
     @Test func persistsAndRestoresWorkspaceWithValidationAndPruning() throws {
         var registry = TerminalRegistry()
         let validSession = TerminalOwner.session("sess-keep")
@@ -440,5 +457,83 @@ struct TerminalCoreTests {
         #expect(isAllowedTerminalURL("http://") == false)
         #expect(isAllowedTerminalURL("javascript:alert(1)") == false)
         #expect(isAllowedTerminalURL("itms-services://bad") == false)
+    }
+
+    @Test func terminalSidebarAndHomeFormattingHelpers() {
+        #expect(abbreviatedTerminalPath("/Users/dev", home: "/Users/dev") == "~")
+        #expect(abbreviatedTerminalPath("/Users/dev/", home: "/Users/dev") == "~/")
+        #expect(abbreviatedTerminalPath("/Users/dev/src/app", home: "/Users/dev") == "~/src/app")
+        #expect(abbreviatedTerminalPath("/tmp/work", home: "/Users/dev") == "/tmp/work")
+
+        #expect(terminalsSubtitle(count: 0) == "No terminals")
+        #expect(terminalsSubtitle(count: 1) == "1 terminal")
+        #expect(terminalsSubtitle(count: 3) == "3 terminals")
+
+        var registry = TerminalRegistry()
+        let t1 = registry.openTab(owner: .quick, spec: TerminalLaunchSpec(workingDirectory: "/repo/api", customTitle: "API Server"))
+        let t2 = registry.openTab(owner: .quick, spec: TerminalLaunchSpec(workingDirectory: "/repo/web", title: "zsh"))
+        let all = registry.tabs(for: .quick)
+        #expect(filteredTerminalTabs(all, query: "").map(\.id) == [t1.id, t2.id])
+        #expect(filteredTerminalTabs(all, query: "api").map(\.id) == [t1.id])
+        #expect(filteredTerminalTabs(all, query: "/repo/web").map(\.id) == [t2.id])
+        #expect(filteredTerminalTabs(all, query: "nonexistent").isEmpty)
+
+        #expect(terminalDropZone(x: 10, y: 50, width: 100, height: 100) == .edge(.leading))
+        #expect(terminalDropZone(x: 90, y: 50, width: 100, height: 100) == .edge(.trailing))
+        #expect(terminalDropZone(x: 50, y: 10, width: 100, height: 100) == .edge(.top))
+        #expect(terminalDropZone(x: 50, y: 90, width: 100, height: 100) == .edge(.bottom))
+        #expect(terminalDropZone(x: 50, y: 50, width: 100, height: 100) == .swap)
+        #expect(terminalDropZone(x: 0, y: 0, width: 0, height: 100) == .swap)
+    }
+
+    @Test func standaloneTerminalsKeepIndependentTabGroupsAndPersistOrder() throws {
+        var registry = TerminalRegistry()
+        let firstGroup = UUID()
+        let secondGroup = UUID()
+
+        let g1t1 = registry.openTab(
+            owner: .terminal(firstGroup),
+            spec: TerminalLaunchSpec(workingDirectory: "/existing/api", customTitle: "API")
+        )
+        let g1t2 = registry.openTab(
+            owner: .terminal(firstGroup),
+            spec: TerminalLaunchSpec(workingDirectory: "/existing/api/logs", title: "Logs")
+        )
+        _ = registry.splitPane(g1t2.activePaneId, edge: .trailing)
+
+        let g2t1 = registry.openTab(
+            owner: .terminal(secondGroup),
+            spec: TerminalLaunchSpec(workingDirectory: "/existing/web", title: "Web")
+        )
+
+        let summaries = registry.standaloneTerminals()
+        #expect(summaries.map(\.id) == [firstGroup, secondGroup])
+        #expect(summaries[0].tabCount == 2)
+        #expect(summaries[0].totalPaneCount == 3)
+        #expect(summaries[0].title == "logs")
+        #expect(summaries[1].tabCount == 1)
+
+        #expect(filteredStandaloneTerminals(summaries, query: "api").map(\.id) == [firstGroup])
+        #expect(filteredStandaloneTerminals(summaries, query: "/existing/web").map(\.id) == [secondGroup])
+        #expect(filteredStandaloneTerminals(summaries, query: "missing").isEmpty)
+
+        // Persisting and restoring preserves standalone terminal groups and deterministic order even when no chat sessions match.
+        let exported = registry.exportPersistedWorkspace()
+        let encoded = try JSONEncoder().encode(exported)
+        let decoded = try JSONDecoder().decode(PersistedTerminalWorkspace.self, from: encoded)
+        let restored = TerminalRegistry(
+            restoring: decoded,
+            knownSessionIds: [],
+            fallbackDirectory: "/fallback",
+            directoryExists: { _ in true }
+        )
+        #expect(restored.terminalOrder == [firstGroup, secondGroup])
+        #expect(restored.tabs(for: .terminal(firstGroup)).map(\.id) == [g1t1.id, g1t2.id])
+        #expect(restored.tabs(for: .terminal(secondGroup)).map(\.id) == [g2t1.id])
+
+        // Closing the final tab in a standalone group removes it from standaloneTerminals and terminalOrder.
+        registry.closeAll(for: .terminal(firstGroup))
+        #expect(registry.terminalOrder == [secondGroup])
+        #expect(registry.standaloneTerminals().map(\.id) == [secondGroup])
     }
 }

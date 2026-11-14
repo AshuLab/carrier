@@ -8,8 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Standalone terminals in the sidebar: each terminal has its own tabs and split panes, a Terminals overview page, and a bottom tab bar while the terminal surface extends under the translucent top header.
-- Middle-click closes terminal tabs, sidebar terminal rows, and session rows in the sidebar.
+- Standalone terminals in the sidebar and overview: each terminal has its own tabs and split panes, a bottom tab bar, a full-height surface extending behind the translucent top header and a collapsible terminal drawer inside chat sessions.
+- Middle-click closes terminal tabs and standalone terminal rows in the sidebar and overview.
 - Interactive Zsh terminals anchor the prompt to the bottom of the viewport and preserve that position on `Cmd+K` clear.
 
 ### Changed

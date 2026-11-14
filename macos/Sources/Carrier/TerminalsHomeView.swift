@@ -165,13 +165,9 @@ private struct TerminalHomeRow: View {
                         .labelStyle(.titleAndIcon)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    if summary.tabCount > 1 {
+                    if let counts = summary.countsSummary {
                         Text("·")
-                        Text("\(summary.tabCount) tabs")
-                    }
-                    if summary.totalPaneCount > summary.tabCount {
-                        Text("·")
-                        Text("\(summary.totalPaneCount) panes")
+                        Text(counts)
                     }
                 }
                 .font(.caption)
@@ -180,16 +176,7 @@ private struct TerminalHomeRow: View {
             }
             Spacer(minLength: 8)
             if active {
-                Button(action: close) {
-                    Image(systemName: "xmark")
-                        .font(.scaled(11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 26, height: 26)
-                        .background(Circle().fill(Color.primary.opacity(0.08)))
-                }
-                .buttonStyle(.plain)
-                .help("Close terminal")
-                .accessibilityLabel("Close \(summary.title)")
+                IconButton(icon: "xmark", name: "Close \(summary.title)", action: close)
             }
         }
         .padding(.horizontal, 10)

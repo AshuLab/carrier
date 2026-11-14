@@ -835,6 +835,27 @@ public struct StandaloneTerminalSummary: Identifiable, Equatable, Sendable {
     public var tabCount: Int { tabs.count }
     public var totalPaneCount: Int { tabs.reduce(0) { $0 + $1.paneCount } }
 
+    /// Tab and pane counts joined with `·`, or `nil` for a single-tab single-pane terminal.
+    public var countsSummary: String? {
+        var parts: [String] = []
+        if tabCount > 1 {
+            parts.append("\(tabCount) tabs")
+        }
+        if totalPaneCount > tabCount {
+            parts.append("\(totalPaneCount) panes")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Abbreviated working directory optionally suffixed with multi-tab or multi-pane counts.
+    public func subtitle(home: String = NSHomeDirectory()) -> String {
+        let path = abbreviatedTerminalPath(workingDirectory, home: home)
+        if let countsSummary {
+            return "\(path) · \(countsSummary)"
+        }
+        return path
+    }
+
     public init(id: UUID, tabs: [TerminalTab], activeTab: TerminalTab) {
         self.id = id
         self.tabs = tabs
@@ -852,17 +873,6 @@ public func filteredStandaloneTerminals(_ terminals: [StandaloneTerminalSummary]
                 || tab.workingDirectory.localizedCaseInsensitiveContains(trimmed)
                 || tab.orderedPanes.contains { $0.displayTitle.localizedCaseInsensitiveContains(trimmed) }
         }
-    }
-}
-
-/// Filters standalone terminal tabs by title, working directory, or pane titles.
-public func filteredTerminalTabs(_ tabs: [TerminalTab], query: String) -> [TerminalTab] {
-    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard trimmed.isEmpty == false else { return tabs }
-    return tabs.filter { tab in
-        tab.title.localizedCaseInsensitiveContains(trimmed)
-            || tab.workingDirectory.localizedCaseInsensitiveContains(trimmed)
-            || tab.orderedPanes.contains { $0.displayTitle.localizedCaseInsensitiveContains(trimmed) }
     }
 }
 

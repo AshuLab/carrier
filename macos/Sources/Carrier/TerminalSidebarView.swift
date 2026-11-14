@@ -146,7 +146,7 @@ private struct TerminalSidebarRowView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(height: Self.titleLine, alignment: .leading)
-                Text(detailText)
+                Text(summary.subtitle())
                     .font(SidebarMetrics.detail)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -164,18 +164,6 @@ private struct TerminalSidebarRowView: View {
         .onHover { hovered = $0 }
         .help("\(summary.title)\n\(summary.workingDirectory)")
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(summary.title), \(detailText)")
-    }
-
-    private var detailText: String {
-        let path = abbreviatedTerminalPath(summary.workingDirectory)
-        var parts = [path]
-        if summary.tabCount > 1 {
-            parts.append("\(summary.tabCount) tabs")
-        }
-        if summary.totalPaneCount > summary.tabCount {
-            parts.append("\(summary.totalPaneCount) panes")
-        }
-        return parts.joined(separator: " · ")
+        .accessibilityLabel("\(summary.title), \(summary.subtitle())")
     }
 }

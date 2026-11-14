@@ -79,17 +79,11 @@ struct PanelView: View {
         case .sessions: sessionsPage(model.sessions.rows, by: sessionSort).subtitle
         case .session: openSession.map(conversationSubtitle) ?? ""
         case .terminals: terminalsSubtitle(count: terminalStore.standaloneTerminals().count)
-        case .terminal(let id): terminalSubtitle(for: id)
+        case .terminal(let id): terminalStore.standaloneTerminal(id: id)?.subtitle() ?? ""
         case .archive: archivePage(model.sessions.rows, by: archiveSort, query: "").subtitle
         case .usage: "Limits left and what was used, per account"
         default: ""
         }
-    }
-
-    private func terminalSubtitle(for terminalId: UUID) -> String {
-        guard let summary = terminalStore.standaloneTerminal(id: terminalId) else { return "" }
-        let path = abbreviatedTerminalPath(summary.workingDirectory)
-        return summary.tabCount > 1 ? "\(path) · \(summary.tabCount) tabs" : path
     }
 
     /// The pages that are an empty state for now; Home does not depend on the engine.
@@ -289,14 +283,18 @@ struct PanelView: View {
                     .sharedBackgroundVisibility(.hidden)
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
+                    ToolbarPillButton(
+                        title: drawerOpen ? "Hide Terminal" : "Show Terminal",
+                        icon: drawerOpen ? "terminal.fill" : "terminal"
+                    ) {
                         toggleSessionTerminal(for: session)
-                    } label: {
-                        Label(drawerOpen ? "Hide Terminal" : "Show Terminal", systemImage: drawerOpen ? "terminal.fill" : "terminal")
                     }
+                    .glassEffect(.regular, in: .capsule)
+                    .padding(.trailing, 10)
                     .help(drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))")
                     .accessibilityLabel(drawerOpen ? "Hide terminal" : "Show terminal")
                 }
+                .sharedBackgroundVisibility(.hidden)
             }
             if shell.selection == .usage {
                 ToolbarItem(placement: .primaryAction) {

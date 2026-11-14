@@ -44,12 +44,44 @@ struct TerminalSplitLayoutView: View {
     }
 }
 
+/// Pushes `cursor` onto AppKit's cursor stack while hovered and always pops it cleanly on hover exit or disappear.
+private struct HoverCursorModifier: ViewModifier {
+    let cursor: NSCursor
+    var onHoverChange: ((Bool) -> Void)? = nil
+    @State private var pushed = false
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { inside in
+                onHoverChange?(inside)
+                if inside && pushed == false {
+                    cursor.push()
+                    pushed = true
+                } else if inside == false && pushed {
+                    NSCursor.pop()
+                    pushed = false
+                }
+            }
+            .onDisappear {
+                if pushed {
+                    NSCursor.pop()
+                    pushed = false
+                }
+            }
+    }
+}
+
+private extension View {
+    func hoverCursor(_ cursor: NSCursor, onHoverChange: ((Bool) -> Void)? = nil) -> some View {
+        modifier(HoverCursorModifier(cursor: cursor, onHoverChange: onHoverChange))
+    }
+}
+
 /// Floating hover-only pane controls aligned to the top-right corner of a terminal pane (shared across standalone Terminal views and the session drawer).
 struct TerminalPaneHeaderView: View {
     let pane: TerminalPane
     let isSplit: Bool
     let isZoomed: Bool
-    let canMoveToNewTab: Bool
     let onBeginDrag: (() -> NSItemProvider)?
     let splitRight: () -> Void
     let splitDown: () -> Void
@@ -59,7 +91,6 @@ struct TerminalPaneHeaderView: View {
     let close: () -> Void
 
     @State private var dragHovered = false
-    @State private var dragCursorPushed = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -97,10 +128,8 @@ struct TerminalPaneHeaderView: View {
                 Button(action: equalizeSplits) {
                     Label("Equalize Splits", systemImage: "rectangle.split.3x1").labelStyle(.titleAndIcon)
                 }
-                if canMoveToNewTab {
-                    Button(action: moveToNewTab) {
-                        Label("Move to New Tab", systemImage: "macwindow.badge.plus").labelStyle(.titleAndIcon)
-                    }
+                Button(action: moveToNewTab) {
+                    Label("Move to New Tab", systemImage: "macwindow.badge.plus").labelStyle(.titleAndIcon)
                 }
             }
             Divider()
@@ -118,22 +147,7 @@ struct TerminalPaneHeaderView: View {
             .frame(height: ToolbarPillButton.height)
             .background(Capsule().fill(Color.primary.opacity(dragHovered ? 0.1 : 0)))
             .contentShape(Capsule())
-            .onHover { inside in
-                dragHovered = inside
-                if inside && dragCursorPushed == false {
-                    NSCursor.openHand.push()
-                    dragCursorPushed = true
-                } else if inside == false && dragCursorPushed {
-                    NSCursor.pop()
-                    dragCursorPushed = false
-                }
-            }
-            .onDisappear {
-                if dragCursorPushed {
-                    NSCursor.pop()
-                    dragCursorPushed = false
-                }
-            }
+            .hoverCursor(.openHand) { dragHovered = $0 }
             .animation(.easeOut(duration: 0.12), value: dragHovered)
             .help("\(pane.displayTitle) (\(abbreviatedTerminalPath(pane.workingDirectory))) — Drag to move or swap pane")
             .accessibilityLabel("Move pane \(pane.displayTitle)")
@@ -188,7 +202,6 @@ private struct TerminalPaneHostView: View {
                     pane: pane,
                     isSplit: isSplit,
                     isZoomed: isZoomed,
-                    canMoveToNewTab: tab.owner != .quick || store.tabs(for: .quick).isEmpty == false,
                     onBeginDrag: {
                         draggedPaneId = paneId
                         DispatchQueue.main.async {
@@ -400,7 +413,6 @@ private struct SplitContainerView: View {
 
     @State private var dragBaseRatio: Double?
     @State private var dividerHovered = false
-    @State private var cursorPushed = false
 
     private static let dividerThickness: CGFloat = 1
 
@@ -466,22 +478,7 @@ private struct SplitContainerView: View {
         .frame(width: horizontal ? 7 : nil, height: horizontal ? nil : 7)
         .frame(width: horizontal ? Self.dividerThickness : nil, height: horizontal ? nil : Self.dividerThickness)
         .contentShape(Rectangle().inset(by: -3))
-        .onHover { inside in
-            dividerHovered = inside
-            if inside && cursorPushed == false {
-                (horizontal ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push()
-                cursorPushed = true
-            } else if inside == false && cursorPushed {
-                NSCursor.pop()
-                cursorPushed = false
-            }
-        }
-        .onDisappear {
-            if cursorPushed {
-                NSCursor.pop()
-                cursorPushed = false
-            }
-        }
+        .hoverCursor(horizontal ? .resizeLeftRight : .resizeUpDown) { dividerHovered = $0 }
         .gesture(
             DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { value in
@@ -593,7 +590,6 @@ struct SessionTerminalDrawerView: View {
 
     @State private var dragStartHeight: CGFloat?
     @State private var resizeHovered = false
-    @State private var cursorPushed = false
 
     private static let minHeight: CGFloat = 180
 
@@ -659,22 +655,7 @@ struct SessionTerminalDrawerView: View {
         .frame(height: 7)
         .frame(height: 1)
         .contentShape(Rectangle().inset(by: -3))
-        .onHover { inside in
-            resizeHovered = inside
-            if inside && cursorPushed == false {
-                NSCursor.resizeUpDown.push()
-                cursorPushed = true
-            } else if inside == false && cursorPushed {
-                NSCursor.pop()
-                cursorPushed = false
-            }
-        }
-        .onDisappear {
-            if cursorPushed {
-                NSCursor.pop()
-                cursorPushed = false
-            }
-        }
+        .hoverCursor(.resizeUpDown) { resizeHovered = $0 }
         .gesture(
             DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { value in

@@ -131,7 +131,6 @@ struct TerminalWorkspaceLayoutTests {
                 pane: pane,
                 isSplit: true,
                 isZoomed: false,
-                canMoveToNewTab: true,
                 onBeginDrag: { NSItemProvider(object: pane.id.uuidString as NSString) },
                 splitRight: {},
                 splitDown: {},

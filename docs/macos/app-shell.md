@@ -16,10 +16,12 @@ The app asks for the snapshot every second while connected and tries to connect 
 
 ## Sidebar and window shortcuts
 
-When the updater's scheduled check finds a new version, the sidebar's title bar shows a pill after the window's buttons, `Update X.Y.Z` (`UpdatePill.swift`), instead of Sparkle's window.
-Clicking it opens Sparkle's window for that update; the pill goes away once the person has looked at it, and while the sidebar is hidden it is not shown.
-A check the person asks for (Settings > Updates, Check for Updates… in the menu) opens Sparkle's window as before.
-`--fixture-update` shows the pill with a made-up version.
+The update has no window: a glass pill in the sidebar's title bar, after the window's buttons (`UpdatePill.swift`), is all of it, drawn from `UpdateFlow` (`CarrierCore/UpdateFlow.swift`, tested in `UpdateFlowTests`), which Sparkle's user driver of our own (`UpdateDriver` in `AppUpdater.swift`) moves.
+When a check finds a version the pill slides in with `↓ X.Y.Z`; a click downloads it in place, the version rolling to the percent while the chat's thinking glow runs round the edge; done, a tick says Ready and it rolls to `Restart`, whose words shimmer; a click installs and relaunches (`Restarting…`).
+A failed download leaves `Retry`, which checks again and downloads what it finds.
+A check the person asks for (Settings > Updates, Check for Updates… in the menu) that finds an update shows it in the pill too; one that finds nothing, or fails before any download, says so in an alert.
+While the sidebar is hidden the pill is not shown; with Reduce Motion the glow, the shimmer and the bounce stop and the words still tell the state.
+`--fixture-update` plays the whole course with a made-up version.
 
 The window's sidebar is sections drawn by `SidebarSectionRow` (Home, Sessions and Carrier with its epics in the scrolling list, and, fixed in the foot, Archive above the divider and Settings with Usage directly under it): an icon, a title and its actions, no fill at rest and a light grey one when selected, drawn by the row and not by the list, so it never covers what unfolds under it.
 Sessions carries a soft grey badge with the number of open sessions, every one that is not archived (`Sessions.open`, named aloud `1 open session`; not drawn with none), and its list and its search never show an archived session: a query keeps the groups of the chosen order, filtered to the sessions whose title, workspace or agent match.

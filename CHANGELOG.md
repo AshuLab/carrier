@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- When Carrier finds a new version on its own, the app no longer opens the update window: an `Update X.Y.Z` pill appears at the top of the sidebar, after the window's buttons, and clicking it opens the update. Check now in Settings and Check for Updates… open it as before.
+- Updating the app no longer opens a window: a glass pill at the top of the sidebar, after the window's buttons, shows the new version; clicking it downloads the update right there, with its percent, and then it says Restart, which installs it and relaunches the app. A failed download leaves Retry. Check now in Settings and Check for Updates… show what they find in the same pill, and say so in an alert when there is nothing new.
 
 ## [0.5.0] - 2026-11-13
 

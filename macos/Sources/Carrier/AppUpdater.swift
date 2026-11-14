@@ -1,61 +1,175 @@
-import Foundation
+import AppKit
+import CarrierCore
 import Sparkle
 
-/// Sparkle's standard updater. Its preferences are Sparkle's own: with the plist's `SUEnableAutomaticChecks` it checks by itself and,
-/// until the person says otherwise, asks before it installs. A check the person asked for (Settings, the menu item, the sidebar's pill)
-/// shows Sparkle's window; a scheduled one that finds an update shows nothing but the sidebar's pill (Sparkle's gentle reminders).
+/// Sparkle's updater with a user driver of our own: no Sparkle window, the sidebar's pill is the whole interface (the version, the
+/// download's percent, Restart, Retry). Its preferences are Sparkle's own: with the plist's `SUEnableAutomaticChecks` it checks by itself.
+/// A check the person asked for (Settings, the menu item) that finds nothing or fails says so in an alert.
 @MainActor
 enum AppUpdater {
-    private static var controller: SPUStandardUpdaterController?
-    private static let reminder = UpdateReminder()
-
-    /// What the Updates page reads and writes, and the menu item's target; nil while the updater is not started.
-    static var updater: SPUUpdater? { controller?.updater }
-    static var menuTarget: AnyObject? { controller }
-    /// The version a scheduled check found and the person has not looked at yet; the sidebar's pill shows it.
-    static var available: UpdateAvailable { reminder.available }
+    private static var driver: UpdateDriver?
+    private(set) static var updater: SPUUpdater?
+    /// What the pill draws and what its click does.
+    static let model = UpdateModel()
+    /// The menu item's target; nil while the updater is not started.
+    static var menuTarget: AnyObject? { driver }
 
     /// Starts the updater and asks for a check in the background, because Sparkle alone checks at start only when the last check is
     /// older than its interval. Nothing starts under `--fixture` or `--selftest`, nor from a build whose bundle has no feed (`swift run`).
-    /// `--fixture-update` shows the pill with a made-up version, so it can be looked at.
+    /// `--fixture-update` plays the pill's whole course with a made-up version, so it can be looked at.
     static func start(arguments: [String] = CommandLine.arguments, bundle: Bundle = .main) {
-        if arguments.contains("--fixture-update") { reminder.available.version = "9.9.9" }
+        if arguments.contains("--fixture-update") { playFixture() }
         guard bundle.object(forInfoDictionaryKey: "SUFeedURL") != nil else { return }
         guard arguments.contains("--fixture") == false, arguments.contains("--selftest") == false else { return }
-        let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: reminder)
-        controller.updater.checkForUpdatesInBackground()
-        self.controller = controller
+        let driver = UpdateDriver(model: model)
+        let updater = SPUUpdater(hostBundle: bundle, applicationBundle: bundle, userDriver: driver, delegate: nil)
+        do {
+            try updater.start()
+        } catch {
+            NSLog("Carrier: the updater did not start: %@", String(describing: error))
+            return
+        }
+        driver.updater = updater
+        model.press = { driver.press() }
+        updater.checkForUpdatesInBackground()
+        self.driver = driver
+        self.updater = updater
     }
 
-    /// The pill's action: Sparkle's window for the update it found, which brings the update into focus.
-    static func showUpdate() {
-        guard let updater else { return }
-        updater.checkForUpdates()
+    /// The fixture's course: available, a click downloads in a few seconds, a click restarts and the pill goes.
+    private static func playFixture() {
+        model.flow.found(version: "9.9.9", downloaded: false)
+        model.press = {
+            switch model.flow.phase {
+            case .available:
+                Task {
+                    model.flow.downloadStarted()
+                    model.flow.expect(100)
+                    for _ in 0..<20 {
+                        try? await Task.sleep(for: .milliseconds(200))
+                        model.flow.receive(5)
+                    }
+                    model.flow.readyToInstall()
+                }
+            case .ready:
+                Task {
+                    model.flow.installing()
+                    try? await Task.sleep(for: .seconds(2))
+                    model.flow.dismissed()
+                }
+            default: break
+            }
+        }
     }
 }
 
-@MainActor @Observable final class UpdateAvailable {
-    var version: String?
+@MainActor @Observable final class UpdateModel {
+    var flow = UpdateFlow()
+    @ObservationIgnored var press: () -> Void = {}
 }
 
-/// Takes the scheduled check's update away from Sparkle's window and gives it to the pill; Sparkle calls it on the main thread.
-private final class UpdateReminder: NSObject, SPUStandardUserDriverDelegate {
-    @MainActor let available = UpdateAvailable()
+/// Tells the pill what Sparkle is doing and answers Sparkle when the pill is clicked. Sparkle calls it on the main thread.
+@MainActor
+final class UpdateDriver: NSObject, SPUUserDriver, NSMenuItemValidation {
+    private let model: UpdateModel
+    weak var updater: SPUUpdater?
+    /// Sparkle's question that waits for the click: install the update found, or restart into the one downloaded.
+    private var choice: ((SPUUserUpdateChoice) -> Void)?
+    /// The person clicked Restart on an update Sparkle had downloaded before: the next "ready to relaunch" needs no second click.
+    private var restartChosen = false
+    /// Retry checks again and downloads what it finds without waiting for a click.
+    private var installOnFind = false
+    private var userInitiated = false
 
-    var supportsGentleScheduledUpdateReminders: Bool { true }
+    init(model: UpdateModel) { self.model = model }
 
-    func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem, andInImmediateFocus immediateFocus: Bool) -> Bool { false }
-
-    func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
-        guard handleShowingUpdate == false else { return }
-        MainActor.assumeIsolated { available.version = update.displayVersionString }
+    func press() {
+        switch model.flow.phase {
+        case .available:
+            answer(.install)
+        case .ready:
+            restartChosen = true
+            answer(.install)
+        case .failed:
+            installOnFind = true
+            updater?.checkForUpdates()
+        case .none, .downloading, .installing:
+            break
+        }
     }
 
-    func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
-        MainActor.assumeIsolated { available.version = nil }
+    private func answer(_ reply: SPUUserUpdateChoice) {
+        let waiting = choice
+        choice = nil
+        waiting?(reply)
     }
 
-    func standardUserDriverWillFinishUpdateSession() {
-        MainActor.assumeIsolated { available.version = nil }
+    @objc func checkForUpdates(_ sender: Any?) { updater?.checkForUpdates() }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool { updater?.canCheckForUpdates ?? false }
+
+    // MARK: SPUUserDriver
+
+    func show(_ request: SPUUpdatePermissionRequest, reply: @escaping (SUUpdatePermissionResponse) -> Void) {
+        reply(SUUpdatePermissionResponse(automaticUpdateChecks: true, sendSystemProfile: false))
+    }
+
+    func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) { userInitiated = true }
+
+    func showUpdateFound(with appcastItem: SUAppcastItem, state: SPUUserUpdateState, reply: @escaping (SPUUserUpdateChoice) -> Void) {
+        userInitiated = false
+        choice = reply
+        model.flow.found(version: appcastItem.displayVersionString, downloaded: state.stage != .notDownloaded)
+        if installOnFind {
+            installOnFind = false
+            press()
+        }
+    }
+
+    func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {}
+
+    func showUpdateReleaseNotesFailedToDownloadWithError(_ error: any Error) {}
+
+    func showUpdateNotFoundWithError(_ error: any Error, acknowledgement: @escaping () -> Void) {
+        if userInitiated { NSAlert(error: error).runModal() }
+        userInitiated = false
+        acknowledgement()
+    }
+
+    func showUpdaterError(_ error: any Error, acknowledgement: @escaping () -> Void) {
+        NSLog("Carrier: the update failed: %@", String(describing: error))
+        installOnFind = false
+        model.flow.failed()
+        // an error on the way shows as Retry on the pill; one of a check the person asked for, as an alert
+        if userInitiated, model.flow.phase == .none { NSAlert(error: error).runModal() }
+        userInitiated = false
+        acknowledgement()
+    }
+
+    func showDownloadInitiated(cancellation: @escaping () -> Void) { model.flow.downloadStarted() }
+
+    func showDownloadDidReceiveExpectedContentLength(_ expectedContentLength: UInt64) { model.flow.expect(expectedContentLength) }
+
+    func showDownloadDidReceiveData(ofLength length: UInt64) { model.flow.receive(length) }
+
+    func showDownloadDidStartExtractingUpdate() {}
+
+    func showExtractionReceivedProgress(_ progress: Double) {}
+
+    func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) {
+        choice = reply
+        if restartChosen { answer(.install) } else { model.flow.readyToInstall() }
+    }
+
+    func showInstallingUpdate(withApplicationTerminated applicationTerminated: Bool, retryTerminatingApplication: @escaping () -> Void) {
+        model.flow.installing()
+    }
+
+    func showUpdateInstalledAndRelaunched(_ relaunched: Bool, acknowledgement: @escaping () -> Void) { acknowledgement() }
+
+    func dismissUpdateInstallation() {
+        choice = nil
+        restartChosen = false
+        model.flow.dismissed()
     }
 }

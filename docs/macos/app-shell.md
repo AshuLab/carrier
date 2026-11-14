@@ -16,6 +16,11 @@ The app asks for the snapshot every second while connected and tries to connect 
 
 ## Sidebar and window shortcuts
 
+When the updater's scheduled check finds a new version, the sidebar's title bar shows a pill after the window's buttons, `Update X.Y.Z` (`UpdatePill.swift`), instead of Sparkle's window.
+Clicking it opens Sparkle's window for that update; the pill goes away once the person has looked at it, and while the sidebar is hidden it is not shown.
+A check the person asks for (Settings > Updates, Check for Updates… in the menu) opens Sparkle's window as before.
+`--fixture-update` shows the pill with a made-up version.
+
 The window's sidebar is sections drawn by `SidebarSectionRow` (Home, Sessions and Carrier with its epics in the scrolling list, and, fixed in the foot, Archive above the divider and Settings with Usage directly under it): an icon, a title and its actions, no fill at rest and a light grey one when selected, drawn by the row and not by the list, so it never covers what unfolds under it.
 Sessions carries a soft grey badge with the number of open sessions, every one that is not archived (`Sessions.open`, named aloud `1 open session`; not drawn with none), and its list and its search never show an archived session: a query keeps the groups of the chosen order, filtered to the sessions whose title, workspace or agent match.
 Carrier's row is its title, the engine's state word (Running, Paused, Stopped, Problem or Connecting), the search and group-by actions and the slots bar at full width, with no counters and no line about the next check; a stopped engine draws the bar in grey from the total it last reported (`SidebarStore.slotsTotal`, kept between launches; none drawn while connecting or when no total was ever seen), and each epic group header shows its row count (`SidebarGroup.count`); About is an item of the menu bar item's menu.

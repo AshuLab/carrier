@@ -104,9 +104,11 @@ grep -q "MIT License" "$LICENSES/DisplayLink/LICENSE" || { echo "error: $APP lac
 grep -q "FluidAudio" "$LICENSES/THIRD-PARTY-NOTICES.md" || { echo "error: $APP lacks the third-party notices" >&2; exit 1; }
 grep -q "Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors" "$LICENSES/THIRD-PARTY-NOTICES.md" || { echo "error: $APP lacks the Ghostty MIT copyright notice" >&2; exit 1; }
 grep -q "OUT OF OR IN CONNECTION WITH THE SOFTWARE" "$LICENSES/THIRD-PARTY-NOTICES.md" || { echo "error: $APP lacks the Ghostty MIT licence text" >&2; exit 1; }
-[ -d "$APP/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/terminfo" ] || { echo "error: $APP lacks GhosttyKit_GhosttyTerminal.bundle terminfo database" >&2; exit 1; }
-[ -d "$APP/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/Ghostty" ] || { echo "error: $APP lacks GhosttyKit_GhosttyTerminal.bundle Ghostty resources" >&2; exit 1; }
-grep -q "Copyright (c) 2017 Ryan Caloras" "$APP/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle/Contents/Resources/Ghostty/shell-integration/bash/LICENSE-bash-preexec.md" || { echo "error: $APP lacks LICENSE-bash-preexec.md" >&2; exit 1; }
+GHOSTTY_TERMINFO="$(find "$APP/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle" -type d -name terminfo | head -n 1)"
+[ -n "$GHOSTTY_TERMINFO" ] || { echo "error: $APP lacks GhosttyKit_GhosttyTerminal.bundle terminfo database" >&2; exit 1; }
+GHOSTTY_DIR="$(find "$APP/Contents/Resources/GhosttyKit_GhosttyTerminal.bundle" -type d -name Ghostty | head -n 1)"
+[ -n "$GHOSTTY_DIR" ] || { echo "error: $APP lacks GhosttyKit_GhosttyTerminal.bundle Ghostty resources" >&2; exit 1; }
+grep -q "Copyright (c) 2017 Ryan Caloras" "$GHOSTTY_DIR/shell-integration/bash/LICENSE-bash-preexec.md" || { echo "error: $APP lacks LICENSE-bash-preexec.md" >&2; exit 1; }
 codesign --force --deep --sign - "$APP"
 echo "built $APP"
 if [ "$OPEN" = true ]; then open "$APP"; fi

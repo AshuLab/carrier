@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- When Carrier finds a new version on its own, the app no longer opens the update window: an `Update X.Y.Z` pill appears at the top of the sidebar, after the window's buttons, and clicking it opens the update. Check now in Settings and Check for Updates… open it as before.
+
 ## [0.5.0] - 2026-11-13
 
 Settings gain an Engine page and a Sessions page, the chat's agent can reach back into Carrier, and Usage shows Claude's limits on a Mac with a clearer layout and a bigger price table.

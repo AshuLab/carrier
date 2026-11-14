@@ -88,7 +88,10 @@ License), which wraps [Ghostty](https://github.com/ghostty-org/ghostty)'s prebui
 and `xterm-ghostty` terminfo, MIT License, Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors) and
 [DisplayLink](https://github.com/Lakr233/DisplayLink) (pinned to 3.0.1, Copyright (c) 2024 Lakr Aream, MIT License).
 Their bundled MIT licence texts ship inside the app in `Contents/Resources/Licenses/libghostty-spm/LICENSE` and
-`Contents/Resources/Licenses/DisplayLink/LICENSE`, and Ghostty's upstream MIT notice is included below.
+`Contents/Resources/Licenses/DisplayLink/LICENSE`, `GhosttyKit_GhosttyTerminal.bundle` also includes the bundled
+[bash-preexec](https://github.com/rcaloras/bash-preexec) script (Copyright (c) 2017 Ryan Caloras and contributors, MIT
+License, whose licence text ships in `Contents/Resources/Ghostty/shell-integration/bash/LICENSE-bash-preexec.md`), and
+Ghostty's upstream MIT notice is included below.
 
 ```text
 MIT License

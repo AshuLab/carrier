@@ -17,7 +17,7 @@ import Testing
 @Test func theNoticesNameWhatFluidAudioCarriesAndTheLicencesTheAppShips() throws {
     let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     let notices = try String(contentsOf: root.appending(path: "THIRD-PARTY-NOTICES.md"), encoding: .utf8)
-    #expect(["text-processing-rs", "fastcluster", "swift-transformers", "Apache License 2.0", "Mitchell Hashimoto", "Contents/Resources/Licenses"].filter { notices.contains($0) == false } == [])
+    #expect(["text-processing-rs", "fastcluster", "swift-transformers", "Apache License 2.0", "Mitchell Hashimoto", "Ryan Caloras", "Contents/Resources/Licenses"].filter { notices.contains($0) == false } == [])
     let build = try String(contentsOf: root.appending(path: "macos/build-app.sh"), encoding: .utf8)
     let check = try String(contentsOf: root.appending(path: "macos/scripts/check-app.sh"), encoding: .utf8)
     for file in ["FluidAudio/LICENSE", "ThirdPartyLicenses", "argmax-oss-swift/LICENSE", "NOTICES", "libghostty-spm/LICENSE", "DisplayLink/LICENSE", "THIRD-PARTY-NOTICES.md"] {

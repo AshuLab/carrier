@@ -37,6 +37,23 @@ struct TerminalZshBottomPromptShimTests {
         #expect(enabled[TerminalZshBottomPromptShim.userZdotdirEnvKey] == "/Users/dev/.config/zsh")
         #expect(enabled["CUSTOM"] == "1")
 
+        let unsetZdotdir = TerminalZshBottomPromptShim.mergedEnvironment(
+            baseEnvVars: ["CUSTOM": "1"],
+            processEnvironment: ["SHELL": "/bin/zsh"],
+            shimDirectory: shimDir,
+            pinPromptToBottom: true,
+            command: nil
+        )
+        #expect(unsetZdotdir["ZDOTDIR"] == shimDir.path)
+        #expect(unsetZdotdir[TerminalZshBottomPromptShim.userZdotdirEnvKey] == nil)
+
+        // Default shim folder lives under Carrier's app/ subfolder per ADR 0016.
+        let carrierRoot = URL(fileURLWithPath: "/tmp/carrier-home", isDirectory: true)
+        #expect(
+            TerminalZshBottomPromptShim.defaultDirectory(carrierFolder: carrierRoot).path
+                == "/tmp/carrier-home/app/terminal/zsh-bottom-prompt"
+        )
+
         // Avoid recursive self-wrapping when inherited ZDOTDIR already points at the shim directory.
         let nonRecursive = TerminalZshBottomPromptShim.mergedEnvironment(
             baseEnvVars: [:],
@@ -67,21 +84,23 @@ struct TerminalZshBottomPromptShimTests {
         #expect(disabled == ["CUSTOM": "1"])
     }
 
-    @Test func persistsPinPromptToBottomPreferenceWithTrueDefault() {
+    @Test func persistsPinPromptToBottomPreferenceWithFalseDefault() {
         let suite = "pin-prompt-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let prefs = AppPreferences(defaults: defaults)
-        #expect(prefs.terminal.pinPromptToBottom == true)
+        #expect(prefs.terminal.pinPromptToBottom == false)
 
         var updated = prefs.terminal
-        updated.pinPromptToBottom = false
+        updated.pinPromptToBottom = true
         prefs.terminal = updated
-        #expect(AppPreferences(defaults: defaults).terminal.pinPromptToBottom == false)
-
-        prefs.resetTerminal()
         #expect(AppPreferences(defaults: defaults).terminal.pinPromptToBottom == true)
+
+        defaults.set(340.0, forKey: AppPreferences.terminalDrawerHeightKey)
+        prefs.resetTerminal()
+        #expect(AppPreferences(defaults: defaults).terminal.pinPromptToBottom == false)
+        #expect(defaults.object(forKey: AppPreferences.terminalDrawerHeightKey) == nil)
     }
 
     @Test func realZshPtyLoadsUserDotfilesRestoresZdotdirAndAnchorsBottomWithoutClearErrors() throws {

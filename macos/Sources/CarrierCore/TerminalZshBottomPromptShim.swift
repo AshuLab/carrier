@@ -4,7 +4,7 @@ import Foundation
 /// so interactive Carrier shells anchor their prompt to the bottom of the viewport without altering
 /// any user dotfiles (`~/.zshrc`, `~/.zshenv`, etc.).
 public enum TerminalZshBottomPromptShim {
-    public static let shimFolderComponents = ["terminal", "zsh-bottom-prompt"]
+    public static let shimFolderComponents = ["app", "terminal", "zsh-bottom-prompt"]
     public static let userZdotdirEnvKey = "CARRIER_USER_ZDOTDIR"
 
     public static func defaultDirectory(carrierFolder: URL) -> URL {
@@ -104,7 +104,7 @@ fi
 if [[ -n "${ZDOTDIR+set}" && "${ZDOTDIR:A}" != "$_CARRIER_SHIM_ZDOTDIR" ]]; then
   _CARRIER_USER_ZDOTDIR_DEFINED=1
   _CARRIER_USER_ZDOTDIR="$ZDOTDIR"
-elif [[ ! -n "${ZDOTDIR+set}" ]]; then
+elif [[ -z "${ZDOTDIR+set}" ]]; then
   _CARRIER_USER_ZDOTDIR_DEFINED=0
   _CARRIER_USER_ZDOTDIR=""
 fi
@@ -127,7 +127,7 @@ fi
 if [[ -n "${ZDOTDIR+set}" && "$ZDOTDIR" != "${_CARRIER_SHIM_ZDOTDIR:-}" ]]; then
   _CARRIER_USER_ZDOTDIR_DEFINED=1
   _CARRIER_USER_ZDOTDIR="$ZDOTDIR"
-elif [[ ! -n "${ZDOTDIR+set}" ]]; then
+elif [[ -z "${ZDOTDIR+set}" ]]; then
   _CARRIER_USER_ZDOTDIR_DEFINED=0
   _CARRIER_USER_ZDOTDIR=""
 fi
@@ -157,7 +157,7 @@ fi
 if [[ -n "${ZDOTDIR+set}" && "$ZDOTDIR" != "${_CARRIER_SHIM_ZDOTDIR:-}" ]]; then
   _CARRIER_USER_ZDOTDIR_DEFINED=1
   _CARRIER_USER_ZDOTDIR="$ZDOTDIR"
-elif [[ ! -n "${ZDOTDIR+set}" ]]; then
+elif [[ -z "${ZDOTDIR+set}" ]]; then
   _CARRIER_USER_ZDOTDIR_DEFINED=0
   _CARRIER_USER_ZDOTDIR=""
 fi
@@ -170,14 +170,16 @@ _carrier_pin_bottom_precmd() {
   fi
 }
 
-unalias clear 2>/dev/null || true
-function clear {
-  if [[ $# -eq 0 && -t 1 ]]; then
-    builtin printf '\e[?2026h\e[3J\e[H\e[2J\e[999;1H\e[?2026l'
-  else
-    command clear "$@"
-  fi
-}
+if ! typeset -f clear >/dev/null 2>&1; then
+  unalias clear 2>/dev/null || true
+  function clear {
+    if [[ $# -eq 0 && -t 1 ]]; then
+      builtin printf '\e[?2026h\e[3J\e[H\e[2J\e[999;1H\e[?2026l'
+    else
+      command clear "$@"
+    fi
+  }
+fi
 
 if [[ -o zle ]]; then
   _carrier_clear_screen() {

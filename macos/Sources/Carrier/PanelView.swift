@@ -9,7 +9,8 @@ struct PanelView: View {
     @AppStorage(SidebarStore.groupByKey) private var groupBy = GroupBy.status
     @AppStorage(SidebarStore.sessionSortKey) private var sessionSort = SessionSort.workspace
     @AppStorage(SidebarStore.archiveSortKey) private var archiveSort = ArchiveSort.dateArchived
-    @AppStorage("terminal.drawerHeight") private var terminalDrawerHeight: Double = 260
+    @AppStorage(AppPreferences.terminalDrawerHeightKey) private var terminalDrawerHeight: Double = AppPreferences.defaultTerminalDrawerHeight
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let terminalStore = CarrierTerminalStore.shared
     /// The last Check now pressed from the toolbar, for the button to say it is checking.
     @State private var checkAsked: CheckAsked?
@@ -121,26 +122,32 @@ struct PanelView: View {
         }
     }
 
+    private func setDrawerOpen(_ open: Bool, for owner: TerminalOwner) {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.25)) {
+            model.shell.setTerminalDrawerOpen(open, for: owner)
+        }
+    }
+
     private func toggleSessionTerminal(for session: SessionRow) {
         let owner = TerminalOwner.session(session.id)
-        if model.shell.isTerminalDrawerOpen(for: owner) {
-            withAnimation(.smooth(duration: 0.25)) {
-                model.shell.setTerminalDrawerOpen(false, for: owner)
-            }
-            return
-        }
-        if terminalStore.tabs(for: owner).isEmpty {
+        if model.shell.isTerminalDrawerOpen(for: owner) == false,
+           terminalStore.tabs(for: owner).isEmpty {
             _ = terminalStore.openTab(for: owner, workingDirectory: session.folder)
         }
-        withAnimation(.smooth(duration: 0.25)) {
-            model.shell.setTerminalDrawerOpen(true, for: owner)
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.25)) {
+            model.shell.toggleTerminalDrawer(for: owner)
         }
     }
 
     /// Launches a validated epic Continue-in-Terminal session inside the epic's integrated bottom drawer.
     private func continueEpicInTerminal(epic: EpicRef, section: SessionSection, resume: ValidResume) {
-        let owner = TerminalOwner.epic(repo: epic.repo, issue: epic.issue)
         let launch = embeddedResumeLaunch(resume)
+        guard isAccessibleTerminalDirectory(launch.workingDirectory) else {
+            NSLog("Carrier: continue in terminal refused because folder is inaccessible: %@", launch.workingDirectory)
+            tell("The session folder is no longer accessible.")
+            return
+        }
+        let owner = TerminalOwner.epic(repo: epic.repo, issue: epic.issue)
         let tab = terminalStore.openTab(
             for: owner,
             workingDirectory: launch.workingDirectory,
@@ -149,9 +156,7 @@ struct PanelView: View {
             title: "\(section.agent) · \(section.role)",
             activate: true
         )
-        withAnimation(.smooth(duration: 0.25)) {
-            model.shell.setTerminalDrawerOpen(true, for: owner)
-        }
+        setDrawerOpen(true, for: owner)
         terminalStore.focus(paneId: tab.activePaneId)
     }
 
@@ -269,22 +274,16 @@ struct PanelView: View {
                             maxHeight: max(220, windowSize.height * 0.6),
                             dismissDrawer: {
                                 if target.isSessionDrawer {
-                                    withAnimation(.smooth(duration: 0.25)) {
-                                        shell.setTerminalDrawerOpen(false, for: target.owner)
-                                    }
+                                    setDrawerOpen(false, for: target.owner)
                                 } else {
                                     Task {
                                         guard await terminalStore.closeAll(for: target.owner) else { return }
-                                        withAnimation(.smooth(duration: 0.25)) {
-                                            shell.setTerminalDrawerOpen(false, for: target.owner)
-                                        }
+                                        setDrawerOpen(false, for: target.owner)
                                     }
                                 }
                             },
                             autoHideOnEmpty: {
-                                withAnimation(.smooth(duration: 0.25)) {
-                                    shell.setTerminalDrawerOpen(false, for: target.owner)
-                                }
+                                setDrawerOpen(false, for: target.owner)
                             }
                         )
                         .id(target.owner)
@@ -409,7 +408,6 @@ struct PanelView: View {
             Task { if let refusal = await model.actions.archive(id) { tell(refusal) } }
         }
         .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }
-        .onAppear { terminalStore.migrateLegacyQuickTabsToStandalone() }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }
         .environment(\.windowSize, windowSize)
     }

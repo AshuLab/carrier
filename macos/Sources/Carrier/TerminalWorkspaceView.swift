@@ -758,8 +758,6 @@ struct TerminalDrawerView: View {
                 )
                 .id(activeTab.id)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                EmptyView()
             }
         }
         .frame(height: clampedHeight)

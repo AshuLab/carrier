@@ -285,20 +285,89 @@ private final class RecordingOpener: TerminalOpener {
     let claudeLaunch = embeddedResumeLaunch(claude)
     #expect(claudeLaunch.workingDirectory == scratch.inside)
     #expect(claudeLaunch.envVars == ["CLAUDE_CONFIG_DIR": scratch.config])
-    #expect(claudeLaunch.command == #"/bin/zsh -il -c 'claude --resume '\''\#(id)'\'''"#)
+    #expect(claudeLaunch.command.hasPrefix("/bin/zsh -il -c "))
+    #expect(claudeLaunch.command.contains("cd ") && claudeLaunch.command.contains("claude --resume"))
     #expect(claudeLaunch.displayCommand == resumeCommand(claude))
 
     let codex = try validateResume(scratch.descriptor("codex", config: scratch.config), engine: scratch.engine).get()
     let codexLaunch = embeddedResumeLaunch(codex)
     #expect(codexLaunch.workingDirectory == scratch.inside)
     #expect(codexLaunch.envVars == ["CODEX_HOME": scratch.config])
-    #expect(codexLaunch.command == #"/bin/zsh -il -c 'codex resume '\''\#(id)'\'''"#)
+    #expect(codexLaunch.command.hasPrefix("/bin/zsh -il -c "))
+    #expect(codexLaunch.command.contains("cd ") && codexLaunch.command.contains("codex resume"))
     #expect(codexLaunch.displayCommand == resumeCommand(codex))
 
     let agy = try validateResume(scratch.descriptor("agy", config: scratch.config), engine: scratch.engine).get()
     let agyLaunch = embeddedResumeLaunch(agy)
     #expect(agyLaunch.workingDirectory == scratch.inside)
     #expect(agyLaunch.envVars.isEmpty)
-    #expect(agyLaunch.command == #"/bin/zsh -il -c 'agy --conversation '\''\#(id)'\'''"#)
+    #expect(agyLaunch.command.hasPrefix("/bin/zsh -il -c "))
+    #expect(agyLaunch.command.contains("cd ") && agyLaunch.command.contains("agy --conversation"))
     #expect(agyLaunch.displayCommand == resumeCommand(agy))
+}
+
+@Test func embeddedResumeLaunchExecutesFakeHarnessesAndFailsClosedWhenFolderDisappears() throws {
+    let scratch = try Scratch()
+    defer { scratch.remove() }
+
+    let emptyHome = scratch.base + "/fake-home"
+    try FileManager.default.createDirectory(atPath: emptyHome, withIntermediateDirectories: true)
+
+    func runEmbedded(_ launch: EmbeddedResumeLaunch, cwd: String) throws -> (status: Int32, output: String) {
+        let stdinPipe = Pipe()
+        let stdoutPipe = Pipe()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/script")
+        process.arguments = ["-q", "/dev/null", "/bin/sh", "-c", launch.command]
+        process.currentDirectoryURL = URL(fileURLWithPath: cwd, isDirectory: true)
+        var env: [String: String] = [
+            "HOME": emptyHome,
+            "PATH": scratch.bin + ":/usr/bin:/bin",
+        ]
+        for (key, value) in launch.envVars { env[key] = value }
+        process.environment = env
+        process.standardInput = stdinPipe
+        process.standardOutput = stdoutPipe
+        process.standardError = stdoutPipe
+        try process.run()
+        // Dismiss the interactive "Press Return to close..." pause if the command failed inside the PTY.
+        if let newline = "\n".data(using: .utf8) {
+            try? stdinPipe.fileHandleForWriting.write(contentsOf: newline)
+        }
+        try? stdinPipe.fileHandleForWriting.close()
+        process.waitUntilExit()
+        let output = String(decoding: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        return (process.terminationStatus, output)
+    }
+
+    for harness in ["claude", "codex", "agy"] {
+        try? FileManager.default.removeItem(atPath: scratch.inside + "/ran.txt")
+        let valid = try validateResume(scratch.descriptor(harness, config: scratch.config), engine: scratch.engine).get()
+        let launch = embeddedResumeLaunch(valid)
+        let result = try runEmbedded(launch, cwd: scratch.inside)
+        #expect(result.status == 0)
+
+        let ran = try String(contentsOfFile: scratch.inside + "/ran.txt", encoding: .utf8)
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .dropLast()
+            .map(String.init)
+        let expected: [String] = switch harness {
+        case "claude": [scratch.inside, scratch.config, "unset", scratch.bin + "/claude", "--resume", id]
+        case "codex": [scratch.inside, "unset", scratch.config, scratch.bin + "/codex", "resume", id]
+        default: [scratch.inside, "unset", "unset", scratch.bin + "/agy", "--conversation", id]
+        }
+        #expect(ran == expected)
+    }
+
+    // If the validated folder vanishes before execution, cd fails closed with non-zero exit and never runs in $HOME.
+    let vanishingFolder = scratch.engine + "/vanishing"
+    try FileManager.default.createDirectory(atPath: vanishingFolder, withIntermediateDirectories: true)
+    let valid = try validateResume(scratch.descriptor("claude", cwd: vanishingFolder, config: scratch.config), engine: scratch.engine).get()
+    let launch = embeddedResumeLaunch(valid)
+    try FileManager.default.removeItem(atPath: vanishingFolder)
+
+    let failed = try runEmbedded(launch, cwd: emptyHome)
+    #expect(failed.status != 0)
+    #expect(failed.output.contains("Continue in Terminal exited with status"))
+    #expect(FileManager.default.fileExists(atPath: emptyHome + "/ran.txt") == false)
 }

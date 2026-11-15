@@ -43,7 +43,6 @@ struct TerminalTabBarView<Trailing: View>: View {
                             )
                             .id(tab.id)
                         }
-                        TerminalAddTabButton(label: addTabLabel, action: onAddTab)
                     }
                     .padding(.vertical, 4)
                 }
@@ -54,6 +53,7 @@ struct TerminalTabBarView<Trailing: View>: View {
                     }
                 }
             }
+            TerminalAddTabButton(label: addTabLabel, action: onAddTab)
             trailingAccessory()
         }
         .padding(.horizontal, 12)
@@ -218,11 +218,7 @@ struct TerminalTabChip: View {
             )
             return NSItemProvider(object: tab.id.uuidString as NSString)
         }
-        .accessibilityAction(named: "Close Tab") {
-            if !(hovered || selected) {
-                close()
-            }
-        }
+        .accessibilityAction(named: "Close Tab", close)
         .onDrop(
             of: [UTType.plainText],
             delegate: TerminalTabDropDelegate(

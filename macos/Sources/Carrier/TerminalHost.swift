@@ -95,28 +95,15 @@ final class CarrierTerminalStore {
         )
         self.persistDebounceNanoseconds = persistDebounceNanoseconds
 
-        let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(preferences.colorScheme)
-        let translucent = TerminalAppearanceMapper.resolveTranslucent(preferences)
-        let profile = TerminalAppearanceMapper.makeProfile(
-            theme: preferences.theme,
-            scheme: resolvedScheme,
-            preferences: preferences,
-            translucent: translucent
-        )
-        let theme = TerminalAppearanceMapper.ghosttyTheme(
-            for: profile.theme,
-            preferences: preferences,
-            translucent: translucent
-        )
-        let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile)
-        self.appearanceProfile = profile
+        let appearance = Self.makeAppearanceState(preferences: preferences, scheme: scheme)
+        self.appearanceProfile = appearance.profile
         self.controller = TerminalController(
             configSource: .none,
-            theme: theme,
-            terminalConfiguration: config
+            theme: appearance.theme,
+            terminalConfiguration: appearance.configuration
         )
-        self.controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(resolvedScheme))
-        self.lastAppliedAppearance = profile
+        self.controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(appearance.scheme))
+        self.lastAppliedAppearance = appearance.profile
 
         if let initialRegistry {
             self.registry = initialRegistry
@@ -182,14 +169,6 @@ final class CarrierTerminalStore {
             activate: true
         )
         return terminalId
-    }
-
-    func migrateLegacyQuickTabsToStandalone() {
-        let legacyQuickTabs = registry.tabs(for: .quick)
-        guard legacyQuickTabs.isEmpty == false else { return }
-        for tab in legacyQuickTabs {
-            _ = moveTab(tab.id, toOwner: .terminal(tab.id), activate: true)
-        }
     }
 
     @discardableResult
@@ -506,7 +485,7 @@ final class CarrierTerminalStore {
             guard self.isTornDown == false, self.viewStates[paneId] === liveState else { return }
             let cleared = performClearScreenForTests?(paneId) ?? liveState.performBindingAction("clear_screen")
             let hasForegroundCommand = (result.commandsByPane[paneId]?.isEmpty == false)
-            if cleared, hasForegroundCommand == false, self.preferences.terminal.pinPromptToBottom {
+            if cleared, result.inspectionError == nil, hasForegroundCommand == false, self.preferences.terminal.pinPromptToBottom {
                 _ = sendControlLForTests?(paneId) ?? liveState.sendKey(.l, modifiers: .ctrl)
             }
         }
@@ -578,23 +557,35 @@ final class CarrierTerminalStore {
 
     func syncAppearance(preferences customPreferences: AppPreferences? = nil, scheme: ThemeScheme? = nil) {
         let prefs = customPreferences ?? preferences
-        let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(prefs.colorScheme)
-        let translucent = TerminalAppearanceMapper.resolveTranslucent(prefs)
+        let appearance = Self.makeAppearanceState(preferences: prefs, scheme: scheme)
+        guard appearance.profile != lastAppliedAppearance else { return }
+        lastAppliedAppearance = appearance.profile
+        appearanceProfile = appearance.profile
+
+        controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(appearance.scheme))
+        _ = controller.setTheme(appearance.theme)
+        _ = controller.setTerminalConfiguration(appearance.configuration)
+    }
+
+    private static func makeAppearanceState(
+        preferences: AppPreferences,
+        scheme: ThemeScheme?
+    ) -> (scheme: ThemeScheme, profile: TerminalAppearanceProfile, theme: TerminalTheme, configuration: TerminalConfiguration) {
+        let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(preferences.colorScheme)
+        let translucent = TerminalAppearanceMapper.resolveTranslucent(preferences)
         let profile = TerminalAppearanceMapper.makeProfile(
-            theme: prefs.theme,
+            theme: preferences.theme,
             scheme: resolvedScheme,
-            preferences: prefs,
+            preferences: preferences,
             translucent: translucent
         )
-        guard profile != lastAppliedAppearance else { return }
-        lastAppliedAppearance = profile
-        appearanceProfile = profile
-
-        controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(resolvedScheme))
-        _ = controller.setTheme(
-            TerminalAppearanceMapper.ghosttyTheme(for: profile.theme, preferences: prefs, translucent: translucent)
+        let theme = TerminalAppearanceMapper.ghosttyTheme(
+            for: profile.theme,
+            preferences: preferences,
+            translucent: translucent
         )
-        _ = controller.setTerminalConfiguration(TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile))
+        let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile)
+        return (resolvedScheme, profile, theme, config)
     }
 
     // MARK: - Process Confirmation & Lifecycle Teardown
@@ -775,7 +766,14 @@ final class CarrierTerminalStore {
         guard preferences.terminal.pinPromptToBottom, pane.command == nil else {
             return pane.envVars
         }
-        guard (try? TerminalZshBottomPromptShim.prepareDirectory(zshShimDirectory)) != nil else {
+        do {
+            try TerminalZshBottomPromptShim.prepareDirectory(zshShimDirectory)
+        } catch {
+            NSLog(
+                "Carrier: failed to prepare Zsh bottom-prompt shim at %@: %@",
+                zshShimDirectory.path,
+                String(describing: error)
+            )
             return pane.envVars
         }
         return TerminalZshBottomPromptShim.mergedEnvironment(

@@ -754,7 +754,7 @@ struct CarrierTerminalStoreTests {
         store.teardownAll()
     }
 
-    @Test func standaloneTerminalsHaveIndependentTabsAndMigrateLegacyQuickTabs() async {
+    @Test func standaloneTerminalsHaveIndependentTabs() async {
         let (prefs, cleanup) = makeIsolatedPreferences()
         defer { cleanup() }
 
@@ -765,21 +765,19 @@ struct CarrierTerminalStoreTests {
             processInspector: FakeProcessInspector()
         )
 
-        let legacyQuick = store.openTab(for: .quick, workingDirectory: "/tmp", title: "Legacy")
-        store.migrateLegacyQuickTabsToStandalone()
-        #expect(store.tabs(for: .quick).isEmpty)
-        #expect(store.standaloneTerminals().map(\.id) == [legacyQuick.id])
-
+        let firstGroup = store.createStandaloneTerminal(workingDirectory: "/tmp")
         let secondGroup = store.createStandaloneTerminal(workingDirectory: "/tmp")
         let addedTab = store.openTab(for: .terminal(secondGroup), workingDirectory: "/tmp")
         #expect(store.standaloneTerminals().count == 2)
-        #expect(store.tabs(for: .terminal(legacyQuick.id)).count == 1)
+        #expect(store.tabs(for: .terminal(firstGroup)).count == 1)
         #expect(store.tabs(for: .terminal(secondGroup)).count == 2)
         #expect(store.activeTabId(for: .terminal(secondGroup)) == addedTab.id)
 
-        // Closing the only tab in the legacy group removes that group cleanly without affecting the second group.
-        let closedLegacy = await store.closeTab(id: legacyQuick.id)
-        #expect(closedLegacy == true)
+        // Closing the only tab in the first group removes that group cleanly without affecting the second group.
+        if let firstTabId = store.tabs(for: .terminal(firstGroup)).first?.id {
+            let closedFirst = await store.closeTab(id: firstTabId)
+            #expect(closedFirst == true)
+        }
         #expect(store.standaloneTerminals().map(\.id) == [secondGroup])
         #expect(store.tabs(for: .terminal(secondGroup)).count == 2)
 
@@ -802,6 +800,14 @@ struct CarrierTerminalStoreTests {
             processInspector: FakeProcessInspector(),
             zshShimDirectory: shimDir
         )
+
+        // Opted out by default so user dotfiles and ZDOTDIR stay untouched.
+        let defaultTab = store.openTab(for: .quick, workingDirectory: "/tmp", envVars: ["FOO": "default"])
+        #expect(store.state(for: defaultTab.activePaneId)?.configuration.envVars == ["FOO": "default"])
+
+        var enabledTerminal = prefs.terminal
+        enabledTerminal.pinPromptToBottom = true
+        prefs.terminal = enabledTerminal
 
         let tab = store.openTab(
             for: .quick,
@@ -838,6 +844,10 @@ struct CarrierTerminalStoreTests {
     @Test func cmdKKeyMonitorPassesThroughOutsideFocusedTerminalAndHonorsClearScrollbackToggle() async throws {
         let (prefs, cleanup) = makeIsolatedPreferences()
         defer { cleanup() }
+
+        var enabledTerminal = prefs.terminal
+        enabledTerminal.pinPromptToBottom = true
+        prefs.terminal = enabledTerminal
 
         let inspector = FakeProcessInspector()
         let store = CarrierTerminalStore(
@@ -891,6 +901,14 @@ struct CarrierTerminalStoreTests {
         #expect(busyCompleted)
         #expect(ctrlLCalls == 1)
 
+        // When process inspection fails, fail safely and suppress Ctrl+L so running TUIs never receive stray input.
+        inspector.runningByStateId = [:]
+        inspector.inspectionError = "ps timed out"
+        #expect(store.handleKeyDownEvent(event) == nil)
+        let errorCompleted = await waitUntil { clearScreenCalls == 3 }
+        #expect(errorCompleted)
+        #expect(ctrlLCalls == 1)
+
         var terminal = prefs.terminal
         terminal.pinPromptToBottom = false
         prefs.terminal = terminal
@@ -900,9 +918,13 @@ struct CarrierTerminalStoreTests {
         store.teardownAll()
     }
 
-    @Test func zshShimDefaultsUnderCarrierTerminalFolderAndSelectPaneSkipsNoopWrites() async throws {
+    @Test func zshShimDefaultsUnderCarrierAppFolderAndSelectPaneSkipsNoopWrites() async throws {
         let (prefs, cleanup) = makeIsolatedPreferences()
         defer { cleanup() }
+
+        var enabledTerminal = prefs.terminal
+        enabledTerminal.pinPromptToBottom = true
+        prefs.terminal = enabledTerminal
 
         let tempRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("carrier-shim-root-\(UUID().uuidString)", isDirectory: true)
@@ -919,7 +941,7 @@ struct CarrierTerminalStoreTests {
         let firstTab = store.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
         let firstPaneId = firstTab.activePaneId
         let realized = try #require(store.state(for: firstPaneId))
-        #expect(realized.configuration.envVars["ZDOTDIR"] == tempRoot.appendingPathComponent("terminal/zsh-bottom-prompt").path)
+        #expect(realized.configuration.envVars["ZDOTDIR"] == tempRoot.appendingPathComponent("app/terminal/zsh-bottom-prompt").path)
 
         // Selecting an already-active pane must not trigger redundant synchronous writes.
         try? FileManager.default.removeItem(at: workspaceFile)

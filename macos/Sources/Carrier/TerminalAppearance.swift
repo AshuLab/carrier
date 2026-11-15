@@ -1,6 +1,7 @@
 import AppKit
 import CarrierCore
 import GhosttyTerminal
+import SwiftUI
 
 /// Maps Carrier theme, palette scheme, and user terminal preferences into Ghostty configurations.
 enum TerminalAppearanceMapper {
@@ -46,7 +47,7 @@ enum TerminalAppearanceMapper {
             builder.withWindowPaddingX(Int(profile.paddingX.rounded()))
             builder.withWindowPaddingY(Int(profile.paddingY.rounded()))
             builder.withCursorStyle(ghosttyCursorStyle(profile.cursorStyle))
-            builder.withCursorStyleBlink(profile.cursorBlink)
+            builder.withCursorStyleBlink(profile.cursorBlink && NSWorkspace.shared.accessibilityDisplayShouldReduceMotion == false)
             builder.withFontSize(Float(profile.fontSize))
             if let fontFamily = profile.fontFamily {
                 builder.withFontFamily(fontFamily)
@@ -77,6 +78,14 @@ enum TerminalAppearanceMapper {
         case .system:
             let name = NSApp?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])
             return name == .aqua ? .light : .dark
+        }
+    }
+
+    static func resolveScheme(_ choice: ColorSchemeChoice, system: ColorScheme) -> ThemeScheme {
+        switch choice {
+        case .light: .light
+        case .dark: .dark
+        case .system: system == .dark ? .dark : .light
         }
     }
 

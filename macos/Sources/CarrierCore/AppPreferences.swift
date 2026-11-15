@@ -54,6 +54,8 @@ public struct AppPreferences {
     public static let terminalMinimumContrastKey = "terminal.minimumContrast"
     public static let terminalConfirmCloseKey = "terminal.confirmCloseRunningProcess"
     public static let terminalPinPromptToBottomKey = "terminal.pinPromptToBottom"
+    public static let terminalDrawerHeightKey = "terminal.drawerHeight"
+    public static let defaultTerminalDrawerHeight: Double = 260
     public static let terminalFontThickenKey = "terminal.font.thicken"
     public static let terminalDimInactivePanesKey = "terminal.panes.dimInactive"
     public static let terminalFocusFollowsMouseKey = "terminal.panes.focusFollowsMouse"
@@ -380,7 +382,7 @@ public struct AppPreferences {
         terminalCursorStyleKey, terminalCursorBlinkKey, terminalPaddingXKey, terminalPaddingYKey,
         terminalMinimumContrastKey, terminalDimInactivePanesKey, terminalFocusFollowsMouseKey,
         terminalOptionAsAltKey, terminalCopyOnSelectKey, terminalScrollbackLimitKey,
-        terminalConfirmCloseKey, terminalPinPromptToBottomKey,
+        terminalConfirmCloseKey, terminalPinPromptToBottomKey, terminalDrawerHeightKey,
     ]
 
     /// Clears only embedded terminal settings back to defaults.

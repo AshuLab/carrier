@@ -13,7 +13,10 @@ Two things make this delicate. The id and the folder come from the engine and, t
 
 The engine publishes, for each session, a descriptor with three fields: the harness, the session id and the working folder the session was started in, plus the path of the agent's configuration folder when the engine set one (a path, not a secret). It never publishes a command line or a token, and it publishes nothing for a session that is still running, because two writers on one session would corrupt it. The app offers the action only for a session that is not running, in an epic that needs a person or has finished.
 
-The app validates the descriptor before using it: the harness must be one of the allowed harnesses, the id must match a strict identifier pattern, and the folder must be an existing absolute path inside the engine's folder, `<folder>/engine/` in the Carrier folder. It then builds the command itself, putting each value in single quotes, writes it to a one-use script file with a `.command` extension and mode 0700 in the user's temporary folder, and opens the file with `NSWorkspace`, which hands it to the user's terminal. The script removes itself. It runs as the user, in their environment, not as the Forge bot.
+The app re-validates the descriptor on launch, verifies directory accessibility (`isAccessibleTerminalDirectory`), builds the command itself with every value single-quoted and prepends `cd '<folder>' &&` so an unreachable directory fails closed instead of falling back to `$HOME`.
+It launches the command directly in an ephemeral embedded Ghostty drawer tab ([0027](0027-embedded-terminal-runs-in-process-with-ghosttykit.md)) with only `CLAUDE_CONFIG_DIR` or `CODEX_HOME` set when provided, auto-closing on exit status `0` and holding open on failure so errors remain visible.
+Health fixes and Forge logins continue to open one-use mode `0700` `.command` scripts with `NSWorkspace`.
+The resumed session runs as the user, in their environment, not as the Forge bot.
 
 The folder is the one the session started in, which for a ship session is the shared clone, not the epic's worktree. A fix round is the exception: it starts in the epic's worktree, which may lie outside `<folder>/engine/`, so the folder rule refuses it and Continue in Terminal is not offered for that session. The ship session is also the one that Continue in Terminal resumes for an epic in ship: the lanes are subagents inside it and have no session of their own.
 
@@ -25,7 +28,8 @@ AppleScript `tell application "Terminal" to do script`. It works, but the first 
 
 The engine sends the whole command string. The simplest wiring, and the one with the injection risk: anything that can influence the id or folder would run in the user's shell.
 
-An embedded terminal inside the app. It is the better experience and stays a later possibility, but it is a large piece of work and the owner chose to start with a new terminal window.
+An embedded terminal inside the app.
+Initially deferred, and subsequently adopted via [0027](0027-embedded-terminal-runs-in-process-with-ghosttykit.md) once the in-process Ghostty drawer was added to `Carrier.app`.
 
 Run it under the bot's identity, copying its token into the terminal. Rejected: it would spread a credential to a place it does not need to be, and the work is the person's.
 

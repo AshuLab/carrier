@@ -1,14 +1,14 @@
 # Embedded terminal core
 
-Status: implemented (core only; UI unwired, unreleased)
+Status: implemented (core and macOS app UI wired)
 
 ## Problem
 
 When working in `Carrier.app`, a user who needs to run commands, inspect git state, watch logs, or run quick tools in a session's folder or worktree must leave Carrier for an external terminal app and navigate to the right folder manually.
-Nothing inside `Carrier.app` today can host native interactive shells, preserve terminal workspaces across restarts, or prevent accidental termination of running commands when closing a workspace or app.
+Nothing inside `Carrier.app` previously hosted native interactive shells, preserved terminal workspaces across restarts, or prevented accidental termination of running commands when closing a workspace or app.
 
-This effort is scoped strictly to the native macOS terminal core so it works cleanly and deterministically before any app UI chrome or orchestrator epic integration is wired on top.
-Note: `CarrierTerminalStore` and `CarrierTerminalView` are not yet instantiated or mounted in `Carrier.app`, so the `AppDelegate`, `PanelModel`, and `SessionActions` lifecycle hooks stay dormant until the UI PR opens the first surface.
+This specification first scoped the native macOS terminal core so domain and runtime lifecycle worked deterministically before wiring the UI chrome (`docs/macos/terminal.md`).
+That UI wiring (standalone sidebar terminals, session and epic drawers, Settings › Terminal, and opt-in `<Carrier folder>/app/terminal/zsh-bottom-prompt`) now runs on top of this core.
 
 ## Solution
 

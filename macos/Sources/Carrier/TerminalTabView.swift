@@ -111,11 +111,7 @@ struct TerminalTabView: View {
     }
 
     private var resolvedScheme: ThemeScheme {
-        switch colorScheme {
-        case .system: systemColorScheme == .dark ? .dark : .light
-        case .light: .light
-        case .dark: .dark
-        }
+        TerminalAppearanceMapper.resolveScheme(colorScheme, system: systemColorScheme)
     }
 
     private var currentSettings: TerminalSettings {

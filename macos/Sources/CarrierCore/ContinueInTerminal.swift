@@ -1,9 +1,8 @@
 import Foundation
 
-// Continue in Terminal (docs/adr/0007, docs/research/interactive-resume.md and macos-app-command-script.md): the engine's
-// descriptor is validated against allowlists, the command is built here with every value single-quoted, written to a one-use
-// 0700 script and handed to the user's terminal. The descriptor never reaches a shell unvalidated, and no token is involved:
-// the terminal runs as the user, in their environment.
+// Continue in Terminal (docs/adr/0007, docs/research/interactive-resume.md): the engine's descriptor is validated against
+// allowlists and every value is single-quoted. Epic Continue in Terminal runs `cd '<folder>' && <harness> ...` inside Carrier's
+// embedded Ghostty drawer with failing closed on directory or exit errors; Health/Forge flows still open one-use 0700 scripts.
 
 public enum ResumeRejection: Error, Equatable {
     case unknownHarness
@@ -87,15 +86,20 @@ private func resumeSteps(_ resume: ValidResume) -> (cd: String, run: String) {
 }
 
 /// Builds the folder, scoped config environment variables, and login-shell command for Carrier's embedded Ghostty drawer.
+/// The shell script `cd`s explicitly so inaccessible folders fail closed instead of running in `$HOME`, and holds non-zero
+/// failures open until the user presses Return so errors stay visible.
 public func embeddedResumeLaunch(_ resume: ValidResume) -> EmbeddedResumeLaunch {
     var envVars: [String: String] = [:]
     if let envName = resumeConfigEnvironmentVariable(for: resume.harness), let configDir = resume.configDir {
         envVars[envName] = configDir
     }
+    let cdCommand = "cd \(shellQuote(resume.cwd))"
+    let runCommand = resumeRunCommand(resume)
+    let shellBody = "(\(cdCommand) && \(runCommand)) || { code=$?; builtin printf '\\nContinue in Terminal exited with status %s.' \"$code\"; if [[ -t 0 ]]; then builtin printf ' Press Return to close...'; IFS= read -r _; fi; exit $code; }"
     return EmbeddedResumeLaunch(
         workingDirectory: resume.cwd,
         envVars: envVars,
-        command: "/bin/zsh -il -c \(shellQuote(resumeRunCommand(resume)))",
+        command: "/bin/zsh -il -c \(shellQuote(shellBody))",
         displayCommand: resumeCommand(resume)
     )
 }

@@ -93,7 +93,7 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
     public static let defaultPaddingY: Double = 8
     public static let defaultMinimumContrast: Double = 3.0
     public static let defaultConfirmCloseRunningProcess = true
-    public static let defaultPinPromptToBottom = true
+    public static let defaultPinPromptToBottom = false
     public static let defaultFontThicken = false
     public static let defaultDimInactivePanes = false
     public static let defaultFocusFollowsMouse = false

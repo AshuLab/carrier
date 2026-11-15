@@ -20,7 +20,13 @@ struct ContinueInTerminalView: View {
         if let descriptor = section.resume {
             let engine = engineFolder()
             if case .success(let valid) = validateResume(descriptor, engine: engine) {
-                Button { onContinue(valid) } label: {
+                Button {
+                    guard case .success(let freshValid) = validateResume(descriptor, engine: engineFolder()) else {
+                        tell("The session folder is no longer available.")
+                        return
+                    }
+                    onContinue(freshValid)
+                } label: {
                     HStack(spacing: LogMetrics.gap) {
                         Image(systemName: "terminal").font(.scaled(12)).foregroundStyle(.secondary)
                             .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)

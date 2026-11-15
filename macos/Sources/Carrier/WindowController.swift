@@ -178,6 +178,70 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// For the Conversation menu: acts only while a conversation is open.
     func conversation(_ action: ConversationAction) { model.shell.perform(.conversation(action)) }
 
+    /// Main application window when open.
+    var mainWindow: NSWindow? { window }
+
+    /// Opens the main window and creates a new standalone terminal rooted at the user's home folder.
+    @MainActor
+    func openNewTerminal() {
+        open(epic: nil)
+        let id = CarrierTerminalStore.shared.createStandaloneTerminal(workingDirectory: NSHomeDirectory())
+        model.shell.selection = .terminal(id: id)
+    }
+
+    /// Returns drawer toggle state for the currently visible session or epic, without initializing the terminal store lazily.
+    @MainActor
+    func terminalDrawerToggleState() -> (isOpen: Bool, toggle: @MainActor () -> Void)? {
+        guard window?.isVisible == true else { return nil }
+        switch model.shell.selection {
+        case .session(let id):
+            guard let session = model.sessions.rows.first(where: { $0.id == id }) else { return nil }
+            let owner = TerminalOwner.session(session.id)
+            return (
+                isOpen: model.shell.isTerminalDrawerOpen(for: owner),
+                toggle: { [weak self] in
+                    guard let self else { return }
+                    if model.shell.isTerminalDrawerOpen(for: owner) {
+                        model.shell.setTerminalDrawerOpen(false, for: owner)
+                    } else {
+                        if CarrierTerminalStore.shared.tabs(for: owner).isEmpty {
+                            _ = CarrierTerminalStore.shared.openTab(for: owner, workingDirectory: session.folder)
+                        }
+                        model.shell.setTerminalDrawerOpen(true, for: owner)
+                    }
+                }
+            )
+        case .epic(let repo, let issue):
+            let owner = TerminalOwner.epic(repo: repo, issue: issue)
+            guard CarrierTerminalStore.sharedIfInitialized?.tabs(for: owner).isEmpty == false else { return nil }
+            return (
+                isOpen: model.shell.isTerminalDrawerOpen(for: owner),
+                toggle: { [weak self] in
+                    self?.model.shell.toggleTerminalDrawer(for: owner)
+                }
+            )
+        default:
+            return nil
+        }
+    }
+
+    /// Active standalone or drawer terminal owner visible in the main window, if any.
+    var preferredTerminalOwner: TerminalOwner? {
+        guard window?.isVisible == true else { return nil }
+        switch model.shell.selection {
+        case .terminal(let id):
+            return .terminal(id)
+        case .session(let id):
+            let owner = TerminalOwner.session(id)
+            return model.shell.isTerminalDrawerOpen(for: owner) ? owner : nil
+        case .epic(let repo, let issue):
+            let owner = TerminalOwner.epic(repo: repo, issue: issue)
+            return model.shell.isTerminalDrawerOpen(for: owner) ? owner : nil
+        default:
+            return nil
+        }
+    }
+
     /// A shortcut that reads the sessions, from the main menu.
     func perform(_ action: ShortcutAction) {
         open()

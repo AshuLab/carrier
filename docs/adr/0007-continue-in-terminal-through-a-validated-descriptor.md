@@ -1,6 +1,6 @@
 # 0007 - Continue in Terminal: the engine sends a descriptor, the app builds and launches the command
 
-- Status: accepted
+- Status: accepted; epic Continue in Terminal execution in the embedded Ghostty drawer is superseded by [0028](0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md)
 - Date: 2026-10-21
 
 ## Context

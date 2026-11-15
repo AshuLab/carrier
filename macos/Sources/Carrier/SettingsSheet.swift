@@ -59,6 +59,7 @@ struct SettingsSheet: View {
             switch tab {
             case .general: GeneralTabView()
             case .appearance: AppearanceTabView()
+            case .terminal: TerminalTabView()
             case .sidebar: SidebarTabView()
             case .chat: ChatTabView()
             case .dictation: DictationTabView()

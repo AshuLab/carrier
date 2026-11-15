@@ -2,12 +2,12 @@
 
 The Settings sheet, its rail and where each group of pages is described.
 
-Settings is a sheet over the window (`Carrier/SettingsSheet.swift`, the shape of the workspace chooser: a rail of fifteen pages in four groups, App (General, Providers, Notifications, Appearance, Keybindings, Updates; no heading, and Providers is here because both the engine and the chat host read its accounts), Chat (Chat, Sidebar, Sessions, Dictation), Carrier (Repos, Agents, Behavior, Engine) and Legacy (Health), `RailHeader` and `RailRow` of `SheetParts.swift`, the chosen one on the right, closed by an ✕ at the top right or Esc).
+Settings is a sheet over the window (`Carrier/SettingsSheet.swift`, the shape of the workspace chooser: a rail of sixteen pages in four groups, App (General, Providers, Notifications, Appearance, Terminal, Keybindings, Updates; no heading, and Providers is here because both the engine and the chat host read its accounts), Chat (Chat, Sidebar, Sessions, Dictation), Carrier (Repos, Agents, Behavior, Engine) and Legacy (Health), `RailHeader` and `RailRow` of `SheetParts.swift`, the chosen one on the right, closed by an ✕ at the top right or Esc).
 The menu's Settings…, ⌘, and the sidebar's Settings row open it over whatever page is selected (`WindowShell.showSettings`, `settingsShown`; it is not a `Selection`), on General unless a caller asks for another (`openHealth` asks for Health, and the Open Settings button of the stopped-Carrier view asks for Engine).
 
 ## The rail
 
-- App: [settings-app](settings-app.md) (General, Providers, Notifications).
+- App: [settings-app](settings-app.md) (General, Providers, Notifications, Appearance, Terminal, Keybindings, Updates).
 - Chat: [Sessions](#sessions-page) below and [dictation](dictation.md#the-dictation-page) (Dictation).
 - Carrier: [settings-carrier](settings-carrier.md) (Repos, Agents, Behavior, Engine).
 - Legacy: [settings-legacy](settings-legacy.md) (Health).

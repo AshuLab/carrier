@@ -198,6 +198,8 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(SidebarStore(defaults: defaults).open == .sessions)
     SidebarStore(defaults: defaults).open = .carrier
     #expect(SidebarStore(defaults: defaults).open == .carrier)
+    SidebarStore(defaults: defaults).open = .terminal
+    #expect(SidebarStore(defaults: defaults).open == .terminal)
     SidebarStore(defaults: defaults).open = .archive
     #expect(SidebarStore(defaults: defaults).open == .archive)
     SidebarStore(defaults: defaults).open = nil

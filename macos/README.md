@@ -114,5 +114,6 @@ How the app looks is in [macos-ui](../docs/macos-ui.md); what it does, area by a
 - [Settings](../docs/macos/settings.md): the sheet and its rail, with a page per group: [App](../docs/macos/settings-app.md), [Chat](../docs/macos/settings.md#sessions-page), [Carrier](../docs/macos/settings-carrier.md) and [Legacy](../docs/macos/settings-legacy.md).
 - [Sessions](../docs/macos/sessions.md): the Sessions home, the Archive and the conversation.
 - [New session](../docs/macos/new-session.md): the plan, the workspace and the preparation.
+- [Terminal](../docs/macos/terminal.md): standalone terminals, tabs and splits, the session drawer and the bottom-anchored Zsh prompt.
 - [Usage](../docs/macos/usage.md): the quotas and the consumption.
 - [Dictation](../docs/macos/dictation.md): the recognizers, the speech models and the capture.

@@ -121,45 +121,15 @@ struct SessionsHomeView: View {
         .sharedBackgroundVisibility(.hidden)
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
-            // the accent is a light pastel on the dark themes: darkened for the fill so the white label reads over any window behind it
-            Button(action: newSession) {
-                HStack(spacing: 5) {
-                    Image(systemName: "plus").font(.scaled(11, weight: .semibold))
-                    Text("New session").font(.scaled(12, weight: .medium))
-                }
-                .foregroundStyle(.white).padding(.horizontal, 13).frame(height: ToolbarPillButton.height).contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.tint(Color.themeAccent.mix(with: .black, by: 0.4)).interactive(), in: .capsule)
-            .padding(.trailing, 10)
-            .help("New session")
+            AccentGlassPillButton(title: "New session", icon: "plus", action: newSession)
+                .padding(.trailing, 10)
+                .help("New session")
         }
         .sharedBackgroundVisibility(.hidden)
     }
 
     @ViewBuilder private var searchItem: some View {
-        if query != nil {
-            HStack(spacing: 6) {
-                // a fixed box, so the magnifier sits on the field's centre line and clear of the pill's rounded edge
-                Image(systemName: "magnifyingglass").font(.scaled(11, weight: .medium)).foregroundStyle(.secondary).frame(width: 16, height: 16).accessibilityHidden(true)
-                // not `Binding($query)`: its getter force-unwraps and crashes once the query is nil
-                TextField("Search sessions", text: Binding(get: { query ?? "" }, set: { query = $0 }))
-                    .textFieldStyle(.plain).font(.scaled(12))
-                    .focused($searching)
-                    .onKeyPress(.escape) {
-                        query = nil
-                        return .handled
-                    }
-                Button { query = nil } label: { Image(systemName: "xmark.circle.fill").font(.scaled(11)).foregroundStyle(.secondary) }
-                    .buttonStyle(.plain).help("Close search (Esc)").accessibilityLabel("Close search")
-            }
-            .padding(.horizontal, 11).frame(width: 220, height: ToolbarPillButton.height)
-        } else {
-            ToolbarPillButton(title: "Search", icon: "magnifyingglass") {
-                query = ""
-                searching = true
-            }
-        }
+        ToolbarSearchField(query: $query, placeholder: "Search sessions", focused: $searching)
     }
 
     private var filterItem: some View {

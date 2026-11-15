@@ -17,6 +17,7 @@ struct SessionSectionsView: View {
     /// The epic's rounds and slices: what a review found and which slices wait. nil until the engine answers.
     var reply: EpicReply?
     @Binding var folds: SessionFolds
+    var onContinueInTerminal: (SessionSection, ValidResume) -> Void = { _, _ in }
     @State private var flipped: Set<String> = []
     @State private var slices = SliceFolds()
     @State private var earlierOpen = false
@@ -55,7 +56,9 @@ struct SessionSectionsView: View {
                             .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
                         }
                         if let result = section.result, merged == false { ResultCardView(card: result, open: folds.isResultOpen(section)) { folds.toggleResult(section) } }
-                        ContinueInTerminalView(section: section)
+                        ContinueInTerminalView(section: section) { resume in
+                            onContinueInTerminal(section, resume)
+                        }
                     }
                 }
             }

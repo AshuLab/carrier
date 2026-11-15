@@ -59,7 +59,7 @@ public enum Theme: String, CaseIterable, Codable, Sendable {
 }
 
 /// The seven colors the accent can be, one value for both versions.
-public enum AccentColor: String, CaseIterable {
+public enum AccentColor: String, CaseIterable, Sendable {
     case blue, purple, pink, red, orange, green, graphite
 
     public var title: String { rawValue.capitalized }
@@ -80,7 +80,7 @@ public enum AccentColor: String, CaseIterable {
 }
 
 /// How much of the accent shows on the backgrounds.
-public enum Tint: String, CaseIterable {
+public enum Tint: String, CaseIterable, Sendable {
     case off, subtle, strong
 
     public var title: String { rawValue.capitalized }

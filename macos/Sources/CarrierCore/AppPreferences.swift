@@ -53,6 +53,15 @@ public struct AppPreferences {
     public static let terminalPaddingYKey = "terminal.padding.y"
     public static let terminalMinimumContrastKey = "terminal.minimumContrast"
     public static let terminalConfirmCloseKey = "terminal.confirmCloseRunningProcess"
+    public static let terminalPinPromptToBottomKey = "terminal.pinPromptToBottom"
+    public static let terminalDrawerHeightKey = "terminal.drawerHeight"
+    public static let defaultTerminalDrawerHeight: Double = 260
+    public static let terminalFontThickenKey = "terminal.font.thicken"
+    public static let terminalDimInactivePanesKey = "terminal.panes.dimInactive"
+    public static let terminalFocusFollowsMouseKey = "terminal.panes.focusFollowsMouse"
+    public static let terminalOptionAsAltKey = "terminal.input.optionAsAlt"
+    public static let terminalCopyOnSelectKey = "terminal.input.copyOnSelect"
+    public static let terminalScrollbackLimitKey = "terminal.scrollback.limit"
 
     public static let defaultStyle = IconStyle.countAndBar
     public static let defaultAnimates = true
@@ -308,7 +317,7 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationLanguageKey) }
     }
 
-    /// Settings for the embedded terminal (theme override, font overrides, cursor, padding, contrast, close confirmation).
+    /// Settings for the embedded terminal (theme override, font overrides, cursor, padding, contrast, panes, input, scrollback, close confirmation).
     public var terminal: TerminalSettings {
         get {
             TerminalSettings(
@@ -316,12 +325,19 @@ public struct AppPreferences {
                 fontFamilyOverride: defaults.string(forKey: Self.terminalFontFamilyKey),
                 fontSizeOverride: defaults.object(forKey: Self.terminalFontSizeKey) as? Double,
                 fontLigaturesOverride: defaults.object(forKey: Self.terminalFontLigaturesKey) as? Bool,
+                fontThicken: defaults.object(forKey: Self.terminalFontThickenKey) as? Bool ?? TerminalSettings.defaultFontThicken,
                 cursorStyle: defaults.string(forKey: Self.terminalCursorStyleKey).flatMap(TerminalCursorStyleChoice.init(rawValue:)) ?? TerminalSettings.defaultCursorStyle,
                 cursorBlink: defaults.object(forKey: Self.terminalCursorBlinkKey) as? Bool ?? TerminalSettings.defaultCursorBlink,
                 paddingX: defaults.object(forKey: Self.terminalPaddingXKey) as? Double ?? TerminalSettings.defaultPaddingX,
                 paddingY: defaults.object(forKey: Self.terminalPaddingYKey) as? Double ?? TerminalSettings.defaultPaddingY,
                 minimumContrast: defaults.object(forKey: Self.terminalMinimumContrastKey) as? Double ?? TerminalSettings.defaultMinimumContrast,
-                confirmCloseRunningProcess: defaults.object(forKey: Self.terminalConfirmCloseKey) as? Bool ?? TerminalSettings.defaultConfirmCloseRunningProcess
+                dimInactivePanes: defaults.object(forKey: Self.terminalDimInactivePanesKey) as? Bool ?? TerminalSettings.defaultDimInactivePanes,
+                focusFollowsMouse: defaults.object(forKey: Self.terminalFocusFollowsMouseKey) as? Bool ?? TerminalSettings.defaultFocusFollowsMouse,
+                optionAsAlt: defaults.string(forKey: Self.terminalOptionAsAltKey).flatMap(TerminalOptionAsAlt.init(rawValue:)) ?? TerminalSettings.defaultOptionAsAlt,
+                copyOnSelect: defaults.object(forKey: Self.terminalCopyOnSelectKey) as? Bool ?? TerminalSettings.defaultCopyOnSelect,
+                scrollbackLimit: (defaults.object(forKey: Self.terminalScrollbackLimitKey) as? Int).flatMap(TerminalScrollbackLimit.init(rawValue:)) ?? TerminalSettings.defaultScrollbackLimit,
+                confirmCloseRunningProcess: defaults.object(forKey: Self.terminalConfirmCloseKey) as? Bool ?? TerminalSettings.defaultConfirmCloseRunningProcess,
+                pinPromptToBottom: defaults.object(forKey: Self.terminalPinPromptToBottomKey) as? Bool ?? TerminalSettings.defaultPinPromptToBottom
             )
         }
         nonmutating set {
@@ -345,19 +361,28 @@ public struct AppPreferences {
             } else {
                 defaults.removeObject(forKey: Self.terminalFontLigaturesKey)
             }
+            defaults.set(newValue.fontThicken, forKey: Self.terminalFontThickenKey)
             defaults.set(newValue.cursorStyle.rawValue, forKey: Self.terminalCursorStyleKey)
             defaults.set(newValue.cursorBlink, forKey: Self.terminalCursorBlinkKey)
             defaults.set(TerminalSettings.clampPadding(newValue.paddingX), forKey: Self.terminalPaddingXKey)
             defaults.set(TerminalSettings.clampPadding(newValue.paddingY), forKey: Self.terminalPaddingYKey)
             defaults.set(TerminalSettings.clampMinimumContrast(newValue.minimumContrast), forKey: Self.terminalMinimumContrastKey)
+            defaults.set(newValue.dimInactivePanes, forKey: Self.terminalDimInactivePanesKey)
+            defaults.set(newValue.focusFollowsMouse, forKey: Self.terminalFocusFollowsMouseKey)
+            defaults.set(newValue.optionAsAlt.rawValue, forKey: Self.terminalOptionAsAltKey)
+            defaults.set(newValue.copyOnSelect, forKey: Self.terminalCopyOnSelectKey)
+            defaults.set(newValue.scrollbackLimit.rawValue, forKey: Self.terminalScrollbackLimitKey)
             defaults.set(newValue.confirmCloseRunningProcess, forKey: Self.terminalConfirmCloseKey)
+            defaults.set(newValue.pinPromptToBottom, forKey: Self.terminalPinPromptToBottomKey)
         }
     }
 
     public static let terminalKeys: [String] = [
-        terminalThemeKey, terminalFontFamilyKey, terminalFontSizeKey, terminalFontLigaturesKey,
+        terminalThemeKey, terminalFontFamilyKey, terminalFontSizeKey, terminalFontLigaturesKey, terminalFontThickenKey,
         terminalCursorStyleKey, terminalCursorBlinkKey, terminalPaddingXKey, terminalPaddingYKey,
-        terminalMinimumContrastKey, terminalConfirmCloseKey,
+        terminalMinimumContrastKey, terminalDimInactivePanesKey, terminalFocusFollowsMouseKey,
+        terminalOptionAsAltKey, terminalCopyOnSelectKey, terminalScrollbackLimitKey,
+        terminalConfirmCloseKey, terminalPinPromptToBottomKey, terminalDrawerHeightKey,
     ]
 
     /// Clears only embedded terminal settings back to defaults.
@@ -384,6 +409,7 @@ public struct AppPreferences {
                 colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey, messageWidthKey,
                 monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
             ]
+        case .terminal: terminalKeys
         case .chat:
             [
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,

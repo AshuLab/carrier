@@ -1,9 +1,8 @@
 import Foundation
 
-// Continue in Terminal (docs/adr/0007, docs/research/interactive-resume.md and macos-app-command-script.md): the engine's
-// descriptor is validated against allowlists, the command is built here with every value single-quoted, written to a one-use
-// 0700 script and handed to the user's terminal. The descriptor never reaches a shell unvalidated, and no token is involved:
-// the terminal runs as the user, in their environment.
+// Continue in Terminal (docs/adr/0007, docs/research/interactive-resume.md): the engine's descriptor is validated against
+// allowlists and every value is single-quoted. Epic Continue in Terminal runs `cd '<folder>' && <harness> ...` inside Carrier's
+// embedded Ghostty drawer with failing closed on directory or exit errors; Health/Forge flows still open one-use 0700 scripts.
 
 public enum ResumeRejection: Error, Equatable {
     case unknownHarness
@@ -56,17 +55,44 @@ public func validateResume(_ descriptor: ResumeDescriptor, engine: String) -> Re
     return .success(ValidResume(harness: descriptor.harness, sessionId: descriptor.sessionId, cwd: folder, configDir: configDir))
 }
 
-/// The two steps of the command, every value single-quoted: `cd '<folder>'` and `CLAUDE_CONFIG_DIR='<dir>' claude --resume '<id>'`.
-private func resumeSteps(_ resume: ValidResume) -> (cd: String, run: String) {
-    let variable = [("claude", "CLAUDE_CONFIG_DIR"), ("codex", "CODEX_HOME")].first { $0.0 == resume.harness }?.1
-    let environment = variable.flatMap { name in resume.configDir.map { "\(name)=\(shellQuote($0)) " } } ?? ""
+/// Validated launch specification for opening a resumable epic session in the embedded terminal drawer.
+public struct EmbeddedResumeLaunch: Equatable, Sendable {
+    public let workingDirectory: String
+    /// Interactive login shell command so user PATH entries resolve harness binaries and exiting closes the pane cleanly.
+    public let command: String
+}
+
+private func resumeConfigEnvironmentVariable(for harness: String) -> String? {
+    [("claude", "CLAUDE_CONFIG_DIR"), ("codex", "CODEX_HOME")].first { $0.0 == harness }?.1
+}
+
+private func resumeRunCommand(_ resume: ValidResume) -> String {
     let id = shellQuote(resume.sessionId)
-    let run = switch resume.harness {
+    return switch resume.harness {
     case "codex": "codex resume \(id)"
     case "agy": "agy --conversation \(id)"
     default: "claude --resume \(id)"
     }
-    return ("cd \(shellQuote(resume.cwd))", environment + run)
+}
+
+/// The two steps of the command, every value single-quoted: `cd '<folder>'` and `CLAUDE_CONFIG_DIR='<dir>' claude --resume '<id>'`.
+private func resumeSteps(_ resume: ValidResume) -> (cd: String, run: String) {
+    let environment = resumeConfigEnvironmentVariable(for: resume.harness)
+        .flatMap { name in resume.configDir.map { "\(name)=\(shellQuote($0)) " } } ?? ""
+    return ("cd \(shellQuote(resume.cwd))", environment + resumeRunCommand(resume))
+}
+
+/// Builds the folder and login-shell command for Carrier's embedded Ghostty drawer.
+/// The shell script `cd`s explicitly with inline scoped config variables so inaccessible folders fail closed
+/// and user shell startup files cannot override `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, while holding
+/// non-zero failures open until the user presses Return so errors stay visible.
+public func embeddedResumeLaunch(_ resume: ValidResume) -> EmbeddedResumeLaunch {
+    let steps = resumeSteps(resume)
+    let shellBody = "(\(steps.cd) && \(steps.run)) || { code=$?; builtin printf '\\nContinue in Terminal exited with status %s.' \"$code\"; if [[ -t 0 ]]; then builtin printf ' Press Return to close...'; IFS= read -r _; fi; exit $code; }"
+    return EmbeddedResumeLaunch(
+        workingDirectory: resume.cwd,
+        command: "/bin/zsh -il -c \(shellQuote(shellBody))"
+    )
 }
 
 /// The command of the mockup's block: `cd '<folder>' && CLAUDE_CONFIG_DIR='<dir>' claude --resume '<id>'`.
@@ -75,39 +101,17 @@ public func resumeCommand(_ resume: ValidResume) -> String {
     return "\(steps.cd) && \(steps.run)"
 }
 
-/// The one-use script: it removes itself first, then runs the command in an interactive login shell, so the user's PATH holds
-/// the harnesses. ponytail: not run in a real terminal here; `-il` is the user's own tab shell, by hand it is Diego's check.
-public func resumeScript(_ resume: ValidResume, path: String) -> String {
-    let steps = resumeSteps(resume)
-    return "#!/bin/zsh -il\nrm -f -- \(shellQuote(path))\n\(steps.cd) || exit 1\n\(steps.run)\n"
-}
-
-/// Hands the script to the user's terminal; the app's is `NSWorkspace`, tests record the call.
+/// Hands a one-use script to the user's terminal; the app's is `NSWorkspace`, tests record the call.
 public protocol TerminalOpener {
     func open(_ script: URL) throws
 }
 
 public enum ContinueError: Error, Equatable {
-    case rejected(ResumeRejection)
     case notWritten
 }
 
-/// Validates, writes the script (mode 0700, unpredictable name, created exclusively) in `directory` and asks `opener` to open
-/// it. The script is deleted again if it cannot be opened; otherwise it deletes itself when it runs.
-@discardableResult
-public func continueInTerminal(
-    _ descriptor: ResumeDescriptor, engine: String, opener: TerminalOpener, directory: String = NSTemporaryDirectory()
-) throws -> URL {
-    let resume: ValidResume
-    switch validateResume(descriptor, engine: engine) {
-    case .success(let valid): resume = valid
-    case .failure(let rejection): throw ContinueError.rejected(rejection)
-    }
-    return try openScript({ resumeScript(resume, path: $0) }, opener: opener, directory: directory)
-}
-
 /// Writes `script(path)` as a one-use file (mode 0700, unpredictable name, created exclusively) in `directory` and asks `opener` to open
-/// it; the file is deleted again if it cannot be opened. Shared by Continue in Terminal and the health fixes (`fixInTerminal`).
+/// it; the file is deleted again if it cannot be opened. Shared by Health fixes (`fixInTerminal`) and Forge login (`ForgeTerminal`).
 func openScript(_ script: (String) -> String, opener: TerminalOpener, directory: String) throws -> URL {
     let path = (directory as NSString).appendingPathComponent("carrier-\(UUID().uuidString).command")
     let descriptorNumber = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o700)

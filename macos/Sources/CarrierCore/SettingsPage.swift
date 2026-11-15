@@ -1,7 +1,7 @@
 /// A page of the Settings rail: its title is the raw value, and it carries its group and its row of the rail. The rail is built from
 /// these, in the order of the cases.
 public enum SettingsPage: String, CaseIterable {
-    case general = "General", providers = "Providers", notifications = "Notifications", appearance = "Appearance"
+    case general = "General", providers = "Providers", notifications = "Notifications", appearance = "Appearance", terminal = "Terminal"
     case keybindings = "Keybindings"
     case updates = "Updates"
     case chat = "Chat", sidebar = "Sidebar", sessions = "Sessions", dictation = "Dictation"
@@ -27,7 +27,7 @@ public enum SettingsPage: String, CaseIterable {
 
     public var group: Group {
         switch self {
-        case .general, .providers, .notifications, .appearance, .keybindings, .updates: .app
+        case .general, .providers, .notifications, .appearance, .terminal, .keybindings, .updates: .app
         case .chat, .sidebar, .sessions, .dictation: .chat
         case .repos, .agents, .behavior, .engine: .carrier
         case .health: .legacy
@@ -40,6 +40,7 @@ public enum SettingsPage: String, CaseIterable {
         case .general: "gearshape"
         case .notifications: "bell"
         case .appearance: "paintbrush"
+        case .terminal: "terminal"
         case .sidebar: "sidebar.left"
         case .chat: "bubble.left.and.text.bubble.right"
         case .dictation: "mic"
@@ -61,6 +62,7 @@ public enum SettingsPage: String, CaseIterable {
         case .general: "The menu bar and how times read"
         case .notifications: "What to tell you"
         case .appearance: "Theme, color, text size, density and the font of code"
+        case .terminal: "Theme, font, cursor, padding and shell behavior"
         case .sidebar: "What the sessions list shows"
         case .chat: "The message box and the conversation"
         case .dictation: "Speak instead of typing"

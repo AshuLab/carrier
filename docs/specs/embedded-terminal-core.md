@@ -1,14 +1,14 @@
 # Embedded terminal core
 
-Status: implemented (core only; UI unwired, unreleased)
+Status: implemented (core and macOS app UI wired)
 
 ## Problem
 
 When working in `Carrier.app`, a user who needs to run commands, inspect git state, watch logs, or run quick tools in a session's folder or worktree must leave Carrier for an external terminal app and navigate to the right folder manually.
-Nothing inside `Carrier.app` today can host native interactive shells, preserve terminal workspaces across restarts, or prevent accidental termination of running commands when closing a workspace or app.
+Nothing inside `Carrier.app` previously hosted native interactive shells, preserved terminal workspaces across restarts, or prevented accidental termination of running commands when closing a workspace or app.
 
-This effort is scoped strictly to the native macOS terminal core so it works cleanly and deterministically before any app UI chrome or orchestrator epic integration is wired on top.
-Note: `CarrierTerminalStore` and `CarrierTerminalView` are not yet instantiated or mounted in `Carrier.app`, so the `AppDelegate`, `PanelModel`, and `SessionActions` lifecycle hooks stay dormant until the UI PR opens the first surface.
+This specification first scoped the native macOS terminal core so domain and runtime lifecycle worked deterministically before wiring the UI chrome (`docs/macos/terminal.md`).
+That UI wiring (standalone sidebar terminals, session and epic drawers, Settings › Terminal, and opt-in `<Carrier folder>/app/terminal/zsh-bottom-prompt`) now runs on top of this core.
 
 ## Solution
 
@@ -47,7 +47,7 @@ Closing an entire tab, deleting or archiving a chat session, or quitting `Carrie
 ## Scope
 
 1. Package and bundle `GhosttyKit` (`Lakr233/libghostty-spm` `2.2.2026111302`), `GhosttyKit_GhosttyTerminal.bundle`, and third-party license notices in `Carrier.app` (`build-app.sh` and `check-app.sh`).
-2. Model `TerminalOwner` (`.session(String)` and `.quick`), `TerminalTab`, `TerminalPane`, launch specs, directory validation, and URL policy in `CarrierCore`.
+2. Model `TerminalOwner` (`.session(String)`, `.epic(repo:issue:)`, and `.terminal(UUID)`), `TerminalTab`, `TerminalPane`, launch specs, directory validation, and URL policy in `CarrierCore`.
 3. Support full tab and split-pane workspace operations in `CarrierCore`: create, select, reorder tabs, split on any edge inheriting the active pane's working directory, resize ratios, equalize, zoom toggle, move/swap panes across edges or tabs, and close panes/tabs with clean sibling promotion and active-focus fallback.
 4. Persist terminal workspace layout and working directories to `<Carrier folder>/app/terminals.json` and restore them deterministically on launch (validating stale directories against fallbacks and clearing orphaned tabs).
 5. Manage live `GhosttyTerminal` surfaces in `CarrierTerminalStore` cached by `paneId`, exposing search-in-scrollback, selection reading, paste, interrupt (`Ctrl+C`), and live teardown across SwiftUI view swaps and `CarrierTerminalView` mounts.
@@ -89,8 +89,8 @@ Stale session ids are pruned only after two consecutive authoritative session sn
 
 ## Out of scope
 
-App UI placement, triggers, buttons, tab bars, drawer/panel chrome, split drag-and-drop gestures, and the future Terminal Settings UI view (left to dedicated UI work once the core is settled).
+App UI design details belong to [terminal](../macos/terminal.md), and epic **Continue in Terminal** drawer policy lives in [0028](../adr/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md).
 
-Any integration with autonomous engine epics, epic intervention, resuming stopped epics from an embedded terminal, or injecting terminal output into agent turns (separated into its own epic).
+Injecting live terminal output into autonomous orchestrator agent turns.
 
 Detached background PTY daemon survival when `Carrier.app` itself is not running (reopening Carrier restores saved tabs, split layouts, ratios, and working directories as fresh shells rather than reattaching to live orphaned processes).

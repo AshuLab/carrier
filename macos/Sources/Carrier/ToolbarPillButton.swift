@@ -43,3 +43,102 @@ struct ToolbarPillButton: View {
         .animation(.easeOut(duration: 0.12), value: hovered)
     }
 }
+
+/// Accent glass capsule pill button at `ToolbarPillButton.height` (28 pt), shared between headers and primary empty-state CTAs.
+struct AccentGlassPillButton: View {
+    let title: String
+    var icon: String? = nil
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let icon {
+                    Image(systemName: icon).font(.scaled(11, weight: .semibold))
+                }
+                Text(title).font(.scaled(12, weight: .medium))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 13)
+            .frame(height: ToolbarPillButton.height)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.tint(Color.themeAccent.mix(with: .black, by: 0.4)).interactive(), in: .capsule)
+    }
+}
+
+/// Compact icon-only button sized to `ToolbarPillButton.height` (28 pt) for grouped `.glassEffect(.regular, in: .capsule)` toolbars.
+struct ToolbarGlassIconButton: View {
+    let icon: String
+    let name: String
+    let action: () -> Void
+    @State private var hovered = false
+    @Environment(\.isEnabled) private var enabled
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.scaled(11, weight: .medium))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 10)
+                .frame(height: ToolbarPillButton.height)
+                .background(Capsule().fill(Color.primary.opacity(hovered && enabled ? 0.1 : 0)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .opacity(enabled ? 1 : 0.5)
+        .animation(.easeOut(duration: 0.12), value: hovered)
+        .help(name)
+        .accessibilityLabel(name)
+    }
+}
+
+/// Shared toolbar Search toggle that expands inline into a 220 pt glass-pill search field.
+struct ToolbarSearchField: View {
+    @Binding var query: String?
+    let placeholder: String
+    let focused: FocusState<Bool>.Binding
+    var onDismiss: (() -> Void)? = nil
+
+    var body: some View {
+        if query != nil {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.scaled(11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16, height: 16)
+                    .accessibilityHidden(true)
+                TextField(placeholder, text: Binding(get: { query ?? "" }, set: { query = $0 }))
+                    .textFieldStyle(.plain)
+                    .font(.scaled(12))
+                    .focused(focused)
+                    .onKeyPress(.escape) {
+                        dismiss()
+                        return .handled
+                    }
+                Button(action: dismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.scaled(11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Close search (Esc)")
+                .accessibilityLabel("Close search")
+            }
+            .padding(.horizontal, 11)
+            .frame(width: 220, height: ToolbarPillButton.height)
+        } else {
+            ToolbarPillButton(title: "Search", icon: "magnifyingglass") {
+                query = ""
+                focused.wrappedValue = true
+            }
+        }
+    }
+
+    private func dismiss() {
+        query = nil
+        onDismiss?()
+    }
+}

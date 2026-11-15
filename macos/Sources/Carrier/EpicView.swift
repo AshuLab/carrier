@@ -18,6 +18,7 @@ struct EpicView: View {
     var resume: (card: ResumeCard, store: EpicStore)?
     /// The file rows that are open and their fragments; nil when the engine cannot be asked (the rows do not open).
     var fileDiffs: FileDiffs?
+    var onContinueInTerminal: (SessionSection, ValidResume) -> Void = { _, _ in }
     /// The width the person chose for the chat's column: the Agent output and the pipeline follow it.
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
     @State private var tab = EpicTab.agentOutput
@@ -88,7 +89,13 @@ struct EpicView: View {
                 EmptyStateView(state: .noActivity).frame(minHeight: 260)
             }
         } else {
-            SessionSectionsView(epic: EpicRef(repo: subject.repo, issue: subject.issue), list: sessions, reply: reply, folds: $folds)
+            SessionSectionsView(
+                epic: EpicRef(repo: subject.repo, issue: subject.issue),
+                list: sessions,
+                reply: reply,
+                folds: $folds,
+                onContinueInTerminal: onContinueInTerminal
+            )
         }
     }
 }

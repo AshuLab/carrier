@@ -1,13 +1,13 @@
 # 0027 - The embedded terminal runs in-process with GhosttyKit and restores layout across launches
 
-- Status: accepted
+- Status: accepted; owner types and epic drawer integration are extended by [0028](0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md)
 - Date: 2026-11-13
 
 ## Context
 
 People using `Carrier.app` frequently need a real interactive shell inside a session's folder or worktree, or a quick general-purpose shell, without switching out to an external terminal app and locating the folder by hand.
 At the same time, Carrier must preserve the native macOS speed, Metal/CoreText typography, IME input, and visual polish of the desktop app, while supporting multiple tabs, flexible split panes that can move and rearrange freely, confirmation before killing live processes, and session restoration across app restarts.
-The `terminal` CLI commands live separately in [carrier-terminal-experience](../specs/carrier-terminal-experience.md), and orchestrator epic intervention is explicitly deferred to a separate effort so the core terminal subsystem remains cleanly decoupled.
+The `terminal` CLI commands live separately in [carrier-terminal-experience](../specs/carrier-terminal-experience.md), keeping the core subsystem decoupled so UI views and [0028](0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md) epic drawers build on top without coupling the core to orchestrator policy.
 
 Two main architectures exist for embedding a terminal inside a desktop app: running a separate Node/PTY daemon over IPC rendered through a web terminal (`xterm.js` + `node-pty`), or embedding a native terminal engine directly inside the macOS process.
 
@@ -16,7 +16,7 @@ Two main architectures exist for embedding a terminal inside a desktop app: runn
 We run the embedded terminal in-process inside `Carrier.app` using `GhosttyKit` (`libghostty-spm`, MIT-licensed `GhosttyTerminal` wrapper over Ghostty's C API) as the native PTY, VT parser, input handler, and Metal/CoreText renderer.
 Each terminal pane corresponds to one `GhosttyKit` surface cached by pane identity so UI transitions, tab switches, and pane moves keep the live PTY and scrollback untouched.
 
-`CarrierCore` owns the domain model that `GhosttyKit` does not provide out of the box: terminal owners (`session` and `quick`), multi-tab ordering, a binary split tree per tab supporting pane insertion, removal, resizing, reordering, and cross-tab/cross-edge moves, plus an app-owned terminal settings model ready for a future Terminal settings page.
+`CarrierCore` owns the domain model that `GhosttyKit` does not provide out of the box: terminal owners (`session`, standalone `terminal`, and ephemeral `epic`), multi-tab ordering, a binary split tree per tab supporting pane insertion, removal, resizing, reordering, and cross-tab/cross-edge moves, plus an app-owned terminal settings model driving **Settings › Terminal**.
 On app relaunch, Carrier restores persisted owners, tabs, split layouts, ratios, titles, and working directories by opening fresh shells in those saved positions and directories rather than keeping detached processes alive while the app is quit.
 
 ## Alternatives considered

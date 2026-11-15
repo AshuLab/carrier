@@ -22,8 +22,12 @@ public struct PersistedTerminalWorkspace: Equatable, Codable, Sendable {
 
 public extension TerminalRegistry {
     func exportPersistedWorkspace() -> PersistedTerminalWorkspace {
-        let strippedWorkspaces = workspaces.map { workspace in
-            TerminalWorkspace(
+        // Ephemeral `.epic` Continue-in-Terminal drawers are excluded so launch never replays one-shot resume CLIs without scoped envVars.
+        let strippedWorkspaces = workspaces.compactMap { workspace -> TerminalWorkspace? in
+            if case .epic = workspace.owner {
+                return nil
+            }
+            return TerminalWorkspace(
                 owner: workspace.owner,
                 tabs: workspace.tabs.map { tab in
                     var copy = tab
@@ -62,8 +66,10 @@ public extension TerminalRegistry {
 
         for workspace in persisted.workspaces {
             switch workspace.owner {
-            case .quick:
+            case .terminal:
                 break
+            case .epic:
+                continue
             case .session(let sessionId):
                 if let knownSessionIds, knownSessionIds.contains(sessionId) == false {
                     continue

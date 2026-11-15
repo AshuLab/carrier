@@ -21,7 +21,11 @@ extension AppDelegate {
         if ShortcutTable().combos != shortcutsInMenu { installMainMenu() }
     }
 
-    func makeMainMenu(shortcuts: ShortcutTable, controls: MenuControls = .shared) -> NSMenu {
+    func makeMainMenu(
+        shortcuts: ShortcutTable,
+        controls: MenuControls = .shared,
+        terminalControls: TerminalMenuControls = .shared
+    ) -> NSMenu {
         let main = NSMenu()
 
         // Carrier
@@ -89,6 +93,27 @@ extension AppDelegate {
         item(engine, ShortcutCommand.pauseOrResume.title, #selector(MenuControls.pauseOrResume), shortcut: .pauseOrResume, in: shortcuts, target: controls)
         item(engine, ShortcutCommand.checkNow.title, #selector(MenuControls.checkNow), shortcut: .checkNow, in: shortcuts, target: controls)
 
+        // Terminal: global creation, drawer toggle, tab, split, focus, zoom, equalize, detach and close controls for keyboard-only and VoiceOver access
+        let terminal = submenu(of: main, title: "Terminal")
+        item(terminal, "New Terminal", #selector(TerminalMenuControls.newTerminal), key: "t", modifiers: [.command, .option], target: terminalControls)
+        item(terminal, "New Tab", #selector(TerminalMenuControls.newTab), key: "t", target: terminalControls)
+        item(terminal, "Show or Hide Terminal", #selector(TerminalMenuControls.toggleTerminalDrawer), key: "t", modifiers: [.command, .control], target: terminalControls)
+        terminal.addItem(.separator())
+        item(terminal, "Split Right", #selector(TerminalMenuControls.splitRight), key: "d", target: terminalControls)
+        item(terminal, "Split Down", #selector(TerminalMenuControls.splitDown), key: "d", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, "Zoom Pane", #selector(TerminalMenuControls.toggleZoomPane), key: "\r", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, "Equalize Splits", #selector(TerminalMenuControls.equalizeSplits), target: terminalControls)
+        item(terminal, "Move Pane to New Tab", #selector(TerminalMenuControls.movePaneToNewTab), target: terminalControls)
+        item(terminal, "Focus Previous Pane", #selector(TerminalMenuControls.focusPreviousPane), key: "[", modifiers: [.command, .option], target: terminalControls)
+        item(terminal, "Focus Next Pane", #selector(TerminalMenuControls.focusNextPane), key: "]", modifiers: [.command, .option], target: terminalControls)
+        terminal.addItem(.separator())
+        item(terminal, "Select Previous Tab", #selector(TerminalMenuControls.selectPreviousTab), key: "[", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, "Select Next Tab", #selector(TerminalMenuControls.selectNextTab), key: "]", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, "Move Tab Left", #selector(TerminalMenuControls.moveTabLeft), target: terminalControls)
+        item(terminal, "Move Tab Right", #selector(TerminalMenuControls.moveTabRight), target: terminalControls)
+        terminal.addItem(.separator())
+        item(terminal, "Close Pane", #selector(TerminalMenuControls.closePane), key: "w", modifiers: [.command, .shift], target: terminalControls)
+
         // Window
         let window = submenu(of: main, title: "Window")
         item(window, "Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m")
@@ -155,4 +180,181 @@ extension AppDelegate {
     @objc func toggleSidebar() { WindowController.shared.toggleSidebar() }
     @objc func toggleInspector() { WindowController.shared.toggleInspector() }
     @objc func openHelp() { NSWorkspace.shared.open(URL(string: "https://github.com/AshuLab/carrier")!) }
+}
+
+/// Validates and dispatches Terminal menu pane commands to the focused terminal pane or active owner tab.
+final class TerminalMenuControls: NSObject, NSMenuItemValidation {
+    static let shared = TerminalMenuControls()
+
+    private let storeProvider: @MainActor () -> CarrierTerminalStore?
+    private let preferredOwnerProvider: @MainActor () -> TerminalOwner?
+    private let allowsPreferredFallback: @MainActor () -> Bool
+    private let newTerminalAction: @MainActor () -> Void
+    private let drawerStateProvider: @MainActor () -> (isOpen: Bool, toggle: @MainActor () -> Void)?
+
+    init(
+        storeProvider: @escaping @MainActor () -> CarrierTerminalStore? = { CarrierTerminalStore.sharedIfInitialized },
+        preferredOwnerProvider: @escaping @MainActor () -> TerminalOwner? = { WindowController.shared.preferredTerminalOwner },
+        allowsPreferredFallback: @escaping @MainActor () -> Bool = { TerminalMenuControls.allowsPreferredFallback() },
+        newTerminalAction: @escaping @MainActor () -> Void = { WindowController.shared.openNewTerminal() },
+        drawerStateProvider: @escaping @MainActor () -> (isOpen: Bool, toggle: @MainActor () -> Void)? = { WindowController.shared.terminalDrawerToggleState() }
+    ) {
+        self.storeProvider = storeProvider
+        self.preferredOwnerProvider = preferredOwnerProvider
+        self.allowsPreferredFallback = allowsPreferredFallback
+        self.newTerminalAction = newTerminalAction
+        self.drawerStateProvider = drawerStateProvider
+    }
+
+    @MainActor
+    static func allowsPreferredFallback() -> Bool {
+        allowsPreferredFallback(keyWindow: NSApp?.keyWindow, mainWindow: WindowController.shared.mainWindow)
+    }
+
+    @MainActor
+    static func allowsPreferredFallback(
+        keyWindow: NSWindow?,
+        mainWindow: NSWindow?
+    ) -> Bool {
+        guard let keyWindow, let mainWindow else { return false }
+        return keyWindow === mainWindow
+            && keyWindow.attachedSheet == nil
+            && (keyWindow.firstResponder is NSText) == false
+    }
+
+    @MainActor
+    private func resolveTarget() -> (store: CarrierTerminalStore, tab: TerminalTab, paneId: UUID)? {
+        guard NSApp?.keyWindow?.attachedSheet == nil,
+              let store = storeProvider()
+        else { return nil }
+        if let focused = store.focusedPaneTarget() {
+            return (store, focused.tab, focused.paneId)
+        }
+        if allowsPreferredFallback(),
+           let target = store.activePaneTarget(preferredOwner: preferredOwnerProvider()) {
+            return (store, target.tab, target.paneId)
+        }
+        return nil
+    }
+
+    @MainActor @objc func newTerminal() {
+        newTerminalAction()
+    }
+
+    @MainActor @objc func toggleTerminalDrawer() {
+        drawerStateProvider()?.toggle()
+    }
+
+    @MainActor @objc func newTab() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.openTab(for: target.tab.owner, workingDirectory: target.tab.workingDirectory)
+    }
+
+    @MainActor @objc func splitRight() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.splitPane(target.paneId, edge: .trailing)
+    }
+
+    @MainActor @objc func splitDown() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.splitPane(target.paneId, edge: .bottom)
+    }
+
+    @MainActor @objc func toggleZoomPane() {
+        guard let target = resolveTarget(), target.tab.panes.count > 1 else { return }
+        target.store.toggleZoom(paneId: target.paneId)
+    }
+
+    @MainActor @objc func equalizeSplits() {
+        guard let target = resolveTarget(), target.tab.panes.count > 1 else { return }
+        target.store.equalizeSplits(inTab: target.tab.id)
+    }
+
+    @MainActor @objc func movePaneToNewTab() {
+        guard let target = resolveTarget(), target.tab.panes.count > 1 else { return }
+        _ = target.store.detachPaneToNewTab(target.paneId)
+    }
+
+    @MainActor @objc func focusPreviousPane() {
+        guard let target = resolveTarget(), target.tab.panes.count > 1 else { return }
+        _ = target.store.focusAdjacentPane(offset: -1, inTab: target.tab.id)
+    }
+
+    @MainActor @objc func focusNextPane() {
+        guard let target = resolveTarget(), target.tab.panes.count > 1 else { return }
+        _ = target.store.focusAdjacentPane(offset: 1, inTab: target.tab.id)
+    }
+
+    @MainActor @objc func selectPreviousTab() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.selectAdjacentTab(offset: -1, for: target.tab.owner)
+    }
+
+    @MainActor @objc func selectNextTab() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.selectAdjacentTab(offset: 1, for: target.tab.owner)
+    }
+
+    @MainActor @objc func moveTabLeft() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.moveTabRelative(target.tab.id, offset: -1)
+    }
+
+    @MainActor @objc func moveTabRight() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.moveTabRelative(target.tab.id, offset: 1)
+    }
+
+    @MainActor @objc func closePane() {
+        guard let target = resolveTarget() else { return }
+        let isSplit = target.tab.panes.count > 1
+        Task { @MainActor in
+            if isSplit {
+                _ = await target.store.closePane(id: target.paneId)
+            } else {
+                _ = await target.store.closeTab(id: target.tab.id)
+            }
+        }
+    }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        MainActor.assumeIsolated {
+            switch item.action {
+            case #selector(newTerminal):
+                return true
+            case #selector(toggleTerminalDrawer):
+                guard let drawer = drawerStateProvider() else {
+                    item.title = "Show or Hide Terminal"
+                    return false
+                }
+                item.title = drawer.isOpen ? "Hide Terminal" : "Show Terminal"
+                return true
+            default:
+                break
+            }
+            guard let target = resolveTarget() else { return false }
+            let isSplit = target.tab.panes.count > 1
+            let tabCount = target.store.tabs(for: target.tab.owner).count
+            switch item.action {
+            case #selector(toggleZoomPane):
+                item.title = target.tab.zoomedPaneId == target.paneId ? "Restore Split View" : "Zoom Pane"
+                return isSplit
+            case #selector(equalizeSplits), #selector(movePaneToNewTab), #selector(focusPreviousPane), #selector(focusNextPane):
+                return isSplit
+            case #selector(selectPreviousTab), #selector(selectNextTab):
+                return tabCount > 1
+            case #selector(moveTabLeft):
+                return target.store.registry.canMoveTab(id: target.tab.id, offset: -1)
+            case #selector(moveTabRight):
+                return target.store.registry.canMoveTab(id: target.tab.id, offset: 1)
+            case #selector(newTab), #selector(splitRight), #selector(splitDown):
+                return true
+            case #selector(closePane):
+                item.title = isSplit ? "Close Pane" : "Close Tab"
+                return true
+            default:
+                return false
+            }
+        }
+    }
 }

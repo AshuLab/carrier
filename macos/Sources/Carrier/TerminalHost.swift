@@ -32,10 +32,13 @@ final class CarrierTerminalStore {
     }
 
     private(set) var registry: TerminalRegistry
+    private(set) var appearanceProfile: TerminalAppearanceProfile
     @ObservationIgnored let controller: TerminalController
     @ObservationIgnored private let fileStore: TerminalWorkspaceFileStore
     @ObservationIgnored private let preferences: AppPreferences
     @ObservationIgnored private let processInspector: any TerminalProcessInspecting
+    @ObservationIgnored let zshShimDirectory: URL
+    @ObservationIgnored private let processEnvironment: [String: String]
     @ObservationIgnored private let persistDebounceNanoseconds: UInt64
 
     /// Cached Ghostty surface state per `paneId` (reordering tabs or moving panes preserves live shells).
@@ -47,13 +50,18 @@ final class CarrierTerminalStore {
     @ObservationIgnored private var cancellables: [UUID: Set<AnyCancellable>] = [:]
     @ObservationIgnored private var persistTask: Task<Void, Never>?
     @ObservationIgnored private var defaultsObserver: NSObjectProtocol?
+    @ObservationIgnored private var accessibilityObserver: NSObjectProtocol?
     @ObservationIgnored private var appearanceObserver: NSKeyValueObservation?
+    @ObservationIgnored private var keyMonitor: Any?
     @ObservationIgnored private var lastAppliedAppearance: TerminalAppearanceProfile?
     @ObservationIgnored private var hasLoadedOrMutatedPersistence: Bool
     @ObservationIgnored private var persistenceWriteBlocked = false
     @ObservationIgnored private var missingSessionsInPreviousPoll: Set<String> = []
     @ObservationIgnored private var pendingCloseTargets: Set<TerminalCloseTarget> = []
     @ObservationIgnored private var isTornDown = false
+    @ObservationIgnored var performClearScreenForTests: ((UUID) -> Bool)?
+    @ObservationIgnored var sendControlLForTests: ((UUID) -> Bool)?
+    @ObservationIgnored var focusedPaneResolverForTests: (() -> UUID?)?
 
     /// Hook invoked when Ghostty itself requests closing a live surface (e.g., `close_surface` keybinding).
     @ObservationIgnored var onCloseConfirmationNeeded: (@MainActor (TerminalCloseTarget, Question) -> Bool)?
@@ -63,6 +71,8 @@ final class CarrierTerminalStore {
         preferences: AppPreferences = AppPreferences(),
         scheme: ThemeScheme? = nil,
         processInspector: (any TerminalProcessInspecting)? = nil,
+        zshShimDirectory: URL? = nil,
+        processEnvironment: [String: String] = ProcessInfo.processInfo.environment,
         persistDebounceNanoseconds: UInt64 = 250_000_000,
         observesSystemAppearance: Bool = false,
         knownSessionIds: Set<String>? = nil,
@@ -76,23 +86,30 @@ final class CarrierTerminalStore {
         self.fileStore = resolvedStore
         self.preferences = preferences
         self.processInspector = processInspector ?? GhosttyTerminalProcessInspector()
+        self.processEnvironment = processEnvironment
+        let derivedCarrierFolder: URL = {
+            guard isEphemeralRun == false, let dir = resolvedStore.fileURL?.deletingLastPathComponent() else {
+                return FileManager.default.temporaryDirectory.appendingPathComponent(
+                    "carrier-ephemeral-terminal-\(ProcessInfo.processInfo.processIdentifier)",
+                    isDirectory: true
+                )
+            }
+            return dir.lastPathComponent == "app" ? dir.deletingLastPathComponent() : dir
+        }()
+        self.zshShimDirectory = zshShimDirectory ?? TerminalZshBottomPromptShim.defaultDirectory(
+            carrierFolder: derivedCarrierFolder
+        )
         self.persistDebounceNanoseconds = persistDebounceNanoseconds
 
-        let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(preferences.colorScheme)
-        let profile = TerminalAppearanceMapper.makeProfile(
-            theme: preferences.theme,
-            scheme: resolvedScheme,
-            preferences: preferences
-        )
-        let theme = TerminalAppearanceMapper.ghosttyTheme(for: profile.theme, preferences: preferences)
-        let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile)
+        let appearance = Self.makeAppearanceState(preferences: preferences, scheme: scheme)
+        self.appearanceProfile = appearance.profile
         self.controller = TerminalController(
             configSource: .none,
-            theme: theme,
-            terminalConfiguration: config
+            theme: appearance.theme,
+            terminalConfiguration: appearance.configuration
         )
-        self.controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(resolvedScheme))
-        self.lastAppliedAppearance = profile
+        self.controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(appearance.scheme))
+        self.lastAppliedAppearance = appearance.profile
 
         if let initialRegistry {
             self.registry = initialRegistry
@@ -122,11 +139,13 @@ final class CarrierTerminalStore {
 
         if observesSystemAppearance {
             installAppearanceObservers()
+            installKeyMonitor()
         }
     }
 
     isolated deinit {
         removeAppearanceObservers()
+        removeKeyMonitor()
     }
 
     // MARK: - Queries
@@ -138,8 +157,25 @@ final class CarrierTerminalStore {
     func activePane(for owner: TerminalOwner) -> TerminalPane? { registry.activePane(for: owner) }
     func tab(id tabId: UUID) -> TerminalTab? { registry.tab(id: tabId) }
     func pane(id paneId: UUID) -> TerminalPane? { registry.pane(id: paneId) }
+    func standaloneTerminals() -> [StandaloneTerminalSummary] { registry.standaloneTerminals() }
+    func standaloneTerminal(id: UUID) -> StandaloneTerminalSummary? { registry.standaloneTerminal(id: id) }
 
     // MARK: - Tab & Split Workspace Operations
+
+    @discardableResult
+    func createStandaloneTerminal(
+        workingDirectory: String?,
+        fallbackDirectory: String = NSHomeDirectory()
+    ) -> UUID {
+        let terminalId = UUID()
+        _ = openTab(
+            for: .terminal(terminalId),
+            workingDirectory: workingDirectory,
+            fallbackDirectory: fallbackDirectory,
+            activate: true
+        )
+        return terminalId
+    }
 
     @discardableResult
     func openTab(
@@ -178,6 +214,31 @@ final class CarrierTerminalStore {
                 focus(paneId: activePaneId)
             }
         }
+    }
+
+    @discardableResult
+    func selectAdjacentTab(offset: Int, for owner: TerminalOwner) -> Bool {
+        guard let nextTabId = registry.adjacentTabId(offset: offset, for: owner) else { return false }
+        selectTab(nextTabId, for: owner)
+        return true
+    }
+
+    @discardableResult
+    func focusAdjacentPane(offset: Int, inTab tabId: UUID) -> Bool {
+        guard let nextPaneId = registry.adjacentPaneId(offset: offset, inTab: tabId) else { return false }
+        selectPane(nextPaneId)
+        return true
+    }
+
+    @discardableResult
+    func moveTabRelative(_ tabId: UUID, offset: Int) -> Bool {
+        guard registry.moveTabRelative(id: tabId, offset: offset) else { return false }
+        persistMutation {
+            if let paneId = registry.tab(id: tabId)?.activePaneId {
+                focus(paneId: paneId)
+            }
+        }
+        return true
     }
 
     @discardableResult
@@ -244,10 +305,36 @@ final class CarrierTerminalStore {
     }
 
     func selectPane(_ paneId: UUID) {
-        persistMutation {
+        let alreadyActive = registry.workspaces
+            .lazy
+            .flatMap(\.tabs)
+            .first { $0.panes[paneId] != nil }?
+            .activePaneId == paneId
+        guard alreadyActive == false else { return }
+        persistMutation(immediate: false) {
             registry.selectPane(id: paneId)
             focus(paneId: paneId)
         }
+    }
+
+    /// Resolves the currently focused pane in the key window, if any.
+    func focusedPaneTarget() -> (tab: TerminalTab, paneId: UUID)? {
+        if let focusedId = focusedPaneResolverForTests?() ?? focusedPaneId(for: NSApp?.keyWindow?.firstResponder),
+           let tab = registry.workspaces.lazy.flatMap(\.tabs).first(where: { $0.panes[focusedId] != nil }) {
+            return (tab, focusedId)
+        }
+        return nil
+    }
+
+    /// Resolves the focused pane in the key window, or falls back to `preferredOwner`'s active pane for menu/keyboard actions.
+    func activePaneTarget(preferredOwner: TerminalOwner? = nil) -> (tab: TerminalTab, paneId: UUID)? {
+        if let focused = focusedPaneTarget() {
+            return focused
+        }
+        if let preferredOwner, let tab = activeTab(for: preferredOwner) {
+            return (tab, tab.activePaneId)
+        }
+        return nil
     }
 
     func setSplitRatio(inTab tabId: UUID, at path: [SplitBranch], ratio: Double) {
@@ -307,6 +394,12 @@ final class CarrierTerminalStore {
     func renamePane(_ paneId: UUID, customTitle: String?) {
         persistMutation {
             registry.renamePane(paneId, customTitle: customTitle)
+        }
+    }
+
+    func renameTab(_ tabId: UUID, customTitle: String?) {
+        persistMutation {
+            registry.renameTab(id: tabId, customTitle: customTitle)
         }
     }
 
@@ -405,7 +498,76 @@ final class CarrierTerminalStore {
 
     @discardableResult
     func clearScrollback(paneId: UUID) -> Bool {
-        viewStates[paneId]?.performBindingAction("clear_screen") ?? false
+        guard let state = viewStates[paneId] else { return false }
+        guard preferences.terminal.pinPromptToBottom,
+              registry.pane(id: paneId)?.command == nil
+        else {
+            return state.performBindingAction("clear_screen")
+        }
+
+        let input = TerminalPaneInspectionInput(
+            paneId: paneId,
+            state: state,
+            platformView: platformViews[paneId]
+        )
+        Task { @MainActor [weak self] in
+            guard let self, self.isTornDown == false, let liveState = self.viewStates[paneId] else { return }
+            let result = await self.processInspector.inspectActiveCommands(in: [input])
+            guard self.isTornDown == false, self.viewStates[paneId] === liveState else { return }
+            let cleared = performClearScreenForTests?(paneId) ?? liveState.performBindingAction("clear_screen")
+            let hasForegroundCommand = (result.commandsByPane[paneId]?.isEmpty == false)
+            if cleared, result.inspectionError == nil, hasForegroundCommand == false, self.preferences.terminal.pinPromptToBottom {
+                _ = sendControlLForTests?(paneId) ?? liveState.sendKey(.l, modifiers: .ctrl)
+            }
+        }
+        return true
+    }
+
+    func focusedPaneId(for responder: NSResponder?) -> UUID? {
+        guard let responderView = responder as? NSView else { return nil }
+        for (paneId, terminalView) in platformViews {
+            if responderView === terminalView || responderView.isDescendant(of: terminalView) {
+                return paneId
+            }
+        }
+        return nil
+    }
+
+    private struct MainThreadEventBox: @unchecked Sendable {
+        let event: NSEvent?
+    }
+
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let boxed = MainThreadEventBox(event: event)
+            return MainActor.assumeIsolated {
+                guard let self else { return boxed }
+                return MainThreadEventBox(event: self.handleKeyDownEvent(boxed.event!))
+            }.event
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
+        }
+    }
+
+    func handleKeyDownEvent(_ event: NSEvent) -> NSEvent? {
+        let relevantModifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        guard isTornDown == false,
+              event.type == .keyDown,
+              relevantModifiers == .command,
+              event.charactersIgnoringModifiers?.lowercased() == "k",
+              preferences.terminal.pinPromptToBottom,
+              let paneId = focusedPaneResolverForTests?() ?? focusedPaneId(for: NSApp?.keyWindow?.firstResponder)
+        else {
+            return event
+        }
+        clearScrollback(paneId: paneId)
+        return nil
     }
 
     func selectedText(paneId: UUID) -> String? {
@@ -426,18 +588,35 @@ final class CarrierTerminalStore {
 
     func syncAppearance(preferences customPreferences: AppPreferences? = nil, scheme: ThemeScheme? = nil) {
         let prefs = customPreferences ?? preferences
-        let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(prefs.colorScheme)
-        let profile = TerminalAppearanceMapper.makeProfile(
-            theme: prefs.theme,
-            scheme: resolvedScheme,
-            preferences: prefs
-        )
-        guard profile != lastAppliedAppearance else { return }
-        lastAppliedAppearance = profile
+        let appearance = Self.makeAppearanceState(preferences: prefs, scheme: scheme)
+        guard appearance.profile != lastAppliedAppearance else { return }
+        lastAppliedAppearance = appearance.profile
+        appearanceProfile = appearance.profile
 
-        controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(resolvedScheme))
-        _ = controller.setTheme(TerminalAppearanceMapper.ghosttyTheme(for: profile.theme, preferences: prefs))
-        _ = controller.setTerminalConfiguration(TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile))
+        controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(appearance.scheme))
+        _ = controller.setTheme(appearance.theme)
+        _ = controller.setTerminalConfiguration(appearance.configuration)
+    }
+
+    private static func makeAppearanceState(
+        preferences: AppPreferences,
+        scheme: ThemeScheme?
+    ) -> (scheme: ThemeScheme, profile: TerminalAppearanceProfile, theme: TerminalTheme, configuration: TerminalConfiguration) {
+        let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(preferences.colorScheme)
+        let translucent = TerminalAppearanceMapper.resolveTranslucent(preferences)
+        let profile = TerminalAppearanceMapper.makeProfile(
+            theme: preferences.theme,
+            scheme: resolvedScheme,
+            preferences: preferences,
+            translucent: translucent
+        )
+        let theme = TerminalAppearanceMapper.ghosttyTheme(
+            for: profile.theme,
+            preferences: preferences,
+            translucent: translucent
+        )
+        let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile)
+        return (resolvedScheme, profile, theme, config)
     }
 
     // MARK: - Process Confirmation & Lifecycle Teardown
@@ -516,6 +695,16 @@ final class CarrierTerminalStore {
     }
 
     @discardableResult
+    func closeOtherTabs(except keepingTabId: UUID, for owner: TerminalOwner, force: Bool = false) async -> Bool {
+        selectTab(keepingTabId, for: owner)
+        let otherIds = registry.tabs(for: owner).map(\.id).filter { $0 != keepingTabId }
+        for otherId in otherIds {
+            guard await closeTab(id: otherId, force: force) else { return false }
+        }
+        return true
+    }
+
+    @discardableResult
     func closeAll(for owner: TerminalOwner, force: Bool = false) async -> Bool {
         guard registry.allPaneIds(for: owner).isEmpty == false else { return true }
         if force == false {
@@ -587,6 +776,7 @@ final class CarrierTerminalStore {
             saveWorkspaceNow()
         }
         removeAppearanceObservers()
+        removeKeyMonitor()
 
         let livePaneIds = Array(Set(viewStates.keys).union(platformViews.keys))
         for paneId in livePaneIds {
@@ -603,13 +793,36 @@ final class CarrierTerminalStore {
 
     // MARK: - Private Builders & Teardown
 
+    private func resolvedEnvVars(for pane: TerminalPane) -> [String: String] {
+        guard preferences.terminal.pinPromptToBottom, pane.command == nil else {
+            return pane.envVars
+        }
+        do {
+            try TerminalZshBottomPromptShim.prepareDirectory(zshShimDirectory)
+        } catch {
+            NSLog(
+                "Carrier: failed to prepare Zsh bottom-prompt shim at %@: %@",
+                zshShimDirectory.path,
+                String(describing: error)
+            )
+            return pane.envVars
+        }
+        return TerminalZshBottomPromptShim.mergedEnvironment(
+            baseEnvVars: pane.envVars,
+            processEnvironment: processEnvironment,
+            shimDirectory: zshShimDirectory,
+            pinPromptToBottom: true,
+            command: pane.command
+        )
+    }
+
     private func buildState(for pane: TerminalPane) -> TerminalViewState {
         let paneId = pane.id
         let state = TerminalViewState(controller: controller)
         state.configuration = TerminalSurfaceOptions(
             backend: .exec,
             workingDirectory: pane.workingDirectory,
-            envVars: pane.envVars,
+            envVars: resolvedEnvVars(for: pane),
             command: pane.command,
             waitAfterCommand: pane.waitAfterCommand
         )
@@ -664,6 +877,20 @@ final class CarrierTerminalStore {
             }
             .store(in: &bag)
 
+        state.$isFocused
+            .removeDuplicates()
+            .filter { $0 }
+            .sink { [weak self] _ in
+                guard let self, self.isTornDown == false else { return }
+                if let location = self.registry.location(ofPaneId: paneId),
+                   self.registry.tab(id: location.tabId)?.activePaneId != paneId {
+                    self.persistMutation(immediate: false) {
+                        self.registry.selectPane(id: paneId)
+                    }
+                }
+            }
+            .store(in: &bag)
+
         cancellables[paneId] = bag
         return state
     }
@@ -692,6 +919,15 @@ final class CarrierTerminalStore {
                 self?.syncAppearance()
             }
         }
+        accessibilityObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.syncAppearance()
+            }
+        }
         appearanceObserver = NSApplication.shared.observe(\.effectiveAppearance) { [weak self] _, _ in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -705,6 +941,10 @@ final class CarrierTerminalStore {
         if let defaultsObserver {
             NotificationCenter.default.removeObserver(defaultsObserver)
             self.defaultsObserver = nil
+        }
+        if let accessibilityObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(accessibilityObserver)
+            self.accessibilityObserver = nil
         }
         appearanceObserver?.invalidate()
         appearanceObserver = nil

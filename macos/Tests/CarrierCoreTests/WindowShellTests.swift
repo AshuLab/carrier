@@ -21,7 +21,8 @@ import Testing
 
 @Test func theSelectionHoldsEveryPage() {
     let shell = WindowShell()
-    for next in [Selection.epic(repo: "acme/web", issue: 7), .home, .sessions, .session(id: "s1"), .newSession, .archive, .carrier, .usage] {
+    let terminalId = UUID()
+    for next in [Selection.epic(repo: "acme/web", issue: 7), .home, .sessions, .session(id: "s1"), .newSession, .terminals, .terminal(id: terminalId), .archive, .carrier, .usage] {
         shell.selection = next
         #expect(shell.selection == next)
     }
@@ -41,20 +42,42 @@ import Testing
 
 @Test func eachSelectionSetsOrKeepsTheOpenSection() {
     let shell = WindowShell()
+    let terminalId = UUID()
     for (next, opens) in [
         (Selection.carrier, OpenSection.carrier), (.sessions, .sessions), (.epic(repo: "acme/web", issue: 7), .carrier), (.session(id: "s1"), .sessions),
         (.newSession, .sessions),
+        (.terminals, .terminal), (.terminal(id: terminalId), .terminal),
         (.archive, .archive),
     ] {
         shell.open = nil
         shell.selection = next
         #expect(shell.open == opens)
     }
-    for (kept, next) in [(OpenSection.carrier as OpenSection?, Selection.home), (nil, .home), (.archive, .home), (.sessions, .usage), (.archive, .usage), (nil, .usage), (.carrier, .usage)] {
+    for (kept, next) in [(OpenSection.carrier as OpenSection?, Selection.home), (nil, .home), (.archive, .home), (.terminal, .home), (.sessions, .usage), (.archive, .usage), (.terminal, .usage), (nil, .usage), (.carrier, .usage)] {
         shell.open = kept
         shell.selection = next
         #expect(shell.open == kept)
     }
+}
+
+@Test func sessionTerminalDrawerTogglesPerOwnerAndClearsOnReset() {
+    let shell = WindowShell()
+    let sessionOne = TerminalOwner.session("s1")
+    let sessionTwo = TerminalOwner.session("s2")
+    let epicOwner = TerminalOwner.epic(repo: "org/repo", issue: 42)
+    #expect(shell.isTerminalDrawerOpen(for: sessionOne) == false)
+    shell.toggleTerminalDrawer(for: sessionOne)
+    #expect(shell.isTerminalDrawerOpen(for: sessionOne))
+    #expect(shell.isTerminalDrawerOpen(for: sessionTwo) == false)
+    #expect(shell.isTerminalDrawerOpen(for: epicOwner) == false)
+    shell.toggleTerminalDrawer(for: epicOwner)
+    #expect(shell.isTerminalDrawerOpen(for: epicOwner))
+    shell.setTerminalDrawerOpen(false, for: sessionOne)
+    #expect(shell.isTerminalDrawerOpen(for: sessionOne) == false)
+    shell.setTerminalDrawerOpen(true, for: sessionTwo)
+    shell.reset()
+    #expect(shell.isTerminalDrawerOpen(for: sessionTwo) == false)
+    #expect(shell.isTerminalDrawerOpen(for: epicOwner) == false)
 }
 
 @Test func aSessionChosenFromAnywhereOpensSessions() {

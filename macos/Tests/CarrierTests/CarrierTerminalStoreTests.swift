@@ -209,7 +209,7 @@ struct CarrierTerminalStoreTests {
         #expect(deleteQuestion?.title.contains("Delete session") == true)
         #expect(deleteQuestion?.message.contains("Deleting this session") == true)
 
-        let clearQuestion = await store.pendingConfirmation(for: .owners([session, .quick]), removalKind: .clear)
+        let clearQuestion = await store.pendingConfirmation(for: .owners([session, .terminal(UUID())]), removalKind: .clear)
         #expect(clearQuestion?.title == "Delete archived sessions with a running terminal?")
         #expect(clearQuestion?.confirm == "Delete all")
 
@@ -291,6 +291,23 @@ struct CarrierTerminalStoreTests {
             scheme: .dark
         )
 
+        // Default Carrier theme follows Translucent windows when turned on.
+        prefs.setTranslucent(true)
+        store.syncAppearance(preferences: prefs, scheme: .dark)
+        #expect(store.appearanceProfile.theme == .carrier)
+        #expect(store.appearanceProfile.isSurfaceTranslucent == true)
+        #expect(store.controller.renderedConfig.contains("background-opacity = 0"))
+
+        prefs.theme = .ocean
+        prefs.accent = .orange
+        prefs.tint = .strong
+        store.syncAppearance(preferences: prefs, scheme: .dark)
+        #expect(store.appearanceProfile.theme == .ocean)
+        #expect(store.appearanceProfile.accent == .orange)
+        #expect(store.appearanceProfile.tint == .strong)
+        #expect(store.appearanceProfile.isSurfaceTranslucent == false)
+        #expect(store.controller.renderedConfig.contains("background-opacity = 1"))
+
         var terminal = prefs.terminal
         terminal.themeOverride = .forest
         terminal.cursorStyle = .bar
@@ -301,10 +318,21 @@ struct CarrierTerminalStoreTests {
         terminal.fontFamilyOverride = "Menlo"
         terminal.fontSizeOverride = 15
         terminal.fontLigaturesOverride = false
+        terminal.fontThicken = true
+        terminal.dimInactivePanes = true
+        terminal.focusFollowsMouse = true
+        terminal.optionAsAlt = .left
+        terminal.copyOnSelect = true
+        terminal.scrollbackLimit = .mb50
         prefs.terminal = terminal
 
         store.syncAppearance(preferences: prefs, scheme: .light)
         let rendered = store.controller.renderedConfig
+        #expect(store.controller.lastConfigurationIssue == nil)
+        #expect(store.appearanceProfile.theme == .forest)
+        #expect(store.appearanceProfile.scheme == .light)
+        #expect(store.appearanceProfile.dimInactivePanes == true)
+        #expect(store.appearanceProfile.focusFollowsMouse == true)
         #expect(rendered.contains("cursor-style = bar"))
         #expect(rendered.contains("cursor-style-blink = false"))
         #expect(rendered.contains("window-padding-x = 14"))
@@ -312,6 +340,15 @@ struct CarrierTerminalStoreTests {
         #expect(rendered.contains("minimum-contrast = 4.5"))
         #expect(rendered.contains("font-family = Menlo"))
         #expect(rendered.contains("font-size = 15"))
+        #expect(rendered.contains("font-thicken = true"))
+        #expect(rendered.contains("macos-option-as-alt = left"))
+        #expect(rendered.contains("copy-on-select = clipboard"))
+        #expect(rendered.contains("scrollback-limit = 50000000"))
+        #expect(rendered.contains("bold-color = #"))
+        #expect(rendered.contains("cursor-text = #"))
+        #expect(rendered.contains("palette = 0=#"))
+        #expect(rendered.contains("palette = 15=#"))
+        #expect(rendered.contains("background-opacity = 1"))
     }
 
     @Test(.enabled(if: ProcessInfo.processInfo.environment["CARRIER_IT_TERMINAL"] != nil))
@@ -325,7 +362,8 @@ struct CarrierTerminalStoreTests {
             scheme: .dark
         )
 
-        let tab = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let ptyOwner = TerminalOwner.terminal(UUID())
+        let tab = store.openTab(for: ptyOwner, workingDirectory: "/tmp")
         let paneId = tab.activePaneId
         let state = store.state(for: paneId)!
 
@@ -338,7 +376,7 @@ struct CarrierTerminalStoreTests {
         window.contentView = NSHostingView(rootView: CarrierTerminalView(store: store, paneId: paneId, autoFocus: true))
         window.orderBack(nil)
         defer {
-            _ = store.forceCloseAll(for: .quick)
+            _ = store.forceCloseAll(for: ptyOwner)
             window.orderOut(nil)
         }
 
@@ -410,7 +448,7 @@ struct CarrierTerminalStoreTests {
             }
         }
         let capturedPid = try #require(runningChildPid)
-        #expect(await store.closeAll(for: .quick, force: true))
+        #expect(await store.closeAll(for: ptyOwner, force: true))
         let exited = await waitUntil(timeoutSeconds: 3.0) {
             Darwin.kill(capturedPid, 0) != 0 && errno == ESRCH
         }
@@ -543,7 +581,7 @@ struct CarrierTerminalStoreTests {
             scheme: .dark,
             fallbackDirectory: "/tmp"
         )
-        _ = futureStore.openTab(for: .quick, workingDirectory: "/tmp")
+        _ = futureStore.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
         futureStore.teardownAll()
         #expect(try Data(contentsOf: fileURL) == futureJSON)
 
@@ -556,7 +594,7 @@ struct CarrierTerminalStoreTests {
             scheme: .dark,
             fallbackDirectory: "/tmp"
         )
-        let healedTab = recoveredStore.openTab(for: .quick, workingDirectory: "/tmp")
+        let healedTab = recoveredStore.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
         recoveredStore.teardownAll()
         let dirItems = try FileManager.default.contentsOfDirectory(atPath: fileURL.deletingLastPathComponent().path)
         let backupFile = try #require(dirItems.first { $0.hasPrefix("terminals.json.bak.") })
@@ -668,7 +706,7 @@ struct CarrierTerminalStoreTests {
             scheme: .dark,
             processInspector: inspector
         )
-        let tab = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let tab = store.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
         let paneId = tab.activePaneId
         let state = store.state(for: paneId)!
         inspector.runningByStateId[ObjectIdentifier(state)] = ["node"]
@@ -688,5 +726,345 @@ struct CarrierTerminalStoreTests {
         #expect(store.pane(id: paneId) != nil)
 
         store.teardownAll()
+    }
+
+    @Test func renameTabAndCloseOtherTabsKeepTargetSelected() async {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: FakeProcessInspector()
+        )
+        let owner = TerminalOwner.terminal(UUID())
+        let first = store.openTab(for: owner, workingDirectory: "/tmp")
+        let second = store.openTab(for: owner, workingDirectory: "/tmp")
+        let third = store.openTab(for: owner, workingDirectory: "/tmp")
+
+        store.renameTab(second.id, customTitle: "Server")
+        #expect(store.tab(id: second.id)?.title == "Server")
+
+        let closed = await store.closeOtherTabs(except: second.id, for: owner)
+        #expect(closed == true)
+        #expect(store.tabs(for: owner).map(\.id) == [second.id])
+        #expect(store.activeTabId(for: owner) == second.id)
+        #expect(store.tab(id: first.id) == nil)
+        #expect(store.tab(id: third.id) == nil)
+
+        store.teardownAll()
+    }
+
+    @Test func standaloneTerminalsHaveIndependentTabs() async {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: FakeProcessInspector()
+        )
+
+        let firstGroup = store.createStandaloneTerminal(workingDirectory: "/tmp")
+        let secondGroup = store.createStandaloneTerminal(workingDirectory: "/tmp")
+        let addedTab = store.openTab(for: .terminal(secondGroup), workingDirectory: "/tmp")
+        #expect(store.standaloneTerminals().count == 2)
+        #expect(store.tabs(for: .terminal(firstGroup)).count == 1)
+        #expect(store.tabs(for: .terminal(secondGroup)).count == 2)
+        #expect(store.activeTabId(for: .terminal(secondGroup)) == addedTab.id)
+
+        // Closing the only tab in the first group removes that group cleanly without affecting the second group.
+        if let firstTabId = store.tabs(for: .terminal(firstGroup)).first?.id {
+            let closedFirst = await store.closeTab(id: firstTabId)
+            #expect(closedFirst == true)
+        }
+        #expect(store.standaloneTerminals().map(\.id) == [secondGroup])
+        #expect(store.tabs(for: .terminal(secondGroup)).count == 2)
+
+        store.teardownAll()
+    }
+
+    @Test func injectsBottomPromptZshShimWithoutMutatingPersistedPaneEnv() {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("carrier-store-shim-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let shimDir = tempRoot.appendingPathComponent("shim", isDirectory: true)
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: FakeProcessInspector(),
+            zshShimDirectory: shimDir,
+            processEnvironment: ["SHELL": "/bin/zsh"]
+        )
+
+        // Opted out by default so user dotfiles and ZDOTDIR stay untouched.
+        let shimOwner = TerminalOwner.terminal(UUID())
+        let defaultTab = store.openTab(for: shimOwner, workingDirectory: "/tmp", envVars: ["FOO": "default"])
+        #expect(store.state(for: defaultTab.activePaneId)?.configuration.envVars == ["FOO": "default"])
+
+        var enabledTerminal = prefs.terminal
+        enabledTerminal.pinPromptToBottom = true
+        prefs.terminal = enabledTerminal
+
+        let tab = store.openTab(
+            for: shimOwner,
+            workingDirectory: "/tmp",
+            envVars: ["FOO": "bar"]
+        )
+        let state = store.state(for: tab.activePaneId)
+        #expect(state?.configuration.envVars["ZDOTDIR"] == shimDir.path)
+        #expect(state?.configuration.envVars["FOO"] == "bar")
+        #expect(store.registry.pane(id: tab.activePaneId)?.envVars == ["FOO": "bar"])
+        #expect(FileManager.default.fileExists(atPath: shimDir.appendingPathComponent(".zshrc").path))
+
+        // Explicit commands skip the interactive prompt shim.
+        let cmdTab = store.openTab(
+            for: shimOwner,
+            workingDirectory: "/tmp",
+            envVars: ["FOO": "baz"],
+            command: "/bin/echo ok"
+        )
+        let cmdState = store.state(for: cmdTab.activePaneId)
+        #expect(cmdState?.configuration.envVars == ["FOO": "baz"])
+
+        // Disabling the preference disables shim injection on newly created panes.
+        var terminal = prefs.terminal
+        terminal.pinPromptToBottom = false
+        prefs.terminal = terminal
+        let optOutTab = store.openTab(for: shimOwner, workingDirectory: "/tmp")
+        let optOutState = store.state(for: optOutTab.activePaneId)
+        #expect(optOutState?.configuration.envVars["ZDOTDIR"] == nil)
+
+        store.teardownAll()
+    }
+
+    @Test func cmdKKeyMonitorPassesThroughOutsideFocusedTerminalAndHonorsClearScrollbackToggle() async throws {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        var enabledTerminal = prefs.terminal
+        enabledTerminal.pinPromptToBottom = true
+        prefs.terminal = enabledTerminal
+
+        let inspector = FakeProcessInspector()
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: inspector
+        )
+        let tab = store.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
+        let paneId = tab.activePaneId
+        // Realize the cached TerminalViewState just as MountedTerminalSurface does on appear.
+        let state = try #require(store.state(for: paneId))
+        let event = try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: .command,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "k",
+            charactersIgnoringModifiers: "k",
+            isARepeat: false,
+            keyCode: 40
+        ))
+
+        // Outside a focused terminal view, Cmd+K passes through untouched.
+        #expect(store.focusedPaneId(for: NSTextView()) == nil)
+        #expect(store.handleKeyDownEvent(event) === event)
+
+        var clearScreenCalls = 0
+        var ctrlLCalls = 0
+        store.performClearScreenForTests = { id in
+            clearScreenCalls += 1
+            return id == paneId
+        }
+        store.sendControlLForTests = { id in
+            if id == paneId { ctrlLCalls += 1 }
+            return true
+        }
+        store.focusedPaneResolverForTests = { paneId }
+
+        // Focused terminal view consumes Cmd+K and sends clear_screen + Ctrl+L when idle.
+        #expect(store.handleKeyDownEvent(event) == nil)
+        let idleCompleted = await waitUntil { clearScreenCalls == 1 && ctrlLCalls == 1 }
+        #expect(idleCompleted)
+
+        // When a foreground command is running, clear_screen still runs but Ctrl+L is suppressed.
+        inspector.runningByStateId = [ObjectIdentifier(state): ["vim"]]
+        #expect(store.handleKeyDownEvent(event) == nil)
+        let busyCompleted = await waitUntil { clearScreenCalls == 2 }
+        #expect(busyCompleted)
+        #expect(ctrlLCalls == 1)
+
+        // When process inspection fails, fail safely and suppress Ctrl+L so running TUIs never receive stray input.
+        inspector.runningByStateId = [:]
+        inspector.inspectionError = "ps timed out"
+        #expect(store.handleKeyDownEvent(event) == nil)
+        let errorCompleted = await waitUntil { clearScreenCalls == 3 }
+        #expect(errorCompleted)
+        #expect(ctrlLCalls == 1)
+
+        var terminal = prefs.terminal
+        terminal.pinPromptToBottom = false
+        prefs.terminal = terminal
+        #expect(store.handleKeyDownEvent(event) === event)
+        #expect(store.clearScrollback(paneId: paneId) == false)
+
+        store.teardownAll()
+    }
+
+    @Test func zshShimDefaultsUnderCarrierAppFolderAndSelectPaneSkipsNoopWrites() async throws {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        var enabledTerminal = prefs.terminal
+        enabledTerminal.pinPromptToBottom = true
+        prefs.terminal = enabledTerminal
+
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("carrier-shim-root-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let workspaceFile = terminalWorkspaceURL(carrierFolder: tempRoot.path)
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: workspaceFile),
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: FakeProcessInspector(),
+            processEnvironment: ["SHELL": "/bin/zsh"]
+        )
+        let firstTab = store.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
+        let firstPaneId = firstTab.activePaneId
+        let realized = try #require(store.state(for: firstPaneId))
+        #expect(realized.configuration.envVars["ZDOTDIR"] == tempRoot.appendingPathComponent("app/terminal/zsh-bottom-prompt").path)
+
+        // Selecting an already-active pane must not trigger redundant synchronous writes.
+        try? FileManager.default.removeItem(at: workspaceFile)
+        store.selectPane(firstPaneId)
+        #expect(FileManager.default.fileExists(atPath: workspaceFile.path) == false)
+
+        store.teardownAll()
+    }
+
+    @Test func epicContinueInTerminalSkipsPersistenceAndAutoClosesOnProcessExit() async throws {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("carrier-epic-terminal-\(UUID().uuidString)", isDirectory: true)
+        let engineDir = tempRoot.appendingPathComponent("engine", isDirectory: true)
+        let cloneDir = engineDir.appendingPathComponent("clone", isDirectory: true)
+        let configDir = tempRoot.appendingPathComponent("config", isDirectory: true)
+        let terminalsFile = tempRoot.appendingPathComponent("terminals.json")
+        try FileManager.default.createDirectory(at: cloneDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let resume = try validateResume(
+            ResumeDescriptor(
+                harness: "claude",
+                sessionId: "91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f20",
+                cwd: cloneDir.path,
+                configDir: configDir.path
+            ),
+            engine: engineDir.path
+        ).get()
+        let launch = embeddedResumeLaunch(resume)
+        let owner = TerminalOwner.epic(repo: "AshuLab/carrier", issue: 42)
+
+        let fileStore = TerminalWorkspaceFileStore(fileURL: terminalsFile)
+        let store = CarrierTerminalStore(
+            fileStore: fileStore,
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: FakeProcessInspector()
+        )
+        let tab = store.openTab(
+            for: owner,
+            workingDirectory: launch.workingDirectory,
+            command: launch.command,
+            title: "Claude · Author"
+        )
+        let state = try #require(store.state(for: tab.activePaneId) as TerminalViewState?)
+        #expect(state.configuration.workingDirectory == launch.workingDirectory)
+        #expect(state.configuration.command == launch.command)
+        #expect(state.configuration.envVars.isEmpty)
+
+        // Epic resume tabs remain ephemeral in terminals.json even when saved synchronously.
+        store.saveWorkspaceNow()
+        let saved = fileStore.load()
+        #expect(saved?.workspaces.contains { $0.owner == owner } != true)
+
+        // When the resumed CLI exits cleanly, Ghostty invokes onClose(false) and the tab closes automatically.
+        state.onClose?(false)
+        let autoClosed = await waitUntil { store.tabs(for: owner).isEmpty }
+        #expect(autoClosed)
+
+        store.teardownAll()
+    }
+
+    @Test func ghosttyBaseConfigurationUnbindsMenuShortcutsCleanly() {
+        let suite = "ghostty-unbinds-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let prefs = AppPreferences(defaults: defaults)
+        let profile = TerminalAppearanceMapper.makeProfile(
+            theme: .carrier,
+            scheme: .dark,
+            preferences: prefs,
+            translucent: true
+        )
+        let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile)
+        let rendered = config.rendered
+        #expect(rendered.contains("keybind = super+t=unbind"))
+        #expect(rendered.contains("keybind = super+d=unbind"))
+        #expect(rendered.contains("keybind = super+shift+d=unbind"))
+        #expect(rendered.contains("keybind = super+shift+enter=unbind"))
+        #expect(rendered.contains("keybind = super+shift+w=unbind"))
+        #expect(rendered.contains("keybind = super+shift+left_bracket=unbind"))
+        #expect(rendered.contains("keybind = super+shift+right_bracket=unbind"))
+        #expect(rendered.contains("keybind = super+alt+left_bracket=unbind"))
+        #expect(rendered.contains("keybind = super+alt+right_bracket=unbind"))
+
+        let controller = TerminalController(configuration: config)
+        #expect(controller.lastConfigurationIssue == nil)
+    }
+
+    @Test func ephemeralStoreIsolatesShimInTempDirectoryAndLiveObserversReloadDefaults() async {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark,
+            observesSystemAppearance: true
+        )
+        defer { store.teardownAll() }
+
+        let tempPrefix = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path
+        #expect(store.zshShimDirectory.resolvingSymlinksInPath().path.hasPrefix(tempPrefix))
+
+        let initialTheme = store.appearanceProfile.theme
+        let nextTheme: Theme = initialTheme == .ocean ? .forest : .ocean
+        var settings = prefs.terminal
+        settings.themeOverride = nextTheme
+        prefs.terminal = settings
+
+        let updated = await waitUntil {
+            store.appearanceProfile.theme == nextTheme
+        }
+        #expect(updated)
     }
 }

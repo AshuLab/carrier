@@ -800,7 +800,8 @@ struct CarrierTerminalStoreTests {
             preferences: prefs,
             scheme: .dark,
             processInspector: FakeProcessInspector(),
-            zshShimDirectory: shimDir
+            zshShimDirectory: shimDir,
+            processEnvironment: ["SHELL": "/bin/zsh"]
         )
 
         // Opted out by default so user dotfiles and ZDOTDIR stay untouched.
@@ -939,7 +940,8 @@ struct CarrierTerminalStoreTests {
             fileStore: TerminalWorkspaceFileStore(fileURL: workspaceFile),
             preferences: prefs,
             scheme: .dark,
-            processInspector: FakeProcessInspector()
+            processInspector: FakeProcessInspector(),
+            processEnvironment: ["SHELL": "/bin/zsh"]
         )
         let firstTab = store.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
         let firstPaneId = firstTab.activePaneId

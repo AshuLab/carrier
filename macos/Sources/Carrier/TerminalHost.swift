@@ -38,6 +38,7 @@ final class CarrierTerminalStore {
     @ObservationIgnored private let preferences: AppPreferences
     @ObservationIgnored private let processInspector: any TerminalProcessInspecting
     @ObservationIgnored let zshShimDirectory: URL
+    @ObservationIgnored private let processEnvironment: [String: String]
     @ObservationIgnored private let persistDebounceNanoseconds: UInt64
 
     /// Cached Ghostty surface state per `paneId` (reordering tabs or moving panes preserves live shells).
@@ -71,6 +72,7 @@ final class CarrierTerminalStore {
         scheme: ThemeScheme? = nil,
         processInspector: (any TerminalProcessInspecting)? = nil,
         zshShimDirectory: URL? = nil,
+        processEnvironment: [String: String] = ProcessInfo.processInfo.environment,
         persistDebounceNanoseconds: UInt64 = 250_000_000,
         observesSystemAppearance: Bool = false,
         knownSessionIds: Set<String>? = nil,
@@ -84,6 +86,7 @@ final class CarrierTerminalStore {
         self.fileStore = resolvedStore
         self.preferences = preferences
         self.processInspector = processInspector ?? GhosttyTerminalProcessInspector()
+        self.processEnvironment = processEnvironment
         let derivedCarrierFolder: URL = {
             guard isEphemeralRun == false, let dir = resolvedStore.fileURL?.deletingLastPathComponent() else {
                 return FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -806,6 +809,7 @@ final class CarrierTerminalStore {
         }
         return TerminalZshBottomPromptShim.mergedEnvironment(
             baseEnvVars: pane.envVars,
+            processEnvironment: processEnvironment,
             shimDirectory: zshShimDirectory,
             pinPromptToBottom: true,
             command: pane.command

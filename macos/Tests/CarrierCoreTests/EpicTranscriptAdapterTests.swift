@@ -73,7 +73,7 @@ private func chatGroup(_ events: [ChatEvent]) -> ToolGroup? {
         case .note: "note"
         case .skill: "skill"
         case .error: "error"
-        case .slices: "slices"
+        case .slice: "slice"
         }
     } == ["message", "run of 1", "note", "skill", "run of 1", "error"])
     // the engine's own count stands for a read whose output is only its first and last lines

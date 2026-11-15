@@ -18,6 +18,8 @@ struct EpicView: View {
     var resume: (card: ResumeCard, store: EpicStore)?
     /// The file rows that are open and their fragments; nil when the engine cannot be asked (the rows do not open).
     var fileDiffs: FileDiffs?
+    /// The width the person chose for the chat's column: the Agent output and the pipeline follow it.
+    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
     @State private var tab = EpicTab.agentOutput
     /// Whether the page is at its end: a session that starts scrolls it into view only then, so reading further up is not interrupted.
     @State private var atEnd = true
@@ -55,7 +57,7 @@ struct EpicView: View {
         }
         .safeAreaBar(edge: .top) {
             PipelineStrip(steps: pipelineSteps(subject, reply: reply))
-                .frame(maxWidth: 700).frame(maxWidth: .infinity)
+                .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
                 .padding(.horizontal, 20).padding(.vertical, 10)
         }
     }
@@ -67,7 +69,7 @@ struct EpicView: View {
                 agentFeed
                 if let resume { ResumeCardView(card: resume.card, store: resume.store, epic: EpicRef(repo: subject.repo, issue: subject.issue)) }
             }
-            .frame(maxWidth: 700).frame(maxWidth: .infinity)
+            .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
         case .filesChanged:
             FilesChangedView(files: files, fileDiffs: fileDiffs)
         }
@@ -205,7 +207,6 @@ struct PipelineStrip: View {
                 PipelineStepView(index: index, step: step)
             }
         }
-        .frame(maxWidth: 700)
     }
 }
 
@@ -275,8 +276,8 @@ private extension EpicTab {
     }
 }
 
-/// The epic's links in one toolbar pill, a divider between them: its pull request (when it has one) and its issue. Each shows
-/// only when the engine gave a web link.
+/// The epic's links in one glass pill of the toolbar, the size of the others (Search and Filter, Pause and Stop): its pull request (when it
+/// has one) and its issue. Each shows only when the engine gave a web link.
 struct EpicLinks: View {
     let prURL: String?
     let issueURL: String?
@@ -284,18 +285,9 @@ struct EpicLinks: View {
     var body: some View {
         let pr = prURL.flatMap(browserURL), issue = issueURL.flatMap(browserURL)
         HStack(spacing: 0) {
-            link("Open PR", url: pr) { GitHubMark.image.renderingMode(.template).resizable().scaledToFit().frame(width: 13, height: 13) }
-            if pr != nil, issue != nil { Divider().frame(height: 14) }
-            link("Open issue", url: issue) { Image(systemName: "number").font(.scaled(12, weight: .medium)) }
+            if let pr { ToolbarPillButton(title: "Open PR", mark: GitHubMark.image) { NSWorkspace.shared.open(pr) }.help("Open the pull request") }
+            if let issue { ToolbarPillButton(title: "Open issue", icon: "number") { NSWorkspace.shared.open(issue) }.help("Open the issue") }
         }
-    }
-
-    @ViewBuilder private func link(_ title: String, url: URL?, @ViewBuilder icon: () -> some View) -> some View {
-        if let url {
-            Button { NSWorkspace.shared.open(url) } label: {
-                Label { Text(title) } icon: { icon() }.labelStyle(.titleAndIcon).padding(.horizontal, 8).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
+        .glassEffect(.regular, in: .capsule)
     }
 }

@@ -48,7 +48,6 @@ struct FlowItemView: View {
     let flow: FlowItem
     @Binding var flipped: Set<String>
     @Binding var slices: SliceFolds
-    @Environment(\.waitingSlices) private var waiting
     @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
 
     var body: some View {
@@ -59,18 +58,22 @@ struct FlowItemView: View {
             }
             .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 8)
         case .note(_, let text):
-            Text(text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
-                .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
+            if let published = publishedNote(text) {
+                PublishedNoteRow(note: published)
+            } else {
+                Text(text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
+                    .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
+            }
         case .error(_, let text):
             BannerView(banner: failedTurnBanner(agent: "", error: text), copyDetails: true, retry: nil)
                 .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
         case .skill(_, let call):
-            SkillRowView(call: call).padding(.vertical, 2)
+            SkillRowView(call: call).padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
         case .tools(let id, let group, let live):
             ChatToolGroupView(id: "t\(id)", group: group, live: live, startsOpen: mode == .expanded, flipped: $flipped)
                 .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
-        case .slices(_, let lanes):
-            SliceCardView(lanes: lanes, waiting: waiting, flipped: $flipped, slices: $slices)
+        case .slice(let lane):
+            SliceCardView(lane: lane, flipped: $flipped, slices: $slices)
                 .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
         }
     }
@@ -431,11 +434,36 @@ struct CallColumns: View {
     }
 }
 
-/// A call to the `Skill` tool, a milestone of its own: a grey box with a white glyph and its name in medium monospaced, 28 pt
-/// high, no chevron (nothing to open).
+/// A code change the agent published ("created 946 (the-branch)"): a quiet line with the verb, the pull request as a link and the
+/// branch cut in the middle, its whole name in the tooltip.
+struct PublishedNoteRow: View {
+    let note: PublishedNote
+    @Environment(\.epicRepo) private var repo
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.triangle.pull").font(.scaled(10, weight: .semibold)).foregroundStyle(.tertiary)
+            Text(note.verb).foregroundStyle(.secondary)
+            if let number = note.number {
+                PullRequestChip(number: number, dot: nil, url: repo.map { "https://github.com/\($0)/pull/\(number)" })
+            } else {
+                Text(note.identifier).foregroundStyle(.secondary)
+            }
+            if let branch = note.branch {
+                Text(branch).codeFont(11).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle).help(branch)
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.scaled(12)).lineLimit(1)
+        .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A call to the `Skill` tool, a milestone of its own: one line of the work card's family (its tile, "Skill", the skill's name, how long
+/// it took), with nothing to open.
 struct SkillRowView: View {
     let call: ToolCall
-    @State private var hovered = false
 
     private var failed: Bool { call.status == .failed }
 
@@ -443,18 +471,14 @@ struct SkillRowView: View {
         HStack(spacing: LogMetrics.gap) {
             Image(systemName: call.kind.icon).font(.scaled(9, weight: .bold)).foregroundStyle(.white)
                 .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth).background(RoundedRectangle(cornerRadius: 5).fill(call.kind.color))
-            Text(call.arg).codeFont(12, weight: .medium).lineLimit(1).truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            // the duration shows on hover, and always when the call was slow or failed
-            CallColumns(
-                duration: call.durationMs.flatMap { hovered || failed || $0 >= 10_000 ? formatCallDuration($0) : nil }, failed: failed,
-                status: call.status == .running ? .pending : failed ? .error : .ok
-            )
+            Text("Skill").fontWeight(.semibold).foregroundStyle(failed ? Color.red : .primary)
+            Text(call.arg).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 8)
+            if failed { Text("failed").foregroundStyle(.red) } else if let ms = call.durationMs { Text(formatCallDuration(ms)).foregroundStyle(.tertiary).monospacedDigit() }
         }
-        .padding(.horizontal, LogMetrics.iconColumn)
-        .frame(height: LogMetrics.skillRow)
-        .rowHover(hovered)
-        .onHover { hovered = $0 }
+        .font(.scaled(12.5)).lineLimit(1)
+        .padding(.horizontal, 10).frame(height: LogMetrics.skillRow)
+        .workCard()
         .help(call.arg)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(callAccessibilityLabel(call))

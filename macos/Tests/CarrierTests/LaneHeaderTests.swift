@@ -11,18 +11,17 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
     )
 }
 
-@MainActor private func height(_ lanes: [LaneSection], width: CGFloat = 480, waiting: [EpicReply.Slice] = []) throws -> Int {
-    let card = SliceCardView(lanes: lanes, waiting: waiting, flipped: .constant([]), slices: .constant(SliceFolds()))
+@MainActor private func height(_ lanes: [LaneSection], width: CGFloat = 480) throws -> Int {
+    let card = SliceCardView(lane: lanes[0], flipped: .constant([]), slices: .constant(SliceFolds()))
     let renderer = ImageRenderer(content: card.frame(width: width))
     renderer.scale = 2
     return try #require(renderer.cgImage).height
 }
 
-// A closed slice is a 30 pt line and one row of two lines; the card is as tall done, failed or waiting, with or without a number or a
-// pull request, and one more row adds the same height whatever its state.
+// A closed slice is one row of two lines; the card is as tall done or failed, with or without a number or a pull request.
 @MainActor @Test func aSliceCardKeepsItsHeightWhateverTheStateOfItsRow() throws {
     let base = try height([lane()])
-    #expect(base >= 2 * (30 + 18 + 20))
+    #expect(base >= 2 * (18 + 20))
     for state in [SubagentState.failed] { #expect(try height([lane(state)]) >= base) }
     var untitled = lane()
     untitled.slice = nil
@@ -33,10 +32,6 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
     var untimed = lane()
     (untimed.timeLabel, untimed.duration) = (nil, nil)
     #expect(try height([untimed]) == base)
-    // a slice that has not started is a row of the same height
-    let waiting = EpicReply.Slice(number: 9, title: "Socket server", state: "ready", blockedBy: [], prNumber: nil, closedAt: nil, readAt: 0)
-    let two = try height([lane(), lane()])
-    #expect(try height([lane()], waiting: [waiting]) == two)
 }
 
 // At a narrow width the row keeps one line for its title and its numbers: the chip and the chevron never push the title out.

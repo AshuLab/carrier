@@ -44,7 +44,7 @@ extension SessionSection {
     /// The subagents in the section's list, in its order.
     var slices: [LaneSection] {
         guard case .items(let flow) = body else { return [] }
-        return flow.flatMap { item -> [LaneSection] in if case .slices(_, let lanes) = item { lanes } else { [] } }
+        return flow.compactMap { if case .slice(let lane) = $0 { lane } else { nil } }
     }
 }
 
@@ -261,12 +261,12 @@ private func running(_ events: [ExecEvent]) -> [FlowItem] {
     return flow
 }
 
-/// `m4` a main row with id 4, `sAB` the one slices card, with the subagents A and B, at the place of the first.
+/// `m4` a main row with id 4, `sA` the slice of agent A.
 private func order(_ flow: [FlowItem]) -> [String] {
     flow.map {
         switch $0 {
         case .tools(let id, _, _): "g\(id)"
-        case .slices(_, let lanes): "s" + lanes.map(\.id).joined()
+        case .slice(let lane): "s" + lane.id
         default: "m\($0.id)"
         }
     }
@@ -274,16 +274,16 @@ private func order(_ flow: [FlowItem]) -> [String] {
 
 private func say(_ id: Int) -> ExecEvent { event(id, "say", text: "m") }
 
-@Test func theSubagentsAreOneCardWhereTheFirstWasTakenAndWhatTheMainAgentDidMeanwhileFollowsIt() {
+@Test func eachSubagentSitsWhereItWasTakenAndWhatTheMainAgentDidMeanwhileFollowsIt() {
     let events = [say(1), say(2), say(3), event(4, "task", agent: "A", text: "Build slice #1"), event(5, "task", agent: "B", text: "Build slice #2")]
         + (6...10).map(say)
-    #expect(order(running(events)) == ["m1", "m2", "m3", "sAB", "m6", "m7", "m8", "m9", "m10"])
+    #expect(order(running(events)) == ["m1", "m2", "m3", "sA", "sB", "m6", "m7", "m8", "m9", "m10"])
 }
 
-@Test func aSubagentWithNoTaskStartJoinsTheCardAtItsFirstEventAndAResumeDoesNotMoveIt() {
+@Test func aSubagentWithNoTaskStartSitsAtItsFirstEventAndAResumeDoesNotMoveIt() {
     let events = [say(1), event(2, "say", agent: "A", text: "hi"), say(3), event(4, "task", agent: "B", text: "Build slice #2"), say(5),
                   ExecEvent(id: 6, at: 6, kind: "task", text: "Build slice #2", agentId: "B", status: "ok"), event(7, "task", agent: "B", text: "Build slice #2")]
-    #expect(order(running(events)) == ["m1", "sAB", "m3", "m5"])
+    #expect(order(running(events)) == ["m1", "sA", "m3", "sB", "m5"])
 }
 
 @Test func aLateEventWithALowerIdRebuildsTheSameList() {

@@ -13,22 +13,23 @@ public enum FlowItem: Equatable, Identifiable {
     case skill(id: Int, ToolCall)
     /// A run of the agent's calls and thoughts, at the id of the first. `live` is whether the agent is working in it now.
     case tools(id: Int, ToolGroup, live: Bool)
-    /// The subagents of the session, all in one card, at the place of the first one's `task` start.
-    case slices(id: Int, [LaneSection])
+    /// A subagent, at the id of its first `task` start.
+    case slice(LaneSection)
 
     public var id: Int {
         switch self {
-        case .message(let id, _), .note(let id, _), .error(let id, _), .skill(let id, _), .tools(let id, _, _), .slices(let id, _): id
+        case .message(let id, _), .note(let id, _), .error(let id, _), .skill(let id, _), .tools(let id, _, _): id
+        case .slice(let lane): lane.startId
         }
     }
 }
 
 /// Runs of calls and thoughts become one group each, like the chat's: a thought is placed among the calls of the run it comes in, and a run
-/// ends at anything else: a message, a note, an error, a skill or the slices card (which sits before the first item with a higher id than the first subagent's). `running`
+/// ends at anything else: a message, a note, an error, a skill or a slice (a slice sits before the first item with a higher id). `running`
 /// is whether the agent is working: the last run is then live when nothing comes after it, and a call that never ended in a run that is
 /// over was stopped, not going on.
 public func flowItems(_ items: [TranscriptItem], slices: [LaneSection] = [], running: Bool = false) -> [FlowItem] {
-    var later = slices.sorted { $0.startId < $1.startId }
+    var later = slices.sorted { $0.startId < $1.startId }[...]
     var flow: [FlowItem] = []
     var first: Int?
     var calls: [ToolCall] = []
@@ -44,10 +45,10 @@ public func flowItems(_ items: [TranscriptItem], slices: [LaneSection] = [], run
         return call
     }
     for item in items {
-        if let first = later.first, first.startId < item.id {
+        while let slice = later.first, slice.startId < item.id {
             close()
-            flow.append(.slices(id: first.startId, later))
-            later = []
+            flow.append(.slice(slice))
+            later = later.dropFirst()
         }
         switch item {
         case .tool(let id, let call) where call.tool == "Skill":
@@ -71,7 +72,7 @@ public func flowItems(_ items: [TranscriptItem], slices: [LaneSection] = [], run
         }
     }
     close()
-    if let first = later.first { flow.append(.slices(id: first.startId, later)) }
+    flow += later.map(FlowItem.slice)
     if running, case .tools(let id, let group, _)? = flow.last { flow[flow.count - 1] = .tools(id: id, group, live: true) }
     return flow
 }

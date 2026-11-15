@@ -24,7 +24,7 @@ public enum LogMetrics {
     // heights
     public static let groupLine: CGFloat = 28
     public static let sliceLine: CGFloat = 28
-    public static let skillRow: CGFloat = 28
+    public static let skillRow: CGFloat = 30
 
     /// The chevron's turn in seconds; nil under Reduce Motion, where it does not animate. Nothing else in the log animates.
     public static func chevronTurn(reduceMotion: Bool) -> TimeInterval? { reduceMotion ? nil : 0.12 }

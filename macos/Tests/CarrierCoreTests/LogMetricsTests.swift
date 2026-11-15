@@ -10,7 +10,7 @@ import Testing
     #expect(LogMetrics.sliceIndent + LogMetrics.titleColumn == 60)
     #expect(LogMetrics.groupLine == 28)
     #expect(LogMetrics.sliceLine == 28)
-    #expect(LogMetrics.skillRow == 28)
+    #expect(LogMetrics.skillRow == 30)
     #expect(LogMetrics.durationColumn == 44)
     #expect(LogMetrics.statusColumn == 14)
     #expect(LogMetrics.chevronColumn == 10)

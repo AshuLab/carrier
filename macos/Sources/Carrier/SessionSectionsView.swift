@@ -1,3 +1,4 @@
+import AppKit
 import CarrierCore
 import SwiftUI
 
@@ -31,17 +32,16 @@ struct SessionSectionsView: View {
             if let earlier = split.earlier { EarlierSessionsRow(earlier: earlier, open: earlierOpen) { earlierOpen.toggle() } }
             ForEach(Array(shown.enumerated()), id: \.element.id) { index, section in
                 let open = folds.isOpen(section)
-                let before = index > 0 ? folds.isOpen(shown[index - 1]) : nil
                 Section {
+                    // the flow goes down: a small arrow in the gap between one agent and the next
+                    if index > 0 || split.earlier != nil { SessionFlowArrow().frame(height: SessionMetrics.between) }
                     Button { folds.toggle(section) } label: { SessionHeaderView(section: section, open: open) }
                         .buttonStyle(.plain)
                         .accessibilityLabel(sessionRowLabel(section, open: open))
                         .accessibilityHint(open ? "Folds this session" : "Opens this session")
-                        .padding(.top, SessionMetrics.gap(before: before, open: open, afterEarlierRow: index == 0 && split.earlier != nil))
                     if open {
                         Color.clear.frame(height: SessionMetrics.toContent)
                         TranscriptRows(content: section.body, flipped: $flipped, slices: $slices)
-                            .environment(\.waitingSlices, section.state == .running && section.stage == "ship" ? waitingSlices : [])
                         if let card = findingsCard(reply, stage: section.stage, round: section.round) {
                             FindingsCardView(card: card).padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
                         }
@@ -55,26 +55,22 @@ struct SessionSectionsView: View {
         .environment(\.epicRepo, epic.repo)
         .task { roles = RoleIdentities(config: currentConfig()) }
     }
+}
 
-    /// The slices that have not started: the builder's card lists them after the ones that did.
-    private var waitingSlices: [EpicReply.Slice] { reply?.slices.filter { $0.state == "ready" || $0.state == "waiting" } ?? [] }
+/// The arrow between two sessions, in the gap above the lower one: the agents run one after the other, top to bottom.
+struct SessionFlowArrow: View {
+    var body: some View {
+        Image(systemName: "arrow.down").font(.scaled(10, weight: .semibold)).foregroundStyle(.quaternary)
+            .frame(maxWidth: .infinity).accessibilityHidden(true)
+    }
 }
 
 /// The scale of the feed (docs/macos-ui.md): every gap is one of these.
 enum SessionMetrics {
-    /// Between two sessions: a session is the unit the eye scans by.
-    static let between: CGFloat = 60
-    /// Between two folded neighbours, which are one line each.
-    static let betweenFolded: CGFloat = 26
+    /// Between two sessions, open or folded: a session is the unit the eye scans by.
+    static let between: CGFloat = 76
     /// From the row to what is under it.
     static let toContent: CGFloat = 16
-
-    /// The gap above a session's row. `before` is whether the session above is open (nil for the first one).
-    static func gap(before: Bool?, open: Bool, afterEarlierRow: Bool) -> CGFloat {
-        if afterEarlierRow { return between }
-        guard let before else { return 0 }
-        return before == false && open == false ? betweenFolded : between
-    }
 }
 
 extension View {
@@ -92,55 +88,50 @@ struct ResultCardView: View {
     let card: ResultCard
     let open: Bool
     let toggle: () -> Void
-    @State private var hovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SettingsDivider()
             if card.hasDetails {
-                Button(action: toggle) { row }
+                Button(action: toggle) { line }
                     .buttonStyle(.plain)
                     .accessibilityLabel(resultAccessibilityLabel(card, open: open))
                     .accessibilityHint(open ? "Hides the evidence" : "Shows the evidence")
             } else {
-                row.accessibilityElement(children: .ignore).accessibilityLabel(resultAccessibilityLabel(card, open: open))
+                line.accessibilityElement(children: .ignore).accessibilityLabel(resultAccessibilityLabel(card, open: open))
             }
             if let reason = card.reason {
-                Text(linkedText(reason)).font(.callout).foregroundStyle(tint).textSelection(.enabled)
+                Text(linkedText(reason)).font(.scaled(12)).foregroundStyle(tint).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 10).padding(.vertical, 7)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(tint.opacity(0.14)))
-                    .padding(.horizontal, LogMetrics.iconColumn).padding(.bottom, 10)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(tint.opacity(0.14)))
+                    .padding(.horizontal, 8).padding(.bottom, 8)
             }
             if open, let ci = card.ci {
                 Text(linkedText(ci.evidence)).font(.scaled(11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 10).padding(.vertical, 8)
                     .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
-                    .padding(.horizontal, LogMetrics.iconColumn).padding(.bottom, 10)
+                    .padding(.horizontal, 8).padding(.bottom, 8)
             }
         }
+        .workCard()
+        .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
         .sessionRow()
     }
 
-    private var row: some View {
-        HStack(spacing: LogMetrics.gap) {
-            Image(systemName: icon).font(.scaled(13)).foregroundStyle(tint)
-                .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
-            HStack(spacing: 4) {
-                Text(card.outcome).fontWeight(.semibold)
-                if let ci = card.ci { Text("· \(ciVerdictText(ci.verdict))").foregroundStyle(verdictColor(ci.verdict)) }
-            }
-            .font(.scaled(12)).lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // the columns of a call, so the chevron stands where the log's chevrons stand
-            CallColumns(duration: nil, status: .ok, chevron: (card.hasDetails, open))
+    /// The card's line, as every card of the feed has one: the tone's mark, how it ended in bold, the CI verdict, and the chevron when
+    /// there is evidence to open.
+    private var line: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon).font(.scaled(13)).foregroundStyle(tint).frame(width: 16, height: 16)
+            Text(card.outcome).fontWeight(.semibold)
+            if let ci = card.ci { Text("· \(ciVerdictText(ci.verdict))").foregroundStyle(verdictColor(ci.verdict)) }
+            Spacer(minLength: 8)
+            if card.hasDetails { CardChevron(open: open) }
         }
-        .padding(.horizontal, LogMetrics.iconColumn)
-        .frame(height: LogMetrics.groupLine)
-        .background(Color.primary.opacity(hovered && card.hasDetails ? 0.05 : 0))
+        .font(.scaled(12.5)).lineLimit(1)
+        .padding(.horizontal, 10).frame(height: 30)
         .contentShape(Rectangle())
-        .onHover { hovered = $0 }
     }
 
     private func verdictColor(_ word: String) -> Color {
@@ -177,15 +168,15 @@ struct SessionHeaderView: View {
 
     var body: some View {
         let text = sessionRowText(section)
-        VStack(spacing: open ? 9 : 7) {
+        VStack(spacing: 9) {
             HStack(spacing: 18) {
                 Hairline(leading: true, bright: hovered)
                 HStack(spacing: 12) {
-                    AgentAvatar(text: text, harness: section.agent, size: open ? 34 : 30, working: section.state == .running)
+                    AgentAvatar(text: text, harness: section.agent, size: 34, working: section.state == .running)
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 8) {
-                            Text(text.name).font(.scaled(open ? 14 : 13.5, weight: .bold)).lineLimit(1).layoutPriority(1)
-                            Text(text.role).font(.scaled(open ? 14 : 13.5)).foregroundStyle(.secondary).lineLimit(1)
+                            Text(text.name).font(.scaled(14, weight: .bold)).lineLimit(1).layoutPriority(1)
+                            Text(text.role).font(.scaled(14)).foregroundStyle(.secondary).lineLimit(1)
                         }
                         if text.how.isEmpty == false { Text(howLine(text)).lineLimit(1) }
                     }
@@ -380,8 +371,9 @@ struct AgentAvatar: View {
         Text(text.letter).font(.scaled(size * 0.38, weight: .bold)).foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(Circle().fill(disc))
-            .overlay(alignment: .bottomTrailing) { if mark { corner.offset(x: 4, y: 4) } }
             .overlay { if working { SpinningRing(diameter: size + 8, lineWidth: 2) } }
+            // after the ring, so the mark is over it and not the other way round
+            .overlay(alignment: .bottomTrailing) { if mark { corner.offset(x: 4, y: 4) } }
             .help(working ? "\(harness) · working" : harness)
     }
 

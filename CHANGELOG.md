@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- An epic's Agent output reads like the chat: one centred column, each agent a centred row with the account it acted as, the agent's work as the chat's tool cards, and the stop and Resume as a notice at the end.
+- An epic's slices and a review's findings are cards: a slice per subagent in the order it happened, and one card for a review with its findings, the reviewer's verification as its foot, and the whole row a link to the discussion.
 - Updating the app no longer opens a window: a glass pill at the top of the sidebar, after the window's buttons, shows the new version; clicking it downloads the update right there, with its percent, and then it says Restart, which installs it and relaunches the app. A failed download leaves Retry. Check now in Settings and Check for Updates… show what they find in the same pill, and say so in an alert when there is nothing new.
 
 ## [0.5.0] - 2026-11-13

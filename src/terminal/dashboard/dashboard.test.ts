@@ -229,6 +229,7 @@ const session = (stage: 'ship' | 'review' | 'fix', minutesAgo: number, tookMin: 
   role: stage === 'review' ? ('reviewer' as const) : ('author' as const),
   round: null,
   agent: { harness: 'claude' as const, model: 'm', provider: null },
+  profile: null,
   status: tookMin === null ? ('running' as const) : ('finished' as const),
   startedAt: now - minutesAgo * 60_000,
   finishedAt: tookMin === null ? null : now - (minutesAgo - tookMin) * 60_000,

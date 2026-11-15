@@ -7,7 +7,8 @@ import SwiftUI
 /// answer), with its step, what failed and a timer, and three effects tell it is alive: a shimmer over the words, a glow that runs round
 /// the edge (amber while it waits for the person) and a roll when the words change. When the work ends the glow fades, the words roll to
 /// the summary and a tick bounces once and gives its place back. With Reduce Motion the effects stop; the icon and the words still tell it.
-/// Open or folded is kept in `flipped` by id so a row the lazy feed recycles keeps its state.
+/// Open or folded is kept in `flipped` by id so a row the lazy feed recycles keeps its state. A session's conversation and the epic's Agent
+/// output both draw their runs with it.
 struct ChatToolGroupView: View {
     let id: String
     let group: ToolGroup
@@ -17,8 +18,9 @@ struct ChatToolGroupView: View {
     var waiting = false
     /// When the turn began, in milliseconds: the timer of a live run counts from it, as the person waited from then.
     var since: Int?
+    /// Whether the card is open until the person flips it (the Tool output setting set to expanded); a session's runs start folded.
+    var startsOpen = false
     @Binding var flipped: Set<String>
-    @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// What the lead slot shows once the run is not live: a tick for a moment after it ended, a square when it was stopped, nothing.
     @State private var finished = Lead.none
@@ -27,7 +29,7 @@ struct ChatToolGroupView: View {
     fileprivate enum Lead: Equatable { case none, spark, ring, waiting, done, stopped, failed }
 
     private var steps: [WorkStep] { group.steps }
-    private var open: Bool { flipped.contains(id) && steps.isEmpty == false }
+    private var open: Bool { startsOpen != flipped.contains(id) && steps.isEmpty == false }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -39,9 +41,7 @@ struct ChatToolGroupView: View {
             if open { timeline.transition(reduceMotion ? .opacity : .reveal) }
         }
         .padding(.horizontal, 10)
-        // the glass, tint and fill of the code blocks, so the card and what it opens to are one family
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.045)))
-        .glassEffect(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), in: .rect(cornerRadius: 12))
+        .workCard()
         .overlay { if glowing { GlowEdge(color: group.erred ? .red : waiting ? .attention : .thought, waiting: waiting, moves: reduceMotion == false).opacity(live ? 1 : 0).allowsHitTesting(false) } }
         .animation(.smooth(duration: 0.35), value: open)
         .animation(.easeOut(duration: 0.5), value: live)

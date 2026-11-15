@@ -8,7 +8,9 @@ struct ToolbarPillButton: View {
     static let height: CGFloat = 28
 
     let title: String
-    let icon: String
+    var icon = ""
+    /// An image in the place of the symbol (the GitHub mark).
+    var mark: Image?
     var badge = 0
     var spinning = false
     /// The icon's own colour (Stop's red); the words keep the text colour.
@@ -20,7 +22,11 @@ struct ToolbarPillButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                Image(systemName: icon).font(.scaled(11, weight: .medium)).foregroundStyle(iconTint ?? .primary).symbolEffect(.rotate, options: .repeating, isActive: spinning)
+                if let mark {
+                    mark.renderingMode(.template).resizable().scaledToFit().frame(width: 12, height: 12)
+                } else {
+                    Image(systemName: icon).font(.scaled(11, weight: .medium)).foregroundStyle(iconTint ?? .primary).symbolEffect(.rotate, options: .repeating, isActive: spinning)
+                }
                 Text(title).font(.scaled(12, weight: .medium))
                 if badge > 0 {
                     Text("\(badge)").font(.scaled(10, weight: .semibold)).monospacedDigit().foregroundStyle(.white)

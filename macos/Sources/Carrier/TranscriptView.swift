@@ -2,14 +2,16 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The rows of an open session under its pinned header: messages in bubbles, notes and errors as plain lines, each tool call as a
-/// card. They are the content of a `Section` of the Agent output tab's lazy stack, so only the rows on screen are built.
+/// The rows of an open session under its row: the agent's messages, notes and errors as the chat draws them, and each run of its
+/// calls as the chat's work card (`ChatToolGroupView`), so the epic and a session read the same. They are the content of a `Section` of the
+/// Agent output tab's lazy stack, so only the rows on screen are built. `flipped` is what the person opened or folded, by id, for every card
+/// of the tab (the lazy stack recreates rows, so a row does not keep it itself).
 struct TranscriptRows: View {
     let content: TranscriptBody
-    @Binding var outputs: OutputFolds
-    @Binding var groups: GroupFolds
+    @Binding var flipped: Set<String>
     @Binding var slices: SliceFolds
     @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
+    @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
 
     var body: some View {
         switch content {
@@ -18,7 +20,7 @@ struct TranscriptRows: View {
         case .items(let items) where items.isEmpty:
             EmptyStateView(state: .noActivity).frame(minHeight: 170).sessionRow()
         case .items(let items):
-            ForEach(visibleFlow(items, mode: mode)) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices).sessionRow() }
+            ForEach(visibleFlow(items, mode: mode, showsReasoning: showsReasoning)) { FlowItemView(flow: $0, flipped: $flipped, slices: $slices).sessionRow() }
         case .tail(let lines):
             MonoLines(lines: lines.isEmpty ? ["No output yet"] : lines)
                 .codeFont(12).foregroundStyle(.secondary)
@@ -40,25 +42,44 @@ struct LoadingRow: View {
     }
 }
 
-/// One entry of the log with its margins: a line, a group of calls or a slice row. A slice's own rows are drawn with it too.
+/// One entry of the log with its margins: the agent's message, a note, an error, a skill, a run of calls as the chat's work card or a slice
+/// row. A slice's own rows are drawn with it too.
 struct FlowItemView: View {
     let flow: FlowItem
-    @Binding var outputs: OutputFolds
-    @Binding var groups: GroupFolds
+    @Binding var flipped: Set<String>
     @Binding var slices: SliceFolds
+    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
+    @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
 
     var body: some View {
         switch flow {
-        case .item(let item):
-            // a log line keeps its margin inside its hover, which runs edge to edge; the rest has it outside
-            TranscriptItemView(item: item, outputs: $outputs).padding(.horizontal, item.isLogLine ? 0 : LogMetrics.iconColumn).padding(.vertical, flow.verticalMargin)
-        case .group(let id, let calls):
-            ToolGroupView(id: id, calls: calls, groups: $groups, outputs: $outputs).padding(.vertical, flow.verticalMargin)
+        case .message(_, let text):
+            Group {
+                if let json = jsonMessage(text) { JSONMessageView(message: json) } else { MarkdownView(text: text) }
+            }
+            .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 8)
+        case .note(_, let text):
+            if let published = publishedNote(text) {
+                PublishedNoteRow(note: published)
+            } else {
+                Text(text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
+                    .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
+            }
+        case .error(_, let text):
+            BannerView(banner: failedTurnBanner(agent: "", error: text), copyDetails: true, retry: nil)
+                .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
+        case .skill(_, let call):
+            SkillRowView(call: call).padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
+        case .tools(let id, let group, let live):
+            ChatToolGroupView(id: "t\(id)", group: group, live: live, startsOpen: mode == .expanded || (opensFailed && group.failed > 0), flipped: $flipped)
+                .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
         case .slice(let lane):
-            LaneSectionView(lane: lane, outputs: $outputs, groups: $groups, slices: $slices)
+            SliceCardView(lane: lane, flipped: $flipped, slices: $slices)
+                .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
         }
     }
 }
+
 
 /// A text with links: the pointing hand over each one, and the chip lighter under the pointer. `Text` says nothing of where a run was drawn
 /// (a text renderer is never called for selectable text), so the links are placed by laying the same text out again with TextKit at the
@@ -151,7 +172,6 @@ private struct LinkedText: View {
 /// wide ones sharing what is left when the table does not fit the message (their cells wrap).
 private struct MarkdownTableView: View {
     let table: MarkdownTable
-    @Environment(\.colorScheme) private var scheme
     @State private var hovering = false
     @State private var copied = false
 
@@ -164,8 +184,7 @@ private struct MarkdownTableView: View {
             }
         }
         // the card is as wide as its table, not as the message
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.045)))
-        .glassEffect(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), in: .rect(cornerRadius: 12))
+        .workCard()
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(alignment: .topTrailing) { copyMenu.opacity(hovering || copied ? 1 : 0).padding(5) }
         .onHover { hovering = $0 }
@@ -382,67 +401,6 @@ struct MarkdownView: View {
     }
 }
 
-struct TranscriptItemView: View {
-    let item: TranscriptItem
-    @Binding var outputs: OutputFolds
-    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
-    @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
-
-    var body: some View {
-        switch item {
-        case .message(_, let text):
-            Group {
-                if let json = jsonMessage(text) { JSONMessageView(message: json) } else { MarkdownView(text: text) }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
-        case .note(_, let text):
-            Text(text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
-        case .error(_, let text):
-            Text(text).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled)
-        case .tool(let id, let card):
-            // only what changes files is a card; the rest is a line of the log
-            if card.kind == .edit {
-                ToolCardView(card: card)
-            } else if card.isSkill {
-                SkillRowView(card: card)
-            } else {
-                ToolLineView(card: card, outputOpen: outputs.isOpen(id, card, mode: mode, opensFailed: opensFailed)) {
-                    outputs.toggle(id, card, mode: mode, opensFailed: opensFailed)
-                }
-            }
-        }
-    }
-}
-
-extension FlowItem {
-    /// A group header has none, like a call line: its height is the pitch.
-    var verticalMargin: CGFloat {
-        switch self {
-        case .item(let item): item.verticalMargin
-        case .group, .slice: 0
-        }
-    }
-}
-
-extension TranscriptItem {
-    /// The air above and below a row: what the agent says needs the most, a card some, a line of the log the least, since
-    /// the lines come in runs.
-    var verticalMargin: CGFloat {
-        switch self {
-        case .message: 8
-        case .note, .error: 6
-        case .tool(_, let card): card.isSkill ? 2 : isLogLine ? 0 : 6
-        }
-    }
-
-    /// A call that does not edit: it is drawn as a line, with no air of its own (its height is the pitch of a run).
-    var isLogLine: Bool {
-        if case .tool(_, let card) = self { return card.kind != .edit }
-        return false
-    }
-}
-
 /// The disclosure chevron of every row that opens. It turns in 0.12 s, or just jumps under Reduce Motion.
 struct LogChevron: View {
     let open: Bool
@@ -477,210 +435,57 @@ struct CallColumns: View {
     }
 }
 
-/// A call that does not change files, as a quiet line of 26 pt: a bare glyph, what it starts with, and its duration when it
-/// matters. Nothing says it worked; a failure is red and keeps its chevron.
-struct CallLineView: View {
-    let card: TranscriptCard
-    let open: Bool
-    /// Hovered or focused.
-    let active: Bool
+/// A code change the agent published ("created 946 (the-branch)"): a quiet line with the verb, the pull request as a link and the
+/// branch cut in the middle, its whole name in the tooltip.
+struct PublishedNoteRow: View {
+    let note: PublishedNote
+    @Environment(\.epicRepo) private var repo
 
     var body: some View {
-        HStack(spacing: LogMetrics.gap) {
-            Image(systemName: card.kind.icon).font(.scaled(11)).foregroundStyle(card.status == .error ? .red : .secondary)
-                .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
-            HStack(spacing: 4) {
-                Text(card.title).codeFont(12).lineLimit(1)
-                    .truncationMode(card.kind == .shell ? .tail : .middle)
-                if card.moreCommands > 0 {
-                    Text("+\(card.moreCommands)").font(.scaled(11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
-                        .help("\(card.moreCommands) more commands in this call")
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            CallColumns(
-                duration: card.showsDuration(active: active) ? card.duration : nil, failed: card.status == .error, status: card.status,
-                chevron: (card.showsChevron(active: active, open: open), open)
-            )
-        }
-        .padding(.horizontal, LogMetrics.iconColumn)
-        .frame(height: LogMetrics.callLine)
-        .rowHover(active)
-        .contentShape(Rectangle())
-    }
-}
-
-/// A call line that opens: a click, or Return or Space with the keyboard on it, shows the whole command and what it printed on a
-/// flat grey block under the line; a call that failed starts open.
-struct ToolLineView: View {
-    let card: TranscriptCard
-    let outputOpen: Bool
-    let toggleOutput: () -> Void
-    @State private var hovered = false
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            CallLineView(card: card, open: outputOpen, active: hovered || focused)
-                .onHover { hovered = $0 }
-                .focusable().focused($focused)
-                .onKeyPress(keys: [.return, .space]) { _ in
-                    guard card.hasDetails else { return .ignored }
-                    toggleOutput()
-                    return .handled
-                }
-                .onTapGesture { if card.hasDetails { toggleOutput() } }
-                .help(card.arg)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(callAccessibilityLabel(card, open: outputOpen))
-                .accessibilityAddTraits(card.hasDetails ? .isButton : [])
-                .accessibilityAction { if card.hasDetails { toggleOutput() } }
-            if outputOpen, card.hasDetails {
-                TerminalBlockView(card: card).padding(.top, 2).padding(.horizontal, LogMetrics.iconColumn).padding(.bottom, 8)
-            }
-        }
-    }
-}
-
-/// A run of successful calls folded into one row of 28 pt: a chevron, what the calls were, their summed duration in a call's
-/// column, and the status and chevron slots reserved and empty. Open, the calls hang 18 pt in behind a 1.5 pt rule under the
-/// chevron's centre, so their icons start under the label.
-struct ToolGroupView: View {
-    let id: Int
-    let calls: [TranscriptItem]
-    @Binding var groups: GroupFolds
-    @Binding var outputs: OutputFolds
-    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
-
-    var body: some View {
-        let open = groups.isOpen(id, mode: mode)
-        VStack(alignment: .leading, spacing: 0) {
-            Button { groups.toggle(id) } label: {
-                ToolGroupHeader(calls: calls, open: open)
-            }
-            .buttonStyle(.plain)
-            if open {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(calls) { TranscriptItemView(item: $0, outputs: $outputs) }
-                }
-                .thread(indent: LogMetrics.groupIndent, rule: LogMetrics.groupRule, tint: .secondary)
-            }
-        }
-    }
-}
-
-struct ToolGroupHeader: View {
-    let calls: [TranscriptItem]
-    let open: Bool
-    @State private var hovered = false
-
-    private var label: String { callGroupLabel(calls) }
-    private var duration: String? { callGroupDuration(calls) }
-
-    var body: some View {
-        HStack(spacing: LogMetrics.gap) {
-            LogChevron(open: open)
-            Text(label).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            // the columns of a call, the status and chevron slots empty
-            CallColumns(duration: duration, status: .ok)
-        }
-        // the row's margin is inside the hover, which runs edge to edge: with so little room, square corners at the edge look right
-        .padding(.horizontal, LogMetrics.iconColumn)
-        .frame(height: LogMetrics.groupLine)
-        .rowHover(hovered)
-        .contentShape(Rectangle())
-        .onHover { hovered = $0 }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(callGroupAccessibilityLabel(calls, open: open))
-        .accessibilityHint(callGroupAccessibilityHint(open: open))
-    }
-}
-
-/// A call to the `Skill` tool, a milestone of its own: a grey box with a white glyph and its name in medium monospaced, 28 pt
-/// high, no chevron (nothing to open).
-struct SkillRowView: View {
-    let card: TranscriptCard
-    @State private var hovered = false
-
-    var body: some View {
-        HStack(spacing: LogMetrics.gap) {
-            Image(systemName: card.kind.icon).font(.scaled(9, weight: .bold)).foregroundStyle(.white)
-                .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth).background(RoundedRectangle(cornerRadius: 5).fill(card.kind.color))
-            Text(card.title).codeFont(12, weight: .medium).lineLimit(1).truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            CallColumns(duration: card.showsDuration(active: hovered) ? card.duration : nil, failed: card.status == .error, status: card.status)
-        }
-        .padding(.horizontal, LogMetrics.iconColumn)
-        .frame(height: LogMetrics.skillRow)
-        .rowHover(hovered)
-        .onHover { hovered = $0 }
-        .help(card.arg)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(callAccessibilityLabel(card))
-    }
-}
-
-/// What an opened call shows, flat on the raised grey of the message bubble: the command on its own strip, the output (its first
-/// lines, the rest behind "Show N more lines") and a footer with the line count and Copy.
-struct TerminalBlockView: View {
-    let card: TranscriptCard
-    @State private var showAll = false
-    @AppStorage(AppPreferences.outputLengthKey) private var length = AppPreferences.defaultOutputLength
-
-    var body: some View {
-        let shown = length.visible(card.output, expanded: showAll)
-        VStack(alignment: .leading, spacing: 0) {
-            strip
-            divider
-            if shown.lines.isEmpty {
-                Text("no output").font(.scaled(11.5)).foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 9)
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.triangle.pull").font(.scaled(10, weight: .semibold)).foregroundStyle(.tertiary)
+            Text(note.verb).foregroundStyle(.secondary)
+            if let number = note.number {
+                PullRequestChip(number: number, dot: nil, url: repo.map { "https://github.com/\($0)/pull/\(number)" })
             } else {
-                MonoLines(lines: shown.lines, redFirst: card.failureLine != nil).textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 8)
-                    // a cut output fades out where it is cut
-                    .mask {
-                        if shown.hidden > 0 {
-                            LinearGradient(stops: [.init(color: .black, location: 0.78), .init(color: .black.opacity(0.25), location: 1)], startPoint: .top, endPoint: .bottom)
-                        } else {
-                            Color.black
-                        }
-                    }
+                Text(note.identifier).foregroundStyle(.secondary)
             }
-            divider
-            footer(hidden: shown.hidden)
-        }
-        .codeFont(11.5)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private var divider: some View { Rectangle().fill(Color.secondary.opacity(0.2)).frame(height: 0.5) }
-
-    private var strip: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 9) {
-            Text(card.kind == .shell ? "❯" : card.tool).fontWeight(.semibold)
-            Text(card.arg).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 14).padding(.vertical, 8)
-    }
-
-    private func footer(hidden: Int) -> some View {
-        HStack(spacing: 12) {
-            if let count = card.lineCount { Text(count).foregroundStyle(.tertiary) }
-            if hidden > 0 || showAll {
-                Button(showAll ? "Show less" : "Show \(hidden) more \(hidden == 1 ? "line" : "lines")") { showAll.toggle() }
-                    .buttonStyle(.plain).foregroundStyle(Color.themeAccent)
+            if let branch = note.branch {
+                Text(branch).codeFont(11).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle).help(branch)
             }
             Spacer(minLength: 0)
-            CopyButton(text: card.copyText)
         }
-        .font(.scaled(11))
-        .padding(.horizontal, 14).padding(.vertical, 7)
+        .font(.scaled(12)).lineLimit(1)
+        .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
     }
 }
+
+/// A call to the `Skill` tool, a milestone of its own: one line of the work card's family (its tile, "Skill", the skill's name, how long
+/// it took), with nothing to open.
+struct SkillRowView: View {
+    let call: ToolCall
+
+    private var failed: Bool { call.status == .failed }
+
+    var body: some View {
+        HStack(spacing: LogMetrics.gap) {
+            Image(systemName: call.kind.icon).font(.scaled(9, weight: .bold)).foregroundStyle(.white)
+                .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth).background(RoundedRectangle(cornerRadius: 5).fill(call.kind.color))
+            Text("Skill").fontWeight(.semibold).foregroundStyle(failed ? Color.red : .primary)
+            Text(call.arg).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 8)
+            if failed { Text("failed").foregroundStyle(.red) } else if let ms = call.durationMs { Text(formatCallDuration(ms)).foregroundStyle(.tertiary).monospacedDigit() }
+        }
+        .font(.scaled(12.5)).lineLimit(1)
+        .padding(.horizontal, 10).frame(height: LogMetrics.skillRow)
+        .workCard()
+        .help(call.arg)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(callAccessibilityLabel(call))
+    }
+}
+
 
 /// How a call that did not simply work is marked: a red disc with a white cross, or a spinner while it runs (still under Reduce
 /// Motion). The disc is drawn in two colours: with one, the mark would be see-through. VoiceOver skips both: the row's label says it.
@@ -724,55 +529,6 @@ struct CopyButton: View {
         }
         .buttonStyle(.plain)
         .help(help)
-    }
-}
-
-/// An edit as a card, "name first": the file name, its folder dim, the counts once and nothing that says it worked. A failed edit
-/// has the engine's reason under the header and no diff; a running one a spinner.
-struct ToolCardView: View {
-    let card: TranscriptCard
-    @State private var showAll = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header.padding(.horizontal, 10).padding(.vertical, 7).frame(minHeight: 34)
-            if let reason = card.editReason {
-                Text(reason).font(.scaled(12)).foregroundStyle(.red).lineLimit(2)
-                    .padding(.horizontal, 10).padding(.bottom, 8)
-            }
-            if let diff = card.shownDiff { DiffView(rows: diff.rows, showAll: $showAll) }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: card.kind.icon).font(.scaled(11, weight: .semibold)).foregroundStyle(.white)
-                .frame(width: 20, height: 20).background(RoundedRectangle(cornerRadius: 6).fill(card.kind.color))
-            HStack(spacing: 6) {
-                Text(card.editName).font(.scaled(12, weight: .semibold)).lineLimit(1)
-                if card.isNewFile {
-                    Text("new").font(.scaled(9.5, weight: .semibold)).foregroundStyle(.green)
-                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.green.opacity(0.16)))
-                }
-                if card.editFolder.isEmpty == false {
-                    Text(card.editFolder).codeFont(11).foregroundStyle(.tertiary)
-                        .lineLimit(1).truncationMode(.head)
-                }
-            }
-            .help(card.arg).frame(maxWidth: .infinity, alignment: .leading)
-            if let diff = card.shownDiff {
-                HStack(spacing: 4) {
-                    Text("+\(diff.added)").foregroundStyle(.green)
-                    Text("−\(diff.removed)").foregroundStyle(.red)
-                }
-                .font(.scaled(12, weight: .medium)).monospacedDigit()
-            }
-            // a tick says nothing; only a failure or a running edit is marked
-            if card.status != .ok { ToolStatusView(status: card.status) }
-        }
     }
 }
 
@@ -884,53 +640,4 @@ struct DiffView: View {
         case .hunk: ConsoleColor.text.opacity(0.55)
         }
     }
-}
-
-// MARK: - The thread of a slice or a group
-
-private struct RuleReachKey: EnvironmentKey { static let defaultValue: CGFloat = 0 }
-
-extension EnvironmentValues {
-    /// How far a row's hover fill runs left of the row, to meet the rule of the thread it hangs from.
-    fileprivate var ruleReach: CGFloat {
-        get { self[RuleReachKey.self] }
-        set { self[RuleReachKey.self] = newValue }
-    }
-}
-
-private struct RowHover: ViewModifier {
-    let active: Bool
-    @Environment(\.ruleReach) private var reach
-
-    func body(content: Content) -> some View {
-        content.background { Rectangle().fill(Color.primary.opacity(active ? 0.05 : 0)).padding(.leading, -reach) }
-    }
-}
-
-private struct ThreadRule: ViewModifier {
-    let indent: CGFloat
-    let rule: CGFloat
-    let tint: Color
-    @State private var hovered = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func body(content: Content) -> some View {
-        content
-            .padding(.leading, indent)
-            .environment(\.ruleReach, indent - rule - LogMetrics.ruleWidth / 2)
-            .overlay(alignment: .leading) {
-                Capsule().fill(hovered ? tint.opacity(0.7) : Color.secondary.opacity(0.25)).frame(width: LogMetrics.ruleWidth)
-                    .padding(.leading, rule - LogMetrics.ruleWidth / 2)
-            }
-            .onHover { hovered = $0 }
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovered)
-    }
-}
-
-extension View {
-    /// The fill of a hovered row of the log; inside a thread it reaches the rule.
-    func rowHover(_ active: Bool) -> some View { modifier(RowHover(active: active)) }
-
-    /// Hangs the rows `indent` pt in behind a rule at `rule`: rounded, soft, and tinted while any row of the thread is hovered.
-    func thread(indent: CGFloat, rule: CGFloat, tint: Color) -> some View { modifier(ThreadRule(indent: indent, rule: rule, tint: tint)) }
 }

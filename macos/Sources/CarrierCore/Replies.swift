@@ -20,6 +20,8 @@ public struct SessionsReply: Codable, Equatable {
         public var result: SessionResult?
         /// Why the execution ended badly; nil when it has no failure kind, and for an engine that does not send it.
         public var failure: SessionFailure?
+        /// The GitHub profile the session acted as; nil from an engine that does not send it (the app then reads it from the config).
+        public var profile: String?
     }
 
     /// Newest first.

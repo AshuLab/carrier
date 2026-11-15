@@ -1,8 +1,8 @@
 import Foundation
 
-// The transcript under an open session: the events fetched so far turned into what the view draws, one item per message,
-// note, error or tool call (docs/specs/macos-app-redesign.md, story 20). A tool call arrives as a `tool_start` and a
-// `tool_end` joined by `callId`.
+// The transcript under an open session: the events fetched so far turned into one item per message, note, error, thought or tool call
+// (docs/specs/macos-app-redesign.md, story 20). A tool call arrives as a `tool_start` and a `tool_end` joined by `callId`, and becomes
+// the chat's `ToolCall`: `flowItems` then groups the calls into the chat's `ToolGroup`, so the epic and a session draw them with the same views.
 
 public enum ToolStatus: Equatable {
     case ok, error
@@ -47,93 +47,6 @@ public enum ToolKind: Hashable {
 
 /// How many rows of an edit's diff are drawn before "Show N more lines".
 public let collapsedDiffRows = 30
-
-public struct TranscriptCard: Equatable {
-    public var tool: String
-    public var kind: ToolKind
-    public var arg: String
-    public var summary: String
-    public var status: ToolStatus
-    /// "340 ms", "6 s"; nil while pending or when the engine gave none.
-    public var duration: String?
-    /// The first and last lines of what a command printed; empty when the call printed nothing or the engine sent none.
-    public var output: [String] = []
-    /// The lines an edit changed; nil when there are none.
-    public var diff: CardDiff?
-    /// The raw duration behind `duration`.
-    public var durationMs: Int?
-
-    /// 10 s or more: its duration is drawn without hover.
-    public var isSlow: Bool { (durationMs ?? 0) >= 10_000 }
-
-    /// A call to the `Skill` tool: a row of its own.
-    public var isSkill: Bool { tool == "Skill" }
-
-    /// A quiet line draws its duration on hover or focus, and always when slow or failed; never while the call runs.
-    public func showsDuration(active: Bool) -> Bool {
-        duration != nil && (active || isSlow || status == .error)
-    }
-
-    /// The chevron shows on hover, when open and always on a failed call; not on a call with nothing to open or still running.
-    public func showsChevron(active: Bool, open: Bool) -> Bool {
-        hasDetails && status != .pending && (active || open || status == .error)
-    }
-
-    /// What the call's line says: a command is cut to what it starts with, anything else (a path, a pattern) is its argument.
-    public var title: String { kind == .shell ? commandTitle(arg).title : arg }
-
-    /// How many commands are chained after a shell call's title; the view draws it as a quiet "+N".
-    public var moreCommands: Int { kind == .shell ? commandTitle(arg).more : 0 }
-
-    /// An edit's file name.
-    public var editName: String { arg.split(separator: "/").last.map(String.init) ?? arg }
-
-    /// An edit's folder, relative to the worktree (a Solve path `…/worktrees/<repo>/<lane>/…` loses everything up to the lane
-    /// folder); an absolute path outside any worktree keeps its last two folders after "…/"; a relative one is shown as it is.
-    public var editFolder: String {
-        let parts = arg.split(separator: "/").dropLast()
-        if let at = parts.firstIndex(of: "worktrees"), parts.distance(from: at, to: parts.endIndex) >= 3 {
-            return parts.dropFirst(parts.distance(from: parts.startIndex, to: at) + 3).joined(separator: "/")
-        }
-        if arg.hasPrefix("/") { return parts.isEmpty ? "" : "…/" + parts.suffix(2).joined(separator: "/") }
-        return parts.joined(separator: "/")
-    }
-
-    /// The lines an edit's card draws: none for an edit that failed.
-    public var shownDiff: CardDiff? { status == .error ? nil : diff }
-
-    /// The diff rows as the card first shows them: `collapsedDiffRows` rows, and how many are left out. All of them once expanded.
-    public func visibleDiffRows(expanded: Bool) -> (rows: [DiffRow], hidden: Int) {
-        CarrierCore.visibleDiffRows(shownDiff?.rows ?? [], expanded: expanded)
-    }
-
-    /// Whether the diff has more rows than the card first shows; the footer then has "Show N more lines" (and "Show less" once opened).
-    public var diffIsCut: Bool { (shownDiff?.rows.count ?? 0) > collapsedDiffRows }
-
-    /// An edit whose diff only adds rows: it creates the file (or adds to it); the header carries a small "new" tag.
-    public var isNewFile: Bool { shownDiff.map { $0.added > 0 && $0.removed == 0 && $0.rows.count == $0.added } ?? false }
-
-    /// Why an edit failed, in the engine's words; nil when it worked, is running or said nothing.
-    public var editReason: String? { status == .error && summary.isEmpty == false ? summary : nil }
-
-    /// A command always has something to show (the whole command); another call only when it printed something.
-    public var hasDetails: Bool { kind == .shell || output.isEmpty == false }
-
-    /// What the Copy button puts on the clipboard: the command, then what it printed.
-    public var copyText: String { ((kind == .shell ? [arg] : []) + output).joined(separator: "\n") }
-
-    /// The first output line of a failed call when it starts with `Exit code`: the only line drawn red. Any other failure prints plain.
-    public var failureLine: String? {
-        guard status == .error, let first = output.first, first.hasPrefix("Exit code") else { return nil }
-        return first
-    }
-
-    /// "11 lines" for the footer; nil when the call printed nothing (the body says "no output").
-    public var lineCount: String? { output.isEmpty ? nil : "\(output.count) \(output.count == 1 ? "line" : "lines")" }
-
-    /// Whether the call's output opens by itself, by what the person chose for the tools.
-    func opensByDefault(_ mode: ToolOutputMode, opensFailed: Bool) -> Bool { mode.opens(failed: status == .error, opensFailed: opensFailed) }
-}
 
 /// `hunk` is the quiet separator between fragments that are not adjacent; its text is git's `@@ -a,b +c,d @@`.
 public enum DiffSign: Equatable { case added, removed, context, hunk }
@@ -211,31 +124,18 @@ public func cardDiff(_ diff: [ExecEvent.DiffLine]?) -> CardDiff? {
     return result
 }
 
-/// What the user opened or closed by hand, by item id; a card nobody touched follows its default.
-public struct OutputFolds: Equatable {
-    private var chosen: [Int: Bool] = [:]
-
-    public init() {}
-
-    public func isOpen(_ id: Int, _ card: TranscriptCard, mode: ToolOutputMode, opensFailed: Bool) -> Bool {
-        chosen[id] ?? card.opensByDefault(mode, opensFailed: opensFailed)
-    }
-
-    public mutating func toggle(_ id: Int, _ card: TranscriptCard, mode: ToolOutputMode, opensFailed: Bool) {
-        chosen[id] = !isOpen(id, card, mode: mode, opensFailed: opensFailed)
-    }
-}
-
 public enum TranscriptItem: Equatable, Identifiable {
     case message(id: Int, text: String)
     case note(id: Int, text: String)
     case error(id: Int, text: String)
-    case tool(id: Int, TranscriptCard)
+    /// A block of the agent's reasoning (a `reasoning` event, as the chat host stores it). The engine's parsers send none today.
+    case thought(id: Int, text: String, at: Int)
+    case tool(id: Int, ToolCall)
 
     /// The id of the first event of the item, so a call keeps its place when its end arrives.
     public var id: Int {
         switch self {
-        case .message(let id, _), .note(let id, _), .error(let id, _), .tool(let id, _): id
+        case .message(let id, _), .note(let id, _), .error(let id, _), .thought(let id, _, _), .tool(let id, _): id
         }
     }
 }
@@ -278,26 +178,40 @@ struct TranscriptBuilder: Equatable {
         case "say": items.append(.message(id: event.id, text: event.text ?? ""))
         case "note": items.append(.note(id: event.id, text: event.text ?? ""))
         case "error": items.append(.error(id: event.id, text: event.text ?? ""))
+        case "reasoning":
+            // trimmed and never empty, as the chat's feed takes it
+            if let text = event.text?.trimmingCharacters(in: .whitespacesAndNewlines), text.isEmpty == false { items.append(.thought(id: event.id, text: text, at: event.at)) }
         case "tool_start", "tool_end":
             // an event with no callId is a call of its own
             let key = event.callId ?? "event \(event.id)"
             let known = calls[key]
             var call = known ?? Call(id: event.id, index: items.count)
             if event.kind == "tool_start" { call.start = event } else { call.end = event }
-            let item = TranscriptItem.tool(id: call.id, Self.card(call.start, call.end))
+            let item = TranscriptItem.tool(id: call.id, Self.call(call.start, call.end, id: call.id))
             if known == nil { items.append(item) } else { items[call.index] = item }
             calls[key] = call
         default: break
         }
     }
 
-    private static func card(_ start: ExecEvent?, _ end: ExecEvent?) -> TranscriptCard {
+    /// The call as the chat draws it: the start and the end the engine's parser sent, as the chat host would have stored them. The edit's
+    /// structured diff replaces the one the chat reads out of an output, a read or a search says what the engine counted (its output is only
+    /// the first and last lines) and a failure with no output says why in the engine's words.
+    private static func call(_ start: ExecEvent?, _ end: ExecEvent?, id: Int) -> ToolCall {
         let tool = end?.tool ?? start?.tool ?? "tool"
-        return TranscriptCard(
-            tool: tool, kind: ToolKind(tool: tool), arg: start?.arg ?? end?.arg ?? "", summary: end?.summary ?? "",
-            status: end == nil ? .pending : end?.status == "err" ? .error : .ok, duration: end?.durationMs.map(formatCallDuration),
-            output: end?.output ?? [], diff: cardDiff(end?.diff), durationMs: end?.durationMs
-        )
+        let callId = start?.callId ?? end?.callId
+        var call = ToolCall(start: ChatEvent(id: id, at: (start ?? end)?.at ?? 0, kind: "tool_start", callId: callId, tool: tool, arg: start?.arg ?? end?.arg))
+        guard let end else { return call }
+        call.finish(ChatEvent(id: end.id, at: end.at, kind: "tool_end", callId: callId, tool: tool, output: end.output, status: end.status))
+        if let ms = end.durationMs { call.endedAt = call.startedAt + ms }
+        if call.status == .ok, let diff = cardDiff(end.diff) {
+            (call.diff, call.added, call.removed) = (diff.rows, diff.added, diff.removed)
+            call.result = call.resultLine()
+        }
+        let summary = end.summary ?? ""
+        if call.status == .failed, call.output.isEmpty, summary.isEmpty == false { call.output = [summary] }
+        if call.status == .ok, summary.isEmpty == false, call.kind == .read || call.kind == .search { call.result = summary }
+        return call
     }
 }
 

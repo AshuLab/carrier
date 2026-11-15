@@ -48,7 +48,8 @@ Each folder has one job (the folder tree is in [CONTRIBUTING.md](CONTRIBUTING.md
 
 For users: [configuration](docs/configuration.md), [preparing a repo](docs/preparing-a-repo.md), [troubleshooting](docs/troubleshooting.md). Decisions: [ADRs](docs/adr/). Evidence behind them: [research](docs/research/).
 
-**The macOS app's look** - [macos-ui](docs/macos-ui.md) is the guide to how `Carrier.app` is drawn: the kinds of button and which to use, the divider, text fields, selects, rows that open a form (chevron), lists, menus, empty states, spacing, and the mistakes already made. Read it before you touch any view under `macos/Sources/Carrier`, reuse the pieces it names instead of drawing new ones, and update it in the same change when you add or change a piece.
+**The macOS app's look** - [macos-ui](docs/macos-ui.md) is the guide to how `Carrier.app` is drawn: the kinds of button and which to use, the divider, text fields, selects, rows that open a form (chevron), lists, menus, empty states, spacing, and the mistakes already made. Read it before you touch any view under `macos/Sources/Carrier`, reuse the pieces it names instead of drawing new ones, and update it in the same change when you add or change a piece or a rule.
+It holds how to use the pieces, never what a change did or how one screen behaves (that is `docs/macos/`).
 
 How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). Every user-visible change adds a line under Unreleased in [CHANGELOG.md](CHANGELOG.md), in the same PR.
 

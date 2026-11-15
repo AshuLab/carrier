@@ -187,8 +187,9 @@ public func ciVerdictText(_ word: String) -> String {
 // MARK: the session's row
 // The centered row that opens a session: who acted, what it did, how it ran, and one line of numbers under it.
 
-/// What `config.json` says of the two roles a session runs as, to name who a session acted as when the engine does not say
-/// (`profile` of the reply). ponytail: the global roles only; a repo's own `agents` override is not read.
+/// What `config.json` says of its profiles and of the two roles a session runs as. The engine sends the key of `profiles` a session acted
+/// as, a name the person chose; this says whose GitHub account it is, and names who a session acted as when the engine sends no key.
+/// ponytail: the global roles only; a repo's own `agents` override is not read.
 public struct RoleIdentities: Equatable {
     private struct Role: Equatable {
         var profile: String?
@@ -197,6 +198,10 @@ public struct RoleIdentities: Equatable {
     }
 
     private var roles: [String: Role] = [:]
+    /// The Agent Forge bot of each `forge` profile, by the profile's key.
+    private var bots: [String: String] = [:]
+    /// The keys of the `gh` profiles.
+    private var logins: Set<String> = []
 
     public static let none = RoleIdentities()
 
@@ -208,6 +213,11 @@ public struct RoleIdentities: Equatable {
         guard let config, let file = (try? JSONSerialization.jsonObject(with: config)) as? [String: Any] else { return }
         let profiles = file["profiles"] as? [String: Any] ?? [:]
         let agents = file["agents"] as? [String: Any] ?? [:]
+        for (key, value) in profiles {
+            guard let profile = value as? [String: Any] else { continue }
+            if profile["kind"] as? String == "forge", let bot = profile["agent"] as? String { bots[key] = bot }
+            if profile["kind"] as? String == "gh" { logins.insert(key) }
+        }
         for name in ["author", "reviewer"] {
             guard let role = agents[name] as? [String: Any] else { continue }
             let profile = (role["profile"] as? String).flatMap { profiles[$0] as? [String: Any] }
@@ -218,12 +228,16 @@ public struct RoleIdentities: Equatable {
         }
     }
 
-    /// `section` with the profile the config gives its role when it has none, and the role's effort when it ran on the role's model
-    /// (a failover to another model did not run with that effort).
+    /// `section` with the bot its profile's key stands for (a `gh` profile is the person's login, which the config does not hold, so it
+    /// names no one; a key the config does not know stays as the engine sent it), or, when the engine sent no key, the bot of its role; and
+    /// the role's effort when it ran on the role's model (a failover to another model did not run with that effort).
     public func resolved(_ section: SessionSection) -> SessionSection {
-        guard let role = roles[section.engineRole] else { return section }
         var named = section
-        named.profile = section.profile ?? role.profile
+        if let key = section.profile, key.isEmpty == false {
+            if let bot = bots[key] { named.profile = bot } else if logins.contains(key) { named.profile = nil }
+        }
+        guard let role = roles[section.engineRole] else { return named }
+        if section.profile == nil { named.profile = role.profile }
         if named.effort == nil, let model = section.model, model == role.model { named.effort = role.effort }
         return named
     }

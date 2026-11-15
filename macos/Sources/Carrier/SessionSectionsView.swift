@@ -42,10 +42,17 @@ struct SessionSectionsView: View {
                     if open {
                         Color.clear.frame(height: SessionMetrics.toContent)
                         TranscriptRows(content: section.body, flipped: $flipped, slices: $slices)
-                        if let card = findingsCard(reply, stage: section.stage, round: section.round) {
-                            FindingsCardView(card: card).padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
+                        // the reviewer's verification is the foot of its findings card; a stop keeps its own row
+                        let findings = findingsCard(reply, stage: section.stage, round: section.round)
+                        let merged = findings != nil && section.stage == "review" && section.result?.tone != .stop
+                        if let card = findings {
+                            FindingsCardView(
+                                card: card, reviewer: section.stage == "review" ? sessionRowText(section).name : nil,
+                                verification: merged ? section.result?.ci : nil, evidenceOpen: folds.isResultOpen(section), toggleEvidence: { folds.toggleResult(section) }
+                            )
+                            .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
                         }
-                        if let result = section.result { ResultCardView(card: result, open: folds.isResultOpen(section)) { folds.toggleResult(section) } }
+                        if let result = section.result, merged == false { ResultCardView(card: result, open: folds.isResultOpen(section)) { folds.toggleResult(section) } }
                         ContinueInTerminalView(section: section)
                     }
                 }
@@ -80,6 +87,19 @@ extension View {
     }
 }
 
+/// What the agent says it checked, in the flat block of a command's output, under the line of a card.
+struct EvidenceBlock: View {
+    let text: String
+
+    var body: some View {
+        Text(linkedText(text)).font(.scaled(11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
+            .padding(.horizontal, 8).padding(.bottom, 8)
+    }
+}
+
 /// The agent's closing report, the foot of the session under a hairline: one row like those of the log (a glyph, how it ended, the
 /// CI verdict) that opens on the evidence in the flat block of a command's output. A stop's reason is drawn under the row, never
 /// behind a click. The summary is not drawn: it is the engine's hand-off to the next agent, and the agent's last message above
@@ -106,13 +126,7 @@ struct ResultCardView: View {
                     .background(RoundedRectangle(cornerRadius: 8).fill(tint.opacity(0.14)))
                     .padding(.horizontal, 8).padding(.bottom, 8)
             }
-            if open, let ci = card.ci {
-                Text(linkedText(ci.evidence)).font(.scaled(11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 10).padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
-                    .padding(.horizontal, 8).padding(.bottom, 8)
-            }
+            if open, let ci = card.ci { EvidenceBlock(text: ci.evidence) }
         }
         .workCard()
         .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)

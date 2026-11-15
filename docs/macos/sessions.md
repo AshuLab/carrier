@@ -43,5 +43,11 @@ Numbered lists and tables are not read as blocks: a numbered item shows as a lin
 
 ## The epic's Agent output
 
-The Agent output tab of an epic draws the agent's work with these same views. The engine's events (`ExecEvent`, from the harness parser) are turned into the chat's `ToolCall`s and `ToolGroup`s by `Transcript` and `flowItems` (`CarrierCore/TranscriptItems.swift`, `TranscriptFlow.swift`), so a run reads the same as in a session: one work card per run of calls, folded until opened (open already when Settings has Tool output on expanded), the agent's text as markdown, an error as the red banner. An edit with a diff shows as a call with its diff inside the card, as in a session. The newest run of a running session is live (shimmer, ring, glow), and a call that never ended in a session that is over shows as stopped. A thought is drawn if the events carry one (`reasoning`; today's parsers send none) and follows Settings, Show reasoning.
-What is only the epic's stays between the runs, in event order: notes (a change the agent published, "created 736 (main)", is a quiet line with the pull request as a link), skills as a row of their own, and a subagent's slice row, which opens on its own runs. A harness with no parser shows its summarised `tail` lines instead. The calls are hidden when Tool output is hidden.
+The Agent output tab of an epic draws the agent's work with these same views.
+The engine's events (`ExecEvent`, from the harness parser) are turned into the chat's `ToolCall`s and `ToolGroup`s by `Transcript` and `flowItems` (`CarrierCore/TranscriptItems.swift`, `TranscriptFlow.swift`), so a run reads the same as in a session: one work card per run of calls, folded until opened (open already when Settings has Tool output on expanded), the agent's text as markdown, an error as the red banner.
+An edit with a diff shows as a call with its diff inside the card, as in a session.
+The newest run of a running session is live (shimmer, ring, glow), and a call that never ended in a session that is over shows as stopped.
+A thought is drawn if the events carry one (`reasoning`; today's parsers send none) and follows Settings, Show reasoning.
+What is only the epic's stays between the runs, in event order: notes (a change the agent published, "created 736 (main)", is a quiet line with the pull request as a link), skills as a row of their own, and a subagent's slice row, which opens on its own runs.
+A harness with no parser shows its summarised `tail` lines instead.
+The calls are hidden when Tool output is hidden.

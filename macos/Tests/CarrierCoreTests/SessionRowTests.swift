@@ -56,8 +56,12 @@ private let config = Data("""
     #expect(roles.resolved(section(engineRole: "")).profile == nil)
 }
 
-@Test func aProfileTheEngineSentIsNeverReplacedByTheConfig() {
-    #expect(RoleIdentities(config: config).resolved(section(profile: "other-bot")).profile == "other-bot")
+// The engine sends the key of `profiles`: a forge key is its bot, a `gh` key is no one's name, and a key the file lacks stays.
+@Test func theKeyTheEngineSentIsReadAgainstTheConfigsProfiles() {
+    let roles = RoleIdentities(config: config)
+    #expect(roles.resolved(section(engineRole: "author", profile: "bot-a")).profile == "acme-author")
+    #expect(roles.resolved(section(engineRole: "reviewer", profile: "me")).profile == nil)
+    #expect(roles.resolved(section(engineRole: "author", profile: "other-bot")).profile == "other-bot")
 }
 
 @Test func theRolesEffortOnlyGoesToASessionThatRanOnTheRolesModel() {

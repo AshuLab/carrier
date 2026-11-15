@@ -56,7 +56,7 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
         FindingRow(kind: .blocker, id: id, text: "One line", mark: mark, approximate: false, url: url)
     }
     func height(_ card: FindingsCard) throws -> Int {
-        let renderer = ImageRenderer(content: FindingsCardView(card: card).frame(width: 480))
+        let renderer = ImageRenderer(content: FindingsCardView(card: card, reviewer: nil, verification: nil, evidenceOpen: false, toggleEvidence: {}).frame(width: 480))
         renderer.scale = 2
         return try #require(renderer.cgImage).height
     }
@@ -68,4 +68,22 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
     #expect(try height(card([row(mark: .carried)])) == one)
     #expect(try height(card([row(id: nil, mark: nil, url: nil)])) <= one)
     #expect(try height(card([row(), row()])) == one + (one - line))
+}
+
+// An approval folds its suggestions behind one 32 pt line; with the verification the card has a 30 pt foot, and open, the evidence.
+@MainActor @Test func anApprovedReviewFoldsItsSuggestionsAndTheVerificationIsItsFoot() throws {
+    let card = FindingsCard(
+        round: 2, verdict: .ready, title: "Ready", summary: "0 blockers · 2 suggestions",
+        rows: [FindingRow(kind: .suggestion, id: "a", text: "One line", mark: nil, approximate: false, url: nil)], prNumber: nil, prURL: nil
+    )
+    func height(verification: ResultCard.CI?, open: Bool = false) throws -> Int {
+        let view = FindingsCardView(card: card, reviewer: "tassadar-agent", verification: verification, evidenceOpen: open, toggleEvidence: {})
+        let renderer = ImageRenderer(content: view.frame(width: 480))
+        renderer.scale = 2
+        return try #require(renderer.cgImage).height
+    }
+    let folded = try height(verification: nil)
+    let ci = ResultCard.CI(verdict: "passed", evidence: "pnpm test: 12 passed")
+    #expect(try height(verification: ci) == folded + 2 * 30 + 2)
+    #expect(try height(verification: ci, open: true) > folded + 2 * 30)
 }

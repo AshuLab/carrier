@@ -1,34 +1,59 @@
 import CarrierCore
 import SwiftUI
 
-// The findings of a review round as one work card (docs/macos-ui.md, "The review findings card"; F1 of
-// docs/research/macos-app-design/explorations/carrier-view-cards.html): the verdict on top, a row per finding, blockers first.
+// The findings of a review round as one work card (docs/macos-ui.md, "The review findings card"; the mockup is "Proposed" of
+// docs/research/macos-app-design/explorations/carrier-view-review.html): the verdict on top, a row per finding, blockers first, and the
+// reviewer's verification as the foot.
 
-/// The review's verdict as the header, then a row per finding: a dot for its kind, its id, what it says, its mark and a link to the
-/// discussion. It shows in the reviewer's session and, with the marks the next round verified, in the fixer's.
+/// The review's verdict as the header, then a row per finding: its kind in a word, its id, what it says, its mark, the whole row a link to
+/// the discussion. Under an approval the findings are suggestions, and wait folded. It shows in the reviewer's session, with the
+/// verification as its foot, and, with the marks the next round verified, in the fixer's.
 struct FindingsCardView: View {
     let card: FindingsCard
-    /// Folded by the person; kept here, so a card the lazy feed recycles opens again.
-    @State private var folded = false
+    /// Who wrote the review, for the header; nil in the fixer's session, where the findings are not its own.
+    let reviewer: String?
+    /// What the reviewer says it checked, the foot of the card; nil when it has none (or the card is the fixer's).
+    let verification: ResultCard.CI?
+    let evidenceOpen: Bool
+    let toggleEvidence: () -> Void
+    /// Opened by the person; kept here, so a card the lazy feed recycles folds again.
+    @State private var suggestionsOpen = false
+
+    /// An approved review's rows are suggestions: they wait behind one line.
+    private var foldsRows: Bool { card.verdict == .ready && card.rows.isEmpty == false }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button { flipCard { folded.toggle() } } label: { header }
-                .buttonStyle(.plain)
-                .disabled(card.rows.isEmpty)
-                .accessibilityLabel("\(card.title), \(card.summary)\(card.prNumber.map { ", pull request \($0)" } ?? "")")
-                .accessibilityHint(card.rows.isEmpty ? "" : folded ? "Shows the findings" : "Hides the findings")
-            if folded == false, card.rows.isEmpty == false {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(card.rows.enumerated()), id: \.offset) { _, row in
-                        SettingsDivider()
-                        FindingRowView(row: row)
-                    }
+            header
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(card.title), \(card.summary), \(roundText)\(card.prNumber.map { ", pull request \($0)" } ?? "")")
+            if foldsRows {
+                SettingsDivider()
+                Button { flipCard { suggestionsOpen.toggle() } } label: { foldLine }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(card.summary)
+                    .accessibilityHint(suggestionsOpen ? "Hides the findings" : "Shows the findings")
+            }
+            if foldsRows == false || suggestionsOpen {
+                ForEach(Array(card.rows.enumerated()), id: \.offset) { _, row in
+                    SettingsDivider()
+                    FindingRowView(row: row)
                 }
             }
+            if let verification {
+                SettingsDivider()
+                Button(action: toggleEvidence) { foot(verification) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Verified, \(ciVerdictText(verification.verdict))")
+                    .accessibilityHint(evidenceOpen ? "Hides the evidence" : "Shows the evidence")
+                if evidenceOpen { EvidenceBlock(text: verification.evidence).padding(.top, 8) }
+            }
         }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .workCard()
     }
+
+    private var roundText: String { "Round \(card.round)" + (reviewer.map { " · \($0)" } ?? "") }
 
     private var header: some View {
         HStack(spacing: 8) {
@@ -39,48 +64,84 @@ struct FindingsCardView: View {
                 }
             }
             .frame(width: 16, height: 16).accessibilityHidden(true)
-            Text(card.title).fontWeight(.semibold)
+            Text(card.title).fontWeight(.semibold).lineLimit(1).layoutPriority(1)
             Text(card.summary).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 8)
-            if let number = card.prNumber { PullRequestChip(number: number, dot: nil, url: card.prURL) }
-            CardChevron(open: folded == false).opacity(card.rows.isEmpty ? 0 : 1)
+            Text(roundText).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
+            if let number = card.prNumber { PullRequestChip(number: number, dot: nil, url: card.prURL).layoutPriority(1) }
         }
         .font(.scaled(12.5))
         .padding(.horizontal, 10).frame(height: 30)
+    }
+
+    /// The one line an approval's suggestions wait behind.
+    private var foldLine: some View {
+        HStack(spacing: 8) {
+            Text(plural(card.rows.count, "suggestion")).font(.scaled(12.5)).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            CardChevron(open: suggestionsOpen, width: 12)
+        }
+        .padding(.horizontal, 12).frame(height: 32).frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .hoverFill()
+    }
+
+    private func foot(_ ci: ResultCard.CI) -> some View {
+        HStack(spacing: 8) {
+            Text("Verified · \(ciVerdictText(ci.verdict))").font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
+            Spacer(minLength: 8)
+            CardChevron(open: evidenceOpen)
+        }
+        .padding(.horizontal, 10).frame(height: 30).frame(maxWidth: .infinity)
         .contentShape(Rectangle())
     }
+
+    private func plural(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
 }
 
+/// A finding: its kind as a word, its id, what it says and, at the right, its mark and the arrow that shows under the pointer. With a link
+/// the whole row opens the discussion and lights up under the pointer.
 private struct FindingRowView: View {
     let row: FindingRow
 
     var body: some View {
+        if let link = row.url.flatMap(browserURL) {
+            Link(destination: link) { content(linked: true) }
+                .buttonStyle(.plain).help(link.absoluteString)
+                .accessibilityHint("Opens the discussion")
+        } else {
+            content(linked: false)
+        }
+    }
+
+    private func content(linked: Bool) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            Circle().fill(dot).frame(width: 8, height: 8).padding(.top, 5).frame(width: 14, alignment: .leading).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                if let id = row.id { Text(id).font(.scaled(12, weight: .semibold, design: .monospaced)).textSelection(.enabled) }
+                HStack(spacing: 8) {
+                    Text(row.kind == .blocker ? "BLOCKER" : "SUGGESTION").font(.scaled(10.5, weight: .bold)).foregroundStyle(kindTint)
+                    if let id = row.id { Text(id).font(.scaled(12, weight: .semibold, design: .monospaced)).lineLimit(1).truncationMode(.middle) }
+                }
                 Text(row.text).font(.scaled(12.5)).foregroundStyle(.secondary).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
             }
             .opacity(row.isFixed ? 0.55 : 1)
             .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 7) {
                 if let mark = row.mark { markChip(mark) }
-                if let link = row.url.flatMap(browserURL) {
-                    Link(destination: link) { Image(systemName: "arrow.up.right").font(.scaled(10, weight: .semibold)).foregroundStyle(.tertiary) }
-                        .buttonStyle(.plain).help(link.absoluteString).accessibilityLabel("Open the discussion")
-                }
+                if linked { HoverArrow() }
             }
             .padding(.top, 1)
         }
-        .padding(.horizontal, 12).padding(.vertical, 9)
+        .padding(.horizontal, 12).padding(.vertical, 9).frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .modifier(HoverFillIf(enabled: linked))
         .accessibilityElement(children: .combine)
         .accessibilityLabel([row.kind == .blocker ? "Blocker" : "Suggestion", row.id, row.text, row.mark?.text].compactMap { $0 }.joined(separator: ", "))
     }
 
     /// Orange for a blocker, grey for a suggestion, green once verified fixed.
-    private var dot: Color {
+    private var kindTint: Color {
         if row.isFixed { return .green }
-        return row.kind == .blocker ? .orange : Color.secondary.opacity(0.6)
+        return row.kind == .blocker ? .orange : Color.secondary.opacity(0.8)
     }
 
     private func markChip(_ mark: FindingMark) -> some View {
@@ -95,4 +156,39 @@ private struct FindingRowView: View {
             .background(Capsule().fill(tint.opacity(0.16)))
             .help(row.approximate ? "The reviewer gave no ids, so this mark comes from matching titles" : "")
     }
+}
+
+/// The arrow at the end of a link row: there, but only seen while the pointer is over the row.
+private struct HoverArrow: View {
+    @Environment(\.rowHovered) private var hovered
+
+    var body: some View {
+        Image(systemName: "arrow.up.right").font(.scaled(10, weight: .semibold)).foregroundStyle(.tertiary).opacity(hovered ? 1 : 0).accessibilityHidden(true)
+    }
+}
+
+private struct RowHoveredKey: EnvironmentKey { static let defaultValue = false }
+
+private extension EnvironmentValues {
+    var rowHovered: Bool {
+        get { self[RowHoveredKey.self] }
+        set { self[RowHoveredKey.self] = newValue }
+    }
+}
+
+/// A 4 % fill under the pointer, as the rows of the other work cards take, and the row's hover for what is inside it.
+private struct HoverFillIf: ViewModifier {
+    let enabled: Bool
+    @State private var hovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.rowHovered, hovered)
+            .background(Color.primary.opacity(enabled && hovered ? 0.04 : 0))
+            .onHover { hovered = $0 }
+    }
+}
+
+private extension View {
+    func hoverFill() -> some View { modifier(HoverFillIf(enabled: true)) }
 }

@@ -1,119 +1,94 @@
 import Foundation
 
-// The rows of the Agent output tab as the view draws them: the transcript's items with each run of successful calls folded into
-// one group (docs/specs/agent-output-quiet-log.md). A pure step over `Transcript.items`, so an append never rebuilds the transcript.
+// The rows of the Agent output tab as the view draws them: the transcript's items with each run of calls and thoughts as one `ToolGroup`,
+// the chat's own (`chatFeed` builds the same from a session's events), so a run reads and looks the same in an epic and in a session.
+// A pure step over `Transcript.items`, so an append never rebuilds the transcript.
 
 public enum FlowItem: Equatable, Identifiable {
-    /// A message, note, error, skill, edit or a call that is a line of its own.
-    case item(TranscriptItem)
-    /// Two or more successful calls in a row; its id is the id of the first.
-    case group(id: Int, calls: [TranscriptItem])
-    /// A subagent, at the id of its first `task` start.
-    case slice(LaneSection)
+    /// What the agent said, as markdown.
+    case message(id: Int, text: String)
+    case note(id: Int, text: String)
+    case error(id: Int, text: String)
+    /// A call to the `Skill` tool: a milestone of its own, which ends a run.
+    case skill(id: Int, ToolCall)
+    /// A run of the agent's calls and thoughts, at the id of the first. `live` is whether the agent is working in it now.
+    case tools(id: Int, ToolGroup, live: Bool)
+    /// The subagents of the session, all in one card, at the place of the first one's `task` start.
+    case slices(id: Int, [LaneSection])
 
     public var id: Int {
         switch self {
-        case .item(let item): item.id
-        case .group(let id, _): id
-        case .slice(let lane): lane.startId
+        case .message(let id, _), .note(let id, _), .error(let id, _), .skill(let id, _), .tools(let id, _, _), .slices(let id, _): id
         }
     }
 }
 
-/// Whether an item can be in a group: a finished, successful call that is not an edit or a skill.
-private func isGroupable(_ item: TranscriptItem) -> Bool {
-    guard case .tool(_, let card) = item else { return false }
-    return card.status == .ok && card.kind != .edit && card.isSkill == false
-}
-
-/// A run of two or more groupable items in a row is one group; anything else, a lone call included, stays an item. A slice
-/// sits before the first item with a higher id and ends a run, so a group never spans one.
-public func flowItems(_ items: [TranscriptItem], slices: [LaneSection] = []) -> [FlowItem] {
-    var later = slices.sorted { $0.startId < $1.startId }[...]
+/// Runs of calls and thoughts become one group each, like the chat's: a thought is placed among the calls of the run it comes in, and a run
+/// ends at anything else: a message, a note, an error, a skill or the slices card (which sits before the first item with a higher id than the first subagent's). `running`
+/// is whether the agent is working: the last run is then live when nothing comes after it, and a call that never ended in a run that is
+/// over was stopped, not going on.
+public func flowItems(_ items: [TranscriptItem], slices: [LaneSection] = [], running: Bool = false) -> [FlowItem] {
+    var later = slices.sorted { $0.startId < $1.startId }
     var flow: [FlowItem] = []
-    var run: [TranscriptItem] = []
+    var first: Int?
+    var calls: [ToolCall] = []
+    var thoughts: [Thought] = []
     func close() {
-        if run.count >= 2 { flow.append(.group(id: run[0].id, calls: run)) } else { flow += run.map(FlowItem.item) }
-        run = []
+        guard let id = first else { return }
+        flow.append(.tools(id: id, ToolGroup(calls: calls, thoughts: thoughts), live: false))
+        (first, calls, thoughts) = (nil, [], [])
+    }
+    func settled(_ call: ToolCall) -> ToolCall {
+        var call = call
+        if running == false, call.status == .running { call.stop() }
+        return call
     }
     for item in items {
-        while let slice = later.first, slice.startId < item.id {
+        if let first = later.first, first.startId < item.id {
             close()
-            flow.append(.slice(slice))
-            later = later.dropFirst()
+            flow.append(.slices(id: first.startId, later))
+            later = []
         }
-        if isGroupable(item) { run.append(item) } else {
+        switch item {
+        case .tool(let id, let call) where call.tool == "Skill":
             close()
-            flow.append(.item(item))
+            flow.append(.skill(id: id, settled(call)))
+        case .tool(let id, let call):
+            first = first ?? id
+            calls.append(settled(call))
+        case .thought(let id, let text, let at):
+            first = first ?? id
+            thoughts.append(Thought(id: "e\(id)", text: text, at: at, before: calls.count))
+        case .message(let id, let text):
+            close()
+            flow.append(.message(id: id, text: text))
+        case .note(let id, let text):
+            close()
+            flow.append(.note(id: id, text: text))
+        case .error(let id, let text):
+            close()
+            flow.append(.error(id: id, text: text))
         }
     }
     close()
-    return flow + later.map(FlowItem.slice)
+    if let first = later.first { flow.append(.slices(id: first.startId, later)) }
+    if running, case .tools(let id, let group, _)? = flow.last { flow[flow.count - 1] = .tools(id: id, group, live: true) }
+    return flow
 }
 
-private func cards(_ calls: [TranscriptItem]) -> [TranscriptCard] {
-    calls.compactMap { if case .tool(_, let card) = $0 { card } else { nil } }
-}
-
-/// "Ran 4 commands · read 2 files": the calls counted by kind in the order of the first call, the first word capitalised, two
-/// parts at most and "+N more" (N calls) after.
-public func callGroupLabel(_ calls: [TranscriptItem]) -> String {
-    var kinds: [ToolKind] = []
-    var counts: [ToolKind: Int] = [:]
-    for card in cards(calls) {
-        if counts[card.kind] == nil { kinds.append(card.kind) }
-        counts[card.kind, default: 0] += 1
-    }
-    func part(_ kind: ToolKind) -> String {
-        let n = counts[kind] ?? 0
-        return switch kind {
-        case .shell: "Ran \(n) command\(n == 1 ? "" : "s")"
-        case .read: "read \(n) file\(n == 1 ? "" : "s")"
-        case .search: "searched \(n) time\(n == 1 ? "" : "s")"
-        case .edit, .other: "used \(n) tool\(n == 1 ? "" : "s")"
+/// The flow without its calls when the tools are hidden, and without their thoughts when the person does not want the reasoning; a run left
+/// with nothing goes (the same as `visibleFeed` does for a session).
+public func visibleFlow(_ flow: [FlowItem], mode: ToolOutputMode, showsReasoning: Bool = true) -> [FlowItem] {
+    flow.compactMap { item in
+        switch item {
+        case .skill: return mode == .hidden ? nil : item
+        case .tools(let id, var group, let live):
+            if mode == .hidden { group.calls = [] }
+            if showsReasoning == false { group.thoughts = [] }
+            return group.calls.isEmpty && group.thoughts.isEmpty ? nil : .tools(id: id, group, live: live)
+        default: return item
         }
     }
-    var parts = kinds.prefix(2).map(part)
-    let rest = kinds.dropFirst(2).reduce(0) { $0 + (counts[$1] ?? 0) }
-    if rest > 0 { parts.append("+\(rest) more") }
-    let label = parts.joined(separator: " · ")
-    return label.prefix(1).uppercased() + label.dropFirst()
-}
-
-/// The sum of the calls' own durations, formatted like a call's; nil when none of them has one.
-public func callGroupDuration(_ calls: [TranscriptItem]) -> String? {
-    let all = cards(calls).compactMap(\.durationMs)
-    return all.isEmpty ? nil : formatCallDuration(all.reduce(0, +))
-}
-
-/// Which groups the user flipped from how the tools show, by the id of their first call: a group nobody touched is folded, or open when
-/// the tools are expanded.
-public struct GroupFolds: Equatable {
-    private var flipped: Set<Int> = []
-
-    public init() {}
-
-    public func isOpen(_ id: Int, mode: ToolOutputMode) -> Bool { (mode == .expanded) != flipped.contains(id) }
-
-    public mutating func toggle(_ id: Int) {
-        if flipped.insert(id).inserted == false { flipped.remove(id) }
-    }
-}
-
-extension FlowItem {
-    /// A call or a run of calls: what the tools' mode hides.
-    var isToolRow: Bool {
-        switch self {
-        case .group: true
-        case .item(.tool): true
-        case .item, .slice: false
-        }
-    }
-}
-
-/// The flow without its calls when the tools are hidden.
-public func visibleFlow(_ flow: [FlowItem], mode: ToolOutputMode) -> [FlowItem] {
-    mode == .hidden ? flow.filter { $0.isToolRow == false } : flow
 }
 
 /// Which slice rows the user opened, by the subagent's id; a row nobody touched is closed, whatever its state.

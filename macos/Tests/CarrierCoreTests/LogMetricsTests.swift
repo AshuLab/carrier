@@ -5,13 +5,9 @@ import Testing
 @Test func theLogMetricsAreTheSpecsNumbers() {
     #expect(LogMetrics.iconColumn == 12)
     #expect(LogMetrics.titleColumn == 36)
-    #expect(LogMetrics.groupRule == 17)
-    #expect(LogMetrics.groupChildIcon == 30)
-    #expect(LogMetrics.groupChildDetail == 54)
     #expect(LogMetrics.sliceRule == 19)
     #expect(LogMetrics.sliceChildIcon == 36)
     #expect(LogMetrics.sliceIndent + LogMetrics.titleColumn == 60)
-    #expect(LogMetrics.callLine == 26)
     #expect(LogMetrics.groupLine == 28)
     #expect(LogMetrics.sliceLine == 28)
     #expect(LogMetrics.skillRow == 28)

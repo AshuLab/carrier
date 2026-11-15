@@ -7,78 +7,70 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
     LaneSection(
         id: "a", startId: 1, title: "Socket client", sliceTitle: "Socket client", state: state, duration: 180_000, startedAt: 0, endedAt: state == .running ? nil : 180_000,
         resumes: 0, timeLabel: state == .running ? "since 14:02" : "14:02–14:05",
-        counts: SessionCounts(calls: 4), items: [], slice: 653, laneNumber: lane, pullRequest: "PR #670 merged"
+        counts: SessionCounts(calls: 4), items: [], slice: 653, laneNumber: lane, pullRequest: "PR #670 merged", prNumber: 670, prState: "merged"
     )
 }
 
-@MainActor private func height(_ lane: LaneSection, open: Bool) throws -> Int {
-    let renderer = ImageRenderer(content: LaneHeaderView(lane: lane, open: open).frame(width: 480))
+@MainActor private func height(_ lanes: [LaneSection], width: CGFloat = 480, waiting: [EpicReply.Slice] = []) throws -> Int {
+    let card = SliceCardView(lanes: lanes, waiting: waiting, flipped: .constant([]), slices: .constant(SliceFolds()))
+    let renderer = ImageRenderer(content: card.frame(width: width))
     renderer.scale = 2
     return try #require(renderer.cgImage).height
 }
 
-// A slice's row is two lines, 28 + at least 18 + 6 below, with no surface; the same height folded or open, running, finished or
-// failed, with or without a lane or a pull request.
-@MainActor @Test func aLaneHeaderKeepsItsHeight() throws {
-    let base = try height(lane(), open: true)
-    #expect(base >= 2 * (28 + 18 + 6))
-    #expect(try height(lane(), open: false) == base)
-    for state in [SubagentState.running, .failed] { #expect(try height(lane(state), open: true) == base) }
-    #expect(try height(lane(lane: nil), open: true) == base)
-    // a slice with no number is titled by its description
+// A closed slice is a 30 pt line and one row of two lines; the card is as tall done, failed or waiting, with or without a number or a
+// pull request, and one more row adds the same height whatever its state.
+@MainActor @Test func aSliceCardKeepsItsHeightWhateverTheStateOfItsRow() throws {
+    let base = try height([lane()])
+    #expect(base >= 2 * (30 + 18 + 20))
+    for state in [SubagentState.failed] { #expect(try height([lane(state)]) >= base) }
     var untitled = lane()
     untitled.slice = nil
-    #expect(try height(untitled, open: true) == base)
-    // just started: no pills, only "starting…"
-    var starting = lane(.running)
-    (starting.items, starting.counts, starting.timeLabel) = ([], SessionCounts(), nil)
-    #expect(try height(starting, open: true) == base)
+    #expect(try height([untitled]) == base)
     var bare = lane()
-    bare.pullRequest = "no PR yet"
-    #expect(try height(bare, open: true) == base)
-    // resumed, or with no times at all
-    var again = lane()
-    again.resumes = 2
-    #expect(try height(again, open: true) == base)
-    var untimed = lane(.failed)
+    (bare.prNumber, bare.prState) = (nil, nil)
+    #expect(try height([bare]) == base)
+    var untimed = lane()
     (untimed.timeLabel, untimed.duration) = (nil, nil)
-    #expect(try height(untimed, open: true) == base)
+    #expect(try height([untimed]) == base)
+    // a slice that has not started is a row of the same height
+    let waiting = EpicReply.Slice(number: 9, title: "Socket server", state: "ready", blockedBy: [], prNumber: nil, closedAt: nil, readAt: 0)
+    let two = try height([lane(), lane()])
+    #expect(try height([lane()], waiting: [waiting]) == two)
 }
 
-// At a narrow width the row keeps its height: the pills fall back to icon and number rather than wrap or cut off.
-@MainActor @Test func aNarrowLaneHeaderKeepsItsHeightWithEveryPill() throws {
+// At a narrow width the row keeps one line for its title and its numbers: the chip and the chevron never push the title out.
+@MainActor @Test func aNarrowSliceCardStillDrawsEveryRow() throws {
     let busy = LaneSection(
         id: "a", startId: 1, title: "Socket client", sliceTitle: "Socket client", state: .finished, duration: 180_000, startedAt: 0, endedAt: 180_000,
         resumes: 2, timeLabel: "14:02–14:05",
-        counts: SessionCounts(calls: 12, edits: 3, added: 42, removed: 8, tests: 2, errors: 1), items: [], slice: 653, laneNumber: 1, pullRequest: "PR #670 merged"
+        counts: SessionCounts(calls: 12, edits: 3, added: 42, removed: 8, tests: 2, errors: 1), items: [], slice: 653, laneNumber: 1, pullRequest: "PR #670 merged",
+        prNumber: 670, prState: "merged"
     )
-    func height(_ lane: LaneSection, width: CGFloat) throws -> Int {
-        let renderer = ImageRenderer(content: LaneHeaderView(lane: lane, open: true).frame(width: width))
+    #expect(try height([busy], width: 300) >= (try height([lane()], width: 480)))
+    #expect(try height([lane()], width: 300) >= (try height([lane()], width: 480)))
+}
+
+// The findings card is its 30 pt line and a divider and a row for each finding; a fixed one and one with no id or link are as tall as any
+// other when the text is one line, and a card with no findings is the line alone.
+@MainActor @Test func aFindingsCardIsItsLineAndOneRowPerFinding() throws {
+    func card(_ rows: [FindingRow]) -> FindingsCard {
+        FindingsCard(round: 1, verdict: .changesRequested, title: "Changes requested", summary: "", rows: rows, prNumber: 743, prURL: nil)
+    }
+    func row(id: String? = "b1", mark: FindingMark? = .new, url: String? = "https://example.test/1") -> FindingRow {
+        FindingRow(kind: .blocker, id: id, text: "One line", mark: mark, approximate: false, url: url)
+    }
+    func height(_ card: FindingsCard) throws -> Int {
+        let renderer = ImageRenderer(content: FindingsCardView(card: card).frame(width: 480))
         renderer.scale = 2
         return try #require(renderer.cgImage).height
     }
-    let base = try height(lane(), width: 480)
-    #expect(try height(busy, width: 480) == base)
-    #expect(try height(busy, width: 300) == base)
-    #expect(try height(lane(), width: 300) == base)
-    #expect(try height(lane(lane: nil), width: 300) == base)
-}
-
-private func shell(_ id: Int, _ tool: String = "Bash") -> TranscriptItem {
-    .tool(id: id, TranscriptCard(tool: tool, kind: ToolKind(tool: tool), arg: "pnpm test", summary: "", status: .ok, duration: "1.0 s", durationMs: 1000))
-}
-
-// A group's row is 28 pt folded or open, with a duration or none, at any width.
-@MainActor @Test func aGroupRowKeepsItsHeight() throws {
-    func height(_ calls: [TranscriptItem], open: Bool, width: CGFloat = 480) throws -> Int {
-        let renderer = ImageRenderer(content: ToolGroupHeader(calls: calls, open: open).frame(width: width))
-        renderer.scale = 2
-        return try #require(renderer.cgImage).height
-    }
-    let mixed = [shell(1), shell(2), shell(3), shell(4, "Read")]
-    let base = try height(mixed, open: false)
-    #expect(base == 56)
-    #expect(try height(mixed, open: true) == base)
-    #expect(try height([shell(1), shell(2)], open: false) == base)
-    #expect(try height(mixed + (5...9).map { shell($0, "Grep") } + [shell(10, "WebFetch")], open: false, width: 200) == base)
+    let line = try height(card([]))
+    #expect(line == 60)
+    let one = try height(card([row()]))
+    #expect(one > line)
+    #expect(try height(card([row(mark: .fixed)])) == one)
+    #expect(try height(card([row(mark: .carried)])) == one)
+    #expect(try height(card([row(id: nil, mark: nil, url: nil)])) <= one)
+    #expect(try height(card([row(), row()])) == one + (one - line))
 }

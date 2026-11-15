@@ -17,27 +17,38 @@ private func section(_ state: SessionSection.State, counts: SessionCounts? = Ses
     return CGSize(width: image.width, height: image.height)
 }
 
-// A header is one row whatever the session's state or the width of the centre column, with or without a counts line.
-@MainActor @Test(arguments: [CGFloat(340), 560, 900])
-func aHeaderKeepsItsHeightInEveryStateAndFolded(width: CGFloat) throws {
-    let height = try size(section(.done), width: width).height
+// The row is the same height at every width of the centre column, in every state, open or folded: the hairlines give way, the text does not wrap.
+@MainActor @Test(arguments: [CGFloat(480), 560, 900])
+func aRowKeepsItsHeightAtEveryWidth(width: CGFloat) throws {
     for state in [SessionSection.State.running, .stopped, .done] {
-        #expect(try size(section(state), width: width).height == height)
-        #expect(try size(section(state), open: false, width: width).height == height)
+        for open in [true, false] {
+            #expect(try size(section(state), open: open, width: width).height == (try size(section(state), open: open, width: 900).height))
+        }
     }
-    #expect(try size(section(.done, counts: nil), width: width).height == height)
 }
 
-// A failed session's header is taller by the line of its failure, at most two for the longest detail the engine sends (300
-// characters), and the same folded or open and at every width.
-@MainActor @Test func aFailedHeaderGrowsByTheFailureLineAndNoMore() throws {
+// A profile adds nothing to the height: its name takes the tool's place on the first line, and the second line is there either way.
+@MainActor @Test func aProfileDoesNotChangeTheHeight() throws {
+    var plain = section(.done)
+    plain.model = "claude-sonnet-5-5"
+    var named = plain
+    named.profile = "acme-author"
+    named.account = "pro"
+    named.effort = "high"
+    #expect(try size(named, width: 560).height == (try size(plain, width: 560).height))
+}
+
+// A failed session's row is taller by the reason, at most two lines for the longest detail the engine sends (300 characters), and the
+// same at every width.
+@MainActor @Test func aFailedRowGrowsByTheReasonAndNoMore() throws {
     var failed = section(.stopped)
     failed.failure = "usage_limit: " + String(repeating: "resets 12:40pm ", count: 20).prefix(287)
-    let plain = try size(section(.stopped), width: 340).height
-    let tall = try size(failed, width: 340).height
+    let plain = try size(section(.stopped), width: 560).height
+    let tall = try size(failed, width: 560).height
     #expect(tall > plain)
-    for width in [CGFloat(340), 560, 900] {
+    // two lines of 12 pt text at scale 2, with the line's own spacing
+    #expect(tall - plain <= 2 * 2 * 20)
+    for width in [CGFloat(480), 900] {
         #expect(try size(failed, width: width).height <= tall)
-        #expect(try size(failed, open: false, width: width).height == (try size(failed, width: width).height))
     }
 }

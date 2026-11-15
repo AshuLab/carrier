@@ -31,6 +31,10 @@ public struct LaneSection: Equatable, Identifiable {
     public var laneNumber: Int?
     /// The slice's pull request as the row reads it: "PR #5 merged", "PR #5" (an older engine sends no state), or "no PR yet".
     public var pullRequest: String
+    /// The same pull request as numbers, for the slice card's chip: nil with no slice match or no pull request; the state is `open`,
+    /// `draft`, `merged` or `closed`, nil from an engine that predates it.
+    public var prNumber: Int? = nil
+    public var prState: String? = nil
 
     /// Just taken: running with no events to count yet.
     public var isStarting: Bool { state == .running && items.isEmpty }
@@ -97,7 +101,8 @@ struct LaneState: Equatable {
             duration: start.flatMap { start in (end?.at ?? (state == .running ? now : nil)).map { $0 - start.at } },
             startedAt: start?.at, endedAt: end?.at,
             resumes: tasks.drop { $0.status == nil }.dropFirst().filter { $0.status == nil }.count, timeLabel: timeLabel,
-            counts: sessionCounts(events), items: builder.items, slice: slice, laneNumber: lane, pullRequest: pullRequest
+            counts: sessionCounts(events), items: builder.items, slice: slice, laneNumber: lane, pullRequest: pullRequest,
+            prNumber: match?.prNumber, prState: match?.prNumber == nil ? nil : match?.prState
         )
     }
 }
@@ -110,7 +115,7 @@ extension Transcript {
     ) -> [FlowItem] {
         let launches = Set(lanes.flatMap { $0.events.filter { $0.kind == "task" && $0.status == nil }.compactMap(\.callId) })
         let launched = Set(events.filter { $0.agentId == nil && $0.callId.map(launches.contains) == true }.map(\.id))
-        return flowItems(items.filter { launched.contains($0.id) == false }, slices: laneSections(slices: slices, running: running, now: now, time: time))
+        return flowItems(items.filter { launched.contains($0.id) == false }, slices: laneSections(slices: slices, running: running, now: now, time: time), running: running)
     }
 
     /// The subagents with events, in order of appearance. Events with no agent id are in `items`.

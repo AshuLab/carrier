@@ -27,6 +27,12 @@ What the person sees: [the app shell](../docs/macos/app-shell.md#resume-card).
 
 The words and the request are tested; the sheet, the "Resuming…" state and the layout have no automated test.
 
+### Slices and findings cards
+
+What the person sees: [the app shell](../docs/macos/app-shell.md#slices-and-findings-in-an-epics-log).
+
+The rows, the words and the marks are two pure functions, `sliceCard(lanes:waiting:)` in `CarrierCore/SliceCard.swift` (`SliceCardTests`) and `findingsCard(_:stage:round:)` in `CarrierCore/FindingsCard.swift` (`FindingsCardTests`, which also reads the golden epic reply); the views (`SliceCardView`, `FindingsCardView`) are checked only for their heights (`LaneHeaderTests`).
+
 ## File icons
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#file-icons).

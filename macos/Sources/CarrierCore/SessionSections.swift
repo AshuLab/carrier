@@ -99,7 +99,7 @@ public struct SessionSection: Equatable, Identifiable {
     public var state: State
     /// "Claude", "Codex".
     public var agent: String
-    /// The avatar's letter (the mockup's: C for Claude, X for Codex).
+    /// The avatar's letter when the session has no profile (the mockup's: C for Claude, X for Codex).
     public var initial: String
     /// "Builder" (ship), "Reviewer", "Fixer".
     public var role: String
@@ -117,6 +117,19 @@ public struct SessionSection: Equatable, Identifiable {
     public var result: ResultCard?
     /// `killed: SIGKILL`, the failure kind and its detail as the header says them; nil when the session has no failure.
     public var failure: String?
+    /// The role of `config.json` the session ran as (`author`, `reviewer`), which says whose profile it acted as.
+    public var engineRole = ""
+    /// The engine's stage (`ship`, `review`, `fix`) and round, to find what the session answers or found.
+    public var stage = ""
+    public var round: Int?
+    /// The GitHub profile it acted as (an Agent Forge bot); nil when neither the engine nor the config says.
+    public var profile: String?
+    /// The login of the AI tool it ran on (`pro`); nil for the tool's default.
+    public var account: String?
+    public var model: String?
+    public var effort: String?
+    /// How long it ran, once it ended.
+    public var durationMs: Int?
     /// What shows under the header when it is open: the main rows and the subagents (read-only, the resume above covers the whole
     /// session) in the order the events happened.
     public var body: TranscriptBody = .items([])
@@ -160,6 +173,179 @@ public func resultCard(_ result: SessionResult?) -> ResultCard? {
         ci: result.verification.map { ResultCard.CI(verdict: $0.ci, evidence: $0.evidence) },
         reason: result.outcome == "needs_human" ? result.reason : nil
     )
+}
+
+/// "CI passed", "No CI", "CI failed".
+public func ciVerdictText(_ word: String) -> String {
+    switch word {
+    case "passed": "CI passed"
+    case "absent": "No CI"
+    default: "CI \(word)" // a value added later still shows
+    }
+}
+
+// MARK: the session's row
+// The centered row that opens a session: who acted, what it did, how it ran, and one line of numbers under it.
+
+/// What `config.json` says of the two roles a session runs as, to name who a session acted as when the engine does not say
+/// (`profile` of the reply). ponytail: the global roles only; a repo's own `agents` override is not read.
+public struct RoleIdentities: Equatable {
+    private struct Role: Equatable {
+        var profile: String?
+        var model: String?
+        var effort: String?
+    }
+
+    private var roles: [String: Role] = [:]
+
+    public static let none = RoleIdentities()
+
+    private init() {}
+
+    /// Only a bot of Agent Forge is a name: a `gh` profile is the person's login, which the config does not hold. No file, or one that is
+    /// not a JSON object, names nobody.
+    public init(config: Data?) {
+        guard let config, let file = (try? JSONSerialization.jsonObject(with: config)) as? [String: Any] else { return }
+        let profiles = file["profiles"] as? [String: Any] ?? [:]
+        let agents = file["agents"] as? [String: Any] ?? [:]
+        for name in ["author", "reviewer"] {
+            guard let role = agents[name] as? [String: Any] else { continue }
+            let profile = (role["profile"] as? String).flatMap { profiles[$0] as? [String: Any] }
+            roles[name] = Role(
+                profile: profile?["kind"] as? String == "forge" ? profile?["agent"] as? String : nil,
+                model: role["model"] as? String, effort: role["effort"] as? String
+            )
+        }
+    }
+
+    /// `section` with the profile the config gives its role when it has none, and the role's effort when it ran on the role's model
+    /// (a failover to another model did not run with that effort).
+    public func resolved(_ section: SessionSection) -> SessionSection {
+        guard let role = roles[section.engineRole] else { return section }
+        var named = section
+        named.profile = section.profile ?? role.profile
+        if named.effort == nil, let model = section.model, model == role.model { named.effort = role.effort }
+        return named
+    }
+}
+
+/// The words of a session's row, as the view draws them.
+public struct SessionRowText: Equatable {
+    /// The GitHub profile, or the tool's name when the session has none.
+    public var name: String
+    /// "Builder · Ship".
+    public var role: String
+    /// The tool's name on the second line; nil when it already is the name.
+    public var tool: String?
+    /// "account pro", the model, the effort: what is known, in this order.
+    public var details: [String]
+    /// The avatar's letter: the profile's, else the tool's.
+    public var letter: String
+    public var identified: Bool
+
+    /// The second line as one text.
+    public var how: String { ([tool].compactMap { $0 } + details).joined(separator: " · ") }
+}
+
+public func sessionRowText(_ section: SessionSection) -> SessionRowText {
+    let profile = section.profile.flatMap { $0.isEmpty ? nil : $0 }
+    return SessionRowText(
+        name: profile ?? section.agent,
+        role: "\(section.role) · \(section.place)",
+        tool: profile == nil ? nil : section.agent,
+        details: [section.account.map { "account \($0)" }, section.model, section.effort].compactMap { $0 }.filter { $0.isEmpty == false },
+        letter: profile.map { String($0.prefix(1)).uppercased() } ?? section.initial,
+        identified: profile != nil
+    )
+}
+
+/// A piece of the row's summary line and how it is drawn.
+public struct SummarySpan: Equatable {
+    public enum Style: Equatable { case plain, strong, faint, red, green, working }
+    public var text: String
+    public var style: Style
+}
+
+public enum SessionSummary: Equatable {
+    /// The orange badge and why, when the engine says.
+    case stopped(reason: String?)
+    case line([SummarySpan])
+
+    /// What it says, as one sentence for VoiceOver.
+    public var text: String {
+        switch self {
+        case .stopped(let reason): reason.map { "stopped, \($0)" } ?? "stopped"
+        case .line(let spans): spans.map(\.text).joined(separator: " ").replacingOccurrences(of: " · ", with: ", ")
+        }
+    }
+}
+
+/// The line under a session's row. Running: `Working · since 16:09 · 62 calls`. Stopped: the badge and its reason. Open: the counts and the
+/// time (`229 calls · 23 edits +10 −2 · 27 test runs · 9 errors · 31m`). Folded: how it ended in bold, the CI verdict and the time
+/// (`Completed · CI passed · 31m`), or the counts when it has no result.
+public func sessionSummary(_ section: SessionSection, open: Bool) -> SessionSummary {
+    func plural(_ n: Int, _ noun: String) -> [SummarySpan] { [.init(text: "\(n)", style: .strong), .init(text: n == 1 ? noun : noun + "s", style: .plain)] }
+    func join(_ parts: [[SummarySpan]]) -> [SummarySpan] {
+        parts.enumerated().flatMap { index, part in index == 0 ? part : [SummarySpan(text: "·", style: .faint)] + part }
+    }
+    func word(_ text: String, _ style: SummarySpan.Style = .plain) -> [SummarySpan] { [.init(text: text, style: style)] }
+    let time = section.timeLabel.map { word($0) }
+    switch section.state {
+    case .stopped:
+        return .stopped(reason: section.failure)
+    case .running:
+        return .line(join([word("Working", .working), section.timeLabel.map { word($0) }, section.counts.map { plural($0.calls, "call") }].compactMap { $0 }))
+    case .done:
+        if open == false, let result = section.result {
+            return .line(join([word(result.outcome, .strong), result.ci.map { word(ciVerdictText($0.verdict)) }, time].compactMap { $0 }))
+        }
+        var parts: [[SummarySpan]] = []
+        if let counts = section.counts {
+            parts.append(plural(counts.calls, "call"))
+            if counts.edits > 0 {
+                parts.append(plural(counts.edits, "edit") + word("+\(counts.added)", .green) + word("−\(counts.removed)", .red))
+            }
+            if counts.tests > 0 { parts.append(plural(counts.tests, "test run")) }
+            if counts.errors > 0 { parts.append(plural(counts.errors, "error").map { SummarySpan(text: $0.text, style: .red) }) }
+        }
+        return .line(join(parts + [time].compactMap { $0 }))
+    }
+}
+
+/// Whom, what and whether it is open, for the one button that is the whole row.
+public func sessionRowLabel(_ section: SessionSection, open: Bool) -> String {
+    let text = sessionRowText(section)
+    return [text.name, text.role, text.how, sessionSummary(section, open: open).text, open ? "Open" : "Folded"].filter { $0.isEmpty == false }.joined(separator: ". ")
+}
+
+// MARK: earlier sessions
+
+/// The sessions kept in view, the newest ones; the rest wait behind one row.
+public let sessionsShown = 5
+
+/// The sessions behind the row: how many, which roles and how long they ran.
+public struct EarlierSessions: Equatable {
+    /// Oldest first, as in the list.
+    public var sections: [SessionSection]
+
+    /// "3 earlier sessions".
+    public var title: String { "\(sections.count) earlier session\(sections.count == 1 ? "" : "s")" }
+
+    /// "Builder, Reviewer, Fixer · 45m": each role once, in the order they came, and the time they ran together (left out when none is known).
+    public var detail: String {
+        var roles: [String] = []
+        for section in sections where roles.contains(section.role) == false { roles.append(section.role) }
+        let total = sections.compactMap(\.durationMs).reduce(0, +)
+        return (roles.isEmpty ? [] : [roles.joined(separator: ", ")] + (total > 0 ? [formatDuration(total)] : [])).joined(separator: " · ")
+    }
+
+    public var label: String { [title, detail].filter { $0.isEmpty == false }.joined(separator: ", ") }
+}
+
+/// Above `sessionsShown` sessions the oldest ones go behind one row: `earlier` is nil while all of them fit.
+public func earlierSessions(_ sections: [SessionSection], shown: Int = sessionsShown) -> (earlier: EarlierSessions?, recent: [SessionSection]) {
+    guard sections.count > shown else { return (nil, sections) }
+    return (EarlierSessions(sections: Array(sections.dropLast(shown))), Array(sections.suffix(shown)))
 }
 
 /// The text with each web address in it as a link; only http and https survive `browserURL`.
@@ -373,6 +559,13 @@ public func sessionList(
             resume: state == .running || resumable == false ? nil : session.resume,
             result: resultCard(session.result),
             failure: session.failure.map { $0.detail.isEmpty ? $0.kind : "\($0.kind): \($0.detail)" },
+            engineRole: session.role,
+            stage: session.stage,
+            round: session.round,
+            profile: session.profile,
+            account: session.agent.provider,
+            model: session.agent.model,
+            durationMs: session.finishedAt.map { $0 - session.startedAt },
             body: .items([])
         )
         if folds?.isOpen(section) ?? true {

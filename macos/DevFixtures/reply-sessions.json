@@ -2,64 +2,102 @@
   "sessions": [
     {
       "executionId": "3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c",
-      "stage": "fix",
-      "role": "author",
-      "round": 2,
-      "agent": {
-        "harness": "claude",
-        "model": "claude-sonnet-5-5",
-        "provider": null
-      },
+      "stage": "review",
+      "role": "reviewer",
+      "round": 3,
+      "agent": { "harness": "codex", "model": "gpt-5", "provider": "max" },
       "status": "running",
-      "startedAt": 90000,
+      "startedAt": 4400000,
       "finishedAt": null,
       "resume": null
     },
     {
-      "executionId": "9a7d1c52-0b3e-4f6a-8d2c-1e5f7a9b3c4d",
+      "executionId": "a1c4e6f8-0b2d-4a6c-8e1f-3b5d7f9a1c01",
+      "stage": "fix",
+      "role": "author",
+      "round": 2,
+      "agent": { "harness": "claude", "model": "claude-sonnet-5-5", "provider": "pro" },
+      "status": "failed",
+      "startedAt": 4200000,
+      "finishedAt": 4290000,
+      "resume": { "harness": "claude", "sessionId": "91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f21", "cwd": "/work/acme/web-epic" },
+      "failure": { "kind": "killed", "detail": "SIGKILL", "exitCode": null, "signal": "SIGKILL", "hostFreeMemMb": 812, "hostLoad": 6.4 }
+    },
+    {
+      "executionId": "b2d5f7a9-1c3e-4b7d-9f20-4c6e8a0b2d02",
       "stage": "review",
       "role": "reviewer",
       "round": 2,
-      "agent": {
-        "harness": "codex",
-        "model": "gpt-5",
-        "provider": "ollama"
-      },
+      "agent": { "harness": "codex", "model": "gpt-5", "provider": "max" },
       "status": "finished",
-      "startedAt": 60000,
-      "finishedAt": 85000,
-      "resume": {
-        "harness": "codex",
-        "sessionId": "a1b2c3d4-0001-4000-8000-000000000002",
-        "cwd": "/work/acme/web-epic"
+      "startedAt": 3500000,
+      "finishedAt": 4160000,
+      "resume": { "harness": "codex", "sessionId": "a1b2c3d4-0001-4000-8000-000000000003", "cwd": "/work/acme/web-epic" },
+      "result": {
+        "outcome": "completed",
+        "summary": "Round 2 review of PR #12: no blockers.",
+        "verification": { "ci": "passed", "evidence": "CI run concluded success on the head commit." },
+        "reason": null
       }
     },
     {
-      "executionId": "5c0e8a14-7d2b-4a93-b6f1-2d8c4e6a0b97",
+      "executionId": "c3e6a8b0-2d4f-4c8e-a031-5d7f9b1c3e03",
+      "stage": "fix",
+      "role": "author",
+      "round": 1,
+      "agent": { "harness": "codex", "model": "gpt-5", "provider": "max" },
+      "profile": "acme-author-2",
+      "status": "finished",
+      "startedAt": 2900000,
+      "finishedAt": 3440000,
+      "resume": { "harness": "codex", "sessionId": "a1b2c3d4-0001-4000-8000-000000000004", "cwd": "/work/acme/web-epic" },
+      "result": {
+        "outcome": "completed",
+        "summary": "Answered the two blockers.",
+        "verification": { "ci": "absent", "evidence": "The repository has no CI." },
+        "reason": null
+      }
+    },
+    {
+      "executionId": "d4f7b9c1-3e5a-4d9f-b142-6e8a0c2d4f04",
+      "stage": "fix",
+      "role": "author",
+      "round": 1,
+      "agent": { "harness": "claude", "model": "claude-sonnet-5-5", "provider": "pro" },
+      "status": "failed",
+      "startedAt": 2800000,
+      "finishedAt": 2809000,
+      "resume": { "harness": "claude", "sessionId": "91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f22", "cwd": "/work/acme/web-epic" },
+      "failure": { "kind": "usage_limit", "detail": "You've hit your session limit · resets 12:40pm", "exitCode": 1, "signal": null, "hostFreeMemMb": null, "hostLoad": null }
+    },
+    {
+      "executionId": "e508c0d2-4f6b-4ea0-8253-7f9b1d3e5a05",
+      "stage": "review",
+      "role": "reviewer",
+      "round": 1,
+      "agent": { "harness": "codex", "model": "gpt-5", "provider": "max" },
+      "status": "finished",
+      "startedAt": 1900000,
+      "finishedAt": 2740000,
+      "resume": { "harness": "codex", "sessionId": "a1b2c3d4-0001-4000-8000-000000000005", "cwd": "/work/acme/web-epic" },
+      "result": { "outcome": "changes_requested", "summary": "Two blockers on PR #12.", "verification": null, "reason": null }
+    },
+    {
+      "executionId": "f619d1e3-5a7c-4fb1-9364-8a0c2e4f6b06",
       "stage": "ship",
       "role": "author",
       "round": null,
-      "agent": {
-        "harness": "claude",
-        "model": "claude-sonnet-5-5",
-        "provider": null
-      },
-      "status": "failed",
+      "agent": { "harness": "claude", "model": "claude-sonnet-5-5", "provider": "pro" },
+      "profile": "acme-author",
+      "status": "finished",
       "startedAt": 1000,
-      "finishedAt": 39000,
-      "resume": {
-        "harness": "claude",
-        "sessionId": "91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f20",
-        "cwd": "/work/acme/web-epic",
-        "configDir": "/Users/dev/.claude-work"
-      },
-      "failure": {
-        "kind": "usage_limit",
-        "detail": "You've hit your session limit · resets 12:40pm",
-        "exitCode": 1,
-        "signal": null,
-        "hostFreeMemMb": null,
-        "hostLoad": null
+      "finishedAt": 1861000,
+      "resume": { "harness": "claude", "sessionId": "91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f20", "cwd": "/work/acme/web-epic" },
+      "result": {
+        "outcome": "completed",
+        "summary": "Opened PR #12.",
+        "verification": { "ci": "passed", "evidence": "CI run concluded success on the head commit." },
+        "reason": null
       }
     }
   ]

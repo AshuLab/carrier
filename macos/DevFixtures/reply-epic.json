@@ -59,6 +59,13 @@
           "sha": "3333333ccccccc",
           "subject": "test(auth): cover refresh"
         }
+      ],
+      "observations": [
+        {
+          "id": "o0",
+          "title": "Name the expiry constant",
+          "url": "https://github.com/acme/web/pull/50#discussion_o0"
+        }
       ]
     },
     {
@@ -184,6 +191,28 @@
       "blockedBy": [],
       "prNumber": null,
       "closedAt": null,
+      "readAt": 99000
+    },
+    {
+      "number": 127,
+      "title": "Key rotation",
+      "state": "closed",
+      "blockedBy": [],
+      "prNumber": 132,
+      "prState": "merged",
+      "prMergedAt": 52000,
+      "closedAt": 53000,
+      "readAt": 99000
+    },
+    {
+      "number": 128,
+      "title": "Docs tidy",
+      "state": "closed",
+      "blockedBy": [],
+      "prNumber": 133,
+      "prState": "merged",
+      "prMergedAt": 54000,
+      "closedAt": 55000,
       "readAt": 99000
     }
   ],

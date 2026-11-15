@@ -44,7 +44,7 @@ extension SessionSection {
     /// The subagents in the section's list, in its order.
     var slices: [LaneSection] {
         guard case .items(let flow) = body else { return [] }
-        return flow.compactMap { if case .slice(let lane) = $0 { lane } else { nil } }
+        return flow.flatMap { item -> [LaneSection] in if case .slices(_, let lanes) = item { lanes } else { [] } }
     }
 }
 
@@ -261,29 +261,29 @@ private func running(_ events: [ExecEvent]) -> [FlowItem] {
     return flow
 }
 
-/// `m4` a main row with id 4, `sA` the slice of agent A.
+/// `m4` a main row with id 4, `sAB` the one slices card, with the subagents A and B, at the place of the first.
 private func order(_ flow: [FlowItem]) -> [String] {
     flow.map {
         switch $0 {
-        case .item(let item): "m\(item.id)"
-        case .group(let id, _): "g\(id)"
-        case .slice(let lane): "s" + lane.id
+        case .tools(let id, _, _): "g\(id)"
+        case .slices(_, let lanes): "s" + lanes.map(\.id).joined()
+        default: "m\($0.id)"
         }
     }
 }
 
 private func say(_ id: Int) -> ExecEvent { event(id, "say", text: "m") }
 
-@Test func eachSubagentSitsWhereItWasTakenAndWhatTheMainAgentDidMeanwhileFollowsIt() {
+@Test func theSubagentsAreOneCardWhereTheFirstWasTakenAndWhatTheMainAgentDidMeanwhileFollowsIt() {
     let events = [say(1), say(2), say(3), event(4, "task", agent: "A", text: "Build slice #1"), event(5, "task", agent: "B", text: "Build slice #2")]
         + (6...10).map(say)
-    #expect(order(running(events)) == ["m1", "m2", "m3", "sA", "sB", "m6", "m7", "m8", "m9", "m10"])
+    #expect(order(running(events)) == ["m1", "m2", "m3", "sAB", "m6", "m7", "m8", "m9", "m10"])
 }
 
-@Test func aSubagentWithNoTaskStartSitsAtItsFirstEventAndAResumeDoesNotMoveIt() {
+@Test func aSubagentWithNoTaskStartJoinsTheCardAtItsFirstEventAndAResumeDoesNotMoveIt() {
     let events = [say(1), event(2, "say", agent: "A", text: "hi"), say(3), event(4, "task", agent: "B", text: "Build slice #2"), say(5),
                   ExecEvent(id: 6, at: 6, kind: "task", text: "Build slice #2", agentId: "B", status: "ok"), event(7, "task", agent: "B", text: "Build slice #2")]
-    #expect(order(running(events)) == ["m1", "sA", "m3", "sB", "m5"])
+    #expect(order(running(events)) == ["m1", "sAB", "m3", "m5"])
 }
 
 @Test func aLateEventWithALowerIdRebuildsTheSameList() {
@@ -304,7 +304,7 @@ private func say(_ id: Int) -> ExecEvent { event(id, "say", text: "m") }
     #expect(order(running(events)) == ["g1", "sA", "g6"])
 }
 
-@Test func theMainAgentCallThatLaunchedASubagentIsLeftOutAndOneWithNoSubagentStaysALine() {
+@Test func theMainAgentCallThatLaunchedASubagentIsLeftOutAndOneWithNoSubagentStaysACall() {
     func agentCall(_ id: Int, _ callId: String) -> [ExecEvent] {
         [ExecEvent(id: id, at: id, kind: "tool_start", callId: callId, tool: "Agent", arg: "launch"),
          ExecEvent(id: id + 1, at: id, kind: "tool_end", callId: callId, tool: "Agent", status: "ok")]
@@ -312,11 +312,11 @@ private func say(_ id: Int) -> ExecEvent { event(id, "say", text: "m") }
     let launch = ExecEvent(id: 3, at: 3, kind: "task", text: "Build slice #1", callId: "launch-1", agentId: "A")
     // the Agent call (events 1-2) is matched to the subagent's start by callId; the one for "later" has no subagent yet
     let events = agentCall(1, "launch-1") + [launch] + agentCall(4, "later")
-    #expect(order(running(events)) == ["sA", "m4"])
+    #expect(order(running(events)) == ["sA", "g4"])
     // its end can arrive first; the item is still left out
     let endFirst = [ExecEvent(id: 1, at: 1, kind: "tool_end", callId: "launch-1", tool: "Agent", status: "ok"), launch]
     #expect(order(running(endFirst)) == ["sA"])
-    #expect(order(running(agentCall(1, "later"))) == ["m1"])
+    #expect(order(running(agentCall(1, "later"))) == ["g1"])
 }
 
 @Test func anAppendedEventProcessesOnlyItself() {

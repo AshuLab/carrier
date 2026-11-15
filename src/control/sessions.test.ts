@@ -37,7 +37,7 @@ afterEach(() => {
 });
 
 const agent = { profile: 'p', option: 'o', harness: 'claude' as const, model: 'm' };
-const config = { name: 'AshuLab/a', agents: { author: agent, reviewer: { ...agent, harness: 'codex' as const } } };
+const config = { name: 'AshuLab/a', agents: { author: agent, reviewer: { ...agent, profile: 'r', harness: 'codex' as const } } };
 const epic = (issue: number, status: (typeof epics.$inferInsert)['status']) =>
   db.insert(epics).values({ repo: 'AshuLab/a', issue, status, config }).returning({ id: epics.id }).get().id;
 const execution = (epicId: number, n: number, extra: Partial<typeof executions.$inferInsert>) =>
@@ -84,9 +84,10 @@ test('a running epic lists its session newest first, with no descriptor while it
   expect(sessions.map((s: { executionId: string }) => s.executionId.slice(-1))).toEqual(['2', '1']);
   expect(sessions[0]).toEqual({
     executionId: '00000000-0000-4000-8000-000000000002', stage: 'review', role: 'reviewer', round: 1,
-    agent: { harness: 'codex', model: 'gpt', provider: 'ollama' }, status: 'running', startedAt: 2000, finishedAt: null, resume: null, result: null, failure: null,
+    agent: { harness: 'codex', model: 'gpt', provider: 'ollama' }, profile: 'r', status: 'running', startedAt: 2000, finishedAt: null, resume: null, result: null, failure: null,
   });
   expect(sessions[1].resume).toEqual({ harness: 'claude', sessionId: 'sess-1', cwd: '/work/clone', configDir: '/cfg/claude' });
+  expect(sessions[1].profile).toBe('p'); // the author's profile, the reviewer's is 'r'
 });
 
 test('a stopped epic: the interrupted and failed sessions carry a descriptor with exactly the harness, id, folder and configuration folder', async () => {

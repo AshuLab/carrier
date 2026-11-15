@@ -60,6 +60,8 @@ export type SessionsReply = {
     role: 'author' | 'reviewer';
     round: number | null;
     agent: PanelAgent;
+    /** The GitHub profile the role acts as (an Agent Forge bot or a `gh` login), from the epic's frozen configuration; null for an epic frozen before profiles were kept. */
+    profile: string | null;
     status: (typeof executionStates)[number];
     startedAt: number;
     finishedAt: number | null;

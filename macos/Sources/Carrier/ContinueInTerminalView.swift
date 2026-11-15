@@ -48,7 +48,6 @@ struct ContinueInTerminalView: View {
                         Text(failure).font(.caption).foregroundStyle(.red).padding(.horizontal, LogMetrics.iconColumn).padding(.bottom, 8)
                     }
                 }
-                // the card's foot gives the bottom 12 pt
                 .sessionRow()
             }
         }

@@ -69,13 +69,14 @@ export function sessionsOf(db: Db, repo: string, issue: number, inherited: Confi
     sessions: rows.map(({ row, result }) => {
       const role = row.stage === 'review' ? 'reviewer' : 'author';
       const agent = agentOf(row, epic.config);
+      const profile = epic.config?.agents[role]?.profile ?? null;
       const harness = agent.harness;
       const configDir = row.configDir ?? inherited[harness];
       const resume =
         row.status === 'running' || row.sessionId === null || row.workspace === null
           ? null
           : { harness, sessionId: row.sessionId, cwd: row.workspace, ...(configDir !== undefined && { configDir }) };
-      return { executionId: row.executionId, stage: row.stage, role, round: row.round, agent, status: row.status, startedAt: row.startedAt, finishedAt: row.finishedAt, resume, result: resultOf(result), failure: failureOf(row) };
+      return { executionId: row.executionId, stage: row.stage, role, round: row.round, agent, profile, status: row.status, startedAt: row.startedAt, finishedAt: row.finishedAt, resume, result: resultOf(result), failure: failureOf(row) };
     }),
   };
 }

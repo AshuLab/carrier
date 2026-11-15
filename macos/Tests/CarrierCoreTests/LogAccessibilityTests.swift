@@ -1,8 +1,11 @@
 import Testing
 @testable import CarrierCore
 
-private func card(_ arg: String = "pnpm test", status: ToolStatus = .ok, ms: Int? = 80, tool: String = "Bash") -> TranscriptCard {
-    TranscriptCard(tool: tool, kind: ToolKind(tool: tool), arg: arg, summary: "", status: status, duration: ms.map(formatCallDuration), durationMs: ms)
+private func call(_ arg: String = "solve:ship", status: CallStatus = .ok, ms: Int? = 80) -> ToolCall {
+    var call = ToolCall(start: ChatEvent(id: 1, at: 1000, kind: "tool_start", callId: "c", tool: "Skill", arg: arg))
+    call.status = status
+    call.endedAt = ms.map { 1000 + $0 }
+    return call
 }
 
 @Test func aDurationIsSpokenInWords() {
@@ -16,27 +19,12 @@ private func card(_ arg: String = "pnpm test", status: ToolStatus = .ok, ms: Int
     #expect(spokenDuration(3_780_000) == "1 hour 3 minutes")
 }
 
-@Test func aCallLineSaysItsCommandItsOutcomeAndItsDuration() {
-    #expect(callAccessibilityLabel(card(status: .error, ms: 725)) == "pnpm test, failed, 725 milliseconds")
-    #expect(callAccessibilityLabel(card(ms: 2000)) == "pnpm test, succeeded, 2 seconds")
-    #expect(callAccessibilityLabel(card(status: .pending, ms: nil)) == "pnpm test, running")
-    #expect(callAccessibilityLabel(card("cd /w && git status && git diff && ls", ms: 40)) == "git status, 2 more commands, succeeded, 40 milliseconds")
-    #expect(callAccessibilityLabel(card("solve:ship", ms: nil, tool: "Skill")) == "solve:ship, succeeded")
-}
-
-@Test func aCallThatOpensSaysWhetherItIsOpen() {
-    #expect(callAccessibilityLabel(card(ms: 2000), open: false) == "pnpm test, succeeded, 2 seconds, closed")
-    #expect(callAccessibilityLabel(card(status: .error, ms: 725), open: true) == "pnpm test, failed, 725 milliseconds, open")
-    #expect(callAccessibilityLabel(card("src/a.ts", ms: 10, tool: "Read"), open: true) == "src/a.ts, succeeded, 10 milliseconds")
-}
-
-@Test func aGroupSaysItsCountItsDurationAndWhetherItIsOpenWithAHint() {
-    let calls: [TranscriptItem] = (1...4).map { .tool(id: $0, card(ms: $0 == 1 ? 3200 : 667)) }
-    #expect(callGroupAccessibilityLabel(calls, open: false) == "Ran 4 commands, 5.2 seconds, closed")
-    #expect(callGroupAccessibilityLabel(calls + [.tool(id: 5, card("src/a.ts", tool: "Read"))], open: true) == "Ran 4 commands, read 1 file, 5.3 seconds, open")
-    #expect(callGroupAccessibilityLabel([TranscriptItem.tool(id: 1, card(ms: nil)), .tool(id: 2, card(ms: nil))], open: false) == "Ran 2 commands, closed")
-    #expect(callGroupAccessibilityHint(open: false) == "Shows the calls")
-    #expect(callGroupAccessibilityHint(open: true) == "Hides the calls")
+@Test func aSkillRowSaysItsNameItsOutcomeAndItsDuration() {
+    #expect(callAccessibilityLabel(call(status: .failed, ms: 725)) == "solve:ship, failed, 725 milliseconds")
+    #expect(callAccessibilityLabel(call(ms: 2000)) == "solve:ship, succeeded, 2 seconds")
+    #expect(callAccessibilityLabel(call(status: .running, ms: nil)) == "solve:ship, running")
+    #expect(callAccessibilityLabel(call(status: .stopped, ms: nil)) == "solve:ship, stopped")
+    #expect(callAccessibilityLabel(call(ms: nil)) == "solve:ship, succeeded")
 }
 
 @Test func aSliceRowSaysItsSliceLaneStatePullRequestAndCounts() {

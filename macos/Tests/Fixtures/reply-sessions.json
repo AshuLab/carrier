@@ -10,6 +10,7 @@
         "model": "claude-sonnet-5-5",
         "provider": null
       },
+      "profile": "acme-author",
       "status": "running",
       "startedAt": 90000,
       "finishedAt": null,
@@ -27,6 +28,7 @@
         "model": "gpt-5",
         "provider": "ollama"
       },
+      "profile": "acme-reviewer",
       "status": "finished",
       "startedAt": 60000,
       "finishedAt": 85000,
@@ -47,6 +49,92 @@
       "failure": null
     },
     {
+      "executionId": "7b1d4e90-3c2a-4f58-a6e1-9d0b2c4e6f13",
+      "stage": "fix",
+      "role": "author",
+      "round": 1,
+      "agent": {
+        "harness": "claude",
+        "model": "claude-sonnet-5-5",
+        "provider": null
+      },
+      "profile": "acme-author",
+      "status": "failed",
+      "startedAt": 45000,
+      "finishedAt": 52000,
+      "resume": {
+        "harness": "claude",
+        "sessionId": "c3e5a7b9-1d2f-4a6c-8e0b-5f7d9b1a3c42",
+        "cwd": "/work/acme/web-epic"
+      },
+      "result": null,
+      "failure": {
+        "kind": "usage_limit",
+        "detail": "You've hit your session limit · resets 12:40pm",
+        "exitCode": 1,
+        "signal": null,
+        "hostFreeMemMb": null,
+        "hostLoad": null
+      }
+    },
+    {
+      "executionId": "1d6f3a90-2c8e-4b57-a4d1-7e9b0c2f5a31",
+      "stage": "fix",
+      "role": "author",
+      "round": 1,
+      "agent": {
+        "harness": "claude",
+        "model": "claude-sonnet-5-5",
+        "provider": null
+      },
+      "profile": "acme-author",
+      "status": "finished",
+      "startedAt": 44500,
+      "finishedAt": 58000,
+      "resume": {
+        "harness": "claude",
+        "sessionId": "b2c3d4e5-0001-4000-8000-000000000003",
+        "cwd": "/work/acme/web-epic"
+      },
+      "result": {
+        "outcome": "completed",
+        "summary": "Answered the two blockers of round 1 and pushed the fixes.",
+        "verification": {
+          "ci": "passed",
+          "evidence": "CI run concluded success on the head commit."
+        },
+        "reason": null
+      },
+      "failure": null
+    },
+    {
+      "executionId": "7e2a9d14-6b0c-4f83-9c5e-3a1d8b4f6c20",
+      "stage": "review",
+      "role": "reviewer",
+      "round": 1,
+      "agent": {
+        "harness": "codex",
+        "model": "gpt-5",
+        "provider": "ollama"
+      },
+      "profile": "acme-reviewer",
+      "status": "finished",
+      "startedAt": 39000,
+      "finishedAt": 44000,
+      "resume": {
+        "harness": "codex",
+        "sessionId": "a1b2c3d4-0001-4000-8000-000000000001",
+        "cwd": "/work/acme/web-epic"
+      },
+      "result": {
+        "outcome": "changes_requested",
+        "summary": "Round 1 review of PR #12: two blockers.",
+        "verification": null,
+        "reason": null
+      },
+      "failure": null
+    },
+    {
       "executionId": "5c0e8a14-7d2b-4a93-b6f1-2d8c4e6a0b97",
       "stage": "ship",
       "role": "author",
@@ -56,6 +144,7 @@
         "model": "claude-sonnet-5-5",
         "provider": null
       },
+      "profile": null,
       "status": "failed",
       "startedAt": 1000,
       "finishedAt": 39000,

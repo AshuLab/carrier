@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The epic view reads as one centred column: the pipeline shows only each step's mark and name (centred, up to 700 pt wide), the Agent output tab is 700 pt wide, and the reason an epic stopped, with its Resume button, is a notice at the end of the output instead of a card under the title. While an epic starts, its three steps show what Carrier knows: the wait for a slot, the branch and a clock.
+- The sessions of an epic's Agent output are no longer cards: each is a centered row on the window with the GitHub profile it acted as (or the tool's name), the role, the tool, account, model and effort, and under it one line of numbers (what it is doing, why it stopped, its counts, or how it ended); the whole row folds the session, the oldest sessions beyond five wait behind one "earlier sessions" row of stacked avatars, and no header stays pinned.
+- An epic's slices and a review's findings are glass cards like the chat's tool group: "Slices" shows how many are merged with a mini progress, a row per slice (state, title, calls, edits, tests, errors, time, and its pull request with a dot for merged, open or draft that opens GitHub) that opens to what the agent did, and the review's findings show the verdict with the blockers first, each marked new, carried or fixed, and a link to the discussion.
+- An epic's Agent output draws what the agent did like a session does: one glass card per run of calls ("Ran 4 commands", "2 failed", a shimmer while it works), open to the commands and the diffs of its edits, with the agent's text as markdown and errors as the same red banner.
 - Updating the app no longer opens a window: a glass pill at the top of the sidebar, after the window's buttons, shows the new version; clicking it downloads the update right there, with its percent, and then it says Restart, which installs it and relaunches the app. A failed download leaves Retry. Check now in Settings and Check for Updates… show what they find in the same pill, and say so in an alert when there is nothing new.
 
 ## [0.5.0] - 2026-11-13

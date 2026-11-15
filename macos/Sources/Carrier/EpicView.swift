@@ -41,7 +41,6 @@ struct EpicView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 EpicHeaderView(header: epicHeader(subject, reply: reply))
-                if let resume { ResumeCardView(card: resume.card, store: resume.store, epic: EpicRef(repo: subject.repo, issue: subject.issue)) }
                 UnderlineTabs(
                     items: EpicTab.allCases.map { item in
                         let files = max(filesChanged, filesChangedCount(files))
@@ -56,30 +55,38 @@ struct EpicView: View {
         }
         .safeAreaBar(edge: .top) {
             PipelineStrip(steps: pipelineSteps(subject, reply: reply))
+                .frame(maxWidth: 700).frame(maxWidth: .infinity)
                 .padding(.horizontal, 20).padding(.vertical, 10)
         }
     }
 
-    // The tabs are empty states for now.
     @ViewBuilder private var tabContent: some View {
         switch tab {
         case .agentOutput:
-            if let empty = subject.outputEmptyState {
-                EmptyStateView(state: empty).frame(minHeight: 260)
-                if let plan { QueuedPlanView(plan: plan) }
-            } else if sessions.loaded == false {
-                LoadingStateView(title: "Loading activity", line: "Reading what the agents did on this epic.").frame(minHeight: 260)
-            } else if sessions.sections.isEmpty {
-                if let steps = startingSteps(subject, reply: reply) {
-                    StartingView(steps: steps).frame(minHeight: 260)
-                } else {
-                    EmptyStateView(state: .noActivity).frame(minHeight: 260)
-                }
-            } else {
-                SessionSectionsView(epic: EpicRef(repo: subject.repo, issue: subject.issue), list: sessions, folds: $folds)
+            VStack(alignment: .leading, spacing: 18) {
+                agentFeed
+                if let resume { ResumeCardView(card: resume.card, store: resume.store, epic: EpicRef(repo: subject.repo, issue: subject.issue)) }
             }
+            .frame(maxWidth: 700).frame(maxWidth: .infinity)
         case .filesChanged:
             FilesChangedView(files: files, fileDiffs: fileDiffs)
+        }
+    }
+
+    @ViewBuilder private var agentFeed: some View {
+        if let empty = subject.outputEmptyState {
+            EmptyStateView(state: empty).frame(minHeight: 260)
+            if let plan { QueuedPlanView(plan: plan) }
+        } else if sessions.loaded == false {
+            LoadingStateView(title: "Loading activity", line: "Reading what the agents did on this epic.").frame(minHeight: 260)
+        } else if sessions.sections.isEmpty {
+            if case .active(let epic) = subject, isStarting(epic) {
+                StartingView(epic: epic, reply: reply)
+            } else {
+                EmptyStateView(state: .noActivity).frame(minHeight: 260)
+            }
+        } else {
+            SessionSectionsView(epic: EpicRef(repo: subject.repo, issue: subject.issue), list: sessions, reply: reply, folds: $folds)
         }
     }
 }
@@ -184,34 +191,27 @@ private struct Chip: View {
     }
 }
 
-/// One line that never wraps: the connectors stretch, and when the labels no longer fit they give way to the bare names.
+/// One line that never wraps, centred and at most as wide as the feed: the connectors stretch up to that and shrink first when the window narrows.
 struct PipelineStrip: View {
     let steps: [PipelineStep]
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            line(labelled: true)
-            line(labelled: false)
-        }
-    }
-
-    private func line(labelled: Bool) -> some View {
         HStack(spacing: 8) {
             ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
                 if index > 0 {
                     Capsule().fill(steps[index - 1].state == .done ? Color.green : Color.secondary.opacity(0.3))
                         .frame(minWidth: 8, maxWidth: .infinity).frame(height: 2)
                 }
-                PipelineStepView(index: index, step: step, labelled: labelled)
+                PipelineStepView(index: index, step: step)
             }
         }
+        .frame(maxWidth: 700)
     }
 }
 
 struct PipelineStepView: View {
     let index: Int
     let step: PipelineStep
-    let labelled: Bool
 
     var body: some View {
         HStack(spacing: 5) {
@@ -226,7 +226,6 @@ struct PipelineStepView: View {
             .background(Circle().fill(fill ?? Color.secondary.opacity(0.15)))
             Text(step.name).font(.callout.weight(.medium))
                 .foregroundStyle(step.state == .waiting || step.state == .done ? Color.secondary : .primary)
-            if labelled, let label = step.label { Text(label).font(.caption).foregroundStyle(.tertiary) }
         }
         .lineLimit(1)
         .help([step.name, step.label].compactMap { $0 }.joined(separator: " "))

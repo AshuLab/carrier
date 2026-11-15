@@ -49,7 +49,7 @@ The app starts Sparkle's updater and asks for a background check when it opens f
 It also writes `NSMicrophoneUsageDescription` (dictation's microphone prompt) and fails when it is missing or empty, as it does for a missing icon.
 FluidAudio, WhisperKit and `libghostty-spm` (`GhosttyTerminal`) are linked by the `Carrier` target only, pinned with `exact:`.
 `build-app.sh` copies `GhosttyKit_GhosttyTerminal.bundle` into `Contents/Resources`.
-`scripts/check-app.sh` builds the app and asserts all of this (the workflow runs it).
+`scripts/check-app.sh` builds the app and asserts all of this (the macOS workflow runs it).
 `update-key.pub` holds the update key's public half (the private half is the repository secret `SPARKLE_PRIVATE_KEY`, see [releasing](../docs/releasing.md#4-the-update-key)); change it only to start a new key pair.
 The build number is that `CFBundleVersion`: the same version always gives the same number, and a build with no version is `1`, so a local build is older than any release.
 

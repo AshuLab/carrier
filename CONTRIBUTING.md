@@ -142,7 +142,7 @@ Files are not reformatted in bulk: they get it as they are edited.
 
 `main` is the only long-lived branch; there is no `develop` branch.
 Every change reaches `main` through a PR, and PRs merge with merge commits, never squash or rebase.
-A PR into `main` that is not a draft runs CI (typecheck and unit tests) and needs one teammate's review.
+A PR into `main` that is not a draft runs CI (the engine: typecheck, unit tests, build; the app, only if it changed: tests and bundle; the single check is `ci-ok`) and needs one teammate's review.
 Force-pushes to `main` are refused, and epic branches have no rules, so `ship` merges slices into them unattended.
 
 There are two lanes.

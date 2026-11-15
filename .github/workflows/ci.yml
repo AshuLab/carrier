@@ -1,29 +1,64 @@
-# Typecheck and unit tests on a pull request into main. Slice PRs into an epic branch and drafts run nothing:
-# ship opens the integration PR as a draft, so this runs once a person marks it ready.
-# No paths filter: this job is the required check on main, and a workflow that never triggers leaves it pending forever.
-# A job skipped by its `if:` counts as passed, so a draft never blocks.
 name: CI
 
+# The one entry for a pull request into main. Slice PRs into an epic branch and drafts run nothing:
+# ship opens the integration PR as a draft, so this runs once a person marks it ready.
+# It always triggers (no paths filter on the workflow), and `changes` decides what runs, so `ci-ok` is never left pending.
+# A job skipped by its `if:` counts as passed, so a draft never blocks.
+# Order: engine (cheap, Linux) first, macOS (10x the minutes) only if it did not fail.
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 
+# A new push replaces the run of the previous one.
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
+  pull-requests: read # `changes` lists the files of the PR
 
 jobs:
-  check:
+  # engine: anything but a change that is only inside macos/. macos: the app, its notices, or the workflows themselves.
+  changes:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
+    outputs:
+      engine: ${{ steps.files.outputs.engine }}
+      macos: ${{ steps.files.outputs.macos }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 26
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
+      - id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          FILES="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename')"
+          echo "$FILES"
+          echo "engine=$(echo "$FILES" | grep -qvE '^macos/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "macos=$(echo "$FILES" | grep -qE '^(macos/|THIRD-PARTY-NOTICES\.md$|\.github/workflows/)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  engine:
+    needs: changes
+    if: needs.changes.outputs.engine == 'true'
+    uses: ./.github/workflows/engine.yml
+
+  macos:
+    needs: [changes, engine]
+    # always(): `engine` is skipped on a PR that only touches macos/, and a skipped need would skip this too.
+    if: ${{ !cancelled() && needs.changes.outputs.macos == 'true' && needs.engine.result != 'failure' }}
+    uses: ./.github/workflows/macos.yml
+
+  # The single check to require on main: it fails if any job failed or was cancelled, and passes when they were skipped.
+  ci-ok:
+    needs: [changes, engine, macos]
+    if: ${{ always() && github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          case " $RESULTS " in *" failure "* | *" cancelled "*) exit 1 ;; esac

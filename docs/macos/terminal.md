@@ -17,7 +17,14 @@ Selecting a standalone terminal (`Selection.terminal(id:)`) shows `TerminalDetai
 The terminal surface extends under the translucent top toolbar across the full detail height, while top-right pane controls are inset below `safeAreaInsets.top` (`topControlsInset`) so they stay clear of toolbar buttons.
 The tab strip (`Carrier/TerminalTabBarView.swift`, `TerminalTabBarView`) sits along the bottom edge with drag reordering, inline rename popovers, `+` to add a tab in the active tab's folder, Close Tab / Close Other Tabs in the context menu and middle-click or `×` to close a tab.
 Hovering near the top of a pane reveals floating glass controls (`TerminalPaneHeaderView`) to split right, split down, zoom or restore a split pane, drag a pane to another pane's edge to move it or center to swap (`terminalDropZone`), equalize splits or detach a pane into a new tab.
-Split dividers (`SplitContainerView`) and the drawer's top edge (`TerminalDrawerView`) resize on drag with `AppKit` resize cursors managed by `hoverCursor`.
+Split dividers (`SplitContainerView`) and the drawer's top edge (`TerminalDrawerView`) resize on drag with `AppKit` resize cursors managed by `hoverCursor` and highlight using the active theme accent (`Color.themeAccent`).
+
+## Appearance and theme alignment
+
+The embedded terminal follows the app's active `Theme`, Light/Dark scheme, `AccentColor`, `Tint` (`off`, `subtle`, `strong`) and **Translucent windows** accessibility-aware preference (`TerminalAppearanceProfile`, `TerminalAppearanceMapper`).
+Each of the 9 themes (`carrier`, `graphite`, `ocean`, `forest`, `sunset`, `paper`, `rose`, `lavender`, `midnight`) provides a curated 16-color ANSI palette in both light and dark modes alongside high-contrast foreground, `boldColor`, accent-tinted selection colors, `cursorColor` and `cursorText`.
+When the active theme is `carrier` and **Translucent windows** is active (with system Reduce Transparency off), the Ghostty surface uses `backgroundOpacity = 0` over the window's translucent frosted background and draws `TerminalDrawerView` over a `.regularMaterial` backdrop tinted with `chromeBackground`.
+Opaque themes paint the theme's exact tinted window color (`background`) inside both the surface and chrome without double-tinting the tab bar, and `CarrierTerminalStore` live-reloads changes to `UserDefaults`, system appearance and `NSWorkspace.accessibilityDisplayOptionsDidChangeNotification`.
 
 ## Session terminal drawer
 

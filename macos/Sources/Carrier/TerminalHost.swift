@@ -32,6 +32,7 @@ final class CarrierTerminalStore {
     }
 
     private(set) var registry: TerminalRegistry
+    private(set) var appearanceProfile: TerminalAppearanceProfile
     @ObservationIgnored let controller: TerminalController
     @ObservationIgnored private let fileStore: TerminalWorkspaceFileStore
     @ObservationIgnored private let preferences: AppPreferences
@@ -48,6 +49,7 @@ final class CarrierTerminalStore {
     @ObservationIgnored private var cancellables: [UUID: Set<AnyCancellable>] = [:]
     @ObservationIgnored private var persistTask: Task<Void, Never>?
     @ObservationIgnored private var defaultsObserver: NSObjectProtocol?
+    @ObservationIgnored private var accessibilityObserver: NSObjectProtocol?
     @ObservationIgnored private var appearanceObserver: NSKeyValueObservation?
     @ObservationIgnored private var keyMonitor: Any?
     @ObservationIgnored private var lastAppliedAppearance: TerminalAppearanceProfile?
@@ -86,13 +88,20 @@ final class CarrierTerminalStore {
         self.persistDebounceNanoseconds = persistDebounceNanoseconds
 
         let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(preferences.colorScheme)
+        let translucent = TerminalAppearanceMapper.resolveTranslucent(preferences)
         let profile = TerminalAppearanceMapper.makeProfile(
             theme: preferences.theme,
             scheme: resolvedScheme,
-            preferences: preferences
+            preferences: preferences,
+            translucent: translucent
         )
-        let theme = TerminalAppearanceMapper.ghosttyTheme(for: profile.theme, preferences: preferences)
+        let theme = TerminalAppearanceMapper.ghosttyTheme(
+            for: profile.theme,
+            preferences: preferences,
+            translucent: translucent
+        )
         let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile)
+        self.appearanceProfile = profile
         self.controller = TerminalController(
             configSource: .none,
             theme: theme,
@@ -536,16 +545,21 @@ final class CarrierTerminalStore {
     func syncAppearance(preferences customPreferences: AppPreferences? = nil, scheme: ThemeScheme? = nil) {
         let prefs = customPreferences ?? preferences
         let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(prefs.colorScheme)
+        let translucent = TerminalAppearanceMapper.resolveTranslucent(prefs)
         let profile = TerminalAppearanceMapper.makeProfile(
             theme: prefs.theme,
             scheme: resolvedScheme,
-            preferences: prefs
+            preferences: prefs,
+            translucent: translucent
         )
         guard profile != lastAppliedAppearance else { return }
         lastAppliedAppearance = profile
+        appearanceProfile = profile
 
         controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(resolvedScheme))
-        _ = controller.setTheme(TerminalAppearanceMapper.ghosttyTheme(for: profile.theme, preferences: prefs))
+        _ = controller.setTheme(
+            TerminalAppearanceMapper.ghosttyTheme(for: profile.theme, preferences: prefs, translucent: translucent)
+        )
         _ = controller.setTerminalConfiguration(TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile))
     }
 
@@ -841,6 +855,15 @@ final class CarrierTerminalStore {
                 self?.syncAppearance()
             }
         }
+        accessibilityObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.syncAppearance()
+            }
+        }
         appearanceObserver = NSApplication.shared.observe(\.effectiveAppearance) { [weak self] _, _ in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -854,6 +877,10 @@ final class CarrierTerminalStore {
         if let defaultsObserver {
             NotificationCenter.default.removeObserver(defaultsObserver)
             self.defaultsObserver = nil
+        }
+        if let accessibilityObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(accessibilityObserver)
+            self.accessibilityObserver = nil
         }
         appearanceObserver?.invalidate()
         appearanceObserver = nil

@@ -374,12 +374,22 @@ struct TerminalCoreTests {
                     theme: theme,
                     scheme: scheme,
                     tint: .subtle,
+                    translucent: true,
                     monospace: MonospaceSettings(family: "JetBrains Mono", size: 13, ligatures: false),
                     terminalSettings: TerminalSettings(cursorStyle: .bar, cursorBlink: false, paddingX: 12, paddingY: 6, minimumContrast: 4.5)
                 )
                 #expect(profile.foreground.contrastRatio(with: profile.background) >= 7.0)
+                #expect(profile.boldColor.contrastRatio(with: profile.background) >= 7.0)
                 #expect(profile.selectionForeground.contrastRatio(with: profile.selectionBackground) >= 4.5)
                 #expect(profile.cursorColor.contrastRatio(with: profile.background) >= 3.0)
+                #expect(profile.cursorText.contrastRatio(with: profile.cursorColor) >= 4.5)
+                #expect(profile.palette.count == 16)
+                for index in (1...6) {
+                    #expect(profile.palette[index].contrastRatio(with: profile.background) >= 3.5)
+                    #expect(profile.palette[index + 8].contrastRatio(with: profile.background) >= 3.5)
+                }
+                #expect(profile.isSurfaceTranslucent == (theme == .carrier))
+                #expect(profile.backgroundOpacity == (theme == .carrier ? 0.0 : 1.0))
                 #expect(profile.background.hexString.hasPrefix("#"))
                 #expect(profile.foreground.hexString.count == 7)
                 #expect(profile.fontFamily == "JetBrains Mono")
@@ -390,6 +400,17 @@ struct TerminalCoreTests {
                 #expect(profile.paddingX == 12)
                 #expect(profile.paddingY == 6)
                 #expect(profile.minimumContrast == 4.5)
+
+                let solid = TerminalAppearanceProfile(
+                    theme: theme,
+                    scheme: scheme,
+                    accent: .purple,
+                    tint: .strong,
+                    translucent: false
+                )
+                #expect(solid.isSurfaceTranslucent == false)
+                #expect(solid.backgroundOpacity == 1.0)
+                #expect(solid.chromeBackground == solid.background)
             }
         }
     }

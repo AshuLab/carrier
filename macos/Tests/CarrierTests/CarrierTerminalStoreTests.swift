@@ -291,6 +291,23 @@ struct CarrierTerminalStoreTests {
             scheme: .dark
         )
 
+        // Default Carrier theme follows Translucent windows when turned on.
+        prefs.setTranslucent(true)
+        store.syncAppearance(preferences: prefs, scheme: .dark)
+        #expect(store.appearanceProfile.theme == .carrier)
+        #expect(store.appearanceProfile.isSurfaceTranslucent == true)
+        #expect(store.controller.renderedConfig.contains("background-opacity = 0"))
+
+        prefs.theme = .ocean
+        prefs.accent = .orange
+        prefs.tint = .strong
+        store.syncAppearance(preferences: prefs, scheme: .dark)
+        #expect(store.appearanceProfile.theme == .ocean)
+        #expect(store.appearanceProfile.accent == .orange)
+        #expect(store.appearanceProfile.tint == .strong)
+        #expect(store.appearanceProfile.isSurfaceTranslucent == false)
+        #expect(store.controller.renderedConfig.contains("background-opacity = 1"))
+
         var terminal = prefs.terminal
         terminal.themeOverride = .forest
         terminal.cursorStyle = .bar
@@ -305,6 +322,8 @@ struct CarrierTerminalStoreTests {
 
         store.syncAppearance(preferences: prefs, scheme: .light)
         let rendered = store.controller.renderedConfig
+        #expect(store.appearanceProfile.theme == .forest)
+        #expect(store.appearanceProfile.scheme == .light)
         #expect(rendered.contains("cursor-style = bar"))
         #expect(rendered.contains("cursor-style-blink = false"))
         #expect(rendered.contains("window-padding-x = 14"))
@@ -312,6 +331,11 @@ struct CarrierTerminalStoreTests {
         #expect(rendered.contains("minimum-contrast = 4.5"))
         #expect(rendered.contains("font-family = Menlo"))
         #expect(rendered.contains("font-size = 15"))
+        #expect(rendered.contains("bold-color = #"))
+        #expect(rendered.contains("cursor-text = #"))
+        #expect(rendered.contains("palette = 0=#"))
+        #expect(rendered.contains("palette = 15=#"))
+        #expect(rendered.contains("background-opacity = 1"))
     }
 
     @Test(.enabled(if: ProcessInfo.processInfo.environment["CARRIER_IT_TERMINAL"] != nil))

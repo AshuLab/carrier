@@ -472,7 +472,7 @@ private struct SplitContainerView: View {
     private func divider(usable: CGFloat, horizontal: Bool) -> some View {
         ZStack {
             Rectangle()
-                .fill(Color.primary.opacity(dividerHovered || dragBaseRatio != nil ? 0.24 : 0.08))
+                .fill(dividerHovered || dragBaseRatio != nil ? Color.themeAccent.opacity(0.65) : Color.primary.opacity(0.08))
                 .frame(width: horizontal ? Self.dividerThickness : nil, height: horizontal ? nil : Self.dividerThickness)
         }
         .frame(width: horizontal ? 7 : nil, height: horizontal ? nil : 7)
@@ -553,6 +553,12 @@ struct TerminalDetailView: View {
                                 Task { _ = await store.closeOtherTabs(except: keepingId, for: owner) }
                             }
                         )
+                    }
+                    .background {
+                        if store.appearanceProfile.isSurfaceTranslucent == false {
+                            Color(store.appearanceProfile.background)
+                                .ignoresSafeArea(.container, edges: .top)
+                        }
                     }
                 }
                 .ignoresSafeArea(.container, edges: .top)
@@ -636,7 +642,16 @@ struct TerminalDrawerView: View {
             }
         }
         .frame(height: clampedHeight)
-        .background(Color.themeWindow)
+        .background {
+            let profile = store.appearanceProfile
+            if profile.isSurfaceTranslucent {
+                Rectangle()
+                    .fill(.regularMaterial)
+                    .overlay(Color(profile.chromeBackground))
+            } else {
+                Color(profile.background)
+            }
+        }
         .onAppear { ensureTabExists() }
         .onChange(of: owner) { _, _ in ensureTabExists() }
         .onChange(of: tabs.isEmpty) { _, isEmpty in
@@ -653,7 +668,7 @@ struct TerminalDrawerView: View {
     private var resizeHandle: some View {
         ZStack {
             Rectangle()
-                .fill(Color.primary.opacity(resizeHovered || dragStartHeight != nil ? 0.24 : 0.08))
+                .fill(resizeHovered || dragStartHeight != nil ? Color.themeAccent.opacity(0.65) : Color.primary.opacity(0.08))
                 .frame(height: 1)
         }
         .frame(maxWidth: .infinity)

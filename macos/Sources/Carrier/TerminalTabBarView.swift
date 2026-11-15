@@ -58,7 +58,6 @@ struct TerminalTabBarView<Trailing: View>: View {
         }
         .padding(.horizontal, 12)
         .frame(height: Self.height)
-        .background(Color.themeWindow)
     }
 }
 
@@ -222,9 +221,9 @@ struct TerminalTabChip: View {
     private var backgroundFill: some View {
         Capsule().fill(
             isDropTarget
-                ? Color.themeAccent.opacity(0.16)
+                ? Color.themeAccent.opacity(0.20)
                 : selected
-                    ? Color.primary.opacity(0.14)
+                    ? Color.themeAccent.opacity(0.16)
                     : hovered ? Color.primary.opacity(0.08) : Color.primary.opacity(0.04)
         )
     }
@@ -232,9 +231,9 @@ struct TerminalTabChip: View {
     private var borderStroke: some View {
         Capsule().strokeBorder(
             isDropTarget
-                ? Color.themeAccent.opacity(0.55)
+                ? Color.themeAccent.opacity(0.60)
                 : selected
-                    ? Color.primary.opacity(0.18)
+                    ? Color.themeAccent.opacity(0.32)
                     : hovered ? Color.primary.opacity(0.12) : Color.primary.opacity(0.06),
             lineWidth: isDropTarget ? 1.5 : 1
         )

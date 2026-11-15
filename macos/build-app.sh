@@ -1,6 +1,7 @@
 #!/bin/bash
 # Builds Carrier.app with SwiftPM (needs Xcode selected, see README.md) and signs it ad hoc.
 # Usage: ./build-app.sh [version] [--open]   (version is written into the plist, 0.1.0 when none is given)
+# No version means a dev build: its own name, bundle id and settings, and no updater, so it never gets mixed up with the installed Carrier.
 # The build number (CFBundleVersion) is what Sparkle compares: X.Y.Z -> X*10000 + Y*100 + Z, and 1 when no version is given.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -11,6 +12,15 @@ GIVEN=false
 for arg in "$@"; do
   if [ "$arg" = "--open" ]; then OPEN=true; else VERSION="$arg"; GIVEN=true; fi
 done
+if [ "$GIVEN" = true ]; then
+  CHANNEL=release; NAME=Carrier; BUNDLE_ID=dev.ashulab.carrier
+  # the updater starts only from a bundle with a feed (AppUpdater.start), so a dev build has none
+  UPDATER="<key>SUFeedURL</key><string>https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml</string>
+<key>SUPublicEDKey</key><string>$(tr -d '[:space:]' < update-key.pub)</string>
+<key>SUEnableAutomaticChecks</key><true/>"
+else
+  CHANNEL=dev; NAME="Carrier Dev"; BUNDLE_ID=dev.ashulab.carrier.dev; UPDATER=""
+fi
 # the version lands in the plist as XML, so only X.Y.Z gets in
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "error: version '$VERSION' is not X.Y.Z" >&2; exit 1; }
 if [ "$GIVEN" = true ]; then
@@ -64,10 +74,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>dev.ashulab.carrier</string>
+<key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
 <key>CFBundleExecutable</key><string>Carrier</string>
-<key>CFBundleName</key><string>Carrier</string>
-<key>CFBundleDisplayName</key><string>Carrier</string>
+<key>CFBundleName</key><string>$NAME</string>
+<key>CFBundleDisplayName</key><string>$NAME</string>
+<key>CarrierChannel</key><string>$CHANNEL</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>$VERSION</string>
@@ -78,9 +89,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>NSMicrophoneUsageDescription</key><string>$MIC_USAGE</string>
 <key>NSHumanReadableCopyright</key><string>Copyright © 2026 AshuLab</string>
-<key>SUFeedURL</key><string>https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml</string>
-<key>SUPublicEDKey</key><string>$(tr -d '[:space:]' < update-key.pub)</string>
-<key>SUEnableAutomaticChecks</key><true/>
+$UPDATER
 </dict></plist>
 PLIST
 # dictation asks macOS for the microphone, and without a usage description the app is killed on the first click

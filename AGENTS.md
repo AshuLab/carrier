@@ -51,6 +51,9 @@ For users: [configuration](docs/configuration.md), [preparing a repo](docs/prepa
 **The macOS app's look** - [macos-ui](docs/macos-ui.md) is the guide to how `Carrier.app` is drawn: the kinds of button and which to use, the divider, text fields, selects, rows that open a form (chevron), lists, menus, empty states, spacing, and the mistakes already made. Read it before you touch any view under `macos/Sources/Carrier`, reuse the pieces it names instead of drawing new ones, and update it in the same change when you add or change a piece or a rule.
 It holds how to use the pieces, never what a change did or how one screen behaves (that is `docs/macos/`).
 
+**Trying a change in the app** - `./build-app.sh` with no version builds "Carrier Dev", a separate app (own bundle id and settings, no updater, DEV badge) from the installed Carrier, which you may be using right now.
+Never pass it a version to try something: that build is the release one and shares the installed app's id. Details in [CONTRIBUTING.md](CONTRIBUTING.md#developing-against-a-throwaway-folder).
+
 How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). Every user-visible change adds a line under Unreleased in [CHANGELOG.md](CHANGELOG.md), in the same PR.
 
 A release is a pushed tag `vX.Y.Z`, run by `.github/workflows/release.yml`; how a release flows to an installed Carrier, the update key and the checks of the first real release are in [releasing](docs/releasing.md). The `release` skill (`.claude/skills/release`) is the same procedure by hand for when Actions is unavailable; change one, change the other.

@@ -111,7 +111,12 @@ The host creates `$CARRIER_HOME/chat/` (`state/`, `logs/`) on its own and uses t
 macos/Carrier.app/Contents/MacOS/Carrier               # opens the window; with `carrier` found, starts the host in $CARRIER_HOME/chat/ if none answers
 ```
 
-The app finds `carrier` by itself (the Homebrew one, `/opt/homebrew/bin/carrier`) and says in the Sessions section when it does not. To test your clone's `carrier` instead, run `pnpm build` and put the path of `dist/terminal/cli/main.js` (or of `src/terminal/cli/main.ts`) with "Use another…" under Programs in Settings > Engine; a path ending in `.ts` or `.js` runs under `node`, which the app finds from your login shell. That setting is the app's preference, not part of the folder. The app replaces a running host only when the installed `carrier` has a newer version, and a build under development keeps the same one, so stop the host with `carrier chat --stop` after changing the code. When you are done, `carrier chat --stop`, press "Use the Homebrew one" in Settings > Engine and delete the folder.
+A build with no version is a dev build, and a build given a version (`./build-app.sh 1.2.3`, what the release workflow does) is a release build.
+The dev build is "Carrier Dev" with its own bundle id (`dev.ashulab.carrier.dev`), so it has its own settings and runs beside the installed Carrier.
+It has no updater and shows a DEV badge on the Dock icon and a DEV BUILD mark in the toolbar, so you can tell it from the one you work with.
+Never build with a version to try a change: that build takes the installed app's id and settings.
+
+The app finds `carrier` by itself (the Homebrew one, `/opt/homebrew/bin/carrier`) and says in the Sessions section when it does not. To test your clone's `carrier` instead, run `pnpm build` and put the path of `dist/terminal/cli/main.js` (or of `src/terminal/cli/main.ts`) with "Use another…" under Programs in Settings > Engine; a path ending in `.ts` or `.js` runs under `node`, which the app finds from your login shell. That setting is the dev app's own preference, not part of the folder, and the installed app does not see it. The app replaces a running host only when the installed `carrier` has a newer version, and a build under development keeps the same one, so stop the host with `carrier chat --stop` after changing the code. When you are done, `carrier chat --stop`, press "Use the Homebrew one" in Settings > Engine of the dev app and delete the folder.
 
 ## Commits
 

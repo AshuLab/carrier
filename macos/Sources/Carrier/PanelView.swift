@@ -182,6 +182,13 @@ struct PanelView: View {
                 Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemImage: "sidebar.leading") }
                     .help("Show or hide the sidebar")
             }
+            if isDevBuild {
+                ToolbarItem(placement: .navigation) {
+                    Text("DEV BUILD").font(.caption.weight(.bold)).foregroundStyle(.orange)
+                        .help("A development build of Carrier, not the installed one")
+                }
+                .sharedBackgroundVisibility(.hidden)
+            }
             if let epic {
                 ToolbarItem(placement: .primaryAction) { EpicLinks(prURL: epic.header.prURL, issueURL: epic.header.issueURL) }
                     .sharedBackgroundVisibility(.hidden)

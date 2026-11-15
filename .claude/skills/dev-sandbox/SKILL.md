@@ -33,7 +33,7 @@ Each Bash call is a new shell, so an `export` does not reach the next one: write
 
 ## Known traps
 
-- The app's settings are shared with the installed Carrier (same bundle id, `dev.ashulab.carrier`): "Use another…" changes the person's real app too. So does `osascript ... to quit`, which quits the installed app: quit a dev build by its PID.
+- A build with no version (`./build-app.sh`) is "Carrier Dev": its own bundle id (`dev.ashulab.carrier.dev`, so its own settings), no updater, a DEV badge. "Use another…" no longer changes the installed app. A build given a version (`./build-app.sh 1.2.3`) is a release build and shares `dev.ashulab.carrier` with it: quit it by its PID, not with `osascript ... to quit`.
 - `carrier status`, `watch`, `stop` say Carrier is not running when `CARRIER_HOME` differs from the one it started with ([troubleshooting](../../../docs/troubleshooting.md#start-up-errors)).
 - A host that keeps running old code: step 5.
 - `swift build` fails with `SwiftUIMacros.StateMacro could not be found` under the Command Line Tools ([macos/README.md](../../../macos/README.md#toolchain)).

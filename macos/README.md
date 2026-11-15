@@ -37,13 +37,13 @@ This is how the app is developed; it is not how it is installed.
 
 ```sh
 cd macos
-./build-app.sh          # release build wrapped in Carrier.app (bundle id dev.ashulab.carrier), signed ad hoc
+./build-app.sh          # dev build wrapped in Carrier.app: "Carrier Dev", bundle id dev.ashulab.carrier.dev (its own settings), no updater, a DEV badge on the Dock icon and a "DEV BUILD" mark in the toolbar; signed ad hoc
 ./build-app.sh --open   # same, then opens it
-./build-app.sh 1.2.3    # same, with 1.2.3 as the app's version in the plist (0.1.0 when none is given); the release workflow does this with the tag's version
+./build-app.sh 1.2.3    # a release build: "Carrier", bundle id dev.ashulab.carrier, the updater, 1.2.3 as the version in the plist (0.1.0 for a dev build); the release workflow does this with the tag's version
 open Carrier.app
 ```
 
-`build-app.sh` also embeds Sparkle (`Contents/Frameworks/Sparkle.framework`, with an rpath so the app finds it) and writes `SUFeedURL`, `SUPublicEDKey` (the content of `update-key.pub`) and `SUEnableAutomaticChecks` into the plist.
+`build-app.sh` also embeds Sparkle (`Contents/Frameworks/Sparkle.framework`, with an rpath so the app finds it) and, for a release build only, writes `SUFeedURL`, `SUPublicEDKey` (the content of `update-key.pub`) and `SUEnableAutomaticChecks` into the plist. A dev build gets `CarrierChannel=dev` instead (`isDevBuild` in the app).
 `CFBundleVersion`, the number Sparkle compares, is `X*10000 + Y*100 + Z` for the version given (1 when none is given); a minor or patch of 100 or more is refused.
 The app starts Sparkle's updater and asks for a background check when it opens from a bundle that has `SUFeedURL`, never under `--fixture` or `--selftest`.
 It also writes `NSMicrophoneUsageDescription` (dictation's microphone prompt) and fails when it is missing or empty, as it does for a missing icon.
@@ -72,7 +72,7 @@ cat /tmp/carrier-selftest.log   # last line: "end: process still alive ..."
 
 With `--fixture` the log also has `rings, window open` and `rings, window closed` (`rings=N animating=M`): the spinning rings of running epics turn only while the window is visible and Reduce Motion is off, so the second line must say `animating=0`.
 
-The app keeps running afterwards; quit it from the menu or with `osascript -e 'tell application id "dev.ashulab.carrier" to quit'`.
+The app keeps running afterwards; quit it from the menu or with `osascript -e 'tell application id "dev.ashulab.carrier.dev" to quit'` (`dev.ashulab.carrier` for a release build).
 
 ## Fixture mode
 

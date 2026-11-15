@@ -21,6 +21,13 @@ The decision, the command line and the notice are in `CarrierCore/StartChatHost.
 The rule is tested; the replacement itself is not.
 The sequence is tested against a scripted engine on a real socket (`EngineReplacementTests`).
 
+## Dev build and release build
+
+`build-app.sh` with no version makes the dev build, with a version the release build; the differences are in [CONTRIBUTING](../CONTRIBUTING.md#developing-against-a-throwaway-folder).
+The plist says which it is: `CarrierChannel` is `dev` or `release`, and `isDevBuild` (`Carrier/AppDelegate.swift`) reads it for the Dock badge and the toolbar mark in `PanelView`.
+A dev build has no `SUFeedURL`, and `AppUpdater.start` does not start the updater without one.
+`scripts/check-app.sh` asserts id, channel and the missing feed for both; a new difference between the two goes into `build-app.sh` and into that script.
+
 ## Epics
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#resume-card).

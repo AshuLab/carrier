@@ -9,8 +9,8 @@ struct WorkspaceTerminalOpener: TerminalOpener {
     }
 }
 
-/// Under an open epic session that is not running: a row of the log's own, edge to edge, that opens the embedded terminal
-/// drawer on the validated command. Nothing for a session with no descriptor (running) or one the validation refuses.
+/// Under an open epic session that is not running: a card line of the feed that opens the embedded terminal drawer
+/// on the validated command. Nothing for a session with no descriptor (running) or one the validation refuses.
 struct ContinueInTerminalView: View {
     let section: SessionSection
     let onContinue: (ValidResume) -> Void
@@ -20,35 +20,34 @@ struct ContinueInTerminalView: View {
         if let descriptor = section.resume {
             let engine = engineFolder()
             if case .success(let valid) = validateResume(descriptor, engine: engine) {
-                Button {
-                    guard case .success(let freshValid) = validateResume(descriptor, engine: engineFolder()) else {
-                        tell("The session folder is no longer available.")
-                        return
-                    }
-                    onContinue(freshValid)
-                } label: {
-                    HStack(spacing: LogMetrics.gap) {
-                        Image(systemName: "terminal").font(.scaled(12)).foregroundStyle(.secondary)
-                            .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
-                        HStack(spacing: 4) {
-                            Text("Continue in Terminal").fontWeight(.medium)
-                            Text("· resumes this session").foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 0) {
+                    Button {
+                        guard case .success(let freshValid) = validateResume(descriptor, engine: engineFolder()) else {
+                            tell("The session folder is no longer available.")
+                            return
                         }
-                        .font(.scaled(12)).lineLimit(1)
-                        Spacer(minLength: 0)
+                        onContinue(freshValid)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "terminal").font(.scaled(12)).foregroundStyle(.secondary).frame(width: 16, height: 16)
+                            Text("Continue in Terminal").fontWeight(.semibold)
+                            Text("· resumes this session").foregroundStyle(.secondary)
+                            Spacer(minLength: 8)
+                        }
+                        .font(.scaled(12.5)).lineLimit(1)
+                        .padding(.horizontal, 10).frame(height: 30)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(hovered ? 0.05 : 0)))
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, LogMetrics.iconColumn)
-                    .frame(maxWidth: .infinity, minHeight: LogMetrics.groupLine, alignment: .leading)
-                    .background(Color.primary.opacity(hovered ? 0.05 : 0))
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .onHover { hovered = $0 }
+                    .help(section.state == .stopped
+                        ? "Opens the terminal panel below in the folder it started in and resumes \(section.agent) so you can keep talking to it.\n\(resumeCommand(valid))"
+                        : resumeCommand(valid))
+                    .accessibilityHint("Opens the terminal panel and resumes this session")
                 }
-                .buttonStyle(.plain)
-                .onHover { hovered = $0 }
-                .help(section.state == .stopped
-                    ? "Opens the terminal panel below in the folder it started in and resumes \(section.agent) so you can keep talking to it.\n\(resumeCommand(valid))"
-                    : resumeCommand(valid))
-                .accessibilityHint("Opens the terminal panel and resumes this session")
-                // the card's foot gives the bottom 12 pt
+                .workCard()
+                .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
                 .sessionRow()
             }
         }

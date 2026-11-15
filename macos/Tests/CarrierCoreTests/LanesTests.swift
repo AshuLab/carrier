@@ -265,9 +265,9 @@ private func running(_ events: [ExecEvent]) -> [FlowItem] {
 private func order(_ flow: [FlowItem]) -> [String] {
     flow.map {
         switch $0 {
-        case .item(let item): "m\(item.id)"
-        case .group(let id, _): "g\(id)"
+        case .tools(let id, _, _): "g\(id)"
         case .slice(let lane): "s" + lane.id
+        default: "m\($0.id)"
         }
     }
 }
@@ -304,7 +304,7 @@ private func say(_ id: Int) -> ExecEvent { event(id, "say", text: "m") }
     #expect(order(running(events)) == ["g1", "sA", "g6"])
 }
 
-@Test func theMainAgentCallThatLaunchedASubagentIsLeftOutAndOneWithNoSubagentStaysALine() {
+@Test func theMainAgentCallThatLaunchedASubagentIsLeftOutAndOneWithNoSubagentStaysACall() {
     func agentCall(_ id: Int, _ callId: String) -> [ExecEvent] {
         [ExecEvent(id: id, at: id, kind: "tool_start", callId: callId, tool: "Agent", arg: "launch"),
          ExecEvent(id: id + 1, at: id, kind: "tool_end", callId: callId, tool: "Agent", status: "ok")]
@@ -312,11 +312,11 @@ private func say(_ id: Int) -> ExecEvent { event(id, "say", text: "m") }
     let launch = ExecEvent(id: 3, at: 3, kind: "task", text: "Build slice #1", callId: "launch-1", agentId: "A")
     // the Agent call (events 1-2) is matched to the subagent's start by callId; the one for "later" has no subagent yet
     let events = agentCall(1, "launch-1") + [launch] + agentCall(4, "later")
-    #expect(order(running(events)) == ["sA", "m4"])
+    #expect(order(running(events)) == ["sA", "g4"])
     // its end can arrive first; the item is still left out
     let endFirst = [ExecEvent(id: 1, at: 1, kind: "tool_end", callId: "launch-1", tool: "Agent", status: "ok"), launch]
     #expect(order(running(endFirst)) == ["sA"])
-    #expect(order(running(agentCall(1, "later"))) == ["m1"])
+    #expect(order(running(agentCall(1, "later"))) == ["g1"])
 }
 
 @Test func anAppendedEventProcessesOnlyItself() {

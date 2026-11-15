@@ -194,7 +194,7 @@ func aFilterShowsOnlyItsGroup(group: SliceGroup, numbers: [Int]) {
     let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/reply-epic.json")
     let epic = try JSONDecoder().decode(EpicReply.self, from: Data(contentsOf: url))
     let tab = slicesTabModel(nil, reply: epic, now: 99_000)
-    // merged, in progress, ready, blocked by several and blocked by one; the skipped one is left out
-    #expect(tab.counts == [1, 1, 3] && tab.rows.map(\.number) == [121, 123, 124, 125, 126])
-    #expect(tab.rows.map(\.detail).suffix(3) == ["after #121 Request schemas, #123 Sessions request", "ready to start", "after #124 Events request"])
+    // three merged (the builder's lanes), one in progress, and ready, blocked by several and blocked by one; the skipped one is left out
+    #expect(tab.counts == [3, 1, 3] && tab.rows.map(\.number) == [121, 123, 124, 125, 126, 127, 128])
+    #expect(tab.rows.map(\.detail)[2...4] == ["after #121 Request schemas, #123 Sessions request", "ready to start", "after #124 Events request"])
 }

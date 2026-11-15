@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Epic view, option A1 — centered session row (round 3)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.stack{display:flex;flex-direction:column;gap:40px;margin-top:10px}
+.opt>h3{margin:0 0 2px;font-size:15px}
+.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:900px}
+.pane{width:min(900px,100%);border-radius:22px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);padding:6px 0 30px;height:700px;overflow:auto}
+.feed{max-width:700px;margin:0 auto;padding:0 28px;display:flex;flex-direction:column}
+
+/* ---- the chat's vocabulary (same as round 1) ---- */
+.msg{line-height:1.5;margin:0}
+.msg code{font:11.5px var(--mono);background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue);padding:0 5px;border-radius:5px}
+.tg{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.tg .l{display:flex;gap:8px;align-items:center;height:30px;padding:0 10px;font-size:12.5px;color:var(--dim)}
+.tg .l b{color:var(--text);font-weight:600}
+.tg .l .sp1{flex:1}
+.tg .l em{font-style:normal;font-size:11.5px;color:var(--faint)}
+.tg .l .ic{width:15px;height:15px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:8px;flex:none}
+.tg .l .ch{font-size:9px;color:var(--faint);width:12px;text-align:center}
+.fc{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.fc .fh{display:flex;gap:8px;align-items:center;padding:7px 10px;font-size:12.5px}
+.fc .fh b{font-weight:600}.fc .fh .p{color:var(--faint);font:11px var(--mono);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fc .df{background:#0d0d10;font:11.5px/1.5 var(--mono);color:#d6d6dc;padding:6px 0}
+body.light .fc .df{background:#1d1d22}
+.fc .df div{padding:0 12px;white-space:pre;overflow:hidden}
+.fc .df .a{background:rgba(48,209,88,.16);color:#7ee787}.fc .df .r{background:rgba(255,69,58,.16);color:#ff8a82}
+.fc .ficon{width:18px;height:18px;border-radius:5px;background:var(--blue);color:#fff;display:grid;place-items:center;font-size:10px}
+.sl{display:flex;gap:10px;align-items:flex-start;padding:9px 12px}
+.sl+.sl{border-top:.5px solid var(--line)}
+.sl .t{flex:1;min-width:0}.sl .t b{font-weight:600}.sl .t b i{font-style:normal;color:var(--faint);font-weight:500;margin-right:6px}
+.sl .t span{display:block;font-size:12px;color:var(--dim);margin-top:2px}.sl .e{color:var(--red)}.sl .m{color:var(--purple)}
+.body{display:flex;flex-direction:column;gap:11px;padding:6px 0 4px}
+.ev{font-size:12px;color:var(--faint)}
+.done{display:flex;gap:9px;align-items:center;height:34px;padding:0 12px;border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;font-size:12.5px}
+.done .ck{width:16px;height:16px;font-size:9px}.done .sp1{flex:1}
+.done .term{font-size:12px;color:var(--dim)}.done .term b{color:var(--text);font-weight:600}
+
+/* ---- the identity (A1) ---- */
+.gh{position:relative;width:30px;height:30px;flex:none}
+.gh .pic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;box-shadow:0 0 0 .5px var(--line) inset}
+.gh .hm{position:absolute;right:-4px;bottom:-4px;width:15px;height:15px;border-radius:50%;background:var(--bg);display:grid;place-items:center;font-size:8px;box-shadow:0 0 0 1.5px var(--bg),0 0 0 2px var(--line)}
+.gh.lg,.gh.lg .pic{width:38px;height:38px;font-size:14px}
+.c1{background:#5e5ce6}.c2{background:#bf5af2}
+.who1{white-space:nowrap}.who1 b{font-weight:650}.who1 span{color:var(--dim)}
+.who2{font-size:12px;color:var(--dim);white-space:nowrap}.who2 b{font-weight:550;color:var(--text)}.who2 .s{color:var(--faint);margin:0 5px}
+.sum{font-size:12px;color:var(--dim)}.sum b{color:var(--text);font-weight:600}.sum .s{color:var(--faint);margin:0 5px}.sum .e{color:var(--red)}
+.ad{color:var(--green);font-weight:600}.de{color:var(--red);font-weight:600}
+.stopbadge{font-size:11px;font-weight:600;color:var(--orange);background:color-mix(in srgb,var(--orange) 18%,transparent);border-radius:99px;padding:2px 9px}
+.reason{font-size:12px;color:var(--red);background:color-mix(in srgb,var(--red) 11%,transparent);border-radius:10px;padding:5px 11px;max-width:520px;text-align:center}
+.chev{width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:10px;color:var(--dim);flex:none;transition:transform .2s}
+.open .chev{transform:rotate(90deg)}
+.hit{cursor:default;border-radius:14px}
+.hit:hover{background:var(--card)}
+.sess{display:flex;flex-direction:column}
+
+/* D1: stacked, centred, the avatar on top like the chat's first line */
+.d1 .hit{display:flex;flex-direction:column;align-items:center;gap:3px;padding:12px 40px;position:relative;text-align:center}
+.d1 .sess{margin-top:14px}
+.d1 .hit .gh{margin-bottom:5px}
+.d1 .hit .chev{position:absolute;right:12px;top:14px}
+.d1 .hit.fold{padding:9px 40px}
+.d1 .hit.fold .gh{margin-bottom:2px}
+
+/* D2: a hairline each side, like the chat's date separator */
+.d2 .sess{margin-top:12px}
+.d2 .hit{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0 8px}
+.d2 .rule{display:flex;align-items:center;gap:14px;width:100%}
+.d2 .rule i{flex:1;height:1px;background:var(--line)}
+.d2 .mid{display:flex;align-items:center;gap:10px;text-align:left}
+.d2 .mid .tx{display:flex;flex-direction:column;gap:2px}
+.d2 .hit:hover{background:none}.d2 .hit:hover .rule i{background:var(--faint)}
+
+/* D3: inline and plain, no rules; the chevron and the time at the feed's edges */
+.d3 .sess{margin-top:10px}
+.d3 .hit{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:12px 4px}
+.d3 .hit .mid{display:flex;align-items:center;gap:10px;text-align:left}
+.d3 .hit .mid .tx{display:flex;flex-direction:column;gap:2px}
+.d3 .hit .l{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.d3 .hit .r{display:flex;justify-content:flex-end}
+
+/* states */
+.under{display:flex;flex-direction:column;align-items:center;gap:6px}
+.grp{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 0;color:var(--dim);font-size:12.5px}
+.grp .stk{display:flex}.grp .stk .gh{width:22px;height:22px;margin-left:-7px}.grp .stk .gh .pic{width:22px;height:22px;font-size:10px;box-shadow:0 0 0 2px var(--bg)}.grp .stk .gh:first-child{margin-left:0}
+.grp .stk .gh .hm{display:none}
+.grp b{color:var(--text);font-weight:600}
+.d2 .grp,.d1 .grp,.d3 .grp{margin-top:8px}
+body[data-s="open"] .v-fold,body[data-s="open"] .v-group{display:none}
+body[data-s="fold"] .v-open,body[data-s="fold"] .v-group{display:none}
+body[data-s="group"] .v-open,body[data-s="group"] .v-fold{display:none}
+.pane .v-group,.pane .v-fold,.pane .v-open{display:flex;flex-direction:column}
+body[data-s="open"] .pane .v-fold,body[data-s="open"] .pane .v-group,body[data-s="fold"] .pane .v-open,body[data-s="fold"] .pane .v-group,body[data-s="group"] .pane .v-open,body[data-s="group"] .pane .v-fold{display:none}
+.dim{color:var(--dim)}
+</style></head>
+<body data-s="open">
+<h1>Epic view, option A1 — the centered session row (round 3)</h1>
+<p class="sub">The identity row of a session sits in the middle of the feed, with no background and no shell, like a separator in a chat: it says who comes next. The whole row is the control: a click folds and unfolds the session under it, and it carries the summary when folded. When sessions pile up, the earlier ones group into one row of stacked avatars. Click a row to fold it.</p>
+
+<div class="bar">
+  <button class="tab on" data-s="open">Builder open</button>
+  <button class="tab" data-s="fold">All folded</button>
+  <button class="tab" data-s="group">Earlier ones grouped</button>
+  <span class="sp"></span>
+  <button class="tog" id="theme">Light / dark</button>
+</div>
+
+<div class="stack" id="stack"></div>
+
+<div class="note"><b>Questions</b><br>
+1. D1 (avatar on top), D2 (hairlines) or D3 (inline, time and chevron at the edges)? 2. When you scroll inside a long session, should its row pin at the top in a compact form (avatar and name only) so you always know whose log it is? 3. Group the earlier sessions after how many (today the app cuts at five)? 4. Folded rows show the outcome in the second line ("3 slices merged", "Ready · 4 suggestions", the stop reason): is that the right thing to say? 5. The 'Continue in Terminal' and the result row stay at the foot of each open session (not drawn here, as in round 1).</div>
+
+<script>
+var S=[
+ {n:'ashu-author[bot]',role:'Builder',place:'Ship',c:'c1',i:'A',hm:'✳',tool:'Claude',acct:'pro',model:'sonnet 4.5 · high',time:'31m',
+  stats:'<b>229</b> calls<span class="s">·</span><b>23</b> edits <span class="ad">+10</span> <span class="de">−2</span><span class="s">·</span><b>27</b> test runs<span class="s">·</span><span class="e"><b>9</b> errors</span>',
+  out:'3 slices merged · PRs #736, #737, #738'},
+ {n:'ashu-reviewer[bot]',role:'Reviewer',place:'Round 1',c:'c2',i:'R',hm:'Λ',tool:'Antigravity',acct:'max',model:'gemini 3 pro',time:'14m',out:'Ready · 0 blockers, 4 suggestions'},
+ {n:'ashu-author[bot]',role:'Fixer',place:'Round 1',c:'c1',i:'A',hm:'✳',tool:'Claude',acct:'pro',model:'sonnet 4.5',time:'',stop:true,reason:'usage_limit: you hit your 5-hour limit · resets 3:10am',out:''},
+ {n:'ashu-author[bot]',role:'Fixer',place:'Round 1',c:'c1',i:'A',hm:'Λ',tool:'Antigravity',acct:'max',model:'gemini 3 pro',time:'5m',out:'4 follow-ups accepted'}
+];
+var BODY='<div class="body feed-body">'+
+ '<div class="tg"><div class="l"><span class="ic">▸</span><b>Ran 6 commands</b><span class="sp1"></span><em>12s</em><span class="ch">›</span></div></div>'+
+ '<p class="msg">Estoy creando el worktree del epic #729 (ya creado, sin archivos <code>.env</code> que enlazar). Sigo con la instalación de dependencias y el comentario de registro.</p>'+
+ '<div class="tg"><div class="l"><span class="ic">▸</span><b>Ran 2 commands</b><span class="sp1"></span><em>33s</em><span class="ch">›</span></div></div>'+
+ '<div class="tg"><div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#730</i>Create flow: compare the legal minimum wage on the gross equivalent</b><span>38 calls · 11 edits · 7 tests · <span class="e">1 error</span> · PR #736 <span class="m">merged</span></span></div></div>'+
+ '<div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#731</i>Contract edit: validate the minimum wage with the stored family situation</b><span>29 calls · 2 edits · 3 tests · <span class="e">3 errors</span> · PR #737 <span class="m">merged</span></span></div></div>'+
+ '<div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#732</i>Declared gross salary: store what the employer typed, derive the net</b><span>28 calls · 1 edit · 1 test · <span class="e">1 error</span> · PR #738 <span class="m">merged</span></span></div></div></div>'+
+ '<p class="msg">Conflicto menor: solo los imports en <code>manage-employee.ts</code>. Lo resuelvo en la rama del slice #732.</p>'+
+ '<div class="fc"><div class="fh"><span class="ficon">✎</span><b>declared-gross-salary.test.ts</b><span class="p">apps/platform/…/__tests__/services</span><span class="ad">+1</span><span class="de">−1</span></div><div class="df"><div class="r">- import { createEmployeeSchema, updateEmployeeSchema } from "../../schemas"</div><div class="a">+ import { createEmployeeSchema, updateEmployeeSchemaFor } from "../../schemas"</div></div></div>'+
+ '<div class="done"><span class="ck d">✓</span><b>Completed</b><span class="dim">· CI passed</span><span class="sp1"></span><span class="term">⌨ <b>Continue in Terminal</b></span></div></div>';
+
+function av(s,big){return '<div class="gh'+(big?' lg':'')+'"><div class="pic '+s.c+'">'+s.i+'</div><div class="hm">'+s.hm+'</div></div>'}
+function l1(s){return '<div class="who1"><b>'+s.n+'</b><span> · '+s.role+' · '+s.place+'</span></div>'}
+function l2(s){return '<div class="who2"><b>'+s.tool+'</b><span class="s">·</span>account <b>'+s.acct+'</b><span class="s">·</span>'+s.model+'</div>'}
+function l3(s,open){
+  if(s.stop) return '<span class="stopbadge">stopped</span><div class="reason">'+s.reason+'</div>';
+  var t=open&&s.stats?s.stats:(s.out?'<b>'+s.out.split(' · ')[0]+'</b>'+(s.out.indexOf(' · ')>0?'<span class="s">·</span>'+s.out.split(' · ').slice(1).join(' · '):'')+'<span class="s">·</span>'+s.time:s.time);
+  return '<div class="sum">'+t+'</div>';
+}
+function head(v,s,open){
+  var chev='<span class="chev">›</span>';
+  if(v==1) return '<div class="hit '+(open?'open':'fold')+'" data-t>'+av(s,true)+l1(s)+l2(s)+l3(s,open)+chev+'</div>';
+  if(v==2) return '<div class="hit '+(open?'open':'fold')+'" data-t><div class="rule"><i></i><div class="mid">'+av(s)+'<div class="tx">'+l1(s)+l2(s)+'</div></div>'+chev+'<i></i></div>'+l3(s,open)+'</div>';
+  return '<div class="hit '+(open?'open':'fold')+'" data-t><span class="l">'+(s.stop?'':s.time)+'</span><div class="mid">'+av(s)+'<div class="tx">'+l1(s)+l2(s)+'</div></div><span class="r">'+chev+'</span></div>'+
+    '<div class="under" style="margin:-4px 0 4px">'+l3(s,open)+'</div>';
+}
+function group(s3){
+  return '<div class="grp"><span class="stk">'+s3.map(function(s){return av(s)}).join('')+'</span><span><b>3 earlier sessions</b> · Builder, Reviewer, Fixer · 45m</span><span class="chev">›</span></div>';
+}
+function pane(v){
+  var open='', fold='', grp='';
+  open+='<div class="sess">'+head(v,S[0],true)+BODY+'</div>';
+  for(var i=1;i<4;i++) open+='<div class="sess">'+head(v,S[i],false)+'</div>';
+  S.forEach(function(s){fold+='<div class="sess">'+head(v,s,false)+'</div>'});
+  grp=group(S.slice(0,3))+'<div class="sess">'+head(v,S[3],true).replace('data-t','data-t')+
+    '<div class="body"><p class="msg">Evaluated the 4 observations and accepted all as follow-ups. Replied on each thread; typecheck, lint and tests still pass.</p><div class="done"><span class="ck d">✓</span><b>Completed</b><span class="dim">· CI passed</span><span class="sp1"></span><span class="term">⌨ <b>Continue in Terminal</b></span></div></div></div>';
+  return '<div class="pane"><div class="feed"><div class="v-open">'+open+'</div><div class="v-fold">'+fold+'</div><div class="v-group">'+grp+'</div></div></div>';
+}
+var meta=[
+ ['d1','D1 · Stacked: avatar on top, everything centered','Reads like the first line of a speaker in a chat. The most air (about 100 pt open, 70 pt folded), the clearest "who is this". The chevron sits at the right edge.'],
+ ['d2','D2 · A hairline on each side, like a date separator','The row is a separator in the feed: the identity in the middle, a line each side, the chevron at the end of the line. Less height than D1 and it divides the sessions without a box.'],
+ ['d3','D3 · Inline and plain: time at the left, chevron at the right','No lines. The identity is centered as one block; the time and the chevron take the two edges of the feed, so they stay where the eye expects them whatever the name\'s length.']
+];
+var h='';
+meta.forEach(function(m,i){h+='<div class="opt '+m[0]+'"><h3>'+m[1]+'</h3><p>'+m[2]+'</p>'+pane(i+1)+'</div>'});
+document.getElementById('stack').innerHTML=h;
+document.querySelectorAll('.bar .tab').forEach(function(b){b.onclick=function(){
+  document.querySelectorAll('.bar .tab').forEach(function(x){x.classList.remove('on')});
+  b.classList.add('on');document.body.dataset.s=b.dataset.s}});
+document.getElementById('theme').onclick=function(){document.body.classList.toggle('light')};
+// a click on a row folds or unfolds what is under it
+document.getElementById('stack').addEventListener('click',function(e){
+  var t=e.target.closest('[data-t]');if(!t)return;
+  var sess=t.closest('.sess'),body=sess.querySelector('.body');
+  if(body){var hide=body.style.display!=='none';body.style.display=hide?'none':'';t.classList.toggle('open',!hide);t.classList.toggle('fold',hide)}
+});
+</script>
+</body></html>

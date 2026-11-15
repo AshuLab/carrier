@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Epic view, option A — who is in each step (round 2)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.stack{display:flex;flex-direction:column;gap:38px;margin-top:10px}
+.opt>h3{margin:0 0 2px;font-size:15px}
+.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:900px}
+.pane{width:min(820px,100%);border-radius:22px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);padding:10px 22px 22px;display:flex;flex-direction:column;gap:10px}
+.pane.narrow{width:520px}
+.cap{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin:6px 0 -2px}
+
+/* the session header, shared pieces */
+.sh{display:flex;align-items:center;gap:11px;padding:9px 2px;border-bottom:.5px solid var(--line)}
+.sh .sp1{flex:1}
+.sh .tm{color:var(--faint);font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sh .chev{width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:10px;color:var(--dim);flex:none}
+.sh .tx{min-width:0;display:flex;flex-direction:column;gap:3px}
+.l1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.l1 b{font-weight:650}.l1 span{color:var(--dim)}
+.l2{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:6px;align-items:center}
+.l2 .s{color:var(--faint)}
+.l2 b{font-weight:550;color:var(--text)}
+.stat{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--dim);padding:2px 2px 4px}
+.stat b{color:var(--text);font-weight:600}.stat .e,.stat .e b{color:var(--red)}
+.ad{color:var(--green);font-weight:600}.de{color:var(--red);font-weight:600}
+.stopbadge{font-size:11px;font-weight:600;color:var(--orange);background:color-mix(in srgb,var(--orange) 18%,transparent);border-radius:99px;padding:2px 9px}
+.reason{font-size:12px;color:var(--red);background:color-mix(in srgb,var(--red) 11%,transparent);border-radius:10px;padding:6px 10px;margin:2px 0 4px}
+
+/* avatars: a bot's picture with the harness' mark on its corner */
+.gh{position:relative;width:30px;height:30px;flex:none}
+.gh .pic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;box-shadow:0 0 0 .5px var(--line) inset}
+.gh .pic.sq{border-radius:9px}
+.gh .hm{position:absolute;right:-4px;bottom:-4px;width:15px;height:15px;border-radius:50%;background:var(--bg);display:grid;place-items:center;font-size:8px;box-shadow:0 0 0 1.5px var(--bg),0 0 0 2px var(--line);color:var(--text)}
+.c1{background:#5e5ce6}.c2{background:#bf5af2}.c3{background:#30a46c}.c4{background:#e08600}
+.av{width:24px;height:24px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:12px;flex:none;box-shadow:0 0 0 .5px var(--line) inset}
+
+/* identity pieces */
+.id{font-weight:650}
+.bot{display:inline-flex;gap:4px;align-items:center}
+.bot::before{content:"";width:12px;height:12px;border-radius:4px;background:currentColor;opacity:.0}
+.tag{font-size:10.5px;font-weight:600;border-radius:99px;padding:0 7px;background:var(--card2);color:var(--dim);margin-left:4px;white-space:nowrap}
+.tag.you{background:color-mix(in srgb,var(--blue) 20%,transparent);color:var(--blue)}
+.tag.sh2{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
+.pill{display:inline-flex;gap:5px;align-items:center;padding:1px 9px;border-radius:99px;background:var(--card2);font-size:11.5px;font-weight:550;color:var(--dim);white-space:nowrap}
+.pill b{color:var(--text);font-weight:600}
+.pill.gh2{background:color-mix(in srgb,var(--purple) 16%,transparent);color:var(--purple)}
+.pill.gh2 b{color:var(--purple)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.row2{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+
+/* hover card on the identity */
+.hov{width:310px;border-radius:14px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+.hov .top{display:flex;gap:11px;align-items:center}
+.hov .kv{display:grid;grid-template-columns:78px 1fr;gap:5px 10px;font-size:12px}
+.hov .kv span{color:var(--dim)}
+.hov .kv b{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hov .kv code{font:11.5px var(--mono)}
+.hov .note2{font-size:11.5px;color:var(--faint);border-top:.5px solid var(--line);padding-top:8px}
+.cols{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+.mini{display:flex;flex-direction:column;gap:10px}
+</style></head>
+<body>
+<h1>Epic view, option A — who is in each step (round 2)</h1>
+<p class="sub">The header of a session says "Claude · Builder · Ship": the AI tool, but not who acts. Two things identify a step. On GitHub it is the <b>profile</b> (an Agent Forge bot or your own login: the name on the PR, the comments, the commits). On the AI side it is the <b>account</b> (the login of the CLI, e.g. <span class="mono">pro</span>), the model and the effort. The engine's session carries harness, model, account (<span class="mono">provider</span>) and role; the profile comes from <span class="mono">agents.author.profile</span> / <span class="mono">agents.reviewer.profile</span> by role (the Fixer is the author).</p>
+<p class="note" style="margin-top:-6px"><b>Invented names</b> for the demo: bots <span class="mono">ashu-author[bot]</span> and <span class="mono">ashu-reviewer[bot]</span>, accounts <span class="mono">pro</span> and <span class="mono">max</span>. Say what the real ones look like.</p>
+
+<div class="bar"><button class="tog" id="theme">Light / dark</button></div>
+
+<div class="stack">
+
+<!-- ============ A1 ============ -->
+<div class="opt">
+  <h3>A1 · The identity is the name; the tool and account go on the second line</h3>
+  <p>The bot's picture (the one GitHub shows) carries the harness' mark on its corner. First line: the identity, then what it does. Second line, quiet: the account, model and effort. Whoever you see on the PR is whoever you see here.</p>
+  <div class="cols">
+  <div class="pane">
+    <div class="cap">Builder, open</div>
+    <div class="sh"><div class="gh"><div class="pic c1">A</div><div class="hm">✳</div></div>
+      <div class="tx"><div class="l1"><b>ashu-author[bot]</b><span> · Builder · Ship</span></div><div class="l2"><b>Claude</b><span class="s">·</span>account <b>pro</b><span class="s">·</span>sonnet 4.5<span class="s">·</span>high</div></div>
+      <span class="sp1"></span><span class="tm">31m</span><span class="chev">⌄</span></div>
+    <div class="stat"><span><b>229</b> calls</span><span><b>23</b> edits <span class="ad">+10</span> <span class="de">−2</span></span><span><b>27</b> test runs</span><span class="e"><b>9</b> errors</span></div>
+
+    <div class="cap">The other three, folded</div>
+    <div class="sh"><div class="gh"><div class="pic c2">R</div><div class="hm">Λ</div></div>
+      <div class="tx"><div class="l1"><b>ashu-reviewer[bot]</b><span> · Reviewer · Round 1</span></div><div class="l2"><b>Antigravity</b><span class="s">·</span>account <b>max</b><span class="s">·</span>gemini 3 pro<span class="s">·</span>106 calls</div></div>
+      <span class="sp1"></span><span class="tm">14m</span><span class="chev">›</span></div>
+    <div class="sh"><div class="gh"><div class="pic c1">A</div><div class="hm">✳</div></div>
+      <div class="tx"><div class="l1"><b>ashu-author[bot]</b><span> · Fixer · Round 1</span></div><div class="l2"><b>Claude</b><span class="s">·</span>account <b>pro</b><span class="s">·</span>sonnet 4.5<span class="s">·</span>0 calls</div></div>
+      <span class="sp1"></span><span class="stopbadge">stopped</span><span class="chev">›</span></div>
+    <div class="reason" style="margin-left:41px">usage_limit: You've hit your 5-hour limit · resets 3:10am (America/Montevideo)</div>
+    <div class="sh"><div class="gh"><div class="pic c1">A</div><div class="hm">Λ</div></div>
+      <div class="tx"><div class="l1"><b>ashu-author[bot]</b><span> · Fixer · Round 1</span></div><div class="l2"><b>Antigravity</b><span class="s">·</span>account <b>max</b><span class="s">·</span>gemini 3 pro<span class="s">·</span>68 calls</div></div>
+      <span class="sp1"></span><span class="tm">5m</span><span class="chev">›</span></div>
+    <p class="note" style="margin:4px 0 0;font-size:12px">Same author bot, different harness: the Fixer failed over from Claude to Antigravity. The corner mark tells the two apart; the name stays the author's.</p>
+  </div>
+  <div class="mini">
+    <div class="cap">Narrow window (520 pt)</div>
+    <div class="pane narrow">
+      <div class="sh"><div class="gh"><div class="pic c1">A</div><div class="hm">✳</div></div>
+        <div class="tx"><div class="l1"><b>ashu-author[bot]</b><span> · Builder · Ship</span></div><div class="l2"><b>Claude</b><span class="s">·</span>pro<span class="s">·</span>sonnet 4.5<span class="s">·</span>high</div></div>
+        <span class="sp1"></span><span class="tm">31m</span><span class="chev">⌄</span></div>
+    </div>
+    <div class="cap">Hover on the name</div>
+    <div class="hov">
+      <div class="top"><div class="gh"><div class="pic c1">A</div><div class="hm">✳</div></div><div><b>ashu-author[bot]</b><div class="dim" style="font-size:12px">GitHub profile · Agent Forge bot</div></div></div>
+      <div class="kv"><span>Role</span><b>Author · Builder</b><span>Tool</span><b>Claude Code</b><span>Account</span><b>pro</b><span>Model</span><b>sonnet 4.5</b><span>Effort</span><b>high</b><span>Profile</span><b><code>ashu-author</code></b></div>
+      <div class="note2">Posts the PRs and comments of this epic. Change it in Settings › Engine.</div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- ============ A2 ============ -->
+<div class="opt">
+  <h3>A2 · The role is the title, three chips say who: GitHub identity, account, model</h3>
+  <p>Keeps today's reading ("Builder · Ship" first) and adds the identity as chips that name what each is. The GitHub chip is the one in purple: it is the only thing on screen that says "this is who appears on the PR".</p>
+  <div class="cols">
+  <div class="pane">
+    <div class="sh" style="align-items:flex-start"><div class="gh" style="margin-top:2px"><div class="pic c1" style="background:var(--card2);color:var(--text)">✳</div></div>
+      <div class="tx" style="gap:6px"><div class="l1"><b>Builder</b><span> · Ship</span></div>
+        <div class="chips"><span class="pill gh2">◍ <b>ashu-author[bot]</b></span><span class="pill">✳ Claude · <b>pro</b></span><span class="pill">sonnet 4.5 · high</span></div></div>
+      <span class="sp1"></span><span class="tm" style="margin-top:3px">31m</span><span class="chev">⌄</span></div>
+    <div class="stat"><span><b>229</b> calls</span><span><b>23</b> edits <span class="ad">+10</span> <span class="de">−2</span></span><span><b>27</b> test runs</span><span class="e"><b>9</b> errors</span></div>
+    <div class="sh" style="align-items:flex-start"><div class="gh" style="margin-top:2px"><div class="pic c2" style="background:var(--card2);color:var(--text)">Λ</div></div>
+      <div class="tx" style="gap:6px"><div class="l1"><b>Reviewer</b><span> · Round 1</span></div>
+        <div class="chips"><span class="pill gh2">◍ <b>ashu-reviewer[bot]</b></span><span class="pill">Λ Antigravity · <b>max</b></span><span class="pill">gemini 3 pro</span></div></div>
+      <span class="sp1"></span><span class="tm" style="margin-top:3px">14m</span><span class="chev">›</span></div>
+    <div class="sh" style="align-items:flex-start"><div class="gh" style="margin-top:2px"><div class="pic c1" style="background:var(--card2);color:var(--text)">✳</div></div>
+      <div class="tx" style="gap:6px"><div class="l1"><b>Fixer</b><span> · Round 1</span></div>
+        <div class="chips"><span class="pill gh2">◍ <b>ashu-author[bot]</b></span><span class="pill">✳ Claude · <b>pro</b></span><span class="pill">sonnet 4.5</span></div></div>
+      <span class="sp1"></span><span class="stopbadge" style="margin-top:2px">stopped</span><span class="chev">›</span></div>
+  </div>
+  </div>
+</div>
+
+<!-- ============ A3 ============ -->
+<div class="opt">
+  <h3>A3 · One sentence: "Builds as … on …"</h3>
+  <p>No chips, no second line of labels: the header reads like a sentence, the identity in bold and the tool as its place of work. The quietest of the three; the account and model go to the hover.</p>
+  <div class="cols">
+  <div class="pane">
+    <div class="sh"><div class="gh"><div class="pic c1">A</div><div class="hm">✳</div></div>
+      <div class="tx"><div class="l1"><b>Builder</b><span> · Ship · as </span><b>ashu-author[bot]</b><span> on Claude</span><span class="tag">pro</span></div><div class="l2">sonnet 4.5 · high</div></div>
+      <span class="sp1"></span><span class="tm">31m</span><span class="chev">⌄</span></div>
+    <div class="sh"><div class="gh"><div class="pic c2">R</div><div class="hm">Λ</div></div>
+      <div class="tx"><div class="l1"><b>Reviewer</b><span> · Round 1 · as </span><b>ashu-reviewer[bot]</b><span> on Antigravity</span><span class="tag">max</span></div></div>
+      <span class="sp1"></span><span class="tm">14m</span><span class="chev">›</span></div>
+    <div class="sh"><div class="gh"><div class="pic c1">A</div><div class="hm">✳</div></div>
+      <div class="tx"><div class="l1"><b>Fixer</b><span> · Round 1 · as </span><b>ashu-author[bot]</b><span> on Claude</span><span class="tag">pro</span></div></div>
+      <span class="sp1"></span><span class="stopbadge">stopped</span><span class="chev">›</span></div>
+  </div>
+  </div>
+</div>
+
+<!-- ============ cases ============ -->
+<div class="opt">
+  <h3>Cases the header has to handle (shown in A1)</h3>
+  <p>Your own <span class="mono">gh</span> login instead of a bot, and a shared identity (author and reviewer resolve to the same account: ADR 0011 says their posts are signed, so here the header should say it too).</p>
+  <div class="cols">
+  <div class="pane">
+    <div class="cap">Your own login as the author</div>
+    <div class="sh"><div class="gh"><div class="pic c3 sq" style="border-radius:50%">V</div><div class="hm">✳</div></div>
+      <div class="tx"><div class="l1"><b>vemec</b><span class="tag you">you</span><span> · Builder · Ship</span></div><div class="l2"><b>Claude</b><span class="s">·</span>account <b>pro</b><span class="s">·</span>sonnet 4.5<span class="s">·</span>high</div></div>
+      <span class="sp1"></span><span class="tm">31m</span><span class="chev">⌄</span></div>
+    <div class="cap">Shared identity: author and reviewer are the same account</div>
+    <div class="sh"><div class="gh"><div class="pic c3" style="border-radius:50%">V</div><div class="hm">✳</div></div>
+      <div class="tx"><div class="l1"><b>vemec</b><span class="tag you">you</span><span> · Builder · Ship</span></div><div class="l2"><b>Claude</b><span class="s">·</span>account <b>pro</b><span class="s">·</span>sonnet 4.5</div></div>
+      <span class="sp1"></span><span class="tm">31m</span><span class="chev">›</span></div>
+    <div class="sh"><div class="gh"><div class="pic c3" style="border-radius:50%">V</div><div class="hm">Λ</div></div>
+      <div class="tx"><div class="l1"><b>vemec</b><span class="tag you">you</span><span class="tag sh2">shared</span><span> · Reviewer · Round 1</span></div><div class="l2"><b>Antigravity</b><span class="s">·</span>account <b>max</b><span class="s">·</span>gemini 3 pro</div></div>
+      <span class="sp1"></span><span class="tm">14m</span><span class="chev">›</span></div>
+    <div class="cap">The engine did not say who (older engine, no profile)</div>
+    <div class="sh"><div class="gh"><div class="pic" style="background:var(--card2);color:var(--dim)">?</div><div class="hm">✳</div></div>
+      <div class="tx"><div class="l1"><b>Claude</b><span> · Builder · Ship</span></div><div class="l2">account <b>pro</b><span class="s">·</span>sonnet 4.5</div></div>
+      <span class="sp1"></span><span class="tm">31m</span><span class="chev">›</span></div>
+  </div>
+  </div>
+</div>
+
+</div>
+
+<div class="note"><b>Questions</b><br>
+1. A1, A2 or A3 (or a mix: A1's name with A2's purple GitHub chip)? 2. Does the corner mark of the tool (✳ Claude, Λ Antigravity) read well enough, or do you want the tool's name written too? 3. Account name in the header or only in the hover? 4. The bot's picture: use the real GitHub avatar (needs a fetch, the engine has the profile) or the coloured initial as drawn here? 5. Is "you" / "shared" worth it, or noise? <br><b>Engine work</b>: the sessions reply does not carry the profile today; resolving it by role from the config is an additive field (<span class="mono">profile: string | null</span> on a session), or the app reads <span class="mono">config.json</span> itself.</div>
+
+<script>document.getElementById('theme').onclick=function(){document.body.classList.toggle('light')}</script>
+</body></html>

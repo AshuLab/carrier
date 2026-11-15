@@ -21,9 +21,9 @@ const codex = { harness: 'codex', model: 'gpt-5', provider: 'ollama' } as const;
 test('the sessions reply equals reply-sessions.json', () => {
   const sessions: SessionsReply = {
     sessions: [
-      { executionId: '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c', stage: 'fix', role: 'author', round: 2, agent: claude, status: 'running', startedAt: 90_000, finishedAt: null, resume: null, result: null, failure: null },
+      { executionId: '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c', stage: 'fix', role: 'author', round: 2, agent: claude, profile: 'acme-author', status: 'running', startedAt: 90_000, finishedAt: null, resume: null, result: null, failure: null },
       {
-        executionId: '9a7d1c52-0b3e-4f6a-8d2c-1e5f7a9b3c4d', stage: 'review', role: 'reviewer', round: 2, agent: codex, status: 'finished', startedAt: 60_000, finishedAt: 85_000,
+        executionId: '9a7d1c52-0b3e-4f6a-8d2c-1e5f7a9b3c4d', stage: 'review', role: 'reviewer', round: 2, agent: codex, profile: 'acme-reviewer', status: 'finished', startedAt: 60_000, finishedAt: 85_000,
         resume: { harness: 'codex', sessionId: 'a1b2c3d4-0001-4000-8000-000000000002', cwd: '/work/acme/web-epic' },
         result: {
           outcome: 'completed', summary: 'Round 2 review of PR #12: no blockers. Review posted at https://github.com/acme/web-epic/pull/12#pullrequestreview-1.',
@@ -32,7 +32,25 @@ test('the sessions reply equals reply-sessions.json', () => {
         failure: null,
       },
       {
-        executionId: '5c0e8a14-7d2b-4a93-b6f1-2d8c4e6a0b97', stage: 'ship', role: 'author', round: null, agent: claude, status: 'failed', startedAt: 1_000, finishedAt: 39_000,
+        executionId: '7b1d4e90-3c2a-4f58-a6e1-9d0b2c4e6f13', stage: 'fix', role: 'author', round: 1, agent: claude, profile: 'acme-author', status: 'failed', startedAt: 45_000, finishedAt: 52_000,
+        resume: { harness: 'claude', sessionId: 'c3e5a7b9-1d2f-4a6c-8e0b-5f7d9b1a3c42', cwd: '/work/acme/web-epic' },
+        result: null,
+        failure: { kind: 'usage_limit', detail: "You've hit your session limit · resets 12:40pm", exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null },
+      },
+      {
+        executionId: '1d6f3a90-2c8e-4b57-a4d1-7e9b0c2f5a31', stage: 'fix', role: 'author', round: 1, agent: claude, profile: 'acme-author', status: 'finished', startedAt: 44_500, finishedAt: 58_000,
+        resume: { harness: 'claude', sessionId: 'b2c3d4e5-0001-4000-8000-000000000003', cwd: '/work/acme/web-epic' },
+        result: { outcome: 'completed', summary: 'Answered the two blockers of round 1 and pushed the fixes.', verification: { ci: 'passed', evidence: 'CI run concluded success on the head commit.' }, reason: null },
+        failure: null,
+      },
+      {
+        executionId: '7e2a9d14-6b0c-4f83-9c5e-3a1d8b4f6c20', stage: 'review', role: 'reviewer', round: 1, agent: codex, profile: 'acme-reviewer', status: 'finished', startedAt: 39_000, finishedAt: 44_000,
+        resume: { harness: 'codex', sessionId: 'a1b2c3d4-0001-4000-8000-000000000001', cwd: '/work/acme/web-epic' },
+        result: { outcome: 'changes_requested', summary: 'Round 1 review of PR #12: two blockers.', verification: null, reason: null },
+        failure: null,
+      },
+      {
+        executionId: '5c0e8a14-7d2b-4a93-b6f1-2d8c4e6a0b97', stage: 'ship', role: 'author', round: null, agent: claude, profile: null, status: 'failed', startedAt: 1_000, finishedAt: 39_000,
         resume: { harness: 'claude', sessionId: '91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f20', cwd: '/work/acme/web-epic', configDir: '/Users/dev/.claude-work' },
         result: { outcome: 'needs_human', summary: 'Stopped before opening a pull request.', verification: null, reason: 'The ticket asks for a migration the schema forbids; which of the two wins?' },
         failure: { kind: 'killed', detail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: 812, hostLoad: 6.4 },
@@ -56,23 +74,26 @@ test('the events reply equals reply-events.json', () => {
       { id: 106, at: 1_400, kind: 'tool_start', callId: 'toolu_03', tool: 'Bash', arg: 'pnpm test' },
       { id: 107, at: 9_400, kind: 'tool_end', callId: 'toolu_03', tool: 'Bash', summary: '2 failed', status: 'err', durationMs: 8_000, output: ['FAIL src/auth/token.test.ts', 'Tests 2 failed'] },
       { id: 108, at: 9_500, kind: 'note', text: 'Output was cut: 4 KB of 90 KB shown.' },
-      { id: 109, at: 9_600, kind: 'task', agentId: 'agent-7', text: 'Slice #123: migrate the signer' },
+      { id: 109, at: 9_600, kind: 'task', agentId: 'agent-7', text: 'Slice #121: migrate the signer' },
       { id: 110, at: 9_700, kind: 'say', agentId: 'agent-7', text: 'Migrating the signer.' },
       { id: 111, at: 9_800, kind: 'error', text: 'The agent process ended with an error.' },
-      // three lanes: a slice and a lane, the same, and a lane with no slice in its description
+      // three lanes, each a slice of the epic (the epic reply's closed ones); every lane ends ok after its work, at the end of the list
       { id: 112, at: 9_900, kind: 'tool_start', agentId: 'agent-7', callId: 'toolu_a7', tool: 'Bash', arg: 'cd /work/acme/web-epic--lane-1 && pnpm test' },
       { id: 113, at: 10_900, kind: 'tool_end', agentId: 'agent-7', callId: 'toolu_a7', tool: 'Bash', summary: 'ok', status: 'ok', durationMs: 1_000, output: ['Tests 12 passed'] },
-      { id: 114, at: 11_000, kind: 'task', agentId: 'agent-8', text: 'Slice #124: rotate the keys' },
+      { id: 114, at: 11_000, kind: 'task', agentId: 'agent-8', text: 'Slice #127: rotate the keys' },
       { id: 115, at: 11_100, kind: 'tool_start', agentId: 'agent-8', callId: 'toolu_a8', tool: 'Edit', arg: '/work/acme/web-epic--lane-2/src/keys.ts' },
       {
         id: 116, at: 11_200, kind: 'tool_end', agentId: 'agent-8', callId: 'toolu_a8', tool: 'Edit', summary: 'Edited 1 place', status: 'ok', durationMs: 100,
         diff: [{ sign: '-', text: 'const keys = [];' }, { sign: '+', text: 'const keys = rotate();' }],
       },
-      { id: 117, at: 11_300, kind: 'task', agentId: 'agent-9', text: 'Tidy the docs' },
+      { id: 117, at: 11_300, kind: 'task', agentId: 'agent-9', text: 'Slice #128: tidy the docs' },
       { id: 118, at: 11_400, kind: 'tool_start', agentId: 'agent-9', callId: 'toolu_a9', tool: 'Read', arg: '/work/acme/web-epic--lane-3/README.md' },
       { id: 119, at: 11_480, kind: 'tool_end', agentId: 'agent-9', callId: 'toolu_a9', tool: 'Read', summary: '40 lines', status: 'ok', durationMs: 80 },
+      { id: 120, at: 70_000, kind: 'task', agentId: 'agent-7', text: 'Slice #121: migrate the signer', status: 'ok' },
+      { id: 121, at: 130_000, kind: 'task', agentId: 'agent-8', text: 'Slice #127: rotate the keys', status: 'ok' },
+      { id: 122, at: 190_000, kind: 'task', agentId: 'agent-9', text: 'Slice #128: tidy the docs', status: 'ok' },
     ],
-    next: 119,
+    next: 122,
     running: true,
     structured: true,
   };
@@ -92,7 +113,8 @@ test('the epic reply equals reply-epic.json', () => {
       {
         round: 1, reviewer: codex, verdict: 'changes_requested', reviewMs: 21_000, fixMs: 30_000, reviewedSha: '1111111aaaaaaa', fixedSha: '2222222bbbbbbb',
         blockers: [blocker('b1', 'Token expiry is not checked', 'new'), blocker('b2', 'Missing test for refresh', 'new')],
-        observations: [],
+        // a suggestion next to blockers, for the findings card (the engine lists observations only on an approved review)
+        observations: [{ id: 'o0', title: 'Name the expiry constant', url: 'https://github.com/acme/web/pull/50#discussion_o0' }],
         commits: [{ sha: '2222222bbbbbbb', subject: 'fix(auth): check the expiry' }, { sha: '3333333ccccccc', subject: 'test(auth): cover refresh' }],
       },
       {
@@ -122,6 +144,8 @@ test('the epic reply equals reply-epic.json', () => {
       { number: 124, title: 'Events request', state: 'waiting', blockedBy: [121, 123], prNumber: null, prState: null, prMergedAt: null, closedAt: null, readAt: 99_000 },
       { number: 125, title: 'Files request', state: 'ready', blockedBy: [], prNumber: null, prState: null, prMergedAt: null, closedAt: null, readAt: 99_000 },
       { number: 126, title: 'Watch request', state: 'waiting', blockedBy: [124], prNumber: null, prState: null, prMergedAt: null, closedAt: null, readAt: 99_000 },
+      { number: 127, title: 'Key rotation', state: 'closed', blockedBy: [], prNumber: 132, prState: 'merged', prMergedAt: 52_000, closedAt: 53_000, readAt: 99_000 },
+      { number: 128, title: 'Docs tidy', state: 'closed', blockedBy: [], prNumber: 133, prState: 'merged', prMergedAt: 54_000, closedAt: 55_000, readAt: 99_000 },
     ],
     slicesTruncated: false,
     threads: [

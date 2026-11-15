@@ -27,7 +27,7 @@ const epic = (issue: number): PanelEpic => ({
 });
 const snapshot: PanelSnapshot = { now: 2_000_000, slots: { busy: 2, total: 3 }, queue: [], epics: [epic(1), epic(2)], startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, done: [] };
 const stages = (took: number): SessionsReply => ({
-  sessions: [{ executionId: 'e', stage: 'ship', role: 'author', round: null, agent: {} as never, status: 'finished', startedAt: 0, finishedAt: took * 60_000, resume: null, result: { outcome: 'completed', summary: 's', verification: null, reason: null }, failure: null }],
+  sessions: [{ executionId: 'e', stage: 'ship', role: 'author', round: null, agent: {} as never, profile: null, status: 'finished', startedAt: 0, finishedAt: took * 60_000, resume: null, result: { outcome: 'completed', summary: 's', verification: null, reason: null }, failure: null }],
 });
 
 async function printed() {

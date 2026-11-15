@@ -14,40 +14,18 @@ public func spokenDuration(_ ms: Int) -> String {
         .compactMap { $0 }.joined(separator: " ")
 }
 
-/// A call line: its command, how it ended and how long it took, whether or not the duration is drawn.
-/// "git status, 7 more commands, failed, 725 milliseconds"; a running call has no duration yet. Given `open`, a call that has
-/// details (it opens) also says "open" or "closed".
-public func callAccessibilityLabel(_ card: TranscriptCard, open: Bool? = nil) -> String {
-    var parts = [card.title]
-    if card.moreCommands > 0 { parts.append("\(card.moreCommands) more commands") }
-    switch card.status {
-    case .error: parts.append("failed")
-    case .pending: parts.append("running")
+/// A call that is a row of its own (a skill): its name, how it ended and how long it took, whether or not the duration is drawn.
+/// "solve:ship, succeeded, 725 milliseconds"; a running call has no duration yet.
+public func callAccessibilityLabel(_ call: ToolCall) -> String {
+    var parts = [call.arg]
+    switch call.status {
+    case .failed: parts.append("failed")
+    case .running: parts.append("running")
+    case .stopped: parts.append("stopped")
     case .ok: parts.append("succeeded")
     }
-    if card.status != .pending, let ms = card.durationMs { parts.append(spokenDuration(ms)) }
-    if let open, card.hasDetails { parts.append(open ? "open" : "closed") }
+    if call.status != .running, let ms = call.durationMs { parts.append(spokenDuration(ms)) }
     return parts.joined(separator: ", ")
-}
-
-/// A group: "Ran 4 commands, 5.2 seconds, closed".
-public func callGroupAccessibilityLabel(_ calls: [TranscriptItem], open: Bool) -> String {
-    let ms = calls.compactMap { item -> Int? in if case .tool(_, let card) = item { card.durationMs } else { nil } }
-    let spoken = ms.isEmpty ? nil : spokenDuration(ms.reduce(0, +))
-    return [callGroupLabel(calls).replacingOccurrences(of: " · ", with: ", "), spoken, open ? "open" : "closed"]
-        .compactMap { $0 }.joined(separator: ", ")
-}
-
-public func callGroupAccessibilityHint(open: Bool) -> String { open ? "Hides the calls" : "Shows the calls" }
-
-/// A slice row: "Slice 246, The engine reads…, lane 1, finished, pull request 250 merged, 17 tool calls, closed".
-public func laneAccessibilityLabel(_ lane: LaneSection, open: Bool) -> String {
-    let name = lane.slice.map { "Slice \($0), \(lane.title)" } ?? lane.title
-    let state = switch lane.state { case .running: "running"; case .finished: "finished"; case .failed: "failed" }
-    return [
-        name, lane.laneNumber.map { "lane \($0)" }, state, lane.pullRequest.replacingOccurrences(of: "PR #", with: "pull request "),
-        lane.isStarting ? nil : countsLine(lane.counts).replacingOccurrences(of: " · ", with: ", "), open ? "open" : "closed",
-    ].compactMap { $0 }.joined(separator: ", ")
 }
 
 /// The closing row of a session: "Completed, CI passed, closed"; "Needs a human" says nothing of open or closed, there is nothing behind it.

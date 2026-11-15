@@ -440,7 +440,7 @@ struct MessageTimeLabel: View {
 
 /// A failed turn or a refused send: a `NoticeCard` in red (orange when the provider is not signed in, chat-ui-conv.html, section 3), with
 /// the way out as text that lights a pill under the pointer.
-private struct BannerView: View {
+struct BannerView: View {
     let banner: FailureBanner
     /// Copy details puts the provider's text on the pasteboard; a failed turn has it, a refusal says its reason in full already.
     let copyDetails: Bool

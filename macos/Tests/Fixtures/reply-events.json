@@ -93,7 +93,7 @@
       "at": 9600,
       "kind": "task",
       "agentId": "agent-7",
-      "text": "Slice #123: migrate the signer"
+      "text": "Slice #121: migrate the signer"
     },
     {
       "id": 110,
@@ -136,7 +136,7 @@
       "at": 11000,
       "kind": "task",
       "agentId": "agent-8",
-      "text": "Slice #124: rotate the keys"
+      "text": "Slice #127: rotate the keys"
     },
     {
       "id": 115,
@@ -173,7 +173,7 @@
       "at": 11300,
       "kind": "task",
       "agentId": "agent-9",
-      "text": "Tidy the docs"
+      "text": "Slice #128: tidy the docs"
     },
     {
       "id": 118,
@@ -194,9 +194,33 @@
       "summary": "40 lines",
       "status": "ok",
       "durationMs": 80
+    },
+    {
+      "id": 120,
+      "at": 70000,
+      "kind": "task",
+      "agentId": "agent-7",
+      "text": "Slice #121: migrate the signer",
+      "status": "ok"
+    },
+    {
+      "id": 121,
+      "at": 130000,
+      "kind": "task",
+      "agentId": "agent-8",
+      "text": "Slice #127: rotate the keys",
+      "status": "ok"
+    },
+    {
+      "id": 122,
+      "at": 190000,
+      "kind": "task",
+      "agentId": "agent-9",
+      "text": "Slice #128: tidy the docs",
+      "status": "ok"
     }
   ],
-  "next": 119,
+  "next": 122,
   "running": true,
   "structured": true
 }

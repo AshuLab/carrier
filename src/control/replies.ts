@@ -60,6 +60,8 @@ export type SessionsReply = {
     role: 'author' | 'reviewer';
     round: number | null;
     agent: PanelAgent;
+    /** The key of `profiles` the role acts as, from the epic's frozen configuration; null for an epic frozen before profiles were kept. The app reads whose account it is from the configuration. */
+    profile: string | null;
     status: (typeof executionStates)[number];
     startedAt: number;
     finishedAt: number | null;

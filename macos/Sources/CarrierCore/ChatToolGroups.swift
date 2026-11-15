@@ -89,7 +89,7 @@ public struct ToolCall: Equatable, Identifiable {
         if added + removed == 0 { diff = [] }
     }
 
-    private func resultLine() -> String {
+    func resultLine() -> String {
         if status == .failed { return "failed" }
         let lines = output.filter { $0.allSatisfy(\.isWhitespace) == false }
         switch kind {

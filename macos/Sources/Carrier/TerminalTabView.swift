@@ -339,6 +339,8 @@ private struct TerminalSettingsPreview: View {
     let profile: TerminalAppearanceProfile
     let pinPromptToBottom: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var previewMonospace: MonospaceSettings {
         MonospaceSettings(
             family: profile.fontFamily ?? MonospaceSettings.systemFamily,
@@ -471,7 +473,7 @@ private struct TerminalSettingsPreview: View {
 
     @ViewBuilder
     private var cursorGlyph: some View {
-        if profile.cursorBlink {
+        if profile.cursorBlink && reduceMotion == false {
             TimelineView(.periodic(from: .now, by: 0.55)) { context in
                 let visible = Int(context.date.timeIntervalSinceReferenceDate / 0.55).isMultiple(of: 2)
                 cursorShape

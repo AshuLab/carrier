@@ -3,7 +3,7 @@ import CarrierCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Shared horizontal tab strip used by both standalone Terminal (`TerminalDetailView`) and the session bottom drawer (`SessionTerminalDrawerView`).
+/// Shared horizontal tab strip used by both standalone Terminal (`TerminalDetailView`) and the session/epic bottom drawer (`TerminalDrawerView`).
 struct TerminalTabBarView<Trailing: View>: View {
     static var height: CGFloat { 36 }
 
@@ -135,6 +135,7 @@ struct TerminalTabChip: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityAddTraits(selected ? .isSelected : [])
 
             if hovered || selected {
                 Button(action: close) {
@@ -143,6 +144,7 @@ struct TerminalTabChip: View {
                         .foregroundStyle(closeHovered ? .primary : .secondary)
                         .frame(width: 16, height: 16)
                         .background(Circle().fill(Color.primary.opacity(closeHovered ? 0.14 : 0)))
+                        .frame(width: 24, height: 24)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -152,7 +154,7 @@ struct TerminalTabChip: View {
             }
         }
         .padding(.leading, 10)
-        .padding(.trailing, (hovered || selected) ? 6 : 10)
+        .padding(.trailing, (hovered || selected) ? 4 : 10)
         .frame(height: Self.height)
         .frame(maxWidth: 220)
         .background(backgroundFill)
@@ -198,14 +200,20 @@ struct TerminalTabChip: View {
         }
         .onDrag {
             draggingTabId = tab.id
-            DispatchQueue.main.async {
-                if NSEvent.pressedMouseButtons == 0 && draggingTabId == tab.id {
+            scheduleTerminalDragCleanup(
+                isStillDragging: { draggingTabId == tab.id },
+                clear: {
                     draggingTabId = nil
                     dropTargetTabId = nil
                 }
-            }
+            )
             return NSItemProvider(object: tab.id.uuidString as NSString)
         }
+        .accessibilityAction(named: "Rename Tab") {
+            draftTitle = tab.customTitle ?? tab.title
+            renaming = true
+        }
+        .accessibilityAction(named: "Close Tab", close)
         .onDrop(
             of: [UTType.plainText],
             delegate: TerminalTabDropDelegate(
@@ -291,17 +299,23 @@ private struct TabRenamePopover: View {
                 }
             HStack(spacing: 8) {
                 if hasCustomTitle {
-                    Button("Reset", action: reset)
-                        .buttonStyle(SecondaryCapsuleButtonStyle())
-                        .controlSize(.small)
-                }
-                Spacer(minLength: 0)
-                Button("Cancel", action: cancel)
+                    Button(action: reset) {
+                        Label("Reset", systemImage: "arrow.counterclockwise")
+                    }
                     .buttonStyle(SecondaryCapsuleButtonStyle())
                     .controlSize(.small)
-                Button("Save", action: save)
-                    .buttonStyle(PrimaryCapsuleButtonStyle())
-                    .controlSize(.small)
+                }
+                Spacer(minLength: 0)
+                Button(action: cancel) {
+                    Label("Cancel", systemImage: "xmark")
+                }
+                .buttonStyle(SecondaryCapsuleButtonStyle())
+                .controlSize(.small)
+                Button(action: save) {
+                    Label("Save", systemImage: "checkmark")
+                }
+                .buttonStyle(PrimaryCapsuleButtonStyle())
+                .controlSize(.small)
             }
         }
         .padding(12)

@@ -69,6 +69,11 @@ struct TerminalsHomeView: View {
                     select(highlighted)
                     return .handled
                 }
+                .onKeyPress(.delete) {
+                    guard let highlighted, ids.contains(highlighted) else { return .ignored }
+                    closeTerminal(highlighted)
+                    return .handled
+                }
             }
         }
     }
@@ -202,5 +207,7 @@ private struct TerminalHomeRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "Open", open)
+        .accessibilityAction(named: "New Tab", newTab)
+        .accessibilityAction(named: "Close", close)
     }
 }

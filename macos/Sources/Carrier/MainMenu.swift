@@ -21,7 +21,11 @@ extension AppDelegate {
         if ShortcutTable().combos != shortcutsInMenu { installMainMenu() }
     }
 
-    func makeMainMenu(shortcuts: ShortcutTable, controls: MenuControls = .shared) -> NSMenu {
+    func makeMainMenu(
+        shortcuts: ShortcutTable,
+        controls: MenuControls = .shared,
+        terminalControls: TerminalMenuControls = .shared
+    ) -> NSMenu {
         let main = NSMenu()
 
         // Carrier
@@ -89,6 +93,16 @@ extension AppDelegate {
         item(engine, ShortcutCommand.pauseOrResume.title, #selector(MenuControls.pauseOrResume), shortcut: .pauseOrResume, in: shortcuts, target: controls)
         item(engine, ShortcutCommand.checkNow.title, #selector(MenuControls.checkNow), shortcut: .checkNow, in: shortcuts, target: controls)
 
+        // Terminal: split, zoom, equalize, detach and close controls for keyboard-only and VoiceOver access
+        let terminal = submenu(of: main, title: "Terminal")
+        item(terminal, "Split Right", #selector(TerminalMenuControls.splitRight), key: "d", target: terminalControls)
+        item(terminal, "Split Down", #selector(TerminalMenuControls.splitDown), key: "d", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, "Zoom Pane", #selector(TerminalMenuControls.toggleZoomPane), key: "\r", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, "Equalize Splits", #selector(TerminalMenuControls.equalizeSplits), target: terminalControls)
+        item(terminal, "Move Pane to New Tab", #selector(TerminalMenuControls.movePaneToNewTab), target: terminalControls)
+        terminal.addItem(.separator())
+        item(terminal, "Close Pane", #selector(TerminalMenuControls.closePane), key: "w", modifiers: [.command, .shift], target: terminalControls)
+
         // Window
         let window = submenu(of: main, title: "Window")
         item(window, "Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m")
@@ -155,4 +169,84 @@ extension AppDelegate {
     @objc func toggleSidebar() { WindowController.shared.toggleSidebar() }
     @objc func toggleInspector() { WindowController.shared.toggleInspector() }
     @objc func openHelp() { NSWorkspace.shared.open(URL(string: "https://github.com/AshuLab/carrier")!) }
+}
+
+/// Validates and dispatches Terminal menu pane commands to the focused terminal pane or active owner tab.
+final class TerminalMenuControls: NSObject, NSMenuItemValidation {
+    static let shared = TerminalMenuControls()
+
+    private let storeProvider: @MainActor () -> CarrierTerminalStore?
+    private let preferredOwnerProvider: @MainActor () -> TerminalOwner?
+
+    init(
+        storeProvider: @escaping @MainActor () -> CarrierTerminalStore? = { CarrierTerminalStore.sharedIfInitialized ?? CarrierTerminalStore.shared },
+        preferredOwnerProvider: @escaping @MainActor () -> TerminalOwner? = { WindowController.shared.preferredTerminalOwner }
+    ) {
+        self.storeProvider = storeProvider
+        self.preferredOwnerProvider = preferredOwnerProvider
+    }
+
+    @MainActor
+    private func resolveTarget() -> (store: CarrierTerminalStore, tab: TerminalTab, paneId: UUID)? {
+        guard NSApp?.keyWindow?.attachedSheet == nil,
+              let store = storeProvider(),
+              let target = store.activePaneTarget(preferredOwner: preferredOwnerProvider())
+        else { return nil }
+        return (store, target.tab, target.paneId)
+    }
+
+    @MainActor @objc func splitRight() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.splitPane(target.paneId, edge: .trailing)
+    }
+
+    @MainActor @objc func splitDown() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.splitPane(target.paneId, edge: .bottom)
+    }
+
+    @MainActor @objc func toggleZoomPane() {
+        guard let target = resolveTarget(), target.tab.panes.count > 1 else { return }
+        target.store.toggleZoom(paneId: target.paneId)
+    }
+
+    @MainActor @objc func equalizeSplits() {
+        guard let target = resolveTarget(), target.tab.panes.count > 1 else { return }
+        target.store.equalizeSplits(inTab: target.tab.id)
+    }
+
+    @MainActor @objc func movePaneToNewTab() {
+        guard let target = resolveTarget(), target.tab.panes.count > 1 else { return }
+        _ = target.store.detachPaneToNewTab(target.paneId)
+    }
+
+    @MainActor @objc func closePane() {
+        guard let target = resolveTarget() else { return }
+        let isSplit = target.tab.panes.count > 1
+        Task { @MainActor in
+            if isSplit {
+                _ = await target.store.closePane(id: target.paneId)
+            } else {
+                _ = await target.store.closeTab(id: target.tab.id)
+            }
+        }
+    }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        MainActor.assumeIsolated {
+            guard let target = resolveTarget() else { return false }
+            let isSplit = target.tab.panes.count > 1
+            switch item.action {
+            case #selector(toggleZoomPane):
+                item.title = target.tab.zoomedPaneId == target.paneId ? "Restore Split View" : "Zoom Pane"
+                return isSplit
+            case #selector(equalizeSplits), #selector(movePaneToNewTab):
+                return isSplit
+            case #selector(splitRight), #selector(splitDown), #selector(closePane):
+                return true
+            default:
+                return false
+            }
+        }
+    }
 }

@@ -106,14 +106,7 @@ public func resumeCommand(_ resume: ValidResume) -> String {
     return "\(steps.cd) && \(steps.run)"
 }
 
-/// The one-use script: it removes itself first, then runs the command in an interactive login shell, so the user's PATH holds
-/// the harnesses. ponytail: not run in a real terminal here; `-il` is the user's own tab shell, by hand it is Diego's check.
-public func resumeScript(_ resume: ValidResume, path: String) -> String {
-    let steps = resumeSteps(resume)
-    return "#!/bin/zsh -il\nrm -f -- \(shellQuote(path))\n\(steps.cd) || exit 1\n\(steps.run)\n"
-}
-
-/// Hands the script to the user's terminal; the app's is `NSWorkspace`, tests record the call.
+/// Hands a one-use script to the user's terminal; the app's is `NSWorkspace`, tests record the call.
 public protocol TerminalOpener {
     func open(_ script: URL) throws
 }
@@ -123,22 +116,8 @@ public enum ContinueError: Error, Equatable {
     case notWritten
 }
 
-/// Validates, writes the script (mode 0700, unpredictable name, created exclusively) in `directory` and asks `opener` to open
-/// it. The script is deleted again if it cannot be opened; otherwise it deletes itself when it runs.
-@discardableResult
-public func continueInTerminal(
-    _ descriptor: ResumeDescriptor, engine: String, opener: TerminalOpener, directory: String = NSTemporaryDirectory()
-) throws -> URL {
-    let resume: ValidResume
-    switch validateResume(descriptor, engine: engine) {
-    case .success(let valid): resume = valid
-    case .failure(let rejection): throw ContinueError.rejected(rejection)
-    }
-    return try openScript({ resumeScript(resume, path: $0) }, opener: opener, directory: directory)
-}
-
 /// Writes `script(path)` as a one-use file (mode 0700, unpredictable name, created exclusively) in `directory` and asks `opener` to open
-/// it; the file is deleted again if it cannot be opened. Shared by Continue in Terminal and the health fixes (`fixInTerminal`).
+/// it; the file is deleted again if it cannot be opened. Shared by Health fixes (`fixInTerminal`) and Forge login (`ForgeTerminal`).
 func openScript(_ script: (String) -> String, opener: TerminalOpener, directory: String) throws -> URL {
     let path = (directory as NSString).appendingPathComponent("carrier-\(UUID().uuidString).command")
     let descriptorNumber = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o700)

@@ -132,4 +132,48 @@ private let fixtures = URL(fileURLWithPath: #filePath)
         controls.startOrStop()
         #expect(box.asked == 1 && box.sent.isEmpty)
     }
+
+    @Test func terminalMenuControlsValidateAndDispatchPaneActions() throws {
+        let suite = "menu-terminal-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: AppPreferences(defaults: defaults),
+            scheme: .dark
+        )
+        defer { store.teardownAll() }
+
+        let owner = TerminalOwner.terminal(UUID())
+        var activeOwner: TerminalOwner? = nil
+        let terminalControls = TerminalMenuControls(
+            storeProvider: { store },
+            preferredOwnerProvider: { activeOwner }
+        )
+        let menu = AppDelegate().makeMainMenu(shortcuts: table(), terminalControls: terminalControls)
+        let splitRightItem = try item(menu, "Terminal", "Split Right")
+        let zoomItem = try item(menu, "Terminal", "Zoom Pane")
+        let equalizeItem = try item(menu, "Terminal", "Equalize Splits")
+
+        // No active terminal selected -> Terminal menu items stay disabled.
+        #expect(terminalControls.validateMenuItem(splitRightItem) == false)
+        #expect(terminalControls.validateMenuItem(zoomItem) == false)
+
+        _ = store.openTab(for: owner, workingDirectory: "/tmp")
+        activeOwner = owner
+        #expect(terminalControls.validateMenuItem(splitRightItem) == true)
+        #expect(terminalControls.validateMenuItem(zoomItem) == false)
+        #expect(terminalControls.validateMenuItem(equalizeItem) == false)
+
+        run(splitRightItem)
+        #expect(store.activeTab(for: owner)?.paneCount == 2)
+        #expect(terminalControls.validateMenuItem(zoomItem) == true)
+        #expect(terminalControls.validateMenuItem(equalizeItem) == true)
+
+        run(zoomItem)
+        #expect(store.activeTab(for: owner)?.zoomedPaneId != nil)
+        #expect(terminalControls.validateMenuItem(zoomItem) == true)
+        #expect(zoomItem.title == "Restore Split View")
+    }
 }

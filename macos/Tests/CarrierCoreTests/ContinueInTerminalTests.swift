@@ -139,43 +139,33 @@ func aFolderThatIsNotAnAbsolutePathIsRejected(cwd: String) throws {
     #expect(validateResume(scratch.descriptor(), engine: scratch.base + "/no-engine") == .failure(.folderOutsideEngine))
 }
 
-// MARK: the script
+// MARK: the command and embedded launch
 
-@Test func theScriptForEachHarnessIsExactlyThis() throws {
+@Test func theCommandForEachHarnessIsExactlyThis() throws {
     let scratch = try Scratch()
     defer { scratch.remove() }
-    let path = "/tmp/carrier-X.command"
     let dir = scratch.config
-    func script(_ harness: String, config: String?) throws -> String {
+    func command(_ harness: String, config: String?) throws -> String {
         let valid = try #require(try? validateResume(scratch.descriptor(harness, config: config), engine: scratch.engine).get())
-        return resumeScript(valid, path: path)
+        return resumeCommand(valid)
     }
-    let head = "#!/bin/zsh -il\nrm -f -- '/tmp/carrier-X.command'\ncd '\(scratch.inside)' || exit 1\n"
-    #expect(try script("claude", config: dir) == head + "CLAUDE_CONFIG_DIR='\(dir)' claude --resume '\(id)'\n")
-    #expect(try script("claude", config: nil) == head + "claude --resume '\(id)'\n")
-    #expect(try script("codex", config: dir) == head + "CODEX_HOME='\(dir)' codex resume '\(id)'\n")
-    #expect(try script("codex", config: nil) == head + "codex resume '\(id)'\n")
-    #expect(try script("agy", config: dir) == head + "agy --conversation '\(id)'\n")
+    let cd = "cd '\(scratch.inside)' && "
+    #expect(try command("claude", config: dir) == cd + "CLAUDE_CONFIG_DIR='\(dir)' claude --resume '\(id)'")
+    #expect(try command("claude", config: nil) == cd + "claude --resume '\(id)'")
+    #expect(try command("codex", config: dir) == cd + "CODEX_HOME='\(dir)' codex resume '\(id)'")
+    #expect(try command("codex", config: nil) == cd + "codex resume '\(id)'")
+    #expect(try command("agy", config: dir) == cd + "agy --conversation '\(id)'")
 }
 
-@Test func theCommandShownIsTheOneTheScriptRuns() throws {
-    let scratch = try Scratch()
-    defer { scratch.remove() }
-    let valid = try #require(try? validateResume(scratch.descriptor("codex", config: scratch.config), engine: scratch.engine).get())
-    #expect(resumeCommand(valid) == "cd '\(scratch.inside)' && CODEX_HOME='\(scratch.config)' codex resume '\(id)'")
-}
-
-/// Runs the generated script with `/bin/sh` and the fake harnesses; returns what the fake wrote in the folder it ran in.
-private func run(_ script: String, scratch: Scratch, in folder: String, at path: String) throws -> [String] {
-    try script.write(toFile: path, atomically: true, encoding: .utf8)
+/// Runs the shell command with `/bin/sh` and the fake harnesses; returns what the fake wrote in the folder it ran in.
+private func run(_ command: String, scratch: Scratch, in folder: String) throws -> [String] {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/sh")
-    process.arguments = [path]
+    process.arguments = ["-c", command]
     process.environment = ["PATH": scratch.bin + ":/usr/bin:/bin"]
     try process.run()
     process.waitUntilExit()
     #expect(process.terminationStatus == 0)
-    #expect(FileManager.default.fileExists(atPath: path) == false)  // it removed itself
     let ran = try String(contentsOfFile: folder + "/ran.txt", encoding: .utf8)
     return ran.split(separator: "\n", omittingEmptySubsequences: false).dropLast().map(String.init)
 }
@@ -198,7 +188,7 @@ func aHostileFolderNameStaysInert(name: String) throws {
     try FileManager.default.createDirectory(atPath: config, withIntermediateDirectories: true)
     for harness in ["claude", "codex", "agy"] {
         let valid = try #require(try? validateResume(scratch.descriptor(harness, cwd: folder, config: config), engine: scratch.engine).get())
-        let ran = try run(resumeScript(valid, path: scratch.base + "/s.command"), scratch: scratch, in: folder, at: scratch.base + "/s.command")
+        let ran = try run(resumeCommand(valid), scratch: scratch, in: folder)
         let expected: [String] = switch harness {
         case "claude": [folder, config, "unset", scratch.bin + "/claude", "--resume", id]
         case "codex": [folder, "unset", config, scratch.bin + "/codex", "resume", id]
@@ -211,7 +201,7 @@ func aHostileFolderNameStaysInert(name: String) throws {
     #expect(found?.isEmpty == true)
 }
 
-// MARK: the writer and the opener
+// MARK: the shared script opener
 
 private final class RecordingOpener: TerminalOpener {
     var opened: [URL] = []
@@ -227,12 +217,12 @@ private final class RecordingOpener: TerminalOpener {
     }
 }
 
-@Test func theScriptIsWrittenWith0700AnUnpredictableNameAndOpenedOnce() throws {
+@Test func openScriptWrites0700WithAnUnpredictableNameAndOpensOnce() throws {
     let scratch = try Scratch()
     defer { scratch.remove() }
     let opener = RecordingOpener()
-    let first = try continueInTerminal(scratch.descriptor(config: scratch.config), engine: scratch.engine, opener: opener, directory: scratch.base)
-    let second = try continueInTerminal(scratch.descriptor(), engine: scratch.engine, opener: opener, directory: scratch.base)
+    let first = try openScript({ "#!/bin/zsh -il\nrm -f -- \($0)\n" }, opener: opener, directory: scratch.base)
+    let second = try openScript({ "#!/bin/zsh -il\necho \($0)\n" }, opener: opener, directory: scratch.base)
     #expect(opener.opened == [first, second])
     #expect(first != second)
     #expect(first.deletingLastPathComponent().path == scratch.base)
@@ -241,22 +231,7 @@ private final class RecordingOpener: TerminalOpener {
     #expect(UUID(uuidString: String(first.deletingPathExtension().lastPathComponent.dropFirst("carrier-".count))) != nil)
     #expect(opener.seenMode == 0o700)
     #expect((try FileManager.default.attributesOfItem(atPath: first.path)[.posixPermissions] as? Int) == 0o700)
-    let valid = try #require(try? validateResume(scratch.descriptor(), engine: scratch.engine).get())
-    #expect(opener.seenText == resumeScript(valid, path: second.path))
-}
-
-@Test func aRejectedDescriptorWritesNothingAndOpensNothing() throws {
-    let scratch = try Scratch()
-    defer { scratch.remove() }
-    let opener = RecordingOpener()
-    #expect(throws: ContinueError.rejected(.folderOutsideEngine)) {
-        try continueInTerminal(scratch.descriptor(cwd: scratch.outside), engine: scratch.engine, opener: opener, directory: scratch.base)
-    }
-    #expect(throws: ContinueError.rejected(.badSessionId)) {
-        try continueInTerminal(scratch.descriptor(id: "$(id)"), engine: scratch.engine, opener: opener, directory: scratch.base)
-    }
-    #expect(opener.opened.isEmpty)
-    #expect(try FileManager.default.contentsOfDirectory(atPath: scratch.base).filter { $0.hasSuffix(".command") }.isEmpty)
+    #expect(opener.seenText == "#!/bin/zsh -il\necho \(second.path)\n")
 }
 
 @Test func aScriptThatCannotBeOpenedIsDeleted() throws {
@@ -265,7 +240,7 @@ private final class RecordingOpener: TerminalOpener {
     let opener = RecordingOpener()
     opener.fails = true
     #expect(throws: ContinueError.notWritten) {
-        try continueInTerminal(scratch.descriptor(), engine: scratch.engine, opener: opener, directory: scratch.base)
+        try openScript({ _ in "#!/bin/sh\n" }, opener: opener, directory: scratch.base)
     }
     #expect(try FileManager.default.contentsOfDirectory(atPath: scratch.base).filter { $0.hasSuffix(".command") }.isEmpty)
 }
@@ -274,7 +249,7 @@ private final class RecordingOpener: TerminalOpener {
     let scratch = try Scratch()
     defer { scratch.remove() }
     #expect(throws: ContinueError.notWritten) {
-        try continueInTerminal(scratch.descriptor(), engine: scratch.engine, opener: RecordingOpener(), directory: scratch.base + "/missing")
+        try openScript({ _ in "#!/bin/sh\n" }, opener: RecordingOpener(), directory: scratch.base + "/missing")
     }
 }
 

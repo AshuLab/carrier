@@ -58,6 +58,9 @@ final class CarrierTerminalStore {
     @ObservationIgnored private var missingSessionsInPreviousPoll: Set<String> = []
     @ObservationIgnored private var pendingCloseTargets: Set<TerminalCloseTarget> = []
     @ObservationIgnored private var isTornDown = false
+    @ObservationIgnored var performClearScreenForTests: ((UUID) -> Bool)?
+    @ObservationIgnored var sendControlLForTests: ((UUID) -> Bool)?
+    @ObservationIgnored var focusedPaneResolverForTests: (() -> UUID?)?
 
     /// Hook invoked when Ghostty itself requests closing a live surface (e.g., `close_surface` keybinding).
     @ObservationIgnored var onCloseConfirmationNeeded: (@MainActor (TerminalCloseTarget, Question) -> Bool)?
@@ -81,9 +84,14 @@ final class CarrierTerminalStore {
         self.fileStore = resolvedStore
         self.preferences = preferences
         self.processInspector = processInspector ?? GhosttyTerminalProcessInspector()
+        let derivedCarrierFolder: URL = {
+            guard let dir = resolvedStore.fileURL?.deletingLastPathComponent() else {
+                return URL(fileURLWithPath: currentCarrierFolder(), isDirectory: true)
+            }
+            return dir.lastPathComponent == "app" ? dir.deletingLastPathComponent() : dir
+        }()
         self.zshShimDirectory = zshShimDirectory ?? TerminalZshBottomPromptShim.defaultDirectory(
-            carrierFolder: resolvedStore.fileURL?.deletingLastPathComponent()
-                ?? URL(fileURLWithPath: currentCarrierFolder(), isDirectory: true)
+            carrierFolder: derivedCarrierFolder
         )
         self.persistDebounceNanoseconds = persistDebounceNanoseconds
 
@@ -287,10 +295,28 @@ final class CarrierTerminalStore {
     }
 
     func selectPane(_ paneId: UUID) {
-        persistMutation {
+        let alreadyActive = registry.workspaces
+            .lazy
+            .flatMap(\.tabs)
+            .first { $0.panes[paneId] != nil }?
+            .activePaneId == paneId
+        guard alreadyActive == false else { return }
+        persistMutation(immediate: false) {
             registry.selectPane(id: paneId)
             focus(paneId: paneId)
         }
+    }
+
+    /// Resolves the focused pane in the key window, or falls back to `preferredOwner`'s active pane for menu/keyboard actions.
+    func activePaneTarget(preferredOwner: TerminalOwner? = nil) -> (tab: TerminalTab, paneId: UUID)? {
+        if let focusedId = focusedPaneResolverForTests?() ?? focusedPaneId(for: NSApp?.keyWindow?.firstResponder),
+           let tab = registry.workspaces.lazy.flatMap(\.tabs).first(where: { $0.panes[focusedId] != nil }) {
+            return (tab, focusedId)
+        }
+        if let preferredOwner, let tab = activeTab(for: preferredOwner) {
+            return (tab, tab.activePaneId)
+        }
+        return nil
     }
 
     func setSplitRatio(inTab tabId: UUID, at path: [SplitBranch], ratio: Double) {
@@ -470,10 +496,10 @@ final class CarrierTerminalStore {
             guard let self, self.isTornDown == false, let liveState = self.viewStates[paneId] else { return }
             let result = await self.processInspector.inspectActiveCommands(in: [input])
             guard self.isTornDown == false, self.viewStates[paneId] === liveState else { return }
-            let cleared = liveState.performBindingAction("clear_screen")
+            let cleared = performClearScreenForTests?(paneId) ?? liveState.performBindingAction("clear_screen")
             let hasForegroundCommand = (result.commandsByPane[paneId]?.isEmpty == false)
             if cleared, hasForegroundCommand == false, self.preferences.terminal.pinPromptToBottom {
-                _ = liveState.sendKey(.l, modifiers: .ctrl)
+                _ = sendControlLForTests?(paneId) ?? liveState.sendKey(.l, modifiers: .ctrl)
             }
         }
         return true
@@ -518,7 +544,7 @@ final class CarrierTerminalStore {
               event.type == .keyDown,
               relevantModifiers == .command,
               event.charactersIgnoringModifiers?.lowercased() == "k",
-              let paneId = focusedPaneId(for: NSApp?.keyWindow?.firstResponder)
+              let paneId = focusedPaneResolverForTests?() ?? focusedPaneId(for: NSApp?.keyWindow?.firstResponder)
         else {
             return event
         }

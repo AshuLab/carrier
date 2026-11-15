@@ -165,5 +165,6 @@ private struct TerminalSidebarRowView: View {
         .help("\(summary.title)\n\(summary.workingDirectory)")
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(summary.title), \(summary.subtitle())")
+        .accessibilityAction(named: "Close", close)
     }
 }

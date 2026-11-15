@@ -178,6 +178,22 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// For the Conversation menu: acts only while a conversation is open.
     func conversation(_ action: ConversationAction) { model.shell.perform(.conversation(action)) }
 
+    /// Active standalone or drawer terminal owner visible in the main window, if any.
+    var preferredTerminalOwner: TerminalOwner? {
+        switch model.shell.selection {
+        case .terminal(let id):
+            return .terminal(id)
+        case .session(let id):
+            let owner = TerminalOwner.session(id)
+            return model.shell.isTerminalDrawerOpen(for: owner) ? owner : nil
+        case .epic(let repo, let issue):
+            let owner = TerminalOwner.epic(repo: repo, issue: issue)
+            return model.shell.isTerminalDrawerOpen(for: owner) ? owner : nil
+        default:
+            return nil
+        }
+    }
+
     /// A shortcut that reads the sessions, from the main menu.
     func perform(_ action: ShortcutAction) {
         open()

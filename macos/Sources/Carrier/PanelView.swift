@@ -253,7 +253,8 @@ struct PanelView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     if let target = activeDrawerTarget,
-                       shell.isTerminalDrawerOpen(for: target.owner) {
+                       shell.isTerminalDrawerOpen(for: target.owner),
+                       target.isSessionDrawer || terminalStore.tabs(for: target.owner).isEmpty == false {
                         TerminalDrawerView(
                             store: terminalStore,
                             owner: target.owner,
@@ -309,6 +310,14 @@ struct PanelView: View {
             .themedWindowBackground()
             .navigationTitle(title)
             .navigationSubtitle(subtitle)
+            .onChange(of: model.shell.selection) { _, _ in
+                if let target = activeDrawerTarget,
+                   target.isSessionDrawer == false,
+                   shell.isTerminalDrawerOpen(for: target.owner),
+                   terminalStore.tabs(for: target.owner).isEmpty {
+                    shell.setTerminalDrawerOpen(false, for: target.owner)
+                }
+            }
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {

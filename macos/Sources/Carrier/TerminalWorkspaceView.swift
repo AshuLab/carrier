@@ -15,32 +15,96 @@ struct TerminalSplitLayoutView: View {
     @State private var draggedPaneId: UUID?
 
     var body: some View {
-        if let zoomedId = tab.zoomedPaneId, tab.panes[zoomedId] != nil {
-            TerminalPaneHostView(
-                store: store,
-                tab: tab,
-                paneId: zoomedId,
-                autoFocus: autoFocus,
-                topControlsInset: topControlsInset,
-                draggedPaneId: $draggedPaneId,
-                onSelectTab: onSelectTab,
-                onCloseTab: onCloseTab
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            SplitTreeNodeView(
-                store: store,
-                tab: tab,
-                autoFocus: autoFocus,
-                topControlsInset: topControlsInset,
-                draggedPaneId: $draggedPaneId,
-                node: tab.root,
-                path: [],
-                onSelectTab: onSelectTab,
-                onCloseTab: onCloseTab
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        Group {
+            if let zoomedId = tab.zoomedPaneId, tab.panes[zoomedId] != nil {
+                TerminalPaneHostView(
+                    store: store,
+                    tab: tab,
+                    paneId: zoomedId,
+                    autoFocus: autoFocus,
+                    topControlsInset: topControlsInset,
+                    draggedPaneId: $draggedPaneId,
+                    onSelectTab: onSelectTab,
+                    onCloseTab: onCloseTab
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                SplitTreeNodeView(
+                    store: store,
+                    tab: tab,
+                    autoFocus: autoFocus,
+                    topControlsInset: topControlsInset,
+                    draggedPaneId: $draggedPaneId,
+                    node: tab.root,
+                    path: [],
+                    onSelectTab: onSelectTab,
+                    onCloseTab: onCloseTab
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
+        .onDisappear { draggedPaneId = nil }
+    }
+}
+
+/// Polls until mouse buttons release after a SwiftUI `onDrag`, clearing stale drag state if the drop is cancelled (e.g. Esc or outside drop).
+@MainActor
+func scheduleTerminalDragCleanup(
+    isStillDragging: @escaping () -> Bool,
+    clear: @escaping () -> Void
+) {
+    Task { @MainActor in
+        try? await Task.sleep(for: .milliseconds(50))
+        while isStillDragging() && NSEvent.pressedMouseButtons != 0 {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        if isStillDragging() {
+            // Yield briefly on the main actor so a completing `performDrop` runs before fallback cleanup.
+            try? await Task.sleep(for: .milliseconds(50))
+            if isStillDragging() { clear() }
+        }
+    }
+}
+
+/// Shared 1 pt resize handle for split panes and the bottom terminal drawer with expanded hover/drag hit area and accessibility adjustment.
+private struct TerminalResizeDivider: View {
+    let horizontal: Bool
+    let isDragging: Bool
+    let accessibilityLabel: String
+    let accessibilityValue: String
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: () -> Void
+    let onAdjust: (Bool) -> Void
+
+    @State private var hovered = false
+
+    var body: some View {
+        Rectangle()
+            .fill(hovered || isDragging ? Color.themeAccent.opacity(0.65) : Color.primary.opacity(0.08))
+            .frame(width: horizontal ? 1 : nil, height: horizontal ? nil : 1)
+            .frame(maxWidth: horizontal ? nil : .infinity, maxHeight: horizontal ? .infinity : nil)
+            .contentShape(Rectangle().inset(by: -3))
+            .hoverCursor(horizontal ? .resizeLeftRight : .resizeUpDown) { hovered = $0 }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        let delta = horizontal ? value.translation.width : value.translation.height
+                        onDragChanged(delta)
+                    }
+                    .onEnded { _ in
+                        onDragEnded()
+                    }
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityValue(accessibilityValue)
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: onAdjust(true)
+                case .decrement: onAdjust(false)
+                @unknown default: break
+                }
+            }
     }
 }
 
@@ -171,6 +235,17 @@ private struct TerminalPaneHostView: View {
 
     private static let hoverRevealHeight: CGFloat = 56
 
+    private func closeCurrentPane() {
+        let isSplit = tab.panes.count > 1
+        if isSplit {
+            Task { _ = await store.closePane(id: paneId) }
+        } else if let onCloseTab {
+            onCloseTab()
+        } else {
+            Task { _ = await store.closeTab(id: tab.id) }
+        }
+    }
+
     var body: some View {
         let pane = tab.panes[paneId]
         let isSplit = tab.panes.count > 1
@@ -226,11 +301,10 @@ private struct TerminalPaneHostView: View {
                     isZoomed: isZoomed,
                     onBeginDrag: {
                         draggedPaneId = paneId
-                        DispatchQueue.main.async {
-                            if NSEvent.pressedMouseButtons == 0 && draggedPaneId == paneId {
-                                draggedPaneId = nil
-                            }
-                        }
+                        scheduleTerminalDragCleanup(
+                            isStillDragging: { draggedPaneId == paneId },
+                            clear: { draggedPaneId = nil }
+                        )
                         return NSItemProvider(object: paneId.uuidString as NSString)
                     },
                     splitRight: { _ = store.splitPane(paneId, edge: .trailing) },
@@ -242,15 +316,7 @@ private struct TerminalPaneHostView: View {
                             onSelectTab?(newTab.id)
                         }
                     },
-                    close: {
-                        if isSplit {
-                            Task { _ = await store.closePane(id: paneId) }
-                        } else if let onCloseTab {
-                            onCloseTab()
-                        } else {
-                            Task { _ = await store.closeTab(id: tab.id) }
-                        }
-                    }
+                    close: closeCurrentPane
                 )
                 .padding(.top, 8 + topControlsInset)
                 .padding(.trailing, 8)
@@ -260,6 +326,20 @@ private struct TerminalPaneHostView: View {
                 .animation(.easeOut(duration: 0.15), value: showControls)
             }
         }
+        .accessibilityAction(named: "Split Right") { _ = store.splitPane(paneId, edge: .trailing) }
+        .accessibilityAction(named: "Split Down") { _ = store.splitPane(paneId, edge: .bottom) }
+        .accessibilityAction(named: isSplit ? (isZoomed ? "Restore Split View" : "Zoom Pane") : "Show Split Actions") {
+            if isSplit { store.toggleZoom(paneId: paneId) }
+        }
+        .accessibilityAction(named: "Equalize Splits") {
+            if isSplit { store.equalizeSplits(inTab: tab.id) }
+        }
+        .accessibilityAction(named: "Move to New Tab") {
+            if isSplit, let newTab = store.detachPaneToNewTab(paneId) {
+                onSelectTab?(newTab.id)
+            }
+        }
+        .accessibilityAction(named: isSplit ? "Close Pane" : "Close Terminal", closeCurrentPane)
         .overlay {
             if isSplit {
                 GeometryReader { geometry in
@@ -434,7 +514,6 @@ private struct SplitContainerView: View {
     let onCloseTab: (() -> Void)?
 
     @State private var dragBaseRatio: Double?
-    @State private var dividerHovered = false
 
     private static let dividerThickness: CGFloat = 1
 
@@ -492,28 +571,26 @@ private struct SplitContainerView: View {
     }
 
     private func divider(usable: CGFloat, horizontal: Bool) -> some View {
-        ZStack {
-            Rectangle()
-                .fill(dividerHovered || dragBaseRatio != nil ? Color.themeAccent.opacity(0.65) : Color.primary.opacity(0.08))
-                .frame(width: horizontal ? Self.dividerThickness : nil, height: horizontal ? nil : Self.dividerThickness)
-        }
-        .frame(width: horizontal ? 7 : nil, height: horizontal ? nil : 7)
-        .frame(width: horizontal ? Self.dividerThickness : nil, height: horizontal ? nil : Self.dividerThickness)
-        .contentShape(Rectangle().inset(by: -3))
-        .hoverCursor(horizontal ? .resizeLeftRight : .resizeUpDown) { dividerHovered = $0 }
-        .gesture(
-            DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                .onChanged { value in
-                    guard usable > 0 else { return }
-                    let base = dragBaseRatio ?? SplitNode.clampRatio(ratio)
-                    if dragBaseRatio == nil { dragBaseRatio = base }
-                    let delta = horizontal ? value.translation.width : value.translation.height
-                    let next = SplitNode.clampRatio(base + Double(delta / usable))
-                    store.setSplitRatio(inTab: tab.id, at: path, ratio: next)
-                }
-                .onEnded { _ in
-                    dragBaseRatio = nil
-                }
+        let clamped = SplitNode.clampRatio(ratio)
+        return TerminalResizeDivider(
+            horizontal: horizontal,
+            isDragging: dragBaseRatio != nil,
+            accessibilityLabel: horizontal ? "Vertical split divider" : "Horizontal split divider",
+            accessibilityValue: "\(Int((clamped * 100).rounded())) percent",
+            onDragChanged: { delta in
+                guard usable > 0 else { return }
+                let base = dragBaseRatio ?? clamped
+                if dragBaseRatio == nil { dragBaseRatio = base }
+                let next = SplitNode.clampRatio(base + Double(delta / usable))
+                store.setSplitRatio(inTab: tab.id, at: path, ratio: next)
+            },
+            onDragEnded: {
+                dragBaseRatio = nil
+            },
+            onAdjust: { increment in
+                let next = SplitNode.clampRatio(clamped + (increment ? 0.05 : -0.05))
+                store.setSplitRatio(inTab: tab.id, at: path, ratio: next)
+            }
         )
     }
 }
@@ -621,7 +698,6 @@ struct TerminalDrawerView: View {
     let autoHideOnEmpty: () -> Void
 
     @State private var dragStartHeight: CGFloat?
-    @State private var resizeHovered = false
 
     private static let minHeight: CGFloat = 180
 
@@ -684,31 +760,30 @@ struct TerminalDrawerView: View {
     private func ensureTabExists() {
         if openDefaultTabIfEmpty, store.tabs(for: owner).isEmpty {
             _ = store.openTab(for: owner, workingDirectory: defaultDirectory)
+        } else if openDefaultTabIfEmpty == false, store.tabs(for: owner).isEmpty {
+            autoHideOnEmpty()
         }
     }
 
     private var resizeHandle: some View {
-        ZStack {
-            Rectangle()
-                .fill(resizeHovered || dragStartHeight != nil ? Color.themeAccent.opacity(0.65) : Color.primary.opacity(0.08))
-                .frame(height: 1)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 7)
-        .frame(height: 1)
-        .contentShape(Rectangle().inset(by: -3))
-        .hoverCursor(.resizeUpDown) { resizeHovered = $0 }
-        .gesture(
-            DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                .onChanged { value in
-                    let base = dragStartHeight ?? height
-                    if dragStartHeight == nil { dragStartHeight = base }
-                    let proposed = base - value.translation.height
-                    height = min(max(proposed, Self.minHeight), max(Self.minHeight, maxHeight))
-                }
-                .onEnded { _ in
-                    dragStartHeight = nil
-                }
+        let ceiling = max(Self.minHeight, maxHeight)
+        return TerminalResizeDivider(
+            horizontal: false,
+            isDragging: dragStartHeight != nil,
+            accessibilityLabel: "Terminal drawer resize handle",
+            accessibilityValue: "\(Int(min(max(height, Self.minHeight), ceiling).rounded())) points",
+            onDragChanged: { deltaY in
+                let base = dragStartHeight ?? height
+                if dragStartHeight == nil { dragStartHeight = base }
+                let proposed = base - deltaY
+                height = min(max(proposed, Self.minHeight), ceiling)
+            },
+            onDragEnded: {
+                dragStartHeight = nil
+            },
+            onAdjust: { increment in
+                height = min(max(height + (increment ? 24 : -24), Self.minHeight), ceiling)
+            }
         )
     }
 }

@@ -847,8 +847,9 @@ struct CarrierTerminalStoreTests {
             processInspector: inspector
         )
         let tab = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let paneId = tab.activePaneId
         // Realize the cached TerminalViewState just as MountedTerminalSurface does on appear.
-        _ = store.state(for: tab.activePaneId)
+        let state = try #require(store.state(for: paneId))
         let event = try #require(NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,
@@ -866,13 +867,64 @@ struct CarrierTerminalStoreTests {
         #expect(store.focusedPaneId(for: NSTextView()) == nil)
         #expect(store.handleKeyDownEvent(event) === event)
 
-        // Headless clearScrollback schedules inspection when bottom pinning is enabled and falls back synchronously when disabled.
-        #expect(store.clearScrollback(paneId: tab.activePaneId) == true)
+        var clearScreenCalls = 0
+        var ctrlLCalls = 0
+        store.performClearScreenForTests = { id in
+            clearScreenCalls += 1
+            return id == paneId
+        }
+        store.sendControlLForTests = { id in
+            if id == paneId { ctrlLCalls += 1 }
+            return true
+        }
+        store.focusedPaneResolverForTests = { paneId }
+
+        // Focused terminal view consumes Cmd+K and sends clear_screen + Ctrl+L when idle.
+        #expect(store.handleKeyDownEvent(event) == nil)
+        let idleCompleted = await waitUntil { clearScreenCalls == 1 && ctrlLCalls == 1 }
+        #expect(idleCompleted)
+
+        // When a foreground command is running, clear_screen still runs but Ctrl+L is suppressed.
+        inspector.runningByStateId = [ObjectIdentifier(state): ["vim"]]
+        #expect(store.handleKeyDownEvent(event) == nil)
+        let busyCompleted = await waitUntil { clearScreenCalls == 2 }
+        #expect(busyCompleted)
+        #expect(ctrlLCalls == 1)
+
         var terminal = prefs.terminal
         terminal.pinPromptToBottom = false
         prefs.terminal = terminal
         #expect(store.handleKeyDownEvent(event) === event)
-        #expect(store.clearScrollback(paneId: tab.activePaneId) == false)
+        #expect(store.clearScrollback(paneId: paneId) == false)
+
+        store.teardownAll()
+    }
+
+    @Test func zshShimDefaultsUnderCarrierTerminalFolderAndSelectPaneSkipsNoopWrites() async throws {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("carrier-shim-root-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let workspaceFile = terminalWorkspaceURL(carrierFolder: tempRoot.path)
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: workspaceFile),
+            preferences: prefs,
+            scheme: .dark,
+            processInspector: FakeProcessInspector()
+        )
+        let firstTab = store.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
+        let firstPaneId = firstTab.activePaneId
+        let realized = try #require(store.state(for: firstPaneId))
+        #expect(realized.configuration.envVars["ZDOTDIR"] == tempRoot.appendingPathComponent("terminal/zsh-bottom-prompt").path)
+
+        // Selecting an already-active pane must not trigger redundant synchronous writes.
+        try? FileManager.default.removeItem(at: workspaceFile)
+        store.selectPane(firstPaneId)
+        #expect(FileManager.default.fileExists(atPath: workspaceFile.path) == false)
 
         store.teardownAll()
     }

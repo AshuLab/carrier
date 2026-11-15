@@ -1,4 +1,4 @@
-name: Engine
+name: Carrier Engine
 
 # The TypeScript side (engine, chat host, terminal CLI): one job per question, in parallel, on Linux.
 # Reusable: ci.yml (a pull request) and release.yml (a tag) call it, so what a release checks is what a pull request checked.
@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   typecheck:
+    name: Types
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -23,6 +24,7 @@ jobs:
       - run: pnpm typecheck
 
   test:
+    name: Unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -37,6 +39,7 @@ jobs:
 
   # What `npm publish` ships: a tsc or a migration copy that breaks fails here, not on the tag.
   build:
+    name: Package build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

@@ -1,4 +1,4 @@
-name: macOS
+name: Carrier macOS app
 
 # The app (macos/): its tests and its bundle, in parallel on macOS, the expensive runner.
 # Reusable: ci.yml calls it once the engine is green; run by hand to try a branch.
@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   test:
+    name: Unit tests
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -26,6 +27,7 @@ jobs:
 
   # build-app.sh and what the updater needs from the bundle.
   bundle:
+    name: Bundle
     runs-on: macos-26
     timeout-minutes: 30
     steps:

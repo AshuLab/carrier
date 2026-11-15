@@ -100,8 +100,8 @@ struct SliceCardView: View {
     }
 }
 
-/// A slice: its mark, `#730` and the title, the quiet line under it, and at the right the pull request and the chevron. A tap on
-/// the row, away from the chip, opens it to the slice's own steps.
+/// A slice: its mark, `#730` and the title, the quiet line under it, and at the right the pull request and the chevron. The row is a
+/// button, away from the chip, and opens to the slice's own steps.
 private struct SliceCardRowView<Opened: View>: View {
     let row: SliceCardRow
     let open: Bool
@@ -112,28 +112,28 @@ private struct SliceCardRowView<Opened: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 11) {
-                mark.frame(width: 22, height: 18, alignment: .leading).padding(.top, 1)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    title.font(.scaled(13, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
-                    quiet
+            HStack(alignment: .top, spacing: 0) {
+                Button(action: toggle) {
+                    HStack(alignment: .top, spacing: 11) {
+                        mark.frame(width: 22, height: 18, alignment: .leading).padding(.top, 1).accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 3) {
+                            title.font(.scaled(13, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+                            quiet
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.leading, 12).padding(.vertical, 10)
+                    .contentShape(Rectangle())
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .accessibilityElement(children: .ignore)
+                .buttonStyle(.plain)
                 .accessibilityLabel(row.spoken + (open ? ", open" : ", closed"))
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction(.default, toggle)
-                HStack(spacing: 10) {
-                    if let number = row.prNumber { PullRequestChip(number: number, dot: row.prState.dot, url: prURL) }
-                    CardChevron(open: open, width: 12)
+                if let number = row.prNumber { PullRequestChip(number: number, dot: row.prState.dot, url: prURL).padding(.top, 11).padding(.leading, 10) }
+                // the chevron is the same click, away from the chip; the row's button is the one the keyboard reaches
+                Button(action: toggle) {
+                    CardChevron(open: open, width: 12).padding(.leading, 10).padding(.trailing, 12).padding(.top, 11).padding(.bottom, 10).contentShape(Rectangle())
                 }
-                .padding(.top, 1)
+                .buttonStyle(.plain).focusable(false).accessibilityHidden(true)
             }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .contentShape(Rectangle())
-            .onTapGesture(perform: toggle)
             .background(Color.primary.opacity(hovered ? 0.04 : 0))
             .onHover { hovered = $0 }
             if open { opened() }

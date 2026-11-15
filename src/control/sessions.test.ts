@@ -129,6 +129,15 @@ test('an execution from before the agent was recorded takes the agent from the e
   expect(sessions[0]).toMatchObject({ role: 'reviewer', round: null, agent: { harness: 'codex', model: 'm', provider: null }, resume: null });
 });
 
+test('a session has no profile when the epic has no frozen configuration or its role names none', async () => {
+  const bare = db.insert(epics).values({ repo: 'AshuLab/a', issue: 8, status: 'ready_for_test', config: null }).returning({ id: epics.id }).get().id;
+  execution(bare, 7, { status: 'finished', finishedAt: 1500 });
+  expect((await ask(8)).reply.data.sessions[0].profile).toBeNull();
+  const unnamed = db.insert(epics).values({ repo: 'AshuLab/a', issue: 9, status: 'ready_for_test', config: { ...config, agents: { ...config.agents, author: { ...agent, profile: undefined } } } as never }).returning({ id: epics.id }).get().id;
+  execution(unnamed, 8, { status: 'finished', finishedAt: 1500 });
+  expect((await ask(9)).reply.data.sessions[0].profile).toBeNull();
+});
+
 const sha = 'a'.repeat(40);
 const imported = (n: number, result: object) =>
   db.insert(callerResults).values({ executionId: `00000000-0000-4000-8000-00000000000${n}`, outcome: (result as { outcome: string }).outcome, result: JSON.stringify(result) }).run();

@@ -27,15 +27,16 @@ public enum FlowItem: Equatable, Identifiable {
 /// Runs of calls and thoughts become one group each, like the chat's: a thought is placed among the calls of the run it comes in, and a run
 /// ends at anything else: a message, a note, an error, a skill or a slice (a slice sits before the first item with a higher id). `running`
 /// is whether the agent is working: the last run is then live when nothing comes after it, and a call that never ended in a run that is
-/// over was stopped, not going on.
+/// over was stopped, not going on: over is the agent having spoken or failed after it, or the session having ended.
 public func flowItems(_ items: [TranscriptItem], slices: [LaneSection] = [], running: Bool = false) -> [FlowItem] {
     var later = slices.sorted { $0.startId < $1.startId }[...]
     var flow: [FlowItem] = []
     var first: Int?
     var calls: [ToolCall] = []
     var thoughts: [Thought] = []
-    func close() {
+    func close(agentMovedOn: Bool = false) {
         guard let id = first else { return }
+        if agentMovedOn { calls = calls.map { var call = $0; if call.status == .running { call.stop() }; return call } }
         flow.append(.tools(id: id, ToolGroup(calls: calls, thoughts: thoughts), live: false))
         (first, calls, thoughts) = (nil, [], [])
     }
@@ -61,13 +62,13 @@ public func flowItems(_ items: [TranscriptItem], slices: [LaneSection] = [], run
             first = first ?? id
             thoughts.append(Thought(id: "e\(id)", text: text, at: at, before: calls.count))
         case .message(let id, let text):
-            close()
+            close(agentMovedOn: true)
             flow.append(.message(id: id, text: text))
         case .note(let id, let text):
             close()
             flow.append(.note(id: id, text: text))
         case .error(let id, let text):
-            close()
+            close(agentMovedOn: true)
             flow.append(.error(id: id, text: text))
         }
     }

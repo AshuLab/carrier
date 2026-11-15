@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The rows of an open session under its pinned header: the agent's messages, notes and errors as the chat draws them, and each run of its
+/// The rows of an open session under its row: the agent's messages, notes and errors as the chat draws them, and each run of its
 /// calls as the chat's work card (`ChatToolGroupView`), so the epic and a session read the same. They are the content of a `Section` of the
 /// Agent output tab's lazy stack, so only the rows on screen are built. `flipped` is what the person opened or folded, by id, for every card
 /// of the tab (the lazy stack recreates rows, so a row does not keep it itself).
@@ -49,6 +49,7 @@ struct FlowItemView: View {
     @Binding var flipped: Set<String>
     @Binding var slices: SliceFolds
     @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
+    @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
 
     var body: some View {
         switch flow {
@@ -70,7 +71,7 @@ struct FlowItemView: View {
         case .skill(_, let call):
             SkillRowView(call: call).padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
         case .tools(let id, let group, let live):
-            ChatToolGroupView(id: "t\(id)", group: group, live: live, startsOpen: mode == .expanded, flipped: $flipped)
+            ChatToolGroupView(id: "t\(id)", group: group, live: live, startsOpen: mode == .expanded || (opensFailed && group.failed > 0), flipped: $flipped)
                 .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
         case .slice(let lane):
             SliceCardView(lane: lane, flipped: $flipped, slices: $slices)
@@ -639,53 +640,4 @@ struct DiffView: View {
         case .hunk: ConsoleColor.text.opacity(0.55)
         }
     }
-}
-
-// MARK: - The thread of a slice or a group
-
-private struct RuleReachKey: EnvironmentKey { static let defaultValue: CGFloat = 0 }
-
-extension EnvironmentValues {
-    /// How far a row's hover fill runs left of the row, to meet the rule of the thread it hangs from.
-    fileprivate var ruleReach: CGFloat {
-        get { self[RuleReachKey.self] }
-        set { self[RuleReachKey.self] = newValue }
-    }
-}
-
-private struct RowHover: ViewModifier {
-    let active: Bool
-    @Environment(\.ruleReach) private var reach
-
-    func body(content: Content) -> some View {
-        content.background { Rectangle().fill(Color.primary.opacity(active ? 0.05 : 0)).padding(.leading, -reach) }
-    }
-}
-
-private struct ThreadRule: ViewModifier {
-    let indent: CGFloat
-    let rule: CGFloat
-    let tint: Color
-    @State private var hovered = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func body(content: Content) -> some View {
-        content
-            .padding(.leading, indent)
-            .environment(\.ruleReach, indent - rule - LogMetrics.ruleWidth / 2)
-            .overlay(alignment: .leading) {
-                Capsule().fill(hovered ? tint.opacity(0.7) : Color.secondary.opacity(0.25)).frame(width: LogMetrics.ruleWidth)
-                    .padding(.leading, rule - LogMetrics.ruleWidth / 2)
-            }
-            .onHover { hovered = $0 }
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovered)
-    }
-}
-
-extension View {
-    /// The fill of a hovered row of the log; inside a thread it reaches the rule.
-    func rowHover(_ active: Bool) -> some View { modifier(RowHover(active: active)) }
-
-    /// Hangs the rows `indent` pt in behind a rule at `rule`: rounded, soft, and tinted while any row of the thread is hovered.
-    func thread(indent: CGFloat, rule: CGFloat, tint: Color) -> some View { modifier(ThreadRule(indent: indent, rule: rule, tint: tint)) }
 }

@@ -135,7 +135,7 @@ private struct FindingRowView: View {
         .contentShape(Rectangle())
         .modifier(HoverFillIf(enabled: linked))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel([row.kind == .blocker ? "Blocker" : "Suggestion", row.id, row.text, row.mark?.text].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityLabel([row.kind == .blocker ? "Blocker" : "Suggestion", row.id, row.text, row.mark.map { $0.text + (row.approximate ? " approximately" : "") }].compactMap { $0 }.joined(separator: ", "))
     }
 
     /// Orange for a blocker, grey for a suggestion, green once verified fixed.

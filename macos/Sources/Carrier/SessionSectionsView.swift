@@ -43,7 +43,9 @@ struct SessionSectionsView: View {
                         Color.clear.frame(height: SessionMetrics.toContent)
                         TranscriptRows(content: section.body, flipped: $flipped, slices: $slices)
                         // the reviewer's verification is the foot of its findings card; a stop keeps its own row
-                        let findings = findingsCard(reply, stage: section.stage, round: section.round)
+                        // round numbers restart after a requeue: only the newest session of a round shows what the round found
+                        let latestOfRound = list.sections.last { $0.stage == section.stage && $0.round == section.round }?.id == section.id
+                        let findings = latestOfRound ? findingsCard(reply, stage: section.stage, round: section.round) : nil
                         let merged = findings != nil && section.stage == "review" && section.result?.tone != .stop
                         if let card = findings {
                             FindingsCardView(
@@ -324,48 +326,6 @@ private struct EarlierSessionsRow: View {
         .accessibilityLabel(earlier.label)
         .accessibilityValue(open ? "Open" : "Folded")
         .accessibilityHint(open ? "Folds these sessions" : "Shows these sessions")
-    }
-}
-
-/// A session's counts as pills: tool calls, edits with their lines, test runs, errors; all but the calls only above zero. With no
-/// room for the words it falls back to icon and number, so the row stays one line. (The subagents' rows use it.)
-struct CountPills: View {
-    let counts: SessionCounts
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            row(words: true)
-            row(words: false)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(countsLine(counts))
-    }
-
-    private func row(words: Bool) -> some View {
-        HStack(spacing: 5) {
-            pill("terminal", counts.calls, words ? "call" : nil)
-            if counts.edits > 0 { pill("pencil", counts.edits, words ? "edit" : nil, lines: true) }
-            if counts.tests > 0 { pill("checkmark.circle", counts.tests, words ? "test run" : nil) }
-            if counts.errors > 0 { pill("exclamationmark.triangle", counts.errors, words ? "error" : nil, tint: .red) }
-        }
-    }
-
-    private func pill(_ symbol: String, _ count: Int, _ noun: String?, tint: Color? = nil, lines: Bool = false) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: symbol).font(.scaled(10, weight: .semibold))
-            Text("\(count)").fontWeight(.semibold).foregroundStyle(tint ?? .primary)
-            if let noun { Text(count == 1 ? noun : noun + "s") }
-            if lines {
-                Text("+\(counts.added)").foregroundStyle(.green)
-                Text("−\(counts.removed)").foregroundStyle(.red)
-            }
-        }
-        .font(.caption)
-        .foregroundStyle(tint ?? .secondary)
-        .lineLimit(1)
-        .fixedSize()
-        .padding(.horizontal, 8).padding(.vertical, 2)
-        .background(Capsule().fill((tint ?? .secondary).opacity(tint == nil ? 0.16 : 0.18)))
     }
 }
 

@@ -122,3 +122,16 @@ private func chatGroup(_ events: [ChatEvent]) -> ToolGroup? {
     #expect(flow.map(\.id) == [1, 5, 6])
     #expect(run(flow, at: 0)?.calls.count == 2 && run(flow, at: 1)?.calls.count == 1)
 }
+
+// A call with no end, with the agent having spoken after it, was left behind even while the session runs: it does not spin for ever.
+@Test func aCallTheAgentMovedOnFromIsStoppedEvenWhileTheSessionRuns() {
+    let events = [
+        ExecEvent(id: 1, at: 1, kind: "tool_start", callId: "a", tool: "Bash", arg: "pnpm test"),
+        ExecEvent(id: 2, at: 2, kind: "say", text: "Moving on"),
+        ExecEvent(id: 3, at: 3, kind: "tool_start", callId: "b", tool: "Read", arg: "a.ts"),
+    ]
+    let flow = flowItems(transcriptItems(events), running: true)
+    #expect(run(flow, at: 0)?.calls.first?.status == .stopped)
+    // the call after the message is the one going on
+    #expect(run(flow, at: 1)?.calls.first?.status == .running)
+}

@@ -293,3 +293,13 @@ private func shape(_ pairs: [DiffPair]) -> [String] {
     #expect(shape(splitDiffPairs(rows("@=-+=+"))) == ["@@", "==", "-+", "==", "_+"])
     #expect(splitDiffPairs([]).isEmpty)
 }
+
+@Test(arguments: [(30, 30, 0), (31, 30, 1), (100, 30, 70)])
+func aDiffIsCutAtThirtyRowsAndSaysHowManyAreLeftOut(rows: Int, shown: Int, hidden: Int) {
+    let diff = (0..<rows).map { DiffRow(sign: .added, text: "line \($0)") }
+    let cut = visibleDiffRows(diff, expanded: false)
+    #expect(cut.rows.count == shown && cut.hidden == hidden)
+    // opened, every row
+    #expect(visibleDiffRows(diff, expanded: true).rows.count == rows)
+    #expect(visibleDiffRows(diff, expanded: true).hidden == 0)
+}

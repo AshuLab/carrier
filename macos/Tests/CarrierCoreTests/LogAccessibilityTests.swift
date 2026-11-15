@@ -26,17 +26,3 @@ private func call(_ arg: String = "solve:ship", status: CallStatus = .ok, ms: In
     #expect(callAccessibilityLabel(call(status: .stopped, ms: nil)) == "solve:ship, stopped")
     #expect(callAccessibilityLabel(call(ms: nil)) == "solve:ship, succeeded")
 }
-
-@Test func aSliceRowSaysItsSliceLaneStatePullRequestAndCounts() {
-    var lane = LaneSection(
-        id: "a", startId: 1, title: "The engine reads", sliceTitle: "The engine reads", state: .finished, duration: 1000, startedAt: 0, endedAt: 1000,
-        resumes: 0, timeLabel: nil, counts: SessionCounts(calls: 17), items: [], slice: 246, laneNumber: 1, pullRequest: "PR #250 merged"
-    )
-    #expect(laneAccessibilityLabel(lane, open: false) == "Slice 246, The engine reads, lane 1, finished, pull request 250 merged, 17 tool calls, closed")
-    (lane.slice, lane.laneNumber, lane.pullRequest, lane.state) = (nil, nil, "no PR yet", .failed)
-    lane.counts = SessionCounts(calls: 3, edits: 1, added: 4, removed: 2, errors: 1)
-    #expect(laneAccessibilityLabel(lane, open: true) == "The engine reads, failed, no PR yet, 3 tool calls, 1 edit +4 −2, 1 error, open")
-    // just taken: nothing to count yet
-    (lane.state, lane.counts) = (.running, SessionCounts())
-    #expect(laneAccessibilityLabel(lane, open: false) == "The engine reads, running, no PR yet, closed")
-}

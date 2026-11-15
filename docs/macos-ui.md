@@ -50,7 +50,7 @@ A session of an epic is not a card: it is **a centered row on the window, with n
 
 - **The pipeline** (`PipelineStrip`) is pinned under the toolbar, centred and at most as wide as the chat's message width, the same as the feed under it: a step is its state mark and its name, nothing else, and it never wraps (the connectors shrink first).
 - **The Agent output tab is one column**, as wide as the chat's message width (`appearance.messageWidth`); the header and the tabs stay at the left.
-- **A stop is a `NoticeCard` at the end of that column** (`ResumeCardView`), `edge: true`, orange for what needs a person and red for what failed, with a small Secondary `Resume` button; never pinned.
+- **A needs-human stop is a `NoticeCard` at the end of that column** (`ResumeCardView`), `edge: true`, orange for what needs a person and red for what failed, with a small Secondary `Resume` button; never pinned.
 - **The starting card** (`StartingView`) shows what is known on each step and leaves out what is not.
 
 ## Lines

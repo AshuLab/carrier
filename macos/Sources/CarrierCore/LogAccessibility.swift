@@ -28,16 +28,6 @@ public func callAccessibilityLabel(_ call: ToolCall) -> String {
     return parts.joined(separator: ", ")
 }
 
-/// A slice row: "Slice 246, The engine reads…, lane 1, finished, pull request 250 merged, 17 tool calls, closed".
-public func laneAccessibilityLabel(_ lane: LaneSection, open: Bool) -> String {
-    let name = lane.slice.map { "Slice \($0), \(lane.title)" } ?? lane.title
-    let state = switch lane.state { case .running: "running"; case .finished: "finished"; case .failed: "failed" }
-    return [
-        name, lane.laneNumber.map { "lane \($0)" }, state, lane.pullRequest.replacingOccurrences(of: "PR #", with: "pull request "),
-        lane.isStarting ? nil : countsLine(lane.counts).replacingOccurrences(of: " · ", with: ", "), open ? "open" : "closed",
-    ].compactMap { $0 }.joined(separator: ", ")
-}
-
 /// The closing row of a session: "Completed, CI passed, closed"; "Needs a human" says nothing of open or closed, there is nothing behind it.
 public func resultAccessibilityLabel(_ card: ResultCard, open: Bool) -> String {
     let verdict = card.ci.map { $0.verdict == "passed" ? "CI passed" : $0.verdict == "absent" ? "No CI" : "CI \($0.verdict)" }

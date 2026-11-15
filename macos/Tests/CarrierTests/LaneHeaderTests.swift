@@ -22,7 +22,7 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
 @MainActor @Test func aSliceCardKeepsItsHeightWhateverTheStateOfItsRow() throws {
     let base = try height([lane()])
     #expect(base >= 2 * (18 + 20))
-    for state in [SubagentState.failed] { #expect(try height([lane(state)]) >= base) }
+    #expect(try height([lane(.failed)]) == base)
     var untitled = lane()
     untitled.slice = nil
     #expect(try height([untitled]) == base)

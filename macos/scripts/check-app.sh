@@ -12,6 +12,8 @@ expect SUFeedURL "$(plist SUFeedURL)" "https://github.com/AshuLab/carrier/releas
 expect SUPublicEDKey "$(plist SUPublicEDKey)" "$(cat update-key.pub)"
 expect SUEnableAutomaticChecks "$(plist SUEnableAutomaticChecks)" true
 expect CFBundleShortVersionString "$(plist CFBundleShortVersionString)" 1.2.3
+expect "bundle id of a release" "$(plist CFBundleIdentifier)" dev.ashulab.carrier
+expect "channel of a release" "$(plist CarrierChannel)" release
 expect "CFBundleVersion for 1.2.3" "$(plist CFBundleVersion)" 10203
 [ -n "$(plutil -extract NSMicrophoneUsageDescription raw "$PLIST")" ] || fail "NSMicrophoneUsageDescription is missing or empty"
 otool -l Carrier.app/Contents/MacOS/Carrier | grep -A2 LC_RPATH | grep -q "path @executable_path/../Frameworks " || fail "no rpath @executable_path/../Frameworks"
@@ -38,6 +40,9 @@ expect "CFBundleVersion for 0.1.4" "$(plist CFBundleVersion)" 104
 ./build-app.sh >/dev/null
 expect "CFBundleVersion for no version" "$(plist CFBundleVersion)" 1
 expect "CFBundleShortVersionString for no version" "$(plist CFBundleShortVersionString)" 0.1.0
+expect "bundle id of a dev build" "$(plist CFBundleIdentifier)" dev.ashulab.carrier.dev
+expect "channel of a dev build" "$(plist CarrierChannel)" dev
+plist SUFeedURL >/dev/null 2>&1 && fail "a dev build has SUFeedURL, so its updater would start"
 
 for v in 1.100.0 1.0.100; do
   if OUT="$(./build-app.sh "$v" 2>&1)"; then fail "build-app.sh accepted $v"; fi

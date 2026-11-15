@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         IconController.install(on: item)
+        if isDevBuild { NSApp.dockTile.badgeLabel = "DEV" }
 
         UserDefaults.standard.register(defaults: [showEpicsKey: true])
         let menu = NSMenu()
@@ -324,3 +325,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 }
+
+/// Set by build-app.sh when no version is given: this is a development build, not the installed Carrier.
+let isDevBuild = Bundle.main.object(forInfoDictionaryKey: "CarrierChannel") as? String == "dev"

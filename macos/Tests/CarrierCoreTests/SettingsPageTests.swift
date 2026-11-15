@@ -3,7 +3,8 @@ import Testing
 
 @Test func theAppGroupHasNoHeadingAndHoldsWhatIsSharedAndWhatIsOfTheMac() {
     #expect(SettingsPage.Group.app.heading == nil)
-    #expect(SettingsPage.pages(in: .app) == [.general, .providers, .notifications, .appearance, .keybindings, .updates])
+    #expect(SettingsPage.pages(in: .app) == [.general, .providers, .notifications, .appearance, .terminal, .keybindings, .updates])
+    #expect(SettingsPage.terminal.icon == "terminal" && SettingsPage.terminal.detail == "Theme, font, cursor, padding and shell behavior")
 }
 
 @Test func theChatGroupHasItsHeadingAndHoldsChatSidebarSessionsAndDictation() {

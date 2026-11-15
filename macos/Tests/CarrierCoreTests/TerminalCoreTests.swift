@@ -598,4 +598,76 @@ struct TerminalCoreTests {
         #expect(restored.tabs(for: epic42).isEmpty)
         #expect(restored.standaloneTerminals().map(\.id) == [standaloneId])
     }
+
+    @Test func terminalSettingsPageResetAndPickerOptionsPreserveAndRestoreSafely() throws {
+        let suiteName = "com.ashulab.carrier.tests.terminal-settings.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let prefs = AppPreferences(defaults: defaults)
+        prefs.theme = .ocean
+        let custom = TerminalSettings(
+            themeOverride: .midnight,
+            fontFamilyOverride: "RemovedCustomFont",
+            fontSizeOverride: 17,
+            fontLigaturesOverride: false,
+            fontThicken: true,
+            cursorStyle: .underline,
+            cursorBlink: false,
+            paddingX: 16,
+            paddingY: 12,
+            minimumContrast: 4.5,
+            dimInactivePanes: true,
+            focusFollowsMouse: true,
+            optionAsAlt: .right,
+            copyOnSelect: true,
+            scrollbackLimit: .mb100,
+            confirmCloseRunningProcess: false,
+            pinPromptToBottom: false
+        )
+        prefs.terminal = custom
+        #expect(prefs.terminal == custom)
+
+        #expect(
+            TerminalOptionAsAlt.allCases.map(\.title) == ["Off", "Left Option", "Right Option", "Both"]
+        )
+        #expect(
+            TerminalScrollbackLimit.allCases.map(\.title) == ["1 MB", "10 MB", "50 MB", "100 MB"]
+        )
+        #expect(
+            TerminalSettings.availableFontFamilies(
+                installed: ["JetBrains Mono", "Menlo"],
+                currentOverride: prefs.terminal.fontFamilyOverride
+            ) == ["RemovedCustomFont", "JetBrains Mono", "Menlo"]
+        )
+        #expect(
+            TerminalSettings.availableFontFamilies(
+                installed: ["JetBrains Mono", "Menlo"],
+                currentOverride: "Menlo"
+            ) == ["JetBrains Mono", "Menlo"]
+        )
+        #expect(TerminalSettings.availableFontSizes(currentOverride: prefs.terminal.fontSizeOverride) == Array(9...24))
+        #expect(TerminalSettings.minimumContrastLabel(1.0) == "Off · 1.0 : 1")
+        #expect(TerminalSettings.minimumContrastLabel(4.5) == "4.5 : 1")
+
+        prefs.reset(.terminal)
+        #expect(prefs.terminal == TerminalSettings())
+        #expect(prefs.theme == .ocean)
+
+        let lowContrastProfile = TerminalAppearanceProfile(
+            theme: .carrier,
+            scheme: .dark,
+            terminalSettings: TerminalSettings(minimumContrast: 1.0)
+        )
+        let dim = lowContrastProfile.palette[8]
+        #expect(lowContrastProfile.adjustedForMinimumContrast(dim) == dim)
+
+        let strictProfile = TerminalAppearanceProfile(
+            theme: .carrier,
+            scheme: .dark,
+            terminalSettings: TerminalSettings(minimumContrast: 7.0)
+        )
+        let boosted = strictProfile.adjustedForMinimumContrast(dim)
+        #expect(boosted.contrastRatio(with: strictProfile.background) >= 7.0)
+    }
 }

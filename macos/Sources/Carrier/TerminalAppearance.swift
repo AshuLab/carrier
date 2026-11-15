@@ -51,7 +51,11 @@ enum TerminalAppearanceMapper {
             if let fontFamily = profile.fontFamily {
                 builder.withFontFamily(fontFamily)
             }
+            builder.withFontThicken(profile.fontThicken)
             builder.withCustom("font-feature", profile.ligatures ? "calt,liga" : "-calt,-liga,-dlig")
+            builder.withCustom("macos-option-as-alt", profile.optionAsAlt.rawValue)
+            builder.withCustom("copy-on-select", profile.copyOnSelect ? "clipboard" : "false")
+            builder.withCustom("scrollback-limit", "\(profile.scrollbackLimit.rawValue)")
         }
     }
 

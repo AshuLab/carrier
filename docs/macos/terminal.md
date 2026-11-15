@@ -25,6 +25,8 @@ The embedded terminal follows the app's active `Theme`, Light/Dark scheme, `Acce
 Each of the 9 themes (`carrier`, `graphite`, `ocean`, `forest`, `sunset`, `paper`, `rose`, `lavender`, `midnight`) provides a curated 16-color ANSI palette in both light and dark modes alongside high-contrast foreground, `boldColor`, accent-tinted selection colors, `cursorColor` and `cursorText`.
 When the active theme is `carrier` and **Translucent windows** is active (with system Reduce Transparency off), the Ghostty surface uses `backgroundOpacity = 0` over the window's translucent frosted background and draws `TerminalDrawerView` over a `.regularMaterial` backdrop tinted with `chromeBackground`.
 Opaque themes paint the theme's exact tinted window color (`background`) inside both the surface and chrome without double-tinting the tab bar, and `CarrierTerminalStore` live-reloads changes to `UserDefaults`, system appearance and `NSWorkspace.accessibilityDisplayOptionsDidChangeNotification`.
+Every terminal preference (`themeOverride`, typography overrides and font thickening, cursor style and blink, padding, minimum contrast, inactive-pane dimming, hover-to-focus splits, Option-as-Alt mapping, copy on select, scrollback limit, bottom Zsh prompt pinning and running-process close confirmation) is editable in **Settings › Terminal** (`Carrier/TerminalTabView.swift`) and applies immediately across open panes.
+When a tab is split, `TerminalPaneHostView` dims unfocused panes when `dimInactivePanes` is enabled and moves active Ghostty focus under the pointer when `focusFollowsMouse` is enabled.
 
 ## Session terminal drawer
 

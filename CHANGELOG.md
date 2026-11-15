@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Standalone terminals in the sidebar and overview: each terminal has its own tabs and split panes, a bottom tab bar, a full-height surface extending behind the translucent top header and a collapsible terminal drawer inside chat sessions.
 - Middle-click closes terminal tabs and standalone terminal rows in the sidebar and overview.
 - Interactive Zsh terminals anchor the prompt to the bottom of the viewport and preserve that position on `Cmd+K` clear.
+- Added a Terminal page in Settings to configure a terminal theme override, minimum contrast, horizontal/vertical padding, typography overrides and font thickening, cursor style and blink, inactive-pane dimming, focus-follows-mouse splits, Option-as-Alt mapping, copy on select, scrollback limit, Zsh bottom-prompt pinning, and running-command close confirmation with a live preview.
 
 ### Changed
 

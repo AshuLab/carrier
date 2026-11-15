@@ -47,7 +47,41 @@ public enum TerminalCursorStyleChoice: String, CaseIterable, Codable, Sendable {
     public var title: String { rawValue.capitalized }
 }
 
-/// Terminal-specific preferences stored alongside Carrier appearance settings for future Settings -> Terminal controls.
+/// How macOS Option keys map to Alt/Meta inside Ghostty.
+public enum TerminalOptionAsAlt: String, CaseIterable, Codable, Sendable {
+    case off = "false"
+    case left = "left"
+    case right = "right"
+    case both = "true"
+
+    public var title: String {
+        switch self {
+        case .off: "Off"
+        case .left: "Left Option"
+        case .right: "Right Option"
+        case .both: "Both"
+        }
+    }
+}
+
+/// Scrollback history limit passed to Ghostty (`scrollback-limit`, in bytes).
+public enum TerminalScrollbackLimit: Int, CaseIterable, Codable, Sendable {
+    case mb1 = 1_000_000
+    case mb10 = 10_000_000
+    case mb50 = 50_000_000
+    case mb100 = 100_000_000
+
+    public var title: String {
+        switch self {
+        case .mb1: "1 MB"
+        case .mb10: "10 MB"
+        case .mb50: "50 MB"
+        case .mb100: "100 MB"
+        }
+    }
+}
+
+/// Terminal-specific preferences stored alongside Carrier appearance settings for Settings -> Terminal controls.
 public struct TerminalSettings: Equatable, Codable, Sendable {
     public static let fontSizeRange: ClosedRange<Double> = 9...24
     public static let paddingRange: ClosedRange<Double> = 0...32
@@ -60,6 +94,12 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
     public static let defaultMinimumContrast: Double = 3.0
     public static let defaultConfirmCloseRunningProcess = true
     public static let defaultPinPromptToBottom = true
+    public static let defaultFontThicken = false
+    public static let defaultDimInactivePanes = false
+    public static let defaultFocusFollowsMouse = false
+    public static let defaultOptionAsAlt: TerminalOptionAsAlt = .off
+    public static let defaultCopyOnSelect = false
+    public static let defaultScrollbackLimit: TerminalScrollbackLimit = .mb10
 
     /// Explicit theme override; `nil` follows Carrier's global app theme.
     public var themeOverride: Theme?
@@ -69,11 +109,17 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
     public var fontSizeOverride: Double?
     /// Explicit ligature override; `nil` follows Carrier's monospace ligatures setting.
     public var fontLigaturesOverride: Bool?
+    public var fontThicken: Bool
     public var cursorStyle: TerminalCursorStyleChoice
     public var cursorBlink: Bool
     public var paddingX: Double
     public var paddingY: Double
     public var minimumContrast: Double
+    public var dimInactivePanes: Bool
+    public var focusFollowsMouse: Bool
+    public var optionAsAlt: TerminalOptionAsAlt
+    public var copyOnSelect: Bool
+    public var scrollbackLimit: TerminalScrollbackLimit
     public var confirmCloseRunningProcess: Bool
     /// Anchors new interactive Zsh prompts at the bottom row of the viewport (Warp-style) without touching user dotfiles.
     public var pinPromptToBottom: Bool
@@ -83,11 +129,17 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
         fontFamilyOverride: String? = nil,
         fontSizeOverride: Double? = nil,
         fontLigaturesOverride: Bool? = nil,
+        fontThicken: Bool = Self.defaultFontThicken,
         cursorStyle: TerminalCursorStyleChoice = Self.defaultCursorStyle,
         cursorBlink: Bool = Self.defaultCursorBlink,
         paddingX: Double = Self.defaultPaddingX,
         paddingY: Double = Self.defaultPaddingY,
         minimumContrast: Double = Self.defaultMinimumContrast,
+        dimInactivePanes: Bool = Self.defaultDimInactivePanes,
+        focusFollowsMouse: Bool = Self.defaultFocusFollowsMouse,
+        optionAsAlt: TerminalOptionAsAlt = Self.defaultOptionAsAlt,
+        copyOnSelect: Bool = Self.defaultCopyOnSelect,
+        scrollbackLimit: TerminalScrollbackLimit = Self.defaultScrollbackLimit,
         confirmCloseRunningProcess: Bool = Self.defaultConfirmCloseRunningProcess,
         pinPromptToBottom: Bool = Self.defaultPinPromptToBottom
     ) {
@@ -95,11 +147,17 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
         self.fontFamilyOverride = Self.cleanFontFamily(fontFamilyOverride)
         self.fontSizeOverride = fontSizeOverride.map(Self.clampFontSize)
         self.fontLigaturesOverride = fontLigaturesOverride
+        self.fontThicken = fontThicken
         self.cursorStyle = cursorStyle
         self.cursorBlink = cursorBlink
         self.paddingX = Self.clampPadding(paddingX)
         self.paddingY = Self.clampPadding(paddingY)
         self.minimumContrast = Self.clampMinimumContrast(minimumContrast)
+        self.dimInactivePanes = dimInactivePanes
+        self.focusFollowsMouse = focusFollowsMouse
+        self.optionAsAlt = optionAsAlt
+        self.copyOnSelect = copyOnSelect
+        self.scrollbackLimit = scrollbackLimit
         self.confirmCloseRunningProcess = confirmCloseRunningProcess
         self.pinPromptToBottom = pinPromptToBottom
     }
@@ -146,6 +204,37 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
     public func effectiveLigatures(appMonospace: MonospaceSettings) -> Bool {
         fontLigaturesOverride ?? appMonospace.ligatures
     }
+
+    /// Installed font families plus any saved custom override so Settings never drops or hides an existing choice.
+    public static func availableFontFamilies(installed: [String], currentOverride: String?) -> [String] {
+        guard let current = cleanFontFamily(currentOverride),
+              installed.contains(current) == false
+        else {
+            return installed
+        }
+        return [current] + installed
+    }
+
+    /// Integer point sizes across `fontSizeRange`, retaining any rounded stored override within bounds.
+    public static func availableFontSizes(currentOverride: Double?) -> [Int] {
+        var sizes = Array(Int(fontSizeRange.lowerBound)...Int(fontSizeRange.upperBound))
+        if let currentOverride, currentOverride.isFinite {
+            let rounded = Int(clampFontSize(currentOverride).rounded())
+            if sizes.contains(rounded) == false {
+                sizes.append(rounded)
+                sizes.sort()
+            }
+        }
+        return sizes
+    }
+
+    public static func minimumContrastLabel(_ value: Double) -> String {
+        let clamped = clampMinimumContrast(value)
+        if clamped <= minimumContrastRange.lowerBound + 0.001 {
+            return "Off · 1.0 : 1"
+        }
+        return String(format: "%.1f : 1", clamped)
+    }
 }
 
 /// Complete high-contrast appearance & typography profile fed into Ghostty's `TerminalConfiguration`.
@@ -172,11 +261,17 @@ public struct TerminalAppearanceProfile: Equatable, Sendable {
     public let fontFamily: String?
     public let fontSize: Double
     public let ligatures: Bool
+    public let fontThicken: Bool
     public let cursorStyle: TerminalCursorStyleChoice
     public let cursorBlink: Bool
     public let paddingX: Double
     public let paddingY: Double
     public let minimumContrast: Double
+    public let dimInactivePanes: Bool
+    public let focusFollowsMouse: Bool
+    public let optionAsAlt: TerminalOptionAsAlt
+    public let copyOnSelect: Bool
+    public let scrollbackLimit: TerminalScrollbackLimit
 
     public init(
         theme: Theme,
@@ -256,11 +351,34 @@ public struct TerminalAppearanceProfile: Equatable, Sendable {
         self.fontFamily = terminalSettings.effectiveFontFamily(appMonospace: monospace)
         self.fontSize = terminalSettings.effectiveFontSize(appMonospace: monospace)
         self.ligatures = terminalSettings.effectiveLigatures(appMonospace: monospace)
+        self.fontThicken = terminalSettings.fontThicken
         self.cursorStyle = terminalSettings.cursorStyle
         self.cursorBlink = terminalSettings.cursorBlink
         self.paddingX = terminalSettings.paddingX
         self.paddingY = terminalSettings.paddingY
         self.minimumContrast = terminalSettings.minimumContrast
+        self.dimInactivePanes = terminalSettings.dimInactivePanes
+        self.focusFollowsMouse = terminalSettings.focusFollowsMouse
+        self.optionAsAlt = terminalSettings.optionAsAlt
+        self.copyOnSelect = terminalSettings.copyOnSelect
+        self.scrollbackLimit = terminalSettings.scrollbackLimit
+    }
+
+    /// Adjusts a terminal foreground color toward `foreground` until it meets `minimumContrast` against `background`.
+    public func adjustedForMinimumContrast(_ color: RGBA) -> RGBA {
+        guard minimumContrast > 1.0 else { return color }
+        if color.contrastRatio(with: background) >= minimumContrast {
+            return color
+        }
+        var adjusted = color
+        for step in 1...20 {
+            let candidate = color.blended(toward: foreground, fraction: Double(step) * 0.05)
+            adjusted = candidate
+            if candidate.contrastRatio(with: background) >= minimumContrast {
+                break
+            }
+        }
+        return adjusted
     }
 }
 

@@ -175,23 +175,45 @@ private struct TerminalPaneHostView: View {
         let pane = tab.panes[paneId]
         let isSplit = tab.panes.count > 1
         let isZoomed = tab.zoomedPaneId == paneId
+        let isInactiveSplitPane = isSplit && isZoomed == false && tab.activePaneId != paneId
+        let shouldDimInactivePane = store.appearanceProfile.dimInactivePanes && isInactiveSplitPane
         let showControls = topAreaHovered || controlsHovered || draggedPaneId == paneId
 
         CarrierTerminalView(
             store: store,
             paneId: paneId,
-            autoFocus: autoFocus && tab.activePaneId == paneId
+            autoFocus: autoFocus && tab.activePaneId == paneId,
+            isActivePane: tab.activePaneId == paneId,
+            focusWhenActivated: store.appearanceProfile.focusFollowsMouse && isSplit
         ) { focused in
             if focused { store.selectPane(paneId) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        .overlay {
+            if shouldDimInactivePane {
+                Rectangle()
+                    .fill(Color(store.appearanceProfile.background).opacity(0.32))
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(.easeOut(duration: 0.14), value: shouldDimInactivePane)
         .onContinuousHover(coordinateSpace: .local) { phase in
             switch phase {
             case .active(let location):
-                topAreaHovered = NSEvent.pressedMouseButtons == 0
+                let buttonsFree = NSEvent.pressedMouseButtons == 0
+                topAreaHovered = buttonsFree
                     && location.y >= 0
                     && location.y <= Self.hoverRevealHeight + topControlsInset
+                if store.appearanceProfile.focusFollowsMouse,
+                   isSplit,
+                   buttonsFree,
+                   draggedPaneId == nil,
+                   tab.activePaneId != paneId,
+                   NSApp?.keyWindow != nil,
+                   NSApp?.keyWindow?.attachedSheet == nil {
+                    store.selectPane(paneId)
+                }
             case .ended:
                 topAreaHovered = false
             }

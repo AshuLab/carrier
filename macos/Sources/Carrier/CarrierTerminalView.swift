@@ -7,6 +7,8 @@ struct CarrierTerminalView: View {
     let store: CarrierTerminalStore
     let paneId: UUID
     var autoFocus: Bool = false
+    var isActivePane: Bool = false
+    var focusWhenActivated: Bool = false
     var onFocusChange: ((Bool) -> Void)? = nil
 
     var body: some View {
@@ -17,6 +19,8 @@ struct CarrierTerminalView: View {
                 paneId: paneId,
                 state: state,
                 autoFocus: autoFocus,
+                isActivePane: isActivePane,
+                focusWhenActivated: focusWhenActivated,
                 accessibilityLabel: label,
                 onFocusChange: onFocusChange
             )
@@ -32,6 +36,8 @@ private struct MountedTerminalSurface: View {
     let paneId: UUID
     let state: TerminalViewState
     let autoFocus: Bool
+    let isActivePane: Bool
+    let focusWhenActivated: Bool
     let accessibilityLabel: String
     let onFocusChange: ((Bool) -> Void)?
     @FocusState private var focused: Bool
@@ -44,6 +50,12 @@ private struct MountedTerminalSurface: View {
             .accessibilityLabel(accessibilityLabel)
             .onChange(of: focused) { _, isFocused in
                 onFocusChange?(isFocused)
+            }
+            .onChange(of: isActivePane) { _, active in
+                if active && focusWhenActivated {
+                    focused = true
+                    store.focus(paneId: paneId)
+                }
             }
             .onAppear {
                 if visibilityToken == nil {

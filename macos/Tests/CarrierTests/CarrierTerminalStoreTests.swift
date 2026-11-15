@@ -318,12 +318,21 @@ struct CarrierTerminalStoreTests {
         terminal.fontFamilyOverride = "Menlo"
         terminal.fontSizeOverride = 15
         terminal.fontLigaturesOverride = false
+        terminal.fontThicken = true
+        terminal.dimInactivePanes = true
+        terminal.focusFollowsMouse = true
+        terminal.optionAsAlt = .left
+        terminal.copyOnSelect = true
+        terminal.scrollbackLimit = .mb50
         prefs.terminal = terminal
 
         store.syncAppearance(preferences: prefs, scheme: .light)
         let rendered = store.controller.renderedConfig
+        #expect(store.controller.lastConfigurationIssue == nil)
         #expect(store.appearanceProfile.theme == .forest)
         #expect(store.appearanceProfile.scheme == .light)
+        #expect(store.appearanceProfile.dimInactivePanes == true)
+        #expect(store.appearanceProfile.focusFollowsMouse == true)
         #expect(rendered.contains("cursor-style = bar"))
         #expect(rendered.contains("cursor-style-blink = false"))
         #expect(rendered.contains("window-padding-x = 14"))
@@ -331,6 +340,10 @@ struct CarrierTerminalStoreTests {
         #expect(rendered.contains("minimum-contrast = 4.5"))
         #expect(rendered.contains("font-family = Menlo"))
         #expect(rendered.contains("font-size = 15"))
+        #expect(rendered.contains("font-thicken = true"))
+        #expect(rendered.contains("macos-option-as-alt = left"))
+        #expect(rendered.contains("copy-on-select = clipboard"))
+        #expect(rendered.contains("scrollback-limit = 50000000"))
         #expect(rendered.contains("bold-color = #"))
         #expect(rendered.contains("cursor-text = #"))
         #expect(rendered.contains("palette = 0=#"))

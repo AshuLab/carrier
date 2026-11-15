@@ -2,6 +2,10 @@
 
 How the pieces of `Carrier.app` are drawn, so that a new screen or a change reuses what is there and looks like the rest. It was written down while polishing Settings (Providers and Repos first); the pieces live in `macos/Sources/Carrier`. **Before adding a button, a field, a select, a row or a line, look here, then at the file named, and reuse it. Do not draw a new one, and do not use the system's plain control where a piece below exists.** When a piece is missing, add it next to the others and add it here.
 
+**What belongs here**: how to use the pieces and the rules that keep the app looking like one product (sizes, colours, which piece for which job, what not to do, mistakes already made).
+What does not: what a screen shows and why (that is [`docs/macos/`](macos/app-shell.md)), where the code lives and what is tested (that is [`macos/AGENTS.md`](../macos/AGENTS.md)), and what changed (that is the CHANGELOG and the PR).
+When a rule needs a reason to not be broken again, give it one sentence under it.
+
 Nothing here is checked by a test: a view is looked at in the app (`macos/build-app.sh --open`, see [the app's README](../macos/README.md#build-and-open)), not only compiled.
 
 ## The page
@@ -26,32 +30,31 @@ Spacing: **14 between blocks, 4 inside a block** (a name and its version), 12 be
 
 ## Cards in the feed
 
-One shell for every card that is "a line on top and rows under it": **`.workCard()`** (`WorkCard.swift`), a `primary` fill at 4.5 % under glass, rounded 12. A session's tool group, a markdown table, the epic's slices and review findings, and the closing and Continue in Terminal lines wear it, so the look is changed there once; never write the fill and the glass out again, and do not draw a second tool card for the epic: its Agent output uses the chat's views (`ChatToolGroupView`, `MarkdownView`, `BannerView`) and only adapts its events (`flowItems`).
+One shell for every card that is "a line on top and rows under it": **`.workCard()`** (`WorkCard.swift`), a `primary` fill at 4.5 % under glass, rounded 12.
+The tool group of a session, a markdown table, a slice, a review's findings and a closing line wear it, so the look is changed there once; never write the fill and the glass out again.
+Work the agent did (calls, thoughts, messages, an error) is drawn with the chat's views (`ChatToolGroupView`, `MarkdownView`, `BannerView`) wherever it shows; do not draw a second tool card.
 
 - **The line on top is 30 pt**: a 16 pt lead (`Disc`: green tick, orange or red "!", a turning ring, a hollow ring), a bold title, a quiet summary (12.5 pt, `secondary`), what is at the right that never moves (a time in `tertiary`, a `PullRequestChip`) and a `CardChevron` (9 pt, right when folded, 90° when open).
-- **Rows hang under the line** behind a `SettingsDivider`, edge to edge. A row that opens or links takes a 4 % fill under the pointer, and the whole row is the click: no lone small icon is the only target. An arrow that says "this opens GitHub" shows under the pointer.
-- **Say a kind in a word, not in a dot** (`BLOCKER`, `SUGGESTION`); a colour alone is not read by everyone.
-- **A card that holds what only a reviewer says folds what is not its point**: an approval's suggestions wait behind one line.
-- **One thing, one card.** What a card's rows were checked by (the reviewer's verification) is its foot, not a second row under it.
-- **Open and fold with `flipCard`** (smooth, none with Reduce Motion). A session's own fold has no animation.
+- **Rows hang under the line** behind a `SettingsDivider`, edge to edge.
+- **A row that opens or links is one click target as a whole**: a 4 % fill under the pointer, and no lone small icon as the only way in.
+  A `Button` or a `Link`, never only `.onTapGesture`: a tap gesture is not reachable with the keyboard.
+- **An arrow that says "this opens GitHub" shows under the pointer**, not all the time.
+- **Say a kind in a word, not in a dot** (`BLOCKER`, `SUGGESTION`): a colour alone is not read by everyone.
+- **Open and fold a card with `flipCard`**: smooth, and none with Reduce Motion.
+- **One thing, one card**: what a card's rows were checked by is its foot (a line under a divider), not a second card under it.
 
-## The session row of the Agent output
+## Rows of a feed
 
-A session of an epic is not a card: it is **a centered row on the window, with nothing behind it** (`SessionSectionsView.swift`). Do not put a background, a tint or a border behind it or its content, and do not draw a second kind of session header.
+A feed that is a column of the window (the Agent output of an epic) is not made of boxes.
 
-- **Every row has the size of an open one**, open or folded: the 34 pt avatar, 14 pt identity, 11.5 pt second line. Only what the summary says changes.
-- **A one-point hairline fades out on each side** of the identity (`Hairline`); the pointer over the row brightens it and the chevron (`FoldChevron`, 22 pt, round).
-- **The whole row is the fold button**: the click is a `contentShape` over the row, the gap above is not clickable. Its `accessibilityLabel` is `sessionRowLabel` and its hint says what a click does.
-- **Gaps are the scale `SessionMetrics`**, nothing else: 76 pt between sessions, open or folded, with `SessionFlowArrow` centered in the gap, and 16 pt from the row to its content. Each row carries its own gap above it, so the lazy stack stays flat (a nested stack would build every row of a long session at once).
-- **No header stays pinned**: with no background the rows would scroll under its text.
-- **The epic's toolbar links** are `ToolbarPillButton`s on one glass capsule, the size of Search and Filter; the item hides the toolbar's own glass (`sharedBackgroundVisibility(.hidden)`).
-
-## The epic view
-
-- **The pipeline** (`PipelineStrip`) is pinned under the toolbar, centred and at most as wide as the chat's message width, the same as the feed under it: a step is its state mark and its name, nothing else, and it never wraps (the connectors shrink first).
-- **The Agent output tab is one column**, as wide as the chat's message width (`appearance.messageWidth`); the header and the tabs stay at the left.
-- **A needs-human stop is a `NoticeCard` at the end of that column** (`ResumeCardView`), `edge: true`, orange for what needs a person and red for what failed, with a small Secondary `Resume` button; never pinned.
-- **The starting card** (`StartingView`) shows what is known on each step and leaves out what is not.
+- **A header that folds what is under it is a centred row on the window with nothing behind it**: no background, tint or border, a one-point hairline that fades out on each side, and the whole row is the button (a `contentShape` over the row, with an `accessibilityLabel` and a hint that say what a click does).
+  Do not draw a second kind of header for the same thing.
+- **A row is the same size open or folded**; only its words change.
+- **Gaps are a scale, nothing else** (`SessionMetrics`): each row carries its own gap above it, so the lazy stack stays flat (a nested stack would build every row of a long session at once).
+- **Nothing is pinned over a feed that has no background**: the rows would scroll under its text.
+- **The column is as wide as the chat's message width** (`appearance.messageWidth`), never a fixed one.
+- **What ends a feed (a stop that needs a person) is a `NoticeCard` as its last element**, never pinned: `edge: true`, orange for what needs a person and red for what failed.
+- **Links in a toolbar are `ToolbarPillButton`s on one glass capsule**; the item hides the toolbar's own glass (`sharedBackgroundVisibility(.hidden)`).
 
 ## Lines
 
@@ -132,4 +135,5 @@ A page that writes `config.json` or `providers.json` does not wait for Carrier: 
 - `frame` before `padding` and `background` lets a `TextEditor` spill over the row above it. Size last.
 - A page-wide `.buttonStyle(…)` reaches inside menus and forms; a control that must differ sets its own style.
 - A `contentShape` row with a gesture and a button inside is fine; two gestures on the same view are not.
+- A row that opens on `.onTapGesture` alone is invisible to the keyboard and to Full Keyboard Access: make it a `Button` (`.buttonStyle(.plain)`).
 - The window's size does not matter to a build that only compiles. **Open the app and look** at the state with a long value, a missing value, an error and the empty state.

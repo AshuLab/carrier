@@ -27,7 +27,7 @@ What the person sees: [the app shell](../docs/macos/app-shell.md#resume-card).
 
 The words and the request are tested; the sheet, the "Resuming…" state and the layout have no automated test.
 
-### Slices and findings cards
+### The epic's Agent output
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#slices-and-findings-in-an-epics-log).
 

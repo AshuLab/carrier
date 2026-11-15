@@ -46,6 +46,11 @@ The pipeline above does not say why a step stopped; the notice does.
 It has a Resume button only when the engine's hello lists `resumeEpic` (`EpicStore.canResume`, read from the connection the epic poller uses); against any other engine the card shows the reason and the words with no button.
 Resume opens a sheet saying what will happen; confirming sends `resumeEpic` with the epic's repository and number on a connection of its own (the engine answers when the epic has started, up to 30 seconds), the button reads "Resuming…" until then and until the snapshot shows the epic out of needs-human, or stopped again after the answer (kept in `EpicStore.resuming`, so selecting another epic and coming back does not lose it), and a refusal (`unknown epic`, `not stopped`, `github unavailable`, `did not restart`) is shown in words, in orange, under the notice's line.
 
+## The pipeline
+
+The strip under the toolbar of an epic shows the steps of its pipeline, each as its state mark and its name, centred and as wide as the feed.
+It does not say why a step stopped: for a needs-human stop the notice at the end of the Agent output does (see the resume card above).
+
 ## Starting
 
 A running epic in its ship stage whose Agent output tab has no sessions yet (`isStarting`) shows `StartingView`: a card with three steps, Epic queued, Preparing the workspace (Workspace ready once the engine reports a worktree) and First agent starts (`startingSteps`, `CarrierCore/StartingSteps.swift`).
@@ -65,7 +70,7 @@ How they are drawn is in [the look of the app](../macos-ui.md#cards-in-the-feed)
 
 ## Agent output
 
-An epic's Agent output tab lists its sessions oldest first, the newest last, as centered rows with no card (how they are drawn is in [the UI guide](../macos-ui.md#the-session-row-of-the-agent-output); the words are `sessionRowText`, `sessionSummary` and `earlierSessions` in `CarrierCore/SessionSections.swift`).
+An epic's Agent output tab lists its sessions oldest first, the newest last, as centered rows with no card (how they are drawn is in [the UI guide](../macos-ui.md#rows-of-a-feed); the words are `sessionRowText`, `sessionSummary` and `earlierSessions` in `CarrierCore/SessionSections.swift`).
 A row says who acted (the GitHub profile, an Agent Forge bot, or the tool's name when none is known), the role and place ("Builder · Ship", "Reviewer · Round 2"), and on a second line the tool, the account, the model and the effort that are known.
 The engine's `sessions` reply gives the key of `profiles` the session acted as (`profile`), and the app reads `config.json` when the tab opens to say whose account that is: a `forge` profile is named by its Agent Forge bot, a `gh` profile has no name in the file, so such a session shows the tool's name, and a key the file does not have stays as sent.
 An engine that sends no key (an epic frozen before it was kept) gets the bot of `agents.author` (builder and fixer) or `agents.reviewer`, and the role's `effort` when the session ran on the role's model.

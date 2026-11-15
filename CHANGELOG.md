@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-15
+
+Carrier gets embedded terminals with their own Settings page, a redesigned epic view, and an update pill in the sidebar in place of Sparkle's window.
+
 ### Added
 
 - Embedded Ghostty terminals in the sidebar, overview, and session drawer with bottom tabs, split panes, middle-click close, menu commands, and **Settings › Terminal** options (including opt-in bottom-anchored Zsh prompts).
@@ -196,7 +200,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/AshuLab/carrier/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/AshuLab/carrier/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/AshuLab/carrier/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/AshuLab/carrier/compare/v0.2.0...v0.3.0

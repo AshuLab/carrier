@@ -82,26 +82,7 @@ struct ArchiveView: View {
     }
 
     @ViewBuilder private var searchHalf: some View {
-        if let text = Binding($query) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").font(.scaled(11, weight: .medium)).foregroundStyle(.secondary).frame(width: 16, height: 16).accessibilityHidden(true)
-                TextField("Search archived sessions", text: text)
-                    .textFieldStyle(.plain).font(.scaled(12))
-                    .focused($searching)
-                    .onKeyPress(.escape) {
-                        query = nil
-                        return .handled
-                    }
-                Button { query = nil } label: { Image(systemName: "xmark.circle.fill").font(.scaled(11)).foregroundStyle(.secondary) }
-                    .buttonStyle(.plain).help("Close search (Esc)").accessibilityLabel("Close search")
-            }
-            .padding(.horizontal, 11).frame(width: 220, height: ToolbarPillButton.height)
-        } else {
-            ToolbarPillButton(title: "Search", icon: "magnifyingglass") {
-                query = ""
-                searching = true
-            }
-        }
+        ToolbarSearchField(query: $query, placeholder: "Search archived sessions", focused: $searching)
     }
 
     private var sortPopover: some View {

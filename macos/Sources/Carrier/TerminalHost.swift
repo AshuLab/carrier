@@ -85,13 +85,12 @@ final class CarrierTerminalStore {
         self.preferences = preferences
         self.processInspector = processInspector ?? GhosttyTerminalProcessInspector()
         let derivedCarrierFolder: URL = {
-            if isEphemeralRun || resolvedStore.fileURL == nil {
+            guard isEphemeralRun == false, let dir = resolvedStore.fileURL?.deletingLastPathComponent() else {
                 return FileManager.default.temporaryDirectory.appendingPathComponent(
                     "carrier-ephemeral-terminal-\(ProcessInfo.processInfo.processIdentifier)",
                     isDirectory: true
                 )
             }
-            let dir = resolvedStore.fileURL!.deletingLastPathComponent()
             return dir.lastPathComponent == "app" ? dir.deletingLastPathComponent() : dir
         }()
         self.zshShimDirectory = zshShimDirectory ?? TerminalZshBottomPromptShim.defaultDirectory(
@@ -556,10 +555,10 @@ final class CarrierTerminalStore {
     func handleKeyDownEvent(_ event: NSEvent) -> NSEvent? {
         let relevantModifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
         guard isTornDown == false,
-              preferences.terminal.pinPromptToBottom,
               event.type == .keyDown,
               relevantModifiers == .command,
               event.charactersIgnoringModifiers?.lowercased() == "k",
+              preferences.terminal.pinPromptToBottom,
               let paneId = focusedPaneResolverForTests?() ?? focusedPaneId(for: NSApp?.keyWindow?.firstResponder)
         else {
             return event

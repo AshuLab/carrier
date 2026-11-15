@@ -162,7 +162,6 @@ struct PanelView: View {
         let tab = terminalStore.openTab(
             for: owner,
             workingDirectory: launch.workingDirectory,
-            envVars: launch.envVars,
             command: launch.command,
             title: "\(section.agent) · \(section.role)",
             activate: true
@@ -418,7 +417,20 @@ struct PanelView: View {
             guard let id = shell.archiveRequest?.sessionId else { return }
             Task { if let refusal = await model.actions.archive(id) { tell(refusal) } }
         }
-        .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }
+        .onChange(of: snapshot) {
+            if let snapshot {
+                model.epics.settleResuming(snapshot)
+                for epic in snapshot.epics where epic.status == .running {
+                    let owner = TerminalOwner.epic(repo: epic.repo, issue: epic.issue)
+                    if terminalStore.tabs(for: owner).isEmpty == false {
+                        terminalStore.forceCloseAll(for: owner)
+                    }
+                    if shell.isTerminalDrawerOpen(for: owner) {
+                        shell.setTerminalDrawerOpen(false, for: owner)
+                    }
+                }
+            }
+        }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }
         .environment(\.windowSize, windowSize)
     }

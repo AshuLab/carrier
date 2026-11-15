@@ -197,8 +197,8 @@ struct TerminalZshBottomPromptShimTests {
         #expect(text.contains("parse error") == false)
         #expect(text.contains("VARS:1:1:1:1:\(userDir.path)|HIST:\(userDir.path)/.zsh_history"))
         #expect(text.contains("HIST:\(shimDir.path)") == false)
+        #expect(text.contains("user-clear"))
         #expect(text.contains("\u{1B}[?2026h\u{1B}[H\u{1B}[2J\u{1B}[999;1H\u{1B}[?2026l"))
-        #expect(text.contains("\u{1B}[?2026h\u{1B}[3J\u{1B}[H\u{1B}[2J\u{1B}[999;1H\u{1B}[?2026l"))
         #expect(text.contains("\u{1B}[?2026h\u{1B}[H\u{1B}[2J\u{1B}[999;1H"))
         #expect(text.contains("AFTER_CTRLL"))
     }
@@ -266,6 +266,7 @@ struct TerminalZshBottomPromptShimTests {
         }
 
         Thread.sleep(forTimeInterval: 0.45)
+        send("clear\n")
         send("echo \"HIST:$HISTFILE|ZDOT:${ZDOTDIR:-unset}|WIDGET:${widgets[clear-screen]}\"\n")
         send("exit\n", waitSeconds: 0.2)
         try? stdinPipe.fileHandleForWriting.close()
@@ -273,6 +274,7 @@ struct TerminalZshBottomPromptShimTests {
 
         let text = String(decoding: collector.snapshot(), as: UTF8.self)
         #expect(text.contains("parse error") == false)
+        #expect(text.contains("\u{1B}[?2026h\u{1B}[3J\u{1B}[H\u{1B}[2J\u{1B}[999;1H\u{1B}[?2026l"))
         #expect(text.contains("HIST:\(homeDir.path)/.zsh_history|ZDOT:unset|WIDGET:user:_user_custom_clear_screen"))
         #expect(text.contains("HIST:\(shimDir.path)") == false)
     }

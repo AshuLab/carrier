@@ -12,7 +12,7 @@ A status that names a later record means that record changed part or all of this
 | 0004 | [Agents run on the host with the terminal's preferences](0004-agents-run-on-host-with-terminal-preferences.md) | accepted |
 | 0005 | [The engine runs on its own and the macOS app is a client of its control socket](0005-engine-independent-of-the-macos-app.md) | accepted |
 | 0006 | [The engine records what the agents do as events in SQLite, with bounded and redacted output](0006-agent-events-stored-in-sqlite-with-bounded-output.md) | accepted |
-| 0007 | [Continue in Terminal: the engine sends a descriptor, the app builds and launches the command](0007-continue-in-terminal-through-a-validated-descriptor.md) | accepted |
+| 0007 | [Continue in Terminal: the engine sends a descriptor, the app builds and launches the command](0007-continue-in-terminal-through-a-validated-descriptor.md) | accepted; epic execution is superseded by [0028](0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md) |
 | 0008 | [Slices are kept in SQLite as a cache of GitHub, not as authority](0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md) | accepted |
 | 0009 | [A review that leaves observations triggers one resolve pass by the author before the epic is ready for test](0009-observations-trigger-one-resolve-pass-before-ready-for-test.md) | accepted |
 | 0010 | [Carrier runs in the background as a detached process started on demand, not as a login service](0010-carrier-runs-in-the-background-as-a-detached-process.md) | accepted |
@@ -34,4 +34,5 @@ A status that names a later record means that record changed part or all of this
 | 0024 | [The chat MCP lives in the chat host and is injected per session](0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md) | accepted |
 | 0025 | [Usage collection and serving run inside the chat host](0025-usage-runs-inside-the-chat-host.md) | accepted; its file-only Claude login is extended to the Keychain by [0026](0026-claude-usage-reads-the-login-from-the-keychain-and-never-refreshes-it.md) |
 | 0026 | [Claude's usage reads the login from the macOS Keychain, and never refreshes it](0026-claude-usage-reads-the-login-from-the-keychain-and-never-refreshes-it.md) | accepted |
-| 0027 | [The embedded terminal runs in-process with GhosttyKit and restores layout across launches](0027-embedded-terminal-runs-in-process-with-ghosttykit.md) | accepted |
+| 0027 | [The embedded terminal runs in-process with GhosttyKit and restores layout across launches](0027-embedded-terminal-runs-in-process-with-ghosttykit.md) | accepted; owner types and epic integration updated in [0028](0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md) |
+| 0028 | [Epic Continue in Terminal runs inside an ephemeral embedded Ghostty drawer](0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md) | accepted |

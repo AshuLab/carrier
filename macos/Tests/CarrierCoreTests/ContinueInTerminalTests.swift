@@ -157,15 +157,47 @@ func aFolderThatIsNotAnAbsolutePathIsRejected(cwd: String) throws {
     #expect(try command("agy", config: dir) == cd + "agy --conversation '\(id)'")
 }
 
-/// Runs the shell command with `/bin/sh` and the fake harnesses; returns what the fake wrote in the folder it ran in.
-private func run(_ command: String, scratch: Scratch, in folder: String) throws -> [String] {
+/// Runs a shell command inside a fresh PTY so interactive `-il` zsh shells never block on job control or inherit ambient dotfiles.
+private func runInPty(
+    _ command: String,
+    scratch: Scratch,
+    home: String,
+    cwd: String? = nil,
+    extraEnv: [String: String] = [:]
+) throws -> (status: Int32, output: String) {
+    let stdinPipe = Pipe()
+    let stdoutPipe = Pipe()
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/sh")
-    process.arguments = ["-c", command]
-    process.environment = ["PATH": scratch.bin + ":/usr/bin:/bin"]
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/script")
+    process.arguments = ["-q", "/dev/null", "/bin/sh", "-c", command]
+    if let cwd {
+        process.currentDirectoryURL = URL(fileURLWithPath: cwd, isDirectory: true)
+    }
+    var env = [
+        "HOME": home,
+        "PATH": scratch.bin + ":/usr/bin:/bin",
+    ]
+    for (key, value) in extraEnv { env[key] = value }
+    process.environment = env
+    process.standardInput = stdinPipe
+    process.standardOutput = stdoutPipe
+    process.standardError = stdoutPipe
     try process.run()
+    if let newline = "\n".data(using: .utf8) {
+        try? stdinPipe.fileHandleForWriting.write(contentsOf: newline)
+    }
+    try? stdinPipe.fileHandleForWriting.close()
     process.waitUntilExit()
-    #expect(process.terminationStatus == 0)
+    let output = String(decoding: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    return (process.terminationStatus, output)
+}
+
+/// Runs the shell command with the fake harnesses; returns what the fake wrote in the folder it ran in.
+private func run(_ command: String, scratch: Scratch, in folder: String) throws -> [String] {
+    let home = scratch.base + "/run-home"
+    try FileManager.default.createDirectory(atPath: home, withIntermediateDirectories: true)
+    let result = try runInPty(command, scratch: scratch, home: home)
+    #expect(result.status == 0)
     let ran = try String(contentsOfFile: folder + "/ran.txt", encoding: .utf8)
     return ran.split(separator: "\n", omittingEmptySubsequences: false).dropLast().map(String.init)
 }
@@ -195,6 +227,10 @@ func aHostileFolderNameStaysInert(name: String) throws {
         default: [folder, "unset", "unset", scratch.bin + "/agy", "--conversation", id]
         }
         #expect(ran == expected)
+
+        try? FileManager.default.removeItem(atPath: folder + "/ran.txt")
+        let embeddedRan = try run(embeddedResumeLaunch(valid).command, scratch: scratch, in: folder)
+        #expect(embeddedRan == expected)
     }
     // Nothing inside the names was executed anywhere under the scratch folder.
     let found = FileManager.default.enumerator(atPath: scratch.base)?.allObjects.compactMap { $0 as? String }.filter { $0.hasSuffix("PWNED") }
@@ -284,26 +320,20 @@ private final class RecordingOpener: TerminalOpener {
     let claude = try validateResume(scratch.descriptor("claude", config: scratch.config), engine: scratch.engine).get()
     let claudeLaunch = embeddedResumeLaunch(claude)
     #expect(claudeLaunch.workingDirectory == scratch.inside)
-    #expect(claudeLaunch.envVars.isEmpty)
     #expect(claudeLaunch.command.hasPrefix("/bin/zsh -il -c "))
     #expect(claudeLaunch.command.contains("cd ") && claudeLaunch.command.contains("CLAUDE_CONFIG_DIR=") && claudeLaunch.command.contains("claude --resume"))
-    #expect(claudeLaunch.displayCommand == resumeCommand(claude))
 
     let codex = try validateResume(scratch.descriptor("codex", config: scratch.config), engine: scratch.engine).get()
     let codexLaunch = embeddedResumeLaunch(codex)
     #expect(codexLaunch.workingDirectory == scratch.inside)
-    #expect(codexLaunch.envVars.isEmpty)
     #expect(codexLaunch.command.hasPrefix("/bin/zsh -il -c "))
     #expect(codexLaunch.command.contains("cd ") && codexLaunch.command.contains("CODEX_HOME=") && codexLaunch.command.contains("codex resume"))
-    #expect(codexLaunch.displayCommand == resumeCommand(codex))
 
     let agy = try validateResume(scratch.descriptor("agy", config: scratch.config), engine: scratch.engine).get()
     let agyLaunch = embeddedResumeLaunch(agy)
     #expect(agyLaunch.workingDirectory == scratch.inside)
-    #expect(agyLaunch.envVars.isEmpty)
     #expect(agyLaunch.command.hasPrefix("/bin/zsh -il -c "))
     #expect(agyLaunch.command.contains("cd ") && agyLaunch.command.contains("agy --conversation"))
-    #expect(agyLaunch.displayCommand == resumeCommand(agy))
 }
 
 @Test func embeddedResumeLaunchExecutesFakeHarnessesAndFailsClosedWhenFolderDisappears() throws {
@@ -319,32 +349,16 @@ private final class RecordingOpener: TerminalOpener {
     """.write(toFile: emptyHome + "/.zshenv", atomically: true, encoding: .utf8)
 
     func runEmbedded(_ launch: EmbeddedResumeLaunch, cwd: String) throws -> (status: Int32, output: String) {
-        let stdinPipe = Pipe()
-        let stdoutPipe = Pipe()
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/script")
-        process.arguments = ["-q", "/dev/null", "/bin/sh", "-c", launch.command]
-        process.currentDirectoryURL = URL(fileURLWithPath: cwd, isDirectory: true)
-        var env: [String: String] = [
-            "HOME": emptyHome,
-            "PATH": scratch.bin + ":/usr/bin:/bin",
-            "CLAUDE_CONFIG_DIR": "/wrong/env/claude",
-            "CODEX_HOME": "/wrong/env/codex",
-        ]
-        for (key, value) in launch.envVars { env[key] = value }
-        process.environment = env
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = stdoutPipe
-        try process.run()
-        // Dismiss the interactive "Press Return to close..." pause if the command failed inside the PTY.
-        if let newline = "\n".data(using: .utf8) {
-            try? stdinPipe.fileHandleForWriting.write(contentsOf: newline)
-        }
-        try? stdinPipe.fileHandleForWriting.close()
-        process.waitUntilExit()
-        let output = String(decoding: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        return (process.terminationStatus, output)
+        try runInPty(
+            launch.command,
+            scratch: scratch,
+            home: emptyHome,
+            cwd: cwd,
+            extraEnv: [
+                "CLAUDE_CONFIG_DIR": "/wrong/env/claude",
+                "CODEX_HOME": "/wrong/env/codex",
+            ]
+        )
     }
 
     for harness in ["claude", "codex", "agy"] {

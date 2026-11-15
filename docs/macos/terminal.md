@@ -17,7 +17,7 @@ Selecting a standalone terminal (`Selection.terminal(id:)`) shows `TerminalDetai
 The terminal surface extends under the translucent top toolbar across the full detail height, while top-right pane controls are inset below `safeAreaInsets.top` (`topControlsInset`) so they stay clear of toolbar buttons.
 The tab strip (`Carrier/TerminalTabBarView.swift`, `TerminalTabBarView`) sits along the bottom edge with drag reordering, context-menu and VoiceOver tab move actions, inline rename popovers, a pinned `+` button to add a tab in the active tab's folder, Close Tab / Close Other Tabs in the context menu and middle-click or `×` to close a tab.
 Hovering near the top of a pane reveals floating glass controls (`TerminalPaneHeaderView`) to split right, split down, zoom or restore a split pane, drag a pane to another pane's edge to move it or center to swap (`terminalDropZone`), equalize splits or detach a pane into a new tab.
-All tab, split, focus, zoom, equalize, detach and close actions are also available via the menu bar (`Terminal` menu, `TerminalMenuControls`), keyboard shortcuts (`⌘T`, `⌘D`, `⌘⇧D`, `⌘⇧↩`, `⌘⌥[`, `⌘⌥]`, `⌘⇧[`, `⌘⇧]`, `⌘⇧W`) and pane accessibility actions.
+All tab, split, focus, zoom, equalize, detach and close actions are also available via the menu bar (`Terminal` menu, `TerminalMenuControls`), keyboard shortcuts (`⌘⌥T`, `⌘⌃T`, `⌘T`, `⌘D`, `⌘⇧D`, `⌘⇧↩`, `⌘⌥[`, `⌘⌥]`, `⌘⇧[`, `⌘⇧]`, `⌘⇧W`) and pane accessibility actions.
 Split dividers (`SplitContainerView`) and the drawer's top edge (`TerminalDrawerView`) share `TerminalResizeDivider`, resize by drag or accessibility adjustment with `AppKit` resize cursors managed by `hoverCursor`, and highlight using `Color.themeAccent`.
 
 ## Appearance and theme alignment
@@ -44,12 +44,12 @@ Re-clicking **Continue in Terminal** for an already open session focuses the exi
 When the resumed agent process exits cleanly, its pane closes automatically and collapses the drawer when no tabs remain.
 If opening the directory fails or the agent exits non-zero, the pane holds open until you press Return so the error stays visible.
 Clicking the drawer's close (`×`) button closes its epic tabs with running-process confirmation when enabled.
-Control returns to Carrier only when you explicitly trigger the epic's **Resume** action.
+Control returns to Carrier when the person explicitly triggers **Resume** in `EpicView`, and starting a run closes open epic drawer tabs so two writers cannot collide.
 
 ## Bottom-anchored Zsh prompt and Clear
 
 When `TerminalSettings.pinPromptToBottom` (`AppPreferences.terminalPinPromptToBottomKey`, opt-in and off by default) is enabled for an interactive Zsh shell with no explicit command override, `CarrierTerminalStore` sets `ZDOTDIR` in the child environment (`resolvedEnvVars`) to `<Carrier folder>/app/terminal/zsh-bottom-prompt` without altering stored pane metadata (`TerminalZshBottomPromptShim`).
-The shim preserves any user `ZDOTDIR` in `CARRIER_USER_ZDOTDIR`, sources the user's `.zshenv`, `.zprofile`, `.zshrc` and `.zlogin` in order, wraps output positioning in synchronized updates (`\e[?2026h...\e[?2026l`), clears the initial login banner before user prompts draw, wraps `clear` only if the user has not defined a custom `clear` function and attaches a `precmd` hook (`\e[999B`) plus ZLE `clear-screen` overrides so the prompt stays anchored at the bottom row while command output scrolls upward.
+The shim preserves any user `ZDOTDIR` in `CARRIER_USER_ZDOTDIR`, sources the user's `.zshenv`, `.zprofile`, `.zshrc` and `.zlogin` in order, preserves `~/.zsh_history` unless overridden by user dotfiles, wraps output positioning in synchronized updates (`\e[?2026h...\e[?2026l`), clears the initial login banner before user prompts draw, wraps `clear` only if the user has not defined a custom `clear` function or alias, and attaches a `precmd` hook (`\e[999B`) plus ZLE `clear-screen` overrides so the prompt stays anchored at the bottom row while command output scrolls upward.
 Pressing `⌘K` while a terminal pane has focus runs `CarrierTerminalStore.clearScrollback(paneId:)`, which executes `clear_screen` and sends `Ctrl+L` afterwards only when bottom-prompt pinning is active and process inspection confirms without error that no foreground command is running in that pane.
 
 ## Persistence

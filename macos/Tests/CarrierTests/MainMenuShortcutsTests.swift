@@ -148,12 +148,26 @@ private let fixtures = URL(fileURLWithPath: #filePath)
         let owner = TerminalOwner.terminal(UUID())
         var activeOwner: TerminalOwner? = nil
         var allowFallback = true
+        var createdTerminals = 0
+        var drawerOpen = false
+        var drawerAvailable = false
+        var drawerToggles = 0
         let terminalControls = TerminalMenuControls(
             storeProvider: { store },
             preferredOwnerProvider: { activeOwner },
-            allowsPreferredFallback: { allowFallback }
+            allowsPreferredFallback: { allowFallback },
+            newTerminalAction: { createdTerminals += 1 },
+            drawerStateProvider: {
+                guard drawerAvailable else { return nil }
+                return (isOpen: drawerOpen, toggle: {
+                    drawerOpen.toggle()
+                    drawerToggles += 1
+                })
+            }
         )
         let menu = AppDelegate().makeMainMenu(shortcuts: table(), terminalControls: terminalControls)
+        let newTerminalItem = try item(menu, "Terminal", "New Terminal")
+        let toggleDrawerItem = try item(menu, "Terminal", "Show or Hide Terminal")
         let newTabItem = try item(menu, "Terminal", "New Tab")
         let splitRightItem = try item(menu, "Terminal", "Split Right")
         let zoomItem = try item(menu, "Terminal", "Zoom Pane")
@@ -167,7 +181,23 @@ private let fixtures = URL(fileURLWithPath: #filePath)
         let moveRightItem = try item(menu, "Terminal", "Move Tab Right")
         let closeItem = try item(menu, "Terminal", "Close Pane")
 
-        // No active terminal selected -> Terminal menu items stay disabled.
+        // New Terminal stays available globally even before any terminal exists.
+        #expect(terminalControls.validateMenuItem(newTerminalItem) == true)
+        run(newTerminalItem)
+        #expect(createdTerminals == 1)
+
+        // Drawer toggle stays disabled until an owner with a drawer is visible.
+        #expect(terminalControls.validateMenuItem(toggleDrawerItem) == false)
+        #expect(toggleDrawerItem.title == "Show or Hide Terminal")
+        drawerAvailable = true
+        #expect(terminalControls.validateMenuItem(toggleDrawerItem) == true)
+        #expect(toggleDrawerItem.title == "Show Terminal")
+        run(toggleDrawerItem)
+        #expect(drawerToggles == 1 && drawerOpen == true)
+        #expect(terminalControls.validateMenuItem(toggleDrawerItem) == true)
+        #expect(toggleDrawerItem.title == "Hide Terminal")
+
+        // No active terminal selected -> Terminal menu pane/tab items stay disabled.
         #expect(terminalControls.validateMenuItem(newTabItem) == false)
         #expect(terminalControls.validateMenuItem(splitRightItem) == false)
         #expect(terminalControls.validateMenuItem(zoomItem) == false)
@@ -264,5 +294,20 @@ private let fixtures = URL(fileURLWithPath: #filePath)
         mainWindow.contentView = textView
         mainWindow.makeFirstResponder(textView)
         #expect(TerminalMenuControls.allowsPreferredFallback(keyWindow: mainWindow, mainWindow: mainWindow) == false)
+    }
+
+    @Test func terminalMenuValidationNeverEagerlyInitializesSharedStore() throws {
+        let wasInitializedBefore = CarrierTerminalStore.sharedIfInitialized != nil
+        let controls = TerminalMenuControls()
+        let menu = AppDelegate().makeMainMenu(shortcuts: table(), terminalControls: controls)
+        let newTabItem = try item(menu, "Terminal", "New Tab")
+        let toggleDrawerItem = try item(menu, "Terminal", "Show or Hide Terminal")
+        let splitRightItem = try item(menu, "Terminal", "Split Right")
+
+        _ = controls.validateMenuItem(newTabItem)
+        _ = controls.validateMenuItem(toggleDrawerItem)
+        _ = controls.validateMenuItem(splitRightItem)
+
+        #expect((CarrierTerminalStore.sharedIfInitialized != nil) == wasInitializedBefore)
     }
 }

@@ -990,14 +990,13 @@ struct CarrierTerminalStoreTests {
         let tab = store.openTab(
             for: owner,
             workingDirectory: launch.workingDirectory,
-            envVars: launch.envVars,
             command: launch.command,
             title: "Claude · Author"
         )
         let state = try #require(store.state(for: tab.activePaneId) as TerminalViewState?)
         #expect(state.configuration.workingDirectory == launch.workingDirectory)
         #expect(state.configuration.command == launch.command)
-        #expect(state.configuration.envVars == launch.envVars)
+        #expect(state.configuration.envVars.isEmpty)
 
         // Epic resume tabs remain ephemeral in terminals.json even when saved synchronously.
         store.saveWorkspaceNow()

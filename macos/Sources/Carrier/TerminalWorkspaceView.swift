@@ -10,7 +10,6 @@ struct TerminalSplitLayoutView: View {
     var autoFocus: Bool = true
     var topControlsInset: CGFloat = 0
     var onSelectTab: ((UUID) -> Void)? = nil
-    var onCloseTab: (() -> Void)? = nil
 
     @State private var draggedPaneId: UUID?
 
@@ -24,8 +23,7 @@ struct TerminalSplitLayoutView: View {
                     autoFocus: autoFocus,
                     topControlsInset: topControlsInset,
                     draggedPaneId: $draggedPaneId,
-                    onSelectTab: onSelectTab,
-                    onCloseTab: onCloseTab
+                    onSelectTab: onSelectTab
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -37,8 +35,7 @@ struct TerminalSplitLayoutView: View {
                     draggedPaneId: $draggedPaneId,
                     node: tab.root,
                     path: [],
-                    onSelectTab: onSelectTab,
-                    onCloseTab: onCloseTab
+                    onSelectTab: onSelectTab
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -227,7 +224,6 @@ private struct TerminalPaneHostView: View {
     let topControlsInset: CGFloat
     @Binding var draggedPaneId: UUID?
     let onSelectTab: ((UUID) -> Void)?
-    let onCloseTab: (() -> Void)?
 
     @State private var dropZone: TerminalDropZone?
     @State private var topAreaHovered = false
@@ -236,11 +232,8 @@ private struct TerminalPaneHostView: View {
     private static let hoverRevealHeight: CGFloat = 56
 
     private func closeCurrentPane() {
-        let isSplit = tab.panes.count > 1
-        if isSplit {
+        if tab.panes.count > 1 {
             Task { _ = await store.closePane(id: paneId) }
-        } else if let onCloseTab {
-            onCloseTab()
         } else {
             Task { _ = await store.closeTab(id: tab.id) }
         }
@@ -489,7 +482,6 @@ private struct SplitTreeNodeView: View {
     let node: SplitNode
     let path: [SplitBranch]
     let onSelectTab: ((UUID) -> Void)?
-    let onCloseTab: (() -> Void)?
 
     var body: some View {
         switch node {
@@ -501,8 +493,7 @@ private struct SplitTreeNodeView: View {
                 autoFocus: autoFocus,
                 topControlsInset: topControlsInset,
                 draggedPaneId: $draggedPaneId,
-                onSelectTab: onSelectTab,
-                onCloseTab: onCloseTab
+                onSelectTab: onSelectTab
             )
         case .split(let axis, let ratio, let first, let second):
             SplitContainerView(
@@ -516,8 +507,7 @@ private struct SplitTreeNodeView: View {
                 first: first,
                 second: second,
                 path: path,
-                onSelectTab: onSelectTab,
-                onCloseTab: onCloseTab
+                onSelectTab: onSelectTab
             )
         }
     }
@@ -535,7 +525,6 @@ private struct SplitContainerView: View {
     let second: SplitNode
     let path: [SplitBranch]
     let onSelectTab: ((UUID) -> Void)?
-    let onCloseTab: (() -> Void)?
 
     @State private var dragBaseRatio: Double?
 
@@ -575,8 +564,7 @@ private struct SplitContainerView: View {
             draggedPaneId: $draggedPaneId,
             node: first,
             path: path + [.first],
-            onSelectTab: onSelectTab,
-            onCloseTab: onCloseTab
+            onSelectTab: onSelectTab
         )
     }
 
@@ -589,8 +577,7 @@ private struct SplitContainerView: View {
             draggedPaneId: $draggedPaneId,
             node: second,
             path: path + [.second],
-            onSelectTab: onSelectTab,
-            onCloseTab: onCloseTab
+            onSelectTab: onSelectTab
         )
     }
 

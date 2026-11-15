@@ -93,9 +93,11 @@ extension AppDelegate {
         item(engine, ShortcutCommand.pauseOrResume.title, #selector(MenuControls.pauseOrResume), shortcut: .pauseOrResume, in: shortcuts, target: controls)
         item(engine, ShortcutCommand.checkNow.title, #selector(MenuControls.checkNow), shortcut: .checkNow, in: shortcuts, target: controls)
 
-        // Terminal: tab, split, focus, zoom, equalize, detach and close controls for keyboard-only and VoiceOver access
+        // Terminal: global creation, drawer toggle, tab, split, focus, zoom, equalize, detach and close controls for keyboard-only and VoiceOver access
         let terminal = submenu(of: main, title: "Terminal")
+        item(terminal, "New Terminal", #selector(TerminalMenuControls.newTerminal), key: "t", modifiers: [.command, .option], target: terminalControls)
         item(terminal, "New Tab", #selector(TerminalMenuControls.newTab), key: "t", target: terminalControls)
+        item(terminal, "Show or Hide Terminal", #selector(TerminalMenuControls.toggleTerminalDrawer), key: "t", modifiers: [.command, .control], target: terminalControls)
         terminal.addItem(.separator())
         item(terminal, "Split Right", #selector(TerminalMenuControls.splitRight), key: "d", target: terminalControls)
         item(terminal, "Split Down", #selector(TerminalMenuControls.splitDown), key: "d", modifiers: [.command, .shift], target: terminalControls)
@@ -187,15 +189,21 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
     private let storeProvider: @MainActor () -> CarrierTerminalStore?
     private let preferredOwnerProvider: @MainActor () -> TerminalOwner?
     private let allowsPreferredFallback: @MainActor () -> Bool
+    private let newTerminalAction: @MainActor () -> Void
+    private let drawerStateProvider: @MainActor () -> (isOpen: Bool, toggle: @MainActor () -> Void)?
 
     init(
-        storeProvider: @escaping @MainActor () -> CarrierTerminalStore? = { CarrierTerminalStore.sharedIfInitialized ?? CarrierTerminalStore.shared },
+        storeProvider: @escaping @MainActor () -> CarrierTerminalStore? = { CarrierTerminalStore.sharedIfInitialized },
         preferredOwnerProvider: @escaping @MainActor () -> TerminalOwner? = { WindowController.shared.preferredTerminalOwner },
-        allowsPreferredFallback: @escaping @MainActor () -> Bool = { TerminalMenuControls.allowsPreferredFallback() }
+        allowsPreferredFallback: @escaping @MainActor () -> Bool = { TerminalMenuControls.allowsPreferredFallback() },
+        newTerminalAction: @escaping @MainActor () -> Void = { WindowController.shared.openNewTerminal() },
+        drawerStateProvider: @escaping @MainActor () -> (isOpen: Bool, toggle: @MainActor () -> Void)? = { WindowController.shared.terminalDrawerToggleState() }
     ) {
         self.storeProvider = storeProvider
         self.preferredOwnerProvider = preferredOwnerProvider
         self.allowsPreferredFallback = allowsPreferredFallback
+        self.newTerminalAction = newTerminalAction
+        self.drawerStateProvider = drawerStateProvider
     }
 
     @MainActor
@@ -227,6 +235,14 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
             return (store, target.tab, target.paneId)
         }
         return nil
+    }
+
+    @MainActor @objc func newTerminal() {
+        newTerminalAction()
+    }
+
+    @MainActor @objc func toggleTerminalDrawer() {
+        drawerStateProvider()?.toggle()
     }
 
     @MainActor @objc func newTab() {
@@ -303,6 +319,19 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         MainActor.assumeIsolated {
+            switch item.action {
+            case #selector(newTerminal):
+                return true
+            case #selector(toggleTerminalDrawer):
+                guard let drawer = drawerStateProvider() else {
+                    item.title = "Show or Hide Terminal"
+                    return false
+                }
+                item.title = drawer.isOpen ? "Hide Terminal" : "Show Terminal"
+                return true
+            default:
+                break
+            }
             guard let target = resolveTarget() else { return false }
             let isSplit = target.tab.panes.count > 1
             let tabCount = target.store.tabs(for: target.tab.owner).count

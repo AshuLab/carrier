@@ -89,8 +89,8 @@ Stale session ids are pruned only after two consecutive authoritative session sn
 
 ## Out of scope
 
-App UI placement, triggers, buttons, tab bars, drawer/panel chrome, split drag-and-drop gestures, and the future Terminal Settings UI view (left to dedicated UI work once the core is settled).
+App UI design details belong to [terminal](../macos/terminal.md), and epic **Continue in Terminal** drawer policy lives in [0028](../adr/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md).
 
-Any integration with autonomous engine epics, epic intervention, resuming stopped epics from an embedded terminal, or injecting terminal output into agent turns (separated into its own epic).
+Injecting live terminal output into autonomous orchestrator agent turns.
 
 Detached background PTY daemon survival when `Carrier.app` itself is not running (reopening Carrier restores saved tabs, split layouts, ratios, and working directories as fresh shells rather than reattaching to live orphaned processes).

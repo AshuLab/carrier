@@ -8,16 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Standalone terminals in the sidebar and overview: each terminal has its own tabs and split panes, a bottom tab bar, a full-height surface extending behind the translucent top header and a collapsible terminal drawer inside chat sessions.
-- Middle-click closes terminal tabs and standalone terminal rows in the sidebar and overview.
-- Opt-in bottom-anchored Zsh prompt in **Settings › Terminal**: interactive Zsh terminals can anchor the prompt to the bottom of the viewport and preserve that position on `Cmd+K` clear while preserving custom user `ZDOTDIR` and `clear` functions.
-- Added a Terminal page in Settings to configure a terminal theme override, minimum contrast, horizontal/vertical padding, typography overrides and font thickening, cursor style and blink, inactive-pane dimming, focus-follows-mouse splits, Option-as-Alt mapping, copy on select, scrollback limit, Zsh bottom-prompt pinning, and running-command close confirmation with a live preview.
+- Embedded Ghostty terminals in the sidebar, overview, and session drawer with bottom tabs, split panes, middle-click close, menu commands, and **Settings › Terminal** options (including opt-in bottom-anchored Zsh prompts).
 
 ### Changed
 
-- Epic "Continue in Terminal" now validates folder accessibility, fails closed instead of falling back to `$HOME`, and opens in an integrated bottom terminal drawer inside the epic view with the resumed CLI session, closing automatically on clean exit and staying open on non-zero failures while keeping Resume explicit.
-- Unified the terminal workspace, empty states, and toolbar pill controls with the rest of the app's glass styling.
-- Aligned the embedded terminal with all nine Carrier themes in light and dark modes, matching window translucency and tint, per-theme 16-color ANSI palettes, accent-colored tab/divider/cursor chrome, and live updates when appearance or Reduce Transparency changes.
+- Epic "Continue in Terminal" now opens an integrated Ghostty drawer inside the epic view (keeping non-zero exit errors open until Return is pressed) and matches the app's light and dark themes.
+- Unified terminal empty states, workspace headers, and toolbar controls with the app's glass styling.
 - Updating the app no longer opens a window: a glass pill at the top of the sidebar, after the window's buttons, shows the new version; clicking it downloads the update right there, with its percent, and then it says Restart, which installs it and relaunches the app. A failed download leaves Retry. Check now in Settings and Check for Updates… show what they find in the same pill, and say so in an alert when there is nothing new.
 
 ## [0.5.0] - 2026-11-13

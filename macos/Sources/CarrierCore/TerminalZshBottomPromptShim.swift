@@ -32,7 +32,7 @@ public enum TerminalZshBottomPromptShim {
                 continue
             }
             try data.write(to: fileURL, options: .atomic)
-            try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: fileURL.path)
+            try fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: fileURL.path)
         }
         return directory
     }
@@ -176,8 +176,7 @@ _carrier_pin_bottom_precmd() {
   fi
 }
 
-if ! typeset -f clear >/dev/null 2>&1; then
-  unalias clear 2>/dev/null || true
+if ! typeset -f clear >/dev/null 2>&1 && ! alias clear >/dev/null 2>&1; then
   function clear {
     if [[ $# -eq 0 && -t 1 ]]; then
       builtin printf '\e[?2026h\e[3J\e[H\e[2J\e[999;1H\e[?2026l'

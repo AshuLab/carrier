@@ -58,11 +58,8 @@ public func validateResume(_ descriptor: ResumeDescriptor, engine: String) -> Re
 /// Validated launch specification for opening a resumable epic session in the embedded terminal drawer.
 public struct EmbeddedResumeLaunch: Equatable, Sendable {
     public let workingDirectory: String
-    public let envVars: [String: String]
     /// Interactive login shell command so user PATH entries resolve harness binaries and exiting closes the pane cleanly.
     public let command: String
-    /// Human-readable command shown in tooltips.
-    public let displayCommand: String
 }
 
 private func resumeConfigEnvironmentVariable(for harness: String) -> String? {
@@ -94,9 +91,7 @@ public func embeddedResumeLaunch(_ resume: ValidResume) -> EmbeddedResumeLaunch 
     let shellBody = "(\(steps.cd) && \(steps.run)) || { code=$?; builtin printf '\\nContinue in Terminal exited with status %s.' \"$code\"; if [[ -t 0 ]]; then builtin printf ' Press Return to close...'; IFS= read -r _; fi; exit $code; }"
     return EmbeddedResumeLaunch(
         workingDirectory: resume.cwd,
-        envVars: [:],
-        command: "/bin/zsh -il -c \(shellQuote(shellBody))",
-        displayCommand: "\(steps.cd) && \(steps.run)"
+        command: "/bin/zsh -il -c \(shellQuote(shellBody))"
     )
 }
 

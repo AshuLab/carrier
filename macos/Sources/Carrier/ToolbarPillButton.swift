@@ -88,3 +88,51 @@ struct ToolbarGlassIconButton: View {
         .accessibilityLabel(name)
     }
 }
+
+/// Shared toolbar Search toggle that expands inline into a 220 pt glass-pill search field.
+struct ToolbarSearchField: View {
+    @Binding var query: String?
+    let placeholder: String
+    let focused: FocusState<Bool>.Binding
+    var onDismiss: (() -> Void)? = nil
+
+    var body: some View {
+        if query != nil {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.scaled(11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16, height: 16)
+                    .accessibilityHidden(true)
+                TextField(placeholder, text: Binding(get: { query ?? "" }, set: { query = $0 }))
+                    .textFieldStyle(.plain)
+                    .font(.scaled(12))
+                    .focused(focused)
+                    .onKeyPress(.escape) {
+                        dismiss()
+                        return .handled
+                    }
+                Button(action: dismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.scaled(11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Close search (Esc)")
+                .accessibilityLabel("Close search")
+            }
+            .padding(.horizontal, 11)
+            .frame(width: 220, height: ToolbarPillButton.height)
+        } else {
+            ToolbarPillButton(title: "Search", icon: "magnifyingglass") {
+                query = ""
+                focused.wrappedValue = true
+            }
+        }
+    }
+
+    private func dismiss() {
+        query = nil
+        onDismiss?()
+    }
+}

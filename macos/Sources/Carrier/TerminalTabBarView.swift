@@ -29,12 +29,16 @@ struct TerminalTabBarView<Trailing: View>: View {
                             TerminalTabChip(
                                 tab: tab,
                                 index: index,
+                                canMoveLeft: index > 0,
+                                canMoveRight: index + 1 < tabs.count,
                                 selected: activeTabId == tab.id,
                                 canCloseOthers: tabs.count > 1 && onCloseOtherTabs != nil,
                                 draggingTabId: $draggingTabId,
                                 dropTargetTabId: $dropTargetTabId,
                                 select: { onSelectTab(tab.id) },
                                 rename: { title in store.renameTab(tab.id, customTitle: title) },
+                                moveLeft: { _ = store.moveTabRelative(tab.id, offset: -1) },
+                                moveRight: { _ = store.moveTabRelative(tab.id, offset: 1) },
                                 close: { onCloseTab(tab.id) },
                                 closeOthers: { onCloseOtherTabs?(tab.id) },
                                 reorder: { sourceId, targetIndex in
@@ -91,12 +95,16 @@ struct TerminalTabChip: View {
 
     let tab: TerminalTab
     let index: Int
+    let canMoveLeft: Bool
+    let canMoveRight: Bool
     let selected: Bool
     let canCloseOthers: Bool
     @Binding var draggingTabId: UUID?
     @Binding var dropTargetTabId: UUID?
     let select: () -> Void
     let rename: (String?) -> Void
+    let moveLeft: () -> Void
+    let moveRight: () -> Void
     let close: () -> Void
     let closeOthers: () -> Void
     let reorder: (UUID, Int) -> Void
@@ -182,6 +190,19 @@ struct TerminalTabChip: View {
             } label: {
                 Label("Rename Tab…", systemImage: "pencil").labelStyle(.titleAndIcon)
             }
+            if canMoveLeft || canMoveRight {
+                Divider()
+                if canMoveLeft {
+                    Button(action: moveLeft) {
+                        Label("Move Tab Left", systemImage: "arrow.left").labelStyle(.titleAndIcon)
+                    }
+                }
+                if canMoveRight {
+                    Button(action: moveRight) {
+                        Label("Move Tab Right", systemImage: "arrow.right").labelStyle(.titleAndIcon)
+                    }
+                }
+            }
             Divider()
             Button(action: close) {
                 Label("Close Tab", systemImage: "xmark").labelStyle(.titleAndIcon)
@@ -219,6 +240,14 @@ struct TerminalTabChip: View {
             return NSItemProvider(object: tab.id.uuidString as NSString)
         }
         .accessibilityAction(named: "Close Tab", close)
+        .modifier(
+            TabReorderAccessibilityActions(
+                canMoveLeft: canMoveLeft,
+                canMoveRight: canMoveRight,
+                moveLeft: moveLeft,
+                moveRight: moveRight
+            )
+        )
         .onDrop(
             of: [UTType.plainText],
             delegate: TerminalTabDropDelegate(
@@ -326,6 +355,33 @@ private struct TabRenamePopover: View {
         }
         .padding(12)
         .onAppear { focused = true }
+    }
+}
+
+private struct TabReorderAccessibilityActions: ViewModifier {
+    let canMoveLeft: Bool
+    let canMoveRight: Bool
+    let moveLeft: () -> Void
+    let moveRight: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .modifier(ConditionalAccessibilityAction(enabled: canMoveLeft, name: "Move Tab Left", action: moveLeft))
+            .modifier(ConditionalAccessibilityAction(enabled: canMoveRight, name: "Move Tab Right", action: moveRight))
+    }
+}
+
+private struct ConditionalAccessibilityAction: ViewModifier {
+    let enabled: Bool
+    let name: String
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.accessibilityAction(named: name, action)
+        } else {
+            content
+        }
     }
 }
 

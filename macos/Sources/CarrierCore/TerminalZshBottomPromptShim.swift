@@ -150,6 +150,12 @@ else
   unset ZDOTDIR
 fi
 
+# /etc/zshrc initializes HISTFILE using ZDOTDIR before this script restores it, so redirect any
+# default shim path back to the user's own history location before sourcing their .zshrc.
+if [[ -z "${HISTFILE:-}" || "$HISTFILE" == "${_CARRIER_SHIM_ZDOTDIR:-}/"* || "${HISTFILE:A:h}" == "${_CARRIER_SHIM_ZDOTDIR:A}" ]]; then
+  HISTFILE="${ZDOTDIR:-$HOME}/.zsh_history"
+fi
+
 if [[ -r "${ZDOTDIR:-$HOME}/.zshrc" ]]; then
   builtin source -- "${ZDOTDIR:-$HOME}/.zshrc"
 fi
@@ -182,13 +188,15 @@ if ! typeset -f clear >/dev/null 2>&1; then
 fi
 
 if [[ -o zle ]]; then
-  _carrier_clear_screen() {
-    local tty_target="${TTY:-/dev/tty}"
-    builtin printf '\e[?2026h\e[H\e[2J\e[999;1H' >"$tty_target"
-    zle .redisplay
-    builtin printf '\e[?2026l' >"$tty_target"
-  }
-  zle -N clear-screen _carrier_clear_screen
+  if [[ -z "${widgets[clear-screen]:-}" || "${widgets[clear-screen]}" == "builtin" ]]; then
+    _carrier_clear_screen() {
+      local tty_target="${TTY:-/dev/tty}"
+      builtin printf '\e[?2026h\e[H\e[2J\e[999;1H' >"$tty_target"
+      zle .redisplay
+      builtin printf '\e[?2026l' >"$tty_target"
+    }
+    zle -N clear-screen _carrier_clear_screen
+  fi
 fi
 
 typeset -ga precmd_functions

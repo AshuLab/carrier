@@ -93,13 +93,22 @@ extension AppDelegate {
         item(engine, ShortcutCommand.pauseOrResume.title, #selector(MenuControls.pauseOrResume), shortcut: .pauseOrResume, in: shortcuts, target: controls)
         item(engine, ShortcutCommand.checkNow.title, #selector(MenuControls.checkNow), shortcut: .checkNow, in: shortcuts, target: controls)
 
-        // Terminal: split, zoom, equalize, detach and close controls for keyboard-only and VoiceOver access
+        // Terminal: tab, split, focus, zoom, equalize, detach and close controls for keyboard-only and VoiceOver access
         let terminal = submenu(of: main, title: "Terminal")
+        item(terminal, "New Tab", #selector(TerminalMenuControls.newTab), key: "t", target: terminalControls)
+        terminal.addItem(.separator())
         item(terminal, "Split Right", #selector(TerminalMenuControls.splitRight), key: "d", target: terminalControls)
         item(terminal, "Split Down", #selector(TerminalMenuControls.splitDown), key: "d", modifiers: [.command, .shift], target: terminalControls)
         item(terminal, "Zoom Pane", #selector(TerminalMenuControls.toggleZoomPane), key: "\r", modifiers: [.command, .shift], target: terminalControls)
         item(terminal, "Equalize Splits", #selector(TerminalMenuControls.equalizeSplits), target: terminalControls)
         item(terminal, "Move Pane to New Tab", #selector(TerminalMenuControls.movePaneToNewTab), target: terminalControls)
+        item(terminal, "Focus Previous Pane", #selector(TerminalMenuControls.focusPreviousPane), key: "[", modifiers: [.command, .option], target: terminalControls)
+        item(terminal, "Focus Next Pane", #selector(TerminalMenuControls.focusNextPane), key: "]", modifiers: [.command, .option], target: terminalControls)
+        terminal.addItem(.separator())
+        item(terminal, "Select Previous Tab", #selector(TerminalMenuControls.selectPreviousTab), key: "[", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, "Select Next Tab", #selector(TerminalMenuControls.selectNextTab), key: "]", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, "Move Tab Left", #selector(TerminalMenuControls.moveTabLeft), target: terminalControls)
+        item(terminal, "Move Tab Right", #selector(TerminalMenuControls.moveTabRight), target: terminalControls)
         terminal.addItem(.separator())
         item(terminal, "Close Pane", #selector(TerminalMenuControls.closePane), key: "w", modifiers: [.command, .shift], target: terminalControls)
 
@@ -220,6 +229,11 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
         return nil
     }
 
+    @MainActor @objc func newTab() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.openTab(for: target.tab.owner, workingDirectory: target.tab.workingDirectory)
+    }
+
     @MainActor @objc func splitRight() {
         guard let target = resolveTarget() else { return }
         _ = target.store.splitPane(target.paneId, edge: .trailing)
@@ -245,6 +259,36 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
         _ = target.store.detachPaneToNewTab(target.paneId)
     }
 
+    @MainActor @objc func focusPreviousPane() {
+        guard let target = resolveTarget(), target.tab.panes.count > 1 else { return }
+        _ = target.store.focusAdjacentPane(offset: -1, inTab: target.tab.id)
+    }
+
+    @MainActor @objc func focusNextPane() {
+        guard let target = resolveTarget(), target.tab.panes.count > 1 else { return }
+        _ = target.store.focusAdjacentPane(offset: 1, inTab: target.tab.id)
+    }
+
+    @MainActor @objc func selectPreviousTab() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.selectAdjacentTab(offset: -1, for: target.tab.owner)
+    }
+
+    @MainActor @objc func selectNextTab() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.selectAdjacentTab(offset: 1, for: target.tab.owner)
+    }
+
+    @MainActor @objc func moveTabLeft() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.moveTabRelative(target.tab.id, offset: -1)
+    }
+
+    @MainActor @objc func moveTabRight() {
+        guard let target = resolveTarget() else { return }
+        _ = target.store.moveTabRelative(target.tab.id, offset: 1)
+    }
+
     @MainActor @objc func closePane() {
         guard let target = resolveTarget() else { return }
         let isSplit = target.tab.panes.count > 1
@@ -261,13 +305,20 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
         MainActor.assumeIsolated {
             guard let target = resolveTarget() else { return false }
             let isSplit = target.tab.panes.count > 1
+            let tabCount = target.store.tabs(for: target.tab.owner).count
             switch item.action {
             case #selector(toggleZoomPane):
                 item.title = target.tab.zoomedPaneId == target.paneId ? "Restore Split View" : "Zoom Pane"
                 return isSplit
-            case #selector(equalizeSplits), #selector(movePaneToNewTab):
+            case #selector(equalizeSplits), #selector(movePaneToNewTab), #selector(focusPreviousPane), #selector(focusNextPane):
                 return isSplit
-            case #selector(splitRight), #selector(splitDown):
+            case #selector(selectPreviousTab), #selector(selectNextTab):
+                return tabCount > 1
+            case #selector(moveTabLeft):
+                return target.store.registry.canMoveTab(id: target.tab.id, offset: -1)
+            case #selector(moveTabRight):
+                return target.store.registry.canMoveTab(id: target.tab.id, offset: 1)
+            case #selector(newTab), #selector(splitRight), #selector(splitDown):
                 return true
             case #selector(closePane):
                 item.title = isSplit ? "Close Pane" : "Close Tab"

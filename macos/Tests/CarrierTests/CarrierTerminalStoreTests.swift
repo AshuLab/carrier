@@ -209,7 +209,7 @@ struct CarrierTerminalStoreTests {
         #expect(deleteQuestion?.title.contains("Delete session") == true)
         #expect(deleteQuestion?.message.contains("Deleting this session") == true)
 
-        let clearQuestion = await store.pendingConfirmation(for: .owners([session, .quick]), removalKind: .clear)
+        let clearQuestion = await store.pendingConfirmation(for: .owners([session, .terminal(UUID())]), removalKind: .clear)
         #expect(clearQuestion?.title == "Delete archived sessions with a running terminal?")
         #expect(clearQuestion?.confirm == "Delete all")
 
@@ -362,7 +362,8 @@ struct CarrierTerminalStoreTests {
             scheme: .dark
         )
 
-        let tab = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let ptyOwner = TerminalOwner.terminal(UUID())
+        let tab = store.openTab(for: ptyOwner, workingDirectory: "/tmp")
         let paneId = tab.activePaneId
         let state = store.state(for: paneId)!
 
@@ -375,7 +376,7 @@ struct CarrierTerminalStoreTests {
         window.contentView = NSHostingView(rootView: CarrierTerminalView(store: store, paneId: paneId, autoFocus: true))
         window.orderBack(nil)
         defer {
-            _ = store.forceCloseAll(for: .quick)
+            _ = store.forceCloseAll(for: ptyOwner)
             window.orderOut(nil)
         }
 
@@ -447,7 +448,7 @@ struct CarrierTerminalStoreTests {
             }
         }
         let capturedPid = try #require(runningChildPid)
-        #expect(await store.closeAll(for: .quick, force: true))
+        #expect(await store.closeAll(for: ptyOwner, force: true))
         let exited = await waitUntil(timeoutSeconds: 3.0) {
             Darwin.kill(capturedPid, 0) != 0 && errno == ESRCH
         }
@@ -580,7 +581,7 @@ struct CarrierTerminalStoreTests {
             scheme: .dark,
             fallbackDirectory: "/tmp"
         )
-        _ = futureStore.openTab(for: .quick, workingDirectory: "/tmp")
+        _ = futureStore.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
         futureStore.teardownAll()
         #expect(try Data(contentsOf: fileURL) == futureJSON)
 
@@ -593,7 +594,7 @@ struct CarrierTerminalStoreTests {
             scheme: .dark,
             fallbackDirectory: "/tmp"
         )
-        let healedTab = recoveredStore.openTab(for: .quick, workingDirectory: "/tmp")
+        let healedTab = recoveredStore.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
         recoveredStore.teardownAll()
         let dirItems = try FileManager.default.contentsOfDirectory(atPath: fileURL.deletingLastPathComponent().path)
         let backupFile = try #require(dirItems.first { $0.hasPrefix("terminals.json.bak.") })
@@ -705,7 +706,7 @@ struct CarrierTerminalStoreTests {
             scheme: .dark,
             processInspector: inspector
         )
-        let tab = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let tab = store.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
         let paneId = tab.activePaneId
         let state = store.state(for: paneId)!
         inspector.runningByStateId[ObjectIdentifier(state)] = ["node"]
@@ -737,17 +738,18 @@ struct CarrierTerminalStoreTests {
             scheme: .dark,
             processInspector: FakeProcessInspector()
         )
-        let first = store.openTab(for: .quick, workingDirectory: "/tmp")
-        let second = store.openTab(for: .quick, workingDirectory: "/tmp")
-        let third = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let owner = TerminalOwner.terminal(UUID())
+        let first = store.openTab(for: owner, workingDirectory: "/tmp")
+        let second = store.openTab(for: owner, workingDirectory: "/tmp")
+        let third = store.openTab(for: owner, workingDirectory: "/tmp")
 
         store.renameTab(second.id, customTitle: "Server")
         #expect(store.tab(id: second.id)?.title == "Server")
 
-        let closed = await store.closeOtherTabs(except: second.id, for: .quick)
+        let closed = await store.closeOtherTabs(except: second.id, for: owner)
         #expect(closed == true)
-        #expect(store.tabs(for: .quick).map(\.id) == [second.id])
-        #expect(store.activeTabId(for: .quick) == second.id)
+        #expect(store.tabs(for: owner).map(\.id) == [second.id])
+        #expect(store.activeTabId(for: owner) == second.id)
         #expect(store.tab(id: first.id) == nil)
         #expect(store.tab(id: third.id) == nil)
 
@@ -802,7 +804,8 @@ struct CarrierTerminalStoreTests {
         )
 
         // Opted out by default so user dotfiles and ZDOTDIR stay untouched.
-        let defaultTab = store.openTab(for: .quick, workingDirectory: "/tmp", envVars: ["FOO": "default"])
+        let shimOwner = TerminalOwner.terminal(UUID())
+        let defaultTab = store.openTab(for: shimOwner, workingDirectory: "/tmp", envVars: ["FOO": "default"])
         #expect(store.state(for: defaultTab.activePaneId)?.configuration.envVars == ["FOO": "default"])
 
         var enabledTerminal = prefs.terminal
@@ -810,7 +813,7 @@ struct CarrierTerminalStoreTests {
         prefs.terminal = enabledTerminal
 
         let tab = store.openTab(
-            for: .quick,
+            for: shimOwner,
             workingDirectory: "/tmp",
             envVars: ["FOO": "bar"]
         )
@@ -822,7 +825,7 @@ struct CarrierTerminalStoreTests {
 
         // Explicit commands skip the interactive prompt shim.
         let cmdTab = store.openTab(
-            for: .quick,
+            for: shimOwner,
             workingDirectory: "/tmp",
             envVars: ["FOO": "baz"],
             command: "/bin/echo ok"
@@ -834,7 +837,7 @@ struct CarrierTerminalStoreTests {
         var terminal = prefs.terminal
         terminal.pinPromptToBottom = false
         prefs.terminal = terminal
-        let optOutTab = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let optOutTab = store.openTab(for: shimOwner, workingDirectory: "/tmp")
         let optOutState = store.state(for: optOutTab.activePaneId)
         #expect(optOutState?.configuration.envVars["ZDOTDIR"] == nil)
 
@@ -856,7 +859,7 @@ struct CarrierTerminalStoreTests {
             scheme: .dark,
             processInspector: inspector
         )
-        let tab = store.openTab(for: .quick, workingDirectory: "/tmp")
+        let tab = store.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
         let paneId = tab.activePaneId
         // Realize the cached TerminalViewState just as MountedTerminalSurface does on appear.
         let state = try #require(store.state(for: paneId))
@@ -1023,12 +1026,44 @@ struct CarrierTerminalStoreTests {
         )
         let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile)
         let rendered = config.rendered
+        #expect(rendered.contains("keybind = super+t=unbind"))
         #expect(rendered.contains("keybind = super+d=unbind"))
         #expect(rendered.contains("keybind = super+shift+d=unbind"))
         #expect(rendered.contains("keybind = super+shift+enter=unbind"))
         #expect(rendered.contains("keybind = super+shift+w=unbind"))
+        #expect(rendered.contains("keybind = super+shift+left_bracket=unbind"))
+        #expect(rendered.contains("keybind = super+shift+right_bracket=unbind"))
+        #expect(rendered.contains("keybind = super+alt+left_bracket=unbind"))
+        #expect(rendered.contains("keybind = super+alt+right_bracket=unbind"))
 
         let controller = TerminalController(configuration: config)
         #expect(controller.lastConfigurationIssue == nil)
+    }
+
+    @Test func ephemeralStoreIsolatesShimInTempDirectoryAndLiveObserversReloadDefaults() async {
+        let (prefs, cleanup) = makeIsolatedPreferences()
+        defer { cleanup() }
+
+        let store = CarrierTerminalStore(
+            fileStore: TerminalWorkspaceFileStore(fileURL: nil),
+            preferences: prefs,
+            scheme: .dark,
+            observesSystemAppearance: true
+        )
+        defer { store.teardownAll() }
+
+        let tempPrefix = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path
+        #expect(store.zshShimDirectory.resolvingSymlinksInPath().path.hasPrefix(tempPrefix))
+
+        let initialTheme = store.appearanceProfile.theme
+        let nextTheme: Theme = initialTheme == .ocean ? .forest : .ocean
+        var settings = prefs.terminal
+        settings.themeOverride = nextTheme
+        prefs.terminal = settings
+
+        let updated = await waitUntil {
+            store.appearanceProfile.theme == nextTheme
+        }
+        #expect(updated)
     }
 }

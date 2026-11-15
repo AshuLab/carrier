@@ -284,17 +284,17 @@ private final class RecordingOpener: TerminalOpener {
     let claude = try validateResume(scratch.descriptor("claude", config: scratch.config), engine: scratch.engine).get()
     let claudeLaunch = embeddedResumeLaunch(claude)
     #expect(claudeLaunch.workingDirectory == scratch.inside)
-    #expect(claudeLaunch.envVars == ["CLAUDE_CONFIG_DIR": scratch.config])
+    #expect(claudeLaunch.envVars.isEmpty)
     #expect(claudeLaunch.command.hasPrefix("/bin/zsh -il -c "))
-    #expect(claudeLaunch.command.contains("cd ") && claudeLaunch.command.contains("claude --resume"))
+    #expect(claudeLaunch.command.contains("cd ") && claudeLaunch.command.contains("CLAUDE_CONFIG_DIR=") && claudeLaunch.command.contains("claude --resume"))
     #expect(claudeLaunch.displayCommand == resumeCommand(claude))
 
     let codex = try validateResume(scratch.descriptor("codex", config: scratch.config), engine: scratch.engine).get()
     let codexLaunch = embeddedResumeLaunch(codex)
     #expect(codexLaunch.workingDirectory == scratch.inside)
-    #expect(codexLaunch.envVars == ["CODEX_HOME": scratch.config])
+    #expect(codexLaunch.envVars.isEmpty)
     #expect(codexLaunch.command.hasPrefix("/bin/zsh -il -c "))
-    #expect(codexLaunch.command.contains("cd ") && codexLaunch.command.contains("codex resume"))
+    #expect(codexLaunch.command.contains("cd ") && codexLaunch.command.contains("CODEX_HOME=") && codexLaunch.command.contains("codex resume"))
     #expect(codexLaunch.displayCommand == resumeCommand(codex))
 
     let agy = try validateResume(scratch.descriptor("agy", config: scratch.config), engine: scratch.engine).get()
@@ -312,6 +312,11 @@ private final class RecordingOpener: TerminalOpener {
 
     let emptyHome = scratch.base + "/fake-home"
     try FileManager.default.createDirectory(atPath: emptyHome, withIntermediateDirectories: true)
+    // User dotfiles that export conflicting CLAUDE_CONFIG_DIR / CODEX_HOME must not override the inline command prefix.
+    try """
+    export CLAUDE_CONFIG_DIR="/wrong/claude"
+    export CODEX_HOME="/wrong/codex"
+    """.write(toFile: emptyHome + "/.zshenv", atomically: true, encoding: .utf8)
 
     func runEmbedded(_ launch: EmbeddedResumeLaunch, cwd: String) throws -> (status: Int32, output: String) {
         let stdinPipe = Pipe()
@@ -323,6 +328,8 @@ private final class RecordingOpener: TerminalOpener {
         var env: [String: String] = [
             "HOME": emptyHome,
             "PATH": scratch.bin + ":/usr/bin:/bin",
+            "CLAUDE_CONFIG_DIR": "/wrong/env/claude",
+            "CODEX_HOME": "/wrong/env/codex",
         ]
         for (key, value) in launch.envVars { env[key] = value }
         process.environment = env
@@ -352,9 +359,9 @@ private final class RecordingOpener: TerminalOpener {
             .dropLast()
             .map(String.init)
         let expected: [String] = switch harness {
-        case "claude": [scratch.inside, scratch.config, "unset", scratch.bin + "/claude", "--resume", id]
-        case "codex": [scratch.inside, "unset", scratch.config, scratch.bin + "/codex", "resume", id]
-        default: [scratch.inside, "unset", "unset", scratch.bin + "/agy", "--conversation", id]
+        case "claude": [scratch.inside, scratch.config, "/wrong/codex", scratch.bin + "/claude", "--resume", id]
+        case "codex": [scratch.inside, "/wrong/claude", scratch.config, scratch.bin + "/codex", "resume", id]
+        default: [scratch.inside, "/wrong/claude", "/wrong/codex", scratch.bin + "/agy", "--conversation", id]
         }
         #expect(ran == expected)
     }

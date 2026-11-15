@@ -8,6 +8,7 @@ struct CarrierTerminalView: View {
     let paneId: UUID
     var autoFocus: Bool = false
     var isActivePane: Bool = false
+    var isSplit: Bool = false
     var focusWhenActivated: Bool = false
     var onFocusChange: ((Bool) -> Void)? = nil
 
@@ -20,6 +21,7 @@ struct CarrierTerminalView: View {
                 state: state,
                 autoFocus: autoFocus,
                 isActivePane: isActivePane,
+                isSplit: isSplit,
                 focusWhenActivated: focusWhenActivated,
                 accessibilityLabel: label,
                 onFocusChange: onFocusChange
@@ -37,6 +39,7 @@ private struct MountedTerminalSurface: View {
     let state: TerminalViewState
     let autoFocus: Bool
     let isActivePane: Bool
+    let isSplit: Bool
     let focusWhenActivated: Bool
     let accessibilityLabel: String
     let onFocusChange: ((Bool) -> Void)?
@@ -48,6 +51,7 @@ private struct MountedTerminalSurface: View {
             .terminalFocused($focused)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(accessibilityLabel)
+            .accessibilityValue(isSplit ? (isActivePane ? "Active pane" : "Pane") : "")
             .onChange(of: focused) { _, isFocused in
                 onFocusChange?(isFocused)
             }

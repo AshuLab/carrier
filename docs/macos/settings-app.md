@@ -13,7 +13,7 @@ The list gives each tool its state (Signed in, Signed out, Not installed, Could 
 A local server shows its models, or that it is not running.
 The state is the chat host's `providers` reply (`ProvidersStore`, asked when the page opens, when the app becomes active and on Check again); a host that is not running, one too old to list `providers`, one that fails, and a `providers.json` that does not match each say so in words in place of the page.
 
-- **Sign in and Update** (`CarrierCore/ProviderTerminal.swift`, tested in `ProviderTerminalTests`): a signed-out account shows Sign in and a found tool shows Update beside its version and path; both open Terminal with Continue in Terminal's one-use script and opener (`openScript`, `WorkspaceTerminalOpener`).
+- **Sign in and Update** (`CarrierCore/ProviderTerminal.swift`, tested in `ProviderTerminalTests`): a signed-out account shows Sign in and a found tool shows Update beside its version and path; both open Terminal with the app's one-use script and opener (`openScript`, `WorkspaceTerminalOpener`).
   The command is built from a closed list, harness by action, every value single-quoted: `CLAUDE_CONFIG_DIR='<folder>' 'claude' '/login'`, `CODEX_HOME='<folder>' 'codex' 'login'`, `'agy'` (the variable only when the account has a folder), and `'claude' 'update'`, `'codex' 'update'`, `'agy' 'update'` (none of them can only check, they install).
   The account's `command`, when set, is the binary that runs; it and the folder are accepted only as absolute paths, and a harness outside the list is refused before anything is written.
   With `--fixture` the opener is `FixtureTerminalOpener`: it logs the line to stderr (`carrier: fixture terminal: ...`) and removes the script, so nothing opens.

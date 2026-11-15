@@ -1,4 +1,4 @@
-// The fifteen places that can have nothing to show, with their SF Symbol, title and one line
+// The sixteen places that can have nothing to show, with their SF Symbol, title and one line
 // (docs/specs/macos-app-redesign.md, story 24; the wording is the mockup's gallery).
 
 public enum EmptyState: CaseIterable {

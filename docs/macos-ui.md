@@ -34,7 +34,7 @@ Four kinds. Pick by what the button is, not by taste.
 
 | Kind | Style | For | Where |
 |---|---|---|---|
-| Main | `PrimaryCapsuleButtonStyle` | The one action of a form: Save, Add. Accent fill, white label; dim when disabled. | `BehaviorTab.swift` |
+| Main | `PrimaryCapsuleButtonStyle` | The one action of a form: Save, Add; `.controlSize(.small)` inside compact popovers (`TabRenamePopover`). Accent fill, white label; dim when disabled. | `BehaviorTab.swift` |
 | Secondary | `SecondaryCapsuleButtonStyle` | Cancel, Remove, Open Agents, Add account, Sign in. A grey capsule; `.controlSize(.small)` inside a row. | `BehaviorTab.swift` |
 | Text | `HoverTextButtonStyle(tint: nil)` | Actions of a page header (Update, Check again, Open on GitHub) and the chevron. No pill until the pointer is over it. | `NoticeCard.swift` |
 | Icon | `IconButton` (`HoverFillButtonStyle`) | A 24 pt glyph with a tooltip and an accessible name: close, fold. | `SidebarView.swift` |

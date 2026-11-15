@@ -15,9 +15,9 @@ Closing a standalone terminal from its hover `×`, middle-click (`onMiddleClick`
 
 Selecting a standalone terminal (`Selection.terminal(id:)`) shows `TerminalDetailView` (`Carrier/TerminalWorkspaceView.swift`).
 The terminal surface extends under the translucent top toolbar across the full detail height, while top-right pane controls are inset below `safeAreaInsets.top` (`topControlsInset`) so they stay clear of toolbar buttons.
-The tab strip (`Carrier/TerminalTabBarView.swift`, `TerminalTabBarView`) sits along the bottom edge with drag reordering, inline rename popovers, a pinned `+` button to add a tab in the active tab's folder, Close Tab / Close Other Tabs in the context menu and middle-click or `×` to close a tab.
+The tab strip (`Carrier/TerminalTabBarView.swift`, `TerminalTabBarView`) sits along the bottom edge with drag reordering, context-menu and VoiceOver tab move actions, inline rename popovers, a pinned `+` button to add a tab in the active tab's folder, Close Tab / Close Other Tabs in the context menu and middle-click or `×` to close a tab.
 Hovering near the top of a pane reveals floating glass controls (`TerminalPaneHeaderView`) to split right, split down, zoom or restore a split pane, drag a pane to another pane's edge to move it or center to swap (`terminalDropZone`), equalize splits or detach a pane into a new tab.
-All split, zoom, equalize, detach and close actions are also available via the menu bar (`Terminal` menu, `TerminalMenuControls`), keyboard shortcuts (`⌘D`, `⌘⇧D`, `⌘⇧↩`, `⌘⇧W`) and pane accessibility actions.
+All tab, split, focus, zoom, equalize, detach and close actions are also available via the menu bar (`Terminal` menu, `TerminalMenuControls`), keyboard shortcuts (`⌘T`, `⌘D`, `⌘⇧D`, `⌘⇧↩`, `⌘⌥[`, `⌘⌥]`, `⌘⇧[`, `⌘⇧]`, `⌘⇧W`) and pane accessibility actions.
 Split dividers (`SplitContainerView`) and the drawer's top edge (`TerminalDrawerView`) share `TerminalResizeDivider`, resize by drag or accessibility adjustment with `AppKit` resize cursors managed by `hoverCursor`, and highlight using `Color.themeAccent`.
 
 ## Appearance and theme alignment
@@ -39,7 +39,8 @@ Archiving or deleting a session closes and prunes its terminal tabs (`SessionAct
 ## Epic Continue in Terminal drawer
 
 When an epic run exposes a validated resume descriptor in `SessionSectionsView`, clicking **Continue in Terminal** opens `TerminalDrawerView` beneath `EpicView` for `TerminalOwner.epic(repo:issue:)`.
-Instead of launching an external terminal app, `embeddedResumeLaunch(_:)` validates folder accessibility (`isAccessibleTerminalDirectory`) and runs a fail-closed `cd` plus the interactive login shell command inside the epic's working tree with any scoped `CLAUDE_CONFIG_DIR` or `CODEX_HOME` environment variables.
+Instead of launching an external terminal app, `embeddedResumeLaunch(_:)` validates folder accessibility (`isAccessibleTerminalDirectory`) and runs a fail-closed `cd` plus the interactive login shell command with inline `CLAUDE_CONFIG_DIR` or `CODEX_HOME` overrides inside the epic's working tree.
+Re-clicking **Continue in Terminal** for an already open session focuses the existing tab and pane instead of spawning a duplicate session.
 When the resumed agent process exits cleanly, its pane closes automatically and collapses the drawer when no tabs remain.
 If opening the directory fails or the agent exits non-zero, the pane holds open until you press Return so the error stays visible.
 Clicking the drawer's close (`×`) button closes its epic tabs with running-process confirmation when enabled.

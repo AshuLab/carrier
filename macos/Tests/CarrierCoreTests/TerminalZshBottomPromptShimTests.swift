@@ -184,7 +184,7 @@ struct TerminalZshBottomPromptShimTests {
         }
 
         Thread.sleep(forTimeInterval: 0.45)
-        send("echo \"VARS:$CARRIER_TEST_ENV:$CARRIER_TEST_LOGIN_ENV:$CARRIER_TEST_RC:$CARRIER_TEST_LOGIN_END:$ZDOTDIR\"\n")
+        send("echo \"VARS:$CARRIER_TEST_ENV:$CARRIER_TEST_LOGIN_ENV:$CARRIER_TEST_RC:$CARRIER_TEST_LOGIN_END:$ZDOTDIR|HIST:$HISTFILE\"\n")
         send("clear\n")
         send("echo typed", waitSeconds: 0.15)
         send("\u{0C}", waitSeconds: 0.3)
@@ -195,11 +195,86 @@ struct TerminalZshBottomPromptShimTests {
 
         let text = String(decoding: collector.snapshot(), as: UTF8.self)
         #expect(text.contains("parse error") == false)
-        #expect(text.contains("VARS:1:1:1:1:\(userDir.path)"))
+        #expect(text.contains("VARS:1:1:1:1:\(userDir.path)|HIST:\(userDir.path)/.zsh_history"))
+        #expect(text.contains("HIST:\(shimDir.path)") == false)
         #expect(text.contains("\u{1B}[?2026h\u{1B}[H\u{1B}[2J\u{1B}[999;1H\u{1B}[?2026l"))
         #expect(text.contains("\u{1B}[?2026h\u{1B}[3J\u{1B}[H\u{1B}[2J\u{1B}[999;1H\u{1B}[?2026l"))
         #expect(text.contains("\u{1B}[?2026h\u{1B}[H\u{1B}[2J\u{1B}[999;1H"))
         #expect(text.contains("AFTER_CTRLL"))
+    }
+
+    @Test func ptyRedirectsDefaultHistfileToHomeAndPreservesCustomClearScreenWhenZdotdirUnset() throws {
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("carrier-zsh-shim-hist-\(UUID().uuidString)", isDirectory: true)
+        let homeDir = tempRoot.appendingPathComponent("home", isDirectory: true)
+        let shimDir = tempRoot.appendingPathComponent("shim", isDirectory: true)
+        try FileManager.default.createDirectory(at: homeDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        try """
+        _user_custom_clear_screen() {
+          builtin printf 'USER_CUSTOM_CLEAR'
+        }
+        zle -N clear-screen _user_custom_clear_screen
+        """.write(
+            to: homeDir.appendingPathComponent(".zshrc"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try TerminalZshBottomPromptShim.prepareDirectory(shimDir)
+
+        let env = TerminalZshBottomPromptShim.mergedEnvironment(
+            baseEnvVars: [
+                "HOME": homeDir.path,
+                "PATH": ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin",
+                "TERM": "xterm-256color",
+            ],
+            processEnvironment: ["SHELL": "/bin/zsh"],
+            shimDirectory: shimDir,
+            pinPromptToBottom: true,
+            command: nil
+        )
+
+        let stdinPipe = Pipe()
+        let stdoutPipe = Pipe()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/script")
+        process.arguments = ["-q", "/dev/null", "/bin/zsh", "-il"]
+        process.environment = env
+        process.standardInput = stdinPipe
+        process.standardOutput = stdoutPipe
+        process.standardError = stdoutPipe
+
+        let collector = OutputCollector()
+        stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty == false {
+                collector.append(data)
+            }
+        }
+        defer {
+            stdoutPipe.fileHandleForReading.readabilityHandler = nil
+            if process.isRunning { process.terminate() }
+        }
+
+        try process.run()
+        func send(_ command: String, waitSeconds: TimeInterval = 0.25) {
+            if let data = command.data(using: .utf8) {
+                stdinPipe.fileHandleForWriting.write(data)
+            }
+            Thread.sleep(forTimeInterval: waitSeconds)
+        }
+
+        Thread.sleep(forTimeInterval: 0.45)
+        send("echo \"HIST:$HISTFILE|ZDOT:${ZDOTDIR:-unset}|WIDGET:${widgets[clear-screen]}\"\n")
+        send("exit\n", waitSeconds: 0.2)
+        try? stdinPipe.fileHandleForWriting.close()
+        process.waitUntilExit()
+
+        let text = String(decoding: collector.snapshot(), as: UTF8.self)
+        #expect(text.contains("parse error") == false)
+        #expect(text.contains("HIST:\(homeDir.path)/.zsh_history|ZDOT:unset|WIDGET:user:_user_custom_clear_screen"))
+        #expect(text.contains("HIST:\(shimDir.path)") == false)
     }
 }
 

@@ -85,22 +85,18 @@ private func resumeSteps(_ resume: ValidResume) -> (cd: String, run: String) {
     return ("cd \(shellQuote(resume.cwd))", environment + resumeRunCommand(resume))
 }
 
-/// Builds the folder, scoped config environment variables, and login-shell command for Carrier's embedded Ghostty drawer.
-/// The shell script `cd`s explicitly so inaccessible folders fail closed instead of running in `$HOME`, and holds non-zero
-/// failures open until the user presses Return so errors stay visible.
+/// Builds the folder and login-shell command for Carrier's embedded Ghostty drawer.
+/// The shell script `cd`s explicitly with inline scoped config variables so inaccessible folders fail closed
+/// and user shell startup files cannot override `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, while holding
+/// non-zero failures open until the user presses Return so errors stay visible.
 public func embeddedResumeLaunch(_ resume: ValidResume) -> EmbeddedResumeLaunch {
-    var envVars: [String: String] = [:]
-    if let envName = resumeConfigEnvironmentVariable(for: resume.harness), let configDir = resume.configDir {
-        envVars[envName] = configDir
-    }
-    let cdCommand = "cd \(shellQuote(resume.cwd))"
-    let runCommand = resumeRunCommand(resume)
-    let shellBody = "(\(cdCommand) && \(runCommand)) || { code=$?; builtin printf '\\nContinue in Terminal exited with status %s.' \"$code\"; if [[ -t 0 ]]; then builtin printf ' Press Return to close...'; IFS= read -r _; fi; exit $code; }"
+    let steps = resumeSteps(resume)
+    let shellBody = "(\(steps.cd) && \(steps.run)) || { code=$?; builtin printf '\\nContinue in Terminal exited with status %s.' \"$code\"; if [[ -t 0 ]]; then builtin printf ' Press Return to close...'; IFS= read -r _; fi; exit $code; }"
     return EmbeddedResumeLaunch(
         workingDirectory: resume.cwd,
-        envVars: envVars,
+        envVars: [:],
         command: "/bin/zsh -il -c \(shellQuote(shellBody))",
-        displayCommand: resumeCommand(resume)
+        displayCommand: "\(steps.cd) && \(steps.run)"
     )
 }
 

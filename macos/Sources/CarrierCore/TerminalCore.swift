@@ -1,11 +1,10 @@
 import Foundation
 
-/// Owns a group of terminal tabs inside Carrier: a chat session drawer, an epic Continue-in-Terminal drawer, a standalone Terminal sidebar group, or legacy quick tabs.
+/// Owns a group of terminal tabs inside Carrier: a chat session drawer, an epic Continue-in-Terminal drawer, or a standalone Terminal sidebar group.
 public enum TerminalOwner: Hashable, Codable, Sendable {
     case session(String)
     case epic(repo: String, issue: Int)
     case terminal(UUID)
-    case quick
 
     private enum CodingKeys: String, CodingKey {
         case kind
@@ -19,7 +18,6 @@ public enum TerminalOwner: Hashable, Codable, Sendable {
         case session
         case epic
         case terminal
-        case quick
     }
 
     public init(from decoder: Decoder) throws {
@@ -34,8 +32,6 @@ public enum TerminalOwner: Hashable, Codable, Sendable {
             )
         case .terminal:
             self = .terminal(try container.decode(UUID.self, forKey: .terminalId))
-        case .quick:
-            self = .quick
         }
     }
 
@@ -52,8 +48,6 @@ public enum TerminalOwner: Hashable, Codable, Sendable {
         case .terminal(let id):
             try container.encode(Kind.terminal, forKey: .kind)
             try container.encode(id, forKey: .terminalId)
-        case .quick:
-            try container.encode(Kind.quick, forKey: .kind)
         }
     }
 }
@@ -340,6 +334,40 @@ public struct TerminalRegistry: Equatable, Sendable {
         guard let tab = tabsById[id] else { return }
         if let owner, tab.owner != owner { return }
         activeTabByOwner[tab.owner] = id
+    }
+
+    public func adjacentTabId(offset: Int, for owner: TerminalOwner) -> UUID? {
+        guard let order = orderByOwner[owner], order.count > 1 else { return nil }
+        let currentIndex = activeTabByOwner[owner].flatMap { order.firstIndex(of: $0) } ?? 0
+        let wrapped = ((currentIndex + offset) % order.count + order.count) % order.count
+        return order[wrapped]
+    }
+
+    public func adjacentPaneId(offset: Int, inTab tabId: UUID) -> UUID? {
+        guard let tab = tabsById[tabId] else { return nil }
+        let ordered = tab.orderedPaneIds
+        guard ordered.count > 1 else { return nil }
+        let currentIndex = ordered.firstIndex(of: tab.activePaneId) ?? 0
+        let wrapped = ((currentIndex + offset) % ordered.count + ordered.count) % ordered.count
+        return ordered[wrapped]
+    }
+
+    public func canMoveTab(id: UUID, offset: Int) -> Bool {
+        guard let tab = tabsById[id], let order = orderByOwner[tab.owner], let current = order.firstIndex(of: id) else {
+            return false
+        }
+        let nextIndex = current + offset
+        return nextIndex >= 0 && nextIndex < order.count && nextIndex != current
+    }
+
+    @discardableResult
+    public mutating func moveTabRelative(id: UUID, offset: Int) -> Bool {
+        guard let tab = tabsById[id], let order = orderByOwner[tab.owner], let current = order.firstIndex(of: id) else {
+            return false
+        }
+        let nextIndex = current + offset
+        guard nextIndex >= 0, nextIndex < order.count, nextIndex != current else { return false }
+        return moveTab(id: id, toIndex: nextIndex)
     }
 
     @discardableResult
@@ -760,9 +788,6 @@ public struct TerminalRegistry: Equatable, Sendable {
 
     private func ownerSortOrder(_ lhs: TerminalOwner, _ rhs: TerminalOwner) -> Bool {
         switch (lhs, rhs) {
-        case (.quick, .quick): return false
-        case (.quick, _): return true
-        case (_, .quick): return false
         case (.terminal(let a), .terminal(let b)):
             let ia = terminalOrder.firstIndex(of: a)
             let ib = terminalOrder.firstIndex(of: b)

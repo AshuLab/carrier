@@ -99,14 +99,15 @@ struct TerminalWorkspaceLayoutTests {
         let (store, cleanup) = makeStore()
         defer { cleanup() }
 
-        let first = store.openTab(for: .quick, workingDirectory: "/tmp/one", title: "one")
-        _ = store.openTab(for: .quick, workingDirectory: "/tmp/two", title: "two")
+        let owner = TerminalOwner.terminal(UUID())
+        let first = store.openTab(for: owner, workingDirectory: "/tmp/one", title: "one")
+        _ = store.openTab(for: owner, workingDirectory: "/tmp/two", title: "two")
         _ = store.splitPane(first.activePaneId, edge: .trailing)
 
         let renderer = ImageRenderer(
             content: TerminalTabBarView(
                 store: store,
-                tabs: store.tabs(for: .quick),
+                tabs: store.tabs(for: owner),
                 activeTabId: first.id,
                 onSelectTab: { _ in },
                 onAddTab: {},

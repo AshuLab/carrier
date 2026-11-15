@@ -57,7 +57,17 @@ enum TerminalAppearanceMapper {
             builder.withCustom("macos-option-as-alt", profile.optionAsAlt.rawValue)
             builder.withCustom("copy-on-select", profile.copyOnSelect ? "clipboard" : "false")
             builder.withCustom("scrollback-limit", "\(profile.scrollbackLimit.rawValue)")
-            for trigger in ["super+d", "super+shift+d", "super+shift+enter", "super+shift+w"] {
+            for trigger in [
+                "super+t",
+                "super+d",
+                "super+shift+d",
+                "super+shift+enter",
+                "super+shift+w",
+                "super+shift+left_bracket",
+                "super+shift+right_bracket",
+                "super+alt+left_bracket",
+                "super+alt+right_bracket",
+            ] {
                 builder.withCustom("keybind", "\(trigger)=unbind")
             }
         }

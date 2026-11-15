@@ -47,7 +47,7 @@ Closing an entire tab, deleting or archiving a chat session, or quitting `Carrie
 ## Scope
 
 1. Package and bundle `GhosttyKit` (`Lakr233/libghostty-spm` `2.2.2026111302`), `GhosttyKit_GhosttyTerminal.bundle`, and third-party license notices in `Carrier.app` (`build-app.sh` and `check-app.sh`).
-2. Model `TerminalOwner` (`.session(String)` and `.quick`), `TerminalTab`, `TerminalPane`, launch specs, directory validation, and URL policy in `CarrierCore`.
+2. Model `TerminalOwner` (`.session(String)`, `.epic(repo:issue:)`, and `.terminal(UUID)`), `TerminalTab`, `TerminalPane`, launch specs, directory validation, and URL policy in `CarrierCore`.
 3. Support full tab and split-pane workspace operations in `CarrierCore`: create, select, reorder tabs, split on any edge inheriting the active pane's working directory, resize ratios, equalize, zoom toggle, move/swap panes across edges or tabs, and close panes/tabs with clean sibling promotion and active-focus fallback.
 4. Persist terminal workspace layout and working directories to `<Carrier folder>/app/terminals.json` and restore them deterministically on launch (validating stale directories against fallbacks and clearing orphaned tabs).
 5. Manage live `GhosttyTerminal` surfaces in `CarrierTerminalStore` cached by `paneId`, exposing search-in-scrollback, selection reading, paste, interrupt (`Ctrl+C`), and live teardown across SwiftUI view swaps and `CarrierTerminalView` mounts.

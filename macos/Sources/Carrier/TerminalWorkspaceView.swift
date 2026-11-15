@@ -259,6 +259,7 @@ private struct TerminalPaneHostView: View {
             paneId: paneId,
             autoFocus: autoFocus && tab.activePaneId == paneId,
             isActivePane: tab.activePaneId == paneId,
+            isSplit: isSplit,
             focusWhenActivated: store.appearanceProfile.focusFollowsMouse && isSplit
         ) { focused in
             if focused { store.selectPane(paneId) }

@@ -66,7 +66,7 @@ public extension TerminalRegistry {
 
         for workspace in persisted.workspaces {
             switch workspace.owner {
-            case .quick, .terminal:
+            case .terminal:
                 break
             case .epic:
                 continue

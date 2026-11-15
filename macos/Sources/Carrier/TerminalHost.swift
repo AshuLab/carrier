@@ -37,7 +37,7 @@ final class CarrierTerminalStore {
     @ObservationIgnored private let fileStore: TerminalWorkspaceFileStore
     @ObservationIgnored private let preferences: AppPreferences
     @ObservationIgnored private let processInspector: any TerminalProcessInspecting
-    @ObservationIgnored private let zshShimDirectory: URL
+    @ObservationIgnored let zshShimDirectory: URL
     @ObservationIgnored private let persistDebounceNanoseconds: UInt64
 
     /// Cached Ghostty surface state per `paneId` (reordering tabs or moving panes preserves live shells).
@@ -85,9 +85,13 @@ final class CarrierTerminalStore {
         self.preferences = preferences
         self.processInspector = processInspector ?? GhosttyTerminalProcessInspector()
         let derivedCarrierFolder: URL = {
-            guard let dir = resolvedStore.fileURL?.deletingLastPathComponent() else {
-                return URL(fileURLWithPath: currentCarrierFolder(), isDirectory: true)
+            if isEphemeralRun || resolvedStore.fileURL == nil {
+                return FileManager.default.temporaryDirectory.appendingPathComponent(
+                    "carrier-ephemeral-terminal-\(ProcessInfo.processInfo.processIdentifier)",
+                    isDirectory: true
+                )
             }
+            let dir = resolvedStore.fileURL!.deletingLastPathComponent()
             return dir.lastPathComponent == "app" ? dir.deletingLastPathComponent() : dir
         }()
         self.zshShimDirectory = zshShimDirectory ?? TerminalZshBottomPromptShim.defaultDirectory(
@@ -208,6 +212,31 @@ final class CarrierTerminalStore {
                 focus(paneId: activePaneId)
             }
         }
+    }
+
+    @discardableResult
+    func selectAdjacentTab(offset: Int, for owner: TerminalOwner) -> Bool {
+        guard let nextTabId = registry.adjacentTabId(offset: offset, for: owner) else { return false }
+        selectTab(nextTabId, for: owner)
+        return true
+    }
+
+    @discardableResult
+    func focusAdjacentPane(offset: Int, inTab tabId: UUID) -> Bool {
+        guard let nextPaneId = registry.adjacentPaneId(offset: offset, inTab: tabId) else { return false }
+        selectPane(nextPaneId)
+        return true
+    }
+
+    @discardableResult
+    func moveTabRelative(_ tabId: UUID, offset: Int) -> Bool {
+        guard registry.moveTabRelative(id: tabId, offset: offset) else { return false }
+        persistMutation {
+            if let paneId = registry.tab(id: tabId)?.activePaneId {
+                focus(paneId: paneId)
+            }
+        }
+        return true
     }
 
     @discardableResult

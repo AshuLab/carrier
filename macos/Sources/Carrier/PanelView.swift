@@ -139,7 +139,7 @@ struct PanelView: View {
         }
     }
 
-    /// Launches a validated epic Continue-in-Terminal session inside the epic's integrated bottom drawer.
+    /// Launches or focuses a validated epic Continue-in-Terminal session inside the epic's integrated bottom drawer.
     private func continueEpicInTerminal(epic: EpicRef, section: SessionSection, resume: ValidResume) {
         let launch = embeddedResumeLaunch(resume)
         guard isAccessibleTerminalDirectory(launch.workingDirectory) else {
@@ -148,6 +148,17 @@ struct PanelView: View {
             return
         }
         let owner = TerminalOwner.epic(repo: epic.repo, issue: epic.issue)
+        if let existingTab = terminalStore.tabs(for: owner).first(where: { tab in
+            tab.orderedPanes.contains { $0.command == launch.command }
+        }) {
+            terminalStore.selectTab(existingTab.id, for: owner)
+            setDrawerOpen(true, for: owner)
+            if let matchingPaneId = existingTab.orderedPanes.first(where: { $0.command == launch.command })?.id {
+                terminalStore.selectPane(matchingPaneId)
+                terminalStore.focus(paneId: matchingPaneId)
+            }
+            return
+        }
         let tab = terminalStore.openTab(
             for: owner,
             workingDirectory: launch.workingDirectory,

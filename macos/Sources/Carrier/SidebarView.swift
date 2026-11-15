@@ -21,7 +21,7 @@ enum SidebarMetrics {
     static let groupTop: CGFloat = 10
 }
 
-/// The sidebar: the Home row and Sessions in a scroll area, and Carrier with its epics in groups under them while it is the open section;
+/// The sidebar: the Home row, Sessions, Terminal and Carrier in a scroll area (Carrier stays at the foot while not the open section),
 /// the foot is fixed: Archive (only while Sessions or Archive is open), Carrier as a row (while it is not open), Settings and Usage under it. The rows draw their own fill, selected or hovered, so what is under a section is plain rows and not a `List`.
 struct SidebarView: View {
     private let timeChanges = TimeFormatChanges()

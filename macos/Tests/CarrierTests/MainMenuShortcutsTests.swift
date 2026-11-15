@@ -154,40 +154,84 @@ private let fixtures = URL(fileURLWithPath: #filePath)
             allowsPreferredFallback: { allowFallback }
         )
         let menu = AppDelegate().makeMainMenu(shortcuts: table(), terminalControls: terminalControls)
+        let newTabItem = try item(menu, "Terminal", "New Tab")
         let splitRightItem = try item(menu, "Terminal", "Split Right")
         let zoomItem = try item(menu, "Terminal", "Zoom Pane")
         let equalizeItem = try item(menu, "Terminal", "Equalize Splits")
         let detachItem = try item(menu, "Terminal", "Move Pane to New Tab")
+        let prevPaneItem = try item(menu, "Terminal", "Focus Previous Pane")
+        let nextPaneItem = try item(menu, "Terminal", "Focus Next Pane")
+        let prevTabItem = try item(menu, "Terminal", "Select Previous Tab")
+        let nextTabItem = try item(menu, "Terminal", "Select Next Tab")
+        let moveLeftItem = try item(menu, "Terminal", "Move Tab Left")
+        let moveRightItem = try item(menu, "Terminal", "Move Tab Right")
         let closeItem = try item(menu, "Terminal", "Close Pane")
 
         // No active terminal selected -> Terminal menu items stay disabled.
+        #expect(terminalControls.validateMenuItem(newTabItem) == false)
         #expect(terminalControls.validateMenuItem(splitRightItem) == false)
         #expect(terminalControls.validateMenuItem(zoomItem) == false)
 
-        _ = store.openTab(for: owner, workingDirectory: "/tmp")
+        let firstTab = store.openTab(for: owner, workingDirectory: "/tmp")
         activeOwner = owner
+        #expect(terminalControls.validateMenuItem(newTabItem) == true)
         #expect(terminalControls.validateMenuItem(splitRightItem) == true)
         #expect(terminalControls.validateMenuItem(zoomItem) == false)
         #expect(terminalControls.validateMenuItem(equalizeItem) == false)
         #expect(terminalControls.validateMenuItem(detachItem) == false)
+        #expect(terminalControls.validateMenuItem(prevPaneItem) == false)
+        #expect(terminalControls.validateMenuItem(nextPaneItem) == false)
+        #expect(terminalControls.validateMenuItem(prevTabItem) == false)
+        #expect(terminalControls.validateMenuItem(nextTabItem) == false)
+        #expect(terminalControls.validateMenuItem(moveLeftItem) == false)
+        #expect(terminalControls.validateMenuItem(moveRightItem) == false)
         #expect(terminalControls.validateMenuItem(closeItem) == true)
         #expect(closeItem.title == "Close Tab")
 
         // Blocked fallback (e.g. text field / popover / secondary window) refuses preferred-owner actions.
         allowFallback = false
+        #expect(terminalControls.validateMenuItem(newTabItem) == false)
         #expect(terminalControls.validateMenuItem(splitRightItem) == false)
         #expect(terminalControls.validateMenuItem(closeItem) == false)
         run(splitRightItem)
         #expect(store.activeTab(for: owner)?.paneCount == 1)
 
         allowFallback = true
+        run(newTabItem)
+        let tabs = store.tabs(for: owner)
+        #expect(tabs.count == 2)
+        let secondTab = tabs[1]
+        #expect(store.activeTabId(for: owner) == secondTab.id)
+        #expect(terminalControls.validateMenuItem(prevTabItem) == true)
+        #expect(terminalControls.validateMenuItem(nextTabItem) == true)
+        #expect(terminalControls.validateMenuItem(moveLeftItem) == true)
+        #expect(terminalControls.validateMenuItem(moveRightItem) == false)
+
+        run(moveLeftItem)
+        #expect(store.tabs(for: owner).map(\.id) == [secondTab.id, firstTab.id])
+        #expect(terminalControls.validateMenuItem(moveLeftItem) == false)
+        #expect(terminalControls.validateMenuItem(moveRightItem) == true)
+
+        run(nextTabItem)
+        #expect(store.activeTabId(for: owner) == firstTab.id)
+        run(prevTabItem)
+        #expect(store.activeTabId(for: owner) == secondTab.id)
+
         run(splitRightItem)
         #expect(store.activeTab(for: owner)?.paneCount == 2)
         #expect(terminalControls.validateMenuItem(zoomItem) == true)
         #expect(terminalControls.validateMenuItem(equalizeItem) == true)
         #expect(terminalControls.validateMenuItem(detachItem) == true)
+        #expect(terminalControls.validateMenuItem(prevPaneItem) == true)
+        #expect(terminalControls.validateMenuItem(nextPaneItem) == true)
         #expect(terminalControls.validateMenuItem(closeItem) == true)
         #expect(closeItem.title == "Close Pane")
+
+        let secondPaneId = store.activeTab(for: owner)?.activePaneId
+        run(prevPaneItem)
+        #expect(store.activeTab(for: owner)?.activePaneId != secondPaneId)
+        run(nextPaneItem)
+        #expect(store.activeTab(for: owner)?.activePaneId == secondPaneId)
 
         run(zoomItem)
         #expect(store.activeTab(for: owner)?.zoomedPaneId != nil)

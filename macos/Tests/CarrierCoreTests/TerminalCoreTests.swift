@@ -7,17 +7,18 @@ struct TerminalCoreTests {
         var registry = TerminalRegistry()
         let s1 = TerminalOwner.session("s-1")
         let s2 = TerminalOwner.session("s-2")
+        let standalone = TerminalOwner.terminal(UUID())
 
         let tab1 = registry.openTab(owner: s1, spec: TerminalLaunchSpec(workingDirectory: "/tmp/s1"))
         let tab2 = registry.openTab(owner: s2, spec: TerminalLaunchSpec(workingDirectory: "/tmp/s2"))
-        let quick = registry.openTab(owner: .quick, spec: TerminalLaunchSpec(workingDirectory: "/tmp/quick"))
+        let terminalTab = registry.openTab(owner: standalone, spec: TerminalLaunchSpec(workingDirectory: "/tmp/standalone"))
 
         #expect(registry.tabs(for: s1).map(\.id) == [tab1.id])
         #expect(registry.tabs(for: s2).map(\.id) == [tab2.id])
-        #expect(registry.tabs(for: .quick).map(\.id) == [quick.id])
+        #expect(registry.tabs(for: standalone).map(\.id) == [terminalTab.id])
         #expect(registry.activeTabId(for: s1) == tab1.id)
         #expect(registry.activeTabId(for: s2) == tab2.id)
-        #expect(registry.activeTabId(for: .quick) == quick.id)
+        #expect(registry.activeTabId(for: standalone) == terminalTab.id)
     }
 
     @Test func closeTabSelectsNeighborAndCloseAllClearsOnlyTargetOwner() {
@@ -56,16 +57,17 @@ struct TerminalCoreTests {
         #expect(movedFirst)
         #expect(registry.tabs(for: owner).map(\.id) == [t3.id, t1.id, t2.id])
 
-        let movedAcross = registry.moveTab(id: t1.id, toOwner: .quick, atIndex: 0)
+        let otherOwner = TerminalOwner.terminal(UUID())
+        let movedAcross = registry.moveTab(id: t1.id, toOwner: otherOwner, atIndex: 0)
         #expect(movedAcross)
         #expect(registry.tabs(for: owner).map(\.id) == [t3.id, t2.id])
-        #expect(registry.tabs(for: .quick).map(\.id) == [t1.id])
-        #expect(registry.activeTabId(for: .quick) == t1.id)
+        #expect(registry.tabs(for: otherOwner).map(\.id) == [t1.id])
+        #expect(registry.activeTabId(for: otherOwner) == t1.id)
     }
 
     @Test func splitsPaneAlongAllEdgesAndInheritsWorkingDirectory() {
         var registry = TerminalRegistry()
-        let tab = registry.openTab(owner: .quick, spec: TerminalLaunchSpec(workingDirectory: "/Users/dev/carrier"))
+        let tab = registry.openTab(owner: .terminal(UUID()), spec: TerminalLaunchSpec(workingDirectory: "/Users/dev/carrier"))
         let rootPane = tab.activePaneId
 
         let rightPane = registry.splitPane(rootPane, edge: .trailing)
@@ -87,7 +89,7 @@ struct TerminalCoreTests {
 
     @Test func clampsSplitRatiosAndEqualizes() {
         var registry = TerminalRegistry()
-        let tab = registry.openTab(owner: .quick, spec: TerminalLaunchSpec(workingDirectory: "/tmp"))
+        let tab = registry.openTab(owner: .terminal(UUID()), spec: TerminalLaunchSpec(workingDirectory: "/tmp"))
         let first = tab.activePaneId
         let second = registry.splitPane(first, edge: .trailing, ratio: 0.99)!
         let third = registry.splitPane(second.id, edge: .bottom, ratio: 0.01)!
@@ -150,7 +152,7 @@ struct TerminalCoreTests {
         #expect(registry.tab(id: tabA.id)?.orderedPaneIds == [p2, p1, p3])
 
         // Move across tabs and swap across tabs.
-        let tabB = registry.openTab(owner: .quick, spec: TerminalLaunchSpec(workingDirectory: "/tmp/b"))
+        let tabB = registry.openTab(owner: s1, spec: TerminalLaunchSpec(workingDirectory: "/tmp/b"))
         let q1 = tabB.activePaneId
         let movedInter = registry.movePane(p3, toTarget: q1, edge: .bottom)
         #expect(movedInter)
@@ -163,7 +165,7 @@ struct TerminalCoreTests {
         #expect(registry.tab(id: tabB.id)?.orderedPaneIds == [p1, p3])
 
         // Detach pane to a brand new tab.
-        let detachedTab = registry.detachPaneToNewTab(p1, toOwner: .quick)
+        let detachedTab = registry.detachPaneToNewTab(p1, toOwner: .terminal(UUID()))
         #expect(detachedTab != nil)
         #expect(registry.tab(id: tabB.id)?.orderedPaneIds == [p3])
         #expect(detachedTab?.orderedPaneIds == [p1])
@@ -181,7 +183,7 @@ struct TerminalCoreTests {
     @Test func renameTabOverridesTitleAndBlankClearsCustomTitle() {
         var registry = TerminalRegistry()
         let tab = registry.openTab(
-            owner: .quick,
+            owner: .terminal(UUID()),
             spec: TerminalLaunchSpec(workingDirectory: "/tmp/project", title: "zsh")
         )
         #expect(registry.tab(id: tab.id)?.title == "zsh")
@@ -199,15 +201,16 @@ struct TerminalCoreTests {
         var registry = TerminalRegistry()
         let validSession = TerminalOwner.session("sess-keep")
         let staleSession = TerminalOwner.session("sess-deleted")
+        let standaloneOwner = TerminalOwner.terminal(UUID())
 
-        let quickTab = registry.openTab(
-            owner: .quick,
+        let standaloneTab = registry.openTab(
+            owner: standaloneOwner,
             spec: TerminalLaunchSpec(workingDirectory: "/existing/a", envVars: ["CARRIER_SECRET": "top-secret-value"], title: "Shell")
         )
-        let quickRight = registry.splitPane(quickTab.activePaneId, edge: .trailing, ratio: 0.35)!
-        registry.renamePane(quickRight.id, customTitle: "Logs")
-        registry.updatePaneWorkingDirectory("/missing/worktree", forPane: quickRight.id)
-        registry.toggleZoom(paneId: quickRight.id)
+        let standaloneRight = registry.splitPane(standaloneTab.activePaneId, edge: .trailing, ratio: 0.35)!
+        registry.renamePane(standaloneRight.id, customTitle: "Logs")
+        registry.updatePaneWorkingDirectory("/missing/worktree", forPane: standaloneRight.id)
+        registry.toggleZoom(paneId: standaloneRight.id)
 
         _ = registry.openTab(owner: validSession, spec: TerminalLaunchSpec(workingDirectory: "/existing/b"))
         _ = registry.openTab(owner: staleSession, spec: TerminalLaunchSpec(workingDirectory: "/existing/c"))
@@ -264,13 +267,13 @@ struct TerminalCoreTests {
 
         #expect(restored.tabs(for: staleSession).isEmpty)
         #expect(restored.tabs(for: validSession).count == 1)
-        let restoredQuick = restored.tabs(for: .quick).first
-        #expect(restoredQuick?.paneCount == 2)
-        #expect(restoredQuick?.panes[quickTab.activePaneId]?.envVars.isEmpty == true)
-        #expect(restoredQuick?.zoomedPaneId == quickRight.id)
-        #expect(restored.pane(id: quickRight.id)?.customTitle == "Logs")
-        #expect(restored.pane(id: quickRight.id)?.workingDirectory == "/fallback/home")
-        if case .split(.horizontal, let ratio, _, _) = restoredQuick?.root {
+        let restoredStandalone = restored.tabs(for: standaloneOwner).first
+        #expect(restoredStandalone?.paneCount == 2)
+        #expect(restoredStandalone?.panes[standaloneTab.activePaneId]?.envVars.isEmpty == true)
+        #expect(restoredStandalone?.zoomedPaneId == standaloneRight.id)
+        #expect(restored.pane(id: standaloneRight.id)?.customTitle == "Logs")
+        #expect(restored.pane(id: standaloneRight.id)?.workingDirectory == "/fallback/home")
+        if case .split(.horizontal, let ratio, _, _) = restoredStandalone?.root {
             #expect(abs(ratio - 0.35) < 0.0001)
         } else {
             Issue.record("Expected restored split ratio")
@@ -286,35 +289,35 @@ struct TerminalCoreTests {
         let pKey2 = UUID()
         let t1 = TerminalTab(
             id: UUID(),
-            owner: .quick,
+            owner: standaloneOwner,
             root: .leaf(pKey1),
             panes: [pKey1: TerminalPane(id: UUID(), workingDirectory: "/existing/a")],
             activePaneId: pKey1
         )
         let t2 = TerminalTab(
             id: UUID(),
-            owner: .quick,
+            owner: standaloneOwner,
             root: .leaf(pKey2),
             panes: [pKey2: TerminalPane(id: pKey2, workingDirectory: "/existing/b")],
             activePaneId: pKey2
         )
         let dupPayload = PersistedTerminalWorkspace(workspaces: [
-            TerminalWorkspace(owner: .quick, tabs: [t1], activeTabId: t1.id),
-            TerminalWorkspace(owner: .quick, tabs: [t2], activeTabId: t2.id),
+            TerminalWorkspace(owner: standaloneOwner, tabs: [t1], activeTabId: t1.id),
+            TerminalWorkspace(owner: standaloneOwner, tabs: [t2], activeTabId: t2.id),
         ])
         var merged = TerminalRegistry(restoring: dupPayload, fallbackDirectory: "/fallback/home", directoryExists: existing.contains)
-        #expect(merged.tabs(for: .quick).count == 2)
+        #expect(merged.tabs(for: standaloneOwner).count == 2)
         #expect(merged.pane(id: pKey1)?.id == pKey1)
         let prunedEmpty = merged.pruneSessions(keeping: [])
         #expect(prunedEmpty.isEmpty)
 
-        // Post-restore pruning removes unlisted sessions while preserving quick tabs.
+        // Post-restore pruning removes unlisted sessions while preserving standalone terminal tabs.
         var postPrune = TerminalRegistry(restoring: loaded!, fallbackDirectory: "/fallback/home", directoryExists: existing.contains)
         let removedPaneIds = postPrune.pruneSessions(keeping: ["sess-keep"])
         #expect(removedPaneIds.count == 1)
         #expect(postPrune.tabs(for: staleSession).isEmpty)
         #expect(postPrune.tabs(for: validSession).count == 1)
-        #expect(postPrune.tabs(for: .quick).count == 1)
+        #expect(postPrune.tabs(for: standaloneOwner).count == 1)
 
         // Corrupt JSON logs the failure and backs up the corrupt file instead of dropping it silently.
         let corruptBytes = Data("{corrupt".utf8)
@@ -573,12 +576,21 @@ struct TerminalCoreTests {
             )
         )
         _ = registry.openTab(owner: epic41, spec: TerminalLaunchSpec(workingDirectory: "/existing/epic-41"))
-        let standaloneId = UUID()
-        _ = registry.openTab(owner: .terminal(standaloneId), spec: TerminalLaunchSpec(workingDirectory: "/existing/api", title: "API"))
-        _ = registry.openTab(owner: .quick, spec: TerminalLaunchSpec(workingDirectory: "/existing/quick"))
+        let firstStandaloneId = UUID()
+        let secondStandaloneId = UUID()
+        _ = registry.openTab(owner: .terminal(firstStandaloneId), spec: TerminalLaunchSpec(workingDirectory: "/existing/api", title: "API"))
+        _ = registry.openTab(owner: .terminal(secondStandaloneId), spec: TerminalLaunchSpec(workingDirectory: "/existing/web", title: "Web"))
 
         #expect(registry.tabs(for: epic42).map(\.id) == [epicTab.id])
-        #expect(registry.workspaces.map(\.owner) == [.quick, .terminal(standaloneId), epic41, epic42, .session("s1")])
+        #expect(
+            registry.workspaces.map(\.owner) == [
+                .terminal(firstStandaloneId),
+                .terminal(secondStandaloneId),
+                epic41,
+                epic42,
+                .session("s1"),
+            ]
+        )
 
         // Ephemeral epic resume tabs must not be persisted or restored across app launches.
         let exported = registry.exportPersistedWorkspace()
@@ -596,7 +608,7 @@ struct TerminalCoreTests {
             directoryExists: { _ in true }
         )
         #expect(restored.tabs(for: epic42).isEmpty)
-        #expect(restored.standaloneTerminals().map(\.id) == [standaloneId])
+        #expect(restored.standaloneTerminals().map(\.id) == [firstStandaloneId, secondStandaloneId])
     }
 
     @Test func terminalSettingsPageResetAndPickerOptionsPreserveAndRestoreSafely() throws {
@@ -669,5 +681,28 @@ struct TerminalCoreTests {
         )
         let boosted = strictProfile.adjustedForMinimumContrast(dim)
         #expect(boosted.contrastRatio(with: strictProfile.background) >= 7.0)
+    }
+
+    @Test func adjacentTabAndPaneNavigationWrapsCleanlyAndRelativeMoveObeysBounds() {
+        var registry = TerminalRegistry()
+        let owner = TerminalOwner.terminal(UUID())
+        let t1 = registry.openTab(owner: owner, spec: TerminalLaunchSpec(workingDirectory: "/tmp/1"))
+        let t2 = registry.openTab(owner: owner, spec: TerminalLaunchSpec(workingDirectory: "/tmp/2"))
+        let t3 = registry.openTab(owner: owner, spec: TerminalLaunchSpec(workingDirectory: "/tmp/3"))
+
+        #expect(registry.adjacentTabId(offset: 1, for: owner) == t1.id)
+        #expect(registry.adjacentTabId(offset: -1, for: owner) == t2.id)
+        #expect(registry.canMoveTab(id: t3.id, offset: 1) == false)
+        #expect(registry.canMoveTab(id: t3.id, offset: -1) == true)
+        #expect(registry.moveTabRelative(id: t3.id, offset: -1) == true)
+        #expect(registry.tabs(for: owner).map(\.id) == [t1.id, t3.id, t2.id])
+
+        let p1 = t1.activePaneId
+        let p2 = registry.splitPane(p1, edge: .trailing)!.id
+        let p3 = registry.splitPane(p2, edge: .bottom)!.id
+        #expect(registry.adjacentPaneId(offset: 1, inTab: t1.id) == p1)
+        #expect(registry.adjacentPaneId(offset: -1, inTab: t1.id) == p2)
+        registry.selectPane(id: p2)
+        #expect(registry.adjacentPaneId(offset: 1, inTab: t1.id) == p3)
     }
 }

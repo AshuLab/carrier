@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Epic view — the whole epic, every flow (round 7)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.pane{width:min(940px,100%);height:880px;border-radius:22px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);overflow:hidden;position:relative}
+.pane .in{height:100%;overflow:auto;padding-bottom:40px}
+.feed{max-width:700px;margin:0 auto;padding:0 32px;display:flex;flex-direction:column}
+/* ---- the chat's vocabulary (same as round 1) ---- */
+.msg{line-height:1.5;margin:0}
+.msg code{font:11.5px var(--mono);background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue);padding:0 5px;border-radius:5px}
+.tg{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.tg .l{display:flex;gap:8px;align-items:center;height:30px;padding:0 10px;font-size:12.5px;color:var(--dim)}
+.tg .l b{color:var(--text);font-weight:600}
+.tg .l .sp1{flex:1}
+.tg .l em{font-style:normal;font-size:11.5px;color:var(--faint)}
+.tg .l .ic{width:15px;height:15px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:8px;flex:none}
+.tg .l .ch{font-size:9px;color:var(--faint);width:12px;text-align:center}
+.fc{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.fc .fh{display:flex;gap:8px;align-items:center;padding:7px 10px;font-size:12.5px}
+.fc .fh b{font-weight:600}.fc .fh .p{color:var(--faint);font:11px var(--mono);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fc .df{background:#0d0d10;font:11.5px/1.5 var(--mono);color:#d6d6dc;padding:6px 0}
+body.light .fc .df{background:#1d1d22}
+.fc .df div{padding:0 12px;white-space:pre;overflow:hidden}
+.fc .df .a{background:rgba(48,209,88,.16);color:#7ee787}.fc .df .r{background:rgba(255,69,58,.16);color:#ff8a82}
+.fc .ficon{width:18px;height:18px;border-radius:5px;background:var(--blue);color:#fff;display:grid;place-items:center;font-size:10px}
+.sl{display:flex;gap:10px;align-items:flex-start;padding:9px 12px}
+.sl+.sl{border-top:.5px solid var(--line)}
+.sl .t{flex:1;min-width:0}.sl .t b{font-weight:600}.sl .t b i{font-style:normal;color:var(--faint);font-weight:500;margin-right:6px}
+.sl .t span{display:block;font-size:12px;color:var(--dim);margin-top:2px}.sl .e{color:var(--red)}.sl .m{color:var(--purple)}
+.body{display:flex;flex-direction:column;gap:11px;padding:6px 0 4px}
+.ev{font-size:12px;color:var(--faint)}
+.done{display:flex;gap:9px;align-items:center;height:34px;padding:0 12px;border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;font-size:12.5px}
+.done .ck{width:16px;height:16px;font-size:9px}.done .sp1{flex:1}
+.done .cit{font-size:12px;color:var(--dim)}.done .cit b{color:var(--text);font-weight:600}
+
+/* toolbar as in the app: sidebar toggle, title, links pill, inspector toggle */
+.tbar{position:sticky;top:0;z-index:6;height:52px;display:flex;align-items:center;gap:10px;padding:0 14px 0 14px;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(24px)}
+.tbar .lights{position:static;margin-right:6px}
+.tbar .ib{width:30px;height:30px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:12px;color:var(--dim);box-shadow:0 0 0 .5px var(--line) inset}
+.tbar h2{margin:0;font-size:14px;font-weight:650;flex:1}
+.tbar h2.c{text-align:left}
+.pillgrp{display:inline-flex;align-items:center;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset;padding:5px 4px;font-size:12px}
+.pillgrp span{padding:0 10px}.pillgrp span+span{border-left:.5px solid var(--line)}
+
+/* title block */
+.title{font-size:22px;line-height:1.25;font-weight:700;letter-spacing:-.015em;text-align:center;margin:0;text-wrap:balance}
+.meta{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+.sp{flex:none}
+.spill{display:inline-flex;gap:6px;align-items:center;padding:3px 11px;border-radius:99px;font-size:12px;font-weight:600}
+.spill i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.spill.g{color:var(--green);background:color-mix(in srgb,var(--green) 20%,transparent)}
+.spill.b{color:var(--blue);background:color-mix(in srgb,var(--blue) 20%,transparent)}
+.spill.o{color:var(--orange);background:color-mix(in srgb,var(--orange) 20%,transparent)}
+.spill.r{color:var(--red);background:color-mix(in srgb,var(--red) 20%,transparent)}
+.mchip{display:inline-flex;gap:5px;align-items:center;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500;color:var(--dim);background:var(--card2)}
+.mchip em{font-style:normal;font-size:9px;color:var(--faint)}
+.mtxt{font-size:12.5px;color:var(--dim)}
+.mtxt .s{color:var(--faint);margin:0 7px}
+
+/* pipeline */
+.pl{display:flex;align-items:center;gap:10px}
+.pl.fixed{justify-content:center}
+.pl .c{height:2px;border-radius:2px;background:var(--line);flex:none;width:52px}
+.pl.span .c{flex:1;width:auto}
+.pl .c.d{background:var(--green)}
+.pls{display:flex;align-items:center;gap:6px;font-weight:550;white-space:nowrap;font-size:13px}
+.pls i{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10.5px;font-weight:700;background:var(--card2);color:var(--dim);flex:none}
+.pls.d{color:var(--dim)}.pls.d i{background:var(--green);color:#fff}
+.pls.w{color:var(--faint)}
+.pls.cur i{background:var(--blue);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--blue) 26%,transparent)}
+.pls.run i{background:transparent;border:2.5px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite;font-size:0}
+@keyframes sp{to{transform:rotate(1turn)}}
+.pls.inp i{background:var(--orange);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--orange) 26%,transparent)}
+.pls.er i{background:var(--red);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--red) 26%,transparent)}
+.pls small{font-weight:400;color:var(--faint);font-size:11.5px}
+/* pipeline stuck under the toolbar, as the app's safe-area bar */
+.pbar{position:sticky;top:52px;z-index:5;padding:8px 0 10px;background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(24px)}
+/* mini stepper */
+.dots{display:inline-flex;align-items:center;gap:4px}
+.dots i{width:18px;height:4px;border-radius:3px;background:var(--card2)}
+.dots i.d{background:var(--green)}.dots i.cur{background:var(--blue)}.dots i.run{background:var(--green);animation:pu 1.4s ease-in-out infinite}.dots i.in{background:var(--orange)}.dots i.er{background:var(--red)}
+@keyframes pu{50%{opacity:.35}}
+
+/* tabs */
+.tabs{display:flex;gap:26px;justify-content:center;border-bottom:.5px solid var(--line)}
+.tabs span{padding:5px 0 9px;color:var(--dim);font-size:13px;display:inline-flex;gap:6px;align-items:center}
+.tabs span.on{color:var(--text);font-weight:600;box-shadow:0 2px 0 var(--text)}
+.tabs em{font-style:normal;font-size:11.5px;color:var(--dim);background:var(--card2);border-radius:99px;padding:0 7px}
+
+/* ---- spacing scale (every gap in the feed is one of these) ---- */
+body{--g-sess:60px;--g-head:16px;--g-body:14px;--g-tight:6px;--g-fold:26px}
+body.tight{--g-sess:44px;--g-head:12px;--g-body:10px;--g-tight:4px;--g-fold:20px}
+.pane{padding-top:18px}
+.feed{padding:0 32px}
+
+/* ---- identity: who > what > how > numbers ---- */
+.gh{position:relative;width:34px;height:34px;flex:none}
+.gh .pic{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;color:#fff;box-shadow:0 0 0 .5px var(--line) inset}
+.gh .hm{position:absolute;right:-4px;bottom:-4px;width:16px;height:16px;border-radius:50%;background:var(--win);display:grid;place-items:center;font-size:8.5px;box-shadow:0 0 0 2px color-mix(in srgb,var(--bg) 92%,transparent),0 0 0 2.5px var(--line)}
+.c1{background:#5e5ce6}.c2{background:#bf5af2}
+.t1{font-size:14px;line-height:1.25;white-space:nowrap}
+.t1 b{font-weight:650;letter-spacing:-.005em}
+.t1 .r{font-weight:500;color:var(--dim);margin-left:8px}
+.t2{font-size:11.5px;color:var(--faint);white-space:nowrap;margin-top:3px}
+.t2 b{font-weight:550;color:var(--dim)}
+.t2 .s{margin:0 6px;opacity:.7}
+.sum{font-size:12px;color:var(--dim);display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap}
+.sum b{color:var(--text);font-weight:600}
+.sum .s{color:var(--faint)}
+.sum .e{color:var(--red)}.sum .e b{color:var(--red)}
+.sum .out{color:var(--text);font-weight:600}
+.ad{color:var(--green);font-weight:600}.de{color:var(--red);font-weight:600}
+.stopbadge{font-size:11px;font-weight:600;color:var(--orange);background:color-mix(in srgb,var(--orange) 18%,transparent);border-radius:99px;padding:2px 10px}
+.reason{font-size:12px;color:var(--orange);text-align:center}
+.chev{width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:10px;color:var(--dim);flex:none;transition:transform .2s,background .15s}
+.open .chev{transform:rotate(90deg)}
+.hit:hover .chev{background:color-mix(in srgb,var(--text) 18%,transparent);color:var(--text)}
+
+/* ---- D2: a fading hairline each side of the identity ---- */
+.sess{display:flex;flex-direction:column}
+.sess+.sess{margin-top:var(--g-sess)}
+.sess.f+.sess.f{margin-top:var(--g-fold)}
+.hit{display:flex;flex-direction:column;align-items:center;gap:9px;cursor:default;border-radius:12px}
+.rule{display:flex;align-items:center;gap:18px;width:100%}
+.rule i{flex:1;height:1px}
+.rule i:first-child{background:linear-gradient(90deg,transparent,var(--line))}
+.rule i:last-child{background:linear-gradient(270deg,transparent,var(--line))}
+.mid{display:flex;align-items:center;gap:12px;text-align:left}
+.hit:hover .rule i:first-child{background:linear-gradient(90deg,transparent,var(--faint))}
+.hit:hover .rule i:last-child{background:linear-gradient(270deg,transparent,var(--faint))}
+.hit.fold .gh,.hit.fold .gh .pic{width:30px;height:30px}
+.hit.fold .t1{font-size:13.5px}
+.hit.fold{gap:7px}
+.body{display:flex;flex-direction:column;gap:var(--g-body);margin-top:var(--g-head)}
+.body .tight{display:flex;flex-direction:column;gap:var(--g-tight)}
+.msg{font-size:13.5px;line-height:1.55}
+.foot{display:flex;flex-direction:column;gap:var(--g-tight);margin-top:2px}
+
+/* grouped earlier sessions */
+.grp{display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 0;color:var(--dim);font-size:12.5px;cursor:default;border-radius:12px}
+.grp .stk{display:flex}.grp .stk .gh{width:24px;height:24px;margin-left:-8px}.grp .stk .gh .pic{width:24px;height:24px;font-size:10px;box-shadow:0 0 0 2px var(--bg)}.grp .stk .gh:first-child{margin-left:0}
+.grp .stk .gh .hm{display:none}
+.grp b{color:var(--text);font-weight:600}
+.grp+.sess{margin-top:var(--g-sess)}
+
+/* states */
+body[data-s="open"] .v-fold,body[data-s="open"] .v-group,body[data-s="fold"] .v-open,body[data-s="fold"] .v-group,body[data-s="group"] .v-open,body[data-s="group"] .v-fold{display:none}
+.dim{color:var(--dim)}
+
+/* today's header, kept: glyph, title, chips, tabs, all at the left */
+.hdr{display:flex;gap:14px;align-items:center;padding:0 20px}
+.hdr .gl{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;flex:none;background:var(--blue)}
+.hdr .gl.g{background:transparent;border:3px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite;font-size:0}
+.hdr .gl.o{background:var(--orange)}.hdr .gl.r{background:var(--red)}
+.hdr h1{font-size:20px;margin:0;letter-spacing:-.01em}
+.hdr .chips{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.lt{padding:0 20px;margin-top:18px}
+.lt .tabs{justify-content:flex-start;gap:18px}
+.pbar{padding:8px 20px 10px}
+.pbar .in2{margin:0 auto}
+.pbar .pl.span{width:100%}
+.n1 .pbar .in2{width:max-content}
+.n2 .pbar .in2{max-width:560px}
+.n3 .pbar .in2{max-width:700px}
+.pane{height:520px}
+.feed2{max-width:700px;margin:0 auto;padding:0 32px}
+.srow{margin-top:36px}
+
+.pane{height:880px;padding:0}
+.feed{padding:0 32px}
+.in .tbar{padding:0 14px}
+/* flow switcher */
+.flows{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.flows .g{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.flows .g>b{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);width:84px;flex:none}
+.flows .tab{padding:5px 12px;font-size:12.5px}
+/* live things */
+.live{display:inline-flex;gap:6px;align-items:center;color:var(--green);font-weight:600}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pu 1.4s ease-in-out infinite}
+.tg .l .ic.lv{background:transparent;border:2px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite;font-size:0}
+.work{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:12.5px}
+.work .sw{width:11px;height:11px;border-radius:50%;border:2px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite}
+.caret{display:inline-block;width:7px;height:14px;background:var(--text);vertical-align:-2px;margin-left:2px;animation:pu 1s steps(2) infinite}
+.gh.pulse .pic{box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 28%,transparent)}
+/* findings */
+.fnd{display:flex;gap:10px;padding:8px 12px;align-items:flex-start}
+.fnd+.fnd{border-top:.5px solid var(--line)}
+.fnd .k{width:7px;height:7px;border-radius:50%;margin-top:6px;flex:none;background:var(--faint)}
+.fnd .k.b{background:var(--orange)}
+.fnd .t{flex:1;min-width:0}.fnd .t b{font:600 12px var(--mono)}.fnd .t span{display:block;font-size:12.5px;color:var(--dim);margin-top:2px}
+.fnd .tag2{font-size:11px;font-weight:600;color:var(--dim);background:var(--card2);border-radius:99px;padding:1px 8px;white-space:nowrap}
+.fnd .tag2.o{color:var(--orange);background:color-mix(in srgb,var(--orange) 18%,transparent)}
+.fnd .tag2.g{color:var(--green);background:color-mix(in srgb,var(--green) 18%,transparent)}
+.lab{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:8px 12px 2px}
+/* failure and result strips */
+.fail{font-size:12.5px;border-radius:12px;padding:9px 12px}
+.fail.o{color:var(--orange);background:color-mix(in srgb,var(--orange) 12%,transparent)}
+.fail.r{color:var(--red);background:color-mix(in srgb,var(--red) 11%,transparent)}
+.fail b{font-weight:650}
+.res{display:flex;gap:9px;align-items:center;height:34px;padding:0 12px;border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;font-size:12.5px}
+.res .sp1{flex:1}.res .cit{font-size:12px;color:var(--dim)}.res .cit b{color:var(--text);font-weight:600}
+.res .ic2{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:9px;color:#fff;background:var(--green)}
+.res .ic2.o{background:var(--orange)}.res .ic2.r{background:var(--red)}.res .ic2.b{background:var(--blue)}
+/* the stopped epic's card (ResumeCardView), in the feed's column */
+.rc{max-width:700px;margin:16px auto 0;padding:0 32px}
+.rc>div{display:flex;gap:12px;align-items:flex-start;border-radius:14px;padding:13px 15px;box-shadow:0 0 0 1px var(--rcb) inset;background:var(--rcf)}
+.rc.o{--rcf:color-mix(in srgb,var(--orange) 12%,transparent);--rcb:color-mix(in srgb,var(--orange) 35%,transparent)}
+.rc.r{--rcf:color-mix(in srgb,var(--red) 11%,transparent);--rcb:color-mix(in srgb,var(--red) 35%,transparent)}
+.rc .ic3{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px;flex:none;background:var(--orange)}
+.rc.r .ic3{background:var(--red)}
+.rc .tx b{font-size:14px;font-weight:650;display:block}.rc .tx span{color:var(--dim);font-size:12.5px}
+.rc .sp1{flex:1}
+.rc .rb{align-self:center;border:0;border-radius:99px;padding:5px 15px;font:inherit;font-size:12.5px;font-weight:600;color:#fff;background:var(--orange)}
+.rc.r .rb{background:var(--red)}
+/* queued / starting */
+.empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:46px 0 18px;text-align:center}
+.empty .ei{width:44px;height:44px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:18px;color:var(--dim)}
+.empty b{font-size:15px}.empty span{color:var(--dim);font-size:12.5px;max-width:380px}
+.plan{border-radius:16px;background:var(--card);padding:12px 14px;box-shadow:0 0 0 .5px var(--line) inset}
+.plan .pr{display:flex;gap:12px;align-items:center;padding:8px 0}
+.plan .pr+.pr{border-top:.5px solid var(--line)}
+.plan .pr i{width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:700;color:var(--dim);flex:none}
+.plan .pr b{font-weight:650}.plan .pr .m{color:var(--dim);margin-left:6px;font-weight:400}
+.plan .pr span{display:block;color:var(--dim);font-size:12.5px}
+.plan .ft{border-top:.5px solid var(--line);margin-top:2px;padding-top:9px;color:var(--dim);font-size:12.5px}
+.stp{display:flex;flex-direction:column;gap:14px;align-items:flex-start;margin:34px auto 0;width:max-content}
+.stp div{display:flex;gap:11px;align-items:center;font-size:13.5px}
+.stp .w{color:var(--faint)}
+/* cancelled */
+.pls.x{color:var(--faint)}.pls.x i{background:var(--card2);color:var(--dim)}
+.hdr .gl.w{background:transparent;border:3px solid var(--faint)}.hdr .gl.x{background:var(--faint)}.hdr .gl.d{background:var(--green)}
+.spill.x{color:var(--dim);background:var(--card2)}
+.sess.st .hit .sum{flex-wrap:wrap}
+.stopbadge{font-size:11px;font-weight:600;color:var(--orange);background:color-mix(in srgb,var(--orange) 18%,transparent);border-radius:99px;padding:2px 10px}
+.stopbadge.r{color:var(--red);background:color-mix(in srgb,var(--red) 16%,transparent)}
+.pane .pbar .in2{max-width:700px}
+.pbar .pl.span{width:100%}
+
+/* ---- same as Sessions: the chat's work card (ChatToolGroupView) ---- */
+.cg{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 10px;overflow:hidden}
+.cg.live{box-shadow:0 0 0 .5px rgba(201,160,255,.45) inset,0 0 16px rgba(201,160,255,.07)}
+.cg .h{display:flex;gap:8px;align-items:center;height:30px;font-size:12.5px;cursor:default}
+.cg .lead{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.cg .lead i{width:12px;height:12px;border-radius:50%;border:2px solid rgba(235,235,245,.22);border-top-color:var(--text);animation:sp .8s linear infinite}
+.cg .h b{font-weight:600}
+.cg .h .sm{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cg .h .d{color:var(--faint);font-size:12px;white-space:nowrap}
+.cg .h .fl{color:var(--red);font-size:12.5px;white-space:nowrap}
+.cg .h .sp1{flex:1}
+.cg .h .r{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.cg .h .ad{font-size:12px}.cg .h .de{font-size:12px}
+.cg .h .chv2{font-size:9px;color:var(--faint);width:16px;text-align:center}
+.cg.open .h .chv2{transform:rotate(90deg)}
+.cg .shm{background:linear-gradient(90deg,var(--dim) 30%,#fff 50%,var(--dim) 70%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shm 2.2s linear infinite;font-weight:600}
+@keyframes shm{from{background-position:200% 0}to{background-position:-200% 0}}
+.cg .tl{margin:2px 0 8px 4px;display:flex;flex-direction:column;font-size:12.5px;color:var(--dim)}
+.cg .ev{display:grid;grid-template-columns:16px 1fr auto;gap:9px;padding:5px 0;position:relative;align-items:start}
+.cg .ev:not(:last-child)::after{content:"";position:absolute;left:7.25px;top:24px;bottom:-5px;width:1.5px;background:rgba(235,235,245,.12)}
+body.light .cg .ev:not(:last-child)::after{background:rgba(0,0,0,.1)}
+.cg .ev i{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;background:var(--card2);margin-top:1px;font-style:normal;font-size:8px}
+.cg .ev.th i{background:rgba(201,160,255,.2);color:#c9a0ff}
+.cg .ev.er i{background:rgba(255,69,58,.18);color:var(--red)}
+.cg .ev code{font:11.5px var(--mono);color:var(--text);background:rgba(0,0,0,.25);padding:1px 6px;border-radius:5px;word-break:break-all}
+body.light .cg .ev code{background:rgba(0,0,0,.07)}
+.cg .ev .st{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+.cg .ev.er .st{color:var(--red)}
+.cg .ev .out{grid-column:2/4;margin-top:4px;font:11px/1.5 var(--mono);color:var(--dim);background:rgba(0,0,0,.28);border-radius:8px;padding:6px 9px;white-space:pre-wrap}
+body.light .cg .ev .out{background:rgba(0,0,0,.06)}
+/* ---- the notice (NoticeCard): over the end of the feed, as it sits over the message box in a session ---- */
+.in{display:flex;flex-direction:column}
+.in>*{flex:none}
+.feed{width:100%}
+.nwrap{margin-top:30px}
+.nwrap .nc{max-width:700px;margin:0 auto;border-radius:14px;padding:11px 13px;display:flex;gap:13px;align-items:center;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(30px) saturate(1.5);box-shadow:0 0 0 1px var(--nb) inset,0 8px 28px rgba(0,0,0,.28)}
+.nc.o{--nb:color-mix(in srgb,var(--orange) 45%,transparent);--nt:var(--orange)}
+.nc.r{--nb:color-mix(in srgb,var(--red) 45%,transparent);--nt:var(--red)}
+.nc .tile{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:none;background:color-mix(in srgb,var(--nt) 85%,transparent)}
+.nc .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.nc .tx b{font-size:13.5px;font-weight:650}
+.nc .tx span{font-size:11.5px;color:var(--dim);line-height:1.4}
+.nc .tag3{font-size:11px;background:var(--card2);border-radius:99px;padding:0 7px;color:var(--dim);margin-right:7px}
+.nc .pbtn{border:0;border-radius:99px;padding:5px 14px;font:inherit;font-size:12.5px;font-weight:600;color:#fff;background:var(--blue);display:inline-flex;gap:6px;align-items:center;flex:none}
+/* ---- starting: the checklist with its data, and the first session as a ghost ---- */
+.chk{border-radius:16px;background:var(--card);padding:6px 14px;box-shadow:0 0 0 .5px var(--line) inset;margin-top:26px}
+.chk .cr{display:grid;grid-template-columns:22px 1fr auto;gap:12px;padding:11px 0;align-items:start}
+.chk .cr+.cr{border-top:.5px solid var(--line)}
+.chk .cr .ck{margin-top:1px;width:20px;height:20px}
+.chk .cr b{font-weight:650;display:block}
+.chk .cr span.d{display:block;color:var(--dim);font-size:12.5px;margin-top:2px}
+.chk .cr .mono{font-size:11.5px}
+.chk .cr em{font-style:normal;font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+.chk .cr.w b{color:var(--faint)}
+.ghost{opacity:.5;margin-top:44px}
+.ghost .hit:hover{background:none}
+.lgnd{max-width:940px;margin:26px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}
+.lgnd div{background:var(--card);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--dim)}
+.lgnd b{display:block;color:var(--text);margin-bottom:3px}
+.lgnd code{font:11.5px var(--mono);color:var(--text)}
+</style></head>
+<body>
+<h1>Epic view — the whole epic, every flow (round 7)</h1>
+<p class="sub">Everything decided so far in one page: the header as today, the pipeline centered up to 700 pt with only the state and the step's name, and the sessions as centered identity rows (A1 / D2). Pick a flow to see the whole epic in it. Each flow is one state the engine can put an epic in (<span class="mono">queued</span>, <span class="mono">running</span>, <span class="mono">needs_human</span> by kind, <span class="mono">ready_for_test</span>, <span class="mono">merged</span>, <span class="mono">cancelled</span>); the names and numbers are invented.</p>
+<div class="flows" id="flows"></div>
+<div id="stage"></div>
+<div class="note" id="notes"></div>
+<div class="lgnd">
+ <div><b>Tool calls and thinking</b>The chat's work card (<code>ChatToolGroupView</code>): one folded glass line per run, a violet node for each thought and a node per call when opened, a failed call in red, and a shimmer, ring and glow while it is live. The epic's <code>ToolGroupView</code> goes.</div>
+ <div><b>Errors and stops</b><code>NoticeCard</code>, the one of "This session is asleep": a tile, a title, the detail and the action at the right (Resume). Orange for what needs you, red for what failed; the last element of the feed.</div>
+ <div><b>Messages, code, diffs</b>The chat's markdown, <code>CodeBlockView</code> and file card, unchanged. What stays the epic's own: the session row, the slices card and the result row (Continue in Terminal).</div>
+ <div><b>The cost</b>The epic's events come from the engine's harness parser (<code>ExecEvent</code>), not from the chat host: an adapter from them to the chat's <code>ToolGroup</code> and steps, and the epic's transcript views are removed. The look is shared; the data path is not.</div>
+</div>
+
+<script>
+var T='Salary net vs nominal: check the floor on the gross equivalent and accept a nominal input';
+var B={n:'ashu-author[bot]',role:'Builder',place:'Ship',c:'c1',i:'A',hm:'✳',tool:'Claude',acct:'pro',model:'sonnet 4.5 · high'};
+function R(r){return {n:'ashu-reviewer[bot]',role:'Reviewer',place:'Round '+r,c:'c2',i:'R',hm:'Λ',tool:'Antigravity',acct:'max',model:'gemini 3 pro'}}
+function F(r,agy){return {n:'ashu-author[bot]',role:'Fixer',place:'Round '+r,c:'c1',i:'A',hm:agy?'Λ':'✳',tool:agy?'Antigravity':'Claude',acct:agy?'max':'pro',model:agy?'gemini 3 pro':'sonnet 4.5'}}
+// ---- pieces of the transcript, the chat's vocabulary
+function tg(label,t,live,sum,steps,open){
+  sum=sum||'pnpm, git, gh';
+  var head;
+  if(live) head='<span class="lead"><i></i></span><span class="shm">Running '+sum.split(',')[0]+'…</span><span class="d">· step '+(steps?steps.length:3)+'</span><span class="sp1"></span><span class="r">'+t+'</span>';
+  else head='<b>'+label+'</b><span class="sm">'+sum+'</span><span class="sp1"></span><span class="r">'+t+'</span>';
+  var body=open&&steps?'<div class="tl">'+steps.map(function(e){return '<div class="ev '+e[0]+'"><i>'+(e[0]=='th'?'✦':e[0]=='er'?'!':'›')+'</i><div>'+e[1]+(e[3]?'<div class="out">'+e[3]+'</div>':'')+'</div><span class="st">'+e[2]+'</span></div>'}).join('')+'</div>':'';
+  return '<div class="cg'+(live?' live':'')+(open?' open':'')+'"><div class="h">'+head+'<span class="chv2">›</span></div>'+body+'</div>'}
+function msg(h){return '<p class="msg">'+h+'</p>'}
+function slices(st){
+  var d=[['#730','Create flow: compare the legal minimum wage on the gross equivalent','38 calls · 11 edits · 7 tests · PR #736 <span class="m">merged</span>'],['#731','Contract edit: validate the minimum wage with the stored family situation','29 calls · 2 edits · 3 tests · PR #737 <span class="m">merged</span>'],['#732','Declared gross salary: store what the employer typed, derive the net','28 calls · 1 edit · 1 test · PR #738 <span class="m">merged</span>']];
+  var sub={a:'working · 6 calls so far',n:'waits for #730'};
+  return '<div class="tg">'+d.map(function(x,i){var s=st[i];return '<div class="sl"><span class="ck '+s+'">'+(s=='d'?'✓':'')+'</span><div class="t"><b><i>'+x[0]+'</i>'+x[1]+'</b><span>'+(s=='d'?x[2]:sub[s])+'</span></div></div>'}).join('')+'</div>'}
+function file(){return '<div class="fc"><div class="fh"><span class="ficon">✎</span><b>declared-gross-salary.test.ts</b><span class="p">apps/platform/…/__tests__/services</span><span class="ad">+1</span><span class="de">−1</span></div><div class="df"><div class="r">- import { createEmployeeSchema, updateEmployeeSchema } from "../../schemas"</div><div class="a">+ import { createEmployeeSchema, updateEmployeeSchemaFor } from "../../schemas"</div></div></div>'}
+function finds(list){return '<div class="tg">'+list.map(function(f){return '<div class="fnd"><span class="k '+(f[0]=='b'?'b':'')+'"></span><div class="t"><b>'+f[1]+'</b><span>'+f[2]+'</span></div><span class="tag2 '+(f[3]||'')+'">'+(f[0]=='b'?'blocker':'suggestion')+'</span></div>'}).join('')+'</div>'}
+function res(k,a,b,term){return '<div class="res"><span class="ic2 '+k+'">'+(k=='g'||k==''?'✓':k=='b'?'✓':'!')+'</span><b>'+a+'</b>'+(b?'<span class="dim">· '+b+'</span>':'')+'<span class="sp1"></span>'+(term?'<span class="cit">⌨ <b>Continue in Terminal</b></span>':'')+'</div>'}
+function work(t){return '<div class="work"><span class="sw"></span>'+t+'<span class="caret"></span></div>'}
+var STEPS=[['th','Revisando dónde se compara el piso con el bruto.','2s'],['','<code>rg "grossFloor" apps/platform</code>','0.4s'],['','<code>sed -n 1,80p manage-employee.ts</code>','0.1s'],['er','<code>pnpm vitest run employee</code> failed','2.1s','FAIL  declared-gross-salary.test.ts\n  expected 32051, got 30200'],['th','El test falla porque el update no usa el piso bruto; lo corrijo.','3s']];
+function notice(n){return '<div class="nwrap"><div class="nc '+n[0]+'"><span class="tile">!</span><div class="tx"><b>'+n[1]+'</b><span>'+(n[3]?'<span class="tag3">'+n[3]+'</span>':'')+n[2]+'</span></div><button class="pbtn">↻ Resume</button></div></div>'}
+var BL=[['b','gross-floor-not-checked-on-update','The update path compares the net with the gross floor; only create was fixed.'],['b','family-situation-stale','The stored family situation is read before the schedule edit is saved.'],['s','simulator-salary-label-reuse','SalaryAmountField hardcodes the CreateEmployee namespace.']];
+// ---- the session row (A1 / D2)
+function av(s,live){return '<div class="gh'+(live?' pulse':'')+'"><div class="pic '+s.c+'">'+s.i+'</div><div class="hm">'+s.hm+'</div></div>'}
+function sum(s,open){
+  if(s.stop) return '<div class="sum"><span class="stopbadge '+(s.red?'r':'')+'">stopped</span><span style="color:var(--'+(s.red?'red':'orange')+')">'+s.reason+'</span></div>';
+  if(s.live) return '<div class="sum"><span class="live"><i></i>Working</span><span class="s">·</span>since 16:09<span class="s">·</span><b>'+(s.calls||'62')+'</b> calls'+(s.extra||'')+'</div>';
+  return '<div class="sum"><span class="out">'+s.out+'</span>'+(s.sub?'<span class="s">·</span>'+s.sub:'')+'<span class="s">·</span>'+s.time+'</div>';
+}
+function head(s,open){return '<div class="hit '+(open?'open':'fold')+'" data-t><div class="rule"><i></i><div class="mid">'+av(s,s.live)+'<div><div class="t1"><b>'+s.n+'</b><span class="r">'+s.role+' · '+s.place+'</span></div><div class="t2"><b>'+s.tool+'</b><span class="s">·</span>account '+s.acct+'<span class="s">·</span>'+s.model+'</div></div></div><span class="chev">›</span><i></i></div>'+sum(s,open)+'</div>'}
+function sess(s,body){var open=!!body;return '<div class="sess'+(open?'':' f')+'">'+head(s,open)+(open?'<div class="body">'+body+'</div>':'')+'</div>'}
+function grp(list,words){return '<div class="grp"><span class="stk">'+list.map(function(s){return av(s)}).join('')+'</span><span><b>'+words[0]+'</b> · '+words[1]+'</span><span class="chev">›</span></div>'}
+function fold(s,out,sub,time){return sess(Object.assign({},s,{out:out,sub:sub,time:time}))}
+var bDone=function(){return fold(B,'3 slices merged','PRs #736, #737, #738','31m')};
+var r1ch=function(){return fold(R(1),'Changes requested','2 blockers, 1 suggestion','14m')};
+var f1d=function(){return fold(F(1),'2 blockers fixed','CI passed','9m')};
+var r2ok=function(){return fold(R(2),'Ready','0 blockers, 4 suggestions','11m')};
+// ---- the flows
+var FL=[
+ {id:'queued',grp:'Before',name:'Queued',pill:['x','Up next · 2nd in queue'],gl:['w',''],st:['cur','w','w','w'],
+  note:'Not started: the Agent output tab has an empty state and the plan ("When it starts"). Nothing to fold, so no session rows.',
+  html:'<div class="empty"><div class="ei">⏳</div><b>Waiting for a slot</b><span>This epic starts as soon as one of the running epics ends.</span></div><div style="margin-top:22px" class="plan"><div class="lab" style="padding:0 0 6px">When it starts</div>'+
+   [['1','Ship','Claude','sonnet 4.5','Builds the slices of the epic.'],['2','Review','Antigravity','gemini 3 pro','Reviews the final pull request.'],['3','Fix','Claude','sonnet 4.5','Answers what the review finds.'],['4','Ready','','','Waits for you to test it.']].map(function(r){return '<div class="pr"><i>'+r[0]+'</i><div><b>'+r[1]+(r[2]?'<span class="m">'+r[2]+' · '+r[3]+'</span>':'')+'</b><span>'+r[4]+'</span></div></div>'}).join('')+'<div class="ft">2 of 2 slots are busy. This epic is 2nd in the queue.</div></div>'},
+ {id:'starting',grp:'Before',name:'Starting',pill:['g','Running · ship'],gl:['g',''],st:['d','cur','w','w'],
+  note:'Ship has begun but no agent has output yet. Same three steps as today (StartingView) with the data the engine already has (time in the queue, the branch and base, the clock of the step) and, under them, the first session row ghosted: who will act (bot, tool, account, model) before it starts. The branch and worktree come from the epic reply (worktrees); the queue wait from the queued and started times.',
+  html:'<div class="chk">'+
+   '<div class="cr"><span class="ck d">✓</span><div><b>Epic queued</b><span class="d">Waited 2m for a slot · took it at 16:07</span></div><em>16:07</em></div>'+
+   '<div class="cr"><span class="ck a"></span><div><b>Preparing the workspace</b><span class="d">Worktree for <span class="mono">fix/salary-net-vs-nominal</span> from <span class="mono">main</span> · installing dependencies</span></div><em>0:12</em></div>'+
+   '<div class="cr w"><span class="ck n"></span><div><b>First agent starts</b><span class="d">Its output appears here</span></div><em></em></div></div>'+
+   '<div class="ghost">'+sess(Object.assign({},B,{out:'Will start here',sub:'Builder · Ship',time:'~1 min'}))+'</div>'},
+ {id:'ship',grp:'Running',name:'Ship',pill:['g','Running · ship · 1/3 slices'],gl:['g',''],st:['d','run','w','w'],
+  note:'The builder is the only session and it is open and live: pulse on the avatar, "Working · since 16:09" and the counts so far. No result row and no Continue in Terminal while it runs (ADR 0007).',
+  html:sess(Object.assign({},B,{live:1,calys:1,calls:'62',extra:'<span class="s">·</span><b>6</b> edits'}),
+   tg('Ran 6 commands','12s',0,'git, gh, pnpm')+msg('Estoy creando el worktree del epic #729 (ya creado, sin archivos <code>.env</code> que enlazar).')+slices(['d','a','n'])+work('Editing <span class="mono" style="font-size:11.5px">create-employee-form.tsx</span>'))},
+ {id:'review',grp:'Running',name:'Review',pill:['g','Running · review · round 1/5'],gl:['g',''],st:['d','d','run','w'],
+  note:'Ship ended and folded to its outcome; the reviewer is live. The Review / Fix step is the one that spins.',
+  html:bDone()+sess(Object.assign({},R(1),{live:1,calls:'48'}),tg('Ran 41 commands','1m 12s',1)+msg('Revisando el PR #743 contra los criterios del epic; corriendo typecheck y los tests de <code>employee</code>.')+work('Running tests'))},
+ {id:'fix',grp:'Running',name:'Changes → Fix',pill:['g','Running · fix · round 1/5'],gl:['g',''],st:['d','d','run','w'],
+  note:'The review asked for changes (its row says so in the folded summary); the Fixer, the same author bot, is live. The Review / Fix step keeps spinning: it is one step with rounds.',
+  html:bDone()+r1ch()+sess(Object.assign({},F(1),{live:1,calls:'19'}),tg('Ran 5 steps','',0,'rg, sed, vitest',STEPS,1)+msg('Voy con el primer blocker: la actualización también compara contra el piso bruto.')+file()+work('Editing <span class="mono" style="font-size:11.5px">manage-employee.ts</span>'))},
+ {id:'round2',grp:'Running',name:'Round 2',pill:['g','Running · review · round 2/5'],gl:['g',''],st:['d','d','run','w'],
+  note:'Earlier sessions group into one row of stacked avatars and the live reviewer stays below it. How many sessions before grouping is still open (the app cuts at 5 today; four here for the demo).',
+  html:grp([B,R(1),F(1)],['3 earlier sessions','Builder, Reviewer, Fixer · 54m'])+sess(Object.assign({},R(2),{live:1,calls:'31'}),tg('Ran 28 commands','54s',1)+msg('Segunda ronda: verifico que los dos blockers de la ronda 1 estén resueltos.')+work('Reading the diff'))},
+ {id:'needs',grp:'Needs you',name:'The agent needs you',pill:['o','Needs attention · the agent needs you'],gl:['o','!'],st:['d','d','inp','w'],notice:['o','The agent needs you','Do what the agent asked on the pull request first, then resume.','PR #743'],
+  note:'agent_needs_human: orange. The reviewer stopped to ask something; its row is open with the badge and the reason, and its question is the last message. The big card under the header is gone: the same message is a NoticeCard (the component of "This session is asleep") as the last element of the feed, with Resume on its right, orange with a thin edge (something needs you, not a state the session is in). The pipeline step is orange with a "!"; its words live in the pill and the notice, not in the strip.',
+  html:bDone()+sess(Object.assign({},R(1),{stop:1,reason:'the agent asked for a decision on PR #743'}),tg('Ran 38 commands','1m 02s')+msg('Necesito una decisión: ¿el piso se aplica sobre el bruto también en contratos part-time? Respondé en el PR #743 y reanudá.')+res('o','Needs you','asked on PR #743',1))},
+ {id:'limit',grp:'Needs you',name:'Review limit',pill:['o','Needs attention · review limit reached'],gl:['o','!'],st:['d','d','inp','w'],notice:['o','Review limit reached (5/5)','Resuming gives the epic 5 new review rounds.'],
+  note:'review_limit: orange, same NoticeCard at the bottom. Eight sessions, so nine rows would be a wall: everything before the last review is one group; the last reviewer is open with its findings as rows, not a markdown wall.',
+  html:grp([B,R(1),F(1),R(2),F(2)],['8 earlier sessions','Builder and 4 rounds · 2h 10m'])+sess(Object.assign({},R(5),{stop:1,reason:'review limit reached (5/5)'}),tg('Ran 52 commands','1m 40s')+'<p class="msg"><b>Changes requested</b> — 2 blockers remain on PR #743.</p>'+finds(BL)+res('o','Changes requested','2 blockers, 1 suggestion',1))},
+ {id:'usage',grp:'Needs you',name:'Usage limit',pill:['o','Needs attention · usage limit'],gl:['o','!'],st:['d','d','inp','w'],notice:['o','Usage limit','Claude · account pro hit its 5-hour limit and resets at 3:10am (America/Montevideo). Resume then, or on another account.','ashu-author[bot]'],
+  note:'usage_limit: orange. The notice names the account that hit the limit and when it resets; the stopped Fixer’s row keeps its badge and reason, and its transcript the steps it took.',
+  html:bDone()+r1ch()+sess(Object.assign({},F(1),{stop:1,reason:'resets 3:10am'}),tg('Ran 4 commands','8s')+msg('Sigo con el segundo blocker; reviso <code>manage-employee.ts</code>.'))},
+ {id:'error',grp:'Errors',name:'Retries exhausted',pill:['r','Needs attention · retries exhausted'],gl:['r','!'],st:['d','d','er','w'],notice:['r','Retries exhausted','The agent was killed 3 times (SIGKILL), the last at 11:48 PM. Fix the cause first, then resume to start the epic again from ship.'],
+  note:'retries_exhausted, timeout, auth, workspace, pr_invalid: red. The same layout as orange with the colour switched everywhere it appears (step, pill, card, failed session). The one NoticeCard says it, so the session carries no red strip of its own: the row keeps its badge and reason.',
+  html:bDone()+r1ch()+sess(Object.assign({},F(1),{stop:1,red:1,reason:'killed: SIGKILL'}),tg('Ran 14 commands','21s',0,'pnpm, git'))},
+ {id:'ready',grp:'End',name:'Ready for test',pill:['b','Ready for test'],gl:['b','✓'],st:['d','d','d','d'],
+  note:'Everything done and folded: four rows with their outcomes. The review that said "Ready" is the last one. Open Files changed is the next action; the toolbar has Open PR.',
+  html:bDone()+r1ch()+f1d()+r2ok()},
+ {id:'done',grp:'End',name:'Done (merged)',pill:['g','Done'],gl:['d','✓'],st:['d','d','d','d'],
+  note:'Merged: same rows as Ready for test, the glyph green and the pill "Done". No new element.',
+  html:bDone()+r1ch()+f1d()+r2ok()},
+ {id:'cancel',grp:'End',name:'Cancelled',pill:['x','Cancelled · issue closed'],gl:['x','✕'],st:['d','d','x','w'],
+  note:'Cancelled while reviewing: the step it was at gets the grey "✕" and the later ones stay waiting. The interrupted session says "stopped" with no reason (Carrier stopped it).',
+  html:bDone()+sess(Object.assign({},R(1),{stop:1,reason:'stopped by Carrier'}),tg('Ran 22 commands','41s'))}
+];
+var cur='ship';
+function mark(k,i){return k=='d'?'✓':k=='inp'||k=='er'?'!':k=='x'?'✕':k=='run'?'':String(i+1)}
+var NAMES=['Queued','Ship','Review / Fix','Ready'];
+function pipe(f){var h='<div class="pl span">';f.st.forEach(function(k,i){if(i)h+='<span class="c '+(f.st[i-1]=='d'?'d':'')+'"></span>';h+='<span class="pls '+k+'"><i>'+mark(k,i)+'</i>'+NAMES[i]+'</span>'});return h+'</div>'}
+function view(f){
+  var chips='<span class="mchip">⌥ vemec/encaja <em>↗</em></span><span class="mchip"># 729 <em>↗</em></span>';
+  var rc='';
+  return '<div class="pane"><div class="in"><div class="tbar"><span class="lights"><i></i><i></i><i></i></span><span class="ib">▥</span><h2>encaja #729</h2><span class="pillgrp"><span>◐ Open PR</span><span># Open issue</span></span><span class="ib">▥</span></div>'+
+   '<div class="pbar"><div class="in2">'+pipe(f)+'</div></div>'+
+   '<div class="hdr" style="margin-top:14px"><span class="gl '+f.gl[0]+'">'+f.gl[1]+'</span><div><h1>'+T+'</h1><div class="chips"><span class="spill '+f.pill[0]+'"><i></i>'+f.pill[1]+'</span>'+chips+'</div></div></div>'+rc+
+   '<div class="lt"><div class="tabs"><span class="on">▤ Agent output</span><span>▢ Files changed <em>'+(f.id=='queued'||f.id=='starting'?'':'30')+'</em></span></div></div>'+
+   '<div class="feed" style="margin-top:34px">'+f.html+(f.notice?notice(f.notice):'')+'</div></div></div>'}
+function render(){
+  var f=FL.filter(function(x){return x.id==cur})[0];
+  document.getElementById('stage').innerHTML=view(f);
+  document.getElementById('notes').innerHTML='<b>'+f.name+'</b> — '+f.note;
+  var g={};FL.forEach(function(x){(g[x.grp]=g[x.grp]||[]).push(x)});
+  document.getElementById('flows').innerHTML=Object.keys(g).map(function(k){return '<div class="g"><b>'+k+'</b>'+g[k].map(function(x){return '<button class="tab'+(x.id==cur?' on':'')+'" data-f="'+x.id+'">'+x.name+'</button>'}).join('')+'</div>'}).join('')+'<div class="g"><b></b><button class="tog" id="theme">Light / dark</button></div>';
+  document.querySelectorAll('[data-f]').forEach(function(b){b.onclick=function(){cur=b.dataset.f;render()}});
+  document.getElementById('theme').onclick=function(){document.body.classList.toggle('light')};
+}
+render();
+document.getElementById('stage').addEventListener('click',function(e){
+  var t=e.target.closest('[data-t]');if(!t)return;
+  var s=t.closest('.sess'),b=s.querySelector('.body');
+  if(b){var hide=b.style.display!=='none';b.style.display=hide?'none':'';t.classList.toggle('open',!hide);t.classList.toggle('fold',hide);s.classList.toggle('f',hide)}
+});
+</script>
+</body></html>

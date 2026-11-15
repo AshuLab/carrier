@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Epic view aligned with the chat — round 1</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.stack{display:flex;flex-direction:column;gap:40px;margin-top:10px}
+.opt>h3{margin:0 0 2px;font-size:15px}
+.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:900px}
+.why{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;max-width:1000px;margin:10px 0 6px}
+.why div{background:var(--card);border-radius:12px;padding:10px 14px;color:var(--dim);font-size:12.5px}
+.why b{display:block;color:var(--text);margin-bottom:2px}
+
+/* the pane: the centre of the window, as in the epic view */
+.pane{width:min(940px,100%);height:760px;border-radius:22px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);overflow:auto;position:relative}
+.tbar{position:sticky;top:0;z-index:6;height:52px;display:flex;align-items:center;gap:10px;padding:0 14px 0 16px;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(24px)}
+.tbar .lights{position:static}
+.tbar h2{margin:0;font-size:14px;font-weight:650;flex:1}
+.pillgrp{display:inline-flex;align-items:center;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset;padding:5px 4px;font-size:12px}
+.pillgrp span{padding:0 10px}.pillgrp span+span{border-left:.5px solid var(--line)}
+.body{padding:6px 22px 30px;display:flex;flex-direction:column;gap:16px}
+
+/* pipeline: today it spans the whole width */
+.pl{display:flex;align-items:center;gap:8px;padding:6px 0}
+.pl .s{display:flex;align-items:center;gap:6px;font-weight:550;white-space:nowrap}
+.pl .s i{width:17px;height:17px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:700;background:var(--green);color:#fff}
+.pl .s.cur i{background:var(--blue)}.pl .s.wait i{background:var(--card2);color:var(--dim)}.pl .s.wait{color:var(--dim)}
+.pl .c{flex:1;height:2px;border-radius:2px;background:var(--green)}
+.pl .c.w{background:var(--line)}
+.pl.fixed{justify-content:center}.pl.fixed .c{flex:none;width:44px}
+
+.tabs{display:flex;gap:18px;border-bottom:.5px solid var(--line)}
+.tabs span{padding:5px 0 8px;color:var(--dim);font-size:12.5px}
+.tabs span.on{color:var(--text);font-weight:600;box-shadow:0 2px 0 var(--text)}
+.tabs em{font-style:normal;color:var(--dim);margin-left:4px}
+
+/* header variants */
+.hd{display:flex;gap:14px;align-items:center}
+.hd .gl{width:30px;height:30px;border-radius:50%;background:var(--blue);display:grid;place-items:center;color:#fff;font-weight:800;flex:none}
+.hd h1{font-size:20px;margin:0;letter-spacing:-.01em}
+.hd .chips{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.hd.slim .gl{width:20px;height:20px;font-size:11px}
+.hd.slim h1{font-size:17px}
+.sub2{color:var(--dim);font-size:12px;margin-top:3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.sub2 .sep{color:var(--faint)}
+.sub2 a{color:var(--dim)}
+
+/* avatar */
+.av{width:24px;height:24px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:12px;flex:none;box-shadow:0 0 0 .5px var(--line) inset}
+.av.lg{width:30px;height:30px;font-size:14px}
+
+/* ---- log vocabulary, shared by the three options (same as the chat) ---- */
+.msg{line-height:1.5;margin:0}
+.msg code,.k{font:11.5px var(--mono);background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue);padding:0 5px;border-radius:5px}
+.tg{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.tg .l{display:flex;gap:8px;align-items:center;height:30px;padding:0 10px;font-size:12.5px;color:var(--dim)}
+.tg .l b{color:var(--text);font-weight:600}
+.tg .l .sp1{flex:1}
+.tg .l em{font-style:normal;font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.tg .l .ic{width:15px;height:15px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:8px;flex:none}
+.tg .l .ch{font-size:9px;color:var(--faint);width:12px;text-align:center}
+.tg .l.err .ic{background:color-mix(in srgb,var(--red) 22%,transparent);color:var(--red)}
+.tg .l+.l{border-top:.5px solid var(--line)}
+.tg .cmd{font:11.5px var(--mono);color:var(--dim);padding:5px 10px 5px 33px;border-top:.5px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.num{color:var(--faint);font-variant-numeric:tabular-nums}
+.ad{color:var(--green);font-weight:600}.de{color:var(--red);font-weight:600}
+.stat{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--dim)}
+.stat b{color:var(--text);font-weight:600}.stat .e{color:var(--red)}
+.fc{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.fc .fh{display:flex;gap:8px;align-items:center;padding:7px 10px;font-size:12.5px}
+.fc .fh b{font-weight:600}.fc .fh .p{color:var(--faint);font:11px var(--mono);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fc .df{background:#0d0d10;font:11.5px/1.5 var(--mono);color:#d6d6dc;padding:6px 0}
+body.light .fc .df{background:#1d1d22}
+.fc .df div{padding:0 12px;white-space:pre}
+.fc .df .a{background:rgba(48,209,88,.16);color:#7ee787}.fc .df .r{background:rgba(255,69,58,.16);color:#ff8a82}
+.fc .fh .ficon{width:18px;height:18px;border-radius:5px;background:var(--blue);color:#fff;display:grid;place-items:center;font-size:10px}
+.sl{display:flex;gap:10px;align-items:flex-start;padding:9px 12px}
+.sl+.sl{border-top:.5px solid var(--line)}
+.sl .ck{margin-top:1px}
+.sl .t{flex:1;min-width:0}
+.sl .t b{font-weight:600}.sl .t b i{font-style:normal;color:var(--faint);font-weight:500;margin-right:6px}
+.sl .t span{display:block;font-size:12px;color:var(--dim);margin-top:2px}
+.sl .t span .e{color:var(--red)}.sl .t span .m{color:var(--purple)}
+.ev{font-size:12px;color:var(--faint);padding:1px 0}
+.done{display:flex;gap:9px;align-items:center;height:34px;padding:0 12px;border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;font-size:12.5px}
+.done .ck{width:16px;height:16px;font-size:9px}
+.done .sp1{flex:1}
+.term{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--dim)}
+.term b{color:var(--text);font-weight:600}
+.stopbadge{font-size:11px;font-weight:600;color:var(--orange);background:color-mix(in srgb,var(--orange) 18%,transparent);border-radius:99px;padding:2px 9px}
+.reason{font-size:12px;color:var(--red);background:color-mix(in srgb,var(--red) 11%,transparent);border-radius:10px;padding:6px 10px}
+.btn{border:0;font:inherit;font-size:12px;font-weight:550;color:var(--text);background:var(--card2);border-radius:99px;padding:4px 12px;display:inline-flex;gap:6px;align-items:center}
+.btn.pri{background:var(--blue);color:#fff}
+
+/* state switch: which sessions the pane shows */
+body[data-s="ship"] .v-rev,body[data-s="rev"] .v-ship,body[data-s="fold"] .v-ship,body[data-s="fold"] .v-rev,body:not([data-s="fold"]) .v-fold{display:none}
+body[data-s="fold"] .v-fold{display:flex}
+.C .v-ship,.C .v-rev,.C .v-fold{flex-direction:column;gap:12px}
+.C .v-ship,.C .v-rev{display:flex}
+
+/* ---------- Option A: the chat's own vocabulary, sessions as quiet sections ---------- */
+.A .sess{display:flex;flex-direction:column;gap:11px}
+.A .sh{position:sticky;top:52px;z-index:4;display:flex;align-items:center;gap:10px;padding:8px 2px;background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(20px);border-bottom:.5px solid var(--line)}
+.A .sh .who b{font-weight:650}.A .sh .who span{color:var(--dim);margin-left:6px}
+.A .sh .sp1{flex:1}
+.A .sh .tm{color:var(--faint);font-size:11.5px;font-variant-numeric:tabular-nums}
+.A .sh .chev{width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:10px;color:var(--dim)}
+.A .thr{border-left:2px solid var(--line);padding-left:14px;margin-left:11px;display:flex;flex-direction:column;gap:9px}
+.A .foldrow{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:.5px solid var(--line)}
+.A .foldrow .sp1{flex:1}
+
+/* ---------- Option B: phases, the pipeline and the log are one thing ---------- */
+.B .phase{display:flex;flex-direction:column;gap:10px}
+.B .ph{display:flex;align-items:center;gap:9px;font-weight:650}
+.B .ph i{width:17px;height:17px;border-radius:50%;background:var(--green);color:#fff;font-style:normal;font-size:10px;display:grid;place-items:center}
+.B .ph .sp1{flex:1;height:.5px;background:var(--line)}
+.B .ph small{font-weight:400;color:var(--dim);font-size:12px}
+.B .rail{position:relative;margin-left:8px;padding-left:26px;display:flex;flex-direction:column;gap:14px}
+.B .rail::before{content:"";position:absolute;left:11px;top:6px;bottom:6px;width:2px;border-radius:2px;background:var(--line)}
+.B .node{position:relative;display:flex;flex-direction:column;gap:9px}
+.B .node>.av{position:absolute;left:-26px;top:0;background:var(--win);box-shadow:0 0 0 3px var(--bg),0 0 0 .5px var(--line) inset}
+.B .node>.nh{display:flex;gap:10px;align-items:center;min-height:24px}
+.B .node>.nh .sp1{flex:1}
+.B .node>.nh .who b{font-weight:650}.B .node>.nh .who span{color:var(--dim);margin-left:6px}
+.B .node>.nh .tm{color:var(--faint);font-size:11.5px}
+
+/* ---------- Option C: outcome first, the activity behind a click ---------- */
+.C .card{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:13px 15px;display:flex;flex-direction:column;gap:10px}
+.C .card.hot{box-shadow:0 0 0 1px color-mix(in srgb,var(--orange) 55%,transparent)}
+.C .ch2{display:flex;gap:11px;align-items:center}
+.C .ch2 .sp1{flex:1}
+.C .ch2 .who b{font-weight:650}.C .ch2 .who span{color:var(--dim);margin-left:6px}
+.C .ch2 .tm{color:var(--faint);font-size:11.5px}
+.C .out{font-size:14.5px;font-weight:600;letter-spacing:-.005em}
+.C .out .g{color:var(--green)}.C .out .o{color:var(--orange)}
+.C .find{border-top:.5px solid var(--line);padding-top:4px}
+.C .fi{display:flex;gap:10px;padding:7px 0;align-items:flex-start}
+.C .fi+.fi{border-top:.5px solid var(--line)}
+.C .fi .t{flex:1;min-width:0}
+.C .fi .t b{font:600 12px var(--mono)}
+.C .fi .t span{display:block;color:var(--dim);font-size:12.5px;margin-top:2px}
+.C .fi .st{font-size:11px;font-weight:600;border-radius:99px;padding:1px 8px;background:var(--card2);color:var(--dim);white-space:nowrap}
+.C .fi .st.g{background:color-mix(in srgb,var(--green) 20%,transparent);color:var(--green)}
+.C .more{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:12.5px}
+.C .more .sp1{flex:1}
+.C .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.C .acts .sp1{flex:1}
+.C .log{display:none}
+body[data-s="ship"] .C .card.open .log{display:flex}
+.C .log{flex-direction:column;gap:9px;border-top:.5px solid var(--line);padding-top:11px}
+</style></head>
+<body data-s="ship">
+<h1>Epic view aligned with the chat — round 1</h1>
+<p class="sub">The epic's centre (pipeline, header, tabs, Agent output) was drawn before the chat existed. The chat has since settled how the same things look: quiet grouped tool cards, plain markdown for the agent, one rounded card for a file's diff, state by glyph. Three ways to bring the epic view in line, with the data of epic #729 from the screenshots. Switch the state to see the builder's log, the review round and the folded list.</p>
+
+<div class="bar">
+  <button class="tab on" data-s="ship">Builder · Ship</button>
+  <button class="tab" data-s="rev">Review / Fix · round 1</button>
+  <button class="tab" data-s="fold">All sessions folded</button>
+  <span class="sp"></span>
+  <button class="tog" id="theme">Light / dark</button>
+</div>
+
+<div class="note"><b>What is out of line today</b>
+  <div class="why">
+    <div><b>Two languages for the same thing</b>The chat groups tools in a glass card ("Ran 6 commands"); here a call is a bare line, a slice is a card with 4 chips, a created branch is a raw "created 736 (main)" line and the reviewers say "Used 98 tools".</div>
+    <div><b>The agent's words sit in a grey box</b>In the chat the agent writes on the window and the user is the one in a bubble. Here every message is a full-width grey block, so the log reads as a stack of boxes.</div>
+    <div><b>Header with no hierarchy</b>A full-width pipeline with 1,000 px of empty line, a 30 px glyph, a bold title, three chips and a tab row: five things of equal weight before any content.</div>
+    <div><b>Session cards: heavy shell, no verdict</b>Counts in four chips, then you open to find the outcome. The review's verdict ("Ready — 0 blockers, 4 suggestions") is inside a markdown wall; the stop reason is a red line under chips.</div>
+  </div>
+</div>
+
+<div class="stack">
+
+<!-- ================= A ================= -->
+<div class="opt A">
+  <h3>A · Same vocabulary as the chat, sessions as quiet sections</h3>
+  <p>Least change. Drop the session shell: a sticky one-line header per session (who, plain-text counts, time), then the chat's rows under a thread rule: plain markdown, a glass card for tools, the chat's file card, one card for the slices. The pipeline keeps its place but stops stretching.</p>
+  <div class="pane"><div class="tbar"><span class="lights"><i></i><i></i><i></i></span><h2 style="margin-left:60px">encaja #729</h2><span class="pillgrp"><span>◐ Open PR</span><span># Open issue</span></span></div>
+  <div class="body">
+    <div class="pl fixed"><div class="s"><i>✓</i>Queued</div><div class="c"></div><div class="s"><i>✓</i>Ship</div><div class="c"></div><div class="s"><i>✓</i>Review / Fix</div><div class="c"></div><div class="s"><i>✓</i>Ready</div></div>
+    <div class="hd slim"><span class="gl">✓</span><div><h1>Salary net vs nominal: check the floor on the gross equivalent and accept a nominal input</h1>
+      <div class="sub2"><span style="color:var(--blue);font-weight:600">Ready for test</span><span class="sep">·</span><a>vemec/encaja ↗</a><span class="sep">·</span><a>#729 ↗</a></div></div></div>
+    <div class="tabs"><span class="on">▤ Agent output</span><span>▢ Files changed<em>30</em></span></div>
+
+    <!-- builder -->
+    <div class="sess v-ship">
+      <div class="sh"><span class="av">✳</span><span class="who"><b>Claude</b><span>Builder · Ship</span></span><span class="sp1"></span><span class="tm">31m</span><span class="chev">⌄</span></div>
+      <div class="stat"><span><b>229</b> calls</span><span><b>23</b> edits <span class="ad">+10</span> <span class="de">−2</span></span><span><b>27</b> test runs</span><span class="e"><b class="e">9</b> errors</span></div>
+      <div class="thr">
+        <div class="tg"><div class="l"><span class="ic">▸</span><b>Ran 6 commands</b><span class="sp1"></span><em>12s</em><span class="ch">›</span></div></div>
+        <p class="msg">Estoy creando el worktree del epic #729 (ya creado, sin archivos <code>.env</code> que enlazar). Sigo con la instalación de dependencias y el comentario de registro.</p>
+        <div class="tg"><div class="l"><span class="ic">▸</span><b>Ran 2 commands</b><span class="dim">· gh issue comment 729 --body-file …</span><span class="sp1"></span><em>33s</em><span class="ch">›</span></div></div>
+        <div class="tg">
+          <div class="l" style="height:auto;padding:8px 10px 2px"><b style="font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.03em;text-transform:uppercase">Slices · 3 of 3 merged</b></div>
+          <div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#730</i>Create flow: compare the legal minimum wage on the gross equivalent of the net salary</b><span>38 calls · 11 edits · 7 test runs · <span class="e">1 error</span> · PR #736 <span class="m">merged</span> · 11:51–11:56 PM</span></div></div>
+          <div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#731</i>Contract edit: validate the minimum wage with the employee's stored family situation</b><span>29 calls · 2 edits · 3 test runs · <span class="e">3 errors</span> · Lane 1 · PR #737 <span class="m">merged</span></span></div></div>
+          <div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#732</i>Declared gross salary: store what the employer typed and derive the net on the server</b><span>28 calls · 1 edit · 1 test run · <span class="e">1 error</span> · Lane 2 · PR #738 <span class="m">merged</span></span></div></div>
+        </div>
+        <div class="ev">Created PRs #736 (main), #737, #738</div>
+        <p class="msg">Conflicto menor: solo los imports en <code>manage-employee.ts</code>. Lo resuelvo en la rama del slice #732.</p>
+        <div class="fc"><div class="fh"><span class="ficon">✎</span><b>declared-gross-salary.test.ts</b><span class="p">apps/platform/modules-product/employee/__tests__/services</span><span class="ad">+1</span><span class="de">−1</span></div>
+          <div class="df"><div class="r">- import { createEmployeeSchema, updateEmployeeSchema } from "../../schemas"</div><div class="a">+ import { createEmployeeSchema, updateEmployeeSchemaFor } from "../../schemas"</div></div></div>
+        <div class="tg"><div class="l"><span class="ic">▸</span><b>Ran 2 commands</b><span class="sp1"></span><em>30s</em><span class="ch">›</span></div></div>
+        <div class="ev">Pushed #738</div>
+      </div>
+    </div>
+
+    <!-- review -->
+    <div class="sess v-rev">
+      <div class="sh"><span class="av">Λ</span><span class="who"><b>Antigravity</b><span>Reviewer · Round 1</span></span><span class="sp1"></span><span class="tm">14m</span><span class="chev">⌄</span></div>
+      <div class="stat"><span><b>106</b> calls</span></div>
+      <div class="thr">
+        <div class="tg"><div class="l"><span class="ic">▸</span><b>Ran 105 commands</b><span class="sp1"></span><em>1m 46s</em><span class="ch">›</span></div></div>
+        <p class="msg"><b>PR #743 · Ready</b> — 0 blockers, 4 suggestions. Head <code>15fdbefebedc</code>. PR checks 3/3, typecheck and lint across 16 packages, 240/240 tests; two notification failures also on <code>origin/develop</code>.</p>
+        <div class="tg">
+          <div class="l" style="height:auto;padding:8px 10px 2px"><b style="font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.03em;text-transform:uppercase">Published · 4 comments</b></div>
+          <div class="sl"><span class="ck n"></span><div class="t"><b style="font:600 12px var(--mono)">create-form-net-below-fulltime-hours-prompt</b><span>Líquido mode compares take-home salary with the gross floor, so the weekly-hours field shows for legal full-time salaries below $32.051.</span></div></div>
+          <div class="sl"><span class="ck n"></span><div class="t"><b style="font:600 12px var(--mono)">schedule-edit-rederives-net</b><span>ScheduleForm passes <code>declaredGrossSalary</code>, so a schedule-only edit re-derives the base salary and logs a <code>salaryInput</code> audit event.</span></div></div>
+          <div class="sl"><span class="ck n"></span><div class="t"><b style="font:600 12px var(--mono)">gross-floor-error-message-phrasing</b><span>The floor message says "sueldo líquido" even when the salary was typed as nominal.</span></div></div>
+          <div class="sl"><span class="ck n"></span><div class="t"><b style="font:600 12px var(--mono)">simulator-salary-label-reuse</b><span>SalaryAmountField hardcodes the CreateEmployee namespace in the simulator.</span></div></div>
+        </div>
+        <div class="done"><span class="ck d">✓</span><b>Completed</b><span class="dim">· CI passed</span><span class="sp1"></span><span class="term">⌨ <b>Continue in Terminal</b> · resumes this session</span></div>
+      </div>
+      <div class="foldrow" style="margin-top:10px"><span class="av">✳</span><span class="who"><b>Claude</b><span class="dim"> Fixer · Round 1</span></span><span class="stopbadge">stopped</span><span class="sp1"></span><span class="tm faint">usage_limit · resets 3:10am</span><span class="chev" style="width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:10px;color:var(--dim)">›</span></div>
+      <div class="foldrow"><span class="av">Λ</span><span class="who"><b>Antigravity</b><span class="dim"> Fixer · Round 1</span></span><span class="dim" style="font-size:12px">68 calls · 4 follow-ups accepted</span><span class="sp1"></span><span class="tm faint">5m</span><span class="chev" style="width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:10px;color:var(--dim)">›</span></div>
+    </div>
+
+    <!-- folded -->
+    <div class="sess v-fold">
+      <div class="foldrow"><span class="av">✳</span><span class="who"><b>Claude</b><span class="dim"> Builder · Ship</span></span><span class="dim" style="font-size:12px">229 calls · 3 slices merged</span><span class="sp1"></span><span class="faint" style="font-size:11.5px">31m</span><span class="faint">›</span></div>
+      <div class="foldrow"><span class="av">Λ</span><span class="who"><b>Antigravity</b><span class="dim"> Reviewer · Round 1</span></span><span class="dim" style="font-size:12px">106 calls · Ready, 4 suggestions</span><span class="sp1"></span><span class="faint" style="font-size:11.5px">14m</span><span class="faint">›</span></div>
+      <div class="foldrow"><span class="av">✳</span><span class="who"><b>Claude</b><span class="dim"> Fixer · Round 1</span></span><span class="stopbadge">stopped</span><span class="sp1"></span><span class="faint" style="font-size:11.5px">usage_limit · resets 3:10am</span><span class="faint">›</span></div>
+      <div class="foldrow"><span class="av">Λ</span><span class="who"><b>Antigravity</b><span class="dim"> Fixer · Round 1</span></span><span class="dim" style="font-size:12px">68 calls</span><span class="sp1"></span><span class="faint" style="font-size:11.5px">5m</span><span class="faint">›</span></div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ================= B ================= -->
+<div class="opt B">
+  <h3>B · Phases: the pipeline and the log become one thing</h3>
+  <p>The top strip repeats what the log already says (Ship, Review / Fix). Here the phases are the log's headings, with their state; sessions hang on a rail under them, so a round reads as a story: who built, who reviewed, who fixed. Pipeline in the header is replaced by a short summary line.</p>
+  <div class="pane"><div class="tbar"><span class="lights"><i></i><i></i><i></i></span><h2 style="margin-left:60px">encaja #729</h2><span class="pillgrp"><span>◐ Open PR</span><span># Open issue</span></span></div>
+  <div class="body">
+    <div class="hd"><span class="gl">✓</span><div><h1>Salary net vs nominal: check the floor on the gross equivalent and accept a nominal input</h1>
+      <div class="sub2"><span style="color:var(--blue);font-weight:600">Ready for test</span><span class="sep">·</span><a>vemec/encaja ↗</a><span class="sep">·</span><a>#729 ↗</a><span class="sep">·</span><span>4 sessions · 1h 04m</span></div></div></div>
+    <div class="tabs"><span class="on">▤ Agent output</span><span>▢ Files changed<em>30</em></span></div>
+
+    <div class="phase v-ship">
+      <div class="ph"><i>✓</i>Ship <small>1 session · 31m</small><span class="sp1"></span></div>
+      <div class="rail"><div class="node"><span class="av">✳</span>
+        <div class="nh"><span class="who"><b>Claude</b><span>Builder</span></span><span class="sp1"></span><span class="tm">31m</span></div>
+        <div class="stat"><span><b>229</b> calls</span><span><b>23</b> edits <span class="ad">+10</span> <span class="de">−2</span></span><span><b>27</b> test runs</span><span><b class="e">9</b> <span class="e">errors</span></span></div>
+        <div class="tg"><div class="l"><span class="ic">▸</span><b>Ran 6 commands</b><span class="sp1"></span><em>12s</em><span class="ch">›</span></div></div>
+        <p class="msg">Estoy creando el worktree del epic #729 (ya creado, sin archivos <code>.env</code> que enlazar). Sigo con la instalación de dependencias y el comentario de registro.</p>
+        <div class="tg"><div class="l"><span class="ic">▸</span><b>Ran 2 commands</b><span class="dim">· gh issue comment 729 …</span><span class="sp1"></span><em>33s</em><span class="ch">›</span></div></div>
+        <div class="tg">
+          <div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#730</i>Create flow: compare the legal minimum wage on the gross equivalent</b><span>38 calls · 11 edits · 7 tests · <span class="e">1 error</span> · PR #736 <span class="m">merged</span></span></div></div>
+          <div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#731</i>Contract edit: validate the minimum wage with the stored family situation</b><span>29 calls · 2 edits · 3 tests · <span class="e">3 errors</span> · PR #737 <span class="m">merged</span></span></div></div>
+          <div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#732</i>Declared gross salary: store what the employer typed, derive the net</b><span>28 calls · 1 edit · 1 test · <span class="e">1 error</span> · PR #738 <span class="m">merged</span></span></div></div>
+        </div>
+        <p class="msg">Conflicto menor: solo los imports en <code>manage-employee.ts</code>. Lo resuelvo en la rama del slice #732.</p>
+        <div class="fc"><div class="fh"><span class="ficon">✎</span><b>declared-gross-salary.test.ts</b><span class="p">apps/platform/…/__tests__/services</span><span class="ad">+1</span><span class="de">−1</span></div>
+          <div class="df"><div class="r">- import { createEmployeeSchema, updateEmployeeSchema } from "../../schemas"</div><div class="a">+ import { createEmployeeSchema, updateEmployeeSchemaFor } from "../../schemas"</div></div></div>
+      </div></div>
+    </div>
+
+    <div class="phase v-rev">
+      <div class="ph"><i>✓</i>Ship <small>1 session · 31m · 3 slices merged</small><span class="sp1"></span><span class="faint" style="font-size:12px">Show</span></div>
+      <div class="ph"><i>✓</i>Review / Fix · Round 1 <small>3 sessions · 19m</small><span class="sp1"></span></div>
+      <div class="rail">
+        <div class="node"><span class="av">Λ</span>
+          <div class="nh"><span class="who"><b>Antigravity</b><span>Reviewer</span></span><span class="sp1"></span><span class="tm">14m</span></div>
+          <div class="tg"><div class="l"><span class="ic">▸</span><b>Ran 105 commands</b><span class="sp1"></span><em>1m 46s</em><span class="ch">›</span></div></div>
+          <p class="msg"><b>Ready</b> — 0 blockers, 4 suggestions on PR #743. Checks, typecheck, lint and 240/240 tests pass.</p>
+          <div class="done"><span class="ck d">✓</span><b>Completed</b><span class="dim">· CI passed</span><span class="sp1"></span><span class="term">⌨ <b>Continue in Terminal</b></span></div></div>
+        <div class="node"><span class="av">✳</span>
+          <div class="nh"><span class="who"><b>Claude</b><span>Fixer</span></span><span class="stopbadge">stopped</span><span class="sp1"></span><span class="tm">0 calls</span></div>
+          <div class="reason">usage_limit: You've hit your 5-hour limit · resets 3:10am (America/Montevideo)</div>
+          <div><span class="btn">↻ Retry with another agent</span></div></div>
+        <div class="node"><span class="av">Λ</span>
+          <div class="nh"><span class="who"><b>Antigravity</b><span>Fixer</span></span><span class="sp1"></span><span class="tm">5m</span></div>
+          <p class="msg">Evaluated the 4 observations and accepted all as follow-ups. Replied on each thread; typecheck, lint and tests still pass.</p>
+          <div class="done"><span class="ck d">✓</span><b>Completed</b><span class="dim">· CI passed</span><span class="sp1"></span><span class="term">⌨ <b>Continue in Terminal</b></span></div></div>
+      </div>
+    </div>
+
+    <div class="phase v-fold">
+      <div class="ph"><i>✓</i>Ship <small>1 session · 31m</small><span class="sp1"></span></div>
+      <div class="rail"><div class="node"><span class="av">✳</span><div class="nh"><span class="who"><b>Claude</b><span>Builder</span></span><span class="sp1"></span><span class="tm">31m</span></div><div class="stat"><span><b>229</b> calls</span><span>3 slices merged</span></div></div></div>
+      <div class="ph"><i>✓</i>Review / Fix · Round 1 <small>3 sessions · 19m</small><span class="sp1"></span></div>
+      <div class="rail">
+        <div class="node"><span class="av">Λ</span><div class="nh"><span class="who"><b>Antigravity</b><span>Reviewer</span></span><span class="sp1"></span><span class="tm">14m</span></div><div class="stat"><span>Ready · 4 suggestions</span></div></div>
+        <div class="node"><span class="av">✳</span><div class="nh"><span class="who"><b>Claude</b><span>Fixer</span></span><span class="stopbadge">stopped</span><span class="sp1"></span></div><div class="stat"><span class="e">usage_limit · resets 3:10am</span></div></div>
+        <div class="node"><span class="av">Λ</span><div class="nh"><span class="who"><b>Antigravity</b><span>Fixer</span></span><span class="sp1"></span><span class="tm">5m</span></div><div class="stat"><span>4 follow-ups accepted</span></div></div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ================= C ================= -->
+<div class="opt C">
+  <h3>C · Outcome first, activity behind a click</h3>
+  <p>The biggest change. A session is a card that opens with what it did (one sentence, the verdict, the stop reason with its action); the review's findings are rows, not a markdown wall. The calls, messages and diffs ("Show activity") sit under it in the chat's vocabulary. Best for epics that are already done; the live builder auto-opens its activity.</p>
+  <div class="pane"><div class="tbar"><span class="lights"><i></i><i></i><i></i></span><h2 style="margin-left:60px">encaja #729</h2><span class="pillgrp"><span>◐ Open PR</span><span># Open issue</span></span></div>
+  <div class="body">
+    <div class="pl fixed"><div class="s"><i>✓</i>Queued</div><div class="c"></div><div class="s"><i>✓</i>Ship</div><div class="c"></div><div class="s"><i>✓</i>Review / Fix</div><div class="c"></div><div class="s"><i>✓</i>Ready</div></div>
+    <div class="hd slim"><span class="gl">✓</span><div><h1>Salary net vs nominal: check the floor on the gross equivalent and accept a nominal input</h1>
+      <div class="sub2"><span style="color:var(--blue);font-weight:600">Ready for test</span><span class="sep">·</span><a>vemec/encaja ↗</a><span class="sep">·</span><a>#729 ↗</a></div></div></div>
+    <div class="tabs"><span class="on">▤ Agent output</span><span>▢ Files changed<em>30</em></span></div>
+
+    <div class="v-ship">
+      <div class="card open">
+        <div class="ch2"><span class="av lg">✳</span><span class="who"><b>Claude</b><span>Builder · Ship</span></span><span class="sp1"></span><span class="tm">31m</span></div>
+        <div class="out"><span class="g">3 slices merged</span> · PRs #736, #737, #738</div>
+        <div class="stat"><span><b>229</b> calls</span><span><b>23</b> edits <span class="ad">+10</span> <span class="de">−2</span></span><span><b>27</b> test runs</span><span><b class="e">9</b> <span class="e">errors</span></span></div>
+        <div class="tg" style="background:transparent;box-shadow:0 0 0 .5px var(--line) inset">
+          <div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#730</i>Create flow: compare the legal minimum wage on the gross equivalent</b><span>PR #736 <span class="m">merged</span> · 11:51–11:56 PM · <span class="e">1 error</span></span></div></div>
+          <div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#731</i>Contract edit: validate the minimum wage with the stored family situation</b><span>PR #737 <span class="m">merged</span> · Lane 1 · <span class="e">3 errors</span></span></div></div>
+          <div class="sl"><span class="ck d">✓</span><div class="t"><b><i>#732</i>Declared gross salary: store what the employer typed, derive the net</b><span>PR #738 <span class="m">merged</span> · Lane 2 · <span class="e">1 error</span></span></div></div>
+        </div>
+        <div class="log">
+          <div class="tg"><div class="l"><span class="ic">▸</span><b>Ran 6 commands</b><span class="sp1"></span><em>12s</em><span class="ch">›</span></div></div>
+          <p class="msg">Estoy creando el worktree del epic #729 (ya creado, sin archivos <code>.env</code> que enlazar).</p>
+          <p class="msg">Conflicto menor: solo los imports en <code>manage-employee.ts</code>. Lo resuelvo en la rama del slice #732.</p>
+          <div class="fc"><div class="fh"><span class="ficon">✎</span><b>declared-gross-salary.test.ts</b><span class="p">apps/platform/…/__tests__/services</span><span class="ad">+1</span><span class="de">−1</span></div>
+            <div class="df"><div class="r">- import { createEmployeeSchema, updateEmployeeSchema } from "../../schemas"</div><div class="a">+ import { createEmployeeSchema, updateEmployeeSchemaFor } from "../../schemas"</div></div></div>
+        </div>
+        <div class="more"><span>⌃ Hide activity</span><span class="sp1"></span><span class="term">⌨ <b>Continue in Terminal</b></span></div>
+      </div>
+    </div>
+
+    <div class="v-rev">
+      <div class="card">
+        <div class="ch2"><span class="av lg">Λ</span><span class="who"><b>Antigravity</b><span>Reviewer · Round 1</span></span><span class="sp1"></span><span class="tm">14m</span></div>
+        <div class="out"><span class="g">Ready</span> · 0 blockers, 4 suggestions on PR #743</div>
+        <div class="stat"><span><b>106</b> calls</span><span>Checks 3/3</span><span>Typecheck + lint 16/16</span><span>Tests 240/240</span></div>
+        <div class="find">
+          <div class="fi"><span class="ck n" style="margin-top:2px"></span><div class="t"><b>create-form-net-below-fulltime-hours-prompt</b><span>Líquido mode: take-home compared with the gross floor shows weekly hours for legal full-time salaries.</span></div><span class="st g">follow-up</span></div>
+          <div class="fi"><span class="ck n" style="margin-top:2px"></span><div class="t"><b>schedule-edit-rederives-net</b><span>Schedule-only edit re-derives the base salary and logs a <code>salaryInput</code> audit event.</span></div><span class="st g">follow-up</span></div>
+          <div class="fi"><span class="ck n" style="margin-top:2px"></span><div class="t"><b>gross-floor-error-message-phrasing</b><span>Message says "líquido" even when the salary was typed as nominal.</span></div><span class="st g">follow-up</span></div>
+          <div class="fi"><span class="ck n" style="margin-top:2px"></span><div class="t"><b>simulator-salary-label-reuse</b><span>SalaryAmountField hardcodes the CreateEmployee namespace.</span></div><span class="st g">follow-up</span></div>
+        </div>
+        <div class="more"><span>⌄ Show activity · 105 commands</span><span class="sp1"></span><span class="term">⌨ <b>Continue in Terminal</b></span></div>
+      </div>
+      <div class="card hot">
+        <div class="ch2"><span class="av lg">✳</span><span class="who"><b>Claude</b><span>Fixer · Round 1</span></span><span class="stopbadge">stopped</span><span class="sp1"></span><span class="tm">0 calls</span></div>
+        <div class="out"><span class="o">Stopped</span> · usage limit, resets 3:10am</div>
+        <div class="reason">usage_limit: You've hit your 5-hour limit · resets 3:10am (America/Montevideo)</div>
+        <div class="acts"><span class="btn pri">↻ Retry with another agent</span><span class="btn">Resume on Claude at 3:10am</span></div>
+      </div>
+      <div class="card">
+        <div class="ch2"><span class="av lg">Λ</span><span class="who"><b>Antigravity</b><span>Fixer · Round 1</span></span><span class="sp1"></span><span class="tm">5m</span></div>
+        <div class="out"><span class="g">4 observations accepted</span> as follow-ups · replied on each thread</div>
+        <div class="stat"><span><b>68</b> calls</span><span>Typecheck + lint 16/16</span><span>Tests 240/240</span></div>
+        <div class="more"><span>⌄ Show activity · 68 commands</span><span class="sp1"></span><span class="term">⌨ <b>Continue in Terminal</b></span></div>
+      </div>
+    </div>
+
+    <div class="v-fold">
+      <div class="card"><div class="ch2"><span class="av lg">✳</span><span class="who"><b>Claude</b><span>Builder · Ship</span></span><span class="sp1"></span><span class="tm">31m</span></div><div class="out"><span class="g">3 slices merged</span> · PRs #736, #737, #738</div></div>
+      <div class="card"><div class="ch2"><span class="av lg">Λ</span><span class="who"><b>Antigravity</b><span>Reviewer · Round 1</span></span><span class="sp1"></span><span class="tm">14m</span></div><div class="out"><span class="g">Ready</span> · 0 blockers, 4 suggestions</div></div>
+      <div class="card hot"><div class="ch2"><span class="av lg">✳</span><span class="who"><b>Claude</b><span>Fixer · Round 1</span></span><span class="stopbadge">stopped</span><span class="sp1"></span></div><div class="out"><span class="o">Stopped</span> · usage limit, resets 3:10am</div></div>
+      <div class="card"><div class="ch2"><span class="av lg">Λ</span><span class="who"><b>Antigravity</b><span>Fixer · Round 1</span></span><span class="sp1"></span><span class="tm">5m</span></div><div class="out"><span class="g">4 observations accepted</span> as follow-ups</div></div>
+    </div>
+  </div></div>
+</div>
+
+</div>
+
+<div class="note"><b>Questions for the next round</b><br>
+1. Do the sessions keep a shell (card, A: none, B: a rail, C: card with outcome)? 2. Does the pipeline strip stay on top, or do the phases take its place (B)? 3. Should a finished epic show outcomes first (C) while a running one shows the live log? 4. Do the slices belong inside the builder session (all options) or as their own block under the phase? 5. The stop's actions (Retry with another agent, Resume at 3:10am) are invented here: say which exist.</div>
+
+<script>
+document.querySelectorAll('.bar .tab').forEach(function(b){b.onclick=function(){
+  document.querySelectorAll('.bar .tab').forEach(function(x){x.classList.remove('on')});
+  b.classList.add('on');document.body.dataset.s=b.dataset.s}});
+document.getElementById('theme').onclick=function(){document.body.classList.toggle('light')};
+</script>
+</body></html>

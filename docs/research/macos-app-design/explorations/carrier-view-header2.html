@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Epic view — the header as it is, a narrower pipeline (round 6)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.stack{display:flex;flex-direction:column;gap:40px;margin-top:10px}
+.opt>h3{margin:0 0 2px;font-size:15px}
+.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:900px}
+.pane{width:min(900px,100%);height:470px;border-radius:22px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);overflow:hidden;position:relative}
+.pane .in{height:100%;overflow:auto;padding-bottom:30px}
+.feed{max-width:700px;margin:0 auto;padding:0 32px;display:flex;flex-direction:column}
+
+/* toolbar as in the app: sidebar toggle, title, links pill, inspector toggle */
+.tbar{position:sticky;top:0;z-index:6;height:52px;display:flex;align-items:center;gap:10px;padding:0 14px 0 14px;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(24px)}
+.tbar .lights{position:static;margin-right:6px}
+.tbar .ib{width:30px;height:30px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:12px;color:var(--dim);box-shadow:0 0 0 .5px var(--line) inset}
+.tbar h2{margin:0;font-size:14px;font-weight:650;flex:1}
+.tbar h2.c{text-align:left}
+.pillgrp{display:inline-flex;align-items:center;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset;padding:5px 4px;font-size:12px}
+.pillgrp span{padding:0 10px}.pillgrp span+span{border-left:.5px solid var(--line)}
+
+/* title block */
+.title{font-size:22px;line-height:1.25;font-weight:700;letter-spacing:-.015em;text-align:center;margin:0;text-wrap:balance}
+.meta{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+.sp{flex:none}
+.spill{display:inline-flex;gap:6px;align-items:center;padding:3px 11px;border-radius:99px;font-size:12px;font-weight:600}
+.spill i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.spill.g{color:var(--green);background:color-mix(in srgb,var(--green) 20%,transparent)}
+.spill.b{color:var(--blue);background:color-mix(in srgb,var(--blue) 20%,transparent)}
+.spill.o{color:var(--orange);background:color-mix(in srgb,var(--orange) 20%,transparent)}
+.spill.r{color:var(--red);background:color-mix(in srgb,var(--red) 20%,transparent)}
+.mchip{display:inline-flex;gap:5px;align-items:center;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500;color:var(--dim);background:var(--card2)}
+.mchip em{font-style:normal;font-size:9px;color:var(--faint)}
+.mtxt{font-size:12.5px;color:var(--dim)}
+.mtxt .s{color:var(--faint);margin:0 7px}
+
+/* pipeline */
+.pl{display:flex;align-items:center;gap:10px}
+.pl.fixed{justify-content:center}
+.pl .c{height:2px;border-radius:2px;background:var(--line);flex:none;width:52px}
+.pl.span .c{flex:1;width:auto}
+.pl .c.d{background:var(--green)}
+.pls{display:flex;align-items:center;gap:6px;font-weight:550;white-space:nowrap;font-size:13px}
+.pls i{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10.5px;font-weight:700;background:var(--card2);color:var(--dim);flex:none}
+.pls.d{color:var(--dim)}.pls.d i{background:var(--green);color:#fff}
+.pls.w{color:var(--faint)}
+.pls.cur i{background:var(--blue);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--blue) 26%,transparent)}
+.pls.run i{background:transparent;border:2.5px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite;font-size:0}
+@keyframes sp{to{transform:rotate(1turn)}}
+.pls.in i{background:var(--orange);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--orange) 26%,transparent)}
+.pls.er i{background:var(--red);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--red) 26%,transparent)}
+.pls small{font-weight:400;color:var(--faint);font-size:11.5px}
+/* pipeline stuck under the toolbar, as the app's safe-area bar */
+.pbar{position:sticky;top:52px;z-index:5;padding:8px 0 10px;background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(24px)}
+/* mini stepper */
+.dots{display:inline-flex;align-items:center;gap:4px}
+.dots i{width:18px;height:4px;border-radius:3px;background:var(--card2)}
+.dots i.d{background:var(--green)}.dots i.cur{background:var(--blue)}.dots i.run{background:var(--green);animation:pu 1.4s ease-in-out infinite}.dots i.in{background:var(--orange)}.dots i.er{background:var(--red)}
+@keyframes pu{50%{opacity:.35}}
+
+/* tabs */
+.tabs{display:flex;gap:26px;justify-content:center;border-bottom:.5px solid var(--line)}
+.tabs span{padding:5px 0 9px;color:var(--dim);font-size:13px;display:inline-flex;gap:6px;align-items:center}
+.tabs span.on{color:var(--text);font-weight:600;box-shadow:0 2px 0 var(--text)}
+.tabs em{font-style:normal;font-size:11.5px;color:var(--dim);background:var(--card2);border-radius:99px;padding:0 7px}
+
+/* the first session row under the header, from round 4, to see the header in context */
+.gh{position:relative;width:30px;height:30px;flex:none}
+.gh .pic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;background:#5e5ce6}
+.gh .hm{position:absolute;right:-4px;bottom:-4px;width:15px;height:15px;border-radius:50%;background:var(--win);display:grid;place-items:center;font-size:8px;box-shadow:0 0 0 2px color-mix(in srgb,var(--bg) 92%,transparent),0 0 0 2.5px var(--line)}
+.srow{display:flex;flex-direction:column;align-items:center;gap:7px;margin-top:44px}
+.srow .rule{display:flex;align-items:center;gap:18px;width:100%}
+.srow .rule i{flex:1;height:1px}
+.srow .rule i:first-child{background:linear-gradient(90deg,transparent,var(--line))}
+.srow .rule i:last-child{background:linear-gradient(270deg,transparent,var(--line))}
+.srow .mid{display:flex;align-items:center;gap:12px}
+.srow .t1{font-size:13.5px;white-space:nowrap}.srow .t1 b{font-weight:650}.srow .t1 .r{color:var(--dim);margin-left:8px}
+.srow .t2{font-size:11.5px;color:var(--faint);margin-top:3px}.srow .t2 b{color:var(--dim);font-weight:550}
+.srow .sum{font-size:12px;color:var(--dim)}.srow .sum b{color:var(--text);font-weight:600}
+.chev{width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:10px;color:var(--dim)}
+.col{display:flex;flex-direction:column}
+.dim{color:var(--dim)}.faint{color:var(--faint)}
+.spec{max-width:900px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:10px 0}
+.spec div{background:var(--card);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--dim)}
+.spec b{display:block;color:var(--text);margin-bottom:3px}
+
+/* today's header, kept: glyph, title, chips, tabs, all at the left */
+.hdr{display:flex;gap:14px;align-items:center;padding:0 20px}
+.hdr .gl{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;flex:none;background:var(--blue)}
+.hdr .gl.g{background:transparent;border:3px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite;font-size:0}
+.hdr .gl.o{background:var(--orange)}.hdr .gl.r{background:var(--red)}
+.hdr h1{font-size:20px;margin:0;letter-spacing:-.01em}
+.hdr .chips{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.lt{padding:0 20px;margin-top:18px}
+.lt .tabs{justify-content:flex-start;gap:18px}
+.pbar{padding:8px 20px 10px}
+.pbar .in2{margin:0 auto}
+.pbar .pl.span{width:100%}
+.n1 .pbar .in2{width:max-content}
+.n2 .pbar .in2{max-width:560px}
+.n3 .pbar .in2{max-width:700px}
+.pane{height:520px}
+.feed2{max-width:700px;margin:0 auto;padding:0 32px}
+.srow{margin-top:36px}
+</style></head>
+<body>
+<h1>Epic view — the header as it is, a narrower pipeline (round 6)</h1>
+<p class="sub">Header kept as today (glyph, title, chips and tabs at the left, as in your screenshot). Only the pipeline changes: it carries just the state mark and the step's name (no round, no detail: that is in the sessions), it stays pinned under the toolbar but is centered and does not take the whole width. Three widths to compare; the first session row below shows how each lines up with the feed.</p>
+
+<div class="bar">
+  <button class="tab on" data-s="ready">Ready for test</button>
+  <button class="tab" data-s="run">Running · review round 2</button>
+  <button class="tab" data-s="need">Needs you</button>
+  <button class="tab" data-s="stop">Stopped · usage limit</button>
+  <span class="sp1"></span>
+  <button class="tog" id="theme">Light / dark</button>
+</div>
+
+<div class="stack" id="stack"></div>
+
+<div class="note"><b>Questions</b><br>
+1. N1, N2 or N3? 2. The strip now has only the state mark and the step's name; the round, the counts and who is acting stay in the session rows. 3. In a narrow window the connectors shrink first: right? 4. The title block stays at the left while the pipeline and the session rows are centered: does it look off, or is it fine as the header's own space?</div>
+
+<script>
+var T='Salary net vs nominal: check the floor on the gross equivalent and accept a nominal input';
+var ST={
+ ready:{pill:['b','Ready for test'],gl:['b','✓'],steps:[['d','Queued',''],['d','Ship',''],['d','Review / Fix','Round 1'],['d','Ready','']]},
+ run:{pill:['g','Reviewing · round 2'],gl:['g',''],steps:[['d','Queued',''],['d','Ship',''],['run','Review / Fix','Round 2'],['w','Ready','']]},
+ need:{pill:['o','Needs you · the reviewer asks'],gl:['o','!'],steps:[['d','Queued',''],['d','Ship',''],['in','Review / Fix','Round 1'],['w','Ready','']]},
+ stop:{pill:['r','Stopped · usage limit'],gl:['r','!'],steps:[['d','Queued',''],['d','Ship',''],['er','Review / Fix','Round 1'],['w','Ready','']]}
+};
+function mark(k,i){return k=='d'?'✓':k=='in'||k=='er'?'!':k=='run'?'':String(i+1)}
+function pipe(st,cls){
+  var s=ST[st].steps,h='<div class="pl '+cls+'">';
+  s.forEach(function(x,i){
+    if(i)h+='<span class="c '+(s[i-1][0]=='d'?'d':'')+'"></span>';
+    h+='<span class="pls '+x[0]+'"><i>'+mark(x[0],i)+'</i>'+x[1]+'</span>';
+  });return h+'</div>';
+}
+function pill(st){var p=ST[st].pill;return '<span class="spill '+p[0]+'"><i></i>'+p[1]+'</span>'}
+var chips='<span class="mchip">⌥ vemec/encaja <em>↗</em></span><span class="mchip"># 729 <em>↗</em></span>';
+function tbar(){return '<div class="tbar"><span class="lights"><i></i><i></i><i></i></span><span class="ib">▥</span><h2>encaja #729</h2><span class="pillgrp"><span>◐ Open PR</span><span># Open issue</span></span><span class="ib">▥</span></div>'}
+function srow(){
+  var sum=cur=='stop'?'<span class="spill r" style="font-size:11px;padding:1px 9px">stopped</span> usage_limit · resets 3:10am':'<b>3 slices merged</b> · PRs #736, #737, #738 · 31m';
+  return '<div class="feed2"><div class="srow"><div class="rule"><i></i><div class="mid"><div class="gh"><div class="pic">A</div><div class="hm">✳</div></div><div><div class="t1"><b>ashu-author[bot]</b><span class="r">Builder · Ship</span></div><div class="t2"><b>Claude</b> · account pro · sonnet 4.5 · high</div></div></div><span class="chev">›</span><i></i></div><div class="sum">'+sum+'</div></div></div>';
+}
+function view(cls,st){
+  var g=ST[st].gl;
+  return '<div class="pane '+cls+'"><div class="in">'+tbar()+
+   '<div class="pbar"><div class="in2">'+pipe(st,cls=='n1'?'fixed':'span')+'</div></div>'+
+   '<div class="hdr" style="margin-top:14px"><span class="gl '+g[0]+'">'+g[1]+'</span><div><h1>'+T+'</h1><div class="chips">'+pill(st)+chips+'</div></div></div>'+
+   '<div class="lt"><div class="tabs"><span class="on">▤ Agent output</span><span>▢ Files changed <em>30</em></span></div></div>'+
+   srow()+'</div></div>';
+}
+var META=[
+ ['n1','N1 · Short strip: the connectors have a fixed length (about 560 pt wide)','The strip is as wide as its content and sits in the middle. In a wide window it does not grow.'],
+ ['n2','N2 · Up to 560 pt, the connectors stretch until then','Same width in a normal window, but it still shrinks gracefully and fills a small one. The difference from N1 shows only when the window is narrower than 600 pt.'],
+ ['n3','N3 · Up to 700 pt: the width of the feed','The strip ends exactly where the session rows\' column ends, so the pipeline and the sessions form one column in the middle of the window.']
+];
+var cur='ready';
+function render(){document.getElementById('stack').innerHTML=META.map(function(m){return '<div class="opt"><h3>'+m[1]+'</h3><p>'+m[2]+'</p>'+view(m[0],cur)+'</div>'}).join('')}
+render();
+document.querySelectorAll('.bar .tab').forEach(function(b){b.onclick=function(){
+  document.querySelectorAll('.bar .tab').forEach(function(x){x.classList.remove('on')});
+  b.classList.add('on');cur=b.dataset.s;render()}});
+document.getElementById('theme').onclick=function(){document.body.classList.toggle('light')};
+</script>
+</body></html>

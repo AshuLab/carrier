@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Epic view — the header (round 5)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.stack{display:flex;flex-direction:column;gap:40px;margin-top:10px}
+.opt>h3{margin:0 0 2px;font-size:15px}
+.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:900px}
+.pane{width:min(900px,100%);height:470px;border-radius:22px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);overflow:hidden;position:relative}
+.pane .in{height:100%;overflow:auto;padding-bottom:30px}
+.feed{max-width:700px;margin:0 auto;padding:0 32px;display:flex;flex-direction:column}
+
+/* toolbar as in the app: sidebar toggle, title, links pill, inspector toggle */
+.tbar{position:sticky;top:0;z-index:6;height:52px;display:flex;align-items:center;gap:10px;padding:0 14px 0 14px;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(24px)}
+.tbar .lights{position:static;margin-right:6px}
+.tbar .ib{width:30px;height:30px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:12px;color:var(--dim);box-shadow:0 0 0 .5px var(--line) inset}
+.tbar h2{margin:0;font-size:14px;font-weight:650;flex:1}
+.tbar h2.c{text-align:left}
+.pillgrp{display:inline-flex;align-items:center;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset;padding:5px 4px;font-size:12px}
+.pillgrp span{padding:0 10px}.pillgrp span+span{border-left:.5px solid var(--line)}
+
+/* title block */
+.title{font-size:22px;line-height:1.25;font-weight:700;letter-spacing:-.015em;text-align:center;margin:0;text-wrap:balance}
+.meta{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+.sp{flex:none}
+.spill{display:inline-flex;gap:6px;align-items:center;padding:3px 11px;border-radius:99px;font-size:12px;font-weight:600}
+.spill i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.spill.g{color:var(--green);background:color-mix(in srgb,var(--green) 20%,transparent)}
+.spill.b{color:var(--blue);background:color-mix(in srgb,var(--blue) 20%,transparent)}
+.spill.o{color:var(--orange);background:color-mix(in srgb,var(--orange) 20%,transparent)}
+.spill.r{color:var(--red);background:color-mix(in srgb,var(--red) 20%,transparent)}
+.mchip{display:inline-flex;gap:5px;align-items:center;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500;color:var(--dim);background:var(--card2)}
+.mchip em{font-style:normal;font-size:9px;color:var(--faint)}
+.mtxt{font-size:12.5px;color:var(--dim)}
+.mtxt .s{color:var(--faint);margin:0 7px}
+
+/* pipeline */
+.pl{display:flex;align-items:center;gap:10px}
+.pl.fixed{justify-content:center}
+.pl .c{height:2px;border-radius:2px;background:var(--line);flex:none;width:52px}
+.pl.span .c{flex:1;width:auto}
+.pl .c.d{background:var(--green)}
+.pls{display:flex;align-items:center;gap:6px;font-weight:550;white-space:nowrap;font-size:13px}
+.pls i{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10.5px;font-weight:700;background:var(--card2);color:var(--dim);flex:none}
+.pls.d{color:var(--dim)}.pls.d i{background:var(--green);color:#fff}
+.pls.w{color:var(--faint)}
+.pls.cur i{background:var(--blue);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--blue) 26%,transparent)}
+.pls.run i{background:transparent;border:2.5px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite;font-size:0}
+@keyframes sp{to{transform:rotate(1turn)}}
+.pls.in i{background:var(--orange);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--orange) 26%,transparent)}
+.pls.er i{background:var(--red);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--red) 26%,transparent)}
+.pls small{font-weight:400;color:var(--faint);font-size:11.5px}
+/* pipeline stuck under the toolbar, as the app's safe-area bar */
+.pbar{position:sticky;top:52px;z-index:5;padding:8px 0 10px;background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(24px)}
+/* mini stepper */
+.dots{display:inline-flex;align-items:center;gap:4px}
+.dots i{width:18px;height:4px;border-radius:3px;background:var(--card2)}
+.dots i.d{background:var(--green)}.dots i.cur{background:var(--blue)}.dots i.run{background:var(--green);animation:pu 1.4s ease-in-out infinite}.dots i.in{background:var(--orange)}.dots i.er{background:var(--red)}
+@keyframes pu{50%{opacity:.35}}
+
+/* tabs */
+.tabs{display:flex;gap:26px;justify-content:center;border-bottom:.5px solid var(--line)}
+.tabs span{padding:5px 0 9px;color:var(--dim);font-size:13px;display:inline-flex;gap:6px;align-items:center}
+.tabs span.on{color:var(--text);font-weight:600;box-shadow:0 2px 0 var(--text)}
+.tabs em{font-style:normal;font-size:11.5px;color:var(--dim);background:var(--card2);border-radius:99px;padding:0 7px}
+
+/* the first session row under the header, from round 4, to see the header in context */
+.gh{position:relative;width:30px;height:30px;flex:none}
+.gh .pic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;background:#5e5ce6}
+.gh .hm{position:absolute;right:-4px;bottom:-4px;width:15px;height:15px;border-radius:50%;background:var(--win);display:grid;place-items:center;font-size:8px;box-shadow:0 0 0 2px color-mix(in srgb,var(--bg) 92%,transparent),0 0 0 2.5px var(--line)}
+.srow{display:flex;flex-direction:column;align-items:center;gap:7px;margin-top:44px}
+.srow .rule{display:flex;align-items:center;gap:18px;width:100%}
+.srow .rule i{flex:1;height:1px}
+.srow .rule i:first-child{background:linear-gradient(90deg,transparent,var(--line))}
+.srow .rule i:last-child{background:linear-gradient(270deg,transparent,var(--line))}
+.srow .mid{display:flex;align-items:center;gap:12px}
+.srow .t1{font-size:13.5px;white-space:nowrap}.srow .t1 b{font-weight:650}.srow .t1 .r{color:var(--dim);margin-left:8px}
+.srow .t2{font-size:11.5px;color:var(--faint);margin-top:3px}.srow .t2 b{color:var(--dim);font-weight:550}
+.srow .sum{font-size:12px;color:var(--dim)}.srow .sum b{color:var(--text);font-weight:600}
+.chev{width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:10px;color:var(--dim)}
+.col{display:flex;flex-direction:column}
+.dim{color:var(--dim)}.faint{color:var(--faint)}
+.spec{max-width:900px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:10px 0}
+.spec div{background:var(--card);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--dim)}
+.spec b{display:block;color:var(--text);margin-bottom:3px}
+</style></head>
+<body>
+<h1>Epic view — the header (round 5)</h1>
+<p class="sub">The header drawn on the same axis as the feed: everything centered in the 700 pt column, with the first session row of round 4 underneath to see it in context. Today the header has five things of equal weight (a full-width pipeline, a glyph, the title, three chips and the tabs); here the order is <b>what is it</b> (title), <b>where is it</b> (state, step) and <b>what do I look at</b> (tabs). Switch the state to see the pipeline and the pill change.</p>
+
+<div class="bar">
+  <button class="tab on" data-s="ready">Ready for test</button>
+  <button class="tab" data-s="run">Running · review round 2</button>
+  <button class="tab" data-s="need">Needs you</button>
+  <button class="tab" data-s="stop">Stopped · usage limit</button>
+  <span class="sp1"></span>
+  <button class="tog" id="theme">Light / dark</button>
+</div>
+
+<div class="spec">
+  <div><b>Title</b>22 pt bold, centered, balanced over at most two lines (today 20 pt, left of a glyph).</div>
+  <div><b>State</b>One pill, the only coloured thing in the header. The big glyph goes: the pill and the pipeline already say it.</div>
+  <div><b>Repo and #issue</b>The toolbar already says "encaja #729" and has Open issue / Open PR. H1 keeps the chips as today; H2 and H3 drop them.</div>
+</div>
+
+<div class="stack" id="stack"></div>
+
+<div class="note"><b>Questions</b><br>
+1. H1 (the pipeline under the title, short), H2 (the pipeline pinned under the toolbar, as today but only as wide as the feed) or H3 (no pipeline row: a status line with a mini stepper)? 2. Do the repo and #issue chips stay (H1) or go, as the toolbar says them (H2, H3)? 3. Does the big state glyph go? 4. Tabs centered under the title, or left like today? 5. Should the title keep two lines, or be cut to one with the full title in a tooltip?</div>
+
+<script>
+var T='Salary net vs nominal: check the floor on the gross equivalent and accept a nominal input';
+// per state: the pill, and the four steps (d done, cur current, run moving, in needs you, er error, w waiting)
+var ST={
+ ready:{pill:['b','Ready for test'],steps:[['d','Queued',''],['d','Ship',''],['d','Review / Fix','Round 1'],['d','Ready','']],line:'Step 4 of 4 · Ready',dots:['d','d','d','d']},
+ run:{pill:['g','Reviewing · round 2'],steps:[['d','Queued',''],['d','Ship',''],['run','Review / Fix','Round 2'],['w','Ready','']],line:'Step 3 of 4 · Review / Fix · Round 2',dots:['d','d','run','']},
+ need:{pill:['o','Needs you · the reviewer asks'],steps:[['d','Queued',''],['d','Ship',''],['in','Review / Fix','Round 1'],['w','Ready','']],line:'Step 3 of 4 · Review / Fix · waits for you',dots:['d','d','in','']},
+ stop:{pill:['r','Stopped · usage limit'],steps:[['d','Queued',''],['d','Ship',''],['er','Review / Fix','Round 1'],['w','Ready','']],line:'Step 3 of 4 · Review / Fix · stopped',dots:['d','d','er','']}
+};
+function mark(k,i){return k=='d'?'✓':k=='in'||k=='er'?'!':k=='run'?'':String(i+1)}
+function pipe(st,cls,labels){
+  var s=ST[st].steps,h='<div class="pl '+cls+'">';
+  s.forEach(function(x,i){
+    if(i)h+='<span class="c '+(s[i-1][0]=='d'?'d':'')+'"></span>';
+    h+='<span class="pls '+x[0]+'"><i>'+mark(x[0],i)+'</i>'+x[1]+(labels&&x[2]?' <small>'+x[2]+'</small>':'')+'</span>';
+  });return h+'</div>';
+}
+function pill(st){var p=ST[st].pill;return '<span class="spill '+p[0]+'"><i></i>'+p[1]+'</span>'}
+var chips='<span class="mchip">⌥ vemec/encaja <em>↗</em></span><span class="mchip"># 729 <em>↗</em></span>';
+function tabs(){return '<div class="tabs"><span class="on">▤ Agent output</span><span>▢ Files changed <em>30</em></span></div>'}
+function tbar(){return '<div class="tbar"><span class="lights"><i></i><i></i><i></i></span><span class="ib">▥</span><h2>encaja #729</h2><span class="pillgrp"><span>◐ Open PR</span><span># Open issue</span></span><span class="ib">▥</span></div>'}
+function srow(st){
+  var sum=cur=='stop'?'<span class="spill r" style="font-size:11px;padding:1px 9px">stopped</span> usage_limit · resets 3:10am':'<b>3 slices merged</b> · PRs #736, #737, #738 · 31m';
+  return '<div class="srow"><div class="rule"><i></i><div class="mid"><div class="gh"><div class="pic">A</div><div class="hm">✳</div></div><div><div class="t1"><b>ashu-author[bot]</b><span class="r">Builder · Ship</span></div><div class="t2"><b>Claude</b> · account pro · sonnet 4.5 · high</div></div></div><span class="chev">›</span><i></i></div><div class="sum">'+sum+'</div></div>';
+}
+function wrap(inner,pinned){return '<div class="pane"><div class="in">'+tbar()+(pinned||'')+'<div class="feed">'+inner+srow()+'</div></div></div>'}
+var VIEWS={
+ h1:function(st){return wrap(
+   '<div class="col" style="gap:14px;padding-top:16px"><h1 class="title">'+T+'</h1>'+
+   '<div class="meta">'+pill(st)+chips+'</div>'+
+   '<div style="margin-top:8px">'+pipe(st,'fixed',true)+'</div>'+
+   '<div style="margin-top:6px">'+tabs()+'</div></div>')},
+ h2:function(st){return wrap(
+   '<div class="col" style="gap:12px;padding-top:12px"><h1 class="title">'+T+'</h1>'+
+   '<div class="meta">'+pill(st)+'<span class="mchip">bug</span><span class="mchip">salary</span></div>'+
+   '<div style="margin-top:8px">'+tabs()+'</div></div>',
+   '<div class="pbar"><div class="feed">'+pipe(st,'span',true)+'</div></div>')},
+ h3:function(st){return wrap(
+   '<div class="col" style="gap:12px;padding-top:20px"><h1 class="title">'+T+'</h1>'+
+   '<div class="meta">'+pill(st)+'<span class="dots">'+ST[st].dots.map(function(d){return '<i class="'+d+'"></i>'}).join('')+'</span><span class="mtxt">'+ST[st].line.replace('Step 4 of 4 · ','').replace(/^Step (\d) of 4 · /,'Step $1 of 4 · ')+'</span></div>'+
+   '<div style="margin-top:10px">'+tabs()+'</div></div>')}
+};
+var META=[
+ ['h1','H1 · Everything centered; the pipeline short, under the title','The same pieces as today, put on the feed\'s axis: title, then state and chips, then a pipeline that no longer stretches (connectors of 52 pt) and names the round of the current step. The most like today, with the order fixed.'],
+ ['h2','H2 · Pipeline pinned under the toolbar, only as wide as the feed','The pipeline stays a pinned bar (the content scrolls under it, blurred) but ends at the feed\'s edges, so it lines up with the session rows below. The repo and #issue chips go: the toolbar says them. Labels (bug, salary) stay.'],
+ ['h3','H3 · No pipeline row: the state and the step in one line','Title, then one line: the pill, a four-segment mini stepper and the step in words ("Step 3 of 4 · Review / Fix · Round 2"). The least chrome; the full pipeline would be a click on the line (a popover) and the places that show it are the sessions\' own rows.']
+];
+var cur='ready';
+function render(){document.getElementById('stack').innerHTML=META.map(function(m){return '<div class="opt"><h3>'+m[1]+'</h3><p>'+m[2]+'</p>'+VIEWS[m[0]](cur)+'</div>'}).join('')}
+render();
+document.querySelectorAll('.bar .tab').forEach(function(b){b.onclick=function(){
+  document.querySelectorAll('.bar .tab').forEach(function(x){x.classList.remove('on')});
+  b.classList.add('on');cur=b.dataset.s;render()}});
+document.getElementById('theme').onclick=function(){document.body.classList.toggle('light')};
+</script>
+</body></html>

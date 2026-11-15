@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Epic view — slices, findings and results (round 9)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.pane{width:min(940px,100%);height:auto;border-radius:22px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);overflow:hidden;position:relative}
+.pane .in{height:100%;overflow:auto;padding-bottom:40px}
+.feed{max-width:700px;margin:0 auto;padding:0 32px;display:flex;flex-direction:column}
+/* ---- the chat's vocabulary (same as round 1) ---- */
+.msg{line-height:1.5;margin:0}
+.msg code{font:11.5px var(--mono);background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue);padding:0 5px;border-radius:5px}
+.tg{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.tg .l{display:flex;gap:8px;align-items:center;height:30px;padding:0 10px;font-size:12.5px;color:var(--dim)}
+.tg .l b{color:var(--text);font-weight:600}
+.tg .l .sp1{flex:1}
+.tg .l em{font-style:normal;font-size:11.5px;color:var(--faint)}
+.tg .l .ic{width:15px;height:15px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:8px;flex:none}
+.tg .l .ch{font-size:9px;color:var(--faint);width:12px;text-align:center}
+.fc{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.fc .fh{display:flex;gap:8px;align-items:center;padding:7px 10px;font-size:12.5px}
+.fc .fh b{font-weight:600}.fc .fh .p{color:var(--faint);font:11px var(--mono);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fc .df{background:#0d0d10;font:11.5px/1.5 var(--mono);color:#d6d6dc;padding:6px 0}
+body.light .fc .df{background:#1d1d22}
+.fc .df div{padding:0 12px;white-space:pre;overflow:hidden}
+.fc .df .a{background:rgba(48,209,88,.16);color:#7ee787}.fc .df .r{background:rgba(255,69,58,.16);color:#ff8a82}
+.fc .ficon{width:18px;height:18px;border-radius:5px;background:var(--blue);color:#fff;display:grid;place-items:center;font-size:10px}
+.sl{display:flex;gap:10px;align-items:flex-start;padding:9px 12px}
+.sl+.sl{border-top:.5px solid var(--line)}
+.sl .t{flex:1;min-width:0}.sl .t b{font-weight:600}.sl .t b i{font-style:normal;color:var(--faint);font-weight:500;margin-right:6px}
+.sl .t span{display:block;font-size:12px;color:var(--dim);margin-top:2px}.sl .e{color:var(--red)}.sl .m{color:var(--purple)}
+.body{display:flex;flex-direction:column;gap:11px;padding:6px 0 4px}
+.ev{font-size:12px;color:var(--faint)}
+.done{display:flex;gap:9px;align-items:center;height:34px;padding:0 12px;border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;font-size:12.5px}
+.done .ck{width:16px;height:16px;font-size:9px}.done .sp1{flex:1}
+.done .cit{font-size:12px;color:var(--dim)}.done .cit b{color:var(--text);font-weight:600}
+
+/* toolbar as in the app: sidebar toggle, title, links pill, inspector toggle */
+.tbar{position:sticky;top:0;z-index:6;height:52px;display:flex;align-items:center;gap:10px;padding:0 14px 0 14px;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(24px)}
+.tbar .lights{position:static;margin-right:6px}
+.tbar .ib{width:30px;height:30px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:12px;color:var(--dim);box-shadow:0 0 0 .5px var(--line) inset}
+.tbar h2{margin:0;font-size:14px;font-weight:650;flex:1}
+.tbar h2.c{text-align:left}
+.pillgrp{display:inline-flex;align-items:center;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset;padding:5px 4px;font-size:12px}
+.pillgrp span{padding:0 10px}.pillgrp span+span{border-left:.5px solid var(--line)}
+
+/* title block */
+.title{font-size:22px;line-height:1.25;font-weight:700;letter-spacing:-.015em;text-align:center;margin:0;text-wrap:balance}
+.meta{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+.sp{flex:none}
+.spill{display:inline-flex;gap:6px;align-items:center;padding:3px 11px;border-radius:99px;font-size:12px;font-weight:600}
+.spill i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.spill.g{color:var(--green);background:color-mix(in srgb,var(--green) 20%,transparent)}
+.spill.b{color:var(--blue);background:color-mix(in srgb,var(--blue) 20%,transparent)}
+.spill.o{color:var(--orange);background:color-mix(in srgb,var(--orange) 20%,transparent)}
+.spill.r{color:var(--red);background:color-mix(in srgb,var(--red) 20%,transparent)}
+.mchip{display:inline-flex;gap:5px;align-items:center;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500;color:var(--dim);background:var(--card2)}
+.mchip em{font-style:normal;font-size:9px;color:var(--faint)}
+.mtxt{font-size:12.5px;color:var(--dim)}
+.mtxt .s{color:var(--faint);margin:0 7px}
+
+/* pipeline */
+.pl{display:flex;align-items:center;gap:10px}
+.pl.fixed{justify-content:center}
+.pl .c{height:2px;border-radius:2px;background:var(--line);flex:none;width:52px}
+.pl.span .c{flex:1;width:auto}
+.pl .c.d{background:var(--green)}
+.pls{display:flex;align-items:center;gap:6px;font-weight:550;white-space:nowrap;font-size:13px}
+.pls i{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10.5px;font-weight:700;background:var(--card2);color:var(--dim);flex:none}
+.pls.d{color:var(--dim)}.pls.d i{background:var(--green);color:#fff}
+.pls.w{color:var(--faint)}
+.pls.cur i{background:var(--blue);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--blue) 26%,transparent)}
+.pls.run i{background:transparent;border:2.5px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite;font-size:0}
+@keyframes sp{to{transform:rotate(1turn)}}
+.pls.inp i{background:var(--orange);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--orange) 26%,transparent)}
+.pls.er i{background:var(--red);color:#fff;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--red) 26%,transparent)}
+.pls small{font-weight:400;color:var(--faint);font-size:11.5px}
+/* pipeline stuck under the toolbar, as the app's safe-area bar */
+.pbar{position:sticky;top:52px;z-index:5;padding:8px 0 10px;background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(24px)}
+/* mini stepper */
+.dots{display:inline-flex;align-items:center;gap:4px}
+.dots i{width:18px;height:4px;border-radius:3px;background:var(--card2)}
+.dots i.d{background:var(--green)}.dots i.cur{background:var(--blue)}.dots i.run{background:var(--green);animation:pu 1.4s ease-in-out infinite}.dots i.in{background:var(--orange)}.dots i.er{background:var(--red)}
+@keyframes pu{50%{opacity:.35}}
+
+/* tabs */
+.tabs{display:flex;gap:26px;justify-content:center;border-bottom:.5px solid var(--line)}
+.tabs span{padding:5px 0 9px;color:var(--dim);font-size:13px;display:inline-flex;gap:6px;align-items:center}
+.tabs span.on{color:var(--text);font-weight:600;box-shadow:0 2px 0 var(--text)}
+.tabs em{font-style:normal;font-size:11.5px;color:var(--dim);background:var(--card2);border-radius:99px;padding:0 7px}
+
+/* ---- spacing scale (every gap in the feed is one of these) ---- */
+body{--g-sess:60px;--g-head:16px;--g-body:14px;--g-tight:6px;--g-fold:26px}
+body.tight{--g-sess:44px;--g-head:12px;--g-body:10px;--g-tight:4px;--g-fold:20px}
+.pane{padding-top:18px}
+.feed{padding:0 32px}
+
+/* ---- identity: who > what > how > numbers ---- */
+.gh{position:relative;width:34px;height:34px;flex:none}
+.gh .pic{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;color:#fff;box-shadow:0 0 0 .5px var(--line) inset}
+.gh .hm{position:absolute;right:-4px;bottom:-4px;width:16px;height:16px;border-radius:50%;background:var(--win);display:grid;place-items:center;font-size:8.5px;box-shadow:0 0 0 2px color-mix(in srgb,var(--bg) 92%,transparent),0 0 0 2.5px var(--line)}
+.c1{background:#5e5ce6}.c2{background:#bf5af2}
+.t1{font-size:14px;line-height:1.25;white-space:nowrap}
+.t1 b{font-weight:650;letter-spacing:-.005em}
+.t1 .r{font-weight:500;color:var(--dim);margin-left:8px}
+.t2{font-size:11.5px;color:var(--faint);white-space:nowrap;margin-top:3px}
+.t2 b{font-weight:550;color:var(--dim)}
+.t2 .s{margin:0 6px;opacity:.7}
+.sum{font-size:12px;color:var(--dim);display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap}
+.sum b{color:var(--text);font-weight:600}
+.sum .s{color:var(--faint)}
+.sum .e{color:var(--red)}.sum .e b{color:var(--red)}
+.sum .out{color:var(--text);font-weight:600}
+.ad{color:var(--green);font-weight:600}.de{color:var(--red);font-weight:600}
+.stopbadge{font-size:11px;font-weight:600;color:var(--orange);background:color-mix(in srgb,var(--orange) 18%,transparent);border-radius:99px;padding:2px 10px}
+.reason{font-size:12px;color:var(--orange);text-align:center}
+.chev{width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:10px;color:var(--dim);flex:none;transition:transform .2s,background .15s}
+.open .chev{transform:rotate(90deg)}
+.hit:hover .chev{background:color-mix(in srgb,var(--text) 18%,transparent);color:var(--text)}
+
+/* ---- D2: a fading hairline each side of the identity ---- */
+.sess{display:flex;flex-direction:column}
+.sess+.sess{margin-top:var(--g-sess)}
+.sess.f+.sess.f{margin-top:var(--g-fold)}
+.hit{display:flex;flex-direction:column;align-items:center;gap:9px;cursor:default;border-radius:12px}
+.rule{display:flex;align-items:center;gap:18px;width:100%}
+.rule i{flex:1;height:1px}
+.rule i:first-child{background:linear-gradient(90deg,transparent,var(--line))}
+.rule i:last-child{background:linear-gradient(270deg,transparent,var(--line))}
+.mid{display:flex;align-items:center;gap:12px;text-align:left}
+.hit:hover .rule i:first-child{background:linear-gradient(90deg,transparent,var(--faint))}
+.hit:hover .rule i:last-child{background:linear-gradient(270deg,transparent,var(--faint))}
+.hit.fold .gh,.hit.fold .gh .pic{width:30px;height:30px}
+.hit.fold .t1{font-size:13.5px}
+.hit.fold{gap:7px}
+.body{display:flex;flex-direction:column;gap:var(--g-body);margin-top:var(--g-head)}
+.body .tight{display:flex;flex-direction:column;gap:var(--g-tight)}
+.msg{font-size:13.5px;line-height:1.55}
+.foot{display:flex;flex-direction:column;gap:var(--g-tight);margin-top:2px}
+
+/* grouped earlier sessions */
+.grp{display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 0;color:var(--dim);font-size:12.5px;cursor:default;border-radius:12px}
+.grp .stk{display:flex}.grp .stk .gh{width:24px;height:24px;margin-left:-8px}.grp .stk .gh .pic{width:24px;height:24px;font-size:10px;box-shadow:0 0 0 2px var(--bg)}.grp .stk .gh:first-child{margin-left:0}
+.grp .stk .gh .hm{display:none}
+.grp b{color:var(--text);font-weight:600}
+.grp+.sess{margin-top:var(--g-sess)}
+
+/* states */
+body[data-s="open"] .v-fold,body[data-s="open"] .v-group,body[data-s="fold"] .v-open,body[data-s="fold"] .v-group,body[data-s="group"] .v-open,body[data-s="group"] .v-fold{display:none}
+.dim{color:var(--dim)}
+
+/* today's header, kept: glyph, title, chips, tabs, all at the left */
+.hdr{display:flex;gap:14px;align-items:center;padding:0 20px}
+.hdr .gl{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;flex:none;background:var(--blue)}
+.hdr .gl.g{background:transparent;border:3px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite;font-size:0}
+.hdr .gl.o{background:var(--orange)}.hdr .gl.r{background:var(--red)}
+.hdr h1{font-size:20px;margin:0;letter-spacing:-.01em}
+.hdr .chips{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.lt{padding:0 20px;margin-top:18px}
+.lt .tabs{justify-content:flex-start;gap:18px}
+.pbar{padding:8px 20px 10px}
+.pbar .in2{margin:0 auto}
+.pbar .pl.span{width:100%}
+.n1 .pbar .in2{width:max-content}
+.n2 .pbar .in2{max-width:560px}
+.n3 .pbar .in2{max-width:700px}
+.pane{height:520px}
+.feed2{max-width:700px;margin:0 auto;padding:0 32px}
+.srow{margin-top:36px}
+
+.pane{height:auto;padding:0}
+.feed{padding:0 32px}
+.in .tbar{padding:0 14px}
+/* flow switcher */
+.flows{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.flows .g{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.flows .g>b{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);width:84px;flex:none}
+.flows .tab{padding:5px 12px;font-size:12.5px}
+/* live things */
+.live{display:inline-flex;gap:6px;align-items:center;color:var(--green);font-weight:600}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pu 1.4s ease-in-out infinite}
+.tg .l .ic.lv{background:transparent;border:2px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite;font-size:0}
+.work{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:12.5px}
+.work .sw{width:11px;height:11px;border-radius:50%;border:2px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite}
+.caret{display:inline-block;width:7px;height:14px;background:var(--text);vertical-align:-2px;margin-left:2px;animation:pu 1s steps(2) infinite}
+.gh.pulse .pic{box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 28%,transparent)}
+/* findings */
+.fnd{display:flex;gap:10px;padding:8px 12px;align-items:flex-start}
+.fnd+.fnd{border-top:.5px solid var(--line)}
+.fnd .k{width:7px;height:7px;border-radius:50%;margin-top:6px;flex:none;background:var(--faint)}
+.fnd .k.b{background:var(--orange)}
+.fnd .t{flex:1;min-width:0}.fnd .t b{font:600 12px var(--mono)}.fnd .t span{display:block;font-size:12.5px;color:var(--dim);margin-top:2px}
+.fnd .tag2{font-size:11px;font-weight:600;color:var(--dim);background:var(--card2);border-radius:99px;padding:1px 8px;white-space:nowrap}
+.fnd .tag2.o{color:var(--orange);background:color-mix(in srgb,var(--orange) 18%,transparent)}
+.fnd .tag2.g{color:var(--green);background:color-mix(in srgb,var(--green) 18%,transparent)}
+.lab{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:8px 12px 2px}
+/* failure and result strips */
+.fail{font-size:12.5px;border-radius:12px;padding:9px 12px}
+.fail.o{color:var(--orange);background:color-mix(in srgb,var(--orange) 12%,transparent)}
+.fail.r{color:var(--red);background:color-mix(in srgb,var(--red) 11%,transparent)}
+.fail b{font-weight:650}
+.res{display:flex;gap:9px;align-items:center;height:34px;padding:0 12px;border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;font-size:12.5px}
+.res .sp1{flex:1}.res .cit{font-size:12px;color:var(--dim)}.res .cit b{color:var(--text);font-weight:600}
+.res .ic2{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:9px;color:#fff;background:var(--green)}
+.res .ic2.o{background:var(--orange)}.res .ic2.r{background:var(--red)}.res .ic2.b{background:var(--blue)}
+/* the stopped epic's card (ResumeCardView), in the feed's column */
+.rc{max-width:700px;margin:16px auto 0;padding:0 32px}
+.rc>div{display:flex;gap:12px;align-items:flex-start;border-radius:14px;padding:13px 15px;box-shadow:0 0 0 1px var(--rcb) inset;background:var(--rcf)}
+.rc.o{--rcf:color-mix(in srgb,var(--orange) 12%,transparent);--rcb:color-mix(in srgb,var(--orange) 35%,transparent)}
+.rc.r{--rcf:color-mix(in srgb,var(--red) 11%,transparent);--rcb:color-mix(in srgb,var(--red) 35%,transparent)}
+.rc .ic3{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px;flex:none;background:var(--orange)}
+.rc.r .ic3{background:var(--red)}
+.rc .tx b{font-size:14px;font-weight:650;display:block}.rc .tx span{color:var(--dim);font-size:12.5px}
+.rc .sp1{flex:1}
+.rc .rb{align-self:center;border:0;border-radius:99px;padding:5px 15px;font:inherit;font-size:12.5px;font-weight:600;color:#fff;background:var(--orange)}
+.rc.r .rb{background:var(--red)}
+/* queued / starting */
+.empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:46px 0 18px;text-align:center}
+.empty .ei{width:44px;height:44px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:18px;color:var(--dim)}
+.empty b{font-size:15px}.empty span{color:var(--dim);font-size:12.5px;max-width:380px}
+.plan{border-radius:16px;background:var(--card);padding:12px 14px;box-shadow:0 0 0 .5px var(--line) inset}
+.plan .pr{display:flex;gap:12px;align-items:center;padding:8px 0}
+.plan .pr+.pr{border-top:.5px solid var(--line)}
+.plan .pr i{width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:700;color:var(--dim);flex:none}
+.plan .pr b{font-weight:650}.plan .pr .m{color:var(--dim);margin-left:6px;font-weight:400}
+.plan .pr span{display:block;color:var(--dim);font-size:12.5px}
+.plan .ft{border-top:.5px solid var(--line);margin-top:2px;padding-top:9px;color:var(--dim);font-size:12.5px}
+.stp{display:flex;flex-direction:column;gap:14px;align-items:flex-start;margin:34px auto 0;width:max-content}
+.stp div{display:flex;gap:11px;align-items:center;font-size:13.5px}
+.stp .w{color:var(--faint)}
+/* cancelled */
+.pls.x{color:var(--faint)}.pls.x i{background:var(--card2);color:var(--dim)}
+.hdr .gl.w{background:transparent;border:3px solid var(--faint)}.hdr .gl.x{background:var(--faint)}.hdr .gl.d{background:var(--green)}
+.spill.x{color:var(--dim);background:var(--card2)}
+.sess.st .hit .sum{flex-wrap:wrap}
+.stopbadge{font-size:11px;font-weight:600;color:var(--orange);background:color-mix(in srgb,var(--orange) 18%,transparent);border-radius:99px;padding:2px 10px}
+.stopbadge.r{color:var(--red);background:color-mix(in srgb,var(--red) 16%,transparent)}
+.pane .pbar .in2{max-width:700px}
+.pbar .pl.span{width:100%}
+
+/* ---- same as Sessions: the chat's work card (ChatToolGroupView) ---- */
+.cg{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 10px;overflow:hidden}
+.cg.live{box-shadow:0 0 0 .5px rgba(201,160,255,.45) inset,0 0 16px rgba(201,160,255,.07)}
+.cg .h{display:flex;gap:8px;align-items:center;height:30px;font-size:12.5px;cursor:default}
+.cg .lead{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.cg .lead i{width:12px;height:12px;border-radius:50%;border:2px solid rgba(235,235,245,.22);border-top-color:var(--text);animation:sp .8s linear infinite}
+.cg .h b{font-weight:600}
+.cg .h .sm{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cg .h .d{color:var(--faint);font-size:12px;white-space:nowrap}
+.cg .h .fl{color:var(--red);font-size:12.5px;white-space:nowrap}
+.cg .h .sp1{flex:1}
+.cg .h .r{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.cg .h .ad{font-size:12px}.cg .h .de{font-size:12px}
+.cg .h .chv2{font-size:9px;color:var(--faint);width:16px;text-align:center}
+.cg.open .h .chv2{transform:rotate(90deg)}
+.cg .shm{background:linear-gradient(90deg,var(--dim) 30%,#fff 50%,var(--dim) 70%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shm 2.2s linear infinite;font-weight:600}
+@keyframes shm{from{background-position:200% 0}to{background-position:-200% 0}}
+.cg .tl{margin:2px 0 8px 4px;display:flex;flex-direction:column;font-size:12.5px;color:var(--dim)}
+.cg .ev{display:grid;grid-template-columns:16px 1fr auto;gap:9px;padding:5px 0;position:relative;align-items:start}
+.cg .ev:not(:last-child)::after{content:"";position:absolute;left:7.25px;top:24px;bottom:-5px;width:1.5px;background:rgba(235,235,245,.12)}
+body.light .cg .ev:not(:last-child)::after{background:rgba(0,0,0,.1)}
+.cg .ev i{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;background:var(--card2);margin-top:1px;font-style:normal;font-size:8px}
+.cg .ev.th i{background:rgba(201,160,255,.2);color:#c9a0ff}
+.cg .ev.er i{background:rgba(255,69,58,.18);color:var(--red)}
+.cg .ev code{font:11.5px var(--mono);color:var(--text);background:rgba(0,0,0,.25);padding:1px 6px;border-radius:5px;word-break:break-all}
+body.light .cg .ev code{background:rgba(0,0,0,.07)}
+.cg .ev .st{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+.cg .ev.er .st{color:var(--red)}
+.cg .ev .out{grid-column:2/4;margin-top:4px;font:11px/1.5 var(--mono);color:var(--dim);background:rgba(0,0,0,.28);border-radius:8px;padding:6px 9px;white-space:pre-wrap}
+body.light .cg .ev .out{background:rgba(0,0,0,.06)}
+/* ---- the notice (NoticeCard): over the end of the feed, as it sits over the message box in a session ---- */
+.in{display:flex;flex-direction:column}
+.in>*{flex:none}
+.feed{width:100%}
+.nwrap{margin-top:30px}
+.nwrap .nc{max-width:700px;margin:0 auto;border-radius:14px;padding:11px 13px;display:flex;gap:13px;align-items:center;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(30px) saturate(1.5);box-shadow:0 0 0 1px var(--nb) inset,0 8px 28px rgba(0,0,0,.28)}
+.nc.o{--nb:color-mix(in srgb,var(--orange) 45%,transparent);--nt:var(--orange)}
+.nc.r{--nb:color-mix(in srgb,var(--red) 45%,transparent);--nt:var(--red)}
+.nc .tile{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:none;background:color-mix(in srgb,var(--nt) 85%,transparent)}
+.nc .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.nc .tx b{font-size:13.5px;font-weight:650}
+.nc .tx span{font-size:11.5px;color:var(--dim);line-height:1.4}
+.nc .tag3{font-size:11px;background:var(--card2);border-radius:99px;padding:0 7px;color:var(--dim);margin-right:7px}
+.nc .pbtn{border:0;border-radius:99px;padding:5px 14px;font:inherit;font-size:12.5px;font-weight:600;color:#fff;background:var(--blue);display:inline-flex;gap:6px;align-items:center;flex:none}
+/* ---- starting: the checklist with its data, and the first session as a ghost ---- */
+.chk{border-radius:16px;background:var(--card);padding:6px 14px;box-shadow:0 0 0 .5px var(--line) inset;margin-top:26px}
+.chk .cr{display:grid;grid-template-columns:22px 1fr auto;gap:12px;padding:11px 0;align-items:start}
+.chk .cr+.cr{border-top:.5px solid var(--line)}
+.chk .cr .ck{margin-top:1px;width:20px;height:20px}
+.chk .cr b{font-weight:650;display:block}
+.chk .cr span.d{display:block;color:var(--dim);font-size:12.5px;margin-top:2px}
+.chk .cr .mono{font-size:11.5px}
+.chk .cr em{font-style:normal;font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+.chk .cr.w b{color:var(--faint)}
+.ghost{opacity:.5;margin-top:44px}
+.ghost .hit:hover{background:none}
+.lgnd{max-width:940px;margin:26px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}
+.lgnd div{background:var(--card);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--dim)}
+.lgnd b{display:block;color:var(--text);margin-bottom:3px}
+.lgnd code{font:11.5px var(--mono);color:var(--text)}
+</style>
+<style>
+.pane{height:auto;padding:26px 0 34px}
+.pane .in{height:auto;overflow:visible;padding:0;display:block}
+.feed{padding:0 32px}
+/* one shell: the tool group of Sessions and the cards of the epic share it */
+.wc{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 10px}
+.wc .wh{display:flex;gap:8px;align-items:center;height:30px;font-size:12.5px}
+.wc .wh b{font-weight:600}
+.wc .wh .sm{color:var(--dim);white-space:nowrap}
+.wc .wh .sp1{flex:1}
+.wc .wh .r{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.wc .wh .chv2{font-size:9px;color:var(--faint);width:16px;text-align:center}
+.wc .wh .lead{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.wc .wh .lead.tick{background:var(--green);border-radius:50%;color:#fff;font-size:9px;width:16px}
+.wc .wh .lead.warn{background:var(--orange);border-radius:50%;color:#fff;font-size:10px;font-weight:800}
+.wc .wh .lead.err{background:var(--red);border-radius:50%;color:#fff;font-size:10px;font-weight:800}
+.wc .wh .lead.run i{width:12px;height:12px;border-radius:50%;border:2px solid rgba(235,235,245,.22);border-top-color:var(--text);animation:sp .8s linear infinite}
+.wc .wh .link{font-size:12px;color:var(--dim);display:inline-flex;gap:4px;align-items:center}
+.wc .wh .link em{font-style:normal;font-size:9px;color:var(--faint)}
+.segs{display:inline-flex;gap:3px;align-items:center}
+.segs i{width:14px;height:4px;border-radius:3px;background:var(--card2)}
+.segs i.d{background:var(--green)}.segs i.a{background:var(--green);animation:pu 1.4s ease-in-out infinite}.segs i.f{background:var(--red)}
+.wc .rows{border-top:.5px solid var(--line);margin:0 -10px}
+/* slice rows */
+.sr{display:grid;grid-template-columns:22px 1fr auto;gap:11px;padding:10px 12px;align-items:start;cursor:default}
+.sr+.sr{border-top:.5px solid var(--line)}
+.sr:hover{background:color-mix(in srgb,var(--text) 4%,transparent)}
+.sr .mk{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;color:#fff;margin-top:1px;flex:none}
+.sr .mk.d{background:var(--green)}.sr .mk.f{background:var(--red);font-weight:800}
+.sr .mk.a{border:2px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite;font-size:0}
+.sr .mk.n{border:1.5px solid var(--faint)}
+.sr .tt{font-size:13px;font-weight:600;line-height:1.35}
+.sr .tt i{font-style:normal;color:var(--faint);font-weight:500;margin-right:7px}
+.sr .mt{font-size:12px;color:var(--dim);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap}
+.sr .mt .s{color:var(--faint)}.sr .mt .e{color:var(--red)}
+.sr .mt .lane{font-size:10.5px;font-weight:600;background:var(--card2);border-radius:99px;padding:0 7px;color:var(--dim)}
+.sr .rt{display:flex;gap:10px;align-items:center;padding-top:1px}
+.pr{display:inline-flex;gap:5px;align-items:center;font-size:12px;color:var(--dim);white-space:nowrap}
+.pr i{width:7px;height:7px;border-radius:50%;background:var(--purple)}
+.pr.open i{background:var(--green)}.pr.draft i{background:var(--faint)}
+.pr em{font-style:normal;font-size:9px;color:var(--faint)}
+.sr .cv{font-size:9px;color:var(--faint);width:12px;text-align:center}
+.sr.open .cv{transform:rotate(90deg)}
+.sr .in2{grid-column:2/4;padding:8px 0 4px;display:flex;flex-direction:column;gap:9px}
+/* compact table variant */
+.tb2 .th{display:grid;grid-template-columns:22px 52px 1fr 54px 54px 54px 92px 14px;gap:8px;padding:6px 12px 4px;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.tb2 .th span:nth-child(n+4){text-align:right}
+.tb2 .tr{display:grid;grid-template-columns:22px 52px 1fr 54px 54px 54px 92px 14px;gap:8px;align-items:center;padding:0 12px;height:36px;font-size:12.5px}
+.tb2 .tr+.tr{border-top:.5px solid var(--line)}
+.tb2 .tr .n{color:var(--faint);font-variant-numeric:tabular-nums}
+.tb2 .tr .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:550}
+.tb2 .tr .c{text-align:right;color:var(--dim);font-variant-numeric:tabular-nums}
+.tb2 .tr .c.e{color:var(--red)}
+.tb2 .tr .mk{margin:0}
+/* findings */
+.fd{display:grid;grid-template-columns:14px 1fr auto;gap:10px;padding:9px 12px;align-items:start}
+.fd+.fd,.fgl+.fd{border-top:.5px solid var(--line)}
+.fd .k{width:8px;height:8px;border-radius:50%;margin-top:6px;background:var(--faint)}
+.fd .k.b{background:var(--orange)}
+.fd .k.fx{background:var(--green)}
+.fd .id{font:600 12px var(--mono);word-break:break-all}
+.fd .ds{font-size:12.5px;color:var(--dim);margin-top:3px;line-height:1.45}
+.fd.fixed .id,.fd.fixed .ds{opacity:.55}
+.fd .rg{display:flex;gap:7px;align-items:center;padding-top:1px}
+.mkc{font-size:10.5px;font-weight:600;border-radius:99px;padding:1px 8px;white-space:nowrap;background:var(--card2);color:var(--dim)}
+.mkc.nw{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
+.mkc.cr{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
+.mkc.fx{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
+.fd .ex{font-size:10px;color:var(--faint)}
+.fgl{display:flex;gap:8px;align-items:center;padding:8px 12px 3px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.fgl b{color:var(--dim)}
+.fgl+.fd{border-top:0}
+.fgl:not(:first-child){border-top:.5px solid var(--line);margin-top:2px}
+.none{padding:10px 12px;font-size:12.5px;color:var(--dim)}
+.ctxt{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
+.vs{display:flex;flex-direction:column;gap:30px}
+.vs>div>h3{margin:0 0 2px;font-size:14px}.vs>div>p{margin:0 0 12px;color:var(--dim);font-size:12.5px;max-width:880px}
+.sect{display:none}.sect.on{display:block}
+.shell{max-width:940px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:8px 0 22px}
+.shell div{background:var(--card);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--dim)}
+.shell b{display:block;color:var(--text);margin-bottom:3px}.shell code{font:11.5px var(--mono);color:var(--text)}
+</style></head>
+<body>
+<h1>Epic view — slices, review findings and results (round 9)</h1>
+<p class="sub">The cards of the Agent output that the chat has no equivalent for, drawn so they are the chat's own pieces: <b>one shell</b> (the glass line of the work card: 12 pt radius, a 30 pt header with its lead, bold title, quiet summary, the right side that never moves, and a chevron) and <b>one row</b> (a mark, a title, a quiet line, what is at the right). The tool group of Sessions is the same shell with steps as rows.</p>
+
+<div class="shell">
+  <div><b>One place to change</b>Extract the shell from <code>ChatToolGroupView</code> as <code>WorkCard</code> (shell and header line) and <code>WorkRow</code> (a mark, title, quiet line, trailing). Sessions' tool group, the epic's slices and the findings are three users of them; the look of "a card with a line on top" is then edited once.</div>
+  <div><b>What each uses</b>Tool group: <code>WorkCard</code> + step rows (violet thought node, call node). Slices: <code>WorkCard</code> + <code>WorkRow</code> with a state mark. Findings: <code>WorkCard</code> + <code>WorkRow</code> with a severity dot and a mark chip.</div>
+  <div><b>Already shared</b>Messages, code blocks, the file card with its diff, the notice (<code>NoticeCard</code>) and the state mark. Not shared and to retire: the epic's <code>ToolGroupView</code>, <code>SkillRowView</code>, <code>TerminalBlockView</code> in <code>TranscriptView</code>.</div>
+</div>
+
+<div class="bar" id="nav">
+  <button class="tab on" data-k="slices">Slices</button>
+  <button class="tab" data-k="finds">Review findings</button>
+  <button class="tab" data-k="result">Result row</button>
+  <span class="sp1"></span>
+  <button class="tog" id="theme">Light / dark</button>
+</div>
+
+<div id="sl" class="sect on"></div>
+<div id="fd" class="sect"></div>
+<div id="rs" class="sect"></div>
+
+<div class="note"><b>Questions</b><br>
+1. Slices: S1 (a quiet line under the title, the PR at the right) or S2 (a table: numbers line up, better with 6+ slices)? 2. Findings: flat with chips (F1) or grouped under Blockers / Suggestions (F2)? 3. A slice row opens to its own steps, as today; OK that the first slice open by default only while it works? 4. In the Fixer's session, do the findings it answers show again (with the "fixed" mark as they get verified), or only in the Reviewer's? 5. The PR chip: its dot says merged (purple), open (green), draft (grey): enough, or do you want the word?</div>
+
+<script>
+var SL=[
+ {n:730,t:'Create flow: compare the legal minimum wage on the gross equivalent of the net salary',calls:38,edits:11,tests:7,err:1,pr:736,time:'11:51–11:56 PM'},
+ {n:731,t:'Contract edit: validate the minimum wage with the employee’s stored family situation',calls:29,edits:2,tests:3,err:3,pr:737,time:'11:58 PM–12:02 AM',lane:1},
+ {n:732,t:'Declared gross salary: store what the employer typed and derive the net on the server',calls:28,edits:1,tests:1,err:1,pr:738,time:'11:58 PM–12:02 AM',lane:2}];
+var SET={
+ merged:{name:'All merged',head:['tick','3 of 3 merged','31m'],st:['d','d','d'],prs:['merged','merged','merged'],segs:'ddd'},
+ running:{name:'Running, two lanes',head:['run','1 of 3 merged · 2 working','since 16:09'],st:['d','a','a'],prs:['merged','',''],segs:'daa'},
+ failed:{name:'One failed',head:['err','1 of 3 merged · 1 failed','since 16:09'],st:['d','f','n'],prs:['merged','',''],segs:'dfn'}
+};
+function counts(x,state){
+  if(state=='a') return '<span>'+Math.round(x.calls/3)+' calls so far</span>';
+  if(state=='n') return '<span>Waits for #'+(x.n-1)+'</span>';
+  if(state=='f') return '<span>'+x.calls+' calls</span><span class="s">·</span><span>'+x.tests+' tests</span><span class="s">·</span><span class="e">tests still failing after 3 tries</span>';
+  return '<span>'+x.calls+' calls</span><span class="s">·</span><span>'+x.edits+' edits</span><span class="s">·</span><span>'+x.tests+' tests</span>'+(x.err?'<span class="s">·</span><span class="e">'+x.err+' error'+(x.err>1?'s':'')+'</span>':'');
+}
+function prchip(x,st){return st?'<span class="pr '+(st=='merged'?'':st)+'"><i></i>PR #'+x.pr+' <em>↗</em></span>':''}
+function segs(k){return '<span class="segs">'+k.split('').map(function(c){return '<i class="'+c+'"></i>'}).join('')+'</span>'}
+function whead(h,extra){return '<div class="wh"><span class="lead '+h[0]+(h[0]=='tick'?'">✓':h[0]=='warn'||h[0]=='err'?'">!':h[0]=='run'?'"><i></i>':'">')+'</span><b>'+extra.title+'</b><span class="sm">'+h[1]+'</span>'+(extra.segs?segs(extra.segs):'')+'<span class="sp1"></span>'+(extra.right||'')+'<span class="r">'+(h[2]||'')+'</span><span class="chv2">›</span></div>'}
+function inner(){return '<div class="cg" style="margin-bottom:8px"><div class="h"><b>Ran 11 steps</b><span class="sm">pnpm, rg, vitest</span><span class="sp1"></span><span class="r">1m 40s</span><span class="chv2">›</span></div></div><p class="msg" style="font-size:13px">Conflicto menor: solo los imports en <code>manage-employee.ts</code>. Lo resuelvo en la rama del slice.</p>'}
+function s1(k,openIdx){
+  var c=SET[k];
+  return '<div class="wc">'+whead(c.head,{title:'Slices',segs:c.segs})+'<div class="rows">'+SL.map(function(x,i){
+    var st=c.st[i],open=i==openIdx;
+    return '<div class="sr'+(open?' open':'')+'"><span class="mk '+st+'">'+(st=='d'?'✓':st=='f'?'!':'')+'</span><div><div class="tt"><i>#'+x.n+'</i>'+x.t+'</div><div class="mt">'+counts(x,st)+(x.lane&&(st=='a'||st=='d')?'<span class="s">·</span><span class="lane">Lane '+x.lane+'</span>':'')+(st=='d'?'<span class="s">·</span><span>'+x.time+'</span>':'')+'</div></div><div class="rt">'+prchip(x,c.prs[i])+'<span class="cv">›</span></div>'+(open?'<div class="in2">'+inner()+'</div>':'')+'</div>'}).join('')+'</div></div>'}
+function s2(k){
+  var c=SET[k];
+  return '<div class="wc tb2">'+whead(c.head,{title:'Slices',segs:c.segs})+'<div class="rows"><div class="th"><span></span><span></span><span>Slice</span><span>Calls</span><span>Edits</span><span>Tests</span><span style="text-align:left">PR</span><span></span></div>'+SL.map(function(x,i){
+    var st=c.st[i],done=st=='d';
+    return '<div class="tr"><span class="mk '+st+'" style="width:16px;height:16px;font-size:9px;border-radius:50%;display:grid;place-items:center;color:#fff">'+(st=='d'?'✓':st=='f'?'!':'')+'</span><span class="n">#'+x.n+'</span><span class="t" title="'+x.t+'">'+x.t+'</span><span class="c">'+(st=='n'?'–':done?x.calls:Math.round(x.calls/3))+'</span><span class="c">'+(done?x.edits:'–')+'</span><span class="c '+(x.err&&done?'e':'')+'">'+(done?x.tests+(x.err?' · '+x.err+'!':''):'–')+'</span><span>'+prchip(x,c.prs[i])+'</span><span style="font-size:9px;color:var(--faint)">›</span></div>'}).join('')+'</div></div>'}
+// ---- findings
+var FD={
+ r1:{name:'Round 1 · changes requested',head:['warn','Changes requested','2 blockers · 1 suggestion'],items:[['b','new','create-form-net-below-fulltime-hours-prompt','In Líquido mode the take-home salary is compared with the gross floor, so the weekly-hours field shows for legal full-time salaries below $32.051.'],['b','new','schedule-edit-rederives-net','ScheduleForm passes declaredGrossSalary, so a schedule-only edit re-derives the base salary and logs a salaryInput audit event.'],['s','','gross-floor-error-message-phrasing','The floor message says "sueldo líquido" even when the salary was typed as nominal.']]},
+ r2:{name:'Round 2 · one carried, one fixed',head:['warn','Changes requested','1 blocker open · 1 fixed · 1 suggestion'],items:[['b','carried','schedule-edit-rederives-net','Still re-derives the base salary on a schedule-only edit; the fix covers create but not update.'],['b','fixed','create-form-net-below-fulltime-hours-prompt','Verified: the weekly-hours field no longer shows below the gross floor.'],['s','','gross-floor-error-message-phrasing','The floor message says "sueldo líquido" even when the salary was typed as nominal.']]},
+ ready:{name:'Ready · suggestions only',head:['tick','Ready','0 blockers · 4 suggestions'],items:[['s','','create-form-net-below-fulltime-hours-prompt','Líquido mode compares take-home with the gross floor and shows weekly hours for legal full-time salaries.'],['s','','schedule-edit-rederives-net','ScheduleForm passes declaredGrossSalary and re-derives the base salary on schedule-only updates.'],['s','','gross-floor-error-message-phrasing','The floor message says "sueldo líquido" even when typed as nominal.'],['s','','simulator-salary-label-reuse','SalaryAmountField hardcodes the CreateEmployee translation namespace.']]},
+ clean:{name:'Ready · nothing found',head:['tick','Ready','no findings'],items:[]},
+ limit:{name:'Review limit · carried',head:['warn','Changes requested','2 blockers open · round 5 of 5'],items:[['b','carried','gross-floor-not-checked-on-update','The update path compares the net with the gross floor; only create was fixed.'],['b','carried','family-situation-stale','The stored family situation is read before the schedule edit is saved.']]}
+};
+function mkc(m){return m?'<span class="mkc '+(m=='new'?'nw':m=='carried'?'cr':'fx')+'">'+m+'</span>':''}
+function frow(f){return '<div class="fd'+(f[1]=='fixed'?' fixed':'')+'"><span class="k '+(f[1]=='fixed'?'fx':f[0]=='b'?'b':'')+'"></span><div><div class="id">'+f[2]+'</div><div class="ds">'+f[3]+'</div></div><div class="rg">'+mkc(f[1])+'<span class="ex">↗</span></div></div>'}
+function f1(k){var c=FD[k];return '<div class="wc">'+whead([c.head[0],c.head[2],''],{title:c.head[1],right:'<span class="link">PR #743 <em>↗</em></span>'})+(c.items.length?'<div class="rows">'+c.items.map(function(f){return frow(f)}).join('')+'</div>':'')+'</div>'}
+function f2(k){var c=FD[k],b=c.items.filter(function(f){return f[0]=='b'}),s=c.items.filter(function(f){return f[0]=='s'});
+  return '<div class="wc">'+whead([c.head[0],c.head[2],''],{title:c.head[1],right:'<span class="link">PR #743 <em>↗</em></span>'})+(c.items.length?'<div class="rows">'+(b.length?'<div class="fgl"><b>Blockers</b> '+b.length+'</div>'+b.map(frow).join(''):'')+(s.length?'<div class="fgl"><b>Suggestions</b> '+s.length+'</div>'+s.map(frow).join(''):'')+'</div>':'')+'</div>'}
+// ---- results
+function rrow(k,a,b,cit){return '<div class="res"><span class="ic2 '+k+'">'+(k==''||k=='b'?'✓':'!')+'</span><b>'+a+'</b>'+(b?'<span class="dim">· '+b+'</span>':'')+'<span class="sp1"></span>'+(cit?'<span class="cit">⌨ <b>Continue in Terminal</b></span>':'')+'</div>'}
+function chips(list,cur,attr){return '<div class="bar" style="margin:0 0 14px">'+list.map(function(x){return '<button class="tab'+(x[0]==cur?' on':'')+'" '+attr+'="'+x[0]+'">'+x[1]+'</button>'}).join('')+'</div>'}
+var st={sl:'merged',fd:'r1',open:-1};
+function wrap(inner){return '<div class="pane"><div class="in"><div class="feed">'+inner+'</div></div></div>'}
+function render(){
+  document.getElementById('sl').innerHTML=chips(Object.keys(SET).map(function(k){return [k,SET[k].name]}),st.sl,'data-sl')+
+   '<div class="vs"><div><h3>S1 · A quiet line under each title, the PR at the right</h3><p>Reads like the chat: the title is what the slice is, one line says what it cost, the PR chip says where it went. A row opens (chevron) to its own steps, as today; one is open here.</p>'+wrap(s1(st.sl,st.sl=='running'?1:-1))+'</div>'+
+   '<div><h3>S2 · A table: the numbers line up</h3><p>For epics with many slices: one 36 pt line each, the counts in columns, nothing wraps. The cost: the title is cut and the lane and the time go to the hover.</p>'+wrap(s2(st.sl))+'</div></div>';
+  document.getElementById('fd').innerHTML=chips(Object.keys(FD).map(function(k){return [k,FD[k].name]}),st.fd,'data-fd')+
+   '<div class="vs"><div><h3>F1 · Flat: a severity dot and the mark of the round at the right</h3><p>Blockers first (orange dot), suggestions after (grey). The chip says what happened since the last round: <b>new</b>, <b>carried</b> (still open) or <b>fixed</b> (verified, dimmed). ↗ opens the discussion on GitHub.</p>'+wrap(f1(st.fd))+'</div>'+
+   '<div><h3>F2 · Grouped under Blockers and Suggestions</h3><p>Same rows with two small headings: clearer when there are many, one line taller per group.</p>'+wrap(f2(st.fd))+'</div></div>';
+  document.getElementById('rs').innerHTML='<div class="vs"><div><h3>The result row, the foot of a finished session</h3><p>One row of the same family. Evidence (CI) opens under it; a stop\u2019s reason is the NoticeCard at the end of the feed, not here.</p>'+wrap(
+   '<div style="display:flex;flex-direction:column;gap:12px">'+rrow('','Completed','CI passed',1)+rrow('b','Ready','0 blockers, 4 suggestions',1)+rrow('o','Changes requested','2 blockers, 1 suggestion',1)+rrow('o','Needs you','asked on PR #743',1)+rrow('r','Failed','tests did not pass after 3 tries',1)+'</div>')+'</div></div>';
+  document.querySelectorAll('[data-sl]').forEach(function(b){b.onclick=function(){st.sl=b.dataset.sl;render()}});
+  document.querySelectorAll('[data-fd]').forEach(function(b){b.onclick=function(){st.fd=b.dataset.fd;render()}});
+}
+render();
+document.querySelectorAll('#nav .tab').forEach(function(b){b.onclick=function(){
+  document.querySelectorAll('#nav .tab').forEach(function(x){x.classList.remove('on')});b.classList.add('on');
+  ['sl','fd','rs'].forEach(function(i){document.getElementById(i).classList.remove('on')});
+  document.getElementById({slices:'sl',finds:'fd',result:'rs'}[b.dataset.k]).classList.add('on')}});
+document.getElementById('theme').onclick=function(){document.body.classList.toggle('light')};
+</script>
+</body></html>

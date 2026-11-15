@@ -178,8 +178,12 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// For the Conversation menu: acts only while a conversation is open.
     func conversation(_ action: ConversationAction) { model.shell.perform(.conversation(action)) }
 
+    /// Main application window when open.
+    var mainWindow: NSWindow? { window }
+
     /// Active standalone or drawer terminal owner visible in the main window, if any.
     var preferredTerminalOwner: TerminalOwner? {
+        guard window?.isVisible == true else { return nil }
         switch model.shell.selection {
         case .terminal(let id):
             return .terminal(id)

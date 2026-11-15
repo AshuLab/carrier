@@ -111,7 +111,8 @@ struct TerminalTabChip: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
+        let showsClose = hovered || selected
+        HStack(spacing: showsClose ? 2 : 0) {
             Button(action: select) {
                 HStack(spacing: 5) {
                     Image(systemName: "terminal")
@@ -129,22 +130,30 @@ struct TerminalTabChip: View {
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
                             .background(Capsule().fill(Color.primary.opacity(0.08)))
-                            .accessibilityLabel("\(tab.paneCount) panes")
+                            .accessibilityHidden(true)
                     }
                 }
+                .padding(.leading, 10)
+                .padding(.trailing, showsClose ? 2 : 10)
+                .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(tab.paneCount > 1 ? "\(tab.title), \(tab.paneCount) panes" : tab.title)
             .accessibilityAddTraits(selected ? .isSelected : [])
+            .accessibilityAction(named: "Rename Tab") {
+                draftTitle = tab.customTitle ?? tab.title
+                renaming = true
+            }
 
-            if hovered || selected {
+            if showsClose {
                 Button(action: close) {
                     Image(systemName: "xmark")
                         .font(.scaled(8.5, weight: .bold))
                         .foregroundStyle(closeHovered ? .primary : .secondary)
                         .frame(width: 16, height: 16)
                         .background(Circle().fill(Color.primary.opacity(closeHovered ? 0.14 : 0)))
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -153,8 +162,8 @@ struct TerminalTabChip: View {
                 .accessibilityLabel("Close \(tab.title)")
             }
         }
-        .padding(.leading, 10)
-        .padding(.trailing, (hovered || selected) ? 4 : 10)
+        .accessibilityElement(children: .contain)
+        .padding(.trailing, showsClose ? 4 : 0)
         .frame(height: Self.height)
         .frame(maxWidth: 220)
         .background(backgroundFill)
@@ -209,11 +218,11 @@ struct TerminalTabChip: View {
             )
             return NSItemProvider(object: tab.id.uuidString as NSString)
         }
-        .accessibilityAction(named: "Rename Tab") {
-            draftTitle = tab.customTitle ?? tab.title
-            renaming = true
+        .accessibilityAction(named: "Close Tab") {
+            if !(hovered || selected) {
+                close()
+            }
         }
-        .accessibilityAction(named: "Close Tab", close)
         .onDrop(
             of: [UTType.plainText],
             delegate: TerminalTabDropDelegate(
@@ -291,7 +300,7 @@ private struct TabRenamePopover: View {
             Text("Rename Tab")
                 .font(.scaled(12, weight: .semibold))
             TextField("Tab name", text: $title)
-                .settingsField(width: 220, focused: $focused)
+                .settingsField(width: 248, focused: $focused)
                 .onSubmit(save)
                 .onKeyPress(.escape) {
                     cancel()
@@ -311,6 +320,7 @@ private struct TabRenamePopover: View {
                 }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
                 .controlSize(.small)
+                .keyboardShortcut(.cancelAction)
                 Button(action: save) {
                     Label("Save", systemImage: "checkmark")
                 }

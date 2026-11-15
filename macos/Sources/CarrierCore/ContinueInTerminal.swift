@@ -112,7 +112,6 @@ public protocol TerminalOpener {
 }
 
 public enum ContinueError: Error, Equatable {
-    case rejected(ResumeRejection)
     case notWritten
 }
 

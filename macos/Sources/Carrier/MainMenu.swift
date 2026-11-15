@@ -177,22 +177,47 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
 
     private let storeProvider: @MainActor () -> CarrierTerminalStore?
     private let preferredOwnerProvider: @MainActor () -> TerminalOwner?
+    private let allowsPreferredFallback: @MainActor () -> Bool
 
     init(
         storeProvider: @escaping @MainActor () -> CarrierTerminalStore? = { CarrierTerminalStore.sharedIfInitialized ?? CarrierTerminalStore.shared },
-        preferredOwnerProvider: @escaping @MainActor () -> TerminalOwner? = { WindowController.shared.preferredTerminalOwner }
+        preferredOwnerProvider: @escaping @MainActor () -> TerminalOwner? = { WindowController.shared.preferredTerminalOwner },
+        allowsPreferredFallback: @escaping @MainActor () -> Bool = { TerminalMenuControls.allowsPreferredFallback() }
     ) {
         self.storeProvider = storeProvider
         self.preferredOwnerProvider = preferredOwnerProvider
+        self.allowsPreferredFallback = allowsPreferredFallback
+    }
+
+    @MainActor
+    static func allowsPreferredFallback() -> Bool {
+        allowsPreferredFallback(keyWindow: NSApp?.keyWindow, mainWindow: WindowController.shared.mainWindow)
+    }
+
+    @MainActor
+    static func allowsPreferredFallback(
+        keyWindow: NSWindow?,
+        mainWindow: NSWindow?
+    ) -> Bool {
+        guard let keyWindow, let mainWindow else { return false }
+        return keyWindow === mainWindow
+            && keyWindow.attachedSheet == nil
+            && (keyWindow.firstResponder is NSText) == false
     }
 
     @MainActor
     private func resolveTarget() -> (store: CarrierTerminalStore, tab: TerminalTab, paneId: UUID)? {
         guard NSApp?.keyWindow?.attachedSheet == nil,
-              let store = storeProvider(),
-              let target = store.activePaneTarget(preferredOwner: preferredOwnerProvider())
+              let store = storeProvider()
         else { return nil }
-        return (store, target.tab, target.paneId)
+        if let focused = store.focusedPaneTarget() {
+            return (store, focused.tab, focused.paneId)
+        }
+        if allowsPreferredFallback(),
+           let target = store.activePaneTarget(preferredOwner: preferredOwnerProvider()) {
+            return (store, target.tab, target.paneId)
+        }
+        return nil
     }
 
     @MainActor @objc func splitRight() {
@@ -242,7 +267,10 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
                 return isSplit
             case #selector(equalizeSplits), #selector(movePaneToNewTab):
                 return isSplit
-            case #selector(splitRight), #selector(splitDown), #selector(closePane):
+            case #selector(splitRight), #selector(splitDown):
+                return true
+            case #selector(closePane):
+                item.title = isSplit ? "Close Pane" : "Close Tab"
                 return true
             default:
                 return false

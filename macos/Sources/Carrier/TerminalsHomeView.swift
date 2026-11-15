@@ -69,8 +69,10 @@ struct TerminalsHomeView: View {
                     select(highlighted)
                     return .handled
                 }
-                .onKeyPress(.delete) {
-                    guard let highlighted, ids.contains(highlighted) else { return .ignored }
+                .onKeyPress(keys: [.delete]) { press in
+                    guard press.modifiers.contains(.command),
+                          let highlighted, ids.contains(highlighted)
+                    else { return .ignored }
                     closeTerminal(highlighted)
                     return .handled
                 }
@@ -119,9 +121,13 @@ struct TerminalsHomeView: View {
                     .focused($searching)
                     .onKeyPress(.escape) {
                         query = nil
+                        listFocused = true
                         return .handled
                     }
-                Button { query = nil } label: {
+                Button {
+                    query = nil
+                    listFocused = true
+                } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.scaled(11))
                         .foregroundStyle(.secondary)

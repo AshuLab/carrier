@@ -281,13 +281,16 @@ struct PrimaryCapsuleButtonStyle: ButtonStyle {
         let configuration: ButtonStyleConfiguration
         let large: Bool
         @Environment(\.isEnabled) private var enabled
+        @Environment(\.controlSize) private var size
 
         var body: some View {
-            configuration.label.fontWeight(.semibold).font(large ? .title3.weight(.semibold) : .body.weight(.semibold))
+            let small = !large && (size == .small || size == .mini)
+            configuration.label.fontWeight(.semibold).font(large ? .title3.weight(.semibold) : (small ? .callout.weight(.semibold) : .body.weight(.semibold)))
                 .foregroundStyle(enabled ? Color.white : Color.secondary)
-                .padding(.horizontal, large ? 24 : 16).padding(.vertical, large ? 9 : 6)
+                .padding(.horizontal, large ? 24 : (small ? 11 : 16)).padding(.vertical, large ? 9 : (small ? 3 : 6))
                 // the accent is a light pastel on the dark themes: darkened for the fill so the white label reads over any theme
                 .background(Capsule().fill(enabled ? Color.themeAccent.mix(with: .black, by: 0.4) : Color.secondary.opacity(0.18)))
+                .contentShape(Capsule())
                 .shadow(color: .black.opacity(enabled ? 0.3 : 0), radius: 1, y: 1)
                 .opacity(configuration.isPressed ? 0.8 : 1)
         }

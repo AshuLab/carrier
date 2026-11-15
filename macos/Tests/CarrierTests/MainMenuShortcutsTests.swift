@@ -147,14 +147,18 @@ private let fixtures = URL(fileURLWithPath: #filePath)
 
         let owner = TerminalOwner.terminal(UUID())
         var activeOwner: TerminalOwner? = nil
+        var allowFallback = true
         let terminalControls = TerminalMenuControls(
             storeProvider: { store },
-            preferredOwnerProvider: { activeOwner }
+            preferredOwnerProvider: { activeOwner },
+            allowsPreferredFallback: { allowFallback }
         )
         let menu = AppDelegate().makeMainMenu(shortcuts: table(), terminalControls: terminalControls)
         let splitRightItem = try item(menu, "Terminal", "Split Right")
         let zoomItem = try item(menu, "Terminal", "Zoom Pane")
         let equalizeItem = try item(menu, "Terminal", "Equalize Splits")
+        let detachItem = try item(menu, "Terminal", "Move Pane to New Tab")
+        let closeItem = try item(menu, "Terminal", "Close Pane")
 
         // No active terminal selected -> Terminal menu items stay disabled.
         #expect(terminalControls.validateMenuItem(splitRightItem) == false)
@@ -165,15 +169,56 @@ private let fixtures = URL(fileURLWithPath: #filePath)
         #expect(terminalControls.validateMenuItem(splitRightItem) == true)
         #expect(terminalControls.validateMenuItem(zoomItem) == false)
         #expect(terminalControls.validateMenuItem(equalizeItem) == false)
+        #expect(terminalControls.validateMenuItem(detachItem) == false)
+        #expect(terminalControls.validateMenuItem(closeItem) == true)
+        #expect(closeItem.title == "Close Tab")
 
+        // Blocked fallback (e.g. text field / popover / secondary window) refuses preferred-owner actions.
+        allowFallback = false
+        #expect(terminalControls.validateMenuItem(splitRightItem) == false)
+        #expect(terminalControls.validateMenuItem(closeItem) == false)
+        run(splitRightItem)
+        #expect(store.activeTab(for: owner)?.paneCount == 1)
+
+        allowFallback = true
         run(splitRightItem)
         #expect(store.activeTab(for: owner)?.paneCount == 2)
         #expect(terminalControls.validateMenuItem(zoomItem) == true)
         #expect(terminalControls.validateMenuItem(equalizeItem) == true)
+        #expect(terminalControls.validateMenuItem(detachItem) == true)
+        #expect(terminalControls.validateMenuItem(closeItem) == true)
+        #expect(closeItem.title == "Close Pane")
 
         run(zoomItem)
         #expect(store.activeTab(for: owner)?.zoomedPaneId != nil)
         #expect(terminalControls.validateMenuItem(zoomItem) == true)
         #expect(zoomItem.title == "Restore Split View")
+    }
+
+    @Test func terminalMenuFallbackStopsForTextRespondersAndOtherWindows() {
+        let mainWindow = NSWindow(
+            contentRect: NSRect(x: -4000, y: -4000, width: 400, height: 300),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let otherWindow = NSWindow(
+            contentRect: NSRect(x: -4000, y: -4000, width: 300, height: 200),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let plainResponder = NSView()
+        let textView = NSTextView()
+        mainWindow.contentView = plainResponder
+
+        #expect(TerminalMenuControls.allowsPreferredFallback(keyWindow: mainWindow, mainWindow: mainWindow) == true)
+        #expect(TerminalMenuControls.allowsPreferredFallback(keyWindow: nil, mainWindow: mainWindow) == false)
+        #expect(TerminalMenuControls.allowsPreferredFallback(keyWindow: mainWindow, mainWindow: nil) == false)
+        #expect(TerminalMenuControls.allowsPreferredFallback(keyWindow: otherWindow, mainWindow: mainWindow) == false)
+
+        mainWindow.contentView = textView
+        mainWindow.makeFirstResponder(textView)
+        #expect(TerminalMenuControls.allowsPreferredFallback(keyWindow: mainWindow, mainWindow: mainWindow) == false)
     }
 }

@@ -307,11 +307,19 @@ final class CarrierTerminalStore {
         }
     }
 
-    /// Resolves the focused pane in the key window, or falls back to `preferredOwner`'s active pane for menu/keyboard actions.
-    func activePaneTarget(preferredOwner: TerminalOwner? = nil) -> (tab: TerminalTab, paneId: UUID)? {
+    /// Resolves the currently focused pane in the key window, if any.
+    func focusedPaneTarget() -> (tab: TerminalTab, paneId: UUID)? {
         if let focusedId = focusedPaneResolverForTests?() ?? focusedPaneId(for: NSApp?.keyWindow?.firstResponder),
            let tab = registry.workspaces.lazy.flatMap(\.tabs).first(where: { $0.panes[focusedId] != nil }) {
             return (tab, focusedId)
+        }
+        return nil
+    }
+
+    /// Resolves the focused pane in the key window, or falls back to `preferredOwner`'s active pane for menu/keyboard actions.
+    func activePaneTarget(preferredOwner: TerminalOwner? = nil) -> (tab: TerminalTab, paneId: UUID)? {
+        if let focused = focusedPaneTarget() {
+            return focused
         }
         if let preferredOwner, let tab = activeTab(for: preferredOwner) {
             return (tab, tab.activePaneId)

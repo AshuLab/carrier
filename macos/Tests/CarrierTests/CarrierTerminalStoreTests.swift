@@ -986,4 +986,27 @@ struct CarrierTerminalStoreTests {
 
         store.teardownAll()
     }
+
+    @Test func ghosttyBaseConfigurationUnbindsMenuShortcutsCleanly() {
+        let suite = "ghostty-unbinds-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let prefs = AppPreferences(defaults: defaults)
+        let profile = TerminalAppearanceMapper.makeProfile(
+            theme: .carrier,
+            scheme: .dark,
+            preferences: prefs,
+            translucent: true
+        )
+        let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile)
+        let rendered = config.rendered
+        #expect(rendered.contains("keybind = super+d=unbind"))
+        #expect(rendered.contains("keybind = super+shift+d=unbind"))
+        #expect(rendered.contains("keybind = super+shift+enter=unbind"))
+        #expect(rendered.contains("keybind = super+shift+w=unbind"))
+
+        let controller = TerminalController(configuration: config)
+        #expect(controller.lastConfigurationIssue == nil)
+    }
 }

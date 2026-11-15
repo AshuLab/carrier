@@ -193,7 +193,7 @@ struct TerminalPaneHeaderView: View {
                     Label("Equalize Splits", systemImage: "rectangle.split.3x1").labelStyle(.titleAndIcon)
                 }
                 Button(action: moveToNewTab) {
-                    Label("Move to New Tab", systemImage: "macwindow.badge.plus").labelStyle(.titleAndIcon)
+                    Label("Move Pane to New Tab", systemImage: "macwindow.badge.plus").labelStyle(.titleAndIcon)
                 }
             }
             Divider()
@@ -323,22 +323,26 @@ private struct TerminalPaneHostView: View {
                 .onHover { controlsHovered = $0 }
                 .opacity(showControls ? 1 : 0)
                 .allowsHitTesting(showControls)
+                .accessibilityHidden(showControls == false)
                 .animation(.easeOut(duration: 0.15), value: showControls)
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityAction(named: "Split Right") { _ = store.splitPane(paneId, edge: .trailing) }
         .accessibilityAction(named: "Split Down") { _ = store.splitPane(paneId, edge: .bottom) }
-        .accessibilityAction(named: isSplit ? (isZoomed ? "Restore Split View" : "Zoom Pane") : "Show Split Actions") {
-            if isSplit { store.toggleZoom(paneId: paneId) }
-        }
-        .accessibilityAction(named: "Equalize Splits") {
-            if isSplit { store.equalizeSplits(inTab: tab.id) }
-        }
-        .accessibilityAction(named: "Move to New Tab") {
-            if isSplit, let newTab = store.detachPaneToNewTab(paneId) {
-                onSelectTab?(newTab.id)
-            }
-        }
+        .modifier(
+            SplitPaneAccessibilityActions(
+                isSplit: isSplit,
+                isZoomed: isZoomed,
+                onToggleZoom: { store.toggleZoom(paneId: paneId) },
+                onEqualize: { store.equalizeSplits(inTab: tab.id) },
+                onMoveToNewTab: {
+                    if let newTab = store.detachPaneToNewTab(paneId) {
+                        onSelectTab?(newTab.id)
+                    }
+                }
+            )
+        )
         .accessibilityAction(named: isSplit ? "Close Pane" : "Close Terminal", closeCurrentPane)
         .overlay {
             if isSplit {
@@ -364,6 +368,25 @@ private struct TerminalPaneHostView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+private struct SplitPaneAccessibilityActions: ViewModifier {
+    let isSplit: Bool
+    let isZoomed: Bool
+    let onToggleZoom: () -> Void
+    let onEqualize: () -> Void
+    let onMoveToNewTab: () -> Void
+
+    func body(content: Content) -> some View {
+        if isSplit {
+            content
+                .accessibilityAction(named: isZoomed ? "Restore Split View" : "Zoom Pane", onToggleZoom)
+                .accessibilityAction(named: "Equalize Splits", onEqualize)
+                .accessibilityAction(named: "Move Pane to New Tab", onMoveToNewTab)
+        } else {
+            content
         }
     }
 }

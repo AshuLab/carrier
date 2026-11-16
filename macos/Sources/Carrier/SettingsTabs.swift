@@ -905,6 +905,7 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.monospaceWrapKey) private var wrapLongLines = true
     @AppStorage(AppPreferences.monospaceLineNumbersKey) private var lineNumbers = false
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+    @AppStorage(AppPreferences.chatSurfaceKey) private var chatSurface = AppPreferences.defaultChatSurface
     @State private var previewRoom: CGFloat = 0
     @State private var flipped: Set<String> = []
 
@@ -988,6 +989,9 @@ struct ChatTabView: View {
                         label: "Message width", options: MessageWidth.allCases.map { (value: $0, title: "\($0.title) · \(Int($0.points)) pt") },
                         selection: $messageWidth, width: 180
                     )
+                }
+                SettingsTabRow(title: "Surfaces", detail: "Glass blurs what is under the cards, the bubble and the message box; flat draws them as a quiet solid fill") {
+                    SegmentedChoice(options: ChatSurface.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $chatSurface)
                 }
                 messagePreview
             }

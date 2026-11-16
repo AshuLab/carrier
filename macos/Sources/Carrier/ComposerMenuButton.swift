@@ -72,7 +72,7 @@ struct ComposerMenuButton: View {
             Image(systemName: "chevron.down").font(.scaled(9, weight: .bold)).foregroundStyle(.secondary)
         }
         .font(.callout).padding(.horizontal, 10).frame(height: 28)
-        .glassEffect(.regular.interactive(), in: .capsule)
+        .chatSurface(.regular.interactive(), flat: Color.primary.opacity(0.08), in: Capsule())
         .contentShape(Capsule())
     }
 

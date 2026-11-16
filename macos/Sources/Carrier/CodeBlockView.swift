@@ -41,7 +41,7 @@ struct CodeBlockView: View {
         }
         // the header and the fold are tints inside the shape; glass draws the edge, so there is no border to meet the corners badly
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .glassEffect(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), in: .rect(cornerRadius: 12))
+        .chatSurface(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), flat: scheme == .dark ? Color.black.opacity(0.28) : Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onHover { inside in withAnimation(.easeOut(duration: 0.15)) { hovering = inside } }
         .accessibilityElement(children: .contain)

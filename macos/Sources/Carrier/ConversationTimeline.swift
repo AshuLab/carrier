@@ -78,7 +78,7 @@ struct ConversationTimeline: View {
         }
         .frame(width: 280, alignment: .leading)
         .padding(12)
-        .glassEffect(.regular, in: .rect(cornerRadius: 12))
+        .chatSurface(in: RoundedRectangle(cornerRadius: 12))
         .opacity(marker == nil ? 0 : 1)
         .animation(.easeOut(duration: 0.15), value: marker?.id)
     }

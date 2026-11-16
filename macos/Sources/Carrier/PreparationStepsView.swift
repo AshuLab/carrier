@@ -67,7 +67,7 @@ struct PreparationStepsView: View {
         .font(.scaled(12)).padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         // glass, as the notices of the session: the conversation under it is blurred and not seen through it
-        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.15)), in: .rect(cornerRadius: 12))
+        .chatSurface(.regular.tint(Color.themeAccent.opacity(0.15)), flat: Color.themeAccent.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .contain)
     }
 

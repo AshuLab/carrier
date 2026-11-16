@@ -506,3 +506,18 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     defaults.set("somewhere", forKey: AppPreferences.workInKey)
     #expect(AppPreferences(defaults: defaults).workIn == .baseFolder)
 }
+
+@Test func theChatSurfaceIsGlassUntilChosenFallsBackWhenBadAndResetsWithChat() {
+    let name = "surface-\(UUID().uuidString)"
+    let store = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(store.chatSurface == .glass && AppPreferences.defaultChatSurface == .glass)
+    store.chatSurface = .flat
+    store.confirmStop = false
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).chatSurface == .flat)
+    store.reset(.appearance)
+    #expect(store.chatSurface == .flat)  // it is on the Chat page
+    store.reset(.chat)
+    #expect(store.chatSurface == .glass && store.confirmStop == false)
+    UserDefaults(suiteName: name)!.set("frosted", forKey: AppPreferences.chatSurfaceKey)
+    #expect(store.chatSurface == .glass)
+}

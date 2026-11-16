@@ -28,7 +28,7 @@ struct ApprovalCardView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular.tint(Color.attention.opacity(0.16)), in: .rect(cornerRadius: 18))
+        .chatSurface(.regular.tint(Color.attention.opacity(0.16)), flat: Color.attention.opacity(0.14), in: RoundedRectangle(cornerRadius: 18))
         .accessibilityElement(children: .contain)
     }
 

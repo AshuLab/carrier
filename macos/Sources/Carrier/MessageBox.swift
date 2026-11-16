@@ -151,7 +151,7 @@ struct MessageBox<Selects: View>: View {
             }
             .animation(.smooth(duration: 0.2), value: dictationEdgeShown(dictationPresentation, dropping: dropping))
             // glass: the conversation that scrolls under the box is blurred, not seen through it
-            .glassEffect(.regular, in: .rect(cornerRadius: 16))
+            .chatSurface(flat: Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
             .overlay { if dropping { dropVeil } }
             .offset(y: dropping ? -3 : 0)
             .animation(.smooth(duration: 0.2), value: dropping)
@@ -286,7 +286,7 @@ struct MessageBox<Selects: View>: View {
                 Text("\(count)").font(.scaled(11, weight: .medium)).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 10).frame(height: 24)
-            .glassEffect(.regular, in: .capsule)
+            .chatSurface(flat: Color.primary.opacity(0.08), in: Capsule())
             Spacer(minLength: 0)
         }
         .padding(.leading, 6).padding(.top, 6).padding(.bottom, 4)
@@ -359,7 +359,7 @@ struct MessageBox<Selects: View>: View {
             .contentShape(Circle())
         Button(action: busy ? stop : fire) { label }
             .buttonStyle(.plain)
-            .glassEffect(active ? .regular.tint(Color.accentGlass).interactive() : .regular, in: .circle)
+            .chatSurface(active ? .regular.tint(Color.accentGlass).interactive() : .regular, flat: active ? Color.accentGlass : Color.primary.opacity(0.08), in: Circle())
             .disabled(active == false)
             .animation(.smooth(duration: 0.25), value: active)
         .help(busy ? "Stop" : "\(sendHelp) (\(sendKey == .return ? "↩" : "⌘↩")) · New line (\(sendKey == .return ? "⇧↩" : "↩"))").accessibilityLabel(busy ? "Stop" : "Send")

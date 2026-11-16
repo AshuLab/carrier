@@ -301,7 +301,7 @@ struct FeedRowView: View {
                 if sent.text.isEmpty == false {
                     messageText(sent.text, commands: commands).textSelection(.enabled)
                         .padding(.horizontal, 13).padding(.vertical, 8)
-                        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.1)), in: .rect(cornerRadius: 16))
+                        .chatSurface(.regular.tint(Color.themeAccent.opacity(0.1)), flat: Color.themeAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: 16))
                 }
                 footer(text, summary: nil, asks: false)
             }

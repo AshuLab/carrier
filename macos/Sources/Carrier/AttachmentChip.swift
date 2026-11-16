@@ -39,7 +39,7 @@ struct AttachmentChip: View {
         .padding(.leading, 5).padding(.trailing, remove == nil ? 12 : 7).padding(.vertical, 5)
         // as wide as its words and no wider (the name is cut by `shortened`): a flexible frame would stretch the glass and leave the × in its middle
         .fixedSize(horizontal: true, vertical: false)
-        .glassEffect(.regular.tint(tint?.opacity(0.3)), in: .rect(cornerRadius: 12))
+        .chatSurface(.regular.tint(tint?.opacity(0.3)), flat: tint.map { $0.opacity(0.16) } ?? Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onHover { hovering = $0 }
         .onTapGesture { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file.path)]) }

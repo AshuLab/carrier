@@ -32,6 +32,7 @@ Spacing: **14 between blocks, 4 inside a block** (a name and its version), 12 be
 
 One shell for every card that is "a line on top and rows under it": **`.workCard()`** (`WorkCard.swift`), a `primary` fill at 4.5 % under glass, rounded 12.
 The tool group of a session, a markdown table, a slice, a review's findings and a closing line wear it, so the look is changed there once; never write the fill and the glass out again.
+A surface of the conversation (that shell, the person's bubble, a code block, an attachment, a notice, an approval, the message box and its buttons) takes its glass from **`.chatSurface(_:flat:in:)`** (`ChatSurface.swift`), never from `glassEffect`: Settings > Chat > Surfaces turns it flat (the window's color under a quiet fill and a 1 pt edge, solid so what scrolls under it is not seen through it).
 Work the agent did (calls, thoughts, messages, an error) is drawn with the chat's views (`ChatToolGroupView`, `MarkdownView`, `BannerView`) wherever it shows; do not draw a second tool card.
 
 - **The line on top is 30 pt**: a 16 pt lead (`Disc`: green tick, orange or red "!", a turning ring, a hollow ring), a bold title, a quiet summary (12.5 pt, `secondary`), what is at the right that never moves (a time in `tertiary`, a `PullRequestChip`) and a `CardChevron` (9 pt, right when folded, 90° when open).

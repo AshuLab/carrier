@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Archive is off for a session that is working or waiting for an answer (the button on its row, the one on the Sessions home and the menu item), with a tooltip that says to stop it first.
 - The sidebar stacks Home, Sessions, Terminal and Carrier in that order, and the open section takes all the room left: Terminal no longer sits under the list of Sessions, the sections above the open one are folded at the top, the ones under it at the foot, and Archive closes the Sessions panel. The open section's row stays at the top while its list scrolls, with a soft fade under it once rows slide beneath.
 - The sidebar opens at 360 points wide, can be 260 to 800, and the width you drag it to is remembered.
+- Settings > Sidebar previews three sessions (idle, Done and Needs you) so each switch is seen against them, says on Age that those states and the hover buttons take its place, and Reset also takes the sidebar back to 360 points wide on the next launch.
 
 ### Fixed
 

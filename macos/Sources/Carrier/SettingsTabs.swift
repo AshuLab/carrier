@@ -840,11 +840,18 @@ struct SidebarTabView: View {
     @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
     @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
 
-    /// A session of the preview: it has a branch, two providers and an age, so each switch has something to hide.
-    private static let sample = SessionRow(
-        id: "preview", title: "Fix the flaky login test", workspace: "carrier", agent: "claude", state: .idle,
-        updatedAt: Date(timeIntervalSinceNow: -11 * 60), branch: "fix/login-flake", folder: "/preview", providers: ["claude", "codex"]
-    )
+    /// Sessions of the preview: each has a branch, two providers and an age, so each switch has something to hide, and one is finished and one
+    /// waits, which is where "Done" and "Needs you" take the age's place.
+    private static let samples = [
+        ("preview-idle", "Fix the flaky login test", SessionState.idle, false, -11),
+        ("preview-done", "Add the retry to uploads", .idle, true, -3),
+        ("preview-waiting", "Rename the billing module", .waiting, false, -26),
+    ].map { id, title, state, unread, minutes in
+        SessionRow(
+            id: id, title: title, workspace: "carrier", agent: "claude", state: state, updatedAt: Date(timeIntervalSinceNow: Double(minutes) * 60),
+            branch: "fix/login-flake", folder: "/preview", providers: ["claude", "codex"], unread: unread
+        )
+    }
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.sidebar) }) {
@@ -869,11 +876,13 @@ struct SidebarTabView: View {
                 SettingsTabRow(title: "Providers", detail: "The marks of the providers the session used") {
                     Toggle("Providers", isOn: $showsProviders).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Age", detail: "How long ago the session was last active") {
+                SettingsTabRow(title: "Age", detail: "How long ago the session was last active; Done and Needs you take its place, and so do Pin and Archive on hover") {
                     Toggle("Age", isOn: $showsAge).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsPreview {
-                    SessionRowView(row: Self.sample, showsWorkspace: true).allowsHitTesting(false)
+                    VStack(spacing: 0) {
+                        ForEach(Self.samples, id: \.id) { SessionRowView(row: $0, showsWorkspace: true).allowsHitTesting(false) }
+                    }
                 }
             }
         }

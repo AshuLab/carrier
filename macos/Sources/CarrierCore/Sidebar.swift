@@ -28,7 +28,7 @@ public struct SidebarStore {
     public static let showsAgeKey = "sidebar.row.age"
     private static let openKey = "sidebar.open"
     private static let slotsTotalKey = "sidebar.slotsTotal"
-    private static let widthKey = "sidebar.width"
+    public static let widthKey = "sidebar.width"
     /// How narrow and how wide the sidebar can be dragged, in points, and the width it opens at until the person moves it.
     public static let widthRange: ClosedRange<Double> = 260...800
     public static let defaultWidth: Double = 360

@@ -519,8 +519,10 @@ private func content(_ row: SessionRow = workRow, workspace: Bool = true, parts:
         defaults.set(false, forKey: key)
     }
     store.open = .archive
+    store.width = 500
     defaults.set(false, forKey: AppPreferences.animatesKey)
     AppPreferences(defaults: defaults).reset(.sidebar)
+    #expect(store.width == SidebarStore.defaultWidth)
     #expect(store.groupBy == .status && store.sessionSort == .workspace && store.archiveSort == .dateArchived)
     for key in [SidebarStore.showsIconKey, SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey] {
         #expect(defaults.object(forKey: key) == nil)

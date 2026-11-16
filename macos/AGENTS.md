@@ -114,7 +114,7 @@ Audio: `DictationRecords` (fake clock), `DictationAudio.swift`; `AudioPlayerView
 
 ### Statistics
 
-See [dictation](../docs/macos/dictation.md#statistics). Counters: `DictationRecords`; figures: `DictationStatistics.swift` (`DictationRecordsTests`, `DictationStatisticsTests`); `StatisticsGroup` untested.
+See [dictation](../docs/macos/dictation.md#statistics). Counters: `DictationRecords`; figures, hours, week and records: `DictationStatistics.swift` (`DictationStatisticsTests`); `StatisticsGroup` untested.
 
 ### Cleanup
 

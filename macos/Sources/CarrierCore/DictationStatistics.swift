@@ -147,3 +147,114 @@ public func statisticsDuration(_ seconds: Double) -> String {
     let minutes = total / 60
     return minutes < 60 ? "\(minutes) min" : "\(minutes / 60) h " + String(format: "%02d", minutes % 60) + " min"
 }
+
+extension Duration {
+    /// This length as seconds, for `statisticsDuration`.
+    public var inSeconds: Double { Double(components.seconds) + Double(components.attoseconds) / 1e18 }
+}
+
+/// How many dictations fell in each hour of the day over a range, and the hour with the most.
+public struct DictationHours: Equatable, Sendable {
+    /// The dictations of hours 0 to 23.
+    public let dictations: [Int]
+
+    /// The hour with the most dictations, the earliest on a tie; nil when there are none.
+    public var busiest: Int? {
+        guard let most = dictations.max(), most > 0 else { return nil }
+        return dictations.firstIndex(of: most)
+    }
+}
+
+/// The hours of the day of `range` as of `now`: the dictations of its days, summed by the hour they began in.
+public func dictationHours(_ counts: [DictationCount], range: StatisticsRange, now: Date, calendar: Calendar = .current) -> DictationHours {
+    let today = dictationDayKey(now, calendar: calendar)
+    var first = ""  // day keys sort as dates do, and "" is before all of them
+    if let days = range.days, let start = calendar.date(byAdding: .day, value: 1 - days, to: calendar.startOfDay(for: now)) {
+        first = dictationDayKey(start, calendar: calendar)
+    }
+    var hours = Array(repeating: 0, count: 24)
+    for count in counts where count.day >= first && count.day <= today && hours.indices.contains(count.hour) {
+        hours[count.hour] += count.dictations
+    }
+    return DictationHours(dictations: hours)
+}
+
+/// The line under the hours: "You dictate most around 09:00."
+public func statisticsHoursLine(_ hours: DictationHours) -> String {
+    guard let hour = hours.busiest else { return "Nothing dictated in this range yet." }
+    return "You dictate most around " + String(format: "%02d:00", hour) + "."
+}
+
+/// The busiest day of `days` by words, the earliest on a tie; nil when none has any.
+public func busiestDay(_ days: [StatisticsDay]) -> StatisticsDay? {
+    days.max { $0.words < $1.words }.flatMap { $0.words > 0 ? $0 : nil }
+}
+
+/// The last 7 days against the 7 before as a sentence, from the figures of `.week`. It says what it can: with nothing in the week there is no busiest
+/// day, and with nothing the week before there is no percent to give.
+public func weeklySummary(_ week: DictationFigures, wpm: Int, calendar: Calendar = .current) -> String {
+    let now = week.current
+    let before = week.previous ?? DictationTotals()
+    guard now.dictations > 0 else {
+        let earlier = before.dictations > 0 ? ", against \(counted(before.dictations, "dictation")) in the 7 before" : ""
+        return "No dictations in the last 7 days" + earlier + "."
+    }
+    var sentence = "You dictated \(counted(now.words, "word")) in \(counted(now.dictations, "dictation"))"
+    if before.words > 0 {
+        let percent = Int(((Double(now.words) - Double(before.words)) / Double(before.words) * 100).rounded())
+        sentence += percent == 0 ? ", the same as the 7 days before" : ", \(abs(percent))% \(percent > 0 ? "more" : "less") than the 7 days before"
+    } else {
+        sentence += ", with nothing the 7 days before to compare with"
+    }
+    sentence += "."
+    if let day = busiestDay(week.days) {
+        sentence += " \(calendar.weekdaySymbols[calendar.component(.weekday, from: day.day) - 1]) was your busiest day"
+        let saved = now.saved(wpm: wpm).inSeconds
+        sentence += saved > 0 ? ", and you saved about \(statisticsDuration(saved))." : "."
+    }
+    return sentence
+}
+
+private func counted(_ number: Int, _ noun: String) -> String { "\(number.formatted()) \(noun)\(number == 1 ? "" : "s")" }
+
+/// A best of all the counters: its figure and the day it was first reached.
+public struct StatisticsRecord<Value: Equatable & Sendable>: Equatable, Sendable {
+    public let value: Value
+    public let day: Date
+}
+
+/// The records of the person's whole history of counters; a record is nil until something is dictated.
+public struct StatisticsRecords: Equatable, Sendable {
+    public var mostDictations: StatisticsRecord<Int>?
+    public var mostWords: StatisticsRecord<Int>?
+    /// The longest dictation, in seconds.
+    public var longest: StatisticsRecord<Double>?
+    /// The most days in a row with a dictation.
+    public var streak = 0
+}
+
+/// The records of `counts`. On a tie the record stays with the earliest day, which is when it was reached; a gap of a day ends a streak.
+public func statisticsRecords(_ counts: [DictationCount], calendar: Calendar = .current) -> StatisticsRecords {
+    var perDay: [String: (dictations: Int, words: Int, longest: Double)] = [:]
+    for count in counts {
+        var day = perDay[count.day] ?? (0, 0, 0)
+        day.dictations += count.dictations
+        day.words += count.words
+        day.longest = max(day.longest, count.longest)
+        perDay[count.day] = day
+    }
+    var records = StatisticsRecords()
+    var run = 0
+    var previous: Date?
+    for key in perDay.keys.sorted() {
+        guard let figures = perDay[key], figures.dictations > 0, let date = dictationDay(key, calendar: calendar) else { continue }
+        if figures.dictations > records.mostDictations?.value ?? 0 { records.mostDictations = StatisticsRecord(value: figures.dictations, day: date) }
+        if figures.words > records.mostWords?.value ?? 0 { records.mostWords = StatisticsRecord(value: figures.words, day: date) }
+        if figures.longest > records.longest?.value ?? 0 { records.longest = StatisticsRecord(value: figures.longest, day: date) }
+        let next = previous.flatMap { calendar.date(byAdding: .day, value: 1, to: $0) }
+        run = next.map { calendar.isDate($0, inSameDayAs: date) } == true ? run + 1 : 1
+        records.streak = max(records.streak, run)
+        previous = date
+    }
+    return records
+}

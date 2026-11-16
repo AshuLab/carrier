@@ -50,6 +50,8 @@ public struct AppPreferences {
     public static let dictationLanguageKey = "dictation.language"
     public static let dictationGlobalKey = "dictation.global"
     public static let dictationKeepTextKey = "dictation.history.keepText"
+    public static let dictationKeepAudioKey = "dictation.history.keepAudio"
+    public static let dictationDeleteAudioAfterKey = "dictation.history.deleteAudioAfter"
     public static let dictationAccessibilityExplainedKey = "dictation.accessibilityExplained"
     public static let dictationShortcutKey = "dictation.shortcut"
     public static let dictationActivationKey = "dictation.activation"
@@ -105,6 +107,8 @@ public struct AppPreferences {
     public static let defaultDictationEnabled = true
     public static let defaultDictationGlobal = true
     public static let defaultDictationKeepText = true
+    public static let defaultDictationKeepAudio = false
+    public static let defaultDictationDeleteAudioAfter = 30
 
     private let defaults: UserDefaults
 
@@ -371,6 +375,21 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationKeepTextKey) }
     }
 
+    /// Whether the history keeps the audio of each dictation it records: off until the person turns it on.
+    public var dictationKeepAudio: Bool {
+        get { defaults.object(forKey: Self.dictationKeepAudioKey) as? Bool ?? Self.defaultDictationKeepAudio }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationKeepAudioKey) }
+    }
+
+    /// The days after which the audio of a dictation is deleted (a choice of `dictationAudioLimits`, 0 is never); a saved value that is not on offer reads as 30.
+    public var dictationDeleteAudioAfter: Int {
+        get {
+            let saved = defaults.object(forKey: Self.dictationDeleteAudioAfterKey) as? Int
+            return saved.flatMap { days in dictationAudioLimits.contains { $0.days == days } ? days : nil } ?? Self.defaultDictationDeleteAudioAfter
+        }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationDeleteAudioAfterKey) }
+    }
+
     /// Whether the global shortcut dictates in any app: on until the person turns it off. It only counts while `dictationEnabled` is on too (`globalDictationIsOn`).
     public var dictationGlobal: Bool {
         get { defaults.object(forKey: Self.dictationGlobalKey) as? Bool ?? Self.defaultDictationGlobal }
@@ -531,6 +550,8 @@ public struct AppPreferences {
                 dictationLanguageKey,
                 dictationGlobalKey,
                 dictationKeepTextKey,
+                dictationKeepAudioKey,
+                dictationDeleteAudioAfterKey,
                 dictationShortcutKey,
                 dictationActivationKey,
                 dictationStartSoundOnKey,

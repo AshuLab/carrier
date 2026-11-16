@@ -9,7 +9,7 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 ## Tests
 
-The gated tests of the recognizers (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`; clips `hola-es.wav` and `hello-en.wav` in `Tests/CarrierTests/Resources`: text, an empty final for no speech, and a folder missing a file fails with its cause and downloads nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
+The gated tests of the recognizers (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`; clips `hola-es.wav` and `hello-en.wav` in `Tests/CarrierTests/Resources`) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
 The embedded-terminal live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
 
 ## Starting Carrier and the chat host
@@ -105,7 +105,7 @@ What the person sees: [dictation](../docs/macos/dictation.md).
 
 The logic is `CarrierCore/Dictation.swift` (the boundary and the registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the recognizer and capture of `ScriptedDictation.swift`.
 `DictationController` holds the switch both boxes read.
-The page is `Carrier/DictationTab.swift`, a list of one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`, one per line; the views are untested (`SettingsPageTests` and `DictationSettingsTests` hold the rules).
+The page is `Carrier/DictationTab.swift`, a list of one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`, one per line; the views are untested (rules: `SettingsPageTests`, `DictationSettingsTests`).
 
 ### Global dictation
 
@@ -114,11 +114,12 @@ Shortcut and activation: `CarrierCore/DictationShortcut.swift` (`recordShortcut`
 `CarrierCore/PasteDecision.swift` (`pasteDecision`, `PasteDecisionTests`) picks paste or copy from `Carrier/FocusedField.swift`, which reads the focus (untested).
 `Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); keys, panel and real ⌘V untested.
 Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest` (`MessageBoxDictationTests`).
-Sounds: `CarrierCore/DictationSounds.swift` (`dictationSound(for:_:)`, `DictationSoundsTests`); `SoundsGroup` and `DictationSoundPlayer` untested.
+Sounds: `CarrierCore/DictationSounds.swift` (`DictationSoundsTests`); `SoundsGroup` and `DictationSoundPlayer` untested.
 
 ### History
 
 See [dictation](../docs/macos/dictation.md#history). `CarrierCore/DictationRecords.swift` (`DictationRecordsTests`, temporary folder); `DictationSession.take` feeds it; `Carrier/HistoryGroup.swift` untested.
+Audio ([dictation](../docs/macos/dictation.md#audio)): `DictationRecords` (fake clock) and `DictationAudio.swift`; `AudioPlayerView` untested.
 
 ### Cleanup
 

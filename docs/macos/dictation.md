@@ -58,6 +58,15 @@ The list is grouped by day, newest first (Today, Yesterday, then the weekday and
 A row shows the time, the text (two lines) and chips with the outcome, the destination, the model, the transcription time, the words and the length; a click opens its detail (the text as recognized and as cleaned, the model, the transcription time for the audio length, the cleanup and where it went).
 Copy puts the text on the clipboard (the cleaned text when there is one) and the trash deletes the entry at once, with the switch on or off; an empty list says No dictations yet, and a search or filter with no match says Nothing matches.
 
+### Audio
+
+Keep the audio (`dictation.history.keepAudio`, off by default) saves the audio of each dictation that is recorded as `<Carrier folder>/app/audio/<entry id>.wav`, a 16-bit mono WAV readable by the account only; with it off no audio is written, and a dictation that is not recorded (no words, or Keep the text off) has none.
+The session gathers the samples only if the switch is on as the dictation starts and gives them in the `DictationTake`; the entry does not point to the file, which is named for its id, so `DictationRecords` knows what has audio by listing the folder (`audioIDs`, `audioURL(of:)`).
+Delete audio older than (`dictation.history.deleteAudioAfter`: 7 days, 30 days, 90 days or Never, 30 by default) deletes the audio of the entries that started before the limit when the app starts, once a day while it runs (`DictationController.startAudioSweep`) and at once when the choice changes; the entries stay.
+Audio on disk says how much there is ("182 MB in 214 files"), and Delete all audio, after a confirmation, deletes every audio file and keeps every transcript. Deleting an entry deletes its audio.
+An entry with audio shows a player in its detail (`Carrier/AudioPlayerView.swift`, over `AVAudioPlayer`): Play and Pause, the place it has got to and the time; it stops when the row closes.
+`reset(.dictation)` puts the two switches back and never deletes audio.
+
 ## Sounds
 
 The Sounds group (`Carrier/SoundsGroup.swift`) has a Start sound and an End sound, each with a play button, a popup of three of macOS's own sounds (Tink, Pop and Glass; Tink starts and Pop ends) and a switch, and one Volume from 0 to 100 that starts at 60 and serves both (`dictation.sound.start.on`, `dictation.sound.start`, `dictation.sound.end.on`, `dictation.sound.end` and `dictation.sound.volume`, all put back by `reset(.dictation)`; a saved sound that is not on offer reads as the default).

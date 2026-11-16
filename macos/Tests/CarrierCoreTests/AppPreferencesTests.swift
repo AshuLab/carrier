@@ -590,6 +590,20 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(records.entries == [kept] && DictationRecords(carrierFolder: folder, keep: { true }).entries == [kept])
 }
 
+@Test func theAudioOfTheHistoryIsOffAndThirtyDaysByDefaultSurvivesARelaunchFallsBackAndResetsWithDictation() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationKeepAudio == false && store.dictationDeleteAudioAfter == 30)
+    store.dictationKeepAudio = true
+    store.dictationDeleteAudioAfter = 0
+    let again = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(again.dictationKeepAudio && again.dictationDeleteAudioAfter == 0)
+    store.dictationDeleteAudioAfter = 12
+    #expect(store.dictationDeleteAudioAfter == 30)
+    store.reset(.dictation)
+    #expect(store.dictationKeepAudio == false && store.dictationDeleteAudioAfter == 30)
+}
+
 @Test func workInIsTheBaseFolderByDefaultSurvivesARelaunchFallsBackAndResetsWithSessionsOnly() {
     let name = "workin-\(UUID().uuidString)"
     let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)

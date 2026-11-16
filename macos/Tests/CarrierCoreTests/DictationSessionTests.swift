@@ -632,3 +632,20 @@ private func aCleanupThatFailsLeavesTheRawTextTellsTheCauseAndLogsItAlone(failur
     await rig.reaches(.listening)
     #expect(rig.session.owner == "other")
 }
+
+@MainActor @Test(arguments: [true, false]) func theTakeCarriesTheAudioOnlyWhenTheSwitchWasOnAsTheDictationStarted(keepAudio: Bool) async {
+    let capture = ScriptedCapture()
+    let session = DictationSession(capture: capture, keepAudio: { keepAudio })
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("hola")])
+    var text = ""
+    session.start(
+        recognizer: recognizer, model: recognizer.models[0],
+        into: DictationField(owner: "box", text: { text }, caret: { text.utf16.count }, put: { new, _, _ in text = new }))
+    for _ in 0..<3000 where session.state != .listening { try? await Task.sleep(for: .milliseconds(1)) }
+    capture.feed(AudioBuffer(samples: [0.1, 0.2], sampleRate: 16_000))
+    capture.feed(AudioBuffer(samples: [0.3], sampleRate: 16_000))
+    for _ in 0..<3000 where session.take == nil && capture.isRunning { try? await Task.sleep(for: .milliseconds(1)) }
+    session.stop()
+    for _ in 0..<3000 where session.state != .idle { try? await Task.sleep(for: .milliseconds(1)) }
+    #expect(session.take?.clip == (keepAudio ? AudioClip(samples: [0.1, 0.2, 0.3], sampleRate: 16_000) : nil))
+}

@@ -32,6 +32,8 @@ public struct DictationTake: Equatable, Sendable {
     public let ending: Ending
     public let cleaned: String?
     public let cleanupSeconds: Double?
+    /// The audio it heard, when the history keeps it (`DictationSession.init`'s `keepAudio`).
+    public var clip: AudioClip? = nil
 }
 
 /// What a box asks of the Cleanup (docs/adr/0030): the text the dictation added goes in, the cleaned text comes out, or it throws (a `CleanupFailure`
@@ -59,6 +61,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private let announce: (String) -> Void
     @ObservationIgnored private let log: (DictationFailure) -> Void
     @ObservationIgnored private let now: () -> Date
+    @ObservationIgnored private let keepAudio: () -> Bool
     /// Told, with the owner of the box it was, each time a dictation ends: the widget of the global dictation hears its own end here.
     @ObservationIgnored public var onEnd: ((String?) -> Void)?
     /// Told each time a dictation begins to listen (the capture runs); `owner` says whose.
@@ -81,6 +84,10 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private var partialWords = 0
     /// The seconds of audio the capture gave, for the time a recognizer is given to answer after the stop.
     @ObservationIgnored private var captured = Duration.zero
+    /// The samples of this dictation and their rate, gathered only when `keepAudio` said so as it started.
+    @ObservationIgnored private var recording = false
+    @ObservationIgnored private var samples: [Float] = []
+    @ObservationIgnored private var sampleRate = 0.0
     /// What this dictation heard: the final texts, the partial one on the screen, and when it began and was stopped.
     @ObservationIgnored private var finals: [String] = []
     @ObservationIgnored private var partial = ""
@@ -92,11 +99,13 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private var queued: (recognizer: any Recognizer, model: SpeechModel, field: DictationField, cleanup: DictationCleanup?)?
 
     /// `announce` is told what VoiceOver should say (`dictationAnnouncement`): the start, the stop and a failure, never partial text; `log` hears
-    /// every failure, with its cause only.
+    /// every failure, with its cause only. `keepAudio` is asked as each dictation starts: when it says yes the take carries the audio.
     public init(
         capture: AudioCapture, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in }, now: @escaping () -> Date = Date.init
+        announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in }, now: @escaping () -> Date = Date.init,
+        keepAudio: @escaping () -> Bool = { false }
     ) {
+        self.keepAudio = keepAudio
         self.capture = capture
         self.sleep = sleep
         self.announce = announce
@@ -127,6 +136,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         words = 0
         partialWords = 0
         captured = .zero
+        recording = keepAudio()
+        samples = []
         finals = []
         partial = ""
         began = now()
@@ -220,6 +231,10 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             let relay = Task { @MainActor in
                 for await buffer in audio {
                     captured += .seconds(Double(buffer.samples.count) / buffer.sampleRate)
+                    if recording {
+                        samples += buffer.samples
+                        sampleRate = buffer.sampleRate
+                    }
                     continuation.yield(buffer)
                 }
                 continuation.finish()
@@ -331,7 +346,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             owner: finished, started: began, text: finals.filter { $0.isEmpty == false }.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines), model: modelName,
             audio: Double(captured.components.seconds) + Double(captured.components.attoseconds) / 1e18,
             transcription: stoppedAt.map { ended.timeIntervalSince($0) } ?? 0, ending: ending,
-            cleaned: cleaned, cleanupSeconds: cleanupSeconds)
+            cleaned: cleaned, cleanupSeconds: cleanupSeconds, clip: recording && samples.isEmpty == false ? AudioClip(samples: samples, sampleRate: sampleRate) : nil)
+        samples = []
         take = heard
         onTake?(heard)
         onEnd?(finished)

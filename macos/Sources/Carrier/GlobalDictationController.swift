@@ -107,7 +107,7 @@ import CarrierCore
             escape = nil
         case .paste(let text): Task { await ClipboardPaste(board: board).paste(text) }
         case .copy(let text):
-            // the widget is left open with buttons, which take clicks, and Esc goes back to the app: Dismiss and the shortcut close it
+            // the widget is left open with buttons, which take clicks and the keyboard: the hot key of Esc is let go, so the panel's own Esc (and Dismiss, and the shortcut) closes it
             widget.takeClicks()
             escape = nil
             board.clearContents()

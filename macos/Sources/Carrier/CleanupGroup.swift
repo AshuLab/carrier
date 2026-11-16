@@ -25,6 +25,10 @@ struct CleanupGroup: View {
         }
         .task(id: savedServer) { await cleanup.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await cleanup.refresh() } }
+        .onChange(of: cleanup.test) { _, test in
+            // the result appears under the button, where VoiceOver is not looking
+            if case .done(let result) = test { AccessibilityNotification.Announcement("Cleaned in \(String(format: "%.1f", result.seconds)) seconds: \(result.text)").post() }
+        }
     }
 
     private var serverRow: some View {
@@ -60,11 +64,9 @@ struct CleanupGroup: View {
     }
 
     private var promptRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Prompt").fontWeight(.medium)
-            Text("What you ask the model to do with every dictation: drop filler words, translate, make it technical…").font(.caption).foregroundStyle(.secondary)
+        SettingsStackedRow(title: "Prompt", detail: "What you ask the model to do with every dictation: drop filler words, translate, make it technical…") {
             TextEditor(text: Binding(get: { cleanup.prompt }, set: { cleanup.set(prompt: $0) }))
-                .font(.body).scrollContentBackground(.hidden).frame(height: 96).settingsField()
+                .font(.scaled(13)).scrollContentBackground(.hidden).frame(height: 96).settingsField()
                 .writingToolsBehavior(.disabled).accessibilityLabel("Cleanup prompt")
             HStack(spacing: 10) {
                 Button { Task { await cleanup.runTest() } } label: { Label("Test with a sample", systemImage: "play") }
@@ -72,15 +74,15 @@ struct CleanupGroup: View {
                 testResult
             }
         }
-        .padding(.vertical, 10).overlay(alignment: .top) { SettingsDivider() }
     }
 
     @ViewBuilder private var testResult: some View {
         switch cleanup.test {
-        case .idle: Text("If the model fails or is slow, the raw text is used and the widget says so.").foregroundStyle(.secondary)
-        case .running: Text("Cleaning…").foregroundStyle(.secondary)
-        case .done(let result): Text("\(Text("“\(result.text)”").foregroundStyle(.primary)) · \(String(format: "%.1f", result.seconds)) s").foregroundStyle(.secondary)
-        case .failed(let failure): Text("\(Image(systemName: "exclamationmark.triangle.fill")) \(failure.message)").foregroundStyle(.orange)
+        case .idle: Text("If the model fails or is slow, the raw text is used and the widget says so.").font(.scaled(11)).foregroundStyle(.secondary)
+        case .running: Text("Cleaning…").font(.scaled(11)).foregroundStyle(.secondary)
+        case .done(let result):
+            Text("\(Text("“\(result.text)”").foregroundStyle(.primary)) · \(String(format: "%.1f", result.seconds)) s").font(.scaled(11)).foregroundStyle(.secondary)
+        case .failed(let failure): ProblemLine(text: failure.message, font: .scaled(11))
         }
     }
 }

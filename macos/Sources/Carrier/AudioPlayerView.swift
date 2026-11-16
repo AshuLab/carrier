@@ -20,6 +20,8 @@ import SwiftUI
 
     func toggle() {
         guard let player else { return }
+        ticker?.cancel()
+        ticker = nil
         if playing {
             player.pause()
             playing = false
@@ -55,14 +57,14 @@ struct AudioPlayerView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Button { playback.toggle() } label: { Image(systemName: playback.playing ? "pause.fill" : "play.fill").frame(width: 16) }
-                .buttonStyle(.borderless).help(playback.playing ? "Pause" : "Play").accessibilityLabel(playback.playing ? "Pause audio" : "Play audio")
-                .disabled(playback.failed)
+            IconButton(icon: playback.playing ? "pause.fill" : "play.fill", name: playback.playing ? "Pause audio" : "Play audio", enabled: playback.failed == false, why: "The audio could not be read") {
+                playback.toggle()
+            }
             if playback.failed {
-                Text("The audio could not be read").font(.caption).foregroundStyle(.secondary)
+                Text("The audio could not be read").font(.scaled(11)).foregroundStyle(.secondary)
             } else {
                 ProgressView(value: playback.position, total: max(playback.duration, 0.1)).frame(maxWidth: 220)
-                Text("\(dictationClock(playback.position)) / \(dictationClock(playback.duration))").font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                Text("\(dictationClock(playback.position)) / \(dictationClock(playback.duration))").font(.scaled(11)).monospacedDigit().foregroundStyle(.secondary)
             }
         }
         .onDisappear { playback.stop() }

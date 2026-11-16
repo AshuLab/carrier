@@ -141,6 +141,11 @@ The widget of the global dictation (`DictationWidget.swift`) is a floating panel
 - **It wears `WidgetSurface`** (`.chatSurface` tinted with the accent, never its own fill) and is drawn once by `WidgetBox` and `PillIcon`, which the Preview in Settings uses too. The tint is the accent at 12 % in light and the accent mixed 60 % into black at 55 % in dark, so the text reads over a white window; these are first numbers, to be checked by hand over a white and a dark window in light and dark appearance and then written here as the ones that hold.
 - **The listening line is `DictationIndicator`, reused with the look's `radius`**, only while it listens; the panel is `DictationWidget.glow` points larger than the box on every side so the line is not cut. A box fades its first line once the text is longer than its lines (`dictationTextFit`).
 - **What it draws is `dictationWidgetLook`**, never a check on the state in the view. A state that needs text or a button opens the Pill as the Small box.
+- **A reason sits over the text, not inside what scrolls** (`WidgetBox(notices:)`): a text that was only copied has three more lines than its style for it, and its scroll bar shows.
+- **Its buttons are `SecondaryCapsuleButtonStyle` with a `Label`** and keep only their symbols (`ViewThatFits`) when the box is too narrow for the words.
+- **A failure has no clock and no finish key**, only "Esc to dismiss".
+- **The panel is key only while it holds a copied text and its buttons** (`WidgetPanel.keyable`); in every other state it never takes the keyboard from the app in front.
+- **The Preview shrinks to the width it is given** (`scaleEffect`), so Large never overflows a card.
 
 ## Mistakes seen
 

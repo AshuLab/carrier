@@ -41,8 +41,11 @@ import SwiftUI
     /// Asks the chosen server for its models; a server that does not answer is not running. Clears the last Test, which was another setup.
     func refresh() async {
         test = .idle
-        guard let server else { return serverState = .unknown }
-        serverState = (try? await client.models(of: server)).map { .running(models: $0) } ?? .notRunning
+        guard let asked = server else { return serverState = .unknown }
+        let answer = (try? await client.models(of: asked)).map { ServerState.running(models: $0) } ?? .notRunning
+        // the person chose another server while this one answered
+        guard server == asked else { return }
+        serverState = answer
     }
 
     /// Sends the sample with the prompt to the chosen model; the result or the cause shows in the group.

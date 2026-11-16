@@ -14,6 +14,8 @@ struct GlobalDictationGroup: View {
     @AppStorage(AppPreferences.dictationWidgetStyleKey) private var widgetStyle = DictationWidgetStyle.medium
     @AppStorage(AppPreferences.dictationWidgetPositionKey) private var widgetPosition = DictationWidgetPosition.bottom
     @State private var explaining = false
+    /// What macOS says now; it is asked again each time Carrier comes back to the front, since the person allows it in System Settings.
+    @State private var trusted = AXIsProcessTrusted()
 
     var body: some View {
         SettingsGroup(title: "Global dictation") {
@@ -25,6 +27,7 @@ struct GlobalDictationGroup: View {
                 Toggle("Dictate in any app", isOn: switchBinding).labelsHidden().toggleStyle(.switch)
             }
             .live(.globalSwitch, enabled: dictation.enabled)
+            accessibilityRow.live(.globalSwitch, enabled: dictation.enabled)
             Group {
                 ShortcutRecorderRow(shortcutText: shortcutText)
                 SettingsTabRow(title: "Activation", detail: "Toggle: press to start, press again to finish. Hold: speak while the keys are down") {
@@ -40,6 +43,7 @@ struct GlobalDictationGroup: View {
             }
             .live(.globalSwitch, enabled: dictation.enabled && global)
         }
+.onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in trusted = AXIsProcessTrusted() }
         .alert("Carrier needs Accessibility", isPresented: $explaining) {
             Button("Continue") {
                 explained = true
@@ -51,6 +55,19 @@ struct GlobalDictationGroup: View {
             Text(
                 "To paste what you say into the app you are in, Carrier needs to see which field has the cursor, and to press ⌘V for you. "
                     + "It never reads what is in the fields, and it does not paste into password fields. Without it, the text goes on the clipboard instead.")
+        }
+    }
+
+    private var accessibilityRow: some View {
+        SettingsTabRow(
+            title: "Accessibility",
+            detail: trusted ? "Carrier can see which field has the cursor and paste into it" : "Without it the text goes on the clipboard instead of being pasted"
+        ) {
+            HStack(spacing: 8) {
+                StatusChip(text: trusted ? "Allowed" : "Not allowed", tint: trusted ? .green : .orange)
+                Button { FocusedField.openSettings() } label: { Label("Open System Settings", systemImage: "gearshape") }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+            }
         }
     }
 
@@ -74,17 +91,17 @@ private struct ShortcutRecorderRow: View {
     @State private var refusal: String?
 
     var body: some View {
-        SettingsTabRow(title: "Shortcut", detail: refusal ?? "With Carrier in front on a session it dictates into the message box, with no widget") {
+        SettingsTabRow(title: "Shortcut", detail: "With Carrier in front on a session it dictates into the message box, with no widget", problem: refusal) {
             HStack(spacing: 8) {
-                if refusal != nil { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).accessibilityHidden(true) }
                 Text(recording ? "Press the keys…" : AppPreferences().dictationShortcut.text)
                     .font(.scaled(12, weight: .semibold, design: .monospaced))
                     .foregroundStyle(recording ? Color.themeAccent : Color.primary)
                     .frame(minWidth: 96).padding(.horizontal, 10).padding(.vertical, 5)
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(recording ? 0.12 : 0.08)))
                     .overlay { if recording { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
-                    .accessibilityLabel("Dictation shortcut").accessibilityValue(AppPreferences().dictationShortcut.text)
-                Button(recording ? "Cancel" : "Record") { recording ? stop() : start() }
+                    .accessibilityLabel("Dictation shortcut").accessibilityValue(recording ? "Listening for the new keys" : AppPreferences().dictationShortcut.text)
+                Button { recording ? stop() : start() } label: { Label(recording ? "Cancel" : "Record", systemImage: recording ? "xmark" : "record.circle") }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         }
         .onDisappear(perform: stop)
@@ -93,6 +110,7 @@ private struct ShortcutRecorderRow: View {
     private func start() {
         refusal = nil
         recording = true
+        AccessibilityNotification.Announcement("Press the new keys, or Escape to cancel").post()
         GlobalDictationController.shared.recording = true
         // the next key comes here and not to the window's shortcuts: this monitor sees it first, and it is not passed on
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -102,7 +120,11 @@ private struct ShortcutRecorderRow: View {
             case .accepted(let shortcut):
                 AppPreferences().dictationShortcut = shortcut
                 stop()
-            case .refused(let reason): refusal = reason
+                AccessibilityNotification.Announcement("Shortcut set to \(shortcut.text)").post()
+            case .refused(let reason):
+                refusal = reason
+                // a row's problem is not read aloud by itself
+                AccessibilityNotification.Announcement(reason).post()
             }
             return nil
         }

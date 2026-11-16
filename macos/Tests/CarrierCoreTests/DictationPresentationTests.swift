@@ -88,11 +88,22 @@ func aTextStartsAtTheTopAndOnlyFadesOnceItIsLongerThanTheBox(style: DictationWid
 }
 
 @Test(arguments: [DictationWidgetState.failed, .copied])
-func theStatesThatNeedTextOrAButtonOpenThePillAsTheSmallBoxAndKeepTheChosenBox(state: DictationWidgetState) {
+func theStatesThatNeedTextOrAButtonOpenThePillAsTheSmallBoxAndKeepTheChosenBox(state: DictationWidgetState) throws {
+    // a text that was only copied has room for its reason over the text; a failure keeps the style's own lines
+    func lines(_ style: DictationWidgetStyle) throws -> Int { try #require(style.box).lines + (state == .copied ? DictationWidgetBox.reasonLines : 0) }
     let pill = dictationWidgetLook(state, style: .pill)
-    #expect(pill.box == DictationWidgetStyle.small.box && pill.opensAsSmall && pill.icon == nil && pill.fades == false)
+    #expect(pill.box?.lines == (try lines(.small)) && pill.box?.width == DictationWidgetStyle.small.box?.width && pill.opensAsSmall && pill.icon == nil && pill.fades == false)
     let large = dictationWidgetLook(state, style: .large)
-    #expect(large.box == DictationWidgetStyle.large.box && large.opensAsSmall == false)
+    #expect(large.box?.lines == (try lines(.large)) && large.box?.width == DictationWidgetStyle.large.box?.width && large.opensAsSmall == false)
+}
+
+@Test func aCopiedTextHasRoomForItsReasonAndTheTextStillHasItsStyleLines() throws {
+    for style in [DictationWidgetStyle.small, .medium, .large] {
+        let copied = try #require(dictationWidgetLook(.copied, style: style).box)
+        let box = try #require(style.box)
+        let extra = copied.height(textSize: copied.text) - box.height(textSize: box.text)
+        #expect(abs(extra - CGFloat(DictationWidgetBox.reasonLines) * box.lineHeight(textSize: box.text)) < 1)
+    }
 }
 
 @Test func onlyPastedPastedRawAndCancelledFadeAndThePastedRawOneStaysLongerForItsCause() {

@@ -37,6 +37,7 @@ import SwiftUI
     /// Whether macOS has the microphone prompt open, and the box whose click waits for its answer (nil once that box stops or leaves).
     @ObservationIgnored private var prompting = false
     @ObservationIgnored private var waiting: String?
+    @ObservationIgnored private var sweep: Task<Void, Never>?
 
     /// The defaults are a fixture build's: a capture that hears nothing, which the fixture recognizer does not need, and an allowed microphone.
     init(
@@ -60,13 +61,17 @@ import SwiftUI
             downloader: downloader, inUse: { preferences.dictationModel(among: registry.recognizers.flatMap(\.models))?.id },
             log: { log?.append($0) }, announce: { AccessibilityNotification.Announcement($0).post() }
         )
-        session = DictationSession(capture: capture, sleep: sleep, announce: { AccessibilityNotification.Announcement($0).post() }, log: { log?.append($0) })
-        records = DictationRecords(carrierFolder: recordsFolder, keep: { preferences.dictationKeepText })
+        session = DictationSession(capture: capture, sleep: sleep, announce: { AccessibilityNotification.Announcement($0).post() }, log: { log?.append($0) },
+            keepAudio: { preferences.dictationKeepAudio })
+        records = DictationRecords(
+            carrierFolder: recordsFolder, keep: { preferences.dictationKeepText }, keepAudio: { preferences.dictationKeepAudio },
+            audioDays: { preferences.dictationDeleteAudioAfter })
         // the widget writes its own entries, which know where the text went; a message box's went into the box
         session.onTake = { [records] take in
             guard take.owner != GlobalDictation.owner else { return }
             records.record(
-                DictationEntry(take, outcome: boxOutcome(take.ending), destination: DictationEntry.carrier, cleanupModel: preferences.dictationCleanupModel))
+                DictationEntry(take, outcome: boxOutcome(take.ending), destination: DictationEntry.carrier, cleanupModel: preferences.dictationCleanupModel),
+                audio: take.clip)
         }
         // sending the app to the background: nothing keeps listening unseen
         NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
@@ -75,6 +80,16 @@ import SwiftUI
         // the person may have allowed the microphone in System Settings and come back
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.microphone = self?.access.status() ?? .denied }
+        }
+    }
+
+    /// Deletes the audio past the limit of days now and once a day while the app runs.
+    func startAudioSweep() {
+        sweep = Task { [records] in
+            while Task.isCancelled == false {
+                records.deleteOldAudio()
+                try? await Task.sleep(for: .seconds(86_400))
+            }
         }
     }
 

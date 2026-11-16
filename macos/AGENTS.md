@@ -68,7 +68,7 @@ The functions are tested in `SessionAgesTests`; the view is untested.
 What the person sees: [settings-legacy](../docs/macos/settings-legacy.md#health-tab).
 
 The rows are one pure function, `healthSections(host:facts:)` (`CarrierCore/HealthRows.swift`, `HealthRowsTests`); the view is untested.
-The decoding, outcomes, command and store are tested (`DoctorChecksTests`); the process runner is not.
+The decoding, outcomes, command and store are tested (`DoctorChecksTests`), not the process runner.
 
 ## New session
 
@@ -76,8 +76,8 @@ What the person sees: [new session](../docs/macos/new-session.md).
 
 The logic is `NewSessionModel` (`showRepos`, `loadRepos`, `repoRows`, `choose(repo:)`) and `githubRepoRows`, tested with a fake host in `NewSessionTests`.
 The rule, the host client's decoding and the draft are tested (`HealthTests`, `ChatHostTests`, `NewSessionTests`); the `AppDelegate` wiring is not.
-The list, the script and the opener are tested in `HealthFixTests` (a replaceable opener, like `ContinueInTerminalTests`, and hostile values that run nothing); the button is untested.
-The logic is `CarrierCore/WorktreeChoice.swift` (pure values over the `workspace` reply, tested on the golden files in `WorktreeChoiceTests`) and `NewSessionModel` (tested with a fake host).
+The list, the script and the opener are tested in `HealthFixTests` (replaceable opener, hostile values that run nothing); the button is untested.
+The logic is `CarrierCore/WorktreeChoice.swift` (pure values over the `workspace` reply, tested on golden files in `WorktreeChoiceTests`) and `NewSessionModel` (tested with a fake host).
 
 ## Conversation
 
@@ -95,7 +95,7 @@ What the person sees: [dictation](../docs/macos/dictation.md).
 
 The logic is `CarrierCore/Dictation.swift` (boundary and registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the recognizer and capture of `ScriptedDictation.swift`.
 `DictationController` holds the switch both boxes read.
-The page is `Carrier/DictationTab.swift`, a list of one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`, one per line; the views are untested (`SettingsPageTests` and `DictationSettingsTests` hold the rules).
+The page is `Carrier/DictationTab.swift`, one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`, one per line; the views are untested (rules: `SettingsPageTests`, `DictationSettingsTests`).
 
 ### Global dictation
 
@@ -109,7 +109,8 @@ Widget style and place: `CarrierCore/DictationWidgetLook.swift` (`DictationPrese
 
 ### History
 
-See [dictation](../docs/macos/dictation.md#history). `CarrierCore/DictationRecords.swift` (`DictationRecordsTests`, temporary folder); `DictationSession.take` feeds it; `Carrier/HistoryGroup.swift` untested.
+See [dictation](../docs/macos/dictation.md#history). `CarrierCore/DictationRecords.swift` (`DictationRecordsTests`, temp folder), fed by `DictationSession.take`; `HistoryGroup` untested.
+Audio: `DictationRecords` (fake clock), `DictationAudio.swift`; `AudioPlayerView` untested.
 
 ### Statistics
 
@@ -129,5 +130,5 @@ Continue in Terminal launch construction (`EmbeddedResumeLaunch`, `embeddedResum
 The AppKit runtime (`Carrier/TerminalHost.swift`, `Carrier/TerminalAppearance.swift`, `Carrier/TerminalProcessInspector.swift`, `Carrier/TerminalConfirmationCopy.swift`, `Carrier/CarrierTerminalView.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation.
 The sidebar, overview, workspace, tab bar, settings page, menu bar, middle-click close and drawer views are the `Terminal*View.swift` files, `MainMenu.swift`, `MiddleClickModifier.swift`, `ContinueInTerminalView.swift`, `SessionSectionsView.swift`, `EpicView.swift` and `PanelView.swift`.
 Window selection and drawer state live in `CarrierCore/WindowShell.swift`, tested with layout, settings, shortcuts and middle-click in `TerminalWorkspaceLayoutTests`, `SettingsPageTests`, `MainMenuShortcutsTests`, `MiddleClickModifierTests` and `WindowShellTests`.
-Session deletion cleanup and process-activity termination guards connect through `CarrierCore/ChatArchive.swift`, `CarrierCore/ChatSessions.swift`, `Carrier/WindowController.swift` and `Carrier/AppDelegate.swift` (poller and store tested, view wiring not).
+Session deletion cleanup and process-activity guards connect through `CarrierCore/ChatArchive.swift`, `CarrierCore/ChatSessions.swift`, `Carrier/WindowController.swift` and `Carrier/AppDelegate.swift` (poller and store tested, view wiring not).
 `libghostty-spm` (`GhosttyTerminal`) is linked by the `Carrier` target only; `build-app.sh` and `scripts/check-app.sh` bundle and verify `GhosttyKit_GhosttyTerminal.bundle` and `THIRD-PARTY-NOTICES.md` (`ThirdPartyNoticesTests`).

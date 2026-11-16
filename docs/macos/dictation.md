@@ -50,7 +50,12 @@ Small, Medium and Large are a box of 2, 3 and 4 lines, 340, 420 and 540 points w
 In a box, a pasted or cancelled dictation shows its text with Pasted or Cancelled under it. A check or an x stays for 1.2 seconds and fades (with no animation under Reduce Motion); a new dictation takes it away at once. A dictation with no words, a failure and a text that was only copied show no check or x.
 The states that need text or a button (a failure to start or to recognize, and a text that was only copied) open the Pill as the Small box until they are dismissed; with another style they use that box.
 Top puts the widget at the top centre of the display under the menu bar and Bottom at the bottom centre above the Dock, 24 points from the edge of what the menu bar and the Dock leave (`dictationWidgetOrigin`).
-What the widget draws for a state and a style is `dictationWidgetLook` in `CarrierCore/DictationWidgetLook.swift`, from what `GlobalDictation.shown` says; the glass and the listening line come later.
+What the widget draws for a state and a style is `dictationWidgetLook` in `CarrierCore/DictationWidgetLook.swift`, from what `GlobalDictation.shown` says.
+
+The widget is glass in the app's accent (`WidgetSurface` in `Carrier/DictationWidget.swift`, over the chat's `chatSurface`, so Settings › Chat › Surfaces turns it flat too) and, only while it listens, it draws the message box's own line, `DictationIndicator`, outside its edge with the radius of the box (the capsule's for the Pill), driven by the voice; Reduce Motion and Reduce Transparency do what they do in the message box.
+The panel is 14 points larger than the box on every side to hold the line and the shadow, which the clear margin lets the pointer through like the rest of it.
+While it listens the box holds only the text, the time, the shortcut and Esc.
+The text starts at the top and goes down; when it is longer than the lines of the style it scrolls so the newest words are on the last line, and the first line fades out (`WidgetBox`, which reads the text's height and asks `dictationTextFit` for the lines that are visible and whether the top fades). The text that was only copied is the person's to scroll, from the top, with no fade.
 
 ## History
 

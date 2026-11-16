@@ -95,17 +95,17 @@ What the person sees: [dictation](../docs/macos/dictation.md).
 
 The logic is `CarrierCore/Dictation.swift` (boundary and registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the recognizer and capture of `ScriptedDictation.swift`.
 `DictationController` holds the switch both boxes read.
-The page is `Carrier/DictationTab.swift`, a list of one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`, one per line; the views are untested (`SettingsPageTests` and `DictationSettingsTests` hold the rules).
+The page is `Carrier/DictationTab.swift`, a list of one view per group (a new group: a file and a line), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`, one per line; the views are untested (`SettingsPageTests` and `DictationSettingsTests` hold the rules).
 
 ### Global dictation
 
 See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, scripted recognizer; Hold is `.up`).
 Shortcut and activation: `CarrierCore/DictationShortcut.swift` (`recordShortcut`, `DictationShortcutTests`) and the recorder row in `GlobalDictationGroup`, untested.
 `CarrierCore/PasteDecision.swift` (`pasteDecision`, `PasteDecisionTests`) picks paste or copy from `Carrier/FocusedField.swift`, which reads the focus (untested).
-`Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); keys, panel and real ⌘V untested.
+`Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); the rest untested.
 Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest` (`MessageBoxDictationTests`).
 Sounds: `CarrierCore/DictationSounds.swift` (`DictationSoundsTests`); `SoundsGroup` and `DictationSoundPlayer` untested.
-Widget style and place: `CarrierCore/DictationWidgetLook.swift` (`DictationPresentationTests`) from `GlobalDictation.shown`; `DictationWidget` untested.
+Widget look, place, text fit: `CarrierCore/DictationWidgetLook.swift` (`DictationPresentationTests`); glass and line in `DictationWidget`, untested.
 
 ### History
 

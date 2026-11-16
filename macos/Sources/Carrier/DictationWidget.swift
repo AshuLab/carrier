@@ -5,14 +5,18 @@ import SwiftUI
 /// The widget of a global dictation: a panel that never takes the focus from the app the person is in (it is not key, not main and does not
 /// activate Carrier) and lets every click through until it holds buttons. Its style and place are the person's (`AppPreferences.dictationWidgetStyle`
 /// and `dictationWidgetPosition`, read each time it opens), its look for a state is `dictationWidgetLook`, and it follows `GlobalDictation.shown`,
-/// resizing as the look changes. This is the plain box: the text, the time, the shortcut and Esc.
+/// resizing as the look changes. It is glass in the accent, and while it listens it draws the message box's line (`DictationIndicator`) around the box,
+/// which is why the panel is `glow` points larger than the box on each side. It holds the text, the time, the shortcut and Esc.
 @MainActor final class DictationWidget {
     /// How long the check or the x stays, and how long it takes to fade.
     static let linger = 1.2, fade = 0.3
+    /// The room the listening line and the shadow have around the box, inside the panel.
+    static let glow: CGFloat = 14
 
     private let panel: NSPanel
     private let dictation: GlobalDictation
     private let hint: () -> String
+    private let voice: () -> VoiceLevels
     private let preferences: AppPreferences
     private var style = DictationWidgetStyle.medium
     private var position = DictationWidgetPosition.bottom
@@ -20,8 +24,9 @@ import SwiftUI
     private var following = false
     private var hiding: Task<Void, Never>?
 
-    init(dictation: GlobalDictation, preferences: AppPreferences, hint: @escaping () -> String) {
+    init(dictation: GlobalDictation, preferences: AppPreferences, hint: @escaping () -> String, voice: @escaping () -> VoiceLevels) {
         self.dictation = dictation
+        self.voice = voice
         self.preferences = preferences
         self.hint = hint
         panel = WidgetPanel(contentRect: .zero)
@@ -33,7 +38,7 @@ import SwiftUI
         position = preferences.dictationWidgetPosition
         area = Self.activeScreen().visibleFrame
         panel.ignoresMouseEvents = true
-        panel.contentView = NSHostingView(rootView: DictationWidgetView(dictation: dictation, style: style, hint: hint))
+        panel.contentView = NSHostingView(rootView: DictationWidgetView(dictation: dictation, style: style, hint: hint, voice: voice))
         place()
         panel.orderFrontRegardless()
         follow()
@@ -54,7 +59,8 @@ import SwiftUI
 
     private func place() {
         let size = dictationWidgetLook(dictation.shown, style: style).windowSize
-        panel.setFrame(NSRect(origin: dictationWidgetOrigin(size: size, in: area, position: position), size: size), display: true)
+        let box = NSRect(origin: dictationWidgetOrigin(size: size, in: area, position: position), size: size)
+        panel.setFrame(box.insetBy(dx: -Self.glow, dy: -Self.glow), display: true)
     }
 
     /// Places the panel again each time what the widget shows changes the look (a Pill opens as the Small box for a text, a box grows to its buttons).
@@ -113,8 +119,21 @@ extension DictationWidgetLook {
         return CGSize(width: box.width, height: box.height(textSize: TextSize.shared.scale.size(box.text)))
     }
 
-    /// The Pill is a capsule and a box is rounded.
-    var shape: RoundedRectangle { RoundedRectangle(cornerRadius: box == nil ? windowSize.height / 2 : 16, style: .continuous) }
+    /// The Pill is a capsule and a box has the message box's radius.
+    var radius: CGFloat { box == nil ? windowSize.height / 2 : 16 }
+    var shape: RoundedRectangle { RoundedRectangle(cornerRadius: radius, style: .continuous) }
+}
+
+/// The widget's glass: the chat's surface tinted with the app's accent, a light veil of it over a light window and a dark one over a dark window so the
+/// text reads over a white window too, and a soft shadow since the panel has none of its own.
+private struct WidgetSurface: ViewModifier {
+    let shape: RoundedRectangle
+    @Environment(\.colorScheme) private var scheme
+
+    func body(content: Content) -> some View {
+        let tint = scheme == .dark ? Color.themeAccent.mix(with: .black, by: 0.6).opacity(0.55) : Color.themeAccent.opacity(0.12)
+        content.chatSurface(.regular.tint(tint), flat: tint, in: shape).shadow(color: .black.opacity(0.22), radius: 10, y: 3)
+    }
 }
 
 private struct DictationWidgetView: View {
@@ -122,6 +141,7 @@ private struct DictationWidgetView: View {
     let style: DictationWidgetStyle
     /// The keys line: what ends the dictation and Esc.
     let hint: () -> String
+    let voice: () -> VoiceLevels
     /// Copy was pressed; it goes back when the widget has new text.
     @State private var copied = false
     /// The check or x of a dictation that ended has faded.
@@ -134,8 +154,13 @@ private struct DictationWidgetView: View {
             if let box = look.box { boxed(look, box) } else if let icon = look.icon { PillIcon(icon: icon) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .chatSurface(in: look.shape)
+        // the message box's line, outside the box and only while it listens
+        .background {
+            if dictation.shown == .listening { DictationIndicator(levels: voice(), radius: look.radius) }
+        }
+        .modifier(WidgetSurface(shape: look.shape))
         .opacity(faded ? 0 : 1)
+        .padding(DictationWidget.glow)
         .accessibilityElement(children: .contain)
         .onChange(of: dictation.state) { copied = false }
         .task(id: look.fades) {
@@ -148,7 +173,7 @@ private struct DictationWidgetView: View {
 
     @ViewBuilder private func boxed(_ look: DictationWidgetLook, _ box: DictationWidgetBox) -> some View {
         if case .copied(let reason) = dictation.state {
-            WidgetBox(box: box) { keptText(reason) } foot: { keptButtons(reason) }
+            WidgetBox(box: box, follows: false) { keptText(reason) } foot: { keptButtons(reason) }
         } else if look.fades {
             WidgetBox(box: box) { Text(dictation.text) } foot: {
                 Label(dictation.farewell == .pasted ? "Pasted" : "Cancelled", systemImage: dictation.farewell == .pasted ? "checkmark" : "xmark")
@@ -205,18 +230,37 @@ private struct DictationWidgetView: View {
     }
 }
 
-/// A box of the widget: the text at the top, which scrolls when it is longer than the lines of the style, and a row under it.
+/// A box of the widget: the text at the top, a row under it, and when the text is longer than the lines of the style it scrolls so the newest words
+/// are on the last line, with the older lines fading out at the top (`dictationTextFit`). A `follows: false` box (the text that was only copied)
+/// starts at the top and is the person's to scroll, with no fade.
 struct WidgetBox<Content: View, Foot: View>: View {
     let box: DictationWidgetBox
+    var follows = true
     @ViewBuilder var text: Content
     @ViewBuilder var foot: Foot
+    @State private var position = ScrollPosition(edge: .top)
+    @State private var textLines = 0
 
     var body: some View {
+        let lineHeight = box.lineHeight(textSize: TextSize.shared.scale.size(box.text))
+        let fadesTop = follows && dictationTextFit(textLines: textLines, boxLines: box.lines).fadesTop
         VStack(alignment: .leading, spacing: 8) {
             ScrollView {
                 text.frame(maxWidth: .infinity, alignment: .leading)
             }
-            .scrollIndicators(.hidden).defaultScrollAnchor(.bottom)
+            .scrollIndicators(.hidden)
+            .scrollPosition($position)
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, height in
+                guard follows else { return }
+                textLines = Int((height / lineHeight).rounded())
+                if dictationTextFit(textLines: textLines, boxLines: box.lines).fadesTop { position.scrollTo(edge: .bottom) }
+            }
+            .mask {
+                VStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: fadesTop ? lineHeight : 0)
+                    Rectangle()
+                }
+            }
             HStack { foot }.font(.caption).foregroundStyle(.secondary).frame(height: 20)
         }
         .font(.scaled(box.text))
@@ -257,7 +301,7 @@ struct DictationWidgetPreview: View {
             }
         }
         .frame(width: look.windowSize.width, height: look.windowSize.height)
-        .chatSurface(in: look.shape)
+        .modifier(WidgetSurface(shape: look.shape))
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore).accessibilityLabel("Preview of the \(style.title) widget")
     }

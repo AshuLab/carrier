@@ -2,10 +2,10 @@ import CarrierCore
 import SwiftUI
 
 /// The segments of the Dictation page.
-enum DictationSegment: String, CaseIterable { case general = "General", history = "History" }
+enum DictationSegment: String, CaseIterable { case general = "General", history = "History", statistics = "Statistics" }
 
 /// The Dictation page: segments over one view per group (`DictationGroup`, `GlobalDictationGroup`, `SoundsGroup`, `CleanupGroup`, `SpeechModelsGroup`, `StorageGroup` in General;
-/// `HistoryGroup` in History). With the switch off the groups of General under it are drawn at 40% and take no clicks (`dictationRowIsLive`).
+/// `HistoryGroup` in History, `StatisticsGroup` in Statistics). With the switch off the groups of General under it are drawn at 40% and take no clicks (`dictationRowIsLive`).
 struct DictationTabView: View {
     var dictation = DictationController.shared
     @State private var segment = DictationSegment.general
@@ -27,6 +27,10 @@ struct DictationTabView: View {
             case .history:
                 SettingsPageBody {
                     HistoryGroup()
+                }
+            case .statistics:
+                SettingsPageBody {
+                    StatisticsGroup()
                 }
             }
         }

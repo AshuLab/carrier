@@ -102,10 +102,10 @@ The page is `Carrier/DictationTab.swift`, one view per group (a new group is a f
 See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, scripted recognizer; Hold is `.up`).
 Shortcut and activation: `CarrierCore/DictationShortcut.swift` (`recordShortcut`, `DictationShortcutTests`) and the recorder row in `GlobalDictationGroup`, untested.
 `CarrierCore/PasteDecision.swift` (`pasteDecision`, `PasteDecisionTests`) picks paste or copy from `Carrier/FocusedField.swift`, which reads the focus (untested).
-`Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); keys, panel and real ⌘V untested.
+`Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); the rest untested.
 Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest` (`MessageBoxDictationTests`).
 Sounds: `CarrierCore/DictationSounds.swift` (`DictationSoundsTests`); `SoundsGroup` and `DictationSoundPlayer` untested.
-Widget style and place: `CarrierCore/DictationWidgetLook.swift` (`DictationPresentationTests`) from `GlobalDictation.shown`; `DictationWidget` untested.
+Widget look, place, text fit: `CarrierCore/DictationWidgetLook.swift` (`DictationPresentationTests`); glass and line in `DictationWidget`, untested.
 
 ### History
 

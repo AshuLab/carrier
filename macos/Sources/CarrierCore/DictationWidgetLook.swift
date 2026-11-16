@@ -34,8 +34,21 @@ public struct DictationWidgetBox: Equatable, Sendable {
     public let width: CGFloat
     public let text: CGFloat
 
+    public func lineHeight(textSize: CGFloat) -> CGFloat { textSize * 1.25 }
+
     /// One height per style: the lines of text, and under them the row of the time and the keys, or of the buttons, with the box's padding.
-    public func height(textSize: CGFloat) -> CGFloat { (CGFloat(lines) * textSize * 1.25).rounded(.up) + 52 }
+    public func height(textSize: CGFloat) -> CGFloat { (CGFloat(lines) * lineHeight(textSize: textSize)).rounded(.up) + 52 }
+}
+
+/// How a text of `textLines` sits in a box of `boxLines`: it starts at the top and fills lines down to the box's, and once it is longer the newest
+/// words are on the last line and the older lines fade out at the top.
+public struct DictationTextFit: Equatable, Sendable {
+    public let visibleLines: Int
+    public let fadesTop: Bool
+}
+
+public func dictationTextFit(textLines: Int, boxLines: Int) -> DictationTextFit {
+    DictationTextFit(visibleLines: min(max(textLines, 0), boxLines), fadesTop: textLines > boxLines)
 }
 
 /// What the widget is doing, as it draws it: working is getting the model ready or transcribing.

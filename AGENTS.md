@@ -15,6 +15,16 @@ pnpm only (never npm or yarn). Node 26 runs the TypeScript directly.
 - `pnpm replay:events <stdout.log>`: prints the events a Claude log yields as JSON lines (`--db <file> --execution <id>` stores them for an execution that predates events).
 - Run from source: `node src/terminal/cli/main.ts <init|doctor|schema|start|status|watch|stop|pause|resume|check|reload|restart|chat|chat-host|usage>`; `--config file` points the engine at another config, the chat takes only `CARRIER_HOME`.
 
+## Do not hurt the Carrier you are running on
+
+A Carrier is usually working on this machine while you change this one: the installed engine, the chat host and the app may be live.
+
+- Never `pkill -f`, `pgrep | kill` or `kill` a PID found by matching a name or a path: the installed Carrier's processes have the same names (`carrier`, `carrier chat-host`).
+  Kill only a PID you captured when you started it.
+- `chat` and `usage` leave a chat host running in the background when the command ends, and `start` leaves an engine.
+  Stop what you started, by its PID, before you finish.
+- Never run against `~/.carrier`: set `CARRIER_HOME` to a scratch folder first (the `dev-sandbox` skill, or [CONTRIBUTING.md](CONTRIBUTING.md#developing-against-a-throwaway-folder)).
+
 ## Layout
 
 Everything a terminal user sees lives under `src/terminal`, so a future web UI is a sibling folder and not a rename.

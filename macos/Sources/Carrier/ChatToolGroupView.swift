@@ -54,7 +54,7 @@ struct ChatToolGroupView: View {
         HStack(spacing: 12) {
             // what the run is doing: as long as it is, and what does not fit fades out at the edge of its room instead of pushing the right side
             // the room is the one offered (a clear box), and the words, as long as they are, hang in it: a fixed-size child inside a flexible frame would widen the card
-            Color.clear.frame(maxWidth: .infinity).overlay(alignment: .leading) { HStack(spacing: 8) {
+            Color.clear.frame(maxWidth: .infinity).overlay(alignment: .leading) { HStack(spacing: 9) {
                 if lead != .none { LeadView(lead: lead, reduceMotion: reduceMotion).transition(.scale(scale: 0.5).combined(with: .opacity)) }
                 // the words roll up when they change: the new ones come in from below, the old ones leave above
                 ZStack(alignment: .leading) { words.id(key).transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity))) }
@@ -71,7 +71,8 @@ struct ChatToolGroupView: View {
                 }
             }
             .fixedSize(horizontal: true, vertical: false)
-            .padding(.leading, 4) }
+            // with no lead the words keep a little room; with one, it is in the column of the steps' nodes and the words in theirs
+            .padding(.leading, lead == .none ? 4 : 0) }
             .clipped()
             .mask { HStack(spacing: 0) { Rectangle(); LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 28) } }
             // the right side never moves or shrinks: the time, and the chevron as wide as a node
@@ -239,7 +240,7 @@ private struct LeadView: View {
             case .none: EmptyView()
             }
         }
-        .frame(width: 14, height: 14)
+        .frame(width: 16, height: 16)
     }
 }
 
@@ -339,11 +340,12 @@ private struct ThoughtRowView: View {
         let whole = flipped.contains(key)
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "sparkle").font(.scaled(8, weight: .bold)).foregroundStyle(Color.thought)
-                .frame(width: 16, height: 16).background(Circle().fill(Color.thought.opacity(0.2))).padding(.top, 3)
-            Text(thought.text).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(whole ? nil : 2).multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                .frame(width: 16, height: 16).background(Circle().fill(Color.thought.opacity(0.2)))
+            // as tall as the icon at least, so the first line is level with it
+            Text(thought.text).font(.scaled(12.5)).lineSpacing(2).foregroundStyle(.secondary).lineLimit(whole ? nil : 2).multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, minHeight: 16, alignment: .topLeading).textSelection(.enabled)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
         .onTapGesture { flip(key, in: $flipped) }
         .accessibilityElement(children: .combine)

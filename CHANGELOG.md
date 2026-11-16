@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The agent's work card lines up: the icon of its line sits over the steps' nodes and the first line of a thought is level with its icon; thoughts read a little larger and looser.
 - An update whose restart was held up (the app did not close) no longer leaves the pill stuck on Restarting…: clicking it asks Carrier to quit again.
 - What you type in a session's message box and have not sent is kept when you go to another session, the terminal or another view, and is there when you come back.
 - A Claude turn that fails on a usage limit (the 5-hour session or the weekly one) or another API error now says why in the chat ("You've hit your session limit · resets 12:40pm"), no longer "The turn failed", and its footer names the model that ran, not `<synthetic>`.

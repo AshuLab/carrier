@@ -479,3 +479,17 @@ private var work: AccountDraft {
     await store.load()
     #expect(store.identityEditable == false)
 }
+
+@Test func aFolderAnotherAccountOfTheSameToolHasIsNamedAndNothingElseIs() {
+    let file = Data(#"{"providers":{"teams":{"harness":"claude","configDir":"~/.claude-lab"},"pro":{"harness":"claude","configDir":"/h/.claude"},"codex-work":{"harness":"codex","configDir":"~/.claude-lab"},"claude":{"harness":"claude"}}}"#.utf8)
+    let home = NSHomeDirectory()
+    #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "claude", in: file) == "teams")
+    #expect(accountSharingFolder(configDir: home + "/.claude-lab/", harness: "claude", in: file) == "teams")
+    #expect(accountSharingFolder(configDir: ".claude-lab", harness: "claude", in: file) == "teams")
+    #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "claude", except: "teams", in: file) == nil)
+    #expect(accountSharingFolder(configDir: "~/.claude-lab-lu", harness: "claude", in: file) == nil)
+    #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "codex", in: file) == "codex-work")
+    #expect(accountSharingFolder(configDir: "", harness: "claude", in: file) == nil)
+    #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "claude", in: nil) == nil)
+    #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "claude", in: Data("not json".utf8)) == nil)
+}

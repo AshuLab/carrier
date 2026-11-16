@@ -69,6 +69,18 @@ public func normalizedConfigDir(_ text: String) -> String {
     return "~/" + (path.hasPrefix("./") ? String(path.dropFirst(2)) : path)
 }
 
+/// The account of `harness` whose config folder is `configDir` (`~` expanded, trailing slash ignored), so with the same login; nil when none is
+/// or the folder is empty. `except` is the account being edited. Not a problem: two accounts may share a login for another model or other arguments.
+public func accountSharingFolder(configDir: String, harness: String, except name: String? = nil, in json: Data?) -> String? {
+    func resolved(_ path: String) -> String { URL(fileURLWithPath: (normalizedConfigDir(path) as NSString).expandingTildeInPath).standardizedFileURL.path }
+    guard configDir.trimmingCharacters(in: .whitespaces).isEmpty == false, let providers = try? parsed(json).providers else { return nil }
+    let wanted = resolved(configDir)
+    return providers.keys.sorted().first { other in
+        guard other != name, let account = providers[other] as? [String: Any], account["harness"] as? String == harness, let folder = account["configDir"] as? String else { return false }
+        return resolved(folder) == wanted
+    }
+}
+
 /// A name the engine accepts: `optionNamePattern`, `^[a-z][a-z0-9-]{0,39}$`.
 public func nameProblem(_ name: String) -> String? {
     let scalars = Array(name.unicodeScalars)

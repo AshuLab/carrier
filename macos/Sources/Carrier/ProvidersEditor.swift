@@ -89,6 +89,9 @@ struct AccountEditor: View {
                     }
                 }
                 if let problem = store.editProblem { ProblemLine(text: problem) }
+                if problems["configDir"] == nil, let note = store.sharedFolderNote(configDir: draft.configDir, harness: harness, except: account.name) {
+                    Label(note, systemImage: "info.circle").font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
                 HStack(spacing: 10) {
                     Button(role: .destructive) {
                         Task { if await store.remove(name: account.name) { ProviderIdentityStore.shared.reload(); close() } }
@@ -208,6 +211,9 @@ struct AddAccountForm: View {
                 }
             }
             if let message = problem ?? store.editProblem { ProblemLine(text: message) }
+            if let note = store.sharedFolderNote(configDir: folder, harness: harness) {
+                Label(note, systemImage: "info.circle").font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             HStack(spacing: 10) {
                 Spacer()
                 Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }.disabled(store.busy)

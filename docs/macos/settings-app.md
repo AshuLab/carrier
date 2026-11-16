@@ -28,6 +28,7 @@ Under `--fixture` the fixture home has a `providers.json` and the fake host's `p
   Antigravity has only Display name and Binary path.
   A filled field writes its key and an emptied one removes it (`applyingEdit`), and every other key of the account stays.
   Add account (Claude Code and Codex) takes a name and a config folder and writes `{ harness, configDir }` (`applyingNewAccount`).
+  When another account of the same tool already has that config folder (`~` expanded, a trailing slash ignored), the form and the editor say so in a quiet line (`accountSharingFolder`), because it is the same login and not a new one; it is not a problem and does not stop the save, since two accounts may share a login for another model or other arguments.
   Remove (`applyingRemoval`) is refused while a role, a repo's override, a failover list (even one that is off, which the engine still checks) or a chat agent names the account, and says which; `ProvidersStore` reads `config.json` and `chat.json` for that, and a `chat.json` that is there and cannot be read stops it.
   Before writing, the app applies the engine's rules for what it can check cheaply (`draftProblems`: the name's pattern, Auto-compact's range per harness, absolute paths, the flags Carrier sets itself, nothing Claude-only on Codex or Antigravity) and says what is wrong in words that name the field; it never writes a file those rules refuse.
   After a save the store asks the host for `providers` again, and a `problem` it answers is shown in place of the page with its key (the file stays as written).

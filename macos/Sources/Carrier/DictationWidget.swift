@@ -8,8 +8,8 @@ import SwiftUI
 /// resizing as the look changes. It is glass in the accent, and while it listens it draws the message box's line (`DictationIndicator`) around the box,
 /// which is why the panel is `glow` points larger than the box on each side. It holds the text, the time, the shortcut and Esc.
 @MainActor final class DictationWidget {
-    /// How long the check or the x stays, and how long it takes to fade.
-    static let linger = 1.2, fade = 0.3
+    /// How long it takes the check, the warning or the x to fade (how long they stay is `DictationWidgetLook.linger`).
+    static let fade = 0.3
     /// The room the listening line and the shadow have around the box, inside the panel.
     static let glow: CGFloat = 14
 
@@ -51,8 +51,9 @@ import SwiftUI
     func close() {
         hiding?.cancel()
         guard dictation.farewell != nil else { return panel.orderOut(nil) }
+        let linger = dictationWidgetLook(dictation.shown, style: style).linger
         hiding = Task {
-            try? await Task.sleep(for: .seconds(Self.linger + Self.fade))
+            try? await Task.sleep(for: .seconds(linger + Self.fade))
             if Task.isCancelled == false { panel.orderOut(nil) }
         }
     }
@@ -151,7 +152,7 @@ private struct DictationWidgetView: View {
     var body: some View {
         let look = dictationWidgetLook(dictation.shown, style: style)
         Group {
-            if let box = look.box { boxed(look, box) } else if let icon = look.icon { PillIcon(icon: icon) }
+            if let box = look.box { boxed(look, box) } else if let icon = look.icon { PillIcon(icon: icon, cause: dictation.notCleaned) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // the message box's line, outside the box and only while it listens
@@ -166,7 +167,7 @@ private struct DictationWidgetView: View {
         .task(id: look.fades) {
             faded = false
             guard look.fades else { return }
-            try? await Task.sleep(for: .seconds(DictationWidget.linger))
+            try? await Task.sleep(for: .seconds(look.linger))
             withAnimation(reduceMotion ? nil : .easeOut(duration: DictationWidget.fade)) { faded = true }
         }
     }
@@ -176,7 +177,11 @@ private struct DictationWidgetView: View {
             WidgetBox(box: box, follows: false) { keptText(reason) } foot: { keptButtons(reason) }
         } else if look.fades {
             WidgetBox(box: box) { Text(dictation.text) } foot: {
-                Label(dictation.farewell == .pasted ? "Pasted" : "Cancelled", systemImage: dictation.farewell == .pasted ? "checkmark" : "xmark")
+                switch dictation.farewell {
+                case .pasted: Label("Pasted", systemImage: "checkmark")
+                case .pastedRaw: Label("Pasted without cleaning: \(dictation.notCleaned ?? "")", systemImage: "exclamationmark.triangle").foregroundStyle(.orange).lineLimit(1)
+                default: Label("Cancelled", systemImage: "xmark")
+                }
             }
         } else {
             WidgetBox(box: box) { shown } foot: {
@@ -186,7 +191,7 @@ private struct DictationWidgetView: View {
                     }
                 }
                 Spacer()
-                Text(hint())
+                if dictation.shown == .cleaning { Label("Cleaning… Esc to skip", systemImage: "sparkles") } else { Text(hint()) }
             }
         }
     }
@@ -195,6 +200,7 @@ private struct DictationWidgetView: View {
     private func keptText(_ reason: PasteReason) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("\(reason.explanation) It is on the clipboard.").foregroundStyle(.orange)
+            if let cause = dictation.notCleaned { Text("It was not cleaned: \(cause)").foregroundStyle(.orange) }
             Text(dictation.text).textSelection(.enabled)
         }
     }
@@ -222,7 +228,8 @@ private struct DictationWidgetView: View {
         VStack(alignment: .leading, spacing: 4) {
             if case .failed(let cause) = dictation.state { Text(cause).foregroundStyle(.red) }
             if dictation.text.isEmpty == false {
-                Text(dictation.text)
+                // the raw text shimmers while the model cleans it
+                Text(dictation.text).modifier(Shimmer(active: dictation.shown == .cleaning && reduceMotion == false))
             } else if dictation.state == .running, let caption {
                 Text(caption).foregroundStyle(.secondary)
             }
@@ -268,12 +275,19 @@ struct WidgetBox<Content: View, Foot: View>: View {
     }
 }
 
-/// The Pill's icon: the microphone in the accent while it listens, a spinner while it works, a check when pasted and an x when cancelled.
+/// The Pill's icon: the microphone in the accent while it listens, a spinner while it works, a sparkle while it cleans, a check when pasted, a warning
+/// when it pasted without cleaning (`cause` says why, for VoiceOver) and an x when cancelled.
 private struct PillIcon: View {
     let icon: DictationWidgetIcon
+    var cause: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         switch icon {
+        case .sparkle:
+            Image(systemName: "sparkles").foregroundStyle(Color.themeAccent).symbolEffect(.pulse, isActive: reduceMotion == false).accessibilityLabel("Cleaning")
+        case .warning:
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).accessibilityLabel("Pasted without cleaning: \(cause ?? "")")
         case .mic: Image(systemName: "mic.fill").foregroundStyle(Color.themeAccent).accessibilityLabel("Listening")
         case .spinner: ProgressView().controlSize(.small).accessibilityLabel("Working")
         case .check: Image(systemName: "checkmark").foregroundStyle(.green).accessibilityLabel("Pasted")

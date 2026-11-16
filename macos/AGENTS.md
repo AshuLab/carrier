@@ -119,7 +119,7 @@ See [dictation](../docs/macos/dictation.md#statistics). Counters: `DictationReco
 ### Cleanup
 
 `CarrierCore/DictationCleanup.swift` (the `TextModelClient` port, `CleanupRun`; `CleanupRunTests`, scripted client) and `LocalModelClient.swift` (`LocalModelClientTests`, stub socket); the group is `Carrier/CleanupController.swift` and `CleanupGroup.swift`, untested.
-In the boxes: the `.cleaning` state of `DictationSession` (`start(cleanup:)`, built by `DictationController.cleanup()`; `DictationSessionTests`, scripted client).
+In the boxes and the widget: the `.cleaning` state of `DictationSession` (`start(cleanup:)` from `DictationController.cleanup()`; `DictationSessionTests`, `GlobalDictationTests`).
 
 ## Embedded terminal
 

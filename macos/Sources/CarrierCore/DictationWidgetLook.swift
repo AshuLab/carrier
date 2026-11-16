@@ -51,10 +51,11 @@ public func dictationTextFit(textLines: Int, boxLines: Int) -> DictationTextFit 
     DictationTextFit(visibleLines: min(max(textLines, 0), boxLines), fadesTop: textLines > boxLines)
 }
 
-/// What the widget is doing, as it draws it: working is getting the model ready or transcribing.
-public enum DictationWidgetState: Equatable, Sendable { case working, listening, failed, copied, pasted, cancelled }
+/// What the widget is doing, as it draws it: working is getting the model ready or transcribing, cleaning is the model of Cleanup at work, and
+/// `pastedRaw` is a text pasted without the cleaning that was on.
+public enum DictationWidgetState: Equatable, Sendable { case working, listening, cleaning, failed, copied, pasted, pastedRaw, cancelled }
 
-public enum DictationWidgetIcon: Equatable, Sendable { case mic, spinner, check, xmark }
+public enum DictationWidgetIcon: Equatable, Sendable { case mic, spinner, sparkle, check, warning, xmark }
 
 public struct DictationWidgetLook: Equatable, Sendable {
     public static let pillSize = CGSize(width: 76, height: 38)
@@ -64,8 +65,9 @@ public struct DictationWidgetLook: Equatable, Sendable {
     public let icon: DictationWidgetIcon?
     /// The style is the Pill and the state needs text or a button, so it opens as the Small box until dismissed.
     public let opensAsSmall: Bool
-    /// The widget goes away by itself after a moment.
-    public let fades: Bool
+    /// How long it stays before it goes away by itself, in seconds; 0 for a state that stays.
+    public let linger: Double
+    public var fades: Bool { linger > 0 }
 }
 
 public func dictationWidgetLook(_ state: DictationWidgetState, style: DictationWidgetStyle) -> DictationWidgetLook {
@@ -74,13 +76,16 @@ public func dictationWidgetLook(_ state: DictationWidgetState, style: DictationW
         switch state {
         case .working: .spinner
         case .listening: .mic
+        case .cleaning: .sparkle
         case .pasted: .check
+        case .pastedRaw: .warning
         case .cancelled: .xmark
         case .failed, .copied: nil
         }
     return DictationWidgetLook(
         box: style.box ?? (needsText ? DictationWidgetStyle.small.box : nil), icon: icon, opensAsSmall: style == .pill && needsText,
-        fades: state == .pasted || state == .cancelled)
+        // the warning stays longer: it holds the cause
+        linger: state == .pastedRaw ? 4 : state == .pasted || state == .cancelled ? 1.2 : 0)
 }
 
 /// The bottom left of a widget of `size` in `area` (the display's visible frame, which leaves out the menu bar and the Dock; y grows upward): centred, `margin` from the edge.

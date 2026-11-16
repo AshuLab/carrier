@@ -199,7 +199,7 @@ import SwiftUI
     }
 
     /// The cleanup of the text a box dictates, when the person turned it on (a server and a model chosen); nil otherwise, and the dictation ends as it always did.
-    private func cleanup() -> DictationCleanup? {
+    func cleanup() -> DictationCleanup? {
         guard preferences.dictationCleanupEnabled, let server = preferences.dictationCleanupServer, let model = preferences.dictationCleanupModel else { return nil }
         let run = CleanupRun(client: cleanupClient), prompt = preferences.dictationCleanupPrompt
         return { try await run.run(server: server, model: model, prompt: prompt, text: $0).text }

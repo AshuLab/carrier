@@ -156,7 +156,7 @@ private struct StatisticsCard: View {
     var body: some View {
         let face = VStack(alignment: .leading, spacing: 3) {
             Text(title).sectionLabel().lineLimit(1)
-            Text(value).font(.scaled(24, weight: .bold)).foregroundStyle(highlighted ? Color.themeAccent : .primary).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
+            Text(value).font(.scaled(24, weight: .bold)).foregroundStyle(.primary).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
             Text(line ?? " ").font(.scaled(10)).foregroundStyle(.secondary)
         }
         // every card is as tall as the tallest, whatever each one wraps

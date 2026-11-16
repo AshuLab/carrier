@@ -55,6 +55,7 @@ A feed that is a column of the window (the Agent output of an epic) is not made 
 - **Nothing is pinned over a feed that has no background**: the rows would scroll under its text.
 - **The column is as wide as the chat's message width** (`appearance.messageWidth`), never a fixed one.
 - **What ends a feed (a stop that needs a person) is a `NoticeCard` as its last element**, never pinned: `edge: true`, orange for what needs a person and red for what failed.
+- **Every `NoticeCard` is glass filled with its own colour** (the closed-session notice's look), with `edge: true` adding a thin edge for what failed or needs a person; there is no neutral dark variant. It goes through `chatSurface`, so Flat draws it as a quiet fill.
 - **Links in a toolbar are `ToolbarPillButton`s on one glass capsule**; the item hides the toolbar's own glass (`sharedBackgroundVisibility(.hidden)`).
 
 ## Lines

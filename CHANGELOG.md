@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The notices over the message box (errors, uncommitted files, a held message, a question) are glass filled with their own colour, like the one of a session that is asleep, and not dark grey with an edge.
 - The block under the message box that says what sending does follows Settings > Chat > Surfaces: it stayed glass when Flat was chosen.
 - The note that the folder's branch will change when the message is sent is now a step of the block under the message box that says what sending does, with an icon and a title, and not a line under the sentence.
 - Settings now follows the Text size: the titles, details, notes and fields of every page grew and shrank only for the parts that set a size by hand, and now all of them do.

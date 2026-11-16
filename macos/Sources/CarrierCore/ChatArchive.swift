@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Observation
 
 // The Archive page (docs/specs/sessions-in-the-app.md, "Archive"): what it lists and says as plain values, the menu of a session row,
@@ -167,6 +168,12 @@ public enum SessionRemovalKind: Sendable {
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private let preferences: AppPreferences
     @ObservationIgnored public var changed: () -> Void = {}
+    /// Said when `archiving` changes, for the lists to be drawn again.
+    @ObservationIgnored public var archivingChanged: () -> Void = {}
+    /// The sessions the person archived and that the host's list does not show archived yet: the lists draw them as archived at once, so the
+    /// row goes when it is asked and not when the host has ended its agent and the next read arrives.
+    @ObservationIgnored private let leaving = Mutex<Set<String>>([])
+    public var archiving: Set<String> { leaving.withLock { $0 } }
     @ObservationIgnored public var confirmSessionRemoval: @MainActor (SessionRemovalKind, [String]) async -> Bool = { _, _ in true }
     @ObservationIgnored public var didRemoveSession: @MainActor (String) -> Void = { _ in }
 
@@ -181,12 +188,28 @@ public enum SessionRemovalKind: Sendable {
 
     public func archive(_ id: String) async -> String? {
         guard await confirmSessionRemoval(.archive, [id]) else { return nil }
+        leaving.withLock { _ = $0.insert(id) }
+        archivingChanged()
         let refusal = await run("archive", id) { try await $0.archive(id, true) }
-        if refusal == nil { await didRemoveSession(id) }
+        if refusal == nil {
+            await didRemoveSession(id)
+        } else {
+            // the host did not archive it: the row comes back, and the words tell why
+            leaving.withLock { _ = $0.remove(id) }
+            archivingChanged()
+        }
         return refusal
     }
 
-    public func restore(_ id: String) async -> String? { await run("restore", id) { try await $0.archive(id, false) } }
+    public func restore(_ id: String) async -> String? {
+        leaving.withLock { _ = $0.remove(id) }
+        return await run("restore", id) { try await $0.archive(id, false) }
+    }
+
+    /// Forgets the sessions the host's list has caught up with: the ones it lists archived, and the ones it no longer lists.
+    public func settle(_ rows: [SessionRow]) {
+        leaving.withLock { ids in ids = ids.filter { id in rows.first { $0.id == id }.map { $0.archived == false } ?? false } }
+    }
 
     public func delete(_ id: String) async -> String? {
         guard await confirmSessionRemoval(.delete, [id]) else { return nil }

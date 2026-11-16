@@ -56,6 +56,10 @@ import SwiftUI
         var viewing: String?
         if case .session(let id) = shell.selection { viewing = id }
         if seen.apply(to: &rows, viewing: viewing) { seen.store() }
+        // a session the person just archived is drawn archived before the host's list says so
+        actions.settle(hostRows)
+        let leaving = actions.archiving
+        for index in rows.indices where leaving.contains(rows[index].id) { rows[index].archived = true }
         if sessions.rows != rows { sessions.rows = rows }
     }
 
@@ -550,11 +554,19 @@ final class WindowController: NSObject, NSWindowDelegate {
                 DispatchQueue.main.async { if stop.isSet == false { model.adopt(rows) } }
             }
         )
-        DispatchQueue.main.async { model.actions.changed = { sessions.invalidateArchived() } }
+        // what changes the list is read at once: the wait is cut short, and the archived ones are read again
+        let nap = PollNap()
+        DispatchQueue.main.async {
+            model.actions.changed = {
+                sessions.invalidateArchived()
+                nap.wake()
+            }
+            model.actions.archivingChanged = { DispatchQueue.main.async { model.refreshUnread() } }
+        }
         Task.detached {
             repeat {
                 await sessions.poll()
-                try? await Task.sleep(for: .seconds(PollPace.shared.seconds))
+                await nap.sleep(seconds: PollPace.shared.seconds)
             } while stop.isSet == false
         }
     }

@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - An update whose restart was held up (the app did not close) no longer leaves the pill stuck on Restarting…: clicking it asks Carrier to quit again.
 - What you type in a session's message box and have not sent is kept when you go to another session, the terminal or another view, and is there when you come back.
+- A Claude turn that fails on a usage limit (the 5-hour session or the weekly one) or another API error now says why in the chat ("You've hit your session limit · resets 12:40pm"), no longer "The turn failed", and its footer names the model that ran, not `<synthetic>`.
 - The line of the agent's work in the chat no longer grows past the message width when a command or a summary is long: it fades out at the edge.
 
 ### Changed

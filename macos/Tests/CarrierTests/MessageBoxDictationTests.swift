@@ -199,3 +199,59 @@ private let boxField = DictationField(owner: "box", text: { "" }, caret: { 0 }, 
     try? await Task.sleep(for: .milliseconds(30))
     #expect(dictation.session.state == .idle && capture.startCount == 1)
 }
+
+/// The box in a window, so the shortcut's request (`dictateRequest`) reaches it as the conversation passes it on.
+@MainActor private final class ShortcutBox {
+    let dictation: DictationController
+    /// Whether the box was asked to take the caret; the text view may give it back at once, since this window is not the key one.
+    private(set) var focused = false
+    private let host = NSHostingView(rootView: AnyView(EmptyView()))
+    private let window: NSWindow
+
+    init(dictation: DictationController) {
+        _ = NSApplication.shared
+        self.dictation = dictation
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 300), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        show(request: 0)
+    }
+
+    func show(request: Int) {
+        host.rootView = AnyView(
+            MessageBox(
+                text: .constant(""), placeholder: "", canSend: false, canSendWithText: true,
+                focus: Binding(get: { false }, set: { if $0 { self.focused = true } }),
+                dictationOwner: "box", dictation: dictation, dictateRequest: request, send: {}
+            ) { Text("Claude Code") }.frame(width: 600))
+        host.frame = NSRect(x: 0, y: 0, width: 600, height: 300)
+        host.layoutSubtreeIfNeeded()
+    }
+}
+
+@MainActor @Test func theShortcutFocusesTheBoxAndStartsItsDictationAndTheShortcutAgainEndsIt() async {
+    let registry = RecognizerRegistry()
+    registry.register(ScriptedRecognizer(atAudioEnd: [.final("")]))
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    let box = ShortcutBox(dictation: dictation)
+    func until(_ condition: () -> Bool) async { for _ in 0..<2000 where condition() == false { try? await Task.sleep(for: .milliseconds(1)) } }
+    #expect(dictation.session.state == .idle && box.focused == false)
+    box.show(request: 1)
+    await until { dictation.session.state == .listening }
+    #expect(dictation.session.owner == "box" && dictation.session.state == .listening && box.focused)
+    box.show(request: 2)
+    await until { dictation.session.state == .idle }
+    #expect(dictation.session.state == .idle)
+}
+
+@MainActor @Test func theShortcutDoesNothingInABoxWhileDictationIsOff() async {
+    let registry = RecognizerRegistry()
+    registry.register(ScriptedRecognizer(atAudioEnd: [.final("")]))
+    let defaults = UserDefaults(suiteName: "route-\(UUID().uuidString)")!
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture(), preferences: AppPreferences(defaults: defaults))
+    dictation.setEnabled(false)
+    let box = ShortcutBox(dictation: dictation)
+    box.show(request: 1)
+    try? await Task.sleep(for: .milliseconds(100))
+    #expect(dictation.session.state == .idle)
+}

@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - When a dictation cannot be pasted (no text field has the cursor, the field is secure, or Accessibility is off), the text stays in the widget, complete and scrollable, and on the clipboard, with Copy, Dismiss and, for Accessibility, Open System Settings; the first time you turn on Dictate in any app the page explains what Accessibility is for before macOS asks.
 - Settings › Dictation › Sounds: the global dictation plays a start sound when it begins to listen and an end sound when you stop it, each on or off and chosen among three of macOS's sounds, at one volume (60 by default); Esc plays no end sound.
 - Settings › Dictation › Cleanup: choose LM Studio or Ollama running on this Mac, one of its models and a prompt (it starts by removing filler words and fixing punctuation in the language you spoke), and try it with Test with a sample. It is off until a server and a model are chosen, and it does not change what a dictation pastes yet.
+- Dictate in any app: with Carrier in front on a session, ⌥⇧ Space focuses the message box and dictates into it, with no widget, and the same keys end it; in Settings or an epic it opens the widget as everywhere else.
 
 ## [0.7.0] - 2026-11-16
 

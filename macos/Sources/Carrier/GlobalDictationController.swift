@@ -52,6 +52,8 @@ import CarrierCore
 
     private func shortcutPressed() {
         guard asking == false else { return }
+        // a session in front dictates in its own message box, and the shortcut again ends it; the widget in use is ended wherever the person is
+        if machine.state == .idle, dictationRoute(for: WindowController.shared.dictationFront) == .messageBox { return WindowController.shared.dictateInMessageBox() }
         guard machine.state == .idle, dictation.microphoneStatus() == .notAsked else { return machine.handle(.down) }
         asking = true
         Task {

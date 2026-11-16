@@ -99,8 +99,6 @@ The words are tested; the Finder and pasteboard calls not.
 
 What the person sees: [usage](../docs/macos/usage.md).
 
-The store holds `snapshot`, `isLoading`, `isRefreshing`, `error`, the filters (`metric`, `days`, `providerFilter`, `sourceFilter`, `searchText`) and `expandedProviders`.
-
 ## Dictation
 
 What the person sees: [dictation](../docs/macos/dictation.md).
@@ -114,6 +112,7 @@ The page is `Carrier/DictationTab.swift`, a list of one view per group (a new gr
 See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, real session, scripted recognizer).
 `CarrierCore/PasteDecision.swift` (`pasteDecision`, `PasteDecisionTests`) picks paste or copy from `Carrier/FocusedField.swift`, which reads the focus (untested).
 `Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); keys, panel and real ⌘V untested.
+Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest` (`MessageBoxDictationTests`).
 Sounds: `CarrierCore/DictationSounds.swift` (`dictationSound(for:_:)`, `DictationSoundsTests`); `SoundsGroup` and `DictationSoundPlayer` untested.
 
 ### Cleanup

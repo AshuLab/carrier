@@ -36,7 +36,9 @@ The first time the person turns on Dictate in any app (`dictation.accessibilityE
 The terminals and the web inputs of apps that build their accessibility tree only for assistive technology may read as no field, so a dictation there is copied: whether to paste anyway is for the owner to decide after trying them.
 `GlobalDictationController` (`Carrier/GlobalDictationController.swift`) joins the machine of `CarrierCore/GlobalDictation.swift` to the hot key, the widget and the paste, and registers the shortcut only while the Dictation page's Dictate in any app and Dictation switches are both on.
 The widget runs on the one `DictationSession` of the message boxes, so a dictation in a box and one in the widget never run together: the shortcut stops the box's.
-The shortcut is fixed for now (the recorder and Hold are later slices), and in Carrier itself it opens the widget too.
+The shortcut is fixed for now (the recorder and Hold are later slices).
+With Carrier in front on a session, the shortcut does not open the widget: it focuses that session's message box and dictates into it as the microphone button does (the partial text and the listening line), and the shortcut again ends it, with the text kept in the box. In Settings, an epic or any other view of Carrier, and in any other app, it opens the widget, which pastes into Carrier's focused field if there is one.
+The rule is `dictationFront` and `dictationRoute(for:)` in `CarrierCore/DictationRoute.swift`: Carrier's main window, or the Settings sheet over it, must be the key window, Settings over a session counts as Settings, and an archived session, which has no message box, uses the widget. A dictation that the widget already runs is ended by the shortcut wherever the person is. With the Dictation switch off, or Dictate in any app, the shortcut is not registered, so nothing happens in Carrier either.
 
 ## Sounds
 

@@ -2,7 +2,8 @@ import Charts
 import CarrierCore
 import SwiftUI
 
-/// The Statistics segment of the Dictation page: the range, four figures, a chart by day, and the settings (typing speed, Reset statistics).
+/// The Statistics segment of the Dictation page: the range, four figures, a chart by day, the hours of the day, the week against the one before, the
+/// records, and the settings (typing speed, Reset statistics).
 struct StatisticsGroup: View {
     var dictation = DictationController.shared
     @AppStorage(AppPreferences.dictationTypingSpeedKey) private var wpm = AppPreferences.defaultDictationTypingSpeed
@@ -35,6 +36,11 @@ struct StatisticsGroup: View {
                     SegmentedChoice(options: StatisticsMetric.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $metric)
                 }
                 SettingsTabCard { StatisticsChart(days: figures.days, metric: metric).padding(.horizontal, 14).padding(.vertical, 10) }
+                HStack(alignment: .top, spacing: 12) {
+                    hoursCard(dictationHours(records.counts, range: range, now: Date()))
+                    weekCard(dictationFigures(records.counts, range: .week, now: Date()), wpm: speed)
+                }
+                recordsCard(statisticsRecords(records.counts))
                 Text("The statistics are their own counters: they hold no text, and turning the history off or deleting entries does not change them.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -56,13 +62,68 @@ struct StatisticsGroup: View {
             StatisticsCard(title: "Words", value: now.words.formatted(), line: statisticsChange(Double(now.words), from: before.map { Double($0.words) }))
             StatisticsCard(title: "Speaking time", value: statisticsDuration(now.seconds), line: statisticsChange(now.seconds, from: before?.seconds))
             StatisticsCard(
-                title: "Time saved", value: statisticsDuration(durationSeconds(now.saved(wpm: wpm))),
-                line: statisticsChange(durationSeconds(now.saved(wpm: wpm)), from: before.map { durationSeconds($0.saved(wpm: wpm)) }), highlighted: true)
+                title: "Time saved", value: statisticsDuration(now.saved(wpm: wpm).inSeconds),
+                line: statisticsChange(now.saved(wpm: wpm).inSeconds, from: before.map { $0.saved(wpm: wpm).inSeconds }), highlighted: true)
         }
     }
 
-    private func durationSeconds(_ duration: Duration) -> Double {
-        Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
+    private func hoursCard(_ hours: DictationHours) -> some View {
+        let most = max(hours.dictations.max() ?? 0, 1)
+        let line = statisticsHoursLine(hours)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("By hour of the day").sectionLabel().padding(.leading, 14)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 2) {
+                    ForEach(0..<24, id: \.self) { hour in
+                        RoundedRectangle(cornerRadius: 3).fill(Color.themeAccent.opacity(0.08 + 0.92 * Double(hours.dictations[hour]) / Double(most)))
+                            .frame(height: 34).help("\(String(format: "%02d", hour)):00 · \(hours.dictations[hour]) dictations")
+                    }
+                }
+                HStack(spacing: 0) {
+                    ForEach([0, 6, 12, 18], id: \.self) { hour in
+                        Text("\(hour)").frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .font(.caption2).foregroundStyle(.secondary)
+                Text(line).font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+            }
+            .padding(12).frame(maxWidth: .infinity, alignment: .leading).settingsCard()
+            .accessibilityElement(children: .ignore).accessibilityLabel("Dictations by hour of the day").accessibilityValue(line)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func weekCard(_ week: DictationFigures, wpm: Int) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("This week").sectionLabel().padding(.leading, 14)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(weeklySummary(week, wpm: wpm)).font(.callout).fixedSize(horizontal: false, vertical: true)
+                WeekChart(days: week.days)
+            }
+            .padding(12).frame(maxWidth: .infinity, alignment: .leading).settingsCard()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func recordsCard(_ records: StatisticsRecords) -> some View {
+        func on(_ day: Date?) -> String { day?.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) ?? "Nothing yet" }
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("Records").sectionLabel().padding(.leading, 14)
+            SettingsTabCard {
+                SettingsTabRow(title: "Most dictations in a day", detail: on(records.mostDictations?.day), first: true) {
+                    Text((records.mostDictations?.value ?? 0).formatted()).fontWeight(.semibold).monospacedDigit()
+                }
+                SettingsTabRow(title: "Most words in a day", detail: on(records.mostWords?.day)) {
+                    Text((records.mostWords?.value ?? 0).formatted()).fontWeight(.semibold).monospacedDigit()
+                }
+                SettingsTabRow(title: "Longest dictation", detail: on(records.longest?.day)) {
+                    Text(statisticsDuration(records.longest?.value ?? 0)).fontWeight(.semibold).monospacedDigit()
+                }
+                SettingsTabRow(title: "Longest streak", detail: "Days in a row with a dictation") {
+                    Text("\(records.streak) \(records.streak == 1 ? "day" : "days")").fontWeight(.semibold).monospacedDigit()
+                }
+            }
+        }
     }
 
     private var settings: some View {
@@ -122,5 +183,24 @@ private struct StatisticsChart: View {
         .chartXAxis { AxisMarks(values: .automatic(desiredCount: 6)) { _ in AxisValueLabel(format: .dateTime.month(.abbreviated).day()) } }
         .frame(height: 150)
         .accessibilityLabel("\(metric.title) per day")
+    }
+}
+
+/// A small bar a day for the last 7 days, the busiest day in the full accent.
+private struct WeekChart: View {
+    let days: [StatisticsDay]
+
+    var body: some View {
+        let busiest = busiestDay(days)?.day
+        Chart(days) { day in
+            BarMark(x: .value("Day", day.day, unit: .day), y: .value("Words", day.words))
+                .foregroundStyle(Color.themeAccent.opacity(day.day == busiest ? 1 : 0.6))
+                .accessibilityLabel(day.day.formatted(.dateTime.weekday(.wide).month().day()))
+                .accessibilityValue("\(day.words) words")
+        }
+        .chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.narrow)) } }
+        .chartYAxis(.hidden)
+        .frame(height: 70)
+        .accessibilityLabel("Words per day, last 7 days")
     }
 }

@@ -78,8 +78,13 @@ Under `--fixture` and in the tests the counters are in a temporary folder.
 
 The segment starts with a range, 7 days, 30 days (the one it opens on), 90 days or All time, over four cards: Dictations, Words, Speaking time and Time saved, each with the change against the period just before it ("▲ 12% vs previous", nothing for All time, which has no period before it, or when the period before had none).
 Under them is a chart of words or dictations by day, with the busiest day in the full accent.
+Then two cards side by side.
+By hour of the day is a strip of 24 cells, one per hour, as strong as the dictations in that hour of the days of the chosen range, with a line that says the hour the person dictates most ("You dictate most around 15:00."; the earliest on a tie; "Nothing dictated in this range yet." with none).
+This week always compares the last 7 days (today included) with the 7 before, whatever the range: a sentence with the words, the dictations, the change in percent of the words, the busiest day and the time saved, and a small chart of words by day with the busiest in the full accent.
+It says what it can: a previous week with no words says there is nothing to compare with instead of a percent, a week with no dictations says so (and what the week before had), and a time saved of zero is left out.
+Records, over all the counters and not the range, has the most dictations in a day, the most words in a day, the longest dictation and the longest streak of days in a row with a dictation; on a tie a record keeps the earliest day, which is when it was reached, and a day with no dictation ends a streak.
 With no counters (nothing dictated yet, or after Reset) it says No statistics yet and what it needs: a dictation that ends with the text pasted or copied.
-The figures are pure functions of the counters (`dictationFigures`, `statisticsChange` and `statisticsDuration` in `CarrierCore/DictationStatistics.swift`, tested in `DictationStatisticsTests`).
+The figures are pure functions of the counters (`dictationFigures`, `dictationHours`, `weeklySummary`, `statisticsRecords`, `statisticsChange` and `statisticsDuration` in `CarrierCore/DictationStatistics.swift`, tested in `DictationStatisticsTests`).
 The time saved is `timeSaved(words:speaking:wpm:)` as the [spec](../specs/global-dictation.md) writes it: the words over the typing speed, minus the time spent speaking, never negative.
 
 At the bottom, Statistics settings has the Typing speed (`dictation.statistics.wpm`, 40 words a minute by default, from 10 to 200, put back by `reset(.dictation)`) and Reset statistics, which asks first, deletes the counters and leaves the history as it is.

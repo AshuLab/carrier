@@ -9,43 +9,42 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 ## Tests
 
-The gated tests of Apple's recognizer (`AppleRecognizerTests`, with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`) and of FluidAudio's models (`FluidAudioRecognizerTests`, one run per entry: the Spanish clip, or an English one made with `say` (`hello-en.wav`) for the English-only models, gives text, and partial text first for the native ones, twice in a row with the same loaded model; no speech gives an empty final; a Parakeet folder with a file removed fails with its cause and is not downloaded again) run only with `CARRIER_IT_DICTATION` set; for FluidAudio it names a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`); Whisper's (`WhisperKitRecognizerTests`, in the same folder under `<folder>/whisper/<model>/models/...`) give text from the Spanish clip for each of the four models and an empty final for no speech, and a copy of the tiny folder with a model file or the tokenizer removed fails with its cause and fetches nothing.
-The embedded-terminal live shell integration test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection` in `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell process in an offscreen `NSWindow` and runs only when `CARRIER_IT_TERMINAL=1` is set.
+The gated tests of the recognizers (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`; clips `hola-es.wav` and `hello-en.wav` in `Tests/CarrierTests/Resources`: text, an empty final for no speech, and a folder missing a file fails with its cause and downloads nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models ([layout](../docs/macos/dictation.md#speech-models)).
+The live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
 
 ## Starting Carrier and the chat host
 
 What the person sees: [lifecycle](../docs/macos/lifecycle.md).
 
-The decision and the command line are in `CarrierCore/StartCarrier.swift`; the spawn and the alert have no automated test.
-The decision, the command line and the notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert, and neither the wiring nor the views have an automated test.
-The rule is tested; the replacement itself is not.
-The sequence is tested against a scripted engine on a real socket (`EngineReplacementTests`).
+The decision and command line are in `CarrierCore/StartCarrier.swift` (spawn and alert untested).
+The decision, command line and notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert (wiring, views untested).
+The sequence is tested on a real socket against a scripted engine (`EngineReplacementTests`).
 
 ## Dev build and release build
 
 `build-app.sh` with no version makes the dev build, with a version the release build; the differences are in [CONTRIBUTING](../CONTRIBUTING.md#developing-against-a-throwaway-folder).
 The plist says which it is: `CarrierChannel` is `dev` or `release`, and `isDevBuild` (`Carrier/AppDelegate.swift`) reads it for the Dock badge and the toolbar mark in `PanelView`.
 A dev build has no `SUFeedURL`, and `AppUpdater.start` does not start the updater without one.
-`scripts/check-app.sh` asserts id, channel and the missing feed for both; a new difference between the two goes into `build-app.sh` and into that script.
+`scripts/check-app.sh` asserts id, channel and missing feed for both; a new difference between the two goes into `build-app.sh` and into that script.
 
 ## Epics
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#resume-card).
 
-The words and the request are tested; the sheet, the "Resuming…" state and the layout have no automated test.
+The words and the request are tested; the sheet, the "Resuming…" state and the layout are not.
 
 ### The epic's Agent output
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#slices-and-findings-in-an-epics-log).
 
-The rows, the words and the marks are two pure functions, `sliceCard(lane:)` in `CarrierCore/SliceCard.swift` (`SliceCardTests`) and `findingsCard(_:stage:round:)` in `CarrierCore/FindingsCard.swift` (`FindingsCardTests`, which also reads the golden epic reply); the views (`SliceCardView`, `FindingsCardView`) are checked only for their heights (`LaneHeaderTests`).
-The session row's words are `sessionRowText` and `RoleIdentities` (`SessionRowTests`), and the epic's events become the chat's calls in `flowItems` (`EpicTranscriptAdapterTests`).
+The rows, words and marks are two pure functions, `sliceCard(lane:)` in `CarrierCore/SliceCard.swift` (`SliceCardTests`) and `findingsCard(_:stage:round:)` in `CarrierCore/FindingsCard.swift` (`FindingsCardTests`, which also reads the golden epic reply); the views are checked only for their heights (`LaneHeaderTests`).
+The session row's words are `sessionRowText` and `RoleIdentities` (`SessionRowTests`); the epic's events become the chat's calls in `flowItems` (`EpicTranscriptAdapterTests`).
 
 ## File icons
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#file-icons).
 
-The SVGs and the upstream licence text are in `Sources/CarrierCore/Resources/FileIcons` (about 12 KB; release pinned in `SOURCE.txt`, notice in `THIRD-PARTY-NOTICES.md`, line in About).
+The SVGs and the upstream licence text are in `Sources/CarrierCore/Resources/FileIcons` (release pinned in `SOURCE.txt`, notice in `THIRD-PARTY-NOTICES.md`, line in About).
 `build-app.sh` copies SwiftPM's `Carrier_CarrierCore.bundle` into `Contents/Resources` and fails when an icon or the licence text is missing from it.
 
 ## Settings
@@ -54,70 +53,82 @@ The SVGs and the upstream licence text are in `Sources/CarrierCore/Resources/Fil
 
 What the person sees: [settings-app](../docs/macos/settings-app.md#providers).
 
-The rows are one pure function, `providersPage(_:config:chat:)` in `CarrierCore/ProvidersPage.swift`, tested in `ProvidersPageTests`; the view has no automated test.
+The rows are one pure function, `providersPage(_:config:chat:)` (`CarrierCore/ProvidersPage.swift`, `ProvidersPageTests`); the view is untested.
 
-#### Sign in and Update
-
-The buttons have no automated test.
-
-#### `providers.json`
-
-Tested in `ProvidersFileTests` and `FixtureServerTests`.
-
-#### Account editor
-
-The views have no automated test.
+The Sign in and Update buttons and the account editor are untested; `providers.json` is tested in `ProvidersFileTests` and `FixtureServerTests`.
 
 ### Sessions page
 
 What the person sees: [settings](../docs/macos/settings.md#sessions-page).
 
-The functions are tested in `SessionAgesTests`; the view has no automated test.
+The functions are tested in `SessionAgesTests`; the view is untested.
 
 ### Health tab
 
 What the person sees: [settings-legacy](../docs/macos/settings-legacy.md#health-tab).
 
-The rows are one pure function, `healthSections(host:facts:)` in `CarrierCore/HealthRows.swift`, tested in `HealthRowsTests`; the view has no automated test.
-The decoding, the outcomes, the command, the store and the rows are tested (`DoctorChecksTests`, `HealthRowsTests`); the process runner and the view have no automated test.
+The rows are one pure function, `healthSections(host:facts:)` (`CarrierCore/HealthRows.swift`, `HealthRowsTests`); the view is untested.
+The decoding, outcomes, command and store are tested (`DoctorChecksTests`), not the process runner.
 
 ## New session
 
 What the person sees: [new session](../docs/macos/new-session.md).
 
 The logic is `NewSessionModel` (`showRepos`, `loadRepos`, `repoRows`, `choose(repo:)`) and `githubRepoRows`, tested with a fake host in `NewSessionTests`.
-The rule, the host client's decoding and the draft are tested (`HealthTests`, `ChatHostTests`, `NewSessionTests`); the wiring in `AppDelegate` has no automated test.
-The list, the script and the opener are tested in `HealthFixTests` (a replaceable opener, like `ContinueInTerminalTests`, and hostile values that run nothing); the button has no automated test.
-The logic is `CarrierCore/WorktreeChoice.swift` (pure values over the `workspace` reply, tested against the golden files in `WorktreeChoiceTests`) and `NewSessionModel` (tested with a fake host).
+The rule, the host client's decoding and the draft are tested (`HealthTests`, `ChatHostTests`, `NewSessionTests`); the `AppDelegate` wiring is not.
+The list, the script and the opener are tested in `HealthFixTests` (replaceable opener, hostile values that run nothing); the button is untested.
+The logic is `CarrierCore/WorktreeChoice.swift` (pure values over the `workspace` reply, tested on golden files in `WorktreeChoiceTests`) and `NewSessionModel` (tested with a fake host).
 
 ## Conversation
 
 What the person sees: [sessions](../docs/macos/sessions.md#conversation).
 
-The words are tested; the Finder and pasteboard calls are not.
+The words are tested; the Finder and pasteboard calls not.
 
 ## Usage
 
 What the person sees: [usage](../docs/macos/usage.md).
 
-The store holds `snapshot`, `isLoading`, `isRefreshing`, `error`, the filters (`metric`, `days`, `providerFilter`, `sourceFilter`, `searchText`) and `expandedProviders`.
-
 ## Dictation
 
 What the person sees: [dictation](../docs/macos/dictation.md).
 
-The logic is `CarrierCore/Dictation.swift` (the boundary and the registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the scripted recognizer and capture of `ScriptedDictation.swift`.
-`DictationController` holds the switch so both boxes read it.
+The logic is `CarrierCore/Dictation.swift` (boundary and registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the recognizer and capture of `ScriptedDictation.swift`.
+`DictationController` holds the switch both boxes read.
+The page is `Carrier/DictationTab.swift`, one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`, one per line; the views are untested (rules: `SettingsPageTests`, `DictationSettingsTests`).
+
+### Global dictation
+
+See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, scripted recognizer; Hold is `.up`).
+Shortcut and activation: `CarrierCore/DictationShortcut.swift` (`recordShortcut`, `DictationShortcutTests`) and the recorder row in `GlobalDictationGroup`, untested.
+`CarrierCore/PasteDecision.swift` (`pasteDecision`, `PasteDecisionTests`) picks paste or copy from `Carrier/FocusedField.swift`, which reads the focus (untested).
+`Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); the rest untested.
+Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest` (`MessageBoxDictationTests`).
+Sounds: `CarrierCore/DictationSounds.swift` (`DictationSoundsTests`); `SoundsGroup` and `DictationSoundPlayer` untested.
+Widget look, place, text fit: `CarrierCore/DictationWidgetLook.swift` (`DictationPresentationTests`); glass and line in `DictationWidget`, untested.
+
+### History
+
+See [dictation](../docs/macos/dictation.md#history). `CarrierCore/DictationRecords.swift` (`DictationRecordsTests`, temp folder), fed by `DictationSession.take`; `HistoryGroup` untested.
+Audio: `DictationRecords` (fake clock), `DictationAudio.swift`; `AudioPlayerView` untested.
+
+### Statistics
+
+See [dictation](../docs/macos/dictation.md#statistics). Counters: `DictationRecords`; figures, hours, week and records: `DictationStatistics.swift` (`DictationStatisticsTests`); `StatisticsGroup` untested.
+
+### Cleanup
+
+`CarrierCore/DictationCleanup.swift` (the `TextModelClient` port, `CleanupRun`; `CleanupRunTests`, scripted client) and `LocalModelClient.swift` (`LocalModelClientTests`, stub socket); the group is `Carrier/CleanupController.swift` and `CleanupGroup.swift`, untested.
+In the boxes and the widget: the `.cleaning` state of `DictationSession` (`start(cleanup:)` from `DictationController.cleanup()`; `DictationSessionTests`, `GlobalDictationTests`).
 
 ## Embedded terminal
 
 What the person sees: [terminal](../docs/macos/terminal.md).
 
-Pure domain rules (`TerminalCore.swift`, `TerminalSplitTree.swift`, `TerminalPersistence.swift`, `TerminalSettings.swift`, `TerminalZshBottomPromptShim.swift`) live in `CarrierCore` and are tested in `TerminalCoreTests` and `TerminalZshBottomPromptShimTests`.
-Validated Continue in Terminal launch construction (`EmbeddedResumeLaunch`, `embeddedResumeLaunch`) lives in `CarrierCore/ContinueInTerminal.swift` and is tested in `ContinueInTerminalTests`.
-The AppKit runtime (`Carrier/TerminalHost.swift`, `Carrier/TerminalAppearance.swift`, `Carrier/TerminalProcessInspector.swift`, `Carrier/TerminalConfirmationCopy.swift`, `Carrier/CarrierTerminalView.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear, and close confirmation.
-The live login-shell smoke test is gated behind `CARRIER_IT_TERMINAL`, while store, shim, and close-confirmation behavior run unconditionally in `CarrierTerminalStoreTests`.
-Sidebar, overview, workspace, tab bar, settings page, menu bar (`TerminalMenuControls`), middle-click close, and epic/session drawer UI live across `TerminalSidebarView.swift`, `TerminalsHomeView.swift`, `TerminalWorkspaceView.swift`, `TerminalTabBarView.swift`, `TerminalTabView.swift`, `MainMenu.swift`, `MiddleClickModifier.swift`, `ContinueInTerminalView.swift`, `SessionSectionsView.swift`, `EpicView.swift`, and `PanelView.swift`.
-Window selection and drawer state live in `CarrierCore/WindowShell.swift`, tested alongside layout, settings, shortcuts, and middle-click in `TerminalWorkspaceLayoutTests`, `SettingsPageTests`, `MainMenuShortcutsTests`, `MiddleClickModifierTests`, and `WindowShellTests`.
-Session deletion cleanup and process-activity termination guards connect through `CarrierCore/ChatArchive.swift`, `CarrierCore/ChatSessions.swift`, `Carrier/WindowController.swift`, and `Carrier/AppDelegate.swift` (tested on the poller/store side, with no UI test for the view wiring).
-`libghostty-spm` (`GhosttyTerminal`) is linked by the `Carrier` target only, and `build-app.sh` / `scripts/check-app.sh` bundle and verify `GhosttyKit_GhosttyTerminal.bundle` and `THIRD-PARTY-NOTICES.md` (`ThirdPartyNoticesTests`).
+Pure rules (`TerminalCore.swift`, `TerminalSplitTree.swift`, `TerminalPersistence.swift`, `TerminalSettings.swift`, `TerminalZshBottomPromptShim.swift`) live in `CarrierCore` (`TerminalCoreTests`, `TerminalZshBottomPromptShimTests`).
+Continue in Terminal launch construction (`EmbeddedResumeLaunch`, `embeddedResumeLaunch`) is in `CarrierCore/ContinueInTerminal.swift` (`ContinueInTerminalTests`).
+The AppKit runtime (`Carrier/TerminalHost.swift`, `Carrier/TerminalAppearance.swift`, `Carrier/TerminalProcessInspector.swift`, `Carrier/TerminalConfirmationCopy.swift`, `Carrier/CarrierTerminalView.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation.
+The sidebar, overview, workspace, tab bar, settings page, menu bar, middle-click close and drawer views are the `Terminal*View.swift` files, `MainMenu.swift`, `MiddleClickModifier.swift`, `ContinueInTerminalView.swift`, `SessionSectionsView.swift`, `EpicView.swift` and `PanelView.swift`.
+Window selection and drawer state live in `CarrierCore/WindowShell.swift`, tested with layout, settings, shortcuts and middle-click in `TerminalWorkspaceLayoutTests`, `SettingsPageTests`, `MainMenuShortcutsTests`, `MiddleClickModifierTests` and `WindowShellTests`.
+Session deletion cleanup and process-activity guards connect through `CarrierCore/ChatArchive.swift`, `CarrierCore/ChatSessions.swift`, `Carrier/WindowController.swift` and `Carrier/AppDelegate.swift` (poller and store tested, view wiring not).
+`libghostty-spm` (`GhosttyTerminal`) is linked by the `Carrier` target only; `build-app.sh` and `scripts/check-app.sh` bundle and verify `GhosttyKit_GhosttyTerminal.bundle` and `THIRD-PARTY-NOTICES.md` (`ThirdPartyNoticesTests`).

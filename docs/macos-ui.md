@@ -24,7 +24,7 @@ A Settings page is a header and groups of rows (`SettingsSheet.swift`, `Settings
 | `.sectionLabel()` | The type and colour of the small uppercase title (`caption2`, semibold, `secondary`, upper case by `textCase`), for a title that cannot be a `SettingsGroup` (a list's label, the owners of a picker). The caller adds the padding its place needs; write the text as a normal sentence, not in capitals. |
 | `SettingsDivider` | The line between two rows: 1 pt, `primary` at 7 %. `SettingsDivider(vertical: true)` is the line between two columns (Usage's four figures); give their `HStack` `.fixedSize(horizontal: false, vertical: true)` so the line takes the height of the tallest. |
 | `EmptyStateView` | Icon, title and one line, centred. For nothing to show: not installed, not running, no model. Give it `.frame(minHeight: 260)` inside a page, or the height of what it stands for inside a card (Usage's chart, 220, so the card does not jump). Its `action` is the way out (Clear filters), a `SecondaryCapsuleButtonStyle` capsule by default or an `AccentGlassPillButton` (`actionStyle: .accentGlass`) with `actionIcon` before its words. `LoadingStateView` is its twin while something loads. |
-| `SettingsPreview` | A sample of what the rows around it change, inside their group. |
+| `SettingsPreview` | A sample of what the rows around it change, inside their group (the terminal's, the time format's, Dictation's widget style). |
 
 Spacing: **14 between blocks, 4 inside a block** (a name and its version), 12 between a tile and its text. The close button of the sheet is an `IconButton` (`xmark`) at the top right of the header; there is no footer, and Esc closes.
 
@@ -132,6 +132,20 @@ A page that writes `config.json` or `providers.json` does not wait for Carrier: 
 - Titles `fontWeight(.medium)`, details `.scaled(11)` in `secondary`, a path or a command `.scaled(11, design: .monospaced)`. Use `Font.scaled` (`ScaledFont.swift`), not a fixed size, so the person's text size applies. The system's styles (`.caption`, `.callout`, `.body`, `.title3`) do not follow it: use `.scaled(11)` for a detail, `.scaled(12)`, `.scaled(13)` and `.scaled(15)` for the others (`.scaled(10)` is for an uppercase label or a pill).
 - Do not put copy-on-hover (`copyOnHover`) on text that says nothing to copy ("Not checked yet", "Checking…"); keep it on a path, a reason and a fix.
 - Texts are English, short, and say what the control does, not how it works.
+
+## The dictation widget
+
+The widget of the global dictation (`DictationWidget.swift`) is a floating panel, not a view of the window; [dictation](macos/dictation.md#the-widget-style-and-position) says what it shows.
+
+- **A box has one height per style** (2, 3 and 4 lines at 340, 420 and 540 pt, text at 12, 14 and 17 pt through `Font.scaled`), so it never jumps while the text grows: the text scrolls inside it. The Pill is a 76 by 38 capsule with an icon and no text.
+- **It wears `WidgetSurface`** (`.chatSurface` tinted with the accent, never its own fill) and is drawn once by `WidgetBox` and `PillIcon`, which the Preview in Settings uses too. The tint is the accent at 12 % in light and the accent mixed 60 % into black at 55 % in dark, so the text reads over a white window; these are first numbers, to be checked by hand over a white and a dark window in light and dark appearance and then written here as the ones that hold.
+- **The listening line is `DictationIndicator`, reused with the look's `radius`**, only while it listens; the panel is `DictationWidget.glow` points larger than the box on every side so the line is not cut. A box fades its first line once the text is longer than its lines (`dictationTextFit`).
+- **What it draws is `dictationWidgetLook`**, never a check on the state in the view. A state that needs text or a button opens the Pill as the Small box.
+- **A reason sits over the text, not inside what scrolls** (`WidgetBox(notices:)`): a text that was only copied has three more lines than its style for it, and its scroll bar shows.
+- **Its buttons are `SecondaryCapsuleButtonStyle` with a `Label`** and keep only their symbols (`ViewThatFits`) when the box is too narrow for the words.
+- **A failure has no clock and no finish key**, only "Esc to dismiss".
+- **The panel is key only while it holds a copied text and its buttons** (`WidgetPanel.keyable`); in every other state it never takes the keyboard from the app in front.
+- **The Preview shrinks to the width it is given** (`scaleEffect`), so Large never overflows a card.
 
 ## Mistakes seen
 

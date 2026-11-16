@@ -40,9 +40,26 @@ public func languageChoices(for model: SpeechModel, macOSLanguages: [String], sa
 }
 
 /// The rows of the Dictation page that the switch affects.
-public enum DictationRow: Equatable, Sendable { case enabledSwitch, speechModel, language, microphone, modelsTable, storage, reset }
+public enum DictationRow: Equatable, Sendable {
+    case enabledSwitch
+    case speechModel
+    case language
+    case microphone
+    case modelsTable
+    case storage
+    case reset
+    case globalSwitch
+    case cleanup
+    case sounds
+}
 
 /// Whether a row takes clicks and is drawn in full: with Dictation off only the switch, Storage (so the disk can be freed) and Reset do.
 public func dictationRowIsLive(_ row: DictationRow, enabled: Bool) -> Bool {
     enabled || row == .enabledSwitch || row == .storage || row == .reset
 }
+
+/// Whether the global shortcut is registered: only while Dictate in any app and the Dictation switch are both on, so the Dictation switch off turns the global dictation off too.
+public func globalDictationIsOn(dictation: Bool, global: Bool) -> Bool { dictation && global }
+
+/// Whether turning on Dictate in any app first explains what Accessibility is for: the first time only, and never when the permission is already there.
+public func shouldExplainAccessibility(explained: Bool, trusted: Bool) -> Bool { explained == false && trusted == false }

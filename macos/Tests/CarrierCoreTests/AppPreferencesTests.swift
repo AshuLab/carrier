@@ -464,6 +464,43 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(relaunched.dictationLanguage == automaticLanguage)
 }
 
+@Test func cleanupStartsOffWithTheDefaultPromptAndSurvivesARelaunch() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationCleanupEnabled == false && store.dictationCleanupServer == nil && store.dictationCleanupModel == nil)
+    #expect(store.dictationCleanupPrompt == defaultCleanupPrompt)
+    store.dictationCleanupServer = .ollama
+    store.dictationCleanupModel = "llama3.2:3b"
+    store.dictationCleanupEnabled = true
+    store.dictationCleanupPrompt = "Translate to English"
+    let relaunched = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(relaunched.dictationCleanupEnabled && relaunched.dictationCleanupServer == .ollama && relaunched.dictationCleanupModel == "llama3.2:3b")
+    #expect(relaunched.dictationCleanupPrompt == "Translate to English")
+}
+
+@Test func cleanupCannotBeOnWithoutAServerAndAModel() {
+    let store = AppPreferences(defaults: dictationDefaults().defaults)
+    store.dictationCleanupEnabled = true
+    #expect(store.dictationCleanupEnabled == false)
+    store.dictationCleanupServer = .lmStudio
+    #expect(store.dictationCleanupEnabled == false)
+    store.dictationCleanupModel = "qwen"
+    #expect(store.dictationCleanupEnabled)
+    store.dictationCleanupModel = nil
+    #expect(store.dictationCleanupEnabled == false)
+}
+
+@Test func resettingDictationPutsCleanupBackToOffWithTheDefaultPrompt() {
+    let store = AppPreferences(defaults: dictationDefaults().defaults)
+    store.dictationCleanupServer = .lmStudio
+    store.dictationCleanupModel = "qwen"
+    store.dictationCleanupEnabled = true
+    store.dictationCleanupPrompt = ""
+    store.reset(.dictation)
+    #expect(store.dictationCleanupEnabled == false && store.dictationCleanupServer == nil && store.dictationCleanupModel == nil)
+    #expect(store.dictationCleanupPrompt == defaultCleanupPrompt)
+}
+
 @Test func anUnknownSavedSpeechModelFallsBackToApples() {
     let apple = speechModel("apple.speech-analyzer", .apple)
     let parakeet = speechModel("fluidaudio.parakeet-tdt-v3", .fluidAudio)
@@ -490,6 +527,81 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(store.dictationModelID == nil && store.dictationLanguage == nil)
     #expect(store.sendKey == .commandReturn)
     #expect(try Data(contentsOf: weights) == Data("weights".utf8))
+}
+
+@Test func dictatingInAnyAppIsOnByDefaultSurvivesARelaunchAndResetsWithDictation() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationGlobal && AppPreferences.dictationGlobalKey == "dictation.global")
+    store.dictationGlobal = false
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).dictationGlobal == false)
+    store.reset(.notifications)
+    #expect(store.dictationGlobal == false)
+    store.reset(.dictation)
+    #expect(store.dictationGlobal)
+}
+
+@Test func theAccessibilityExplanationIsRememberedAndNotResetWithDictation() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationAccessibilityExplained == false && AppPreferences.dictationAccessibilityExplainedKey == "dictation.accessibilityExplained")
+    store.dictationAccessibilityExplained = true
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).dictationAccessibilityExplained)
+    store.reset(.dictation)
+    #expect(store.dictationAccessibilityExplained)
+}
+
+@Test func theDictationSoundsStartOnAtSixtySurviveARelaunchReadOnlyWhatIsOnOfferAndResetWithDictation() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationSounds == DictationSounds())
+    #expect(store.dictationSounds.startOn && store.dictationSounds.endOn && store.dictationSounds.volume == 60)
+    #expect(AppPreferences.dictationStartSoundOnKey == "dictation.sound.start.on" && AppPreferences.dictationStartSoundKey == "dictation.sound.start")
+    #expect(AppPreferences.dictationEndSoundOnKey == "dictation.sound.end.on" && AppPreferences.dictationEndSoundKey == "dictation.sound.end")
+    #expect(AppPreferences.dictationSoundVolumeKey == "dictation.sound.volume")
+    var sounds = DictationSounds()
+    (sounds.startOn, sounds.start, sounds.endOn, sounds.end, sounds.volume) = (false, "Glass", false, "Tink", 25)
+    store.dictationSounds = sounds
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).dictationSounds == sounds)
+    defaults.set("Basso", forKey: AppPreferences.dictationStartSoundKey)
+    defaults.set(500, forKey: AppPreferences.dictationSoundVolumeKey)
+    #expect(store.dictationSounds.start == DictationSounds.defaultStart && store.dictationSounds.volume == 100)
+    store.reset(.notifications)
+    #expect(store.dictationSounds.endOn == false)
+    store.reset(.dictation)
+    #expect(store.dictationSounds == DictationSounds())
+}
+
+@MainActor @Test func keepingTheTextIsOnByDefaultSurvivesARelaunchAndResetsWithDictationWithoutTouchingTheHistory() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationKeepText && AppPreferences.dictationKeepTextKey == "dictation.history.keepText")
+    store.dictationKeepText = false
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).dictationKeepText == false)
+    let folder = NSTemporaryDirectory() + "carrier-history-reset-\(UUID().uuidString)"
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let records = DictationRecords(carrierFolder: folder, keep: { true })
+    let kept = DictationEntry(started: Date(timeIntervalSince1970: 1_700_000_000), text: "hola", model: "Apple", transcription: 0.2, audio: 3, destination: "Notes", outcome: .pasted)
+    records.record(kept)
+    store.reset(.notifications)
+    #expect(store.dictationKeepText == false)
+    store.reset(.dictation)
+    #expect(store.dictationKeepText)
+    #expect(records.entries == [kept] && DictationRecords(carrierFolder: folder, keep: { true }).entries == [kept])
+}
+
+@Test func theAudioOfTheHistoryIsOffAndThirtyDaysByDefaultSurvivesARelaunchFallsBackAndResetsWithDictation() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationKeepAudio == false && store.dictationDeleteAudioAfter == 30)
+    store.dictationKeepAudio = true
+    store.dictationDeleteAudioAfter = 0
+    let again = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(again.dictationKeepAudio && again.dictationDeleteAudioAfter == 0)
+    store.dictationDeleteAudioAfter = 12
+    #expect(store.dictationDeleteAudioAfter == 30)
+    store.reset(.dictation)
+    #expect(store.dictationKeepAudio == false && store.dictationDeleteAudioAfter == 30)
 }
 
 @Test func workInIsTheBaseFolderByDefaultSurvivesARelaunchFallsBackAndResetsWithSessionsOnly() {
@@ -520,4 +632,51 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(store.chatSurface == .glass && store.confirmStop == false)
     UserDefaults(suiteName: name)!.set("frosted", forKey: AppPreferences.chatSurfaceKey)
     #expect(store.chatSurface == .glass)
+}
+
+@Test func theDictationShortcutIsOptionShiftSpaceAndToggleBySurvivesARelaunchAndResetsWithDictation() throws {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(AppPreferences.dictationShortcutKey == "dictation.shortcut" && AppPreferences.dictationActivationKey == "dictation.activation")
+    #expect(store.dictationShortcut == .standard && store.dictationShortcut.text == "⌥⇧ Space" && store.dictationActivation == .toggle)
+    guard case .accepted(let recorded) = recordShortcut(keyCode: 2, characters: "d", modifiers: [.control, .option]) else {
+        Issue.record("refused")
+        return
+    }
+    store.dictationShortcut = recorded
+    store.dictationActivation = .hold
+    let relaunched = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(relaunched.dictationShortcut == recorded && relaunched.dictationShortcut.text == "⌃⌥ D" && relaunched.dictationActivation == .hold)
+    store.reset(.notifications)
+    #expect(store.dictationShortcut == recorded && store.dictationActivation == .hold)
+    store.reset(.dictation)
+    #expect(store.dictationShortcut == .standard && store.dictationActivation == .toggle)
+    #expect(defaults.object(forKey: AppPreferences.dictationShortcutKey) == nil && defaults.object(forKey: AppPreferences.dictationActivationKey) == nil)
+}
+
+@Test func aSavedShortcutOrActivationThatMakesNoSenseReadsAsTheDefault() {
+    let defaults = dictationDefaults().defaults
+    let store = AppPreferences(defaults: defaults)
+    defaults.set("0:49:Space", forKey: AppPreferences.dictationShortcutKey)
+    defaults.set("press", forKey: AppPreferences.dictationActivationKey)
+    #expect(store.dictationShortcut == .standard && store.dictationActivation == .toggle)
+}
+
+@Test func theWidgetIsMediumAtTheBottomUntilChosenOtherwiseAndResetsWithDictation() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(AppPreferences.dictationWidgetStyleKey == "dictation.widget.style" && AppPreferences.dictationWidgetPositionKey == "dictation.widget.position")
+    #expect(store.dictationWidgetStyle == .medium && store.dictationWidgetPosition == .bottom)
+    store.dictationWidgetStyle = .pill
+    store.dictationWidgetPosition = .top
+    let relaunched = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(relaunched.dictationWidgetStyle == .pill && relaunched.dictationWidgetPosition == .top)
+    store.reset(.notifications)
+    #expect(store.dictationWidgetStyle == .pill && store.dictationWidgetPosition == .top)
+    store.reset(.dictation)
+    #expect(store.dictationWidgetStyle == .medium && store.dictationWidgetPosition == .bottom)
+    #expect(defaults.object(forKey: AppPreferences.dictationWidgetStyleKey) == nil && defaults.object(forKey: AppPreferences.dictationWidgetPositionKey) == nil)
+    defaults.set("huge", forKey: AppPreferences.dictationWidgetStyleKey)
+    defaults.set("middle", forKey: AppPreferences.dictationWidgetPositionKey)
+    #expect(store.dictationWidgetStyle == .medium && store.dictationWidgetPosition == .bottom)
 }

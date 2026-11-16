@@ -199,3 +199,123 @@ private let boxField = DictationField(owner: "box", text: { "" }, caret: { 0 }, 
     try? await Task.sleep(for: .milliseconds(30))
     #expect(dictation.session.state == .idle && capture.startCount == 1)
 }
+
+/// The box in a window, so the shortcut's request (`dictateRequest`) reaches it as the conversation passes it on.
+@MainActor private final class ShortcutBox {
+    let dictation: DictationController
+    /// Whether the box was asked to take the caret; the text view may give it back at once, since this window is not the key one.
+    private(set) var focused = false
+    private let host = NSHostingView(rootView: AnyView(EmptyView()))
+    private let window: NSWindow
+
+    init(dictation: DictationController) {
+        _ = NSApplication.shared
+        self.dictation = dictation
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 300), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        show(request: 0)
+    }
+
+    func show(request: Int) {
+        host.rootView = AnyView(
+            MessageBox(
+                text: .constant(""), placeholder: "", canSend: false, canSendWithText: true,
+                focus: Binding(get: { false }, set: { if $0 { self.focused = true } }),
+                dictationOwner: "box", dictation: dictation, dictateRequest: request, send: {}
+            ) { Text("Claude Code") }.frame(width: 600))
+        host.frame = NSRect(x: 0, y: 0, width: 600, height: 300)
+        host.layoutSubtreeIfNeeded()
+    }
+}
+
+@MainActor @Test func theShortcutFocusesTheBoxAndStartsItsDictationAndTheShortcutAgainEndsIt() async {
+    let registry = RecognizerRegistry()
+    registry.register(ScriptedRecognizer(atAudioEnd: [.final("")]))
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    let box = ShortcutBox(dictation: dictation)
+    func until(_ condition: () -> Bool) async { for _ in 0..<2000 where condition() == false { try? await Task.sleep(for: .milliseconds(1)) } }
+    #expect(dictation.session.state == .idle && box.focused == false)
+    box.show(request: 1)
+    await until { dictation.session.state == .listening }
+    #expect(dictation.session.owner == "box" && dictation.session.state == .listening && box.focused)
+    box.show(request: 2)
+    await until { dictation.session.state == .idle }
+    #expect(dictation.session.state == .idle)
+}
+
+@MainActor @Test func theShortcutDoesNothingInABoxWhileDictationIsOff() async {
+    let registry = RecognizerRegistry()
+    registry.register(ScriptedRecognizer(atAudioEnd: [.final("")]))
+    let defaults = UserDefaults(suiteName: "route-\(UUID().uuidString)")!
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture(), preferences: AppPreferences(defaults: defaults))
+    dictation.setEnabled(false)
+    let box = ShortcutBox(dictation: dictation)
+    box.show(request: 1)
+    try? await Task.sleep(for: .milliseconds(100))
+    #expect(dictation.session.state == .idle)
+}
+
+/// A model server that answers at once, so no test reaches a real one.
+private struct CleaningClient: TextModelClient {
+    func models(of server: CleanupServer) async throws -> [String] { ["m"] }
+    func complete(server: CleanupServer, model: String, system: String, text: String, timeout: Duration) async throws -> String { "Hola." }
+}
+
+/// A box that dictates "um hola" with Cleanup `on` or off, over a defaults of its own, and the text it ends with.
+@MainActor private func dictated(cleanup on: Bool) async -> String {
+    let registry = RecognizerRegistry()
+    registry.register(ScriptedRecognizer(atAudioEnd: [.final("um hola")]))
+    let preferences = AppPreferences(defaults: UserDefaults(suiteName: "cleanup-\(UUID().uuidString)")!)
+    preferences.dictationCleanupServer = .ollama
+    preferences.dictationCleanupModel = "m"
+    preferences.dictationCleanupEnabled = on
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture(), preferences: preferences, cleanupClient: CleaningClient())
+    var text = ""
+    let field = DictationField(owner: "box", text: { text }, caret: { text.utf16.count }, put: { written, _, _ in text = written })
+    func until(_ condition: () -> Bool) async { for _ in 0..<2000 where condition() == false { try? await Task.sleep(for: .milliseconds(1)) } }
+    dictation.toggle(into: field)
+    await until { dictation.session.state == .listening }
+    dictation.toggle(into: field)
+    await until { dictation.session.state == .idle }
+    return text
+}
+
+@MainActor @Test func aBoxDictationIsCleanedWithCleanupOnAndEndsAsBeforeWithItOff() async {
+    #expect(await dictated(cleanup: true) == "Hola.")
+    #expect(await dictated(cleanup: false) == "um hola")
+}
+
+@MainActor @Test func theReleaseOfAHoldEndsADictationStillGettingReady() async {
+    let registry = RecognizerRegistry()
+    let recognizer = ScriptedRecognizer()
+    recognizer.holdPrepare()
+    registry.register(recognizer)
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    dictation.toggle(into: boxField)
+    #expect(dictation.session.state == .gettingReady)
+    dictation.endHold()
+    #expect(dictation.session.state == .idle)
+}
+
+@MainActor @Test func theReleaseOfAHoldWhileMacOSAsksForTheMicrophoneNeverStartsTheDictation() async {
+    let registry = RecognizerRegistry()
+    registry.register(ScriptedRecognizer())
+    let prompt = Prompt()
+    var current = MicrophonePermission.notAsked
+    let capture = ScriptedCapture()
+    let access = MicrophoneAccess(
+        status: { current },
+        request: {
+            for await _ in prompt.gate {}
+            current = .allowed
+            return true
+        }
+    )
+    let dictation = DictationController(registry: registry, capture: capture, microphone: access)
+    dictation.toggle(into: boxField)
+    dictation.endHold()
+    prompt.open.finish()
+    try? await Task.sleep(for: .milliseconds(50))
+    #expect(dictation.session.state == .idle && capture.startCount == 0)
+}

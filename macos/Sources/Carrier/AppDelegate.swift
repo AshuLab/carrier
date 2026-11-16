@@ -50,6 +50,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
         watchCarrier(stateLine)
         SystemNotificationCentre.shared.attachDelegate()
+        // the shortcut of the global dictation; a self-test or a smoke run takes no key of the Mac
+        if Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false {
+            GlobalDictationController.shared.start()
+            DictationController.shared.startAudioSweep()
+        }
         // the Notifications page writes user defaults: the badge follows its switch at once
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             NotificationWatcher.app.refreshBadge()

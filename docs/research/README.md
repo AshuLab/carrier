@@ -30,3 +30,4 @@ Folders hold the code or mockups of a spike and are linked from the document tha
 - [sparkle-auto-update](sparkle-auto-update.md): Sparkle auto-update for an ad hoc signed, Homebrew-installed app (2026-11-11).
 - [codexbar-usage-fetching](codexbar-usage-fetching.md): how CodexBar, T3 Code and Paradev fetch usage and scan history (2026-11-12).
 - [dictation-chunked-partials](dictation-chunked-partials.md): partial text from a fast model that does not stream (2026-11-12).
+- [global-dictation-input](global-dictation-input.md): the global shortcut, the focus of another app and the paste with the clipboard kept (2026-11-16).

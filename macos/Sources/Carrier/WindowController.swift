@@ -182,6 +182,21 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// For the Conversation menu: acts only while a conversation is open.
     func conversation(_ action: ConversationAction) { model.shell.perform(.conversation(action)) }
 
+    /// What is in front, for the global dictation (`dictationFront`): Carrier's main window, or the sheet over it, must be the key window.
+    @MainActor
+    var dictationFront: DictationFront {
+        let key = NSApp.keyWindow
+        let shell = model.shell
+        var hasBox = false
+        if case .session(let id) = shell.selection { hasBox = model.sessions.rows.first { $0.id == id }.map { $0.archived == false } ?? false }
+        return CarrierCore.dictationFront(
+            carrierIsFront: NSApp.isActive && key != nil && (key === window || key?.sheetParent === window),
+            settingsShown: shell.settingsShown, selection: shell.selection, sessionHasBox: hasBox)
+    }
+
+    /// The global shortcut in a session: the open conversation focuses its message box and starts its dictation, or stops it.
+    func dictateInMessageBox() { model.shell.perform(.conversation(.dictate)) }
+
     /// Main application window when open.
     var mainWindow: NSWindow? { window }
 

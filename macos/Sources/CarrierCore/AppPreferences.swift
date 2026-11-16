@@ -42,8 +42,27 @@ public struct AppPreferences {
     public static let newSessionAccessKey = "chat.newSession.access"
     public static let workInKey = "chat.newSession.workIn"
     public static let dictationEnabledKey = "dictation.enabled"
+    public static let dictationCleanupEnabledKey = "dictation.cleanup.enabled"
+    public static let dictationCleanupServerKey = "dictation.cleanup.server"
+    public static let dictationCleanupModelKey = "dictation.cleanup.model"
+    public static let dictationCleanupPromptKey = "dictation.cleanup.prompt"
     public static let dictationModelKey = "dictation.model"
     public static let dictationLanguageKey = "dictation.language"
+    public static let dictationGlobalKey = "dictation.global"
+    public static let dictationKeepTextKey = "dictation.history.keepText"
+    public static let dictationKeepAudioKey = "dictation.history.keepAudio"
+    public static let dictationDeleteAudioAfterKey = "dictation.history.deleteAudioAfter"
+    public static let dictationTypingSpeedKey = "dictation.statistics.wpm"
+    public static let dictationAccessibilityExplainedKey = "dictation.accessibilityExplained"
+    public static let dictationShortcutKey = "dictation.shortcut"
+    public static let dictationActivationKey = "dictation.activation"
+    public static let dictationWidgetStyleKey = "dictation.widget.style"
+    public static let dictationWidgetPositionKey = "dictation.widget.position"
+    public static let dictationStartSoundOnKey = "dictation.sound.start.on"
+    public static let dictationStartSoundKey = "dictation.sound.start"
+    public static let dictationEndSoundOnKey = "dictation.sound.end.on"
+    public static let dictationEndSoundKey = "dictation.sound.end"
+    public static let dictationSoundVolumeKey = "dictation.sound.volume"
     public static let terminalThemeKey = "terminal.theme"
     public static let terminalFontFamilyKey = "terminal.font.family"
     public static let terminalFontSizeKey = "terminal.font.size"
@@ -89,6 +108,12 @@ public struct AppPreferences {
     public static let defaultWorkIn = WorkIn.baseFolder
     public static let defaultShowsReasoning = true
     public static let defaultDictationEnabled = true
+    public static let defaultDictationGlobal = true
+    public static let defaultDictationKeepText = true
+    public static let defaultDictationKeepAudio = false
+    public static let defaultDictationDeleteAudioAfter = 30
+    public static let defaultDictationTypingSpeed = 40
+    public static let dictationTypingSpeedRange = 10...200
 
     private let defaults: UserDefaults
 
@@ -308,6 +333,30 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationEnabledKey) }
     }
 
+    /// Whether Cleanup is on: off until the person turns it on, and never on without a server and a model.
+    public var dictationCleanupEnabled: Bool {
+        get { defaults.bool(forKey: Self.dictationCleanupEnabledKey) && cleanupCanBeOn(server: dictationCleanupServer, model: dictationCleanupModel) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationCleanupEnabledKey) }
+    }
+
+    /// The model server Cleanup uses; nil while the person chose none.
+    public var dictationCleanupServer: CleanupServer? {
+        get { defaults.string(forKey: Self.dictationCleanupServerKey).flatMap(CleanupServer.init(rawValue:)) }
+        nonmutating set { defaults.set(newValue?.rawValue, forKey: Self.dictationCleanupServerKey) }
+    }
+
+    /// The model of that server Cleanup uses; nil while the person chose none.
+    public var dictationCleanupModel: String? {
+        get { defaults.string(forKey: Self.dictationCleanupModelKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationCleanupModelKey) }
+    }
+
+    /// The prompt of Cleanup: the default until the person writes one, and what they left (an empty box too) after.
+    public var dictationCleanupPrompt: String {
+        get { defaults.string(forKey: Self.dictationCleanupPromptKey) ?? defaultCleanupPrompt }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationCleanupPromptKey) }
+    }
+
     /// The id of the speech model the person chose; nil while they did not.
     public var dictationModelID: String? {
         get { defaults.string(forKey: Self.dictationModelKey) }
@@ -323,6 +372,89 @@ public struct AppPreferences {
     public var dictationLanguage: String? {
         get { defaults.string(forKey: Self.dictationLanguageKey) }
         nonmutating set { defaults.set(newValue, forKey: Self.dictationLanguageKey) }
+    }
+
+    /// Whether the history keeps the text of each dictation: on until the person turns it off. The entries that exist stay when it is off, and Reset never deletes them.
+    public var dictationKeepText: Bool {
+        get { defaults.object(forKey: Self.dictationKeepTextKey) as? Bool ?? Self.defaultDictationKeepText }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationKeepTextKey) }
+    }
+
+    /// Whether the history keeps the audio of each dictation it records: off until the person turns it on.
+    public var dictationKeepAudio: Bool {
+        get { defaults.object(forKey: Self.dictationKeepAudioKey) as? Bool ?? Self.defaultDictationKeepAudio }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationKeepAudioKey) }
+    }
+
+    /// The days after which the audio of a dictation is deleted (a choice of `dictationAudioLimits`, 0 is never); a saved value that is not on offer reads as 30.
+    public var dictationDeleteAudioAfter: Int {
+        get {
+            let saved = defaults.object(forKey: Self.dictationDeleteAudioAfterKey) as? Int
+            return saved.flatMap { days in dictationAudioLimits.contains { $0.days == days } ? days : nil } ?? Self.defaultDictationDeleteAudioAfter
+        }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationDeleteAudioAfterKey) }
+    }
+
+    /// How fast the person types, in words a minute, which the time saved is measured against: 40 until they set it, always within 10 to 200.
+    public var dictationTypingSpeed: Int {
+        get { min(max(defaults.object(forKey: Self.dictationTypingSpeedKey) as? Int ?? Self.defaultDictationTypingSpeed, Self.dictationTypingSpeedRange.lowerBound), Self.dictationTypingSpeedRange.upperBound) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationTypingSpeedKey) }
+    }
+
+    /// Whether the global shortcut dictates in any app: on until the person turns it off. It only counts while `dictationEnabled` is on too (`globalDictationIsOn`).
+    public var dictationGlobal: Bool {
+        get { defaults.object(forKey: Self.dictationGlobalKey) as? Bool ?? Self.defaultDictationGlobal }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationGlobalKey) }
+    }
+
+    /// Whether the page already told the person what Accessibility is for. Not a setting: Reset leaves it, so the explanation is not given twice.
+    public var dictationAccessibilityExplained: Bool {
+        get { defaults.bool(forKey: Self.dictationAccessibilityExplainedKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationAccessibilityExplainedKey) }
+    }
+
+    /// The keys of the global dictation: ⌥⇧ Space until the person records another, and one that does not pass the recorder's rules reads as that.
+    public var dictationShortcut: DictationShortcut {
+        get { defaults.string(forKey: Self.dictationShortcutKey).flatMap(DictationShortcut.init(stored:)) ?? .standard }
+        nonmutating set { defaults.set(newValue.stored, forKey: Self.dictationShortcutKey) }
+    }
+
+    /// Toggle until the person chooses Hold.
+    public var dictationActivation: DictationActivation {
+        get { defaults.string(forKey: Self.dictationActivationKey).flatMap(DictationActivation.init(rawValue:)) ?? .toggle }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationActivationKey) }
+    }
+
+    /// Medium until the person chooses another.
+    public var dictationWidgetStyle: DictationWidgetStyle {
+        get { defaults.string(forKey: Self.dictationWidgetStyleKey).flatMap(DictationWidgetStyle.init(rawValue:)) ?? .medium }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationWidgetStyleKey) }
+    }
+
+    /// Bottom until the person chooses Top.
+    public var dictationWidgetPosition: DictationWidgetPosition {
+        get { defaults.string(forKey: Self.dictationWidgetPositionKey).flatMap(DictationWidgetPosition.init(rawValue:)) ?? .bottom }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationWidgetPositionKey) }
+    }
+
+    /// The Sounds group of the Dictation page; a saved sound that is not on offer reads as the default, and the volume as 0 to 100.
+    public var dictationSounds: DictationSounds {
+        get {
+            var sounds = DictationSounds()
+            sounds.startOn = defaults.object(forKey: Self.dictationStartSoundOnKey) as? Bool ?? sounds.startOn
+            sounds.endOn = defaults.object(forKey: Self.dictationEndSoundOnKey) as? Bool ?? sounds.endOn
+            sounds.start = defaults.string(forKey: Self.dictationStartSoundKey).flatMap { dictationSoundChoices.contains($0) ? $0 : nil } ?? sounds.start
+            sounds.end = defaults.string(forKey: Self.dictationEndSoundKey).flatMap { dictationSoundChoices.contains($0) ? $0 : nil } ?? sounds.end
+            sounds.volume = (defaults.object(forKey: Self.dictationSoundVolumeKey) as? Int).map { min(max($0, 0), 100) } ?? sounds.volume
+            return sounds
+        }
+        nonmutating set {
+            defaults.set(newValue.startOn, forKey: Self.dictationStartSoundOnKey)
+            defaults.set(newValue.start, forKey: Self.dictationStartSoundKey)
+            defaults.set(newValue.endOn, forKey: Self.dictationEndSoundOnKey)
+            defaults.set(newValue.end, forKey: Self.dictationEndSoundKey)
+            defaults.set(newValue.volume, forKey: Self.dictationSoundVolumeKey)
+        }
     }
 
     /// Settings for the embedded terminal (theme override, font overrides, cursor, padding, contrast, panes, input, scrollback, close confirmation).
@@ -430,7 +562,30 @@ public struct AppPreferences {
                 notifyNeedsYouKey, notifyReadyForTestKey, notifyProblemKey, notifyChatNeedsAttentionKey, notifyChatDoneKey, notifyOnlyWhenAwayKey,
                 notifyDockBadgeKey, notifySoundKey, notifyReminderKey, notifyQuietKey, notifyQuietStartKey, notifyQuietEndKey,
             ]
-        case .dictation: [dictationEnabledKey, dictationModelKey, dictationLanguageKey]
+        case .dictation:
+            [
+                dictationEnabledKey,
+                dictationCleanupEnabledKey,
+                dictationCleanupServerKey,
+                dictationCleanupModelKey,
+                dictationCleanupPromptKey,
+                dictationModelKey,
+                dictationLanguageKey,
+                dictationGlobalKey,
+                dictationKeepTextKey,
+                dictationKeepAudioKey,
+                dictationDeleteAudioAfterKey,
+                dictationTypingSpeedKey,
+                dictationShortcutKey,
+                dictationActivationKey,
+                dictationWidgetStyleKey,
+                dictationWidgetPositionKey,
+                dictationStartSoundOnKey,
+                dictationStartSoundKey,
+                dictationEndSoundOnKey,
+                dictationEndSoundKey,
+                dictationSoundVolumeKey,
+            ]
         case .keybindings: [ShortcutTable.key]
         // the Providers page only reads, the Updates page writes Sparkle's own preferences, the Carrier pages write config.json or (Engine) a few switches that have no Reset, and the Legacy page keeps its own settings
         case .providers, .updates, .engine, .behavior, .repos, .agents, .health: []

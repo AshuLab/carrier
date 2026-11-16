@@ -77,3 +77,9 @@ private func theLanguagePageOffersAFunctionOfTheModelMacOSAndTheSavedChoice(c: C
     #expect(globalDictationIsOn(dictation: false, global: true) == false)
     #expect(globalDictationIsOn(dictation: true, global: false) == false)
 }
+
+@Test func accessibilityIsExplainedOnlyTheFirstTimeAndNeverWhenItIsAlreadyAllowed() {
+    #expect(shouldExplainAccessibility(explained: false, trusted: false))
+    #expect(shouldExplainAccessibility(explained: true, trusted: false) == false)
+    #expect(shouldExplainAccessibility(explained: false, trusted: true) == false)
+}

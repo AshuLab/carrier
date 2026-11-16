@@ -16,8 +16,9 @@ public enum GlobalDictationMoment: Equatable, Sendable { case listening, stopped
 public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String), copy(String), close }
 
 @MainActor @Observable public final class GlobalDictation {
-    /// `running` is a dictation in any stage (the session says which); `failed` is the widget left open with its cause, until Esc or the shortcut.
-    public enum State: Equatable, Sendable { case idle, running, failed(String) }
+    /// `running` is a dictation in any stage (the session says which); `failed` is the widget left open with its cause, until Esc or the shortcut;
+    /// `copied` is the widget left open with the text, which was only copied for the reason, until Dismiss, Esc or a new dictation.
+    public enum State: Equatable, Sendable { case idle, running, failed(String), copied(PasteReason) }
 
     /// The session's owner for the widget, so its failures and its end are told apart from a message box's.
     public static let owner = "global"
@@ -30,24 +31,24 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
 
     @ObservationIgnored private let speechModel: () -> (any Recognizer, SpeechModel)?
     @ObservationIgnored private let microphone: () -> MicrophonePermission
-    @ObservationIgnored private let refusal: () -> String?
+    @ObservationIgnored private let decision: () -> PasteDecision
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let perform: (GlobalDictationEffect) -> Void
     @ObservationIgnored private let moment: (GlobalDictationMoment) -> Void
     /// Whether the widget's dictation listens and has not been stopped, so a second press before the text arrives is no second end.
     @ObservationIgnored private var listening = false
 
-    /// `speechModel` is the speech model the person chose and its recognizer (nil when there is none); `refusal` says why the text must not be pasted
-    /// right now (no Accessibility permission, a secure field), nil when it may.
+    /// `speechModel` is the speech model the person chose and its recognizer (nil when there is none); `decision` says whether the text may be pasted
+    /// right now or only copied, and why (`pasteDecision`).
     public init(
         session: DictationSession, speechModel: @escaping () -> (any Recognizer, SpeechModel)?, microphone: @escaping () -> MicrophonePermission,
-        refusal: @escaping () -> String?, now: @escaping () -> Date = Date.init,
+        decision: @escaping () -> PasteDecision, now: @escaping () -> Date = Date.init,
         moment: @escaping (GlobalDictationMoment) -> Void = { _ in }, perform: @escaping (GlobalDictationEffect) -> Void
     ) {
         self.session = session
         self.speechModel = speechModel
         self.microphone = microphone
-        self.refusal = refusal
+        self.decision = decision
         self.now = now
         self.perform = perform
         self.moment = moment
@@ -65,7 +66,11 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
                 listening = false
                 moment(.stopped)
             }
-        case (.down, .failed), (.escape, .failed): dismiss()
+        case (.down, .failed), (.escape, .failed), (.escape, .copied): dismiss()
+        // a new dictation closes the widget that was left open
+        case (.down, .copied):
+            dismiss()
+            begin()
         case (.escape, .running):
             // before the cancel, so the session's end is not taken for the person's own
             state = .idle
@@ -117,14 +122,25 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         let heard = text.trimmingCharacters(in: .whitespacesAndNewlines)
         // nothing was said: nothing is pasted and the widget goes quietly
         guard heard.isEmpty == false else { return dismiss() }
-        if let why = refusal() {
-            perform(.copy(heard))
-            state = .failed("\(why) The text is on the clipboard.")
-        } else {
+        text = heard
+        switch decision() {
+        case .paste:
             perform(.paste(heard))
             dismiss()
+        case .copyOnly(let reason):
+            perform(.copy(heard))
+            state = .copied(reason)
         }
     }
+
+    /// The Copy button of a widget left open: the text goes on the clipboard again.
+    public func copyAgain() {
+        guard case .copied = state else { return }
+        perform(.copy(text))
+    }
+
+    /// The Dismiss button.
+    public func dismissCopied() { if case .copied = state { dismiss() } }
 
     private func dismiss() {
         state = .idle

@@ -60,3 +60,6 @@ public func dictationRowIsLive(_ row: DictationRow, enabled: Bool) -> Bool {
 
 /// Whether the global shortcut is registered: only while Dictate in any app and the Dictation switch are both on, so the Dictation switch off turns the global dictation off too.
 public func globalDictationIsOn(dictation: Bool, global: Bool) -> Bool { dictation && global }
+
+/// Whether turning on Dictate in any app first explains what Accessibility is for: the first time only, and never when the permission is already there.
+public func shouldExplainAccessibility(explained: Bool, trusted: Bool) -> Bool { explained == false && trusted == false }

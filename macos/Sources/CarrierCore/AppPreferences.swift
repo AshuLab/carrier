@@ -49,6 +49,7 @@ public struct AppPreferences {
     public static let dictationModelKey = "dictation.model"
     public static let dictationLanguageKey = "dictation.language"
     public static let dictationGlobalKey = "dictation.global"
+    public static let dictationAccessibilityExplainedKey = "dictation.accessibilityExplained"
     public static let dictationStartSoundOnKey = "dictation.sound.start.on"
     public static let dictationStartSoundKey = "dictation.sound.start"
     public static let dictationEndSoundOnKey = "dictation.sound.end.on"
@@ -364,6 +365,12 @@ public struct AppPreferences {
     public var dictationGlobal: Bool {
         get { defaults.object(forKey: Self.dictationGlobalKey) as? Bool ?? Self.defaultDictationGlobal }
         nonmutating set { defaults.set(newValue, forKey: Self.dictationGlobalKey) }
+    }
+
+    /// Whether the page already told the person what Accessibility is for. Not a setting: Reset leaves it, so the explanation is not given twice.
+    public var dictationAccessibilityExplained: Bool {
+        get { defaults.bool(forKey: Self.dictationAccessibilityExplainedKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationAccessibilityExplainedKey) }
     }
 
     /// The Sounds group of the Dictation page; a saved sound that is not on offer reads as the default, and the volume as 0 to 100.

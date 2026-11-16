@@ -9,16 +9,16 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 ## Tests
 
-The gated tests of Apple's recognizer (`AppleRecognizerTests`, with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`), of FluidAudio's models (`FluidAudioRecognizerTests`, one run per entry: the Spanish clip, or `hello-en.wav` for the English-only ones, gives text, and partial text first for the native ones, twice in a row with the same loaded model; no speech gives an empty final; a Parakeet folder with a file removed fails with its cause and is not downloaded again) and of Whisper's (`WhisperKitRecognizerTests`: text from the Spanish clip for each of the four models, an empty final for no speech, and a tiny folder with a model file or the tokenizer removed fails with its cause and fetches nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
-The embedded-terminal live shell integration test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection` in `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell process in an offscreen `NSWindow` and runs only when `CARRIER_IT_TERMINAL=1` is set.
+The gated tests of Apple's recognizer (`AppleRecognizerTests`, with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`), of FluidAudio's models (`FluidAudioRecognizerTests`, one run per entry: the Spanish clip, or `hello-en.wav` for the English-only ones, gives text (partial first for the native ones) twice with one loaded model; no speech gives an empty final; a Parakeet folder missing a file fails with its cause and downloads nothing) and of Whisper's (`WhisperKitRecognizerTests`: text from the Spanish clip for each of the four models, an empty final for no speech, and a tiny folder missing a model file or the tokenizer fails with its cause and fetches nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
+The embedded-terminal live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
 
 ## Starting Carrier and the chat host
 
 What the person sees: [lifecycle](../docs/macos/lifecycle.md).
 
-The decision and the command line are in `CarrierCore/StartCarrier.swift`; the spawn and the alert have no automated test.
-The decision, the command line and the notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert, and neither the wiring nor the views have an automated test.
-The sequence is tested against a scripted engine on a real socket (`EngineReplacementTests`).
+The decision and command line are in `CarrierCore/StartCarrier.swift`; the spawn and alert are untested.
+The decision, command line and notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert; the wiring and views are untested.
+The sequence is tested on a real socket against a scripted engine (`EngineReplacementTests`).
 
 ## Dev build and release build
 
@@ -44,7 +44,7 @@ The session row's words are `sessionRowText` and `RoleIdentities` (`SessionRowTe
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#file-icons).
 
-The SVGs and the upstream licence text are in `Sources/CarrierCore/Resources/FileIcons` (about 12 KB; release pinned in `SOURCE.txt`, notice in `THIRD-PARTY-NOTICES.md`, line in About).
+The SVGs and the upstream licence text are in `Sources/CarrierCore/Resources/FileIcons` (release pinned in `SOURCE.txt`, notice in `THIRD-PARTY-NOTICES.md`, line in About).
 `build-app.sh` copies SwiftPM's `Carrier_CarrierCore.bundle` into `Contents/Resources` and fails when an icon or the licence text is missing from it.
 
 ## Settings
@@ -53,11 +53,11 @@ The SVGs and the upstream licence text are in `Sources/CarrierCore/Resources/Fil
 
 What the person sees: [settings-app](../docs/macos/settings-app.md#providers).
 
-The rows are one pure function, `providersPage(_:config:chat:)` in `CarrierCore/ProvidersPage.swift`, tested in `ProvidersPageTests`; the view is not.
+The rows are one pure function, `providersPage(_:config:chat:)` (`CarrierCore/ProvidersPage.swift`, `ProvidersPageTests`); the view is untested.
 
 #### Sign in and Update
 
-The buttons have no automated test.
+The buttons are untested.
 
 #### `providers.json`
 
@@ -65,28 +65,28 @@ Tested in `ProvidersFileTests` and `FixtureServerTests`.
 
 #### Account editor
 
-The views have no automated test.
+The views are untested.
 
 ### Sessions page
 
 What the person sees: [settings](../docs/macos/settings.md#sessions-page).
 
-The functions are tested in `SessionAgesTests`; the view has no automated test.
+The functions are tested in `SessionAgesTests`; the view is untested.
 
 ### Health tab
 
 What the person sees: [settings-legacy](../docs/macos/settings-legacy.md#health-tab).
 
-The rows are one pure function, `healthSections(host:facts:)` in `CarrierCore/HealthRows.swift`, tested in `HealthRowsTests`; the view has no automated test.
-The decoding, the outcomes, the command, the store and the rows are tested (`DoctorChecksTests`, `HealthRowsTests`); the process runner and the view have no automated test.
+The rows are one pure function, `healthSections(host:facts:)` (`CarrierCore/HealthRows.swift`, `HealthRowsTests`); the view is untested.
+The decoding, outcomes, command and store are tested (`DoctorChecksTests`); the process runner is not.
 
 ## New session
 
 What the person sees: [new session](../docs/macos/new-session.md).
 
 The logic is `NewSessionModel` (`showRepos`, `loadRepos`, `repoRows`, `choose(repo:)`) and `githubRepoRows`, tested with a fake host in `NewSessionTests`.
-The rule, the host client's decoding and the draft are tested (`HealthTests`, `ChatHostTests`, `NewSessionTests`); the wiring in `AppDelegate` has no automated test.
-The list, the script and the opener are tested in `HealthFixTests` (a replaceable opener, like `ContinueInTerminalTests`, and hostile values that run nothing); the button has no automated test.
+The rule, the host client's decoding and the draft are tested (`HealthTests`, `ChatHostTests`, `NewSessionTests`); the `AppDelegate` wiring is not.
+The list, the script and the opener are tested in `HealthFixTests` (a replaceable opener, like `ContinueInTerminalTests`, and hostile values that run nothing); the button is untested.
 The logic is `CarrierCore/WorktreeChoice.swift` (pure values over the `workspace` reply, tested on the golden files in `WorktreeChoiceTests`) and `NewSessionModel` (tested with a fake host).
 
 ## Conversation
@@ -112,6 +112,7 @@ The page is `Carrier/DictationTab.swift`, a list of one view per group (a new gr
 ### Global dictation
 
 See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, real session, scripted recognizer).
+`CarrierCore/PasteDecision.swift` (`pasteDecision`, `PasteDecisionTests`) picks paste or copy from `Carrier/FocusedField.swift`, which reads the focus (untested).
 `Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); keys, panel and real ⌘V untested.
 Sounds: `CarrierCore/DictationSounds.swift` (`dictationSound(for:_:)`, `DictationSoundsTests`); `SoundsGroup` and `DictationSoundPlayer` untested.
 
@@ -123,7 +124,7 @@ Sounds: `CarrierCore/DictationSounds.swift` (`dictationSound(for:_:)`, `Dictatio
 
 What the person sees: [terminal](../docs/macos/terminal.md).
 
-Pure domain rules (`TerminalCore.swift`, `TerminalSplitTree.swift`, `TerminalPersistence.swift`, `TerminalSettings.swift`, `TerminalZshBottomPromptShim.swift`) live in `CarrierCore` and are tested in `TerminalCoreTests` and `TerminalZshBottomPromptShimTests`.
+Pure domain rules (`TerminalCore.swift`, `TerminalSplitTree.swift`, `TerminalPersistence.swift`, `TerminalSettings.swift`, `TerminalZshBottomPromptShim.swift`) live in `CarrierCore` (`TerminalCoreTests`, `TerminalZshBottomPromptShimTests`).
 Validated Continue in Terminal launch construction (`EmbeddedResumeLaunch`, `embeddedResumeLaunch`) lives in `CarrierCore/ContinueInTerminal.swift` and is tested in `ContinueInTerminalTests`.
 The AppKit runtime (`Carrier/TerminalHost.swift`, `Carrier/TerminalAppearance.swift`, `Carrier/TerminalProcessInspector.swift`, `Carrier/TerminalConfirmationCopy.swift`, `Carrier/CarrierTerminalView.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation.
 The sidebar, overview, workspace, tab bar, settings page, menu bar, middle-click close and drawer views are the `Terminal*View.swift` files, `MainMenu.swift`, `MiddleClickModifier.swift`, `ContinueInTerminalView.swift`, `SessionSectionsView.swift`, `EpicView.swift` and `PanelView.swift`.

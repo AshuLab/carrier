@@ -459,6 +459,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         // lives as long as the window, which is kept for the life of the app
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak window] event in
             guard let self, let window, window.isKeyWindow, event.window === window,
+                (window.firstResponder as? PillTextView)?.takesCommandDown(event) != true,
                 let action = shortcutAction(key: event.charactersIgnoringModifiers ?? "", modifiers: .init(event.modifierFlags))
             else { return event }
             self.run(action)

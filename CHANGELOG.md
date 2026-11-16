@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- In the message box, ⌘↓ takes the caret to the end of the text (the window's shortcut for Jump to the Latest Message took it before the text saw it; with the caret already at the end, or the box empty, it still jumps), and Home and End go to the start and the end of the text instead of only scrolling.
 - The notices over the message box (errors, uncommitted files, a held message, a question) are glass filled with their own colour, like the one of a session that is asleep, and not dark grey with an edge.
 - The block under the message box that says what sending does follows Settings > Chat > Surfaces: it stayed glass when Flat was chosen.
 - The note that the folder's branch will change when the message is sent is now a step of the block under the message box that says what sending does, with an icon and a title, and not a line under the sentence.

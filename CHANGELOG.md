@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Settings › Chat › Surfaces: Glass or Flat. Flat draws the conversation's cards, your bubble, code blocks, attachments, notices and the message box as a quiet solid fill instead of glass.
 - Message width has a fifth choice, Widest (1280 pt).
+- A file attached to a message can be looked at in the app: a click on its chip opens a Quick Look preview (images, PDFs, text) with arrows, ← and → to go through all the files of the message, and Show in Finder.
+- A file dropped on the message box is copied into Carrier's own folder (`chat/attachments`), so the conversation keeps it when the original is moved or deleted; taking its chip out before sending removes the copy.
 
 ### Fixed
 

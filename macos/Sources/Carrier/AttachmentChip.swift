@@ -4,10 +4,12 @@ import ImageIO
 import SwiftUI
 
 /// A file handed to the chat, as a chip of glass: a badge by kind (the thumbnail itself for an image), the name over its size or what holds it
-/// back, and a × while the pointer is over it when it can be taken out. A click shows the file in Finder.
+/// back, and a × while the pointer is over it when it can be taken out. A click opens `open` (the preview, for a file that can be looked at);
+/// without one it shows the file in Finder.
 struct AttachmentChip: View {
     let file: AttachedFile
     var remove: (() -> Void)?
+    var open: (() -> Void)?
     @State private var hovering = false
     @State private var thumbnail: NSImage?
 
@@ -42,7 +44,7 @@ struct AttachmentChip: View {
         .chatSurface(.regular.tint(tint?.opacity(0.3)), flat: tint.map { $0.opacity(0.16) } ?? Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onHover { hovering = $0 }
-        .onTapGesture { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file.path)]) }
+        .onTapGesture { if let open { open() } else { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file.path)]) } }
         .help(file.path)
         .task(id: file.path) { thumbnail = await Self.thumbnail(of: file) }
         .accessibilityElement(children: .combine)
@@ -114,15 +116,29 @@ struct AttachmentChip: View {
 struct SentAttachments: View {
     let paths: [String]
     @State private var files: [AttachedFile] = []
+    @State private var previewing: AttachedFile?
 
     var body: some View {
         FlowLayout(spacing: 8) {
-            ForEach(files) { AttachmentChip(file: $0) }
+            ForEach(files) { file in AttachmentChip(file: file, open: file.canPreview ? { previewing = file } : nil) }
         }
+        .attachmentPreview(of: files, showing: $previewing)
         .frame(maxWidth: .infinity, alignment: .trailing)
         .task(id: paths) {
             let folder = carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
             files = paths.map { attachedFile(at: URL(fileURLWithPath: $0), carrierFolder: folder) }
         }
+    }
+}
+
+extension AttachedFile {
+    /// What Quick Look can show: a file that goes, not a folder.
+    var canPreview: Bool { problem == nil && kind != .folder }
+}
+
+extension View {
+    /// The preview of `files` (the ones that can be looked at) over this view, opened on the one in `showing`.
+    func attachmentPreview(of files: [AttachedFile], showing: Binding<AttachedFile?>) -> some View {
+        sheet(item: showing) { start in AttachmentPreview(files: files.filter(\.canPreview), start: start).themed() }
     }
 }

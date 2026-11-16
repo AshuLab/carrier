@@ -21,6 +21,8 @@ public struct AttachedFile: Equatable, Identifiable {
     /// What a folder holds (its first level).
     public let items: Int?
     public let problem: AttachmentProblem?
+    /// Where the person dropped it from, when what is at `path` is the copy Carrier keeps.
+    public var source: String?
 
     public var id: String { path }
     public var name: String { (path as NSString).lastPathComponent }
@@ -84,6 +86,32 @@ public func attachedFile(at url: URL, carrierFolder: String, fileManager: FileMa
     let problem: AttachmentProblem? = own ? .carrierOwn : size > attachmentSizeLimit ? .tooBig(size) : nil
     return AttachedFile(path: path, kind: attachmentKind(ofExtension: url.pathExtension), size: size, problem: problem)
 }
+
+/// A file the person dropped, as the chat holds it: a copy under `<carrier>/chat/attachments/<id>/<name>`, so deleting or moving the original
+/// leaves the conversation its file. A folder (or a file that cannot go) stays where it is, and the copy is not made.
+public func attachedCopy(of url: URL, carrierFolder: String, fileManager: FileManager = .default) -> AttachedFile {
+    var file = attachedFile(at: url, carrierFolder: carrierFolder, fileManager: fileManager)
+    let source = url.standardizedFileURL.path
+    if file.problem == nil, file.kind != .folder {
+        let folder = URL(fileURLWithPath: attachmentsFolder(carrierFolder)).appendingPathComponent(UUID().uuidString)
+        let copy = folder.appendingPathComponent(url.lastPathComponent)
+        if (try? fileManager.createDirectory(at: folder, withIntermediateDirectories: true)) != nil, (try? fileManager.copyItem(at: url, to: copy)) != nil {
+            file = attachedFile(at: copy, carrierFolder: carrierFolder, fileManager: fileManager)
+        }
+    }
+    file.source = source
+    return file
+}
+
+/// Takes the copy of a file out again (the person removed its chip before sending); only ever something inside the attachments folder.
+public func discardAttachment(_ file: AttachedFile, carrierFolder: String, fileManager: FileManager = .default) {
+    guard file.source != nil else { return }
+    let folder = URL(fileURLWithPath: file.path).deletingLastPathComponent()
+    guard folder.deletingLastPathComponent().standardizedFileURL.path == attachmentsFolder(carrierFolder) else { return }
+    try? fileManager.removeItem(at: folder)
+}
+
+private func attachmentsFolder(_ carrierFolder: String) -> String { URL(fileURLWithPath: carrierFolder).standardizedFileURL.path + "/chat/attachments" }
 
 private let attachmentsHeading = "Attached files:"
 

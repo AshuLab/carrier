@@ -34,6 +34,8 @@ struct MessageBox<Selects: View>: View {
     @State private var cursor = 0
     /// The files dropped on the box, which go with the next message as paths under it.
     @State private var attachments: [AttachedFile] = []
+    /// The attachment being looked at in the preview.
+    @State private var previewing: AttachedFile?
     /// The long texts pasted into the box, which go with the next message in fenced blocks under what is typed.
     @State private var pastes: [Pasted] = []
     /// Whether files are being dragged over the box.
@@ -98,11 +100,12 @@ struct MessageBox<Selects: View>: View {
                 if attachments.isEmpty == false {
                     FlowLayout(spacing: 8) {
                         ForEach(attachments) { file in
-                            AttachmentChip(file: file) { withAnimation(.smooth(duration: 0.2)) { attachments.removeAll { $0.id == file.id } } }
+                            AttachmentChip(file: file, remove: { discard(file) }, open: file.canPreview ? { previewing = file } : nil)
                                 .transition(.scale(scale: 0.9).combined(with: .opacity))
                         }
                     }
                     .animation(.smooth(duration: 0.2), value: attachments)
+                    .attachmentPreview(of: attachments, showing: $previewing)
                 }
                 CommandTextView(
                     text: $text, cursor: $cursor, tentative: tentative, dictated: dictated, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onTyped: { dictation.stop(ownedBy: dictationOwner) }, onFiles: attach, onFileDrag: { dropping = $0 }, onLargePaste: keep,
@@ -212,14 +215,21 @@ struct MessageBox<Selects: View>: View {
         return true
     }
 
-    /// Dropped files become chips, the ones already there kept once. Only what is a file of the Mac counts.
+    private var carrier: String { carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()) }
+
+    /// Dropped files become chips, the ones already there kept once. Only what is a file of the Mac counts, and each is copied into Carrier's own
+    /// folder at once, so the message keeps its file when the original is moved or deleted.
     private func attach(_ urls: [URL]) -> Bool {
-        let folder = carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
-        let fresh = urls.filter(\.isFileURL).map { attachedFile(at: $0, carrierFolder: folder) }.filter { new in attachments.contains { $0.id == new.id } == false }
+        let fresh = urls.filter(\.isFileURL).filter { url in attachments.contains { $0.source == url.standardizedFileURL.path } == false }.map { attachedCopy(of: $0, carrierFolder: carrier) }
         guard fresh.isEmpty == false else { return false }
         withAnimation(.smooth(duration: 0.2)) { attachments += fresh }
         focus.wrappedValue = true
         return true
+    }
+
+    private func discard(_ file: AttachedFile) {
+        withAnimation(.smooth(duration: 0.2)) { attachments.removeAll { $0.id == file.id } }
+        discardAttachment(file, carrierFolder: carrier)
     }
 
     /// The keys of the text that mean something to the list while it is open; Enter takes the marked row, or sends.

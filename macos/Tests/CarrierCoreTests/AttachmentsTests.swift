@@ -62,3 +62,28 @@ private func temporaryFolder() throws -> URL {
     #expect(splitAttachments(prose) == (prose, []))
     #expect(splitAttachments("Attached files:\n- /a/b").paths == ["/a/b"] && splitAttachments("Attached files:\n- /a/b").text.isEmpty)
 }
+
+@Test func aDroppedFileIsKeptInCarriersFolderAndSurvivesItsOriginal() throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let carrier = folder.appendingPathComponent("carrier").standardizedFileURL.path
+    let original = folder.appendingPathComponent("shot.png")
+    try Data(count: 64).write(to: original)
+
+    let kept = attachedCopy(of: original, carrierFolder: carrier)
+    #expect(kept.path.hasPrefix(carrier + "/chat/attachments/") && kept.name == "shot.png" && kept.kind == .image && kept.source == original.standardizedFileURL.path)
+    try FileManager.default.removeItem(at: original)
+    #expect(FileManager.default.fileExists(atPath: kept.path))
+
+    // taking its chip out takes the copy out
+    discardAttachment(kept, carrierFolder: carrier)
+    #expect(FileManager.default.fileExists(atPath: kept.path) == false)
+
+    // a folder stays where it is, and nothing outside the attachments folder is ever deleted
+    let sub = folder.appendingPathComponent("fixtures")
+    try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+    let dir = attachedCopy(of: sub, carrierFolder: carrier)
+    #expect(dir.path == sub.standardizedFileURL.path)
+    discardAttachment(dir, carrierFolder: carrier)
+    #expect(FileManager.default.fileExists(atPath: sub.path))
+}

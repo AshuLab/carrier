@@ -35,7 +35,6 @@ struct UpdatePill: View {
                     GlowEdge(color: .thought, waiting: false, moves: reduceMotion == false, cornerRadius: ToolbarPillButton.height / 2)
                         .opacity(downloading ? 1 : 0).allowsHitTesting(false)
                 }
-                .disabled(phase == .installing)
                 .help(help)
                 .accessibilityLabel(help)
                 .transition(.move(edge: .leading).combined(with: .blurReplace))
@@ -96,7 +95,7 @@ struct UpdatePill: View {
         case .available(let version): "Download Carrier \(version)"
         case .downloading(let version, let percent): "Downloading Carrier \(version), \(percent) percent"
         case .ready(let version): justDownloaded ? "Carrier \(version) is downloaded" : "Restart to update to Carrier \(version)"
-        case .installing: "Restarting"
+        case .installing: "Restarting. If Carrier does not close, click to ask it again"
         case .failed(let version): "The download of Carrier \(version) failed. Retry"
         }
     }

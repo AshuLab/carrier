@@ -492,6 +492,18 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(try Data(contentsOf: weights) == Data("weights".utf8))
 }
 
+@Test func dictatingInAnyAppIsOnByDefaultSurvivesARelaunchAndResetsWithDictation() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationGlobal && AppPreferences.dictationGlobalKey == "dictation.global")
+    store.dictationGlobal = false
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).dictationGlobal == false)
+    store.reset(.notifications)
+    #expect(store.dictationGlobal == false)
+    store.reset(.dictation)
+    #expect(store.dictationGlobal)
+}
+
 @Test func workInIsTheBaseFolderByDefaultSurvivesARelaunchFallsBackAndResetsWithSessionsOnly() {
     let name = "workin-\(UUID().uuidString)"
     let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)

@@ -1,6 +1,6 @@
 # Dictation
 
-Dictation in the message boxes: the recognizers, the microphone, the Dictation page of [Settings](settings.md) and the speech models.
+Dictation in the message boxes and in any app: the recognizers, the microphone, the Dictation page of [Settings](settings.md), the speech models and the [global dictation](#global-dictation).
 
 ## Recognizer and microphone
 
@@ -11,11 +11,28 @@ SpeechAnalyzer needs only the microphone permission, not `NSSpeechRecognitionUsa
 ## Under `--fixture`
 
 Under `--fixture` the app registers the fixture recognizer instead (`CarrierCore/FixtureRecognizer.swift`) and asks macOS for nothing: the microphone in the message box of the new session and of a conversation answers a click with a canned Spanish phrase, word by word as partial text (the normal colour with a touch of the accent and a dotted underline) and then final (plain), at the caret.
-`--fixture-dictation-at-the-end` gives the phrase only after the click that stops it (the box says "Transcribing…") and `--fixture-dictation-fails` fails to start with a cause shown in red under the box.
+`--fixture-dictation-at-the-end` gives the phrase only after the click that stops it (the box says "Transcribing…") and `--fixture-dictation-fails` fails to start with a cause shown in red under the box; the global shortcut dictates the same canned phrase into the widget.
 
 ## The Dictation page
 
-The Dictation page (`Carrier/DictationTab.swift`, which lists its groups, each its own view: `DictationGroup`, `SpeechModelsGroup` and `StorageGroup`; `SettingsPage.dictation`, the App group right after Chat) has the switch (`dictation.enabled`, on by default; off takes the microphone out of both boxes at once, asks macOS for nothing and stops a dictation that listens, keeping its text), the Speech model popup (`dictation.model`; an unknown one reads as Apple's), the Language popup (`dictation.language`; `languageChoices` in `CarrierCore/DictationSettings.swift` says what each model offers) and the microphone's state with Open System Settings when it is blocked, then the speech models table (`Carrier/SpeechModelsTable.swift`; the rows and what each offers are `speechModelRows` in `CarrierCore/SpeechModelsTable.swift`: a recognizer filter, a radio on the downloaded rows that chooses the model, Download with its size, a progress bar with Cancel, the cause with Retry, a trash, and the licence linking to the model's card) and Storage (the size of the files under `<Carrier folder>/app/models`, with Show in Finder).
+The Dictation page (`Carrier/DictationTab.swift`, which lists its groups, each its own view: `DictationGroup`, `SpeechModelsGroup` and `StorageGroup`; `SettingsPage.dictation`, the App group right after Chat) has the switch (`dictation.enabled`, on by default; off takes the microphone out of both boxes at once, asks macOS for nothing and stops a dictation that listens, keeping its text), the Speech model popup (`dictation.model`; an unknown one reads as Apple's), the Language popup (`dictation.language`; `languageChoices` in `CarrierCore/DictationSettings.swift` says what each model offers) and the microphone's state with Open System Settings when it is blocked, then the Global dictation group (`Carrier/GlobalDictationGroup.swift`: Dictate in any app, `dictation.global`, on by default, which is dimmed with Dictation off and turns the shortcut off with it) and the speech models table (`Carrier/SpeechModelsTable.swift`; the rows and what each offers are `speechModelRows` in `CarrierCore/SpeechModelsTable.swift`: a recognizer filter, a radio on the downloaded rows that chooses the model, Download with its size, a progress bar with Cancel, the cause with Retry, a trash, and the licence linking to the model's card) and Storage (the size of the files under `<Carrier folder>/app/models`, with Show in Finder).
+
+## Global dictation
+
+The shortcut, ⌥⇧ Space, dictates in any app (`Carrier/GlobalHotKey.swift`, a system hot key, which needs no permission): it opens a small floating widget over the display of the window in front, at the bottom centre, that never takes the focus from the app the person is in and lets every click through (`Carrier/DictationWidget.swift`).
+The widget shows the text as it is said, the time and the keys (`⌥⇧ Space to finish · Esc to cancel`), with the same wait captions as the message box (Getting the model ready…, Transcribing…).
+It is a toggle: the shortcut starts the dictation, the next press ends it and pastes the text once at the cursor of the app in front, and the widget closes.
+Esc, which Carrier holds only while the widget is open, cancels in any state: nothing is pasted and the clipboard is as it was.
+A dictation with no words pastes nothing and closes with no trace.
+A failure to start (a blocked microphone, no speech model, the capture) or to recognize shows its cause in red in the widget, which stays until Esc or the shortcut, and a line with the cause only is appended to `dictation.log`.
+The first dictation asks macOS for the microphone.
+
+The paste (`Carrier/ClipboardPaste.swift`) saves every item of the clipboard with every type, writes the text marked as transient (clipboard managers skip it) and for this Mac only, sends a ⌘V after the keys of the shortcut are up, waits 200 ms and puts the clipboard back as it was; if the person copied something meanwhile their copy stays.
+Sending the key needs the Accessibility permission, and it is never sent while macOS has secure input on (a password field): then the text is put on the clipboard and the widget says why.
+Whether a text field has the cursor is not looked at yet, and nothing asks for Accessibility: a dictation in an app with no field pastes into nothing, and the text is not kept.
+`GlobalDictationController` (`Carrier/GlobalDictationController.swift`) joins the machine of `CarrierCore/GlobalDictation.swift` to the hot key, the widget and the paste, and registers the shortcut only while the Dictation page's Dictate in any app and Dictation switches are both on.
+The widget runs on the one `DictationSession` of the message boxes, so a dictation in a box and one in the widget never run together: the shortcut stops the box's.
+The shortcut is fixed for now (the recorder and Hold are later slices), and in Carrier itself it opens the widget too.
 
 ## Speech models
 
@@ -26,4 +43,4 @@ The downloads are FluidAudio's own (`FluidAudioDownloader`, the only place Fluid
 Whisper's four models (`Carrier/WhisperKitRecognizer.swift`: Whisper Tiny, Base, Small and the quantized Large v3 Turbo of the `argmaxinc/whisperkit-coreml` repository, MIT, 99 languages with detection of the language) go through WhisperKit's plain transcription and the core's chunking, not WhisperKit's streaming transcriber, and by the rule of `docs/research/dictation-chunked-partials.md` none of them gets partial text by chunks, so the table says When you stop and the box says Transcribing…: a model must be fast (a real-time factor of 0.05 or less for one pass over 10 s) and steady (10% or less of the words shown rewritten far back), and Tiny is fast but not steady (14.8%), Small and Large v3 Turbo are not fast, and Base was not measured; a change of one catalog field to `.chunked` turns the by-chunks layer on for a model.
 `WhisperKitDownloader` (WhisperKit's `download` and then the model's tokenizer, which the library would otherwise fetch from the Hub at its first load) writes into `app/models/whisper/<model>/models/<repository>/`; the load is given the folder and told not to download, and refuses with its cause a folder whose tokenizer is gone, since the library would fetch another one.
 Apple's is the only model with no downloader (`RealDownloads`); under `--fixture` the fixture recognizer lists four invented entries more and `FixtureModelDownloader` shows progress, writes a thousandth of each model's size into a temporary folder and fails one entry with no connection.
-With the switch off the rows under it and the table are drawn at 40% and take no clicks (`dictationRowIsLive`; Storage and Reset stay live), and Reset (`AppPreferences.reset(.dictation)`) puts the page back to on, Apple's and the language of macOS.
+With the switch off the rows under it and the table are drawn at 40% and take no clicks (`dictationRowIsLive`; Storage and Reset stay live), and Reset (`AppPreferences.reset(.dictation)`) puts the page back to on, Apple's, the language of macOS and Dictate in any app on.

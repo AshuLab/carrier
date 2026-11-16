@@ -44,6 +44,7 @@ public struct AppPreferences {
     public static let dictationEnabledKey = "dictation.enabled"
     public static let dictationModelKey = "dictation.model"
     public static let dictationLanguageKey = "dictation.language"
+    public static let dictationGlobalKey = "dictation.global"
     public static let terminalThemeKey = "terminal.theme"
     public static let terminalFontFamilyKey = "terminal.font.family"
     public static let terminalFontSizeKey = "terminal.font.size"
@@ -89,6 +90,7 @@ public struct AppPreferences {
     public static let defaultWorkIn = WorkIn.baseFolder
     public static let defaultShowsReasoning = true
     public static let defaultDictationEnabled = true
+    public static let defaultDictationGlobal = true
 
     private let defaults: UserDefaults
 
@@ -325,6 +327,12 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationLanguageKey) }
     }
 
+    /// Whether the global shortcut dictates in any app: on until the person turns it off. It only counts while `dictationEnabled` is on too (`globalDictationIsOn`).
+    public var dictationGlobal: Bool {
+        get { defaults.object(forKey: Self.dictationGlobalKey) as? Bool ?? Self.defaultDictationGlobal }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationGlobalKey) }
+    }
+
     /// Settings for the embedded terminal (theme override, font overrides, cursor, padding, contrast, panes, input, scrollback, close confirmation).
     public var terminal: TerminalSettings {
         get {
@@ -435,6 +443,7 @@ public struct AppPreferences {
                 dictationEnabledKey,
                 dictationModelKey,
                 dictationLanguageKey,
+                dictationGlobalKey,
             ]
         case .keybindings: [ShortcutTable.key]
         // the Providers page only reads, the Updates page writes Sparkle's own preferences, the Carrier pages write config.json or (Engine) a few switches that have no Reset, and the Legacy page keeps its own settings

@@ -9,7 +9,7 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 ## Tests
 
-The gated tests of Apple's recognizer (`AppleRecognizerTests`, with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`) and of FluidAudio's models (`FluidAudioRecognizerTests`, one run per entry: the Spanish clip, or an English one made with `say` (`hello-en.wav`) for the English-only models, gives text, and partial text first for the native ones, twice in a row with the same loaded model; no speech gives an empty final; a Parakeet folder with a file removed fails with its cause and is not downloaded again) run only with `CARRIER_IT_DICTATION` set; for FluidAudio it names a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`); Whisper's (`WhisperKitRecognizerTests`, in the same folder under `<folder>/whisper/<model>/models/...`) give text from the Spanish clip for each of the four models and an empty final for no speech, and a copy of the tiny folder with a model file or the tokenizer removed fails with its cause and fetches nothing.
+The gated tests of Apple's recognizer (`AppleRecognizerTests`, with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`), of FluidAudio's models (`FluidAudioRecognizerTests`, one run per entry: the Spanish clip, or `hello-en.wav` for the English-only ones, gives text, and partial text first for the native ones, twice in a row with the same loaded model; no speech gives an empty final; a Parakeet folder with a file removed fails with its cause and is not downloaded again) and of Whisper's (`WhisperKitRecognizerTests`: text from the Spanish clip for each of the four models, an empty final for no speech, and a tiny folder with a model file or the tokenizer removed fails with its cause and fetches nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
 The embedded-terminal live shell integration test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection` in `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell process in an offscreen `NSWindow` and runs only when `CARRIER_IT_TERMINAL=1` is set.
 
 ## Starting Carrier and the chat host
@@ -106,9 +106,16 @@ The store holds `snapshot`, `isLoading`, `isRefreshing`, `error`, the filters (`
 
 What the person sees: [dictation](../docs/macos/dictation.md).
 
-The logic is `CarrierCore/Dictation.swift` (the boundary and the registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the scripted recognizer and capture of `ScriptedDictation.swift`.
+The logic is `CarrierCore/Dictation.swift` (the boundary and the registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with `ScriptedDictation.swift`'s recognizer and capture.
 `DictationController` holds the switch so both boxes read it.
-The page is `Carrier/DictationTab.swift`, a list of one view per group (`DictationGroup.swift`, `SpeechModelsGroup.swift`, `StorageGroup.swift`; a new group is a file and a line there), and the keys `reset(.dictation)` restores are one per line in `AppPreferences.keys(of:)`; the views have no automated test (`SettingsPageTests` and `DictationSettingsTests` hold the rules).
+The page is `Carrier/DictationTab.swift`, a list of one view per group (`DictationGroup`, `GlobalDictationGroup`, `SpeechModelsGroup`, `StorageGroup`; a new group is a file and a line there), and `reset(.dictation)` restores the keys listed one per line in `AppPreferences.keys(of:)`; the views have no automated test (`SettingsPageTests` and `DictationSettingsTests` hold the rules).
+
+### Global dictation
+
+What the person sees: [dictation](../docs/macos/dictation.md#global-dictation).
+
+The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, over the real session and the scripted recognizer).
+`Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, on a pasteboard of its own); the keys, the panel and the real ⌘V have no automated test.
 
 ## Embedded terminal
 
@@ -117,7 +124,6 @@ What the person sees: [terminal](../docs/macos/terminal.md).
 Pure domain rules (`TerminalCore.swift`, `TerminalSplitTree.swift`, `TerminalPersistence.swift`, `TerminalSettings.swift`, `TerminalZshBottomPromptShim.swift`) live in `CarrierCore` and are tested in `TerminalCoreTests` and `TerminalZshBottomPromptShimTests`.
 Validated Continue in Terminal launch construction (`EmbeddedResumeLaunch`, `embeddedResumeLaunch`) lives in `CarrierCore/ContinueInTerminal.swift` and is tested in `ContinueInTerminalTests`.
 The AppKit runtime (`Carrier/TerminalHost.swift`, `Carrier/TerminalAppearance.swift`, `Carrier/TerminalProcessInspector.swift`, `Carrier/TerminalConfirmationCopy.swift`, `Carrier/CarrierTerminalView.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear, and close confirmation.
-The live login-shell smoke test is gated behind `CARRIER_IT_TERMINAL`, while store, shim, and close-confirmation behavior run unconditionally in `CarrierTerminalStoreTests`.
 Sidebar, overview, workspace, tab bar, settings page, menu bar (`TerminalMenuControls`), middle-click close, and epic/session drawer UI live across `TerminalSidebarView.swift`, `TerminalsHomeView.swift`, `TerminalWorkspaceView.swift`, `TerminalTabBarView.swift`, `TerminalTabView.swift`, `MainMenu.swift`, `MiddleClickModifier.swift`, `ContinueInTerminalView.swift`, `SessionSectionsView.swift`, `EpicView.swift`, and `PanelView.swift`.
 Window selection and drawer state live in `CarrierCore/WindowShell.swift`, tested alongside layout, settings, shortcuts, and middle-click in `TerminalWorkspaceLayoutTests`, `SettingsPageTests`, `MainMenuShortcutsTests`, `MiddleClickModifierTests`, and `WindowShellTests`.
 Session deletion cleanup and process-activity termination guards connect through `CarrierCore/ChatArchive.swift`, `CarrierCore/ChatSessions.swift`, `Carrier/WindowController.swift`, and `Carrier/AppDelegate.swift` (tested on the poller/store side, with no UI test for the view wiring).

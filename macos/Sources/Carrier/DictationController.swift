@@ -77,6 +77,24 @@ import SwiftUI
         return models.first { $0.recognizer == .apple }
     }
 
+    /// The model dictation uses and the recognizer that has it, for a dictation that is not a message box's (the widget).
+    var speechModel: (any Recognizer, SpeechModel)? {
+        guard let model, let recognizer = registry.recognizers.first(where: { $0.models.contains(model) }) else { return nil }
+        return (recognizer, model)
+    }
+
+    /// What macOS says about the microphone now.
+    func microphoneStatus() -> MicrophonePermission {
+        microphone = access.status()
+        return microphone
+    }
+
+    /// Asks macOS for the microphone, which it does only the first time.
+    func requestMicrophone() async {
+        _ = await access.request()
+        microphone = access.status()
+    }
+
     /// The rows of the speech models table, for the recognizer chosen in its filter (all of them when nil).
     func rows(filter: RecognizerID?) -> [SpeechModelRow] {
         speechModelRows(models: models, filter: filter, state: store.state(of:), inUse: model?.id)

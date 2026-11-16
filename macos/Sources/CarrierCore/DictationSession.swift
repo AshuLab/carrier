@@ -37,6 +37,8 @@ public struct DictationField {
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
     @ObservationIgnored private let announce: (String) -> Void
     @ObservationIgnored private let log: (DictationFailure) -> Void
+    /// Told, with the owner of the box it was, each time a dictation ends: the widget of the global dictation hears its own end here.
+    @ObservationIgnored public var onEnd: ((String?) -> Void)?
     @ObservationIgnored private var field: DictationField?
     @ObservationIgnored private var model: SpeechModel?
     @ObservationIgnored private var tentative = TentativeText(caret: 0, in: "")
@@ -216,9 +218,11 @@ public struct DictationField {
         running = nil
         field = nil
         model = nil
+        let finished = owner
         owner = nil
         generation += 1
         state = .idle
+        onEnd?(finished)
         if let next = queued {
             queued = nil
             start(recognizer: next.recognizer, model: next.model, into: next.field)

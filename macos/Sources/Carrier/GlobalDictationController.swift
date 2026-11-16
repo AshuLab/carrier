@@ -1,0 +1,86 @@
+import AppKit
+import ApplicationServices
+import Carbon.HIToolbox
+import CarrierCore
+
+/// The global dictation of the app: the shortcut, the widget and the paste, around the machine of `CarrierCore/GlobalDictation.swift`. The shortcut is
+/// registered only while Dictate in any app and the Dictation switch are both on, and Esc only while the widget is open, so Carrier never holds a key it
+/// is not using.
+@MainActor final class GlobalDictationController {
+    static let shared = GlobalDictationController(dictation: .shared)
+
+    private let dictation: DictationController
+    private let preferences: AppPreferences
+    private let board: NSPasteboard
+    private var machine: GlobalDictation!
+    private var widget: DictationWidget!
+    private var shortcut: GlobalHotKey?
+    private var escape: GlobalHotKey?
+    /// The first dictation waits for macOS to answer the microphone's question; a press meanwhile is the same one.
+    private var asking = false
+
+    /// `board` is the one a paste goes through, the general pasteboard of a real build.
+    init(dictation: DictationController, preferences: AppPreferences = AppPreferences(), board: NSPasteboard = .general) {
+        self.dictation = dictation
+        self.preferences = preferences
+        self.board = board
+        machine = GlobalDictation(
+            session: dictation.session, speechModel: { dictation.speechModel }, microphone: { dictation.microphoneStatus() },
+            refusal: Self.pasteRefusal, perform: { [unowned self] in perform($0) })
+        widget = DictationWidget(dictation: machine, shortcut: GlobalHotKey.Shortcut.dictation.text)
+    }
+
+    /// Follows the two switches, now and each time the preferences change.
+    func start() {
+        refresh()
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
+    }
+
+    private func refresh() {
+        let on = globalDictationIsOn(dictation: preferences.dictationEnabled, global: preferences.dictationGlobal)
+        guard on != (shortcut != nil) else { return }
+        if on {
+            shortcut = GlobalHotKey(.dictation) { [weak self] in MainActor.assumeIsolated { self?.shortcutPressed() } }
+        } else {
+            shortcut = nil
+            // a dictation under way when it is turned off is cancelled, as Esc does
+            machine.handle(.escape)
+        }
+    }
+
+    private func shortcutPressed() {
+        guard asking == false else { return }
+        guard machine.state == .idle, dictation.microphoneStatus() == .notAsked else { return machine.handle(.down) }
+        asking = true
+        Task {
+            await dictation.requestMicrophone()
+            asking = false
+            machine.handle(.down)
+        }
+    }
+
+    private func perform(_ effect: GlobalDictationEffect) {
+        switch effect {
+        case .show:
+            widget.show()
+            escape = GlobalHotKey(.escape) { [weak self] in MainActor.assumeIsolated { self?.machine.handle(.escape) } }
+        case .close:
+            widget.close()
+            escape = nil
+        case .paste(let text): Task { await ClipboardPaste(board: board).paste(text) }
+        case .copy(let text):
+            board.clearContents()
+            board.setString(text, forType: .string)
+        }
+    }
+
+    /// Why a text is not pasted now: sending ⌘V needs Accessibility, and a password field, which has the focus whenever macOS has secure input on,
+    /// must never get the text. Whether a text field has the cursor is not looked at here.
+    private static func pasteRefusal() -> String? {
+        guard AXIsProcessTrusted() else { return "Accessibility is off for Carrier, so the text is not pasted." }
+        guard IsSecureEventInputEnabled() == false else { return "A secure field may have the focus, so the text is not pasted." }
+        return nil
+    }
+}

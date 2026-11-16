@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Dictate in any app: ⌥⇧ Space opens a small widget over the app you are in, without taking its focus, and shows what you say; the same keys again paste it once at the cursor and put your clipboard back, and Esc cancels. Settings › Dictation › Global dictation has the Dictate in any app switch, which follows the Dictation switch.
+
 ## [0.7.0] - 2026-11-16
 
 The chat gets a flat look as an option, files attached to a message that open in a preview, a wider message width and a handful of fixes to code blocks, accent colors, updates and usage-limit errors.

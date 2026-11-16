@@ -2,9 +2,20 @@ name: Carrier macOS app
 
 # The app (macos/): its tests and its bundle, in parallel on macOS, the expensive runner.
 # Reusable: ci.yml calls it once the engine is green; run by hand to try a branch.
+# The bundle (~18 min, a cold release build) runs only when the change can affect it: ci.yml decides. release.yml runs the same check before it publishes.
 on:
   workflow_call:
+    inputs:
+      bundle:
+        description: Also build and check the bundle
+        type: boolean
+        default: true
   workflow_dispatch:
+    inputs:
+      bundle:
+        description: Also build and check the bundle
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -28,6 +39,7 @@ jobs:
   # build-app.sh and what the updater needs from the bundle.
   bundle:
     name: Bundle
+    if: inputs.bundle
     runs-on: macos-26
     timeout-minutes: 30
     steps:

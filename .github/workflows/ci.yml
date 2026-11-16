@@ -4,6 +4,7 @@ name: CI
 # Slice PRs into an epic branch and drafts run nothing: ship opens the integration PR as a draft, so this runs once a person marks it ready.
 # It always triggers (no paths filter on the workflow), and `changes` decides what runs, so `success` is never left pending.
 # A job skipped by its `if:` counts as passed, so a draft never blocks.
+# The app's bundle (a cold release build, the slowest job) runs only for a change that can affect the packaging; release.yml checks it again before it publishes.
 # Order: engine (cheap, Linux) first, macOS (10x the minutes) only if it did not fail.
 # A push to main runs the engine only: two PRs that were green apart can still break main together.
 on:
@@ -24,6 +25,7 @@ permissions:
 
 jobs:
   # engine: anything but a change that is only inside macos/. macos: the app, its notices, or the workflows themselves.
+  # bundle: what build-app.sh and check-app.sh read or write: the scripts, the package, the resources, the key, the fixtures, the notices, and the two workflows that run it.
   changes:
     name: Changes
     if: github.event_name == 'push' || github.event.pull_request.draft == false
@@ -32,6 +34,7 @@ jobs:
     outputs:
       engine: ${{ steps.files.outputs.engine }}
       macos: ${{ steps.files.outputs.macos }}
+      bundle: ${{ steps.files.outputs.bundle }}
     steps:
       - id: files
         env:
@@ -42,12 +45,14 @@ jobs:
           if [ "$EVENT" = push ]; then
             echo "engine=true" >> "$GITHUB_OUTPUT"
             echo "macos=false" >> "$GITHUB_OUTPUT"
+            echo "bundle=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           FILES="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename')"
           echo "$FILES"
           echo "engine=$(echo "$FILES" | grep -qvE '^macos/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "macos=$(echo "$FILES" | grep -qE '^(macos/|THIRD-PARTY-NOTICES\.md$|\.github/workflows/)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "bundle=$(echo "$FILES" | grep -qE '^(macos/(build-app\.sh|update-key\.pub|Package\.(swift|resolved)|scripts/|Resources/|Tests/Fixtures/|Sources/[^/]+/Resources/)|THIRD-PARTY-NOTICES\.md$|\.github/workflows/(ci|_macos)\.yml$)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
   engine:
     name: Carrier Engine
@@ -61,6 +66,8 @@ jobs:
     # always(): `engine` is skipped on a PR that only touches macos/, and a skipped need would skip this too.
     if: ${{ !cancelled() && needs.changes.outputs.macos == 'true' && needs.engine.result != 'failure' }}
     uses: ./.github/workflows/_macos.yml
+    with:
+      bundle: ${{ needs.changes.outputs.bundle == 'true' }}
 
   # CONTRIBUTING: a change someone can see adds a line under [Unreleased]. Source other than tests or the app's sources needs one,
   # unless the PR has the `no-changelog` label (read when the job runs, so add the label and re-run this job).

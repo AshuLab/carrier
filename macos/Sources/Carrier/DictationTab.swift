@@ -10,6 +10,7 @@ struct DictationTabView: View {
         let enabled = dictation.enabled
         SettingsPageBody(reset: { dictation.reset() }) {
             DictationGroup()
+            CleanupGroup().live(.cleanup, enabled: enabled)
             SpeechModelsGroup().live(.modelsTable, enabled: enabled)
             StorageGroup().live(.storage, enabled: enabled)
         }

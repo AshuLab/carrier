@@ -536,6 +536,58 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(changed == 0)
 }
 
+@MainActor @Test func anArchivedSessionIsDrawnArchivedAtOnceUntilTheHostListsItSoAndComesBackIfRefused() async {
+    func row(_ id: String, archived: Bool = false) -> SessionRow {
+        SessionRow(id: id, title: id, workspace: "w", agent: "claude", state: .idle, updatedAt: Date(timeIntervalSince1970: 0), archived: archived)
+    }
+    let host = FakeHost()
+    host.refuse["no"] = ControlError.remote("This session is working")
+    let actions = SessionActions(host: host, log: { _ in })
+    var said = 0
+    actions.archivingChanged = { said += 1 }
+    #expect(await actions.archive("a") == nil)
+    // the host answered, but its list still has the session active: it stays out of the active ones
+    #expect(actions.archiving == ["a"] && said == 1)
+    actions.settle([row("a")])
+    #expect(actions.archiving == ["a"])
+    // the list caught up, or the session is gone
+    actions.settle([row("a", archived: true)])
+    #expect(actions.archiving.isEmpty)
+    #expect(await actions.archive("b") == nil)
+    actions.settle([])
+    #expect(actions.archiving.isEmpty)
+    // refused: it comes back, and the change is said twice (it went, it returned)
+    said = 0
+    #expect(await actions.archive("no") == "This session is working")
+    #expect(actions.archiving.isEmpty && said == 2)
+    // restored before the host listed it archived
+    #expect(await actions.archive("c") == nil)
+    #expect(await actions.restore("c") == nil)
+    #expect(actions.archiving.isEmpty)
+}
+
+@Test func aNapCutShortReturnsAtOnceAndAWakeBeforeItStartsSkipsIt() async {
+    let nap = PollNap()
+    let started = ContinuousClock.now
+    // the nap is a minute and the limit half of it: a nap that was not cut short fails, and a runner too busy to start a task for several
+    // seconds (it took twelve in CI) does not
+    async let sleeping: Void = nap.sleep(seconds: 60)
+    try? await Task.sleep(for: .milliseconds(50))
+    nap.wake()
+    await sleeping
+    #expect(ContinuousClock.now - started < .seconds(30))
+    // woken while a read is in flight: the next wait does not happen
+    nap.wake()
+    let again = ContinuousClock.now
+    await nap.sleep(seconds: 60)
+    #expect(ContinuousClock.now - again < .seconds(30))
+    // and the one after that waits again
+    let third = ContinuousClock.now
+    async let last: Void = nap.sleep(seconds: 0.2)
+    await last
+    #expect(ContinuousClock.now - third >= .milliseconds(150))
+}
+
 @MainActor @Test func aHostThatDoesNotAnswerIsLoggedAndSaidAndARefusalIsNotLogged() async {
     let host = FakeHost()
     host.refuse["a"] = ControlError.closed

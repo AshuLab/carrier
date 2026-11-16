@@ -11,16 +11,32 @@ struct SessionRowView: View {
     let row: SessionRow
     /// Outside the workspace order the group is not the workspace, so the second line says it.
     let showsWorkspace: Bool
+    /// Pin and Archive take the age's place while the pointer is on the row. Only the sessions list asks for them: the Archive section draws
+    /// this row inside a button, and Settings draws it as a preview.
+    var hoverActions = false
+    @State private var hovered = false
+    @Environment(SessionActions.self) private var actions
+    @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
     @AppStorage(SidebarStore.showsIconKey) private var showsIcon = true
     @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
     @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
     @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
+    /// Two buttons of 22 points and the gap between them.
+    private static let actionsWidth: CGFloat = 46
     /// The orange of "Waiting for you" as text: the system's on dark, a deeper one on light, where the system's is too pale to read.
     static let attention = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .systemOrange : NSColor(red: 0.70, green: 0.36, blue: 0, alpha: 1)
     })
+
+    /// The green of "Done" (the turn ended and the person has not opened the session): a lighter one on dark, a deeper one on light.
+    static let done = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(red: 0.19, green: 0.70, blue: 0.31, alpha: 1) : NSColor(red: 0.12, green: 0.55, blue: 0.24, alpha: 1)
+    })
+    /// Whether the ring stays on after the agent stops, to go round once more in green when the turn ended unread (`finished`).
+    @State private var ringKept = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var content: SessionRowContent {
         SessionRowContent(
@@ -29,10 +45,22 @@ struct SessionRowView: View {
         )
     }
 
+    private var pinned: Bool { pinnedIds(pinnedStored).contains(row.id) }
+
+    private func togglePin() {
+        let ids = pinnedIds(pinnedStored)
+        pinnedStored = storedPins(pinned ? ids.subtracting([row.id]) : ids.union([row.id]))
+    }
+
+    /// What the host refuses (a session that is working) is told in an alert, as the context menu does.
+    private func archive() {
+        Task { if let refusal = await actions.archive(row.id) { tell(refusal) } }
+    }
+
     private func place(_ place: SessionPlace) -> Text {
         switch place {
         case .branch(let name): Text("\(Image(systemName: "arrow.triangle.branch")) \(name)")
-        case .baseFolder: Text("Base folder")
+        case .baseFolder: Text("\(Image(systemName: "folder")) Base folder")
         }
     }
 
@@ -40,9 +68,14 @@ struct SessionRowView: View {
     /// switched off it is the second line's, where it has always been.
     private func waitsAtTop(_ content: SessionRowContent) -> Bool { row.state == .waiting && content.age != nil }
 
+    /// The same for "Done" (the turn ended and the session has not been opened since): the word takes the place of the time.
+    private func doneAtTop(_ content: SessionRowContent) -> Bool { row.status == .unread && content.age != nil }
+
     @ViewBuilder private func detail(_ content: SessionRowContent) -> some View {
         if row.state == .waiting && waitsAtTop(content) == false {
             Text("Needs you").fontWeight(.medium).foregroundStyle(Self.attention)
+        } else if row.status == .unread && doneAtTop(content) == false {
+            Text("Done").fontWeight(.medium).foregroundStyle(Self.done)
         } else {
             switch (content.workspace, content.place) {
             case (let workspace?, let placed?): Text("\(workspace) · \(place(placed))").foregroundStyle(.secondary)
@@ -58,6 +91,8 @@ struct SessionRowView: View {
     @ViewBuilder private func ageOrStopwatch(_ content: SessionRowContent) -> some View {
         if waitsAtTop(content) {
             Text("Needs you").fontWeight(.medium).foregroundStyle(Self.attention)
+        } else if doneAtTop(content) {
+            Text("Done").fontWeight(.medium).foregroundStyle(Self.done)
         } else if content.age != nil, let since = WorkingClock.shared.since(row) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text(workingElapsed(Int(context.date.timeIntervalSince(since)))).foregroundStyle(Color.thought)
@@ -71,7 +106,10 @@ struct SessionRowView: View {
         let content = content
         HStack(spacing: SidebarMetrics.inset) {
             if content.showsIcon {
-                ProjectIcon(name: row.workspace, colorKey: projectColorKey(row.base), working: row.state == .working)
+                ProjectIcon(
+                    name: row.workspace, colorKey: projectColorKey(row.base), working: row.state == .working,
+                    finished: ringKept && row.state != .working
+                )
             }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 Text(row.title).font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular)
@@ -79,19 +117,51 @@ struct SessionRowView: View {
                 detail(content).font(SidebarMetrics.detail).lineLimit(1).truncationMode(.tail).frame(height: Self.detailLine, alignment: .leading)
             }
             Spacer(minLength: 4)
-            if content.age != nil || content.providers.isEmpty == false {
+            if content.age != nil || content.providers.isEmpty == false || hoverActions {
                 VStack(alignment: .trailing, spacing: SidebarMetrics.lineGap) {
-                    ageOrStopwatch(content)
-                        .font(SidebarMetrics.detail.monospacedDigit()).lineLimit(1).frame(height: Self.titleLine)
+                    // the age stays in the layout, hidden, so the column does not change its width as the buttons come in
+                    ZStack(alignment: .trailing) {
+                        ageOrStopwatch(content).opacity(hoverActions && hovered ? 0 : 1)
+                        if hoverActions && hovered {
+                            HStack(spacing: 2) {
+                                hoverButton(pinned ? "pin.slash" : "pin", pinned ? "Unpin" : "Pin", togglePin)
+                                hoverButton("archivebox", "Archive", why: archiveBlock(row), archive)
+                            }
+                            .transition(.opacity)
+                        }
+                    }
+                    .font(SidebarMetrics.detail.monospacedDigit()).lineLimit(1).frame(height: Self.titleLine)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovered)
                     ProviderMarks(names: content.providers).frame(height: Self.detailLine)
                 }
+                // room for the two buttons even while they are hidden, so the title does not move as the pointer comes in
+                .frame(minWidth: hoverActions ? Self.actionsWidth : nil, alignment: .trailing)
             }
         }
         .padding(.horizontal, content.showsIcon ? density.rowPadding : SidebarMetrics.inset).padding(.vertical, density.rowPadding)
+        .onChange(of: row.state == .working, initial: true) { _, working in if working { ringKept = true } }
+        .onChange(of: row.status) { old, new in
+            guard old == .working, ringKept else { return }
+            // a turn that ended unread gets one fast green lap; anything else (it waits for the person, or they are looking at it) drops the ring now
+            guard new == .unread, reduceMotion == false else { ringKept = false; return }
+            Task { try? await Task.sleep(for: .seconds(1.2)); ringKept = false }
+        }
+        .onHover { hovered = $0 }
         .sessionContextMenu(row)
         .hoverCard { SessionPeekView(card: sessionPeek(row, now: Date())) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label(content))
+        // the buttons are drawn on hover only: VoiceOver reaches the same two here
+        .accessibilityAction(named: pinned ? "Unpin" : "Pin") { if hoverActions { togglePin() } }
+        .accessibilityAction(named: "Archive") { if hoverActions && archiveBlock(row) == nil { archive() } }
+    }
+
+    /// `why` is what keeps the button off: it is the tooltip then, and what VoiceOver reads after the name.
+    private func hoverButton(_ symbol: String, _ title: String, why: String? = nil, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.scaled(11)).foregroundStyle(.secondary).frame(width: 22, height: 20).contentShape(Rectangle())
+        }
+        .buttonStyle(HoverFillButtonStyle(radius: 5)).disabled(why != nil).help(why ?? title).accessibilityLabel(title).accessibilityHint(why ?? "")
     }
 
     /// What the row says aloud: the title, the state in words (the icon draws it), where it works, the providers and "5 minutes ago",
@@ -100,7 +170,7 @@ struct SessionRowView: View {
         let state: String? = switch row.state {
         case .working: "Working"
         case .waiting: "Needs attention"
-        case .idle, .done: nil
+        case .idle, .done: row.status == .unread ? "Done" : nil
         }
         let place: String? = switch content.place {
         case .branch(let name)?: name
@@ -126,6 +196,8 @@ struct ProjectIcon: View {
     /// What the colour is made from: `projectColorKey` of the folder or the repository.
     let colorKey: String
     var working = false
+    /// The ring goes once round in green, fast, after `working`: the agent just ended its turn. The owner takes it away a moment later.
+    var finished = false
     @Environment(\.rowActive) private var active
     static let size: CGFloat = 32
     static let radius: CGFloat = 9
@@ -147,7 +219,8 @@ struct ProjectIcon: View {
                     .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             }
             .animation(.easeOut(duration: 0.15), value: active)
-            .overlay { if working { WorkingRing() } }
+            .overlay { if working || finished { WorkingRing(finished: finished && working == false).transition(.opacity) } }
+            .animation(.easeOut(duration: 0.3), value: finished)
     }
 }
 
@@ -172,15 +245,21 @@ struct ProviderMarks: View {
 /// and stopped under the rule of the rings (a hidden window, Reduce Motion): then the arc stays still, so a working session is told from
 /// an idle one without motion.
 struct WorkingRing: NSViewRepresentable {
+    /// The agent's turn ended: the arc turns green and goes once round, fast, from where it was.
+    var finished = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeNSView(context: Context) -> WorkingRingHostView {
         let view = WorkingRingHostView(size: ProjectIcon.size, radius: ProjectIcon.radius)
         view.reduceMotion = reduceMotion
+        view.finished = finished
         return view
     }
 
-    func updateNSView(_ view: WorkingRingHostView, context: Context) { view.reduceMotion = reduceMotion }
+    func updateNSView(_ view: WorkingRingHostView, context: Context) {
+        view.reduceMotion = reduceMotion
+        view.finished = finished
+    }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: WorkingRingHostView, context: Context) -> CGSize? {
         CGSize(width: ProjectIcon.size, height: ProjectIcon.size)
@@ -192,8 +271,9 @@ final class WorkingRingHostView: NSView {
     private static let lineWidth: CGFloat = 2
     /// The arc's tail, head and fade, as the chat draws them, over a clear rest of the circle.
     private static let stops: [(alpha: CGFloat, at: NSNumber)] = [(0, 0), (0, 0.62), (0.95, 0.82), (0.4, 0.92), (0, 1)]
-    /// A turn of the arc, in seconds.
+    /// A turn of the arc, in seconds, and the one fast lap when the agent's turn ended.
     private static let period: CFTimeInterval = 3.4
+    private static let finishPeriod: CFTimeInterval = 0.9
 
     /// Clips the turning gradient to the icon's edge.
     private let edge = CALayer()
@@ -202,6 +282,17 @@ final class WorkingRingHostView: NSView {
 
     var windowVisible = false { didSet { refresh() } }
     var reduceMotion = false { didSet { refresh() } }
+    /// The turn ended: the green lap replaces the turning one, starting where the arc is.
+    var finished = false {
+        didSet {
+            guard finished != oldValue else { return }
+            lapStart = gradient.presentation()?.value(forKeyPath: "transform.rotation.z") as? Double ?? 0
+            setColor()
+            gradient.removeAnimation(forKey: Self.key)
+            refresh()
+        }
+    }
+    private var lapStart = 0.0
 
     init(size: CGFloat, radius: CGFloat) {
         super.init(frame: NSRect(x: 0, y: 0, width: size, height: size))
@@ -264,9 +355,9 @@ final class WorkingRingHostView: NSView {
         windowVisible = window.occlusionState.contains(.visible)
     }
 
-    /// The violet of the chat's glow (`Color.thought`), the same in both appearances.
+    /// The violet of the chat's glow (`Color.thought`), the same in both appearances; green once the turn ended.
     private func setColor() {
-        let violet = NSColor(Color.thought).cgColor
+        let violet = (finished ? NSColor(SessionRowView.done) : NSColor(Color.thought)).cgColor
         gradient.colors = Self.stops.map { violet.copy(alpha: $0.alpha) as Any }
         // what shows while it does not move: the arc a little past its start, as the chat's does
         gradient.transform = CATransform3DMakeRotation(-.pi * 200 / 180, 0, 0, 1)
@@ -277,11 +368,11 @@ final class WorkingRingHostView: NSView {
         // idempotent: an animation already attached is left alone, or it would restart each time the view updates
         guard gradient.animation(forKey: Self.key) == nil else { return }
         let turn = CABasicAnimation(keyPath: "transform.rotation.z")
-        turn.fromValue = 0
-        turn.toValue = -2 * Double.pi
-        turn.duration = Self.period
-        turn.repeatCount = .infinity
-        turn.timingFunction = CAMediaTimingFunction(name: .linear)
+        turn.fromValue = finished ? lapStart : 0
+        turn.toValue = (finished ? lapStart : 0) - 2 * Double.pi
+        turn.duration = finished ? Self.finishPeriod : Self.period
+        turn.repeatCount = finished ? 1 : .infinity
+        turn.timingFunction = CAMediaTimingFunction(name: finished ? .easeOut : .linear)
         // uncapped, the render server recomposes at the display rate (see IconController.bounce)
         turn.preferredFrameRateRange = CAFrameRateRange(minimum: 20, maximum: 20, preferred: 20)
         gradient.add(turn, forKey: Self.key)

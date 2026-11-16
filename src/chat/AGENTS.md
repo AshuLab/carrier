@@ -15,6 +15,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `server.ts`: the socket (`chat.sock`, a strict request union and a hello like the engine's).
 - `idle.ts`: the rule that ends it.
 - `sessions.ts`: what the requests do (open, send, events, close, the one-minute idle close, and `openPlan`).
+  An archive of a live idle session does not wait for its agent to end (SIGTERM, then SIGKILL after three seconds): the session stops being live and is marked at once, the agent ends in the background and the host's stop waits for it. A delete does wait, as its worktree cannot be removed under a running agent.
   `openPlan`: a plan for a folder, a repository to clone or a new project, with the branch to check out (`checkout` in `workspace.ts`, refused on a folder with uncommitted changes) or a worktree from it, becomes a `preparing` session.
   Its steps (`clone` or `fetch` through `projects.cloneRepo`, whose latest git progress line the `events` reply carries as `progress`, never stored) run in the background and are stored as `step` events.
   `retryPreparation` repeats a failed one from where it stopped (the worktree recorded on the session and a checkout done are reused).

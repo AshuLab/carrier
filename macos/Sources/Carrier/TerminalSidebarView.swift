@@ -10,6 +10,8 @@ struct TerminalRows: View {
     /// Chooses Terminal, which unfolds it.
     let select: () -> Void
     @Binding var open: Bool
+    /// Drawn as the section header of the scroll it is in, so its row stays at the top while the list moves under it.
+    var pinHeader = false
     /// The last ⌘F: when it asks for Terminal, the search field opens and takes the keyboard.
     let searchRequest: SearchRequest?
     let newTerminal: () -> Void
@@ -28,6 +30,16 @@ struct TerminalRows: View {
     }
 
     var body: some View {
+        if pinHeader {
+            // the open section's row stays at the top of the scroll while its list moves under it
+            Section { list } header: { header.pinnedSectionHeader() }
+        } else {
+            header
+            list
+        }
+    }
+
+    @ViewBuilder private var header: some View {
         SidebarSectionRow(
             title: "Terminal",
             icon: "terminal",
@@ -62,6 +74,9 @@ struct TerminalRows: View {
         .help("Terminal")
         .onChange(of: open) { if open == false { query = nil } }
         .onChange(of: searchRequest) { if searchRequest?.section == .terminal { openSearch() } }
+    }
+
+    @ViewBuilder private var list: some View {
         if open {
             let shownTerminals = filteredStandaloneTerminals(terminals, query: query ?? "")
             LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {

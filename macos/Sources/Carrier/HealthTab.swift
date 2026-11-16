@@ -30,7 +30,7 @@ struct HealthTabView: View {
         )
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Is everything Carrier needs ready?").font(.callout).foregroundStyle(.secondary)
+                Text("Is everything Carrier needs ready?").font(.scaled(12)).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
                 if checking { ProgressView().controlSize(.small) }
                 Button("Check again") { Task { await checkAgain() } }.buttonStyle(SecondaryCapsuleButtonStyle()).disabled(checking)
@@ -40,7 +40,7 @@ struct HealthTabView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(section.title).sectionLabel().padding(.leading, 14).padding(.top, 8)
                     if let note = section.note {
-                        Text(note).font(.callout).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(note).font(.scaled(12)).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
                             .settingsCard()
                     }
                     // cards side by side: as many as fit, so the tab stays short
@@ -102,10 +102,10 @@ private struct HealthCardView: View {
                 Text(row.title).fontWeight(.medium).lineLimit(2)
             }
             if row.detail.isEmpty == false {
-                Text(row.detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(row.detail).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if let fix = row.fix {
-                Text("Fix: \(fix)").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text("Fix: \(fix)").font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if let tool = row.tool { HealthFixButton(tool: tool, state: row.state) }
         }

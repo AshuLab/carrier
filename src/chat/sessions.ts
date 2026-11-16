@@ -223,7 +223,11 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     touch(sessionId, live, event.kind === 'approval' ? 'waiting_approval' : event.kind === 'turn_end' ? 'idle' : event.kind === 'approval_answered' ? 'working' : live.state);
   };
 
-  async function close({ sessionId }: { sessionId: string }) {
+  /** The agents that were told to end and have not yet: a close that does not wait leaves them here, and the host's stop waits for them. */
+  const ending = new Set<Promise<void>>();
+
+  /** Closes a live session: it is no longer live as soon as this runs, and the agent's end (SIGTERM, then SIGKILL) is waited for unless `wait` is false. */
+  async function close({ sessionId }: { sessionId: string }, { wait = true }: { wait?: boolean } = {}) {
     row(sessionId);
     const live = lives.get(sessionId);
     if (live === undefined) return {};
@@ -231,22 +235,30 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     revoke(live.invocationId);
     live.cancelIdle?.();
     db.update(sessions).set({ state: 'idle', pid: null, pgid: null, command: null }).where(eq(sessions.id, sessionId)).run();
-    try {
-      await live.conversation.close();
-    } catch (error) {
-      log.error('closing a conversation failed', error);
+    const failed = (error: unknown) => log.error('closing a conversation failed', error);
+    if (wait) {
+      try {
+        await live.conversation.close();
+      } catch (error) {
+        failed(error);
+      }
+    } else {
+      const ended = live.conversation.close().catch(failed);
+      ending.add(ended);
+      void ended.then(() => ending.delete(ended));
     }
     onLiveChange();
     return {};
   }
 
-  /** Readies a session to be archived or deleted: refuses an unknown one, and one working or waiting for an approval; closes an idle live one. */
+  /** Readies a session to be archived or deleted: refuses an unknown one, and one working or waiting for an approval; closes an idle live one.
+   * An archive does not wait for the agent to end, which can take seconds (the person is watching the row go); a delete does, as its worktree cannot be removed under a running agent. */
   async function settle(sessionId: string, verb: 'archive' | 'delete') {
     if (row(sessionId).state === 'preparing') throw new ChatRefused(`This session is being prepared; wait for it to finish, then ${verb} it`);
     const live = lives.get(sessionId);
     if (live === undefined) return;
     if (live.state !== 'idle') throw new ChatRefused(`This session is ${live.state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} it`);
-    await close({ sessionId });
+    await close({ sessionId }, { wait: verb === 'delete' });
     if (lives.has(sessionId)) throw new ChatRefused('This session was resumed meanwhile; close it first'); // a resume that finished during the close
   }
 
@@ -870,6 +882,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     async closeAll() {
       closed = true;
       for (const sessionId of [...lives.keys()]) await close({ sessionId });
+      await Promise.all(ending);
     },
   };
 }

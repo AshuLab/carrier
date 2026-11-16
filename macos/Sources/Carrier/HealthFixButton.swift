@@ -13,12 +13,12 @@ struct HealthFixButton: View {
         switch healthFix(tool, state) {
         case .command(let words):
             VStack(alignment: .leading, spacing: 2) {
-                Button { open() } label: { Label(words.joined(separator: " "), systemImage: "apple.terminal").font(.system(.callout, design: .monospaced)) }
+                Button { open() } label: { Label(words.joined(separator: " "), systemImage: "apple.terminal").font(.scaled(12, design: .monospaced)) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and runs this command")
-                if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
+                if let failure { Text(failure).font(.scaled(11)).foregroundStyle(.red) }
             }
         case .install(let url):
-            Link("Installation page", destination: url).font(.callout)
+            Link("Installation page", destination: url).font(.scaled(12))
         case nil:
             EmptyView()
         }

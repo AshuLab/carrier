@@ -83,7 +83,7 @@ struct SessionsTabView: View {
                 if let line { SettingsTabRow(title: "A session you stop using today", detail: line, first: true) { EmptyView() } }
                 SettingsTabRow(title: "Left alone", detail: "A session that is working, waiting for you or open is looked at again later", first: line == nil) { EmptyView() }
             }
-            if let failure { Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
+            if let failure { Label(failure, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange) }
             SettingsGroup(title: "Reset") {
                 SettingsTabRow(title: "Restore the defaults", detail: "Everything on this page goes back to how it came", first: true) {
                     Button(action: reset) { Label("Reset", systemImage: "arrow.counterclockwise") }.buttonStyle(SecondaryCapsuleButtonStyle())
@@ -101,7 +101,7 @@ struct SessionsTabView: View {
             HStack(spacing: 10) {
                 if age.wrappedValue != .never {
                     NumberField(key: key, value: days, unparsable: $unparsable, parse: { Int($0) }, format: { String($0) }, step: { $0 + $1 >= 1 ? $0 + $1 : nil })
-                    Text("days").font(.caption).foregroundStyle(.secondary)
+                    Text("days").font(.scaled(11)).foregroundStyle(.secondary)
                 }
                 ChoicePopUp(
                     label: title, options: [(value: false, title: "Days"), (value: true, title: "Never")],

@@ -29,6 +29,8 @@ struct SettingsSheet: View {
                 page.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
+        // the size of a Text with no font of its own, so it follows the text size too
+        .font(.scaled(13))
         .windowSheetSize(maxWidth: settingsMaxWidth)
         // what the person fixed here is what the chat host needs: look again when they are done
         .onDisappear { ChatHostStarter.shared.checkAtOpen() }
@@ -57,7 +59,7 @@ struct SettingsSheet: View {
                 ReadinessBannerView(banner: banner, detecting: setup.detecting) { setup.detect() }
             }
             if let message = setup.message {
-                Label(message, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                Label(message, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange)
             }
             switch tab {
             case .general: GeneralTabView()
@@ -91,7 +93,7 @@ struct SettingsSheet: View {
 
     @ViewBuilder private func engine(notConfigured: String?) -> some View {
         if let notConfigured {
-            Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+            Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange)
         }
         let programs = EnginePrograms(
             carrier: setup.carrier, carrierIsOwn: setup.carrierIsOwn, carrierVersion: versions?.carrier, setup: setup.settings, nodeVersion: versions?.node,
@@ -205,7 +207,7 @@ struct ReadinessBannerView: View {
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text(banner.title).fontWeight(.semibold)
-                Text(banner.detail).font(.caption).foregroundStyle(.secondary)
+                Text(banner.detail).font(.scaled(11)).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             Button(action: detectAgain) { Label("Detect", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }

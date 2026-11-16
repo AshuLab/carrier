@@ -133,7 +133,7 @@ struct BehaviorTabView: View {
     private func field<Value: Equatable>(_ key: String, _ value: Binding<Value>, unit: String?, parse: @escaping (String) -> Value?, format: @escaping (Value) -> String, step: @escaping (Value, Int) -> Value?) -> some View {
         HStack(spacing: 6) {
             NumberField(key: key, value: value, unparsable: $unparsable, parse: parse, format: format, step: step)
-            if let unit { Text(unit).font(.caption).foregroundStyle(.secondary) }
+            if let unit { Text(unit).font(.scaled(11)).foregroundStyle(.secondary) }
         }
     }
 
@@ -257,7 +257,7 @@ struct SecondaryCapsuleButtonStyle: ButtonStyle {
 
         var body: some View {
             let small = size == .small || size == .mini
-            configuration.label.font(small ? .callout.weight(.medium) : .body.weight(.medium))
+            configuration.label.font(small ? .scaled(12).weight(.medium) : .scaled(13).weight(.medium))
                 .foregroundStyle(enabled ? Color.primary : Color.secondary)
                 .padding(.horizontal, small ? 11 : 16).padding(.vertical, small ? 3 : 6)
                 .background(Capsule().fill(Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.15 : 0.09)))
@@ -285,7 +285,7 @@ struct PrimaryCapsuleButtonStyle: ButtonStyle {
 
         var body: some View {
             let small = !large && (size == .small || size == .mini)
-            configuration.label.fontWeight(.semibold).font(large ? .title3.weight(.semibold) : (small ? .callout.weight(.semibold) : .body.weight(.semibold)))
+            configuration.label.fontWeight(.semibold).font(large ? .scaled(15).weight(.semibold) : (small ? .scaled(12).weight(.semibold) : .scaled(13).weight(.semibold)))
                 .foregroundStyle(enabled ? Color.white : Color.secondary)
                 .padding(.horizontal, large ? 24 : (small ? 11 : 16)).padding(.vertical, large ? 9 : (small ? 3 : 6))
                 // the accent is a light pastel on the dark themes: darkened for the fill so the white label reads over any theme

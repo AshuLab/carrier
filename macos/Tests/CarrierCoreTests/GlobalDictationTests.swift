@@ -8,6 +8,7 @@ import Testing
     let recognizer: ScriptedRecognizer
     let logged = Logged()
     private(set) var effects: [GlobalDictationEffect] = []
+    private(set) var moments: [GlobalDictationMoment] = []
     var machine: GlobalDictation!
     var microphone = MicrophonePermission.allowed
     var refusal: String?
@@ -20,7 +21,8 @@ import Testing
         let session = DictationSession(capture: capture, log: { logged.causes.append($0.cause) })
         machine = GlobalDictation(
             session: session, speechModel: { [unowned self] in hasModel ? (recognizer, recognizer.models[0]) : nil }, microphone: { [unowned self] in microphone },
-            refusal: { [unowned self] in refusal }, perform: { [unowned self] in effects.append($0) })
+            refusal: { [unowned self] in refusal },
+            moment: { [unowned self] in moments.append($0) }, perform: { [unowned self] in effects.append($0) })
     }
 
     var session: DictationSession { machine.session }
@@ -197,4 +199,35 @@ private final class Logged: @unchecked Sendable { var causes: [String] = [] }
     #expect(displayIndex(of: CGRect(x: 900, y: 100, width: 400, height: 300), in: [left, right]) == 1)
     #expect(displayIndex(of: CGRect(x: 5000, y: 0, width: 10, height: 10), in: [left, right]) == nil)
     #expect(displayIndex(of: left, in: []) == nil)
+}
+
+@MainActor @Test func theMachineTellsWhenItBeginsToListenAndWhenThePersonStopsIt() async {
+    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola")]))
+    widget.machine.handle(.down)
+    #expect(widget.moments.isEmpty)
+    await widget.until { widget.session.state == .listening }
+    #expect(widget.moments == [.listening])
+    widget.machine.handle(.down)
+    widget.machine.handle(.down)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.moments == [.listening, .stopped])
+}
+
+@MainActor @Test func aCancelIsTold() async {
+    let widget = Widget()
+    await widget.listen()
+    widget.machine.handle(.escape)
+    #expect(widget.moments == [.listening, .cancelled])
+}
+
+@MainActor @Test func aDictationThatNeverListenedTellsNothing() async {
+    let recognizer = ScriptedRecognizer()
+    recognizer.holdPrepare()
+    let widget = Widget(recognizer: recognizer)
+    widget.machine.handle(.down)
+    widget.machine.handle(.escape)
+    recognizer.releasePrepare()
+    widget.microphone = .denied
+    widget.machine.handle(.down)
+    #expect(widget.moments.isEmpty)
 }

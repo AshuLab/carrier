@@ -61,9 +61,15 @@ With the switch off the rows under it and the table are drawn at 40% and take no
 
 ## Cleanup
 
-The Cleanup group (`Carrier/CleanupGroup.swift`, over `Carrier/CleanupController.swift`) sets up the model that will clean the text of a dictation ([0030](../adr/0030-dictation-cleanup-runs-on-local-model-servers-through-their-api.md)); for now it only sets the model up and tests it, and what a dictation pastes does not change.
+The Cleanup group (`Carrier/CleanupGroup.swift`, over `Carrier/CleanupController.swift`) sets up the model that will clean the text of a dictation ([0030](../adr/0030-dictation-cleanup-runs-on-local-model-servers-through-their-api.md)); it sets the model up and tests it, and the message boxes use it (below).
 It has the switch (`dictation.cleanup.enabled`, off by default), the Server popup (`dictation.cleanup.server`: LM Studio or Ollama, with a chip that says Running or Not running, checked when the page opens, when the server changes and when the app comes back to the front), the Model popup (`dictation.cleanup.model`: the models that server lists, and the saved one when the server is down), the Prompt box (`dictation.cleanup.prompt`: it starts with a default that removes filler words and fixes the punctuation and keeps the language that was spoken) and Test with a sample.
 The switch takes no click until a server and one of its models are chosen (`cleanupCanBeOn`), and choosing another server clears the model and turns it off, since a model belongs to its server.
 Test sends a sample dictation (`cleanupSample`) with the prompt to the chosen model and shows the answer and how long it took, or the cause in orange: the server is not running, the model is not on it, the prompt is empty, no server is chosen, or no answer in 30 seconds.
 With Dictation off the group is drawn at 40% like the rows above it.
 The client (`CarrierCore/LocalModelClient.swift`) speaks `GET /v1/models` and `POST /v1/chat/completions` to `127.0.0.1` (LM Studio on 1234, Ollama on 11434), the prompt as the system message and the text as the user message, with no tools and no streaming, and contacts nothing else.
+
+In a message box, with Cleanup on, a dictation that ends with words goes on to clean: the box says Cleaning… where it says Transcribing…, the text of the dictation stays in the box as it was heard, and when the model answers that text, and only that text, is replaced by the cleaned one at the same place, leaving the rest of the box and the caret where they were (`DictationSession`, state `.cleaning`, `DictationController.cleanup()` over `CleanupRun`).
+Esc, a click on the microphone (which shows a spinner and can be pressed meanwhile), a key typed in the box, Enter, leaving the session or another box starting a dictation skip the cleanup and keep the raw text; so does a text that is no longer as the dictation left it.
+When the server is down, the model is missing or it does not answer in 30 seconds, the raw text stays, the cause shows in red under the box like any failure and a line with the cause only is appended to `dictation.log`.
+With Cleanup off, or on a server and model not chosen, a dictation in a box ends exactly as before.
+The widget does not clean yet.

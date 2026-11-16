@@ -7,6 +7,7 @@ import Testing
     (.gettingReady, .spinner, false, false, "Getting the model ready…", false, "Dictation is getting ready"),
     (.listening, .mic, true, true, nil, false, "Stop dictation"),
     (.transcribing, .spinner, false, false, "Transcribing…", false, "Transcribing"),
+    (.cleaning, .spinner, false, true, "Cleaning…", false, "Cleaning, press to skip"),
 ])
 func theBoxDrawsAndSaysWhatEachStateNeeds(state: DictationSession.State, icon: DictationIcon, accent: Bool, pressable: Bool, caption: String?, send: Bool, label: String) throws {
     let box = try #require(dictationPresentation(state, registered: true))
@@ -18,7 +19,7 @@ func theBoxDrawsAndSaysWhatEachStateNeeds(state: DictationSession.State, icon: D
     #expect(box.label == label)
 }
 
-@Test(arguments: [DictationSession.State.idle, .gettingReady, .listening, .transcribing])
+@Test(arguments: [DictationSession.State.idle, .gettingReady, .listening, .transcribing, .cleaning])
 func aBuildWithNoRecognizerDrawsNoIconInAnyState(state: DictationSession.State) {
     #expect(dictationPresentation(state, registered: false) == nil)
 }

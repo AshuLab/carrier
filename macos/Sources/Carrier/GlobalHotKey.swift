@@ -42,6 +42,8 @@ final class GlobalHotKey {
                 let hotKey = Unmanaged<GlobalHotKey>.fromOpaque(context).takeUnretainedValue()
                 guard which.id == hotKey.id else { return OSStatus(eventNotHandledErr) }
                 if GetEventKind(event) == UInt32(kEventHotKeyReleased) { hotKey.released() } else { hotKey.pressed() }
+                // the callback may let the hot key go (Esc closes the widget that holds it): its teardown waits until this handler has returned
+                DispatchQueue.main.async { withExtendedLifetime(hotKey) {} }
                 return noErr
             }, kinds.count, &kinds, Unmanaged.passUnretained(self).toOpaque(), &handler)
         let registered = RegisterEventHotKey(

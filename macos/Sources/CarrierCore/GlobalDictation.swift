@@ -88,7 +88,8 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
     public func handle(_ key: GlobalDictationKey) {
         switch (key, state) {
         case (.down, .idle): begin()
-        case (.down, .running), (.up, .running) where holding: finish()
+        case (.down, .running): finish()
+        case (.up, .running) where holding: finish()
         case (.down, .failed), (.escape, .failed), (.escape, .copied): dismiss()
         // a new dictation closes the widget that was left open
         case (.down, .copied):

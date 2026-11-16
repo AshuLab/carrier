@@ -53,7 +53,7 @@ public struct TentativeText: Equatable, Sendable {
         // the words that open a dictation are set apart from what is before them with a space, which is not part of the range
         let lead = length == 0 && opens(heard, after: from, in: ns) ? " " : ""
         let end = from + lead.utf16.count + (heard as NSString).length
-        if first == nil { first = from + lead.utf16.count }
+        if first == nil, heard.isEmpty == false { first = from + lead.utf16.count }
         start = closes ? end : from + lead.utf16.count
         length = closes ? 0 : end - start
         let written = ns.replacingCharacters(in: replaced, with: lead + heard)

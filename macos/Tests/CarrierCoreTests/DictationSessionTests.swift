@@ -649,3 +649,16 @@ private func aCleanupThatFailsLeavesTheRawTextTellsTheCauseAndLogsItAlone(failur
     for _ in 0..<3000 where session.state != .idle { try? await Task.sleep(for: .milliseconds(1)) }
     #expect(session.take?.clip == (keepAudio ? AudioClip(samples: [0.1, 0.2, 0.3], sampleRate: 16_000) : nil))
 }
+
+@MainActor @Test func aCleanedTextKeepsTheSpaceThatSetItApartFromTheWordsBeforeIt() async {
+    let server = ScriptedServer()
+    let rig = Rig(text: "uno", caret: 3)
+    // a recognizer that opens with a space: the text it wrote is " hola"
+    rig.dictate(with: ScriptedRecognizer(atAudioEnd: [.final(" hola")]), cleanup: server.cleanup)
+    await rig.reaches(.listening)
+    rig.session.stop()
+    await rig.reaches(.cleaning)
+    server.reply(.success("Hola."))
+    await rig.reaches(.idle)
+    #expect(rig.text == "uno Hola.")
+}

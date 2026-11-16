@@ -479,3 +479,26 @@ private var work: AccountDraft {
     await store.load()
     #expect(store.identityEditable == false)
 }
+
+@Test func aFolderAnotherAccountOfTheSameToolHasIsNamedAndNothingElseIs() {
+    let file = Data(#"{"providers":{"teams":{"harness":"claude","configDir":"~/.claude-lab"},"pro":{"harness":"claude","configDir":"/h/.claude"},"codex-work":{"harness":"codex","configDir":"~/.claude-lab"},"claude":{"harness":"claude"}}}"#.utf8)
+    let home = NSHomeDirectory()
+    #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "claude", in: file) == "teams")
+    #expect(accountSharingFolder(configDir: home + "/.claude-lab/", harness: "claude", in: file) == "teams")
+    #expect(accountSharingFolder(configDir: ".claude-lab", harness: "claude", in: file) == "teams")
+    #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "claude", except: "teams", in: file) == nil)
+    #expect(accountSharingFolder(configDir: "~/.claude-lab-lu", harness: "claude", in: file) == nil)
+    #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "codex", in: file) == "codex-work")
+    #expect(accountSharingFolder(configDir: "", harness: "claude", in: file) == nil)
+    #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "claude", in: nil) == nil)
+    #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "claude", in: Data("not json".utf8)) == nil)
+}
+
+@Test func anAccountWithNoFolderHasTheToolsOwnAndTheNoteNamesItByItsDisplayName() {
+    let file = Data(#"{"providers":{"claude":{"harness":"claude"},"codex":{"harness":"codex","displayName":"Codex Pro"},"empty":{"harness":"claude","configDir":""}}}"#.utf8)
+    #expect(accountSharingFolder(configDir: "~/.claude", harness: "claude", in: file) == "claude")
+    #expect(accountSharingFolder(configDir: NSHomeDirectory() + "/.codex", harness: "codex", in: file) == "Codex Pro")
+    #expect(accountSharingFolder(configDir: "~/.claude", harness: "claude", except: "claude", in: file) == "empty")
+    #expect(accountSharingFolder(configDir: "~/.codex", harness: "claude", in: file) == nil)
+    #expect(accountSharingFolder(configDir: "/", harness: "agy", in: file) == nil)
+}

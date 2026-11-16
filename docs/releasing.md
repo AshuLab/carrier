@@ -71,7 +71,7 @@ The update key is an EdDSA key pair. The private half signs every release's zip,
 
 ## 5. The first real release: what only a real tag proves
 
-Everything else is covered by the dry run, the app's build check (`macos/scripts/check-app.sh`) and the tests. These need a real tag and a real Mac. Tick each one after the release, and write what you saw if it differs.
+Everything else is covered by the dry run, the app's build check (`macos/scripts/check-app.sh`, which the release runs before it publishes) and the tests. These need a real tag and a real Mac. Tick each one after the release, and write what you saw if it differs.
 
 - [ ] **The order of publication.** While the run goes, `gh release view vX.Y.Z --repo AshuLab/carrier --json isDraft` says `true` until the last step; the tap already has the commit `carrier X.Y.Z` before the release is published; and the feed (`curl -sIL https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml`) keeps answering with the previous release (a 404 for the first release with Sparkle, since the previous one has no appcast) until the release is published, then answers 200 with an `appcast.xml` that names X.Y.Z (allow ten seconds).
 - [ ] **A re-run of a half-done release finishes it.** The first time a run fails or is cancelled after the draft step (cancelling one on purpose proves it), `gh run rerun <run-id> --failed` ends with the release published, the tap at X.Y.Z, npm untouched and the feed on X.Y.Z.

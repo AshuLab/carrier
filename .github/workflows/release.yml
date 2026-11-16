@@ -76,6 +76,11 @@ jobs:
           mv out/*.tgz "out/carrier-$VERSION.tgz"
           echo "SHA256=$(shasum -a 256 "out/carrier-$VERSION.tgz" | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
+      # The check a pull request runs only when it touches the packaging (ci.yml): here it always runs, before anything is published.
+      # It leaves a dev build in macos/Carrier.app, so the build below starts from its (warm) .build and replaces it.
+      - name: Check the app's bundle
+        run: ./macos/scripts/check-app.sh
+
       # Nothing is published before this point, so a failed app build leaves nothing on npm or in the tap.
       - name: Build the app
         run: ./macos/build-app.sh "$VERSION"

@@ -110,3 +110,24 @@ func theDictationPageBuildsWithTheSwitchOnAndOff(enabled: Bool) {
     #expect(DictationIndicator.drawsLight(reduceTransparency: false))
     #expect(DictationIndicator.drawsLight(reduceTransparency: true) == false)
 }
+
+@MainActor @Test func aMessageBoxDictationIsRecordedAsGoingToCarrierAndNothingIsKeptWithTheSwitchOff() async {
+    let rig = Rig()
+    rig.dictation.toggle(into: rig.field)
+    await rig.until { rig.dictation.session.state == .listening }
+    rig.recognizer.say(.final("hola mundo"))
+    await rig.until { rig.text == "hola mundo" }
+    rig.dictation.session.stop()
+    rig.recognizer.finish()
+    await rig.until { rig.dictation.session.state == .idle }
+    #expect(rig.dictation.records.entries.map(\.text) == ["hola mundo"])
+    #expect(rig.dictation.records.entries.map(\.destination) == [DictationEntry.carrier] && rig.dictation.records.entries.map(\.outcome) == [.pasted])
+    rig.preferences.dictationKeepText = false
+    rig.text = ""
+    rig.dictation.toggle(into: rig.field)
+    await rig.until { rig.dictation.session.state == .listening }
+    rig.recognizer.say(.final("adiós"))
+    await rig.until { rig.text == "adiós" }
+    rig.dictation.session.cancel()
+    #expect(rig.dictation.records.entries.map(\.text) == ["hola mundo"])
+}

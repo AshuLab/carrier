@@ -35,15 +35,18 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let perform: (GlobalDictationEffect) -> Void
     @ObservationIgnored private let moment: (GlobalDictationMoment) -> Void
+    @ObservationIgnored private let record: (DictationEntry) -> Void
+    @ObservationIgnored private let frontApp: () -> String?
     /// Whether the widget's dictation listens and has not been stopped, so a second press before the text arrives is no second end.
     @ObservationIgnored private var listening = false
 
     /// `speechModel` is the speech model the person chose and its recognizer (nil when there is none); `decision` says whether the text may be pasted
-    /// right now or only copied, and why (`pasteDecision`).
+    /// right now or only copied, and why (`pasteDecision`). `record` hears each dictation that ends with words, and `frontApp` names the app a paste goes to.
     public init(
         session: DictationSession, speechModel: @escaping () -> (any Recognizer, SpeechModel)?, microphone: @escaping () -> MicrophonePermission,
         decision: @escaping () -> PasteDecision, now: @escaping () -> Date = Date.init,
-        moment: @escaping (GlobalDictationMoment) -> Void = { _ in }, perform: @escaping (GlobalDictationEffect) -> Void
+        moment: @escaping (GlobalDictationMoment) -> Void = { _ in }, record: @escaping (DictationEntry) -> Void = { _ in },
+        frontApp: @escaping () -> String? = { nil }, perform: @escaping (GlobalDictationEffect) -> Void
     ) {
         self.session = session
         self.speechModel = speechModel
@@ -52,6 +55,8 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         self.now = now
         self.perform = perform
         self.moment = moment
+        self.record = record
+        self.frontApp = frontApp
         session.onEnd = { [weak self] owner in self?.ended(owner) }
         session.onListening = { [weak self] in self?.began() }
     }
@@ -78,7 +83,7 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
                 listening = false
                 moment(.cancelled)
             }
-            session.cancel()
+            if session.cancel() { remember(.cancelled) }
             dismiss()
         // a toggle has nothing to do with the key coming up
         case (.up, _), (.escape, .idle): break
@@ -117,6 +122,7 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         listening = false
         if let cause = session.failure(for: Self.owner) {
             state = .failed(cause.cause)
+            remember(.failed)
             return
         }
         let heard = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -125,12 +131,19 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         text = heard
         switch decision() {
         case .paste:
+            remember(.pasted, to: frontApp() ?? "Another app")
             perform(.paste(heard))
             dismiss()
         case .copyOnly(let reason):
+            remember(.copied)
             perform(.copy(heard))
             state = .copied(reason)
         }
+    }
+
+    /// The history hears of the dictation that just ended, which went to `destination` (the widget only, when it went to no app).
+    private func remember(_ outcome: DictationOutcome, to destination: String = DictationEntry.widgetOnly) {
+        if let take = session.take { record(DictationEntry(take, outcome: outcome, destination: destination)) }
     }
 
     /// The Copy button of a widget left open: the text goes on the clipboard again.

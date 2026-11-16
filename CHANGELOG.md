@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings › Dictation › Sounds: the global dictation plays a start sound when it begins to listen and an end sound when you stop it, each on or off and chosen among three of macOS's sounds, at one volume (60 by default); Esc plays no end sound.
 - Settings › Dictation › Cleanup: choose LM Studio or Ollama running on this Mac, one of its models and a prompt (it starts by removing filler words and fixing punctuation in the language you spoke), and try it with Test with a sample. It is off until a server and a model are chosen, and it does not change what a dictation pastes yet.
 - Dictate in any app: with Carrier in front on a session, ⌥⇧ Space focuses the message box and dictates into it, with no widget, and the same keys end it; in Settings or an epic it opens the widget as everywhere else.
+- Settings › Dictation has two segments, General and History. History keeps every dictation (the widget's and the message boxes') with its text, speech model, how long it took to transcribe, where it went and how it ended (pasted, copied, cancelled or failed), grouped by day with a search and an outcome filter; a row opens to its detail, copies its text or deletes it. Keep the text of my dictations turns it off, and the text is kept in plain text on your Mac until you delete it.
 
 ## [0.7.0] - 2026-11-16
 

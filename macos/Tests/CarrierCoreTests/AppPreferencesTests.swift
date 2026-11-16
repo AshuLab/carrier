@@ -572,6 +572,24 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(store.dictationSounds == DictationSounds())
 }
 
+@MainActor @Test func keepingTheTextIsOnByDefaultSurvivesARelaunchAndResetsWithDictationWithoutTouchingTheHistory() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationKeepText && AppPreferences.dictationKeepTextKey == "dictation.history.keepText")
+    store.dictationKeepText = false
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).dictationKeepText == false)
+    let folder = NSTemporaryDirectory() + "carrier-history-reset-\(UUID().uuidString)"
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let records = DictationRecords(carrierFolder: folder, keep: { true })
+    let kept = DictationEntry(started: Date(timeIntervalSince1970: 1_700_000_000), text: "hola", model: "Apple", transcription: 0.2, audio: 3, destination: "Notes", outcome: .pasted)
+    records.record(kept)
+    store.reset(.notifications)
+    #expect(store.dictationKeepText == false)
+    store.reset(.dictation)
+    #expect(store.dictationKeepText)
+    #expect(records.entries == [kept] && DictationRecords(carrierFolder: folder, keep: { true }).entries == [kept])
+}
+
 @Test func workInIsTheBaseFolderByDefaultSurvivesARelaunchFallsBackAndResetsWithSessionsOnly() {
     let name = "workin-\(UUID().uuidString)"
     let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)

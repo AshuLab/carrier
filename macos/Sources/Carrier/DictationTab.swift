@@ -1,20 +1,34 @@
 import CarrierCore
 import SwiftUI
 
-/// The Dictation page: one view per group (`DictationGroup`, `GlobalDictationGroup`, `SoundsGroup`, `CleanupGroup`, `SpeechModelsGroup`, `StorageGroup`). With the switch off the groups under it are drawn at 40% and take no
-/// clicks (`dictationRowIsLive`).
+/// The segments of the Dictation page.
+enum DictationSegment: String, CaseIterable { case general = "General", history = "History" }
+
+/// The Dictation page: segments over one view per group (`DictationGroup`, `GlobalDictationGroup`, `SoundsGroup`, `CleanupGroup`, `SpeechModelsGroup`, `StorageGroup` in General;
+/// `HistoryGroup` in History). With the switch off the groups of General under it are drawn at 40% and take no clicks (`dictationRowIsLive`).
 struct DictationTabView: View {
     var dictation = DictationController.shared
+    @State private var segment = DictationSegment.general
 
     var body: some View {
         let enabled = dictation.enabled
-        SettingsPageBody(reset: { dictation.reset() }) {
-            DictationGroup()
-            GlobalDictationGroup()
-            SoundsGroup().live(.sounds, enabled: enabled)
-            CleanupGroup().live(.cleanup, enabled: enabled)
-            SpeechModelsGroup().live(.modelsTable, enabled: enabled)
-            StorageGroup().live(.storage, enabled: enabled)
+        VStack(alignment: .leading, spacing: 12) {
+            SegmentedChoice(options: DictationSegment.allCases.map { (value: $0, title: $0.rawValue, icon: nil) }, selection: $segment)
+            switch segment {
+            case .general:
+                SettingsPageBody(reset: { dictation.reset() }) {
+                    DictationGroup()
+                    GlobalDictationGroup()
+                    SoundsGroup().live(.sounds, enabled: enabled)
+                    CleanupGroup().live(.cleanup, enabled: enabled)
+                    SpeechModelsGroup().live(.modelsTable, enabled: enabled)
+                    StorageGroup().live(.storage, enabled: enabled)
+                }
+            case .history:
+                SettingsPageBody {
+                    HistoryGroup()
+                }
+            }
         }
     }
 }

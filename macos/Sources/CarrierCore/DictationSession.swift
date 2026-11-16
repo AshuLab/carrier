@@ -17,6 +17,20 @@ public struct DictationField {
     }
 }
 
+/// What a dictation that ended heard, for the history: when it started, the text it wrote (a partial text on the screen included), the speech model,
+/// the seconds of audio and the seconds the recognizer took after the person stopped, and how it ended. `owner` says which box it was.
+public struct DictationTake: Equatable, Sendable {
+    public enum Ending: Equatable, Sendable { case stopped, cancelled, failed }
+
+    public let owner: String?
+    public let started: Date
+    public let text: String
+    public let model: String
+    public let audio: Double
+    public let transcription: Double
+    public let ending: Ending
+}
+
 /// One dictation, from the click that starts it to idle: getting ready (the recognizer loads its model), listening, and transcribing
 /// when the model gives its text only at the end. A failure at any point returns to idle with its cause and keeps the text heard so far.
 @MainActor @Observable public final class DictationSession {
@@ -37,10 +51,15 @@ public struct DictationField {
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
     @ObservationIgnored private let announce: (String) -> Void
     @ObservationIgnored private let log: (DictationFailure) -> Void
+    @ObservationIgnored private let now: () -> Date
     /// Told, with the owner of the box it was, each time a dictation ends: the widget of the global dictation hears its own end here.
     @ObservationIgnored public var onEnd: ((String?) -> Void)?
     /// Told each time a dictation begins to listen (the capture runs); `owner` says whose.
     @ObservationIgnored public var onListening: (() -> Void)?
+    /// What the dictation that just ended heard, set before `onEnd` and `onTake` hear of it.
+    @ObservationIgnored public private(set) var take: DictationTake?
+    /// Told, with what it heard, each time a dictation ends: the history of the message boxes hears it here.
+    @ObservationIgnored public var onTake: ((DictationTake) -> Void)?
     @ObservationIgnored private var field: DictationField?
     @ObservationIgnored private var model: SpeechModel?
     @ObservationIgnored private var tentative = TentativeText(caret: 0, in: "")
@@ -54,6 +73,11 @@ public struct DictationField {
     @ObservationIgnored private var partialWords = 0
     /// The seconds of audio the capture gave, for the time a recognizer is given to answer after the stop.
     @ObservationIgnored private var captured = Duration.zero
+    /// What this dictation heard: the final texts, the partial one on the screen, and when it began and was stopped.
+    @ObservationIgnored private var finals: [String] = []
+    @ObservationIgnored private var partial = ""
+    @ObservationIgnored private var began = Date.distantPast
+    @ObservationIgnored private var stoppedAt: Date?
     /// A dictation asked for while another one stops: it starts when that one is idle.
     @ObservationIgnored private var queued: (recognizer: any Recognizer, model: SpeechModel, field: DictationField)?
 
@@ -61,12 +85,13 @@ public struct DictationField {
     /// every failure, with its cause only.
     public init(
         capture: AudioCapture, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in }
+        announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in }, now: @escaping () -> Date = Date.init
     ) {
         self.capture = capture
         self.sleep = sleep
         self.announce = announce
         self.log = log
+        self.now = now
     }
 
     /// Why the last dictation of `owner` could not start or go on, until it starts another.
@@ -91,6 +116,10 @@ public struct DictationField {
         words = 0
         partialWords = 0
         captured = .zero
+        finals = []
+        partial = ""
+        began = now()
+        stoppedAt = nil
         self.field = field
         self.model = model
         owner = field.owner
@@ -124,7 +153,7 @@ public struct DictationField {
         queued = nil
         guard state != .idle else { return false }
         running?.cancel()
-        end()
+        end(.cancelled)
         return true
     }
 
@@ -137,6 +166,7 @@ public struct DictationField {
         case .listening:
             guard stopped == false else { return }
             stopped = true
+            stoppedAt = now()
             capture.stop()
             if model?.partial == .atTheEnd { state = .transcribing }
             let mine = generation
@@ -184,10 +214,14 @@ public struct DictationField {
             }
             if let field, let edit = tentative.apply(event, to: field.text(), caret: field.caret()) {
                 switch event {
-                case .partial(let heard): partialWords = wordCount(heard)
+                case .partial(let heard):
+                    partialWords = wordCount(heard)
+                    partial = heard
                 case .final(let heard):
                     words += wordCount(heard)
                     partialWords = 0
+                    partial = ""
+                    finals.append(heard)
                 case .failed: break
                 }
                 field.put(edit.text, edit.caret, tentative.range)
@@ -201,16 +235,18 @@ public struct DictationField {
     private func fail(_ error: Error) {
         let cause = error as? DictationFailure ?? DictationFailure(error.localizedDescription)
         if let owner { refuse(cause, for: owner) }
-        end(announcing: false)
+        end(.failed, announcing: false)
     }
 
     /// Back to idle: the audio is dropped, and a partial text on the screen is kept as final.
-    private func end(announcing: Bool = true) {
+    private func end(_ ending: DictationTake.Ending = .stopped, announcing: Bool = true) {
         capture.stop()
+        let modelName = model?.name ?? ""
         // a partial text on the screen stays, so its words count; the range is cleared even when the person's edit had already ended the writing
         if let field {
             if tentative.range != nil {
                 words += partialWords
+                finals.append(partial)
                 tentative.close()
             }
             field.put(field.text(), field.caret(), nil)
@@ -225,6 +261,13 @@ public struct DictationField {
         owner = nil
         generation += 1
         state = .idle
+        let ended = now()
+        let heard = DictationTake(
+            owner: finished, started: began, text: finals.filter { $0.isEmpty == false }.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines), model: modelName,
+            audio: Double(captured.components.seconds) + Double(captured.components.attoseconds) / 1e18,
+            transcription: stoppedAt.map { ended.timeIntervalSince($0) } ?? 0, ending: ending)
+        take = heard
+        onTake?(heard)
         onEnd?(finished)
         if let next = queued {
             queued = nil

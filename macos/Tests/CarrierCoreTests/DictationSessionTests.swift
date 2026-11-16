@@ -440,3 +440,48 @@ func theAnnouncementsOfADictation(notice: DictationNotice, says: String) {
     #expect(rig.session.failure(for: "box")?.cause == "No speech model is available")
     #expect(rig.said.lines == ["Dictation failed: No speech model is available"])
 }
+
+private final class Seen: @unchecked Sendable {
+    var takes: [DictationTake] = []
+    var now = Date(timeIntervalSince1970: 1_000)
+}
+
+@MainActor @Test func aDictationThatEndsTellsWhatItHeardWhenItStartedAndHowLongTheRecognizerTookAfterTheStop() async {
+    let seen = Seen()
+    let capture = ScriptedCapture()
+    let session = DictationSession(capture: capture, now: { seen.now })
+    session.onTake = { seen.takes.append($0) }
+    var text = ""
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("mundo")])
+    session.start(recognizer: recognizer, model: recognizer.models[0], into: DictationField(owner: "box", text: { text }, caret: { text.count }, put: { text = $0; _ = ($1, $2) }))
+    for _ in 0..<3000 where session.state != .listening { try? await Task.sleep(for: .milliseconds(1)) }
+    recognizer.say(.final("hola"))
+    for _ in 0..<3000 where text.isEmpty { try? await Task.sleep(for: .milliseconds(1)) }
+    seen.now += 10
+    session.stop()
+    seen.now += 0.5
+    for _ in 0..<3000 where session.state != .idle { try? await Task.sleep(for: .milliseconds(1)) }
+    #expect(seen.takes == [DictationTake(owner: "box", started: Date(timeIntervalSince1970: 1_000), text: "hola mundo", model: "Scripted", audio: 0, transcription: 0.5, ending: .stopped)])
+    #expect(session.take == seen.takes.first)
+}
+
+@MainActor @Test func aCancelledDictationKeepsThePartialTextOnTheScreenAndAFailedOneEndsAsFailed() async {
+    let seen = Seen()
+    let rig = Rig()
+    rig.session.onTake = { seen.takes.append($0) }
+    let recognizer = ScriptedRecognizer()
+    rig.dictate(with: recognizer)
+    await rig.reaches(.listening)
+    recognizer.say(.partial("hola que"))
+    await rig.until { rig.text == "hola que" }
+    #expect(rig.session.cancel())
+    #expect(seen.takes.map(\.text) == ["hola que"] && seen.takes.map(\.ending) == [.cancelled])
+    let broken = ScriptedRecognizer()
+    rig.dictate(with: broken)
+    await rig.reaches(.listening)
+    broken.say(.final("uno"))
+    await rig.until { rig.text.hasSuffix("uno") }
+    broken.say(.failed(DictationFailure("The model broke")))
+    await rig.reaches(.idle)
+    #expect(seen.takes.map(\.text) == ["hola que", "uno"] && seen.takes.map(\.ending) == [.cancelled, .failed])
+}

@@ -49,6 +49,7 @@ public enum DictationRow: Equatable, Sendable {
     case storage
     case reset
     case globalSwitch
+    case cleanup
 }
 
 /// Whether a row takes clicks and is drawn in full: with Dictation off only the switch, Storage (so the disk can be freed) and Reset do.

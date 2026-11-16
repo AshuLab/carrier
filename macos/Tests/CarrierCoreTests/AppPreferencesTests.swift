@@ -464,6 +464,43 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(relaunched.dictationLanguage == automaticLanguage)
 }
 
+@Test func cleanupStartsOffWithTheDefaultPromptAndSurvivesARelaunch() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationCleanupEnabled == false && store.dictationCleanupServer == nil && store.dictationCleanupModel == nil)
+    #expect(store.dictationCleanupPrompt == defaultCleanupPrompt)
+    store.dictationCleanupServer = .ollama
+    store.dictationCleanupModel = "llama3.2:3b"
+    store.dictationCleanupEnabled = true
+    store.dictationCleanupPrompt = "Translate to English"
+    let relaunched = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(relaunched.dictationCleanupEnabled && relaunched.dictationCleanupServer == .ollama && relaunched.dictationCleanupModel == "llama3.2:3b")
+    #expect(relaunched.dictationCleanupPrompt == "Translate to English")
+}
+
+@Test func cleanupCannotBeOnWithoutAServerAndAModel() {
+    let store = AppPreferences(defaults: dictationDefaults().defaults)
+    store.dictationCleanupEnabled = true
+    #expect(store.dictationCleanupEnabled == false)
+    store.dictationCleanupServer = .lmStudio
+    #expect(store.dictationCleanupEnabled == false)
+    store.dictationCleanupModel = "qwen"
+    #expect(store.dictationCleanupEnabled)
+    store.dictationCleanupModel = nil
+    #expect(store.dictationCleanupEnabled == false)
+}
+
+@Test func resettingDictationPutsCleanupBackToOffWithTheDefaultPrompt() {
+    let store = AppPreferences(defaults: dictationDefaults().defaults)
+    store.dictationCleanupServer = .lmStudio
+    store.dictationCleanupModel = "qwen"
+    store.dictationCleanupEnabled = true
+    store.dictationCleanupPrompt = ""
+    store.reset(.dictation)
+    #expect(store.dictationCleanupEnabled == false && store.dictationCleanupServer == nil && store.dictationCleanupModel == nil)
+    #expect(store.dictationCleanupPrompt == defaultCleanupPrompt)
+}
+
 @Test func anUnknownSavedSpeechModelFallsBackToApples() {
     let apple = speechModel("apple.speech-analyzer", .apple)
     let parakeet = speechModel("fluidaudio.parakeet-tdt-v3", .fluidAudio)

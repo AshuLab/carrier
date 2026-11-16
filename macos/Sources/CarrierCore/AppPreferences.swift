@@ -479,9 +479,14 @@ public enum Density: String, CaseIterable {
 
 /// How wide the column of a conversation is, in points: the most its messages take before they wrap.
 public enum MessageWidth: String, CaseIterable {
-    case narrow, medium, wide, ultraWide
+    case narrow, medium, wide, ultraWide, widest
 
-    public var title: String { self == .ultraWide ? "Ultra wide" : rawValue.capitalized }
+    public var title: String {
+        switch self {
+        case .ultraWide: "Ultra wide"
+        default: rawValue.capitalized
+        }
+    }
 
     public var points: CGFloat {
         switch self {
@@ -489,6 +494,7 @@ public enum MessageWidth: String, CaseIterable {
         case .medium: 760
         case .wide: 880
         case .ultraWide: 1040
+        case .widest: 1280
         }
     }
 }

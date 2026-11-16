@@ -934,7 +934,7 @@ struct ChatTabView: View {
                 }
             }
             .padding(.vertical, 12)
-            .frame(width: previewRoom * messageWidth.points / MessageWidth.ultraWide.points, alignment: .leading)
+            .frame(width: previewRoom * messageWidth.points / MessageWidth.widest.points, alignment: .leading)
             .frame(maxWidth: .infinity)
             .onGeometryChange(for: CGFloat.self, of: \.size.width) { previewRoom = $0 }
             .padding(8)

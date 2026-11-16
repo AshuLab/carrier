@@ -125,6 +125,14 @@ public func choiceIcon(option: String, value: String) -> String? {
     }
 }
 
+private final class Drafts: @unchecked Sendable {
+    private let lock = NSLock()
+    private var texts: [String: String] = [:]
+    func get(_ id: String) -> String { lock.withLock { texts[id] ?? "" } }
+    func set(_ id: String, _ text: String) { lock.withLock { texts[id] = text.isEmpty ? nil : text } }
+}
+private let drafts = Drafts()
+
 /// Where a session's options are kept between runs of the app: a closed session lists nothing (its agent does not run), so the box
 /// shows what the session offered the last time the app saw it running.
 public struct OptionsMemory: Sendable {
@@ -134,11 +142,15 @@ public struct OptionsMemory: Sendable {
     public var saveCommands: @Sendable (String, [ChatCommand]) -> Void
     public var loadAgent: @Sendable (String) -> String
     public var saveAgent: @Sendable (String, String) -> Void
+    /// What was typed in the session's box and not sent, so leaving the session (or the app) does not lose it.
+    public var loadDraft: @Sendable (String) -> String
+    public var saveDraft: @Sendable (String, String) -> Void
 
     public init(
         load: @escaping @Sendable (String) -> [ChatOption], save: @escaping @Sendable (String, [ChatOption]) -> Void,
         loadCommands: @escaping @Sendable (String) -> [ChatCommand] = { _ in [] }, saveCommands: @escaping @Sendable (String, [ChatCommand]) -> Void = { _, _ in },
-        loadAgent: @escaping @Sendable (String) -> String = { _ in "" }, saveAgent: @escaping @Sendable (String, String) -> Void = { _, _ in }
+        loadAgent: @escaping @Sendable (String) -> String = { _ in "" }, saveAgent: @escaping @Sendable (String, String) -> Void = { _, _ in },
+        loadDraft: @escaping @Sendable (String) -> String = { _ in "" }, saveDraft: @escaping @Sendable (String, String) -> Void = { _, _ in }
     ) {
         self.load = load
         self.save = save
@@ -146,18 +158,23 @@ public struct OptionsMemory: Sendable {
         self.saveCommands = saveCommands
         self.loadAgent = loadAgent
         self.saveAgent = saveAgent
+        self.loadDraft = loadDraft
+        self.saveDraft = saveDraft
     }
 
     /// Remembers nothing: for the tests.
     public static let none = OptionsMemory(load: { _ in [] }, save: { _, _ in })
 
-    /// The app's own: user defaults, one entry per session.
+    /// The app's own: user defaults, one entry per session. The drafts are kept in memory only: they change at every key, and a write to the
+    /// defaults tells every observer of them (the terminals' appearance among them) at every key.
     public static let userDefaults = OptionsMemory(
         load: { id in UserDefaults.standard.data(forKey: "chat.options.\(id)").flatMap { try? JSONDecoder().decode([ChatOption].self, from: $0) } ?? [] },
         save: { id, options in UserDefaults.standard.set(try? JSONEncoder().encode(options), forKey: "chat.options.\(id)") },
         loadCommands: { id in UserDefaults.standard.data(forKey: "chat.commands.\(id)").flatMap { try? JSONDecoder().decode([ChatCommand].self, from: $0) } ?? [] },
         saveCommands: { id, commands in UserDefaults.standard.set(try? JSONEncoder().encode(commands), forKey: "chat.commands.\(id)") },
         loadAgent: { id in UserDefaults.standard.string(forKey: "chat.agent.\(id)") ?? "" },
-        saveAgent: { id, agent in UserDefaults.standard.set(agent, forKey: "chat.agent.\(id)") }
+        saveAgent: { id, agent in UserDefaults.standard.set(agent, forKey: "chat.agent.\(id)") },
+        loadDraft: { id in drafts.get(id) },
+        saveDraft: { id, text in drafts.set(id, text) }
     )
 }

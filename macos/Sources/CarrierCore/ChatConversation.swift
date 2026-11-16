@@ -471,8 +471,10 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var times: [String: Int] = [:]
     /// Called when a turn fails with a quota error (the Usage page's quotas are then out of date).
     @ObservationIgnored public var onQuotaError: (@MainActor () -> Void)?
-    /// What is typed in the box.
-    public var draft = ""
+    /// What is typed in the box; kept in `memory` as it changes, so it is still there when the person comes back to the session.
+    public var draft = "" {
+        didSet { if draft != oldValue { memory.saveDraft(sessionId, draft) } }
+    }
     /// Whether the agent is answering (or waiting for an approval): the host refuses a message then, so the box queues it and the send button is Stop.
     public private(set) var busy = false
     /// The message typed while the agent answered: one at a time, sent when the turn ends.
@@ -559,6 +561,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         remembered = memory.load(sessionId)
         rememberedCommands = memory.loadCommands(sessionId)
         agent = memory.loadAgent(sessionId)
+        draft = memory.loadDraft(sessionId)
     }
 
     /// Polls until the task is cancelled or `sleep` throws.

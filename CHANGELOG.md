@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- What you type in a session's message box and have not sent is kept when you go to another session, the terminal or another view, and is there when you come back.
+
 ### Changed
 
 - Settings stops growing at 1300 pt wide on a large window; its height still follows the window.

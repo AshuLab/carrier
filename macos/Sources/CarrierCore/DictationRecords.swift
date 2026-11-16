@@ -220,10 +220,23 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         saveCounts()
     }
 
+    /// Replaces the file at `path` in one step, the new one readable by this account only (`.atomic` would give it the umask's mode).
+    private static func writePrivately(_ data: Data, to path: String) throws {
+        let temporary = path + ".tmp"
+        guard FileManager.default.createFile(atPath: temporary, contents: data, attributes: [.posixPermissions: 0o600]) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        guard rename(temporary, path) == 0 else {
+            let cause = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            try? FileManager.default.removeItem(atPath: temporary)
+            throw cause
+        }
+    }
+
     private func saveCounts() {
         do {
             try FileManager.default.createDirectory(atPath: (statisticsPath as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
-            try JSONEncoder().encode(counts).write(to: URL(fileURLWithPath: statisticsPath), options: .atomic)
+            try Self.writePrivately(JSONEncoder().encode(counts), to: statisticsPath)
         } catch {
             FileHandle.standardError.write(Data("carrier: dictation-statistics.json could not be written: \(error)\n".utf8))
         }
@@ -236,7 +249,7 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         rest.remove(at: index)
         do {
             let lines = try rest.reversed().map { try Self.encoder.encode($0) + Data("\n".utf8) }
-            try Data(lines.joined()).write(to: URL(fileURLWithPath: path), options: .atomic)
+            try Self.writePrivately(Data(lines.joined()), to: path)
         } catch {
             FileHandle.standardError.write(Data("carrier: dictations.jsonl could not be written: \(error)\n".utf8))
             return

@@ -293,10 +293,13 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         let text = field.text() as NSString
         let place = NSRange(location: range.lowerBound, length: range.count)
         guard NSMaxRange(place) <= text.length, text.substring(with: place) == added else { return }
-        let caret = field.caret(), delta = (cleaned as NSString).length - place.length
+        // the cleanup trims, and a space that set the dictation apart from the words around it is not its text
+        let raw = added.trimmingCharacters(in: .whitespacesAndNewlines), bounds = added.range(of: raw)!
+        let replacement = added[..<bounds.lowerBound] + cleaned.trimmingCharacters(in: .whitespacesAndNewlines) + added[bounds.upperBound...]
+        let caret = field.caret(), delta = (replacement as NSString).length - place.length
         field.put(
-            text.replacingCharacters(in: place, with: cleaned),
-            caret <= place.location ? caret : caret >= NSMaxRange(place) ? caret + delta : place.location + (cleaned as NSString).length, nil
+            text.replacingCharacters(in: place, with: String(replacement)),
+            caret <= place.location ? caret : caret >= NSMaxRange(place) ? caret + delta : place.location + (replacement as NSString).length, nil
         )
         words = wordCount(cleaned)
         self.cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -344,7 +347,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         let ended = now()
         let heard = DictationTake(
             owner: finished, started: began, text: finals.filter { $0.isEmpty == false }.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines), model: modelName,
-            audio: Double(captured.components.seconds) + Double(captured.components.attoseconds) / 1e18,
+            audio: captured.inSeconds,
             transcription: stoppedAt.map { ended.timeIntervalSince($0) } ?? 0, ending: ending,
             cleaned: cleaned, cleanupSeconds: cleanupSeconds, clip: recording && samples.isEmpty == false ? AudioClip(samples: samples, sampleRate: sampleRate) : nil)
         samples = []

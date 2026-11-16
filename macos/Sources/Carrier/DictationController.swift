@@ -210,6 +210,12 @@ import SwiftUI
         session.owner == owner && session.cancel()
     }
 
+    /// The key of a hold went up: ends what its press began, whatever stage it is in (a model still loading, macOS still asking, listening).
+    func endHold() {
+        waiting = nil
+        session.stop()
+    }
+
     /// Stops the dictation of `owner`, or whichever runs when nil: a typed key, Enter and leaving (a session, the window, the app).
     func stop(ownedBy owner: String? = nil) {
         guard let owner else { return session.stop() }

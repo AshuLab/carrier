@@ -285,3 +285,37 @@ private struct CleaningClient: TextModelClient {
     #expect(await dictated(cleanup: true) == "Hola.")
     #expect(await dictated(cleanup: false) == "um hola")
 }
+
+@MainActor @Test func theReleaseOfAHoldEndsADictationStillGettingReady() async {
+    let registry = RecognizerRegistry()
+    let recognizer = ScriptedRecognizer()
+    recognizer.holdPrepare()
+    registry.register(recognizer)
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    dictation.toggle(into: boxField)
+    #expect(dictation.session.state == .gettingReady)
+    dictation.endHold()
+    #expect(dictation.session.state == .idle)
+}
+
+@MainActor @Test func theReleaseOfAHoldWhileMacOSAsksForTheMicrophoneNeverStartsTheDictation() async {
+    let registry = RecognizerRegistry()
+    registry.register(ScriptedRecognizer())
+    let prompt = Prompt()
+    var current = MicrophonePermission.notAsked
+    let capture = ScriptedCapture()
+    let access = MicrophoneAccess(
+        status: { current },
+        request: {
+            for await _ in prompt.gate {}
+            current = .allowed
+            return true
+        }
+    )
+    let dictation = DictationController(registry: registry, capture: capture, microphone: access)
+    dictation.toggle(into: boxField)
+    dictation.endHold()
+    prompt.open.finish()
+    try? await Task.sleep(for: .milliseconds(50))
+    #expect(dictation.session.state == .idle && capture.startCount == 0)
+}

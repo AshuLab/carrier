@@ -59,7 +59,7 @@ private func entry(
     #expect(records.entries.isEmpty && DictationRecords(carrierFolder: folder, keep: { false }).entries.isEmpty)
 }
 
-@MainActor @Test func deletingAnEntryRemovesOnlyThatOneFromTheListAndTheFile() {
+@MainActor @Test func deletingAnEntryRemovesOnlyThatOneFromTheListAndTheFile() throws {
     let folder = folder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let records = DictationRecords(carrierFolder: folder, keep: { true })
@@ -68,6 +68,7 @@ private func entry(
     records.delete(b.id)
     records.delete(UUID())
     #expect(records.entries == [c, a])
+    #expect(try FileManager.default.attributesOfItem(atPath: records.path)[.posixPermissions] as? Int == 0o600)
     #expect(DictationRecords(carrierFolder: folder, keep: { true }).entries == [c, a])
     records.record(entry("cuatro", at: 30))
     #expect(DictationRecords(carrierFolder: folder, keep: { true }).entries.map(\.text) == ["cuatro", "tres", "uno"])
@@ -263,6 +264,7 @@ private var utc: Calendar {
     #expect(records.entries.count == 2)
     let file = try String(contentsOfFile: records.statisticsPath, encoding: .utf8)
     #expect(file.contains("uno") == false && file.contains("hola") == false)
+    #expect(try FileManager.default.attributesOfItem(atPath: records.statisticsPath)[.posixPermissions] as? Int == 0o600)
     #expect(DictationRecords(carrierFolder: folder, keep: { true }, calendar: utc).counts == records.counts)
 }
 

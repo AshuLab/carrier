@@ -49,9 +49,10 @@ import CarrierCore
         }
     }
 
+    private var isOn: Bool { globalDictationIsOn(dictation: preferences.dictationEnabled, global: preferences.dictationGlobal) && recording == false }
+
     private func refresh() {
-        let on = globalDictationIsOn(dictation: preferences.dictationEnabled, global: preferences.dictationGlobal) && recording == false
-        let wanted = on ? preferences.dictationShortcut : nil
+        let wanted = isOn ? preferences.dictationShortcut : nil
         guard wanted != registered else { return }
         registered = wanted
         shortcut = nil
@@ -79,7 +80,8 @@ import CarrierCore
         Task {
             await dictation.requestMicrophone()
             asking = false
-            guard heldUp == false else { return }
+            // turned off, or handed to the recorder, while macOS asked
+            guard heldUp == false, isOn else { return }
             machine.handle(.down)
         }
     }
@@ -89,7 +91,7 @@ import CarrierCore
             heldUp = preferences.dictationActivation == .hold
         } else if boxHeld {
             boxHeld = false
-            if dictation.session.state != .idle { WindowController.shared.dictateInMessageBox() }
+            dictation.endHold()
         } else {
             machine.handle(.up)
         }

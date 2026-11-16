@@ -109,3 +109,15 @@ func aDictationIsSetApartFromTheWordBeforeIt(text: String, caret: Int, heard: St
     var tentative = TentativeText(caret: 4, in: "uno dos")
     #expect(tentative.apply(.final("hola"), to: "otro", caret: 4) == nil)
 }
+
+@Test(arguments: [
+    // an empty event first, and a recognizer that opens with a space
+    ([DictationEvent.partial(""), .final("hola")], 4..<8),
+    ([.final(" hola")], 3..<8),
+])
+func theTextAWholeDictationWroteLeavesOutTheSpaceThatSetItApartWhenItCanBeTold(events: [DictationEvent], expected: Range<Int>) {
+    var tentative = TentativeText(caret: 3, in: "uno")
+    var text = "uno"
+    for event in events { text = tentative.apply(event, to: text, caret: 3)?.text ?? text }
+    #expect(text == "uno hola" && tentative.written == expected)
+}

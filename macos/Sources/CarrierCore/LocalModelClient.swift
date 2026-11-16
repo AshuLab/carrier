@@ -22,7 +22,7 @@ public struct LocalModelClient: TextModelClient {
 
     public func complete(server: CleanupServer, model: String, system: String, text: String, timeout: Duration) async throws -> String {
         let body = Completion(model: model, messages: [Message(role: "system", content: system), Message(role: "user", content: text)], stream: false)
-        let data = try await send(server, path: "/v1/chat/completions", body: JSONEncoder().encode(body), timeout: timeout.seconds, notFound: .noModel)
+        let data = try await send(server, path: "/v1/chat/completions", body: JSONEncoder().encode(body), timeout: timeout.inSeconds, notFound: .noModel)
         guard let reply = (try? JSONDecoder().decode(Reply.self, from: data))?.choices.first?.message.content else {
             throw CleanupFailure.badReply("\(server.title) answered something that is not a completion")
         }
@@ -54,8 +54,4 @@ public struct LocalModelClient: TextModelClient {
     private struct Completion: Encodable { let model: String; let messages: [Message]; let stream: Bool }
     private struct Reply: Decodable { struct Choice: Decodable { let message: Message }; let choices: [Choice] }
     private struct ModelList: Decodable { struct Item: Decodable { let id: String }; let data: [Item] }
-}
-
-private extension Duration {
-    var seconds: TimeInterval { TimeInterval(components.seconds) + TimeInterval(components.attoseconds) / 1e18 }
 }

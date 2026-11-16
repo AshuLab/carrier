@@ -32,6 +32,15 @@ import Testing
         #expect(AccentColor.allCases.count == 7)
     }
 
+    @Test func the_persons_own_accent_is_stored_as_a_hex_and_read_back_and_a_bad_value_is_none() throws {
+        let own = AccentColor.own(RGBA(hex: 0x12ab9c))
+        #expect(own.rawValue == "#12ab9c" && own.isCustom && own.title == "Custom")
+        #expect(try #require(AccentColor(rawValue: own.rawValue)).color == RGBA(hex: 0x12ab9c))
+        #expect(themeSurfaces(.forest, scheme: .dark, accent: own, translucent: false).accent == RGBA(hex: 0x12ab9c))
+        #expect(AccentColor(rawValue: "purple") == .purple && AccentColor.purple.isCustom == false)
+        for bad in ["", "teal", "#12ab9", "12ab9c", "#12ab9z", "#12ab9c0"] { #expect(AccentColor(rawValue: bad) == nil) }
+    }
+
     @Test func the_three_tints_lay_the_accent_over_the_surfaces() {
         let base = themeSurfaces(.forest, scheme: .dark, translucent: false)
         #expect(themeSurfaces(.forest, scheme: .dark, tint: .off, translucent: false) == base)
@@ -46,9 +55,10 @@ import Testing
             #expect(tinted.accent == base.accent)
         }
         #expect(Tint.subtle.opacity < Tint.strong.opacity)
-        // the tint follows the accent that was chosen
+        // the tint is the theme's own color: the accent chosen for the elements changes them and not the windows
         let pink = themeSurfaces(.forest, scheme: .dark, accent: .pink, tint: .strong, translucent: false)
-        #expect(pink.window.red > themeSurfaces(.forest, scheme: .dark, tint: .strong, translucent: false).window.red)
+        let own = themeSurfaces(.forest, scheme: .dark, tint: .strong, translucent: false)
+        #expect(pink.window == own.window && pink.sidebar == own.sidebar && pink.accent == AccentColor.pink.color)
     }
 
     @Test func solid_draws_opaque_surfaces_and_translucent_lets_the_sidebar_through() {

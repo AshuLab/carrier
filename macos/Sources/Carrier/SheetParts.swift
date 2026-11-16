@@ -13,16 +13,17 @@ extension EnvironmentValues {
 
 private struct SheetSized: ViewModifier {
     @Environment(\.windowSize) private var window
+    let maxWidth: Double
 
     func body(content: Content) -> some View {
-        let size = sheetSize(windowWidth: window.width, windowHeight: window.height)
+        let size = sheetSize(windowWidth: window.width, windowHeight: window.height, maxWidth: maxWidth)
         content.frame(width: size.width, height: size.height)
     }
 }
 
 extension View {
-    /// A sheet of the window's own: three quarters of it, so it grows and shrinks with the window (`sheetSize`).
-    func windowSheetSize() -> some View { modifier(SheetSized()) }
+    /// A sheet of the window's own: three quarters of it, so it grows and shrinks with the window (`sheetSize`), its width capped at `maxWidth`.
+    func windowSheetSize(maxWidth: Double = .infinity) -> some View { modifier(SheetSized(maxWidth: maxWidth)) }
 }
 
 // What the new-session draft's sheets and controls have in common.

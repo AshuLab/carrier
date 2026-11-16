@@ -2,6 +2,9 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
+/// Past this width the pages read badly, so the sheet stops growing and only its height follows the window.
+let settingsMaxWidth: Double = 1300
+
 /// Settings as a sheet over the main window, in the shape of the workspace chooser: a rail with the sections on the left, the chosen one on the
 /// right, closed by the corner button or Esc. The readiness banner shows over every section while something is missing or being looked for.
 struct SettingsSheet: View {
@@ -26,7 +29,7 @@ struct SettingsSheet: View {
                 page.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
-        .windowSheetSize()
+        .windowSheetSize(maxWidth: settingsMaxWidth)
         // what the person fixed here is what the chat host needs: look again when they are done
         .onDisappear { ChatHostStarter.shared.checkAtOpen() }
     }

@@ -324,7 +324,8 @@ class ClaudeConversation implements ChatConversation {
         return typeof delta === 'string' && delta !== '' ? [{ kind: 'delta', text: delta }] : [];
       }
       case 'assistant': {
-        if (typeof m.message?.model === 'string') this.lastModel = m.message.model;
+        // "<synthetic>" is the CLI's own message (a usage limit, an API error), not a model the person ran
+        if (typeof m.message?.model === 'string' && m.message.model !== '<synthetic>') this.lastModel = m.message.model;
         const events: ChatEvent[] = [];
         for (const block of Array.isArray(m.message?.content) ? m.message.content : []) {
           if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim() !== '') events.push({ kind: 'reasoning', text: block.thinking });
@@ -349,7 +350,7 @@ class ClaudeConversation implements ChatConversation {
     }
   }
 
-  private turnEnd(m: { subtype?: string; is_error?: boolean; errors?: unknown; usage?: unknown; total_cost_usd?: unknown; modelUsage?: unknown }): ChatEvent[] {
+  private turnEnd(m: { subtype?: string; is_error?: boolean; errors?: unknown; result?: unknown; usage?: unknown; total_cost_usd?: unknown; modelUsage?: unknown }): ChatEvent[] {
     if (this.hidden > 0) {
       this.hidden--;
       return [];
@@ -358,7 +359,7 @@ class ClaudeConversation implements ChatConversation {
     this.turning = false;
     this.interrupting = false;
     const events: ChatEvent[] = [];
-    if (m.is_error && !interrupted) events.push({ kind: 'error', text: Array.isArray(m.errors) && m.errors.length > 0 ? m.errors.join('\n') : 'The turn failed' });
+    if (m.is_error && !interrupted) events.push({ kind: 'error', text: failureText(m) });
     const usage: ChatUsage = {};
     for (const [key, value] of Object.entries((m.usage ?? {}) as Record<string, unknown>)) if (typeof value === 'number') usage[key] = value;
     if (typeof m.total_cost_usd === 'number') usage.total_cost_usd = m.total_cost_usd;
@@ -366,6 +367,12 @@ class ClaudeConversation implements ChatConversation {
     events.push({ kind: 'turn_end', outcome: interrupted ? 'interrupted' : m.is_error ? 'error' : 'ok', model, usage });
     return events;
   }
+}
+
+/** Why a turn failed: its errors, else the CLI's own words in `result` (a session or weekly limit says when it resets there), else a plain line. */
+function failureText(m: { errors?: unknown; result?: unknown }): string {
+  if (Array.isArray(m.errors) && m.errors.length > 0) return m.errors.join('\n');
+  return typeof m.result === 'string' && m.result.trim() !== '' ? m.result.trim() : 'The turn failed';
 }
 
 /**

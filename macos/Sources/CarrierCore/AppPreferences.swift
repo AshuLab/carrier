@@ -22,6 +22,7 @@ public struct AppPreferences {
     public static let monospaceLineNumbersKey = "appearance.mono.lineNumbers"
     public static let statesByShapeKey = "appearance.statesByShape"
     public static let messageWidthKey = "appearance.messageWidth"
+    public static let chatSurfaceKey = "chat.surface"
     public static let sendKeyKey = "chat.sendKey"
     public static let whileWorkingKey = "chat.whileWorking"
     public static let writingToolsKey = "chat.writingTools"
@@ -70,6 +71,7 @@ public struct AppPreferences {
     public static let defaultColorScheme = ColorSchemeChoice.system
     public static let defaultDensity = Density.comfortable
     public static let defaultMessageWidth = MessageWidth.medium
+    public static let defaultChatSurface = ChatSurface.glass
     public static let defaultTheme = Theme.carrier
     public static let defaultTint = Tint.off
     public static let defaultSendKey = SendKey.return
@@ -210,6 +212,12 @@ public struct AppPreferences {
     public var messageWidth: MessageWidth {
         get { defaults.string(forKey: Self.messageWidthKey).flatMap(MessageWidth.init(rawValue:)) ?? Self.defaultMessageWidth }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.messageWidthKey) }
+    }
+
+    /// How the conversation draws its cards, bubbles and box: glass, or flat.
+    public var chatSurface: ChatSurface {
+        get { defaults.string(forKey: Self.chatSurfaceKey).flatMap(ChatSurface.init(rawValue:)) ?? Self.defaultChatSurface }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.chatSurfaceKey) }
     }
 
     /// The key that sends in the message box; the other one makes a new line.
@@ -406,14 +414,14 @@ public struct AppPreferences {
             ]
         case .appearance:
             [
-                colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey, messageWidthKey,
-                monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
+                colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey,
             ]
         case .terminal: terminalKeys
         case .chat:
             [
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
-                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey,
+                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey, messageWidthKey, chatSurfaceKey,
+                monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
             ]
         // the ages of the session clock live in chat.json: the page's own Reset writes them back
         case .sessions: [confirmDeleteKey, newSessionAgentKey, newSessionModelKey, newSessionEffortKey, newSessionAccessKey, workInKey]
@@ -479,9 +487,14 @@ public enum Density: String, CaseIterable {
 
 /// How wide the column of a conversation is, in points: the most its messages take before they wrap.
 public enum MessageWidth: String, CaseIterable {
-    case narrow, medium, wide, ultraWide
+    case narrow, medium, wide, ultraWide, widest
 
-    public var title: String { self == .ultraWide ? "Ultra wide" : rawValue.capitalized }
+    public var title: String {
+        switch self {
+        case .ultraWide: "Ultra wide"
+        default: rawValue.capitalized
+        }
+    }
 
     public var points: CGFloat {
         switch self {
@@ -489,8 +502,16 @@ public enum MessageWidth: String, CaseIterable {
         case .medium: 760
         case .wide: 880
         case .ultraWide: 1040
+        case .widest: 1280
         }
     }
+}
+
+/// What the conversation's surfaces are made of: glass blurs what is under them, flat is a quiet solid fill with a fine edge.
+public enum ChatSurface: String, CaseIterable {
+    case glass, flat
+
+    public var title: String { rawValue.capitalized }
 }
 
 /// When a message shows the time it was written.

@@ -80,6 +80,8 @@ final class UpdateDriver: NSObject, SPUUserDriver, NSMenuItemValidation {
     /// Retry checks again and downloads what it finds without waiting for a click.
     private var installOnFind = false
     private var userInitiated = false
+    /// Sparkle's way to send the quit again, given while the app has not closed: a quit the app cancelled or delayed (a terminal asking before it closes) leaves the update waiting, and the click on Restarting… tries again.
+    private var retryQuit: (() -> Void)?
 
     init(model: UpdateModel) { self.model = model }
 
@@ -93,7 +95,9 @@ final class UpdateDriver: NSObject, SPUUserDriver, NSMenuItemValidation {
         case .failed:
             installOnFind = true
             updater?.checkForUpdates()
-        case .none, .downloading, .installing:
+        case .installing:
+            retryQuit?()
+        case .none, .downloading:
             break
         }
     }
@@ -162,6 +166,9 @@ final class UpdateDriver: NSObject, SPUUserDriver, NSMenuItemValidation {
     }
 
     func showInstallingUpdate(withApplicationTerminated applicationTerminated: Bool, retryTerminatingApplication: @escaping () -> Void) {
+        // the app not having closed yet is normal for a moment; a pill still saying Restarting… after that is what the log is for
+        NSLog("Carrier: installing the update, application terminated: %@", applicationTerminated ? "yes" : "no")
+        retryQuit = applicationTerminated ? nil : retryTerminatingApplication
         model.flow.installing()
     }
 
@@ -169,6 +176,7 @@ final class UpdateDriver: NSObject, SPUUserDriver, NSMenuItemValidation {
 
     func dismissUpdateInstallation() {
         choice = nil
+        retryQuit = nil
         restartChosen = false
         model.flow.dismissed()
     }

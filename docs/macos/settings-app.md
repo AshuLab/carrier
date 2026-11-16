@@ -47,7 +47,7 @@ A click on a notification opens the window, on the epic when it is about one (th
 
 The Terminal page (`Carrier/TerminalTabView.swift`, `SettingsPage.terminal`, in the App group after Appearance) configures the embedded Ghostty terminal via `AppPreferences.terminal` (`terminal.*` keys) with an immediate Reset card (`AppPreferences.reset(.terminal)`).
 Appearance lets you keep the global app theme or choose a terminal-only `Theme` override, adjust Ghostty's `minimumContrast` (`1.0...21.0`) and horizontal/vertical padding (`0...32 pt`) and inspect a live `SettingsPreview` rendered from `TerminalAppearanceProfile`.
-Typography inherits `Appearance > Code and output` by default ("Same as Appearance") or overrides font family (`MonospaceStyle.installedFamilies`, preserving any saved custom family), point size (`9...24 pt`), ligatures and font thickening (`fontThicken`).
+Typography inherits `Chat > Code and output` by default ("Same as Chat") or overrides font family (`MonospaceStyle.installedFamilies`, preserving any saved custom family), point size (`9...24 pt`), ligatures and font thickening (`fontThicken`).
 Cursor sets `cursorStyle` (`Block`, `Bar`, `Underline` via `SegmentedChoice`) and `cursorBlink`.
 Panes toggles `dimInactivePanes` (dimming unfocused panes in a split) and `focusFollowsMouse` (moving active focus as the pointer hovers across split panes).
 Input and scrollback sets `optionAsAlt` (`Off`, `Left Option`, `Right Option`, `Both`), `copyOnSelect` (automatically copying highlighted text to the clipboard) and `scrollbackLimit` (`1 MB`, `10 MB`, `50 MB`, `100 MB`).

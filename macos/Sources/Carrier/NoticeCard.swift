@@ -44,7 +44,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
         }
         .padding(.horizontal, 13).padding(.vertical, 11)
         .background { if tinted == false { RoundedRectangle(cornerRadius: 14).fill(Color.primary.opacity(0.045)) } }
-        .glassEffect(.regular.tint(tinted ? tint.opacity(0.3) : (scheme == .dark ? Color.black.opacity(0.3) : nil)), in: .rect(cornerRadius: 14))
+        .chatSurface(.regular.tint(tinted ? tint.opacity(0.3) : (scheme == .dark ? Color.black.opacity(0.3) : nil)), flat: tinted ? tint.opacity(0.14) : Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 14))
         .overlay { if edge { RoundedRectangle(cornerRadius: 14).strokeBorder(tint.opacity(0.45), lineWidth: 1) } }
         .accessibilityElement(children: .contain)
     }

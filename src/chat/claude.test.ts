@@ -251,6 +251,18 @@ test('a line it does not know is ignored and never throws', async () => {
   expect(await turn(conversation, events, 'hi')).toEqual([{ kind: 'turn_end', outcome: 'ok', model: undefined, usage: {} }]);
 });
 
+test('a usage limit says why: the CLI\'s own words, and the synthetic message is not the model', async () => {
+  const lines: Line[] = [
+    { type: 'assistant', message: { model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'working' }] } },
+    { type: 'assistant', message: { model: '<synthetic>', content: [{ type: 'text', text: "You've hit your weekly limit · resets Mon 9am" }] } },
+    { type: 'result', subtype: 'success', is_error: true, api_error_status: 429, api_error: 'usage_limit_reached', result: "You've hit your weekly limit · resets Mon 9am", usage: {} },
+  ];
+  const { conversation, events } = await openWith([{ text: 'hi', lines }]);
+  const got = await turn(conversation, events, 'hi');
+  expect(got.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: "You've hit your weekly limit · resets Mon 9am" });
+  expect(got.find((e) => e.kind === 'turn_end')).toMatchObject({ outcome: 'error', model: 'claude-sonnet-5-5' });
+});
+
 test('an effort change is a turn of its own that the person does not see', async () => {
   const done = (extra: Line = {}): Line => ({ type: 'result', subtype: 'success', is_error: false, usage: {}, ...extra });
   const { conversation, events } = await openWith([

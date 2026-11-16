@@ -260,7 +260,7 @@ private struct ConversationBox: View {
     }
 }
 
-private struct FeedRowView: View {
+struct FeedRowView: View {
     let row: FeedRow
     /// When the message was written, in ms; nil for a row that is not a stored message.
     let time: Int?
@@ -301,7 +301,7 @@ private struct FeedRowView: View {
                 if sent.text.isEmpty == false {
                     messageText(sent.text, commands: commands).textSelection(.enabled)
                         .padding(.horizontal, 13).padding(.vertical, 8)
-                        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.1)), in: .rect(cornerRadius: 16))
+                        .chatSurface(.regular.tint(Color.themeAccent.opacity(0.1)), flat: Color.themeAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: 16))
                 }
                 footer(text, summary: nil, asks: false)
             }
@@ -470,7 +470,7 @@ struct BannerView: View {
 }
 
 /// What a run of the agent's work draws itself from: whether it is the one working now, whether an approval holds it, when the turn began.
-private struct WorkState {
+struct WorkState {
     let live: Bool
     let waiting: Bool
     let since: Int?

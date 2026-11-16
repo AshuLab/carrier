@@ -8,7 +8,7 @@ private struct WorkCardShell: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.045)))
-            .glassEffect(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), in: .rect(cornerRadius: 12))
+            .chatSurface(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), flat: Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

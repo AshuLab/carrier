@@ -168,19 +168,19 @@ struct TerminalTabView: View {
             installed: MonospaceStyle.installedFamilies,
             currentOverride: fontFamilyOverride
         )
-        return [(value: nil, title: "Same as Appearance (\(appFontDisplayName))")]
+        return [(value: nil, title: "Same as Chat (\(appFontDisplayName))")]
             + families.map { (value: $0, title: $0) }
     }
 
     private var fontSizeOptions: [(value: Int?, title: String)] {
         let sizes = TerminalSettings.availableFontSizes(currentOverride: fontSizeOverride)
-        return [(value: nil, title: "Same as Appearance (\(Int(appFontSize.rounded())) pt)")]
+        return [(value: nil, title: "Same as Chat (\(Int(appFontSize.rounded())) pt)")]
             + sizes.map { (value: $0, title: "\($0) pt") }
     }
 
     private var ligaturesOptions: [(value: Bool?, title: String)] {
         [
-            (value: nil, title: "Same as Appearance (\(appLigatures ? "On" : "Off"))"),
+            (value: nil, title: "Same as Chat (\(appLigatures ? "On" : "Off"))"),
             (value: true, title: "On"),
             (value: false, title: "Off"),
         ]
@@ -239,7 +239,7 @@ struct TerminalTabView: View {
             SettingsGroup(title: "Typography") {
                 SettingsTabRow(
                     title: "Font",
-                    detail: "Monospaced font used in panes; inherits Code and output",
+                    detail: "Monospaced font used in panes; inherits Chat › Code and output",
                     first: true
                 ) {
                     ChoicePopUp(label: "Font", options: fontFamilyOptions, selection: fontFamilySelection, width: 200)

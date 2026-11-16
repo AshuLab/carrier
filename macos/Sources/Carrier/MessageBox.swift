@@ -34,6 +34,8 @@ struct MessageBox<Selects: View>: View {
     @State private var cursor = 0
     /// The files dropped on the box, which go with the next message as paths under it.
     @State private var attachments: [AttachedFile] = []
+    /// The attachment being looked at in the preview.
+    @State private var previewing: AttachedFile?
     /// The long texts pasted into the box, which go with the next message in fenced blocks under what is typed.
     @State private var pastes: [Pasted] = []
     /// Whether files are being dragged over the box.
@@ -98,11 +100,12 @@ struct MessageBox<Selects: View>: View {
                 if attachments.isEmpty == false {
                     FlowLayout(spacing: 8) {
                         ForEach(attachments) { file in
-                            AttachmentChip(file: file) { withAnimation(.smooth(duration: 0.2)) { attachments.removeAll { $0.id == file.id } } }
+                            AttachmentChip(file: file, remove: { discard(file) }, open: file.canPreview ? { previewing = file } : nil)
                                 .transition(.scale(scale: 0.9).combined(with: .opacity))
                         }
                     }
                     .animation(.smooth(duration: 0.2), value: attachments)
+                    .attachmentPreview(of: attachments, showing: $previewing)
                 }
                 CommandTextView(
                     text: $text, cursor: $cursor, tentative: tentative, dictated: dictated, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onTyped: { dictation.stop(ownedBy: dictationOwner) }, onFiles: attach, onFileDrag: { dropping = $0 }, onLargePaste: keep,
@@ -151,7 +154,7 @@ struct MessageBox<Selects: View>: View {
             }
             .animation(.smooth(duration: 0.2), value: dictationEdgeShown(dictationPresentation, dropping: dropping))
             // glass: the conversation that scrolls under the box is blurred, not seen through it
-            .glassEffect(.regular, in: .rect(cornerRadius: 16))
+            .chatSurface(flat: Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
             .overlay { if dropping { dropVeil } }
             .offset(y: dropping ? -3 : 0)
             .animation(.smooth(duration: 0.2), value: dropping)
@@ -212,14 +215,21 @@ struct MessageBox<Selects: View>: View {
         return true
     }
 
-    /// Dropped files become chips, the ones already there kept once. Only what is a file of the Mac counts.
+    private var carrier: String { carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()) }
+
+    /// Dropped files become chips, the ones already there kept once. Only what is a file of the Mac counts, and each is copied into Carrier's own
+    /// folder at once, so the message keeps its file when the original is moved or deleted.
     private func attach(_ urls: [URL]) -> Bool {
-        let folder = carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
-        let fresh = urls.filter(\.isFileURL).map { attachedFile(at: $0, carrierFolder: folder) }.filter { new in attachments.contains { $0.id == new.id } == false }
+        let fresh = urls.filter(\.isFileURL).filter { url in attachments.contains { $0.source == url.standardizedFileURL.path } == false }.map { attachedCopy(of: $0, carrierFolder: carrier) }
         guard fresh.isEmpty == false else { return false }
         withAnimation(.smooth(duration: 0.2)) { attachments += fresh }
         focus.wrappedValue = true
         return true
+    }
+
+    private func discard(_ file: AttachedFile) {
+        withAnimation(.smooth(duration: 0.2)) { attachments.removeAll { $0.id == file.id } }
+        discardAttachment(file, carrierFolder: carrier)
     }
 
     /// The keys of the text that mean something to the list while it is open; Enter takes the marked row, or sends.
@@ -286,7 +296,7 @@ struct MessageBox<Selects: View>: View {
                 Text("\(count)").font(.scaled(11, weight: .medium)).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 10).frame(height: 24)
-            .glassEffect(.regular, in: .capsule)
+            .chatSurface(flat: Color.primary.opacity(0.08), in: Capsule())
             Spacer(minLength: 0)
         }
         .padding(.leading, 6).padding(.top, 6).padding(.bottom, 4)
@@ -346,27 +356,22 @@ struct MessageBox<Selects: View>: View {
         send()
     }
 
-    /// A round glass button of the system's, tinted when there is something to send and plain when there is not; it gives under the finger
-    /// and springs back. The arrow becomes the Stop square while the agent answers, bounces up on a send and pulses while it works.
+    /// A round glass button, tinted like the New session pill when there is something to send and plain when there is not; it gives under the
+    /// finger and springs back. The arrow becomes the Stop square while the agent answers, bounces up on a send and pulses while it works.
     @ViewBuilder private var button: some View {
         let active = (ready && sendAllowed) || busy
-        let action = busy ? stop : fire
         let label = Image(systemName: busy ? "stop.fill" : "arrow.up")
             .font(.scaled(busy ? 12 : 14, weight: .bold)).foregroundStyle(active ? .white : .secondary)
             .contentTransition(.symbolEffect(.replace))
             .symbolEffect(.bounce.up, value: sent)
             .symbolEffect(.pulse, isActive: busy)
-            .frame(width: 20, height: 20)
-        Group {
-            if active {
-                Button(action: action) { label }.buttonStyle(.glassProminent)
-            } else {
-                Button(action: action) { label }.buttonStyle(.glass).disabled(true)
-            }
-        }
-        // a circle by construction: the system's border shape, over a label that is square
-        .buttonBorderShape(.circle).controlSize(.large).tint(.themeAccent)
-        .animation(.smooth(duration: 0.25), value: active)
+            .frame(width: 32, height: 32)
+            .contentShape(Circle())
+        Button(action: busy ? stop : fire) { label }
+            .buttonStyle(.plain)
+            .chatSurface(active ? .regular.tint(Color.accentGlass).interactive() : .regular, flat: active ? Color.accentGlass : Color.primary.opacity(0.08), in: Circle())
+            .disabled(active == false)
+            .animation(.smooth(duration: 0.25), value: active)
         .help(busy ? "Stop" : "\(sendHelp) (\(sendKey == .return ? "↩" : "⌘↩")) · New line (\(sendKey == .return ? "⇧↩" : "↩"))").accessibilityLabel(busy ? "Stop" : "Send")
     }
 }

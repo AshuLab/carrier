@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Settings › Chat › Surfaces: Glass or Flat. Flat draws the conversation's cards, your bubble, code blocks, attachments, notices and the message box as a quiet solid fill instead of glass.
+- Message width has a fifth choice, Widest (1280 pt).
+- A file attached to a message can be looked at in the app: a click on its chip opens a Quick Look preview (images, PDFs, text) with arrows, ← and → to go through all the files of the message, and Show in Finder.
+- A file dropped on the message box is copied into Carrier's own folder (`chat/attachments`), so the conversation keeps it when the original is moved or deleted; taking its chip out before sending removes the copy.
+
+### Fixed
+
+- Code blocks wrap long lines when Wrap long lines is on (a command in a tool call no longer runs off the card): a block that wraps has no horizontal scroll, which offered the text no width to break at.
+- Choosing an accent color no longer changes the tint of the windows: with Tint the windows on, the backgrounds keep the theme's own color and the accent only colors the elements.
+- The agent's work card lines up: the icon of its line sits over the steps' nodes and the first line of a thought is level with its icon; thoughts read a little larger and looser.
+- An update whose restart was held up (the app did not close) no longer leaves the pill stuck on Restarting…: clicking it asks Carrier to quit again.
+- What you type in a session's message box and have not sent is kept when you go to another session, the terminal or another view, and is there when you come back.
+- A Claude turn that fails on a usage limit (the 5-hour session or the weekly one) or another API error now says why in the chat ("You've hit your session limit · resets 12:40pm"), no longer "The turn failed", and its footer names the model that ran, not `<synthetic>`.
+- The line of the agent's work in the chat no longer grows past the message width when a command or a summary is long: it fades out at the edge.
+
+### Changed
+
+- The toolbar of a session shows only the terminal icon where it said Show Terminal / Hide Terminal.
+- The Message width preview in Settings › Chat draws a short conversation (your message, the agent's work and its answer) with the feed's own rows, centered.
+- Message width and the Code and output settings (font, size, line height, ligatures, wrapping, line numbers) moved from Appearance to Chat, with their Reset; the Terminal page now says "Same as Chat".
+- Settings › Appearance › Accent color: a line separates the theme's own accent from the seven colors, and a multicolor disc at the end opens the Mac's color panel for a color of your own.
+- The message box's send button is tinted glass like the New session pill, no longer the loud solid accent.
+- Settings stops growing at 1300 pt wide on a large window; its height still follows the window.
+- The provider menu of the message box names each provider under its mark, as the Settings picker does, and scrolls sideways when there are many.
+
 ## [0.6.0] - 2026-11-15
 
 Carrier gets embedded terminals with their own Settings page, a redesigned epic view, and an update pill in the sidebar in place of Sparkle's window.

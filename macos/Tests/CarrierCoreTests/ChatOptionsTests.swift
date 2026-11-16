@@ -221,3 +221,15 @@ private final class AgentBox: @unchecked Sendable { var stored: [String: String]
     #expect(box.stored["s"] == first.agent && first.agent.isEmpty == false)
     #expect(ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory).agent == first.agent)
 }
+
+@MainActor @Test func whatIsTypedInTheBoxIsStillThereWhenThePersonComesBackToTheSession() {
+    let box = AgentBox()
+    let memory = OptionsMemory(load: { _ in [] }, save: { _, _ in }, loadDraft: { box.stored[$0] ?? "" }, saveDraft: { box.stored[$0] = $1 })
+    let first = ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory)
+    first.draft = "half a thought"
+    // the view is gone (the person went to the terminal or to another session) and comes back with a new model
+    #expect(ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory).draft == "half a thought")
+    #expect(ConversationModel(host: OptionsHost(), sessionId: "other", log: { _ in }, memory: memory).draft.isEmpty)
+    first.draft = ""
+    #expect(ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory).draft.isEmpty)
+}

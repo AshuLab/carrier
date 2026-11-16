@@ -230,7 +230,7 @@ private let idle = PanelSnapshot(
     #expect(mono.ligatures && mono.wrapLongLines && mono.lineNumbers == false)
 }
 
-@Test func monospaceSettingsSurviveARelaunchAndResetWithAppearance() {
+@Test func monospaceSettingsSurviveARelaunchAndResetWithChat() {
     let name = "mono-\(UUID().uuidString)"
     let store = AppPreferences(defaults: UserDefaults(suiteName: name)!)
     let chosen = MonospaceSettings(family: "Menlo", size: 14, lineHeight: .loose, ligatures: false, wrapLongLines: false, lineNumbers: true)
@@ -238,6 +238,8 @@ private let idle = PanelSnapshot(
     #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).monospace == chosen)
     store.confirmStop = false
     store.reset(.appearance)
+    #expect(store.monospace == chosen)  // Appearance's Reset leaves them: they are on the Chat page
+    store.reset(.chat)
     #expect(store.monospace == MonospaceSettings())
     #expect(store.confirmStop == false)
 }
@@ -275,17 +277,19 @@ private let idle = PanelSnapshot(
     #expect(MessageWidth.medium.points == 760)
     #expect(MessageWidth.wide.points == 880)
     #expect(MessageWidth.ultraWide.points == 1040 && MessageWidth.ultraWide.title == "Ultra wide")
+    #expect(MessageWidth.widest.points == 1280 && MessageWidth.widest.title == "Widest")
+    #expect(MessageWidth.allCases.last == .widest)  // the preview's track is the last, the widest
     #expect(AppPreferences.defaultMessageWidth == .medium)
 }
 
-@Test func theMessageWidthSurvivesARelaunchFallsBackWhenBadAndResetsWithAppearance() {
+@Test func theMessageWidthSurvivesARelaunchFallsBackWhenBadAndResetsWithChat() {
     let name = "width-\(UUID().uuidString)"
     let store = AppPreferences(defaults: UserDefaults(suiteName: name)!)
     #expect(store.messageWidth == .medium)
     store.messageWidth = .wide
     store.confirmStop = false
     #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).messageWidth == .wide)
-    store.reset(.appearance)
+    store.reset(.chat)
     #expect(store.messageWidth == .medium && store.confirmStop == false)
     UserDefaults(suiteName: name)!.set("huge", forKey: AppPreferences.messageWidthKey)
     #expect(store.messageWidth == .medium)
@@ -501,4 +505,19 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     let defaults = UserDefaults(suiteName: "workin-\(UUID().uuidString)")!
     defaults.set("somewhere", forKey: AppPreferences.workInKey)
     #expect(AppPreferences(defaults: defaults).workIn == .baseFolder)
+}
+
+@Test func theChatSurfaceIsGlassUntilChosenFallsBackWhenBadAndResetsWithChat() {
+    let name = "surface-\(UUID().uuidString)"
+    let store = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(store.chatSurface == .glass && AppPreferences.defaultChatSurface == .glass)
+    store.chatSurface = .flat
+    store.confirmStop = false
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).chatSurface == .flat)
+    store.reset(.appearance)
+    #expect(store.chatSurface == .flat)  // it is on the Chat page
+    store.reset(.chat)
+    #expect(store.chatSurface == .glass && store.confirmStop == false)
+    UserDefaults(suiteName: name)!.set("frosted", forKey: AppPreferences.chatSurfaceKey)
+    #expect(store.chatSurface == .glass)
 }

@@ -361,16 +361,11 @@ struct PanelView: View {
                     .sharedBackgroundVisibility(.hidden)
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
-                    ToolbarPillButton(
-                        title: drawerOpen ? "Hide Terminal" : "Show Terminal",
-                        icon: drawerOpen ? "terminal.fill" : "terminal"
-                    ) {
+                    ToolbarGlassIconButton(icon: drawerOpen ? "terminal.fill" : "terminal", name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {
                         toggleSessionTerminal(for: session)
                     }
                     .glassEffect(.regular, in: .capsule)
                     .padding(.trailing, 10)
-                    .help(drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))")
-                    .accessibilityLabel(drawerOpen ? "Hide terminal" : "Show terminal")
                 }
                 .sharedBackgroundVisibility(.hidden)
             }

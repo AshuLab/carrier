@@ -59,7 +59,7 @@ struct PastedTextCard: View {
                 .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
             }
         }
-        .glassEffect(.regular, in: .rect(cornerRadius: 12))
+        .chatSurface(in: RoundedRectangle(cornerRadius: 12))
         .onHover { hovering = $0 }
         .accessibilityElement(children: .contain)
     }

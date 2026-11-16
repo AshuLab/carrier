@@ -464,3 +464,18 @@ private var work: AccountDraft {
     _ = await store.save(name: "claude-work", draft: work)
     #expect(store.editProblem == nil && store.editNote == nil)
 }
+
+@MainActor @Test func labelIconAndColorAreOfferedOnlyWhileTheHostSaysItKnowsThem() async throws {
+    let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
+    let store = ProvidersStore(host: host, file: { ProvidersFile(folder: NSTemporaryDirectory() + "carrier-none") }, log: { _ in }, reload: { .applied })
+    #expect(store.identityEditable == false)
+    // a host that lists providers but not accountIdentity is an older carrier: it would refuse the file with the keys in it
+    await store.load()
+    #expect(store.identityEditable == false)
+    host.capabilitiesAnswer = [.providers, .accountIdentity]
+    await store.load()
+    #expect(store.identityEditable)
+    host.capabilitiesAnswer = []
+    await store.load()
+    #expect(store.identityEditable == false)
+}

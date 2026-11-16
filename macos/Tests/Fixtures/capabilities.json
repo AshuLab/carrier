@@ -40,6 +40,7 @@
     "reasoning",
     "rename",
     "usage",
-    "usageOverride"
+    "usageOverride",
+    "accountIdentity"
   ]
 }

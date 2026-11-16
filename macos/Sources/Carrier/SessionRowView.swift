@@ -159,11 +159,7 @@ struct ProviderMarks: View {
     var body: some View {
         HStack(spacing: 3) {
             ForEach(names.prefix(Self.shown), id: \.self) { name in
-                if let image = AgentAvatar.mark(name) {
-                    Image(nsImage: image).renderingMode(.template).resizable().scaledToFit().frame(width: 12, height: 12)
-                } else {
-                    Text(String(name.prefix(1)).uppercased()).font(.scaled(10, weight: .bold))
-                }
+                AccountMark(account: name, size: 12).help(ProviderIdentityStore.shared.shortName(of: name))
             }
             if names.count > Self.shown { Text("+\(names.count - Self.shown)").font(.scaled(10, weight: .semibold)) }
         }

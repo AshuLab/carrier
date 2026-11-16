@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Providers — an icon, a color and a label per account</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* pi- = provider identity */
+.pi-sec{max-width:1180px;margin:0 0 34px}
+.pi-sec h3{margin:0 0 2px;font-size:14px}
+.pi-sec>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:780px}
+.pi-g2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.pi-card{border-radius:18px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);overflow:hidden}
+
+/* the mark */
+.mk{display:inline-grid;place-items:center;flex:none;position:relative;vertical-align:middle;color:var(--dim)}
+.mk>svg{width:100%;height:100%;display:block}
+.mk>.lt,.mk i .lt{font-weight:700;font-size:.72em;line-height:1}
+.mk.tint{color:var(--c)}
+
+/* settings editor */
+.pi-set{display:flex;height:430px}
+.pi-rail{width:230px;flex:none;padding:16px 10px;background:rgba(128,128,128,.07);overflow:auto}
+.pi-rail h4{margin:0 8px 10px;font-size:15px}
+.pi-gh{margin:10px 8px 4px;font-size:10.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.pi-lr{display:flex;gap:9px;align-items:center;padding:6px 8px;border-radius:9px;cursor:pointer}
+.pi-lr.on{background:var(--sel)}.pi-lr:hover:not(.on){background:var(--card)}
+.pi-lr b{display:block;font-weight:550;font-size:13px}.pi-lr small{display:block;color:var(--dim);font-size:11px;line-height:1.2}
+.pi-page{flex:1;min-width:0;padding:20px 24px;overflow:auto}
+.pi-page h4{margin:0 0 12px;font-size:15px}
+.pi-fcard{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.pi-row{display:flex;gap:14px;align-items:center;padding:11px 0;border-top:.5px solid var(--line)}.pi-row:first-child{border:0}
+.pi-row .t{width:210px;flex:none}.pi-row .t b{display:block;font-weight:550}.pi-row .t span{display:block;color:var(--dim);font-size:11.5px;margin-top:1px}
+.pi-row .c{flex:1;min-width:0}
+.pi-in{font:inherit;font-size:12.5px;color:var(--text);background:var(--card2);border:0;border-radius:8px;padding:5px 9px;width:220px;box-shadow:0 0 0 .5px var(--line) inset;outline:none}
+.pi-in:focus{box-shadow:0 0 0 2px var(--blue)}
+.pi-icons{display:grid;grid-template-columns:repeat(7,36px);gap:6px}
+.pi-ib{height:36px;border-radius:9px;background:var(--card2);display:grid;place-items:center;cursor:pointer;color:var(--text);position:relative;box-shadow:0 0 0 .5px var(--line) inset}
+.pi-ib:hover{background:var(--card)}
+.pi-ib.on{box-shadow:0 0 0 2px var(--blue)}
+.pi-ib small{position:absolute;bottom:-1px;font-size:0}
+.pi-sw{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.pi-sw i{width:22px;height:22px;border-radius:50%;cursor:pointer;display:block;box-shadow:0 0 0 .5px rgba(0,0,0,.3) inset}
+.pi-sw i.on{outline:2px solid var(--text);outline-offset:2px}
+.pi-sw i.none{background:none;box-shadow:0 0 0 1.5px var(--faint) inset;position:relative}
+.pi-sw i.none::after{content:"";position:absolute;left:3px;right:3px;top:50%;height:1.5px;background:var(--faint);transform:rotate(-45deg)}
+.pi-sw i.cus{background:conic-gradient(#ff453a,#ff9f0a,#ffd60a,#30d158,#0a84ff,#bf5af2,#ff453a)}
+
+/* message box + popover */
+.pi-stage{padding:18px}
+.pi-ttl{font-size:15px;font-weight:650;margin:0 0 10px}
+.pi-box{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:12px 14px}
+.pi-box .ph{color:var(--faint);min-height:38px}
+.pi-bar{display:flex;align-items:center;gap:8px}
+.pi-cb{display:inline-flex;gap:7px;align-items:center;border:0;font:inherit;font-size:12px;color:var(--text);background:var(--card2);padding:4px 11px 4px 8px;border-radius:99px;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}
+.pi-cb .mk:not(.tint){color:var(--text)}
+.pi-cb .lb{font-weight:650}
+.pi-cb .sep{color:var(--faint)}
+.pi-send{margin-left:auto;width:26px;height:26px;border-radius:50%;background:var(--blue);display:grid;place-items:center;color:#fff;font-size:13px}
+.pi-pop{margin-top:10px;width:350px;border-radius:16px;background:var(--bg);box-shadow:0 0 0 .5px var(--line) inset,0 14px 40px rgba(0,0,0,.35);padding:10px}
+body.light .pi-pop{background:#fff}
+.pi-tabs{display:flex;gap:4px;margin-bottom:8px}
+.pi-tab{flex:1;min-width:0;border-radius:10px;padding:7px 2px 5px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--dim)}
+.pi-tab .mk:not(.tint){color:var(--text)}
+.pi-tab span{font-size:10px;font-weight:550;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
+.pi-tab:hover{background:var(--card)}.pi-tab.on{background:var(--sel);color:var(--text)}
+.pi-mr{display:flex;justify-content:space-between;padding:6px 8px;border-radius:8px;font-size:12.5px}
+.pi-mr.on{background:var(--card2)}.pi-mr span{color:var(--dim)}
+.pi-sl{margin:8px 8px 2px;color:var(--dim);font-size:11.5px;display:flex;gap:10px;align-items:center}
+.pi-sl i{flex:1;height:4px;border-radius:2px;background:var(--card2);position:relative}.pi-sl i::after{content:"";position:absolute;left:0;top:0;bottom:0;width:60%;border-radius:2px;background:var(--blue)}
+.pi-fold{display:inline-flex;gap:6px;align-items:center;font-size:12px;background:var(--card2);padding:3px 10px;border-radius:99px;margin-bottom:12px}
+
+/* sidebar rows */
+.pi-side{padding:10px;width:100%;max-width:380px}
+.pi-sr{display:flex;gap:10px;align-items:center;padding:8px 9px;border-radius:12px}
+.pi-sr.on{background:var(--sel)}
+.pi-pi{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;flex:none}
+.pi-sr .m{flex:1;min-width:0}.pi-sr .m b{display:block;font-weight:550;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pi-sr .m small{display:block;color:var(--dim);font-size:11px}
+.pi-sr .r{display:flex;flex-direction:column;align-items:flex-end;gap:3px;color:var(--dim);font-size:11px}
+.pi-marks{display:flex;gap:3px;align-items:center;color:var(--dim);font-size:10px;font-weight:600}
+
+/* conversation */
+.pi-conv{padding:22px 40px;max-width:760px;margin:0 auto}
+.pi-ub{margin:0 0 18px 120px;display:flex;justify-content:flex-end}
+.pi-ub div{padding:8px 13px;border-radius:16px;background:color-mix(in srgb,var(--blue) 16%,transparent);box-shadow:0 0 0 .5px color-mix(in srgb,var(--blue) 30%,transparent) inset;max-width:100%}
+.pi-ag{margin-bottom:6px}
+.pi-ag p{margin:0 0 10px}.pi-ag ul{margin:0 0 6px;padding-left:20px}.pi-ag code{font:11.5px var(--mono);background:var(--card2);padding:1px 5px;border-radius:5px}
+.pi-tools{display:flex;gap:9px;align-items:center;margin:0 0 14px;padding:8px 12px;border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;color:var(--dim);font-size:12px}
+.pi-tools b{color:var(--text);font-weight:550}.pi-tools i{margin-left:auto;font-style:normal;color:var(--faint)}
+.pi-ft{display:flex;align-items:center;gap:14px;height:24px;color:var(--dim)}
+.pi-cp{width:26px;height:22px;display:grid;place-items:center;font-size:12px}
+.pi-tm{font-size:12px}
+.pi-mc{display:inline-flex;gap:6px;align-items:center;font-size:11px;font-weight:500;color:var(--dim);background:rgba(128,128,128,.17);padding:2px 8px 2px 6px;border-radius:99px}
+.pi-mc .mk:not(.tint){color:var(--dim)}
+.pi-mc b{font-weight:650;color:var(--text)}
+.pi-nums{font-size:12px;color:var(--faint)}
+.pi-bn{margin:18px 0 0;padding:12px 14px;border-radius:14px;background:color-mix(in srgb,var(--red) 12%,transparent);box-shadow:0 0 0 .5px color-mix(in srgb,var(--red) 40%,transparent) inset;display:flex;gap:10px}
+.pi-bn b{display:block;font-weight:650}.pi-bn span{color:var(--dim);font-size:12px}.pi-bn a{color:var(--blue);margin-left:auto;align-self:center;font-size:12px}
+.pi-who{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:.5px solid var(--line)}.pi-who:first-child{border:0}
+.pi-av{position:relative;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px;flex:none}
+.pi-av .cn{position:absolute;right:-5px;bottom:-5px;width:16px;height:16px;border-radius:50%;background:var(--bg);box-shadow:0 0 0 1px var(--line) inset;display:grid;place-items:center}
+body.light .pi-av .cn{background:#fff}
+.pi-who .t b{display:block;font-weight:550}.pi-who .t span{display:block;color:var(--dim);font-size:11.5px}
+
+/* roles */
+.pi-roles{padding:6px 16px}
+.pi-rr{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:.5px solid var(--line)}.pi-rr:first-child{border:0}
+.pi-rr .t{flex:1}.pi-rr .t b{display:block;font-weight:550}.pi-rr .t span{display:block;color:var(--dim);font-size:11.5px}
+.pi-chip{display:inline-flex;gap:7px;align-items:center;background:var(--card2);padding:4px 11px 4px 8px;border-radius:99px;font-size:12.5px;box-shadow:0 0 0 .5px var(--line) inset}
+.pi-chip .mk:not(.tint){color:var(--text)}
+
+.pi-dec{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:1180px;margin-top:10px}
+.pi-dec div{background:var(--card);border-radius:12px;padding:11px 14px;color:var(--dim);box-shadow:0 0 0 .5px var(--line) inset}
+.pi-dec b{display:block;color:var(--text);margin-bottom:3px}
+.pi-dec code{font:11.5px var(--mono);background:var(--card2);padding:0 5px;border-radius:5px;color:var(--text)}
+</style></head><body>
+<h1>Providers — an icon, a color and a label per account</h1>
+<div class="sub">Each account (<b>claude</b>, <b>Claude Pro</b>, <b>Claude Teams</b>, <b>Codex</b>…) gets three optional fields. Today Pro and Teams wear the same Claude mark, so a message box, a session row, an answer or a role cannot tell them apart. The color tints the mark (a plain glyph, no tile). Edit one in the first card and watch every place below change. Nothing set = the app looks exactly as it does today.</div>
+
+<div class="bar"><span class="sp"></span><button class="tog" id="theme">Light / dark</button></div>
+
+<div class="pi-sec">
+  <h3>1 · Settings › Providers › Edit account</h3>
+  <p>Three optional fields in the account editor, under Display name. Icon: the tool's own mark (default), a built-in glyph, or the account's first letter. Color: none or one of eight. Label: short text for tight places; empty falls back to the Display name, then to the account's key.</p>
+  <div class="pi-card"><div class="pi-set"><div class="pi-rail" id="rail"></div><div class="pi-page" id="editor"></div></div></div>
+</div>
+
+<div class="pi-sec">
+  <h3>2 · Message box and its provider panel</h3>
+  <p>The button at the left of the message box shows the mark and, when the account has one, its label before the model. The panel's tabs use the mark and the label. A tooltip keeps the full name. Click a tab to choose; click the button to open or close.</p>
+  <div class="pi-card"><div class="pi-stage" id="cmpA"></div></div>
+</div>
+
+<div class="pi-g2 pi-sec">
+  <div>
+    <h3>3 · New session</h3>
+    <p>The same button and panel (it is the same message box).</p>
+    <div class="pi-card"><div class="pi-stage" id="cmpB"></div></div>
+  </div>
+  <div>
+    <h3>4 · Sidebar session rows</h3>
+    <p>The marks a session has worked with (three at most, then “+n”), now in each account's color. Hover gives the label.</p>
+    <div class="pi-card"><div class="pi-side" id="side"></div></div>
+  </div>
+</div>
+
+<div class="pi-sec">
+  <h3>5 · Conversation</h3>
+  <p>A message has no avatar or header, so the mark goes where the app already says who answered: the chip of the footer under an answer (copy, time, model, duration, tokens; on hover, always in view on the last answer), and the banner of a turn that could not continue. The user's bubble does not change. The session is the account chosen in the panel above.</p>
+  <div class="pi-card"><div class="pi-conv" id="conv"></div></div>
+</div>
+
+<div class="pi-g2 pi-sec">
+  <div>
+    <h3>6 · Agents page (roles) and other lists</h3>
+    <p>Wherever an account is named as a chip: roles, Usage, the Archive. Short label; the full name on hover.</p>
+    <div class="pi-card"><div class="pi-roles" id="roles"></div></div>
+  </div>
+  <div>
+    <h3>7 · Carrier epics: who acted</h3>
+    <p>The round avatar of an epic's session: today a color made from the account's name, with the tool's mark on the corner. With a color set, the disc takes it; the corner keeps the tool's plain mark, or the account's icon when it has one.</p>
+    <div class="pi-card"><div class="pi-roles" id="who"></div></div>
+  </div>
+</div>
+
+<div class="pi-sec">
+  <h3>What I would decide</h3>
+  <div class="pi-dec">
+    <div><b>On the account, not the tool</b>Claude Pro and Claude Teams are the same tool: the difference only exists on the account. Tools (Claude Code, Codex, Antigravity, the local servers) keep their bundled mark.</div>
+    <div><b>Label ≠ Display name</b>Display name stays as it is (up to 60 characters, shown in roomy places). Label is the short tag (up to 12), for tabs, chips and the message box button.</div>
+    <div><b>Stored with the account</b>Three optional keys next to <code>displayName</code> in <code>providers.json</code> (<code>icon</code>, <code>color</code>, <code>label</code>): one place for the engine, the chat and the app, and it travels with the account. It needs the zod schema in <code>src/config/providers.ts</code>, the host's providers reply and the app's decoding to learn them.</div>
+    <div><b>Color is a name, not a hex</b>Eight names that the app tints for light and dark, so every one stays readable on both and a bad value reads as none. The color tints the mark itself: no tile, no dot. A free color picker can come later.</div>
+  </div>
+</div>
+
+<script>
+const BRAND={"claude": "<svg fill=\"currentColor\" fill-rule=\"evenodd\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z\"></path></svg>", "codex": "<svg fill=\"currentColor\" fill-rule=\"evenodd\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><path clip-rule=\"evenodd\" d=\"M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.7a.117.117 0 00.107.029c1.408-.346 2.762-.224 4.061.366l.063.03.154.076c1.357.703 2.33 1.77 2.918 3.198.278.679.418 1.388.421 2.126a5.655 5.655 0 01-.18 1.631.167.167 0 00.04.155 5.982 5.982 0 011.578 2.891c.385 1.901-.01 3.615-1.183 5.14l-.182.22a6.063 6.063 0 01-2.934 1.851.162.162 0 00-.108.102c-.255.736-.511 1.364-.987 1.992-1.199 1.582-2.962 2.462-4.948 2.451-1.583-.008-2.986-.587-4.21-1.736a.145.145 0 00-.14-.032c-.518.167-1.04.191-1.604.185a5.924 5.924 0 01-2.595-.622 6.058 6.058 0 01-2.146-1.781c-.203-.269-.404-.522-.551-.821a7.74 7.74 0 01-.495-1.283 6.11 6.11 0 01-.017-3.064.166.166 0 00.008-.074.115.115 0 00-.037-.064 5.958 5.958 0 01-1.38-2.202 5.196 5.196 0 01-.333-1.589 6.915 6.915 0 01.188-2.132c.45-1.484 1.309-2.648 2.577-3.493.282-.188.55-.334.802-.438.286-.12.573-.22.861-.304a.129.129 0 00.087-.087A6.016 6.016 0 015.635 2.31C6.315 1.464 7.132.846 8.086.457zm-.804 7.85a.848.848 0 00-1.473.842l1.694 2.965-1.688 2.848a.849.849 0 001.46.864l1.94-3.272a.849.849 0 00.007-.854l-1.94-3.393zm5.446 6.24a.849.849 0 000 1.695h4.848a.849.849 0 000-1.696h-4.848z\"></path></svg>", "agy": "<svg fill=\"currentColor\" fill-rule=\"evenodd\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z\"></path></svg>"};
+const COLORS={red:'#ff453a',orange:'#ff9f0a',yellow:'#ffd60a',green:'#30d158',teal:'#40c8e0',blue:'#0a84ff',purple:'#bf5af2',pink:'#ff375f'};
+const G=d=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+d+'</svg>';
+const GLYPHS={
+ bolt:G('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'),
+ star:G('<path d="m12 2 3 7 7 .6-5.3 4.7 1.6 7.2L12 17.7 5.7 21.5l1.6-7.2L2 9.6 9 9z"/>'),
+ briefcase:G('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>'),
+ person:G('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>'),
+ people:G('<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5c3 0 5 1.5 5 4"/>'),
+ code:G('<path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>'),
+ flask:G('<path d="M9 3h6M10 3v6L4 19a2 2 0 0 0 1.8 3h12.4A2 2 0 0 0 20 19l-6-10V3"/>'),
+ leaf:G('<path d="M5 21c0-9 5-16 16-17 0 11-6 16-14 15M5 21c2-5 5-8 9-10"/>'),
+ moon:G('<path d="M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10z"/>'),
+ heart:G('<path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z"/>'),
+ cube:G('<path d="M12 2 3 7v10l9 5 9-5V7zM3 7l9 5 9-5M12 12v10"/>')
+};
+const A=[
+ {id:'claude',name:'claude',harness:'claude',tool:'Claude Code',icon:'default',color:null,label:''},
+ {id:'pro',name:'Claude Pro',harness:'claude',tool:'Claude Code',icon:'default',color:'orange',label:'Pro'},
+ {id:'teams',name:'Claude Teams',harness:'claude',tool:'Claude Code',icon:'people',color:'blue',label:'Teams'},
+ {id:'codex',name:'Codex',harness:'codex',tool:'Codex',icon:'default',color:null,label:''},
+ {id:'agy',name:'Antigravity',harness:'agy',tool:'Antigravity',icon:'default',color:'purple',label:''}
+];
+const MODELS={claude:['Opus 4.7','Sonnet 5.5','Haiku 4.5'],codex:['GPT-5.5','GPT-5.5 mini','o4'],agy:['Gemini 3 Pro','Gemini 3 Flash','Claude via Antigravity']};
+const S={sel:'teams',edit:'teams',open:{cmpA:true,cmpB:false}};
+const acc=id=>A.find(a=>a.id===id), short=a=>a.label||a.name, $=id=>document.getElementById(id);
+
+function mk(a,size){
+  const inner=a.icon==='default'?BRAND[a.harness]:a.icon==='letter'?'<b class="lt">'+a.name[0].toUpperCase()+'</b>':GLYPHS[a.icon];
+  const c=a.color&&COLORS[a.color], sz='width:'+size+'px;height:'+size+'px;font-size:'+size+'px;';
+  return '<span class="mk'+(c?' tint':'')+'" style="'+sz+(c?'--c:'+c:'')+'">'+inner+'</span>';
+}
+
+function editor(){
+  const a=acc(S.edit);
+  $('rail').innerHTML='<h4>Providers</h4><div class="pi-gh">AI tools</div>'+A.map(x=>'<div class="pi-lr'+(x.id===S.edit?' on':'')+'" data-a="edit" data-v="'+x.id+'">'+mk(x,24)+'<div><b>'+x.name+'</b><small>'+x.tool+'</small></div></div>').join('')+'<div class="pi-gh">Local servers</div><div class="pi-lr"><span class="mk" style="width:24px;height:24px">'+G('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 21h8M12 16v5"/>')+'</span><div><b>LM Studio</b><small>Running · 5 models</small></div></div>';
+  const icons=[['default']].concat(Object.keys(GLYPHS).map(k=>[k])).concat([['letter']]);
+  const colors='<i class="none'+(a.color?'':' on')+'" data-a="color" data-v="" title="None"></i>'+Object.keys(COLORS).map(k=>'<i class="'+(a.color===k?'on':'')+'" style="background:'+COLORS[k]+'" data-a="color" data-v="'+k+'" title="'+k+'"></i>').join('')+'<i class="cus" title="More colors later"></i>';
+  $('editor').innerHTML='<h4>Edit '+a.name+'</h4><div class="pi-fcard">'
+   +'<div class="pi-row"><div class="t"><b>Display name</b><span>What the app shows instead of '+a.name+'</span></div><div class="c"><input class="pi-in" value="'+a.name+'" readonly></div></div>'
+   +'<div class="pi-row"><div class="t"><b>Label</b><span>Short, for tabs, chips and the message box. Empty uses the display name</span></div><div class="c"><input class="pi-in" id="lab" maxlength="12" placeholder="'+a.name+'" value="'+a.label+'" style="width:140px"></div></div>'
+   +'<div class="pi-row"><div class="t"><b>Icon</b><span>The tool\'s mark by default</span></div><div class="c"><div class="pi-icons">'+icons.map(i=>'<div class="pi-ib'+(a.icon===i[0]?' on':'')+'" data-a="icon" data-v="'+i[0]+'" title="'+(i[0]==='default'?'The tool\'s mark':i[0]==='letter'?'First letter':i[0])+'">'+mk(Object.assign({},a,{icon:i[0]}),20)+'</div>').join('')+'</div></div></div>'
+   +'<div class="pi-row"><div class="t"><b>Color</b><span>Tints the mark wherever it shows</span></div><div class="c"><div class="pi-sw">'+colors+'</div></div></div>'
+   +'</div>';
+  $('lab').oninput=e=>{a.label=e.target.value.trim();renderAll(true)};
+}
+
+function composer(id,title,folder){
+  const a=acc(S.sel), open=S.open[id];
+  const head=title?'<div class="pi-ttl">'+title+'</div><div class="pi-fold">&#128193; '+folder+'</div>':'';
+  const btn='<button class="pi-cb" data-a="open" data-v="'+id+'" title="'+a.name+'">'+mk(a,14)+(a.label?'<span class="lb">'+a.label+'</span><span class="sep">·</span>':'')+MODELS[a.harness][0]+' <span class="sep">·</span> High <span class="sep">&#8964;</span></button>';
+  const pop=open?'<div class="pi-pop"><div class="pi-tabs">'+A.map(x=>'<div class="pi-tab'+(x.id===S.sel?' on':'')+'" data-a="sel" data-v="'+x.id+'" title="'+x.name+'">'+mk(x,18)+'<span>'+short(x)+'</span></div>').join('')+'</div>'+MODELS[a.harness].map((m,i)=>'<div class="pi-mr'+(i===0?' on':'')+'">'+m+'<span>'+(i===0?'&#10003;':'')+'</span></div>').join('')+'<div class="pi-sl">Reasoning <i></i> High</div></div>':'';
+  return head+'<div class="pi-box"><div class="ph">Ask '+short(a)+' anything…</div><div class="pi-bar">'+btn+'<div class="pi-send">&#8593;</div></div></div>'+pop;
+}
+
+function side(){
+  const rows=[['carrier','Fix the flaky login test','fix/login-flake',['teams','codex'],'11m','#7c5cff'],['carrier','Add the retry to uploads','main',['pro'],'3m','#ff7a45'],['docs','Rewrite the setup guide','docs/setup',['claude','pro','teams','codex'],'2h','#21a67a']];
+  $('side').innerHTML=rows.map((r,i)=>{const ms=r[3].map(acc);return '<div class="pi-sr'+(i===0?' on':'')+'"><div class="pi-pi" style="background:'+r[5]+'">'+r[0].slice(0,2).toUpperCase()+'</div><div class="m"><b>'+r[1]+'</b><small>&#8921; '+r[2]+'</small></div><div class="r"><span>'+r[4]+'</span><div class="pi-marks">'+ms.slice(0,3).map(m=>'<span title="'+short(m)+'">'+mk(m,12)+'</span>').join('')+(ms.length>3?'+'+(ms.length-3):'')+'</div></div></div>'}).join('');
+}
+
+function conv(){
+  const a=acc(S.sel), name=short(a);
+  const chip='<span class="pi-mc" title="'+a.name+'">'+mk(a,12)+(a.label?'<b>'+a.label+'</b> · ':'')+MODELS[a.harness][0]+'</span>';
+  const foot='<div class="pi-ft"><span class="pi-cp">&#9707;</span><span class="pi-tm">2:14 PM</span>'+chip+'<span class="pi-nums">14s · 48k context · 2.1k out</span></div>';
+  $('conv').innerHTML='<div class="pi-ub"><div>Add a retry to the uploads, with backoff.</div></div>'
+   +'<div class="pi-ag"><p>The uploads retry now, with a backoff of 1s, 2s and 4s, then give up with the last error.</p><ul><li>The retry lives in <code>upload.ts</code>.</li><li>A success resets the count.</li></ul></div>'
+   +'<div class="pi-tools"><b>Edited 2 files</b> · 3 calls<i>&#8250;</i></div>'
+   +'<div class="pi-ag"><p>Done. I added a test for the third attempt.</p></div>'+foot
+   +'<div class="pi-bn">'+mk(a,18)+'<div><b>'+a.name+' couldn\'t continue</b><span>The usage limit of this account was reached. It resets at 6:00 PM.</span></div><a>Try again</a></div>';
+}
+
+function who(){
+  const rows=[['Author','pro','working for 4m'],['Reviewer','codex','done 12m ago'],['Failover of Reviewer','teams','waiting']];
+  $('who').innerHTML=rows.map(r=>{const a=acc(r[1]),c=a.color&&COLORS[a.color];return '<div class="pi-who"><div class="pi-av" style="background:'+(c||'#5e5e63')+'" title="'+a.name+'">'+a.name[0].toUpperCase()+'<span class="cn">'+mk(a,10)+'</span></div><div class="t"><b>'+r[0]+'</b><span>'+a.name+' · '+r[2]+'</span></div></div>'}).join('');
+}
+
+function roles(){
+  const rows=[['Author','Writes the change','pro'],['Reviewer','Reads the diff and says what to fix','codex'],['Failover of Reviewer','Takes over when Reviewer is out of quota','teams']];
+  $('roles').innerHTML=rows.map(r=>{const a=acc(r[2]);return '<div class="pi-rr"><div class="t"><b>'+r[0]+'</b><span>'+r[1]+'</span></div><span class="pi-chip" title="'+a.name+'">'+mk(a,14)+short(a)+'</span></div>'}).join('');
+}
+
+function renderAll(skipEditor){
+  if(skipEditor!==true) editor();
+  $('cmpA').innerHTML=composer('cmpA');
+  $('cmpB').innerHTML=composer('cmpB','New session','carrier · main');
+  side();conv();roles();who();
+}
+
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-a]'); if(!t) return;
+  const v=t.dataset.v, a=acc(S.edit);
+  switch(t.dataset.a){
+    case 'edit':S.edit=v;break;
+    case 'icon':a.icon=v;break;
+    case 'color':a.color=v||null;break;
+    case 'sel':S.sel=v;break;
+    case 'open':S.open[v]=!S.open[v];break;
+  }
+  renderAll();
+});
+$('theme').onclick=()=>document.body.classList.toggle('light');
+renderAll();
+</script>
+</body></html>

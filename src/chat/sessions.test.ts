@@ -68,18 +68,18 @@ const writeProviders = (providers: object) => {
 
 test('agents lists the configured agents with whether the binary is found', () => {
   expect(setup().sessions.agents()).toEqual([
-    { name: 'claude', harness: 'claude', found: true },
-    { name: 'codex', harness: 'codex', found: false },
+    { name: 'claude', harness: 'claude', account: 'claude', found: true },
+    { name: 'codex', harness: 'codex', account: 'codex', found: false },
   ]);
   const { sessions } = setup({ agents: { mine: { account: 'claude', model: 'haiku' } } });
-  expect(sessions.agents()).toEqual([{ name: 'mine', harness: 'claude', model: 'haiku', found: true }]);
+  expect(sessions.agents()).toEqual([{ name: 'mine', harness: 'claude', account: 'claude', model: 'haiku', found: true }]);
 });
 
 test('a chat agent runs on its account: that harness, that binary and that login in the environment, read at each open so an edit needs no restart', async () => {
   const [claude, codex] = [new FakeChatRunner(), new FakeChatRunner()];
   const { sessions } = setup({ agents: { work: { account: 'claude-work' }, other: { account: 'codex-two' } } }, { runners: { claude, codex }, binaryFound: (command) => command === '/opt/claude-work' });
   writeProviders({ 'claude-work': { harness: 'claude', configDir: '/logins/work', command: '/opt/claude-work' }, 'codex-two': { harness: 'codex', configDir: '/logins/two', command: '/opt/codex-two' } });
-  expect(sessions.agents()).toEqual([{ name: 'work', harness: 'claude', model: undefined, found: true }, { name: 'other', harness: 'codex', model: undefined, found: false }]);
+  expect(sessions.agents()).toEqual([{ name: 'work', harness: 'claude', account: 'claude-work', model: undefined, found: true }, { name: 'other', harness: 'codex', account: 'codex-two', model: undefined, found: false }]);
   await sessions.open({ agent: 'work', folder: work });
   expect(claude.opened[0]).toMatchObject({ command: '/opt/claude-work', env: { SOME: 'env', CLAUDE_CONFIG_DIR: '/logins/work' } });
   await sessions.open({ agent: 'other', folder: work });
@@ -111,7 +111,7 @@ test('a chat agent on an account that is not in providers.json, or is Antigravit
   await expect(sessions.open({ agent: 'ghost', folder: work })).rejects.toThrow(/account "ghost".*not in providers\.json/);
   await expect(sessions.open({ agent: 'anti', folder: work })).rejects.toThrow(/account "agy".*Antigravity/);
   await expect(sessions.agentOptions({ agent: 'ghost' })).rejects.toThrow(/"ghost"/);
-  expect(sessions.agents()).toEqual([{ name: 'ghost', harness: 'unknown', model: undefined, found: false }, { name: 'anti', harness: 'agy', model: undefined, found: false }]);
+  expect(sessions.agents()).toEqual([{ name: 'ghost', harness: 'unknown', account: 'ghost', model: undefined, found: false }, { name: 'anti', harness: 'agy', account: 'agy', model: undefined, found: false }]);
   expect(claude.opened).toEqual([]);
   writeProviders({ claude: { harness: 'claude', colour: 'red' } });
   await expect(sessions.open({ agent: 'ghost', folder: work })).rejects.toThrow(/providers\.claude/);
@@ -1852,8 +1852,8 @@ test('capabilities answers the session, the agents and the verdicts, with no loc
   expect(answer).toEqual({
     session: { id: session.id, agent: 'claude', harness: 'claude', folder: realpathSync(work), model: 'sonnet', options: { model: 'sonnet', mode: 'default' } },
     agents: [
-      { name: 'claude', harness: 'claude', found: true, state: 'ready' },
-      { name: 'codex', harness: 'codex', found: true, state: 'signedOut' },
+      { name: 'claude', harness: 'claude', account: 'claude', found: true, state: 'ready' },
+      { name: 'codex', harness: 'codex', account: 'codex', found: true, state: 'signedOut' },
     ],
     environment: { git: 'ready', gh: 'signedOut' },
   });

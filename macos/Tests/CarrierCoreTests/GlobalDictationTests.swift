@@ -15,6 +15,7 @@ import Testing
     var microphone = MicrophonePermission.allowed
     var decision = PasteDecision.paste
     var hasModel = true
+    var activation = DictationActivation.toggle
 
     init(recognizer: ScriptedRecognizer = ScriptedRecognizer(atAudioEnd: [.final("")]), capture: ScriptedCapture = ScriptedCapture()) {
         self.capture = capture
@@ -23,7 +24,7 @@ import Testing
         let session = DictationSession(capture: capture, log: { logged.causes.append($0.cause) })
         machine = GlobalDictation(
             session: session, speechModel: { [unowned self] in hasModel ? (recognizer, recognizer.models[0]) : nil }, microphone: { [unowned self] in microphone },
-            decision: { [unowned self] in decision },
+            decision: { [unowned self] in decision }, activation: { [unowned self] in activation },
             moment: { [unowned self] in moments.append($0) }, record: { [unowned self] in recorded.append($0) }, frontApp: { [unowned self] in frontApp },
             perform: { [unowned self] in effects.append($0) })
     }
@@ -325,4 +326,126 @@ func aTextThatCannotBePastedIsCopiedAndStaysInTheWidgetWithItsReason(reason: Pas
     #expect(empty.recorded.map(\.words) == [0])
     #expect(silent.recorded.isEmpty)
     #expect(noMicrophone.recorded.map(\.words) == [0])
+}
+
+/// A hold: the widget over a recognizer that gives `heard` when the audio ends, with the key already down and listening.
+@MainActor private func holdWidget(_ recognizer: ScriptedRecognizer = ScriptedRecognizer(atAudioEnd: [.final("hola mundo")])) -> Widget {
+    let widget = Widget(recognizer: recognizer)
+    widget.activation = .hold
+    return widget
+}
+
+@MainActor @Test func inAHoldThePressStartsAndTheReleaseEndsAndPastesOnce() async {
+    let widget = holdWidget()
+    await widget.listen()
+    widget.recognizer.say(.partial("hola"))
+    await widget.until { widget.machine.text == "hola" }
+    widget.machine.handle(.up)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.effects == [.show, .paste("hola mundo"), .close] && widget.moments == [.listening, .stopped])
+    #expect(widget.capture.isRunning == false && widget.logged.causes.isEmpty)
+}
+
+@MainActor @Test func aHoldShorterThanTheFirstTextStillPastesWhatTheRecognizerGivesAtTheEnd() async {
+    let widget = holdWidget()
+    await widget.listen()
+    // released before any partial text arrived
+    #expect(widget.machine.text.isEmpty)
+    widget.machine.handle(.up)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.effects == [.show, .paste("hola mundo"), .close])
+}
+
+@MainActor @Test func aHoldReleasedRightAfterThePressWithNoWordsPastesNothingAndClosesQuietly() async {
+    let widget = holdWidget(ScriptedRecognizer(atAudioEnd: [.final("")]))
+    await widget.listen()
+    widget.machine.handle(.up)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.effects == [.show, .close] && widget.logged.causes.isEmpty)
+}
+
+@MainActor @Test func aHoldReleasedWhileTheModelIsGettingReadyEndsWithNothingPasted() async {
+    let recognizer = ScriptedRecognizer()
+    recognizer.holdPrepare()
+    let widget = holdWidget(recognizer)
+    widget.machine.handle(.down)
+    #expect(widget.session.state == .gettingReady)
+    widget.machine.handle(.up)
+    recognizer.releasePrepare()
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.effects == [.show, .close] && widget.capture.startCount == 0 && widget.moments.isEmpty)
+}
+
+@MainActor @Test func escapeWhileTheKeysAreHeldCancelsAndTheReleaseAfterItDoesNothing() async {
+    let widget = holdWidget()
+    await widget.listen()
+    widget.machine.handle(.escape)
+    widget.machine.handle(.up)
+    #expect(widget.machine.state == .idle && widget.session.state == .idle && widget.capture.isRunning == false)
+    #expect(widget.effects == [.show, .close] && widget.moments == [.listening, .cancelled])
+}
+
+@MainActor @Test func aSecondReleaseIsNoSecondEnd() async {
+    let recognizer = ScriptedRecognizer(partial: .atTheEnd, atAudioEnd: [.final("hola")])
+    let widget = holdWidget(recognizer)
+    await widget.listen()
+    widget.machine.handle(.up)
+    widget.machine.handle(.up)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.moments == [.listening, .stopped] && widget.effects == [.show, .paste("hola"), .close])
+}
+
+@MainActor @Test func aHoldWhoseTextCannotBePastedStaysOpenAndTheReleaseThatFollowsChangesNothing() async {
+    let widget = holdWidget()
+    widget.decision = .copyOnly(.noField)
+    await widget.listen()
+    widget.machine.handle(.up)
+    await widget.until { widget.machine.state != .running }
+    widget.machine.handle(.up)
+    #expect(widget.machine.state == .copied(.noField) && widget.effects == [.show, .copy("hola mundo")])
+}
+
+@MainActor @Test func aFailureInAHoldLeavesTheWidgetUpUntilTheNextPress() async {
+    let widget = holdWidget()
+    widget.microphone = .denied
+    widget.machine.handle(.down)
+    widget.machine.handle(.up)
+    guard case .failed = widget.machine.state else {
+        Issue.record("not failed")
+        return
+    }
+    widget.machine.handle(.down)
+    widget.machine.handle(.up)
+    #expect(widget.machine.state == .idle && widget.effects == [.show, .close])
+}
+
+@MainActor @Test func theActivationIsReadWhenTheDictationStartsSoChangingItUnderWayChangesNothing() async {
+    let widget = holdWidget()
+    await widget.listen()
+    widget.activation = .toggle
+    widget.machine.handle(.up)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.effects == [.show, .paste("hola mundo"), .close])
+
+    // and a toggle that is switched to hold under way is still ended by the second press
+    let toggle = Widget()
+    await toggle.listen()
+    toggle.activation = .hold
+    toggle.machine.handle(.up)
+    #expect(toggle.machine.state == .running)
+    toggle.machine.handle(.down)
+    await toggle.until { toggle.machine.state == .idle }
+}
+
+@MainActor @Test func aPressInAHoldOnAWidgetLeftOpenStartsANewDictationThatTheReleaseEnds() async {
+    let widget = holdWidget()
+    widget.decision = .copyOnly(.noField)
+    await widget.listen()
+    widget.machine.handle(.up)
+    await widget.until { widget.machine.state != .running }
+    widget.decision = .paste
+    await widget.listen()
+    widget.machine.handle(.up)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.effects == [.show, .copy("hola mundo"), .close, .show, .paste("hola mundo"), .close])
 }

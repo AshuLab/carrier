@@ -51,6 +51,8 @@ public struct AppPreferences {
     public static let dictationGlobalKey = "dictation.global"
     public static let dictationKeepTextKey = "dictation.history.keepText"
     public static let dictationAccessibilityExplainedKey = "dictation.accessibilityExplained"
+    public static let dictationShortcutKey = "dictation.shortcut"
+    public static let dictationActivationKey = "dictation.activation"
     public static let dictationStartSoundOnKey = "dictation.sound.start.on"
     public static let dictationStartSoundKey = "dictation.sound.start"
     public static let dictationEndSoundOnKey = "dictation.sound.end.on"
@@ -381,6 +383,18 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationAccessibilityExplainedKey) }
     }
 
+    /// The keys of the global dictation: ⌥⇧ Space until the person records another, and one that does not pass the recorder's rules reads as that.
+    public var dictationShortcut: DictationShortcut {
+        get { defaults.string(forKey: Self.dictationShortcutKey).flatMap(DictationShortcut.init(stored:)) ?? .standard }
+        nonmutating set { defaults.set(newValue.stored, forKey: Self.dictationShortcutKey) }
+    }
+
+    /// Toggle until the person chooses Hold.
+    public var dictationActivation: DictationActivation {
+        get { defaults.string(forKey: Self.dictationActivationKey).flatMap(DictationActivation.init(rawValue:)) ?? .toggle }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationActivationKey) }
+    }
+
     /// The Sounds group of the Dictation page; a saved sound that is not on offer reads as the default, and the volume as 0 to 100.
     public var dictationSounds: DictationSounds {
         get {
@@ -517,6 +531,8 @@ public struct AppPreferences {
                 dictationLanguageKey,
                 dictationGlobalKey,
                 dictationKeepTextKey,
+                dictationShortcutKey,
+                dictationActivationKey,
                 dictationStartSoundOnKey,
                 dictationStartSoundKey,
                 dictationEndSoundOnKey,

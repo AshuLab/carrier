@@ -9,15 +9,15 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 ## Tests
 
-The gated tests of Apple's recognizer (`AppleRecognizerTests`, with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`), of FluidAudio's models (`FluidAudioRecognizerTests`, one run per entry: the clip (`hello-en.wav` for the English-only ones) gives text twice with one loaded model, no speech an empty final, and a folder missing a file fails with its cause and downloads nothing) and of Whisper's (`WhisperKitRecognizerTests`: the same for the four models, and a folder missing a file or the tokenizer fails with its cause and fetches nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`; Whisper's under `<folder>/whisper/<model>/models/...`).
+The gated tests of the recognizers (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`; clips `hola-es.wav` and `hello-en.wav` in `Tests/CarrierTests/Resources`: text, an empty final for no speech, and a folder missing a file fails with its cause and downloads nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
 The embedded-terminal live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
 
 ## Starting Carrier and the chat host
 
 What the person sees: [lifecycle](../docs/macos/lifecycle.md).
 
-The decision and command line are in `CarrierCore/StartCarrier.swift`; the spawn and alert are untested.
-The decision, command line and notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert; the wiring and views are untested.
+The decision and command line are in `CarrierCore/StartCarrier.swift` (spawn and alert untested).
+The decision, command line and notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert (wiring and views untested).
 The sequence is tested on a real socket against a scripted engine (`EngineReplacementTests`).
 
 ## Dev build and release build
@@ -109,7 +109,8 @@ The page is `Carrier/DictationTab.swift`, a list of one view per group (a new gr
 
 ### Global dictation
 
-See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, real session, scripted recognizer).
+See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, real session, scripted recognizer; Hold is `.up`).
+Shortcut and activation: `CarrierCore/DictationShortcut.swift` (`recordShortcut`, `DictationShortcutTests`) and the recorder row in `GlobalDictationGroup`, untested.
 `CarrierCore/PasteDecision.swift` (`pasteDecision`, `PasteDecisionTests`) picks paste or copy from `Carrier/FocusedField.swift`, which reads the focus (untested).
 `Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); keys, panel and real ⌘V untested.
 Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest` (`MessageBoxDictationTests`).
@@ -122,6 +123,7 @@ See [dictation](../docs/macos/dictation.md#history). `CarrierCore/DictationRecor
 ### Cleanup
 
 `CarrierCore/DictationCleanup.swift` (the `TextModelClient` port, `CleanupRun`; `CleanupRunTests`, scripted client) and `LocalModelClient.swift` (loopback HTTP; `LocalModelClientTests`, stub on a real socket); the group is `Carrier/CleanupController.swift` and `CleanupGroup.swift`, untested.
+In the boxes: the `.cleaning` state of `DictationSession` (`start(cleanup:)`, built by `DictationController.cleanup()`; `DictationSessionTests`, scripted client).
 
 ## Embedded terminal
 

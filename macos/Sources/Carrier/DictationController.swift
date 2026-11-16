@@ -33,6 +33,7 @@ import SwiftUI
     private(set) var enabled: Bool
     @ObservationIgnored private let access: MicrophoneAccess
     @ObservationIgnored private let preferences: AppPreferences
+    @ObservationIgnored private let cleanupClient: any TextModelClient
     /// Whether macOS has the microphone prompt open, and the box whose click waits for its answer (nil once that box stops or leaves).
     @ObservationIgnored private var prompting = false
     @ObservationIgnored private var waiting: String?
@@ -43,7 +44,7 @@ import SwiftUI
         log: DictationLog? = nil, preferences: AppPreferences = AppPreferences(),
         // a fixture build keeps its pretend downloads in a temporary folder, away from the person's own
         modelsRoot: URL = FileManager.default.temporaryDirectory.appending(path: "carrier-fixture-models"),
-        downloader: any ModelDownloader = FixtureModelDownloader(),
+        downloader: any ModelDownloader = FixtureModelDownloader(), cleanupClient: any TextModelClient = LocalModelClient(),
         // a fixture build, like a test, keeps its history in a temporary folder, never in the person's Carrier folder
         recordsFolder: String = NSTemporaryDirectory() + "carrier-fixture-dictations-\(UUID().uuidString)",
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
@@ -51,6 +52,7 @@ import SwiftUI
         self.registry = registry
         self.access = access
         self.preferences = preferences
+        self.cleanupClient = cleanupClient
         enabled = preferences.dictationEnabled
         microphone = access.status()
         store = ModelStore(
@@ -63,7 +65,8 @@ import SwiftUI
         // the widget writes its own entries, which know where the text went; a message box's went into the box
         session.onTake = { [records] take in
             guard take.owner != GlobalDictation.owner else { return }
-            records.record(DictationEntry(take, outcome: boxOutcome(take.ending), destination: DictationEntry.carrier))
+            records.record(
+                DictationEntry(take, outcome: boxOutcome(take.ending), destination: DictationEntry.carrier, cleanupModel: preferences.dictationCleanupModel))
         }
         // sending the app to the background: nothing keeps listening unseen
         NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
@@ -150,7 +153,8 @@ import SwiftUI
     func toggle(into field: DictationField) -> DictationClick {
         guard enabled else { return .start }
         guard session.owner != field.owner else {
-            if session.state == .listening { session.stop() }
+            // a click while it cleans skips the cleanup and keeps the raw text
+            if session.state == .listening { session.stop() } else if session.state == .cleaning { session.cancel() }
             return .start
         }
         // a second click while macOS asks waits for that answer, it does not ask again
@@ -163,7 +167,7 @@ import SwiftUI
             return click
         }
         if microphone == .allowed {
-            session.start(recognizer: recognizer, model: model, into: field)
+            session.start(recognizer: recognizer, model: model, into: field, cleanup: cleanup())
         } else {
             // the first click: macOS asks, and the dictation starts when the person allows it and the box is still there
             prompting = true
@@ -173,10 +177,17 @@ import SwiftUI
                 microphone = access.status()
                 prompting = false
                 defer { waiting = nil }
-                if allowed, enabled, waiting == field.owner { session.start(recognizer: recognizer, model: model, into: field) }
+                if allowed, enabled, waiting == field.owner { session.start(recognizer: recognizer, model: model, into: field, cleanup: cleanup()) }
             }
         }
         return click
+    }
+
+    /// The cleanup of the text a box dictates, when the person turned it on (a server and a model chosen); nil otherwise, and the dictation ends as it always did.
+    private func cleanup() -> DictationCleanup? {
+        guard preferences.dictationCleanupEnabled, let server = preferences.dictationCleanupServer, let model = preferences.dictationCleanupModel else { return nil }
+        let run = CleanupRun(client: cleanupClient), prompt = preferences.dictationCleanupPrompt
+        return { try await run.run(server: server, model: model, prompt: prompt, text: $0).text }
     }
 
     /// Escape: cancels the dictation of `owner` and keeps the text that was on the screen. Says whether there was one, so the key is taken only then.

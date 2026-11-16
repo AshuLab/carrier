@@ -20,7 +20,7 @@ public func boxOutcome(_ ending: DictationTake.Ending) -> DictationOutcome {
     }
 }
 
-/// One dictation. The cleanup and the audio are empty until their slices fill them in.
+/// One dictation. The cleanup is empty when none ran.
 public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
     /// Where a dictation went when it went to no app: the widget only (copied, cancelled or failed).
     public static let widgetOnly = "Widget only"
@@ -62,10 +62,11 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         self.outcome = outcome
     }
 
-    /// The entry of a dictation that ended with `outcome` and went to `destination`.
-    public init(_ take: DictationTake, outcome: DictationOutcome, destination: String) {
+    /// The entry of a dictation that ended with `outcome` and went to `destination`; `cleanupModel` is the model that cleaned it, when the take was cleaned.
+    public init(_ take: DictationTake, outcome: DictationOutcome, destination: String, cleanupModel: String? = nil) {
         self.init(
-            started: take.started, text: take.text, model: take.model, transcription: take.transcription, audio: take.audio, destination: destination,
+            started: take.started, text: take.text, cleaned: take.cleaned, model: take.model, transcription: take.transcription,
+            cleanupModel: take.cleaned == nil ? nil : cleanupModel, cleanupSeconds: take.cleanupSeconds, audio: take.audio, destination: destination,
             outcome: outcome)
     }
 

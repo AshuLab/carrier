@@ -119,3 +119,16 @@ private func entry(
 @MainActor @Test func aMessageBoxEndsAsPastedWhenStoppedAndKeepsItsOtherEndings() {
     #expect(boxOutcome(.stopped) == .pasted && boxOutcome(.cancelled) == .cancelled && boxOutcome(.failed) == .failed)
 }
+
+@Test func theEntryOfACleanedTakeHasTheRawAndTheCleanedTextAndTheCleanupModelAndTime() {
+    let take = DictationTake(
+        owner: "box", started: Date(timeIntervalSince1970: 1), text: "um hola", model: "m", audio: 2, transcription: 0.5, ending: .stopped,
+        cleaned: "Hola.", cleanupSeconds: 1.5)
+    let entry = DictationEntry(take, outcome: .pasted, destination: DictationEntry.carrier, cleanupModel: "qwen")
+    #expect(entry.text == "um hola" && entry.cleaned == "Hola." && entry.cleanupModel == "qwen" && entry.cleanupSeconds == 1.5 && entry.shown == "Hola.")
+    // a take that was not cleaned has no cleanup model, whatever the preference says now
+    let raw = DictationEntry(
+        DictationTake(owner: "box", started: .now, text: "hola", model: "m", audio: 1, transcription: 0, ending: .stopped, cleaned: nil, cleanupSeconds: nil),
+        outcome: .pasted, destination: DictationEntry.carrier, cleanupModel: "qwen")
+    #expect(raw.cleaned == nil && raw.cleanupModel == nil)
+}

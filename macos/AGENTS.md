@@ -116,6 +116,10 @@ Shortcut and activation: `CarrierCore/DictationShortcut.swift` (`recordShortcut`
 Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest` (`MessageBoxDictationTests`).
 Sounds: `CarrierCore/DictationSounds.swift` (`dictationSound(for:_:)`, `DictationSoundsTests`); `SoundsGroup` and `DictationSoundPlayer` untested.
 
+### History
+
+See [dictation](../docs/macos/dictation.md#history). `CarrierCore/DictationRecords.swift` (`DictationRecordsTests`, temporary folder); `DictationSession.take` feeds it; `Carrier/HistoryGroup.swift` untested.
+
 ### Cleanup
 
 `CarrierCore/DictationCleanup.swift` (the `TextModelClient` port, `CleanupRun`; `CleanupRunTests`, scripted client) and `LocalModelClient.swift` (loopback HTTP; `LocalModelClientTests`, stub on a real socket); the group is `Carrier/CleanupController.swift` and `CleanupGroup.swift`, untested.

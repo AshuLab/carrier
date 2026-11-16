@@ -49,6 +49,7 @@ public struct AppPreferences {
     public static let dictationModelKey = "dictation.model"
     public static let dictationLanguageKey = "dictation.language"
     public static let dictationGlobalKey = "dictation.global"
+    public static let dictationKeepTextKey = "dictation.history.keepText"
     public static let dictationAccessibilityExplainedKey = "dictation.accessibilityExplained"
     public static let dictationShortcutKey = "dictation.shortcut"
     public static let dictationActivationKey = "dictation.activation"
@@ -103,6 +104,7 @@ public struct AppPreferences {
     public static let defaultShowsReasoning = true
     public static let defaultDictationEnabled = true
     public static let defaultDictationGlobal = true
+    public static let defaultDictationKeepText = true
 
     private let defaults: UserDefaults
 
@@ -363,6 +365,12 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationLanguageKey) }
     }
 
+    /// Whether the history keeps the text of each dictation: on until the person turns it off. The entries that exist stay when it is off, and Reset never deletes them.
+    public var dictationKeepText: Bool {
+        get { defaults.object(forKey: Self.dictationKeepTextKey) as? Bool ?? Self.defaultDictationKeepText }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationKeepTextKey) }
+    }
+
     /// Whether the global shortcut dictates in any app: on until the person turns it off. It only counts while `dictationEnabled` is on too (`globalDictationIsOn`).
     public var dictationGlobal: Bool {
         get { defaults.object(forKey: Self.dictationGlobalKey) as? Bool ?? Self.defaultDictationGlobal }
@@ -522,6 +530,7 @@ public struct AppPreferences {
                 dictationModelKey,
                 dictationLanguageKey,
                 dictationGlobalKey,
+                dictationKeepTextKey,
                 dictationShortcutKey,
                 dictationActivationKey,
                 dictationStartSoundOnKey,

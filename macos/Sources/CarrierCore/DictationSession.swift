@@ -17,6 +17,23 @@ public struct DictationField {
     }
 }
 
+/// What a dictation that ended heard, for the history: when it started, the text it wrote (a partial text on the screen included), the speech model,
+/// the seconds of audio and the seconds the recognizer took after the person stopped, and how it ended. `owner` says which box it was. When the
+/// box cleaned the text, `cleaned` is what replaced it and `cleanupSeconds` the time the cleanup took.
+public struct DictationTake: Equatable, Sendable {
+    public enum Ending: Equatable, Sendable { case stopped, cancelled, failed }
+
+    public let owner: String?
+    public let started: Date
+    public let text: String
+    public let model: String
+    public let audio: Double
+    public let transcription: Double
+    public let ending: Ending
+    public let cleaned: String?
+    public let cleanupSeconds: Double?
+}
+
 /// What a box asks of the Cleanup (docs/adr/0030): the text the dictation added goes in, the cleaned text comes out, or it throws (a `CleanupFailure`
 /// says its cause in words).
 public typealias DictationCleanup = @Sendable (String) async throws -> String
@@ -41,10 +58,15 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
     @ObservationIgnored private let announce: (String) -> Void
     @ObservationIgnored private let log: (DictationFailure) -> Void
+    @ObservationIgnored private let now: () -> Date
     /// Told, with the owner of the box it was, each time a dictation ends: the widget of the global dictation hears its own end here.
     @ObservationIgnored public var onEnd: ((String?) -> Void)?
     /// Told each time a dictation begins to listen (the capture runs); `owner` says whose.
     @ObservationIgnored public var onListening: (() -> Void)?
+    /// What the dictation that just ended heard, set before `onEnd` and `onTake` hear of it.
+    @ObservationIgnored public private(set) var take: DictationTake?
+    /// Told, with what it heard, each time a dictation ends: the history of the message boxes hears it here.
+    @ObservationIgnored public var onTake: ((DictationTake) -> Void)?
     @ObservationIgnored private var field: DictationField?
     @ObservationIgnored private var model: SpeechModel?
     @ObservationIgnored private var cleanup: DictationCleanup?
@@ -59,6 +81,13 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private var partialWords = 0
     /// The seconds of audio the capture gave, for the time a recognizer is given to answer after the stop.
     @ObservationIgnored private var captured = Duration.zero
+    /// What this dictation heard: the final texts, the partial one on the screen, and when it began and was stopped.
+    @ObservationIgnored private var finals: [String] = []
+    @ObservationIgnored private var partial = ""
+    @ObservationIgnored private var began = Date.distantPast
+    @ObservationIgnored private var stoppedAt: Date?
+    @ObservationIgnored private var cleaned: String?
+    @ObservationIgnored private var cleanupSeconds: Double?
     /// A dictation asked for while another one stops: it starts when that one is idle.
     @ObservationIgnored private var queued: (recognizer: any Recognizer, model: SpeechModel, field: DictationField, cleanup: DictationCleanup?)?
 
@@ -66,12 +95,13 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     /// every failure, with its cause only.
     public init(
         capture: AudioCapture, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in }
+        announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in }, now: @escaping () -> Date = Date.init
     ) {
         self.capture = capture
         self.sleep = sleep
         self.announce = announce
         self.log = log
+        self.now = now
     }
 
     /// Why the last dictation of `owner` could not start or go on, until it starts another.
@@ -97,6 +127,12 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         words = 0
         partialWords = 0
         captured = .zero
+        finals = []
+        partial = ""
+        began = now()
+        stoppedAt = nil
+        cleaned = nil
+        cleanupSeconds = nil
         self.field = field
         self.model = model
         self.cleanup = cleanup
@@ -132,13 +168,14 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     public func cancel() -> Bool {
         queued = nil
         guard state != .idle else { return false }
-        skip()
+        skip(state == .cleaning ? .stopped : .cancelled)
         return true
     }
 
-    private func skip() {
+    /// Ends the dictation at once. Skipping the cleanup keeps the raw text, which is as good as a stop; a `cancel()` before it is a cancel.
+    private func skip(_ ending: DictationTake.Ending = .stopped) {
         running?.cancel()
-        end()
+        end(ending)
     }
 
     private func halt() {
@@ -149,6 +186,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         case .listening:
             guard stopped == false else { return }
             stopped = true
+            stoppedAt = now()
             capture.stop()
             if model?.partial == .atTheEnd { state = .transcribing }
             let mine = generation
@@ -196,10 +234,14 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             }
             if let field, let edit = tentative.apply(event, to: field.text(), caret: field.caret()) {
                 switch event {
-                case .partial(let heard): partialWords = wordCount(heard)
+                case .partial(let heard):
+                    partialWords = wordCount(heard)
+                    partial = heard
                 case .final(let heard):
                     words += wordCount(heard)
                     partialWords = 0
+                    partial = ""
+                    finals.append(heard)
                 case .failed: break
                 }
                 field.put(edit.text, edit.caret, tentative.range)
@@ -226,6 +268,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         guard added.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
         state = .cleaning
         let cleaned: String
+        let cleaningFrom = now()
         do { cleaned = try await cleanup(added) } catch {
             guard generation == mine, let owner else { return }
             refuse(DictationFailure((error as? CleanupFailure)?.message ?? error.localizedDescription), for: owner)
@@ -241,6 +284,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             caret <= place.location ? caret : caret >= NSMaxRange(place) ? caret + delta : place.location + (cleaned as NSString).length, nil
         )
         words = wordCount(cleaned)
+        self.cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        cleanupSeconds = now().timeIntervalSince(cleaningFrom)
     }
 
     /// A partial text on the screen stays, as final, and its words count.
@@ -249,6 +294,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         if tentative.range != nil {
             words += partialWords
             partialWords = 0
+            finals.append(partial)
+            partial = ""
             tentative.close()
         }
         field.put(field.text(), field.caret(), nil)
@@ -259,12 +306,13 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     private func fail(_ error: Error) {
         let cause = error as? DictationFailure ?? DictationFailure(error.localizedDescription)
         if let owner { refuse(cause, for: owner) }
-        end(announcing: false)
+        end(.failed, announcing: false)
     }
 
     /// Back to idle: the audio is dropped, and a partial text on the screen is kept as final.
-    private func end(announcing: Bool = true) {
+    private func end(_ ending: DictationTake.Ending = .stopped, announcing: Bool = true) {
         capture.stop()
+        let modelName = model?.name ?? ""
         // the range is cleared even when the person's edit had already ended the writing
         settle()
         if announcing, state == .listening || state == .transcribing || state == .cleaning { announce(dictationAnnouncement(.stopped(words: words))) }
@@ -278,6 +326,14 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         owner = nil
         generation += 1
         state = .idle
+        let ended = now()
+        let heard = DictationTake(
+            owner: finished, started: began, text: finals.filter { $0.isEmpty == false }.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines), model: modelName,
+            audio: Double(captured.components.seconds) + Double(captured.components.attoseconds) / 1e18,
+            transcription: stoppedAt.map { ended.timeIntervalSince($0) } ?? 0, ending: ending,
+            cleaned: cleaned, cleanupSeconds: cleanupSeconds)
+        take = heard
+        onTake?(heard)
         onEnd?(finished)
         if let next = queued {
             queued = nil

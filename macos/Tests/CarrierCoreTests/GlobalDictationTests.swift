@@ -9,6 +9,8 @@ import Testing
     let logged = Logged()
     private(set) var effects: [GlobalDictationEffect] = []
     private(set) var moments: [GlobalDictationMoment] = []
+    private(set) var recorded: [DictationEntry] = []
+    var frontApp: String? = "Notes"
     var machine: GlobalDictation!
     var microphone = MicrophonePermission.allowed
     var decision = PasteDecision.paste
@@ -23,7 +25,8 @@ import Testing
         machine = GlobalDictation(
             session: session, speechModel: { [unowned self] in hasModel ? (recognizer, recognizer.models[0]) : nil }, microphone: { [unowned self] in microphone },
             decision: { [unowned self] in decision }, activation: { [unowned self] in activation },
-            moment: { [unowned self] in moments.append($0) }, perform: { [unowned self] in effects.append($0) })
+            moment: { [unowned self] in moments.append($0) }, record: { [unowned self] in recorded.append($0) }, frontApp: { [unowned self] in frontApp },
+            perform: { [unowned self] in effects.append($0) })
     }
 
     var session: DictationSession { machine.session }
@@ -278,6 +281,51 @@ func aTextThatCannotBePastedIsCopiedAndStaysInTheWidgetWithItsReason(reason: Pas
     widget.microphone = .denied
     widget.machine.handle(.down)
     #expect(widget.moments.isEmpty)
+}
+
+@MainActor @Test func aPastedDictationIsRecordedWithTheAppItWentToAndACopiedOneAsWidgetOnly() async {
+    let pasted = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola mundo")]))
+    await pasted.listen()
+    pasted.machine.handle(.down)
+    await pasted.until { pasted.machine.state == .idle }
+    #expect(pasted.recorded.map(\.text) == ["hola mundo"] && pasted.recorded.map(\.outcome) == [.pasted] && pasted.recorded.map(\.destination) == ["Notes"])
+    #expect(pasted.recorded.first?.model == "Scripted" && pasted.recorded.first?.words == 2)
+    let copied = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola")]))
+    copied.decision = .copyOnly(.noField)
+    await copied.listen()
+    copied.machine.handle(.down)
+    await copied.until { copied.machine.state == .copied(.noField) }
+    #expect(copied.recorded.map(\.outcome) == [.copied] && copied.recorded.map(\.destination) == [DictationEntry.widgetOnly])
+}
+
+@MainActor @Test func aCancelledAndAFailedDictationAreRecordedWithWhatWasHeardAndAnEmptyOneIsNot() async {
+    let cancelled = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola")]))
+    await cancelled.listen()
+    cancelled.recognizer.say(.partial("hola"))
+    await cancelled.until { cancelled.machine.text == "hola" }
+    cancelled.machine.handle(.escape)
+    #expect(cancelled.recorded.map(\.outcome) == [.cancelled] && cancelled.recorded.map(\.text) == ["hola"] && cancelled.recorded.map(\.destination) == [DictationEntry.widgetOnly])
+    let failed = Widget()
+    await failed.listen()
+    failed.recognizer.say(.final("uno dos"))
+    await failed.until { failed.machine.text == "uno dos" }
+    failed.recognizer.say(.failed(DictationFailure("The model broke")))
+    await failed.until { failed.machine.state == .failed("The model broke") }
+    #expect(failed.recorded.map(\.outcome) == [.failed] && failed.recorded.map(\.text) == ["uno dos"])
+    let empty = Widget()
+    await empty.listen()
+    empty.machine.handle(.escape)
+    let silent = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("")]))
+    await silent.listen()
+    silent.machine.handle(.down)
+    await silent.until { silent.machine.state == .idle }
+    let noMicrophone = Widget(capture: ScriptedCapture(startError: DictationFailure("The microphone could not start")))
+    noMicrophone.machine.handle(.down)
+    await noMicrophone.until { noMicrophone.machine.state == .failed("The microphone could not start") }
+    // a cancel with nothing heard is told with no words, and so is a failure to start, which the history leaves out (`DictationRecords`); an empty stop never tells
+    #expect(empty.recorded.map(\.words) == [0])
+    #expect(silent.recorded.isEmpty)
+    #expect(noMicrophone.recorded.map(\.words) == [0])
 }
 
 /// A hold: the widget over a recognizer that gives `heard` when the audio ends, with the key already down and listening.

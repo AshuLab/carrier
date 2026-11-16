@@ -13,7 +13,7 @@ import SwiftUI
         let capture = MicrophoneCapture()
         let controller = DictationController(
             registry: .shared, capture: capture, microphone: .system, log: DictationLog(carrierFolder: currentCarrierFolder()),
-            modelsRoot: dictationModelsRoot(), downloader: RealDownloads()
+            modelsRoot: dictationModelsRoot(), downloader: RealDownloads(), recordsFolder: currentCarrierFolder()
         )
         capture.onLevel = { levels in Task { @MainActor in controller.voice = levels } }
         return controller
@@ -23,6 +23,8 @@ import SwiftUI
     let session: DictationSession
     /// The speech models on disk, their downloads and their space.
     let store: ModelStore
+    /// The history of dictations, which every dictation that ends with words is written to while Keep the text is on.
+    let records: DictationRecords
     /// How loud the voice is, as a whole and in three bands, while the microphone listens; silence otherwise.
     private(set) var voice = VoiceLevels.silence
     var level: Float { voice.overall }
@@ -43,6 +45,8 @@ import SwiftUI
         // a fixture build keeps its pretend downloads in a temporary folder, away from the person's own
         modelsRoot: URL = FileManager.default.temporaryDirectory.appending(path: "carrier-fixture-models"),
         downloader: any ModelDownloader = FixtureModelDownloader(), cleanupClient: any TextModelClient = LocalModelClient(),
+        // a fixture build, like a test, keeps its history in a temporary folder, never in the person's Carrier folder
+        recordsFolder: String = NSTemporaryDirectory() + "carrier-fixture-dictations-\(UUID().uuidString)",
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.registry = registry
@@ -57,6 +61,13 @@ import SwiftUI
             log: { log?.append($0) }, announce: { AccessibilityNotification.Announcement($0).post() }
         )
         session = DictationSession(capture: capture, sleep: sleep, announce: { AccessibilityNotification.Announcement($0).post() }, log: { log?.append($0) })
+        records = DictationRecords(carrierFolder: recordsFolder, keep: { preferences.dictationKeepText })
+        // the widget writes its own entries, which know where the text went; a message box's went into the box
+        session.onTake = { [records] take in
+            guard take.owner != GlobalDictation.owner else { return }
+            records.record(
+                DictationEntry(take, outcome: boxOutcome(take.ending), destination: DictationEntry.carrier, cleanupModel: preferences.dictationCleanupModel))
+        }
         // sending the app to the background: nothing keeps listening unseen
         NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.stop() }

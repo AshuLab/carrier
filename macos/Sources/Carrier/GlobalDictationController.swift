@@ -34,6 +34,7 @@ import CarrierCore
             session: dictation.session, speechModel: { dictation.speechModel }, microphone: { dictation.microphoneStatus() },
             decision: FocusedField.decision, activation: { preferences.dictationActivation },
             moment: { [preferences] moment in dictationSound(for: moment, preferences.dictationSounds).map { DictationSoundPlayer.play($0) } },
+            record: { [records = dictation.records] in records.record($0) }, frontApp: { NSWorkspace.shared.frontmostApplication?.localizedName },
             perform: { [unowned self] in perform($0) })
         widget = DictationWidget(dictation: machine, hint: { dictationHint(shortcut: preferences.dictationShortcut, activation: preferences.dictationActivation) })
     }

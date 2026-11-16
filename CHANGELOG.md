@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Dictate in any app: ⌥⇧ Space opens a small widget over the app you are in, without taking its focus, and shows what you say; the same keys again paste it once at the cursor and put your clipboard back, and Esc cancels. Settings › Dictation › Global dictation has the Dictate in any app switch, which follows the Dictation switch.
 - Settings › Dictation › Cleanup: choose LM Studio or Ollama running on this Mac, one of its models and a prompt (it starts by removing filler words and fixing punctuation in the language you spoke), and try it with Test with a sample. It is off until a server and a model are chosen, and it does not change what a dictation pastes yet.
 
 ## [0.7.0] - 2026-11-16

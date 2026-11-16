@@ -69,3 +69,11 @@ private func theLanguagePageOffersAFunctionOfTheModelMacOSAndTheSavedChoice(c: C
     #expect(rows.filter { dictationRowIsLive($0, enabled: false) } == [.enabledSwitch, .storage, .reset])
     #expect(rows.allSatisfy { dictationRowIsLive($0, enabled: true) })
 }
+
+@Test func theGlobalDictationSwitchIsDimmedWithDictationOffAndTheShortcutNeedsBothSwitches() {
+    #expect(dictationRowIsLive(.globalSwitch, enabled: false) == false)
+    #expect(dictationRowIsLive(.globalSwitch, enabled: true))
+    #expect(globalDictationIsOn(dictation: true, global: true))
+    #expect(globalDictationIsOn(dictation: false, global: true) == false)
+    #expect(globalDictationIsOn(dictation: true, global: false) == false)
+}

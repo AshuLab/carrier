@@ -231,7 +231,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/AshuLab/carrier/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/AshuLab/carrier/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/AshuLab/carrier/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/AshuLab/carrier/compare/v0.3.0...v0.4.0

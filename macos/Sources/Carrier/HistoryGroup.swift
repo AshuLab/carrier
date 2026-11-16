@@ -26,7 +26,7 @@ struct HistoryGroup: View {
                 ChoicePopUp(label: "Delete audio older than", options: dictationAudioLimits.map { (value: $0.days, title: $0.title) }, selection: $days, width: 110)
             }
             SettingsTabRow(title: "Audio on disk", detail: formatAudioOnDisk(bytes: dictation.records.audioBytes, files: dictation.records.audioIDs.count)) {
-                Button("Delete all audio", role: .destructive) { confirmingDelete = true }
+                Button(role: .destructive) { confirmingDelete = true } label: { Label("Delete all audio", systemImage: "trash") }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(dictation.records.audioIDs.isEmpty)
             }
         }
@@ -59,11 +59,11 @@ struct HistoryList: View {
                 }
             }
             if shown.isEmpty {
-                VStack(spacing: 4) {
-                    Text(records.entries.isEmpty ? "No dictations yet" : "Nothing matches").fontWeight(.medium)
-                    Text(records.entries.isEmpty ? "What you dictate shows up here." : "Try another word or filter.").font(.caption).foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity).padding(.vertical, 36)
+                EmptyStateView(
+                    icon: records.entries.isEmpty ? "waveform" : "magnifyingglass", title: records.entries.isEmpty ? "No dictations yet" : "Nothing matches",
+                    line: records.entries.isEmpty ? "What you dictate shows up here." : "Try another word or filter."
+                )
+                .frame(minHeight: 220)
             } else {
                 ForEach(dictationDays(shown)) { day in
                     VStack(alignment: .leading, spacing: 6) {
@@ -76,7 +76,7 @@ struct HistoryList: View {
                         }
                     }
                 }
-                Text("\(shown.count) of \(records.entries.count) dictations").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                Text("\(shown.count) of \(records.entries.count) dictations").font(.scaled(11)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }
         }
     }
@@ -88,6 +88,8 @@ private struct HistoryRow: View {
     let open: Bool
     let toggle: () -> Void
     let delete: () -> Void
+    @State private var copied = false
+    @State private var confirmingDelete = false
 
     private var tint: Color {
         switch entry.outcome {
@@ -103,7 +105,7 @@ private struct HistoryRow: View {
             HStack(alignment: .top, spacing: 10) {
                 Button(action: toggle) {
                     HStack(alignment: .top, spacing: 10) {
-                        Text(entry.started.formatted(date: .omitted, time: .shortened)).font(.caption).monospacedDigit().foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
+                        Text(entry.started.formatted(date: .omitted, time: .shortened)).font(.scaled(11)).monospacedDigit().foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
                         Text(entry.shown).lineLimit(open ? nil : 2).italic(entry.outcome == .cancelled)
                             .foregroundStyle(entry.outcome == .cancelled ? .secondary : .primary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -111,12 +113,10 @@ private struct HistoryRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityValue(open ? "Expanded" : "Collapsed").accessibilityHint("Shows the details")
-                Button { copy(entry.shown) } label: { Image(systemName: "doc.on.doc") }
-                    .buttonStyle(.borderless).help("Copy text").accessibilityLabel("Copy text")
-                Button(action: delete) { Image(systemName: "trash") }
-                    .buttonStyle(.borderless).help("Delete").accessibilityLabel("Delete dictation")
+                IconButton(icon: copied ? "checkmark" : "doc.on.doc", name: copied ? "Copied" : "Copy text") { copy(entry.shown) }
+                IconButton(icon: "trash", name: "Delete dictation") { confirmingDelete = true }
             }
-            HStack(spacing: 6) {
+            FlowLayout(spacing: 6) {
                 StatusChip(text: entry.outcome.title, tint: tint)
                 chip(entry.destination)
                 chip(entry.model)
@@ -128,6 +128,11 @@ private struct HistoryRow: View {
             if open { detail.padding(.leading, 74) }
         }
         .padding(.vertical, 9)
+        .confirmationDialog("Delete this dictation?", isPresented: $confirmingDelete) {
+            Button("Delete", role: .destructive, action: delete)
+        } message: {
+            Text("Its text and its audio are deleted. The statistics stay as they are.")
+        }
     }
 
     private var detail: some View {
@@ -163,7 +168,7 @@ private struct HistoryRow: View {
     private func field(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(title).sectionLabel()
-            Text(value).font(.callout).textSelection(.enabled)
+            Text(value).font(.scaled(12)).textSelection(.enabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -175,5 +180,11 @@ private struct HistoryRow: View {
     private func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        copied = true
+        AccessibilityNotification.Announcement("Copied").post()
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
+        }
     }
 }

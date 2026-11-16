@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
 import CarrierCore
@@ -6,6 +7,11 @@ import CarrierCore
 /// where the person allows it. No automated test: the rule is `pasteDecision` and `focusedElement` (docs/research/global-dictation-input.md).
 enum FocusedField {
     static let settingsURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+
+    /// Opens Privacy & Security › Accessibility.
+    @MainActor static func openSettings() {
+        if let url = URL(string: settingsURL) { NSWorkspace.shared.open(url) }
+    }
 
     /// Where a dictation that ends now goes. Never reads the value of the field, which for a password holds the secret.
     static func decision() -> PasteDecision {

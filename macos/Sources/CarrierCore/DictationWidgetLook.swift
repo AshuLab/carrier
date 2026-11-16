@@ -34,6 +34,9 @@ public struct DictationWidgetBox: Equatable, Sendable {
     public let width: CGFloat
     public let text: CGFloat
 
+    /// The lines a text that was only copied adds for its reason, which sits over the text and not in what scrolls.
+    public static let reasonLines = 3
+
     public func lineHeight(textSize: CGFloat) -> CGFloat { textSize * 1.25 }
 
     /// One height per style: the lines of text, and under them the row of the time and the keys, or of the buttons, with the box's padding.
@@ -82,8 +85,10 @@ public func dictationWidgetLook(_ state: DictationWidgetState, style: DictationW
         case .cancelled: .xmark
         case .failed, .copied: nil
         }
+    var box = style.box ?? (needsText ? DictationWidgetStyle.small.box : nil)
+    if state == .copied, let base = box { box = DictationWidgetBox(lines: base.lines + DictationWidgetBox.reasonLines, width: base.width, text: base.text) }
     return DictationWidgetLook(
-        box: style.box ?? (needsText ? DictationWidgetStyle.small.box : nil), icon: icon, opensAsSmall: style == .pill && needsText,
+        box: box, icon: icon, opensAsSmall: style == .pill && needsText,
         // the warning stays longer: it holds the cause
         linger: state == .pastedRaw ? 4 : state == .pasted || state == .cancelled ? 1.2 : 0)
 }

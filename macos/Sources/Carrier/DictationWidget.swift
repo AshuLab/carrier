@@ -2,8 +2,8 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The widget of a global dictation: a panel that never takes the focus from the app the person is in (it is not key, not main and does not
-/// activate Carrier) and lets every click through until it holds buttons. Its style and place are the person's (`AppPreferences.dictationWidgetStyle`
+/// The widget of a global dictation: a panel that never takes the focus from the app the person is in (it is not main and does not activate Carrier,
+/// and it is key only for the text that was left on it with its buttons) and lets every click through until it holds buttons. Its style and place are the person's (`AppPreferences.dictationWidgetStyle`
 /// and `dictationWidgetPosition`, read each time it opens), its look for a state is `dictationWidgetLook`, and it follows `GlobalDictation.shown`,
 /// resizing as the look changes. It is glass in the accent, and while it listens it draws the message box's line (`DictationIndicator`) around the box,
 /// which is why the panel is `glow` points larger than the box on each side. It holds the text, the time, the shortcut and Esc.
@@ -13,7 +13,7 @@ import SwiftUI
     /// The room the listening line and the shadow have around the box, inside the panel.
     static let glow: CGFloat = 14
 
-    private let panel: NSPanel
+    private let panel: WidgetPanel
     private let dictation: GlobalDictation
     private let hint: () -> String
     private let voice: () -> VoiceLevels
@@ -30,22 +30,30 @@ import SwiftUI
         self.preferences = preferences
         self.hint = hint
         panel = WidgetPanel(contentRect: .zero)
+        // Esc on the text that was left open, which Carrier holds no hot key for: it is the panel's own while it is key
+        panel.onEscape = { [unowned self] in self.dictation.dismissCopied() }
     }
 
     func show() {
         hiding?.cancel()
         style = preferences.dictationWidgetStyle
         position = preferences.dictationWidgetPosition
-        area = Self.activeScreen().visibleFrame
+        if let screen = Self.activeScreen() { area = screen.visibleFrame }
         panel.ignoresMouseEvents = true
+        panel.keyable = false
+        if panel.isKeyWindow { panel.orderOut(nil) }
         panel.contentView = NSHostingView(rootView: DictationWidgetView(dictation: dictation, style: style, hint: hint, voice: voice))
         place()
         panel.orderFrontRegardless()
         follow()
     }
 
-    /// The widget stays open for its buttons, and takes clicks (still without taking the focus).
-    func takeClicks() { panel.ignoresMouseEvents = false }
+    /// The widget stays open for its buttons: it takes clicks and the keyboard (Tab, Return for Copy, Esc for Dismiss), still without activating Carrier.
+    func takeClicks() {
+        panel.ignoresMouseEvents = false
+        panel.keyable = true
+        panel.makeKey()
+    }
 
     /// A dictation that ended pasted or cancelled leaves its check or x for a moment, and the view fades it.
     func close() {
@@ -81,18 +89,18 @@ import SwiftUI
     }
 
     /// The display of the window in front, which macOS lists with no permission; the one with the pointer when that cannot be told.
-    private static func activeScreen() -> NSScreen {
+    private static func activeScreen() -> NSScreen? {
         // Quartz puts its origin at the top left of the first display, AppKit at the bottom left
         let top = NSScreen.screens.first?.frame.maxY ?? 0
         let displays = NSScreen.screens.map { CGRect(x: $0.frame.minX, y: top - $0.frame.maxY, width: $0.frame.width, height: $0.frame.height) }
         if let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
             let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
-            let frame = windows.first(where: { $0[kCGWindowOwnerPID as String] as? pid_t == pid && $0[kCGWindowLayer as String] as? Int == 0 })?[kCGWindowBounds as String],
-            let bounds = CGRect(dictionaryRepresentation: frame as! CFDictionary), let index = displayIndex(of: bounds, in: displays)
+            let frame = windows.first(where: { $0[kCGWindowOwnerPID as String] as? pid_t == pid && $0[kCGWindowLayer as String] as? Int == 0 })?[kCGWindowBounds as String] as? NSDictionary,
+            let bounds = CGRect(dictionaryRepresentation: frame as CFDictionary), let index = displayIndex(of: bounds, in: displays)
         {
             return NSScreen.screens[index]
         }
-        return NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
+        return NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens.first
     }
 }
 
@@ -109,8 +117,14 @@ private final class WidgetPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     }
 
-    override var canBecomeKey: Bool { false }
+    /// Whether it may take the keyboard: only while it holds a text that was copied and its buttons.
+    var keyable = false
+    var onEscape: (() -> Void)?
+
+    override var canBecomeKey: Bool { keyable }
     override var canBecomeMain: Bool { false }
+
+    override func cancelOperation(_ sender: Any?) { onEscape?() }
 }
 
 extension DictationWidgetLook {
@@ -164,17 +178,34 @@ private struct DictationWidgetView: View {
         .padding(DictationWidget.glow)
         .accessibilityElement(children: .contain)
         .onChange(of: dictation.state) { copied = false }
+        // the panel is not in front of VoiceOver, so what it cannot be told to read is said
+        .onChange(of: dictation.shown) { _, shown in
+            switch (shown, dictation.state) {
+            case (.copied, .copied(let reason)): AccessibilityNotification.Announcement("\(reason.explanation) It is on the clipboard.").post()
+            case (.failed, .failed(let cause)): AccessibilityNotification.Announcement("Dictation failed: \(cause)").post()
+            case (.pastedRaw, _): AccessibilityNotification.Announcement("Pasted without cleaning: \(dictation.notCleaned ?? "")").post()
+            default: break
+            }
+        }
         .task(id: look.fades) {
             faded = false
             guard look.fades else { return }
             try? await Task.sleep(for: .seconds(look.linger))
+            // a state that changed during the wait cancels the task, and the widget has not ended
+            guard Task.isCancelled == false else { return }
             withAnimation(reduceMotion ? nil : .easeOut(duration: DictationWidget.fade)) { faded = true }
         }
     }
 
     @ViewBuilder private func boxed(_ look: DictationWidgetLook, _ box: DictationWidgetBox) -> some View {
         if case .copied(let reason) = dictation.state {
-            WidgetBox(box: box, follows: false) { keptText(reason) } foot: { keptButtons(reason) }
+            WidgetBox(box: box, follows: false, notices: keptNotices(reason)) { Text(dictation.text).textSelection(.enabled) } foot: { keptButtons(reason) }
+        } else if case .failed = dictation.state {
+            // nothing is running: no clock and no finish key, only the way out
+            WidgetBox(box: box) { shown } foot: {
+                Spacer()
+                Text("Esc to dismiss")
+            }
         } else if look.fades {
             WidgetBox(box: box) { Text(dictation.text) } foot: {
                 switch dictation.farewell {
@@ -196,30 +227,33 @@ private struct DictationWidgetView: View {
         }
     }
 
-    /// Why the text was only copied, and the text, complete (the box scrolls).
-    private func keptText(_ reason: PasteReason) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("\(reason.explanation) It is on the clipboard.").foregroundStyle(.orange)
-            if let cause = dictation.notCleaned { Text("It was not cleaned: \(cause)").foregroundStyle(.orange) }
-            Text(dictation.text).textSelection(.enabled)
-        }
+    /// Why the text was only copied, over the text, which is complete and scrolls under them.
+    private func keptNotices(_ reason: PasteReason) -> [String] {
+        ["\(reason.explanation) It is on the clipboard."] + (dictation.notCleaned.map { ["It was not cleaned: \($0)"] } ?? [])
     }
 
+    /// The buttons of a text that was only copied; when they do not fit the box's width they keep only their symbols.
     private func keptButtons(_ reason: PasteReason) -> some View {
+        ViewThatFits(in: .horizontal) {
+            keptRow(reason).labelStyle(.titleAndIcon)
+            keptRow(reason).labelStyle(.iconOnly)
+        }
+        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+    }
+
+    private func keptRow(_ reason: PasteReason) -> some View {
         HStack {
             if reason == .noPermission {
-                Button("Open System Settings") {
-                    if let url = URL(string: FocusedField.settingsURL) { NSWorkspace.shared.open(url) }
-                }
+                Button { FocusedField.openSettings() } label: { Label("Open System Settings", systemImage: "gearshape") }
             }
             Spacer()
-            Button(copied ? "Copied" : "Copy") {
+            Button {
                 dictation.copyAgain()
                 copied = true
-            }
-            Button("Dismiss") { dictation.dismissCopied() }
+            } label: { Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc") }
+            .keyboardShortcut(.defaultAction)
+            Button { dictation.dismissCopied() } label: { Label("Dismiss", systemImage: "xmark") }
         }
-        .buttonStyle(.bordered).controlSize(.small)
     }
 
     /// What the box says before the words come, and the cause when it cannot go on, over what was heard.
@@ -239,10 +273,12 @@ private struct DictationWidgetView: View {
 
 /// A box of the widget: the text at the top, a row under it, and when the text is longer than the lines of the style it scrolls so the newest words
 /// are on the last line, with the older lines fading out at the top (`dictationTextFit`). A `follows: false` box (the text that was only copied)
-/// starts at the top and is the person's to scroll, with no fade.
+/// starts at the top and is the person's to scroll, with no fade and with its scroll bar showing, under the `notices` (a reason, in orange), which
+/// stay where they are.
 struct WidgetBox<Content: View, Foot: View>: View {
     let box: DictationWidgetBox
     var follows = true
+    var notices: [String] = []
     @ViewBuilder var text: Content
     @ViewBuilder var foot: Foot
     @State private var position = ScrollPosition(edge: .top)
@@ -252,10 +288,16 @@ struct WidgetBox<Content: View, Foot: View>: View {
         let lineHeight = box.lineHeight(textSize: TextSize.shared.scale.size(box.text))
         let fadesTop = follows && dictationTextFit(textLines: textLines, boxLines: box.lines).fadesTop
         VStack(alignment: .leading, spacing: 8) {
+            if notices.isEmpty == false {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(notices, id: \.self) { Text($0).foregroundStyle(.orange) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+            }
             ScrollView {
                 text.frame(maxWidth: .infinity, alignment: .leading)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(follows ? .hidden : .visible)
             .scrollPosition($position)
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, height in
                 guard follows else { return }
@@ -268,7 +310,7 @@ struct WidgetBox<Content: View, Foot: View>: View {
                     Rectangle()
                 }
             }
-            HStack { foot }.font(.caption).foregroundStyle(.secondary).frame(height: 20)
+            HStack { foot }.font(.scaled(11)).foregroundStyle(.secondary).frame(height: 20)
         }
         .font(.scaled(box.text))
         .padding(.horizontal, 16).padding(.vertical, 12)
@@ -300,9 +342,12 @@ private struct PillIcon: View {
 struct DictationWidgetPreview: View {
     let style: DictationWidgetStyle
     let hint: String
+    /// The width the page gives it, so the Large box (540) shrinks to fit a narrow window instead of overflowing the card.
+    @State private var available = CGFloat.infinity
 
     var body: some View {
         let look = dictationWidgetLook(.listening, style: style)
+        let scale = min(1, available / look.windowSize.width)
         Group {
             if let box = look.box {
                 WidgetBox(box: box) { Text(Self.sample) } foot: {
@@ -316,7 +361,10 @@ struct DictationWidgetPreview: View {
         }
         .frame(width: look.windowSize.width, height: look.windowSize.height)
         .modifier(WidgetSurface(shape: look.shape))
+        .scaleEffect(scale)
+        .frame(width: look.windowSize.width * scale, height: look.windowSize.height * scale)
         .frame(maxWidth: .infinity)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { available = $0 }
         .accessibilityElement(children: .ignore).accessibilityLabel("Preview of the \(style.title) widget")
     }
 

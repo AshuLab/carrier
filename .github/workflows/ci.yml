@@ -2,7 +2,7 @@ name: CI
 
 # The one entry for a pull request into main. Slice PRs into an epic branch and drafts run nothing:
 # ship opens the integration PR as a draft, so this runs once a person marks it ready.
-# It always triggers (no paths filter on the workflow), and `changes` decides what runs, so `gate` is never left pending.
+# It always triggers (no paths filter on the workflow), and `changes` decides what runs, so `success` is never left pending.
 # A job skipped by its `if:` counts as passed, so a draft never blocks.
 # Order: engine (cheap, Linux) first, macOS (10x the minutes) only if it did not fail.
 on:
@@ -22,7 +22,7 @@ permissions:
 jobs:
   # engine: anything but a change that is only inside macos/. macos: the app, its notices, or the workflows themselves.
   changes:
-    name: Scope
+    name: Changes
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -54,8 +54,8 @@ jobs:
     uses: ./.github/workflows/_macos.yml
 
   # The single check to require on main: it fails if any job failed or was cancelled, and passes when they were skipped.
-  gate:
-    name: Gate
+  success:
+    name: Success
     needs: [changes, engine, macos]
     if: ${{ always() && github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest

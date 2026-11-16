@@ -693,6 +693,34 @@ test('archive marks a session and the archived listing shows it instead of the o
   expect(s.sessions.list({}).sessions).toHaveLength(2);
 });
 
+test('archiving a live idle session does not wait for its agent to end, the host stop does, and a delete waits too', async () => {
+  const s = setup();
+  const a = await openOne(s);
+  let endA!: () => void;
+  a.conversation.close = () => new Promise<void>((resolve) => (endA = resolve));
+  await s.sessions.archive({ sessionId: a.id, archived: true }); // returns while the agent is still ending
+  expect(s.sessions.list({ archived: true }).sessions.map((x) => x.id)).toEqual([a.id]);
+  expect(s.sessions.liveCount()).toBe(0);
+  let stopped = false;
+  const stopping = s.sessions.closeAll().then(() => (stopped = true));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(stopped).toBe(false);
+  endA();
+  await stopping;
+  expect(stopped).toBe(true);
+
+  const b = (await s.sessions.open({ agent: 'claude', folder: work })).session.id;
+  let endB!: () => void;
+  s.claude.conversations[1]!.close = () => new Promise<void>((resolve) => (endB = resolve));
+  let deleted = false;
+  const deleting = s.sessions.delete({ sessionId: b }).then(() => (deleted = true));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(deleted).toBe(false);
+  endB();
+  await deleting;
+  expect(deleted).toBe(true);
+});
+
 test('rename sets the title, also while working, refuses an empty one or an unknown session, and the first message does not replace it', async () => {
   const s = setup();
   const a = await openOne(s);

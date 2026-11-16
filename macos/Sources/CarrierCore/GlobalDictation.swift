@@ -28,6 +28,8 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
     public private(set) var text = ""
     public private(set) var startedAt: Date?
     public let session: DictationSession
+    /// How the last dictation ended when the widget shows it for a moment, `pasted` or `cancelled`, until the next one begins.
+    public private(set) var farewell: DictationWidgetState?
 
     @ObservationIgnored private let speechModel: () -> (any Recognizer, SpeechModel)?
     @ObservationIgnored private let microphone: () -> MicrophonePermission
@@ -65,6 +67,16 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         session.onListening = { [weak self] in self?.began() }
     }
 
+    /// What the widget draws now (`dictationWidgetLook`). Before the session says anything, and between a dictation and the next, it reads as working.
+    public var shown: DictationWidgetState {
+        switch state {
+        case .failed: .failed
+        case .copied: .copied
+        case .running: session.state == .listening ? .listening : .working
+        case .idle: farewell ?? .working
+        }
+    }
+
     public func handle(_ key: GlobalDictationKey) {
         switch (key, state) {
         case (.down, .idle): begin()
@@ -82,6 +94,7 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
                 moment(.cancelled)
             }
             if session.cancel() { remember(.cancelled) }
+            farewell = .cancelled
             dismiss()
         // a toggle has nothing to do with the key coming up, and a hold that Esc or a failure already ended has nothing left to end
         case (.up, _), (.escape, .idle): break
@@ -100,6 +113,7 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
 
     private func begin() {
         holding = activation() == .hold
+        farewell = nil
         text = ""
         startedAt = now()
         perform(.show)
@@ -142,6 +156,7 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         case .paste:
             remember(.pasted, to: frontApp() ?? "Another app")
             perform(.paste(heard))
+            farewell = .pasted
             dismiss()
         case .copyOnly(let reason):
             remember(.copied)

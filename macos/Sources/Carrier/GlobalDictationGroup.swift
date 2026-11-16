@@ -11,6 +11,8 @@ struct GlobalDictationGroup: View {
     @AppStorage(AppPreferences.dictationAccessibilityExplainedKey) private var explained = false
     @AppStorage(AppPreferences.dictationShortcutKey) private var shortcutText = ""
     @AppStorage(AppPreferences.dictationActivationKey) private var activation = DictationActivation.toggle
+    @AppStorage(AppPreferences.dictationWidgetStyleKey) private var widgetStyle = DictationWidgetStyle.medium
+    @AppStorage(AppPreferences.dictationWidgetPositionKey) private var widgetPosition = DictationWidgetPosition.bottom
     @State private var explaining = false
 
     var body: some View {
@@ -28,6 +30,13 @@ struct GlobalDictationGroup: View {
                 SettingsTabRow(title: "Activation", detail: "Toggle: press to start, press again to finish. Hold: speak while the keys are down") {
                     SegmentedChoice(options: [(DictationActivation.toggle, "Toggle", nil), (.hold, "Hold", nil)], selection: $activation).accessibilityLabel("Activation")
                 }
+                SettingsTabRow(title: "Widget style", detail: "Pill is a badge with a microphone and no text; Small, Medium and Large are a box of 2, 3 and 4 lines") {
+                    SegmentedChoice(options: DictationWidgetStyle.allCases.map { ($0, $0.title, nil) }, selection: $widgetStyle).accessibilityLabel("Widget style")
+                }
+                SettingsTabRow(title: "Position", detail: "Top centre under the menu bar or bottom centre above the Dock, on the display of the window in front") {
+                    SegmentedChoice(options: DictationWidgetPosition.allCases.map { ($0, $0.title, nil) }, selection: $widgetPosition).accessibilityLabel("Widget position")
+                }
+                SettingsPreview { DictationWidgetPreview(style: widgetStyle, hint: dictationHint(shortcut: AppPreferences().dictationShortcut, activation: activation)) }
             }
             .live(.globalSwitch, enabled: dictation.enabled && global)
         }

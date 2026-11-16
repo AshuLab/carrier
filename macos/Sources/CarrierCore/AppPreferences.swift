@@ -50,6 +50,8 @@ public struct AppPreferences {
     public static let dictationLanguageKey = "dictation.language"
     public static let dictationGlobalKey = "dictation.global"
     public static let dictationKeepTextKey = "dictation.history.keepText"
+    public static let dictationKeepAudioKey = "dictation.history.keepAudio"
+    public static let dictationDeleteAudioAfterKey = "dictation.history.deleteAudioAfter"
     public static let dictationTypingSpeedKey = "dictation.statistics.wpm"
     public static let dictationAccessibilityExplainedKey = "dictation.accessibilityExplained"
     public static let dictationShortcutKey = "dictation.shortcut"
@@ -108,6 +110,8 @@ public struct AppPreferences {
     public static let defaultDictationEnabled = true
     public static let defaultDictationGlobal = true
     public static let defaultDictationKeepText = true
+    public static let defaultDictationKeepAudio = false
+    public static let defaultDictationDeleteAudioAfter = 30
     public static let defaultDictationTypingSpeed = 40
     public static let dictationTypingSpeedRange = 10...200
 
@@ -376,6 +380,21 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationKeepTextKey) }
     }
 
+    /// Whether the history keeps the audio of each dictation it records: off until the person turns it on.
+    public var dictationKeepAudio: Bool {
+        get { defaults.object(forKey: Self.dictationKeepAudioKey) as? Bool ?? Self.defaultDictationKeepAudio }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationKeepAudioKey) }
+    }
+
+    /// The days after which the audio of a dictation is deleted (a choice of `dictationAudioLimits`, 0 is never); a saved value that is not on offer reads as 30.
+    public var dictationDeleteAudioAfter: Int {
+        get {
+            let saved = defaults.object(forKey: Self.dictationDeleteAudioAfterKey) as? Int
+            return saved.flatMap { days in dictationAudioLimits.contains { $0.days == days } ? days : nil } ?? Self.defaultDictationDeleteAudioAfter
+        }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationDeleteAudioAfterKey) }
+    }
+
     /// How fast the person types, in words a minute, which the time saved is measured against: 40 until they set it, always within 10 to 200.
     public var dictationTypingSpeed: Int {
         get { min(max(defaults.object(forKey: Self.dictationTypingSpeedKey) as? Int ?? Self.defaultDictationTypingSpeed, Self.dictationTypingSpeedRange.lowerBound), Self.dictationTypingSpeedRange.upperBound) }
@@ -554,6 +573,8 @@ public struct AppPreferences {
                 dictationLanguageKey,
                 dictationGlobalKey,
                 dictationKeepTextKey,
+                dictationKeepAudioKey,
+                dictationDeleteAudioAfterKey,
                 dictationTypingSpeedKey,
                 dictationShortcutKey,
                 dictationActivationKey,

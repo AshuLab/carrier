@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-16
+
+The app tells the accounts of one tool apart with a label, an icon and a color, the sidebar shows when a session is Done and gets Pin and Archive on hover, archiving is immediate, and the message box and Settings get a round of fixes.
+
 ### Added
 
 - Dictate in any app: ⌥⇧ Space opens a small widget over the app you are in, without taking its focus, and shows what you say; the same keys again paste it once at the cursor and put your clipboard back, and Esc cancels. Settings › Dictation › Global dictation has the Dictate in any app switch, which follows the Dictation switch.
@@ -268,7 +272,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/AshuLab/carrier/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/AshuLab/carrier/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/AshuLab/carrier/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/AshuLab/carrier/compare/v0.4.0...v0.5.0

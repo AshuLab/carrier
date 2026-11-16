@@ -49,6 +49,8 @@ public enum ShortcutAction: Equatable {
 /// What a shortcut asks of the open conversation.
 public enum ConversationAction: Equatable {
     case focusBox, stopAgent, jumpToLatest, toggleToolFolds, copyLastAnswer
+    /// The global shortcut: focus the message box and start or stop its dictation.
+    case dictate
 }
 
 /// A request to the open conversation; `count` makes asking twice a change the view can see.

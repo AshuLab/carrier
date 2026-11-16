@@ -9,7 +9,7 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 ## Tests
 
-The gated tests of Apple's recognizer (`AppleRecognizerTests`, with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`), of FluidAudio's models (`FluidAudioRecognizerTests`, one run per entry: the Spanish clip, or `hello-en.wav` for the English-only ones, gives text, and partial text first for the native ones, twice in a row with the same loaded model; no speech gives an empty final; a Parakeet folder with a file removed fails with its cause and is not downloaded again) and of Whisper's (`WhisperKitRecognizerTests`: text from the Spanish clip for each of the four models, an empty final for no speech, and a tiny folder with a model file or the tokenizer removed fails with its cause and fetches nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
+The gated tests of Apple's recognizer (`AppleRecognizerTests`, with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`), of FluidAudio's models (`FluidAudioRecognizerTests`: per entry the Spanish clip, or `hello-en.wav` for English-only ones, gives text, partial first for the native ones; no speech gives an empty final; a damaged Parakeet folder fails with its cause, never downloads again) and of Whisper's (`WhisperKitRecognizerTests`: text from the Spanish clip for each of the four models, an empty final for no speech, and a tiny folder with a model file or the tokenizer removed fails with its cause and fetches nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
 The embedded-terminal live shell integration test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection` in `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell process in an offscreen `NSWindow` and runs only when `CARRIER_IT_TERMINAL=1` is set.
 
 ## Starting Carrier and the chat host
@@ -99,8 +99,6 @@ The words are tested; the Finder and pasteboard calls not.
 
 What the person sees: [usage](../docs/macos/usage.md).
 
-The store holds `snapshot`, `isLoading`, `isRefreshing`, `error`, the filters (`metric`, `days`, `providerFilter`, `sourceFilter`, `searchText`) and `expandedProviders`.
-
 ## Dictation
 
 What the person sees: [dictation](../docs/macos/dictation.md).
@@ -113,6 +111,7 @@ The page is `Carrier/DictationTab.swift`, a list of one view per group (`Dictati
 
 See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, real session, scripted recognizer).
 `Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); keys, panel and real ⌘V untested.
+Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest` (`MessageBoxDictationTests`).
 
 ### Cleanup
 

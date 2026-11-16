@@ -21,6 +21,8 @@ struct MessageBox<Selects: View>: View {
     /// Which box this is to the dictation, so only the one that dictates draws its state: the new-session view or an open session.
     var dictationOwner = "message-box"
     var dictation = DictationController.shared
+    /// Counts the times the global shortcut asked this box to dictate: each change focuses the box and starts the dictation or stops the one that listens.
+    var dictateRequest = 0
     var send: () -> Void
     var stop: () -> Void = {}
     @ViewBuilder var selects: () -> Selects
@@ -165,6 +167,10 @@ struct MessageBox<Selects: View>: View {
         }
         // switching session: the box of the one left stops listening and keeps what it heard
         .onDisappear { dictation.stop(ownedBy: dictationOwner) }
+        .onChange(of: dictateRequest) {
+            focus.wrappedValue = true
+            dictate()
+        }
     }
 
     /// The click on the microphone: starts a dictation at the caret, or stops the one that listens.

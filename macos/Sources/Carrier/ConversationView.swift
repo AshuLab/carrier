@@ -11,6 +11,8 @@ struct ConversationView: View {
     /// The tool groups and calls the person flipped from how the tools show, by id; here and not in each row, which the lazy stack may recreate.
     @State private var flipped: Set<String> = []
     @State private var boxFocused = false
+    /// The times the global shortcut asked the box to dictate.
+    @State private var dictations = 0
     /// Whether rows are animated in: not the ones the first answer brings, which are the history.
     @State private var animatesRows = false
     /// Whether the feed has been taken to its end after it loaded: until then it is not drawn, so the way down is not seen.
@@ -168,6 +170,7 @@ struct ConversationView: View {
     private func perform(_ action: ConversationAction) {
         switch action {
         case .focusBox: boxFocused = true
+        case .dictate: dictations += 1
         case .stopAgent: if model.busy { Task { await model.stop() } }
         case .jumpToLatest: position.scrollTo(edge: .bottom)
         case .toggleToolFolds:
@@ -192,7 +195,7 @@ struct ConversationView: View {
 
     /// The message box, the same as the draft's (chat-ui-conv.html, section 3): the queued message above it, then the box with the
     /// session's provider and the options the provider lists in one button, and what the host refused under it.
-    private var box: some View { ConversationBox(model: model, boxFocused: $boxFocused) }
+    private var box: some View { ConversationBox(model: model, boxFocused: $boxFocused, dictations: dictations) }
 }
 
 /// The box of an open session, in a view of its own: what is typed in it is `model.draft`, and a view that reads it is drawn again at every
@@ -200,6 +203,8 @@ struct ConversationView: View {
 private struct ConversationBox: View {
     @Bindable var model: ConversationModel
     @Binding var boxFocused: Bool
+    /// The times the global shortcut asked this box to dictate.
+    var dictations: Int
     @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
 
@@ -228,7 +233,7 @@ private struct ConversationBox: View {
             MessageBox(
                 text: $model.draft, placeholder: "Message the agent", minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, canSendWithText: true, busy: model.busy,
-                focus: $boxFocused, commands: model.shownCommands, dictationOwner: "session:\(model.sessionId)", send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
+                focus: $boxFocused, commands: model.shownCommands, dictationOwner: "session:\(model.sessionId)", dictateRequest: dictations, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
                 ComposerMenuButton(
                     providers: model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: model.agent)], agent: model.agent, locked: true,

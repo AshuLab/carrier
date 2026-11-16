@@ -8,6 +8,30 @@ public enum UpdatePhase: Equatable, Sendable {
     case failed(version: String)
 }
 
+extension UpdatePhase {
+    /// What Settings > Updates says about this Carrier while an update is on its way, in place of the time of the last check; nil with nothing new.
+    public var settingsDetail: String? {
+        switch self {
+        case .none: nil
+        case .available(let version): "Carrier \(version) is available"
+        case .downloading(let version, let percent): "Downloading Carrier \(version), \(percent)%"
+        case .ready(let version): "Carrier \(version) is downloaded and waits for a restart"
+        case .installing: "Restarting…"
+        case .failed(let version): "The download of Carrier \(version) failed"
+        }
+    }
+
+    /// The words of the button that moves the update one step, the same click as the sidebar's pill; nil when nothing waits for a click.
+    public var settingsAction: String? {
+        switch self {
+        case .available: "Update"
+        case .ready: "Restart"
+        case .failed: "Retry"
+        case .none, .downloading, .installing: nil
+        }
+    }
+}
+
 /// The phase and the bytes of the download behind it, moved by what Sparkle tells the app, one call a step.
 public struct UpdateFlow: Equatable, Sendable {
     public private(set) var phase = UpdatePhase.none

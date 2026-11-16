@@ -51,3 +51,15 @@ import Testing
     flow.found(version: "0.6.0", downloaded: true)
     #expect(flow.phase == .ready(version: "0.6.0"))
 }
+
+@Test func settingsSaysWhereTheUpdateIsAndOffersTheNextClick() {
+    #expect(UpdatePhase.none.settingsDetail == nil)
+    #expect(UpdatePhase.none.settingsAction == nil)
+    #expect(UpdatePhase.available(version: "0.9.0").settingsDetail == "Carrier 0.9.0 is available")
+    #expect(UpdatePhase.available(version: "0.9.0").settingsAction == "Update")
+    #expect(UpdatePhase.downloading(version: "0.9.0", percent: 42).settingsDetail == "Downloading Carrier 0.9.0, 42%")
+    #expect(UpdatePhase.downloading(version: "0.9.0", percent: 42).settingsAction == nil)
+    #expect(UpdatePhase.ready(version: "0.9.0").settingsAction == "Restart")
+    #expect(UpdatePhase.installing.settingsAction == nil)
+    #expect(UpdatePhase.failed(version: "0.9.0").settingsAction == "Retry")
+}

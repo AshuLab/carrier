@@ -40,6 +40,8 @@ import SwiftUI
 
 struct UpdatesTabView: View {
     @State private var prefs = UpdatePrefs(updater: AppUpdater.updater)
+    /// The same model as the sidebar's pill: an update found keeps Sparkle's session open, so `canCheckForUpdates` is false until it is taken or dismissed.
+    private let model = AppUpdater.model
     private var engine: EngineUpdateState { ChatHostStarter.shared.engineUpdate }
 
     private var version: String {
@@ -47,17 +49,28 @@ struct UpdatesTabView: View {
         return info?["CFBundleShortVersionString"] as? String ?? "?"
     }
 
+    private var thisCarrierDetail: String {
+        if let update = model.flow.phase.settingsDetail { return update }
+        return prefs.updater == nil ? "This build does not look for updates" : "Last checked: \(updateCheckedText(prefs.last, now: Date()))"
+    }
+
+    @ViewBuilder private var thisCarrierAction: some View {
+        let phase = model.flow.phase
+        if let action = phase.settingsAction {
+            Button { model.press() } label: { Label(action, systemImage: action == "Update" ? "arrow.down.to.line" : "arrow.clockwise") }
+                .buttonStyle(PrimaryCapsuleButtonStyle())
+        } else if phase == UpdatePhase.none {
+            Button { prefs.checkNow() } label: { Label("Check now", systemImage: "arrow.clockwise") }
+                .buttonStyle(SecondaryCapsuleButtonStyle()).disabled(prefs.canCheck == false)
+        } else {
+            ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Updating")
+        }
+    }
+
     var body: some View {
         SettingsPageBody {
             SettingsGroup(title: "This Carrier") {
-                SettingsTabRow(
-                    title: "Version \(version)",
-                    detail: prefs.updater == nil ? "This build does not look for updates" : "Last checked: \(updateCheckedText(prefs.last, now: Date()))",
-                    first: true
-                ) {
-                    Button { prefs.checkNow() } label: { Label("Check now", systemImage: "arrow.clockwise") }
-                        .buttonStyle(SecondaryCapsuleButtonStyle()).disabled(prefs.canCheck == false)
-                }
+                SettingsTabRow(title: "Version \(version)", detail: thisCarrierDetail, first: true) { thisCarrierAction }
             }
             SettingsGroup(title: "Engine") {
                 SettingsTabRow(title: "Engine and chat host", detail: engine.line, first: true) {

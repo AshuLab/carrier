@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds Carrier.app with build-app.sh and asserts what the updater needs from the bundle (the macOS workflow runs it).
+# Builds Carrier.app with build-app.sh and asserts what the updater needs from the bundle (CI runs it on a PR that touches the packaging, and the release workflow before it publishes).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PLIST=Carrier.app/Contents/Info.plist

@@ -1,29 +1,106 @@
-# Typecheck and unit tests on a pull request into main. Slice PRs into an epic branch and drafts run nothing:
-# ship opens the integration PR as a draft, so this runs once a person marks it ready.
-# No paths filter: this job is the required check on main, and a workflow that never triggers leaves it pending forever.
-# A job skipped by its `if:` counts as passed, so a draft never blocks.
 name: CI
 
+# The one entry for a pull request into main, and for main itself after a merge.
+# Slice PRs into an epic branch and drafts run nothing: ship opens the integration PR as a draft, so this runs once a person marks it ready.
+# It always triggers (no paths filter on the workflow), and `changes` decides what runs, so `success` is never left pending.
+# A job skipped by its `if:` counts as passed, so a draft never blocks.
+# Order: engine (cheap, Linux) first, macOS (10x the minutes) only if it did not fail.
+# A push to main runs the engine only: two PRs that were green apart can still break main together.
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+# A new push to a PR replaces the previous run; main's runs all finish.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
+  pull-requests: read # `changes` and `changelog` read the PR's files and labels
 
 jobs:
-  check:
-    if: github.event.pull_request.draft == false
+  # engine: anything but a change that is only inside macos/. macos: the app, its notices, or the workflows themselves.
+  changes:
+    name: Changes
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
+    outputs:
+      engine: ${{ steps.files.outputs.engine }}
+      macos: ${{ steps.files.outputs.macos }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 26
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
+      - id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$EVENT" = push ]; then
+            echo "engine=true" >> "$GITHUB_OUTPUT"
+            echo "macos=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          FILES="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename')"
+          echo "$FILES"
+          echo "engine=$(echo "$FILES" | grep -qvE '^macos/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "macos=$(echo "$FILES" | grep -qE '^(macos/|THIRD-PARTY-NOTICES\.md$|\.github/workflows/)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  engine:
+    name: Carrier Engine
+    needs: changes
+    if: needs.changes.outputs.engine == 'true'
+    uses: ./.github/workflows/_engine.yml
+
+  macos:
+    name: Carrier macOS app
+    needs: [changes, engine]
+    # always(): `engine` is skipped on a PR that only touches macos/, and a skipped need would skip this too.
+    if: ${{ !cancelled() && needs.changes.outputs.macos == 'true' && needs.engine.result != 'failure' }}
+    uses: ./.github/workflows/_macos.yml
+
+  # CONTRIBUTING: a change someone can see adds a line under [Unreleased]. Source other than tests or the app's sources needs one,
+  # unless the PR has the `no-changelog` label (read when the job runs, so add the label and re-run this job).
+  changelog:
+    name: Changelog
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          FILES="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename')"
+          echo "$FILES" | grep -qxF CHANGELOG.md && { echo "CHANGELOG.md is in the PR"; exit 0; }
+          echo "$FILES" | grep -E '^(src/|macos/Sources/)' | grep -vE '(\.test\.ts|Tests?\.swift)$' | grep -q . || { echo "no user-visible source in the PR"; exit 0; }
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -qxF no-changelog && { echo "labelled no-changelog"; exit 0; }
+          echo "::error file=CHANGELOG.md::The PR changes src/ or macos/Sources/ without a line under [Unreleased]. Add it, or label the PR no-changelog if nobody can see the change, and re-run this job." >&2
+          exit 1
+
+  # AGENTS.md files are read in full by every agent that works in their folder: each has a budget in bytes (.github/scripts/agent-context.sh).
+  agent-context:
+    name: Agent context
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - run: .github/scripts/agent-context.sh
+
+  # The single check to require on main: it fails if any job failed or was cancelled, and passes when they were skipped.
+  success:
+    name: Success
+    needs: [changes, engine, macos, changelog, agent-context]
+    if: ${{ always() && (github.event_name == 'push' || github.event.pull_request.draft == false) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          case " $RESULTS " in *" failure "* | *" cancelled "*) exit 1 ;; esac

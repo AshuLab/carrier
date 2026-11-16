@@ -1,0 +1,37 @@
+name: Carrier macOS app
+
+# The app (macos/): its tests and its bundle, in parallel on macOS, the expensive runner.
+# Reusable: ci.yml calls it once the engine is green; run by hand to try a branch.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Toolchain
+        run: xcodebuild -version
+      - name: Build
+        working-directory: macos
+        run: swift build
+      - name: Test
+        working-directory: macos
+        run: scripts/test-ci.sh
+
+  # build-app.sh and what the updater needs from the bundle.
+  bundle:
+    name: Bundle
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Bundle
+        working-directory: macos
+        run: scripts/check-app.sh

@@ -124,7 +124,7 @@ The app finds `carrier` by itself (the Homebrew one, `/opt/homebrew/bin/carrier`
 
 ## Changelog
 
-Every user-visible change adds one line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md), in the same PR, under Added, Changed, Deprecated, Removed, Fixed or Security ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)). Short, plain English, from the point of view of someone using Carrier. A change nobody can see (tests, refactors, CI) needs no line.
+Every user-visible change adds one line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md), in the same PR, under Added, Changed, Deprecated, Removed, Fixed or Security ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)). Short, plain English, from the point of view of someone using Carrier. A change nobody can see (tests, refactors, CI) needs no line: label the PR `no-changelog` and re-run the Changelog check, which fails a PR that changes `src/` or `macos/Sources/` without touching `CHANGELOG.md`.
 
 Everyone edits `## [Unreleased]`, so two branches often conflict there: keep both lines.
 
@@ -142,7 +142,7 @@ Files are not reformatted in bulk: they get it as they are edited.
 
 `main` is the only long-lived branch; there is no `develop` branch.
 Every change reaches `main` through a PR, and PRs merge with merge commits, never squash or rebase.
-A PR into `main` that is not a draft runs CI (typecheck and unit tests) and needs one teammate's review.
+A PR into `main` that is not a draft runs CI (Carrier Engine: types, unit tests, migrations, package smoke; Carrier macOS app, only if it changed: unit tests and bundle; Changelog; Agent context, a byte budget per `AGENTS.md`; the one check to require is `CI / Success`). After a merge, the engine's checks run again on `main` and needs one teammate's review.
 Force-pushes to `main` are refused, and epic branches have no rules, so `ship` merges slices into them unattended.
 
 There are two lanes.

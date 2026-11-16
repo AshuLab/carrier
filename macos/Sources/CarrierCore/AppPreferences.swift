@@ -49,6 +49,7 @@ public struct AppPreferences {
     public static let dictationModelKey = "dictation.model"
     public static let dictationLanguageKey = "dictation.language"
     public static let dictationGlobalKey = "dictation.global"
+    public static let dictationAccessibilityExplainedKey = "dictation.accessibilityExplained"
     public static let terminalThemeKey = "terminal.theme"
     public static let terminalFontFamilyKey = "terminal.font.family"
     public static let terminalFontSizeKey = "terminal.font.size"
@@ -359,6 +360,12 @@ public struct AppPreferences {
     public var dictationGlobal: Bool {
         get { defaults.object(forKey: Self.dictationGlobalKey) as? Bool ?? Self.defaultDictationGlobal }
         nonmutating set { defaults.set(newValue, forKey: Self.dictationGlobalKey) }
+    }
+
+    /// Whether the page already told the person what Accessibility is for. Not a setting: Reset leaves it, so the explanation is not given twice.
+    public var dictationAccessibilityExplained: Bool {
+        get { defaults.bool(forKey: Self.dictationAccessibilityExplainedKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationAccessibilityExplainedKey) }
     }
 
     /// Settings for the embedded terminal (theme override, font overrides, cursor, padding, contrast, panes, input, scrollback, close confirmation).

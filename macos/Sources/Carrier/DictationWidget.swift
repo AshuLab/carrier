@@ -7,19 +7,28 @@ import SwiftUI
 @MainActor final class DictationWidget {
     private static let width: CGFloat = 340
     private static let height: CGFloat = 96
+    /// The box left open with the text and its buttons.
+    private static let keptHeight: CGFloat = 190
     private static let margin: CGFloat = 24
 
     private let panel: NSPanel
 
     init(dictation: GlobalDictation, shortcut: String) {
         panel = WidgetPanel(contentRect: NSRect(x: 0, y: 0, width: Self.width, height: Self.height))
-        panel.contentView = NSHostingView(rootView: DictationWidgetView(dictation: dictation, shortcut: shortcut).frame(width: Self.width, height: Self.height))
+        panel.contentView = NSHostingView(rootView: DictationWidgetView(dictation: dictation, shortcut: shortcut))
     }
 
     func show() {
         let area = Self.activeScreen().visibleFrame
-        panel.setFrameOrigin(NSPoint(x: area.midX - Self.width / 2, y: area.minY + Self.margin))
+        panel.ignoresMouseEvents = true
+        panel.setFrame(NSRect(x: area.midX - Self.width / 2, y: area.minY + Self.margin, width: Self.width, height: Self.height), display: true)
         panel.orderFrontRegardless()
+    }
+
+    /// The widget stays open for its buttons: taller, growing upward from where it is, and it takes clicks (still without taking the focus).
+    func takeClicks() {
+        panel.ignoresMouseEvents = false
+        panel.setFrame(NSRect(origin: panel.frame.origin, size: NSSize(width: Self.width, height: Self.keptHeight)), display: true)
     }
 
     func close() { panel.orderOut(nil) }
@@ -60,8 +69,21 @@ private final class WidgetPanel: NSPanel {
 private struct DictationWidgetView: View {
     let dictation: GlobalDictation
     let shortcut: String
+    /// Copy was pressed; it goes back when the widget has new text.
+    @State private var copied = false
 
     var body: some View {
+        Group {
+            if case .copied(let reason) = dictation.state { kept(reason) } else { listening }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .chatSurface(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .onChange(of: dictation.state) { copied = false }
+    }
+
+    private var listening: some View {
         VStack(alignment: .leading, spacing: 8) {
             ScrollView {
                 shown.frame(maxWidth: .infinity, alignment: .leading)
@@ -78,9 +100,33 @@ private struct DictationWidgetView: View {
             }
             .font(.caption).foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .chatSurface(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .accessibilityElement(children: .combine)
+    }
+
+    /// The text that was only copied, complete and scrollable, why, and what the person can do about it.
+    private func kept(_ reason: PasteReason) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(reason.explanation) It is on the clipboard.").foregroundStyle(.orange)
+                    Text(dictation.text).textSelection(.enabled)
+                }
+                .font(.callout).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack {
+                if reason == .noPermission {
+                    Button("Open System Settings") {
+                        if let url = URL(string: FocusedField.settingsURL) { NSWorkspace.shared.open(url) }
+                    }
+                }
+                Spacer()
+                Button(copied ? "Copied" : "Copy") {
+                    dictation.copyAgain()
+                    copied = true
+                }
+                Button("Dismiss") { dictation.dismissCopied() }
+            }
+            .buttonStyle(.bordered).controlSize(.small)
+        }
     }
 
     /// What the box says before the words come, and the cause when it cannot go on, over what was heard.

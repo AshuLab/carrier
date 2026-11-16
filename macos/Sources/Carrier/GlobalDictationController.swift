@@ -1,6 +1,4 @@
 import AppKit
-import ApplicationServices
-import Carbon.HIToolbox
 import CarrierCore
 
 /// The global dictation of the app: the shortcut, the widget and the paste, around the machine of `CarrierCore/GlobalDictation.swift`. The shortcut is
@@ -26,7 +24,7 @@ import CarrierCore
         self.board = board
         machine = GlobalDictation(
             session: dictation.session, speechModel: { dictation.speechModel }, microphone: { dictation.microphoneStatus() },
-            refusal: Self.pasteRefusal, perform: { [unowned self] in perform($0) })
+            decision: FocusedField.decision, perform: { [unowned self] in perform($0) })
         widget = DictationWidget(dictation: machine, shortcut: GlobalHotKey.Shortcut.dictation.text)
     }
 
@@ -71,16 +69,11 @@ import CarrierCore
             escape = nil
         case .paste(let text): Task { await ClipboardPaste(board: board).paste(text) }
         case .copy(let text):
+            // the widget is left open with buttons, which take clicks, and Esc goes back to the app: Dismiss and the shortcut close it
+            widget.takeClicks()
+            escape = nil
             board.clearContents()
             board.setString(text, forType: .string)
         }
-    }
-
-    /// Why a text is not pasted now: sending ⌘V needs Accessibility, and a password field, which has the focus whenever macOS has secure input on,
-    /// must never get the text. Whether a text field has the cursor is not looked at here.
-    private static func pasteRefusal() -> String? {
-        guard AXIsProcessTrusted() else { return "Accessibility is off for Carrier, so the text is not pasted." }
-        guard IsSecureEventInputEnabled() == false else { return "A secure field may have the focus, so the text is not pasted." }
-        return nil
     }
 }

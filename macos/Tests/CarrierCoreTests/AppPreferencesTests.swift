@@ -541,6 +541,16 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(store.dictationGlobal)
 }
 
+@Test func theAccessibilityExplanationIsRememberedAndNotResetWithDictation() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationAccessibilityExplained == false && AppPreferences.dictationAccessibilityExplainedKey == "dictation.accessibilityExplained")
+    store.dictationAccessibilityExplained = true
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).dictationAccessibilityExplained)
+    store.reset(.dictation)
+    #expect(store.dictationAccessibilityExplained)
+}
+
 @Test func workInIsTheBaseFolderByDefaultSurvivesARelaunchFallsBackAndResetsWithSessionsOnly() {
     let name = "workin-\(UUID().uuidString)"
     let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)

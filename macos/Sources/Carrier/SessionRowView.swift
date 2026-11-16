@@ -22,6 +22,14 @@ struct SessionRowView: View {
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .systemOrange : NSColor(red: 0.70, green: 0.36, blue: 0, alpha: 1)
     })
 
+    /// The green of "Done" (the turn ended and the person has not opened the session): the system's on dark, a deeper one on light, so the white check keeps its contrast.
+    static let done = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(red: 0.19, green: 0.70, blue: 0.31, alpha: 1) : NSColor(red: 0.12, green: 0.55, blue: 0.24, alpha: 1)
+    })
+    /// Whether the ring stays on after the agent stops, to go round once more in green when the turn ended unread (`finished`).
+    @State private var ringKept = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var content: SessionRowContent {
         SessionRowContent(
             row, showsWorkspace: showsWorkspace,
@@ -71,7 +79,10 @@ struct SessionRowView: View {
         let content = content
         HStack(spacing: SidebarMetrics.inset) {
             if content.showsIcon {
-                ProjectIcon(name: row.workspace, colorKey: projectColorKey(row.base), working: row.state == .working)
+                ProjectIcon(
+                    name: row.workspace, colorKey: projectColorKey(row.base), working: row.state == .working,
+                    finished: ringKept && row.state != .working, done: row.status == .unread
+                )
             }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 Text(row.title).font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular)
@@ -88,6 +99,15 @@ struct SessionRowView: View {
             }
         }
         .padding(.horizontal, content.showsIcon ? density.rowPadding : SidebarMetrics.inset).padding(.vertical, density.rowPadding)
+        // a dot at the edge while the turn ended and the session has not been opened: the same signal as the check on the icon
+        .overlay(alignment: .leading) { if row.status == .unread { Circle().fill(Color.themeAccent).frame(width: 6, height: 6).padding(.leading, 3).accessibilityHidden(true) } }
+        .onChange(of: row.state == .working, initial: true) { _, working in if working { ringKept = true } }
+        .onChange(of: row.status) { old, new in
+            guard old == .working, ringKept else { return }
+            // a turn that ended unread gets one fast green lap; anything else (it waits for the person, or they are looking at it) drops the ring now
+            guard new == .unread, reduceMotion == false else { ringKept = false; return }
+            Task { try? await Task.sleep(for: .seconds(1.2)); ringKept = false }
+        }
         .sessionContextMenu(row)
         .hoverCard { SessionPeekView(card: sessionPeek(row, now: Date())) }
         .accessibilityElement(children: .ignore)
@@ -100,7 +120,7 @@ struct SessionRowView: View {
         let state: String? = switch row.state {
         case .working: "Working"
         case .waiting: "Needs attention"
-        case .idle, .done: nil
+        case .idle, .done: row.status == .unread ? "Done" : nil
         }
         let place: String? = switch content.place {
         case .branch(let name)?: name
@@ -126,6 +146,10 @@ struct ProjectIcon: View {
     /// What the colour is made from: `projectColorKey` of the folder or the repository.
     let colorKey: String
     var working = false
+    /// The ring goes once round in green, fast, after `working`: the agent just ended its turn. The owner takes it away a moment later.
+    var finished = false
+    /// The check on a green disc at the corner: the turn ended and the person has not opened the session.
+    var done = false
     @Environment(\.rowActive) private var active
     static let size: CGFloat = 32
     static let radius: CGFloat = 9
@@ -147,7 +171,20 @@ struct ProjectIcon: View {
                     .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             }
             .animation(.easeOut(duration: 0.15), value: active)
-            .overlay { if working { WorkingRing() } }
+            .overlay { if working || finished { WorkingRing(finished: finished && working == false).transition(.opacity) } }
+            .overlay(alignment: .bottomTrailing) { if done { DoneMark().offset(x: 4, y: 4).transition(.scale.combined(with: .opacity)) } }
+            .animation(.easeOut(duration: 0.3), value: finished)
+            .animation(.spring(duration: 0.35, bounce: 0.4), value: done)
+    }
+}
+
+/// The check on a green disc at the corner of a project icon: the session's turn ended and it waits for the person (not for an answer: that is "Needs you").
+private struct DoneMark: View {
+    var body: some View {
+        Image(systemName: "checkmark").font(.scaled(8, weight: .heavy)).foregroundStyle(.white)
+            .frame(width: 15, height: 15).background(Circle().fill(SessionRowView.done))
+            .shadow(color: .black.opacity(0.3), radius: 1, y: 0.5)
+            .accessibilityHidden(true)
     }
 }
 
@@ -176,15 +213,21 @@ struct ProviderMarks: View {
 /// and stopped under the rule of the rings (a hidden window, Reduce Motion): then the arc stays still, so a working session is told from
 /// an idle one without motion.
 struct WorkingRing: NSViewRepresentable {
+    /// The agent's turn ended: the arc turns green and goes once round, fast, from where it was.
+    var finished = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeNSView(context: Context) -> WorkingRingHostView {
         let view = WorkingRingHostView(size: ProjectIcon.size, radius: ProjectIcon.radius)
         view.reduceMotion = reduceMotion
+        view.finished = finished
         return view
     }
 
-    func updateNSView(_ view: WorkingRingHostView, context: Context) { view.reduceMotion = reduceMotion }
+    func updateNSView(_ view: WorkingRingHostView, context: Context) {
+        view.reduceMotion = reduceMotion
+        view.finished = finished
+    }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: WorkingRingHostView, context: Context) -> CGSize? {
         CGSize(width: ProjectIcon.size, height: ProjectIcon.size)
@@ -196,8 +239,9 @@ final class WorkingRingHostView: NSView {
     private static let lineWidth: CGFloat = 2
     /// The arc's tail, head and fade, as the chat draws them, over a clear rest of the circle.
     private static let stops: [(alpha: CGFloat, at: NSNumber)] = [(0, 0), (0, 0.62), (0.95, 0.82), (0.4, 0.92), (0, 1)]
-    /// A turn of the arc, in seconds.
+    /// A turn of the arc, in seconds, and the one fast lap when the agent's turn ended.
     private static let period: CFTimeInterval = 3.4
+    private static let finishPeriod: CFTimeInterval = 0.9
 
     /// Clips the turning gradient to the icon's edge.
     private let edge = CALayer()
@@ -206,6 +250,17 @@ final class WorkingRingHostView: NSView {
 
     var windowVisible = false { didSet { refresh() } }
     var reduceMotion = false { didSet { refresh() } }
+    /// The turn ended: the green lap replaces the turning one, starting where the arc is.
+    var finished = false {
+        didSet {
+            guard finished != oldValue else { return }
+            lapStart = gradient.presentation()?.value(forKeyPath: "transform.rotation.z") as? Double ?? 0
+            setColor()
+            gradient.removeAnimation(forKey: Self.key)
+            refresh()
+        }
+    }
+    private var lapStart = 0.0
 
     init(size: CGFloat, radius: CGFloat) {
         super.init(frame: NSRect(x: 0, y: 0, width: size, height: size))
@@ -268,9 +323,9 @@ final class WorkingRingHostView: NSView {
         windowVisible = window.occlusionState.contains(.visible)
     }
 
-    /// The violet of the chat's glow (`Color.thought`), the same in both appearances.
+    /// The violet of the chat's glow (`Color.thought`), the same in both appearances; green once the turn ended.
     private func setColor() {
-        let violet = NSColor(Color.thought).cgColor
+        let violet = (finished ? NSColor(SessionRowView.done) : NSColor(Color.thought)).cgColor
         gradient.colors = Self.stops.map { violet.copy(alpha: $0.alpha) as Any }
         // what shows while it does not move: the arc a little past its start, as the chat's does
         gradient.transform = CATransform3DMakeRotation(-.pi * 200 / 180, 0, 0, 1)
@@ -281,11 +336,11 @@ final class WorkingRingHostView: NSView {
         // idempotent: an animation already attached is left alone, or it would restart each time the view updates
         guard gradient.animation(forKey: Self.key) == nil else { return }
         let turn = CABasicAnimation(keyPath: "transform.rotation.z")
-        turn.fromValue = 0
-        turn.toValue = -2 * Double.pi
-        turn.duration = Self.period
-        turn.repeatCount = .infinity
-        turn.timingFunction = CAMediaTimingFunction(name: .linear)
+        turn.fromValue = finished ? lapStart : 0
+        turn.toValue = (finished ? lapStart : 0) - 2 * Double.pi
+        turn.duration = finished ? Self.finishPeriod : Self.period
+        turn.repeatCount = finished ? 1 : .infinity
+        turn.timingFunction = CAMediaTimingFunction(name: finished ? .easeOut : .linear)
         // uncapped, the render server recomposes at the display rate (see IconController.bounce)
         turn.preferredFrameRateRange = CAFrameRateRange(minimum: 20, maximum: 20, preferred: 20)
         gradient.add(turn, forKey: Self.key)

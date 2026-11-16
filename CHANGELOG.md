@@ -6,14 +6,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Changed
-
-- Add account and the account editor say, in a quiet line, when another account of the same tool already uses the config folder you typed, since it is the same login and not a new one.
-
-## [0.8.0] - 2026-11-16
-
-The app tells the accounts of one tool apart with a label, an icon and a color, the sidebar shows when a session is Done and gets Pin and Archive on hover, archiving is immediate, and the message box and Settings get a round of fixes.
-
 ### Added
 
 - Dictate in any app: ⌥⇧ Space opens a small widget over the app you are in, without taking its focus, and shows what you say; the same keys again paste it once at the cursor and put your clipboard back, and Esc cancels. Settings › Dictation › Global dictation has the Dictate in any app switch, which follows the Dictation switch.
@@ -31,6 +23,17 @@ The app tells the accounts of one tool apart with a label, an icon and a color, 
 - The dictation widget is glass in your accent colour and, while it listens, draws the same glowing line as the message box around it, following your voice. Its text starts at the top and, once it fills the box, scrolls so the newest words are on the last line while the older lines fade out at the top.
 - Cleanup in the dictation widget: with it on, ending a dictation in any app makes the widget shimmer over what you said (a sparkle in the Pill) while the model cleans it, and the cleaned text is what gets pasted. Esc skips the cleanup and pastes the raw text; if the server is down, the model is missing or it times out, the raw text is pasted anyway, the widget shows a warning that it was not cleaned and why (a warning in the Pill), and the cause goes to `dictation.log`. The history keeps both texts, the cleanup model and its time.
 - Settings › Dictation › Global dictation shows whether Accessibility is allowed, with a button to open System Settings. A text that was only copied can be reached from the keyboard (Return copies it, Esc dismisses it), a failed dictation no longer shows a clock, deleting one dictation from the History asks first, and Copy there says Copied.
+
+### Changed
+
+- Add account and the account editor say, in a quiet line, when another account of the same tool already uses the config folder you typed, since it is the same login and not a new one.
+
+## [0.8.0] - 2026-11-16
+
+The app tells the accounts of one tool apart with a label, an icon and a color, the sidebar shows when a session is Done and gets Pin and Archive on hover, archiving is immediate, and the message box and Settings get a round of fixes.
+
+### Added
+
 - An account of `providers.json` can have a label, an icon and a color (Settings › Providers, Edit an account), so two logins of one tool are told apart where the app names them: the message box's button and its provider tabs, a session's row in the sidebar, the footer of an answer, the account rows of Settings and the corner of an epic session's avatar. All three are optional; with none, the app looks as it did. They need an up-to-date `carrier` (the editor says so and writes nothing while it is older), because an older one refuses a `providers.json` that has them.
 - Pin and Archive appear on a session's row in the sidebar when the pointer is on it, in place of the age.
 - A session whose turn ended says "Done" in green in the place of its time until you open it, and the icon's glow turns green and goes round once, fast, as the turn ends. It is not "Needs you", which stays orange for a permission or a question.

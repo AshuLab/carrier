@@ -26,7 +26,7 @@ import Testing
 }
 
 /// What the session told VoiceOver, in order.
-private final class Said: @unchecked Sendable { var lines: [String] = [] }
+private final class Said: @unchecked Sendable { var lines: [String] = []; var logged: [String] = [] }
 
 /// A box with a text and a caret, a scripted capture and recognizer, and a clock that stands still.
 @MainActor private final class Rig {
@@ -43,13 +43,14 @@ private final class Said: @unchecked Sendable { var lines: [String] = [] }
         self.text = text
         self.caret = caret
         let clock = clock, said = said
-        session = DictationSession(capture: capture, sleep: { try await clock.sleep($0) }, announce: { said.lines.append($0) })
+        session = DictationSession(capture: capture, sleep: { try await clock.sleep($0) }, announce: { said.lines.append($0) }, log: { said.logged.append($0.cause) })
     }
 
-    func dictate(with recognizer: ScriptedRecognizer, owner: String = "box") {
+    func dictate(with recognizer: ScriptedRecognizer, owner: String = "box", cleanup: DictationCleanup? = nil) {
         session.start(
             recognizer: recognizer, model: recognizer.models[0],
-            into: DictationField(owner: owner, text: { self.text }, caret: { self.caret }, put: { self.text = $0; self.caret = $1; self.tentative = $2 })
+            into: DictationField(owner: owner, text: { self.text }, caret: { self.caret }, put: { self.text = $0; self.caret = $1; self.tentative = $2 }),
+            cleanup: cleanup
         )
     }
 
@@ -439,4 +440,135 @@ func theAnnouncementsOfADictation(notice: DictationNotice, says: String) {
     rig.session.refuse(DictationFailure("No speech model is available"), for: "box")
     #expect(rig.session.failure(for: "box")?.cause == "No speech model is available")
     #expect(rig.said.lines == ["Dictation failed: No speech model is available"])
+}
+
+// The cleanup of a dictation in a box (docs/adr/0030): the model client is scripted and the clock is the rig's, which stands still.
+
+/// A model server that answers when a test says so, through the real `CleanupRun`.
+private final class ScriptedServer: TextModelClient, @unchecked Sendable {
+    private let lock = NSLock()
+    private var answer: Result<String, any Error>?
+    private var waiting: CheckedContinuation<Void, Never>?
+    private(set) var asked: [String] = []
+
+    func models(of server: CleanupServer) async throws -> [String] { [] }
+
+    func complete(server: CleanupServer, model: String, system: String, text: String, timeout: Duration) async throws -> String {
+        lock.withLock { asked.append(text) }
+        await withCheckedContinuation { continuation in
+            lock.withLock {
+                if answer == nil { waiting = continuation } else { continuation.resume() }
+            }
+        }
+        return try lock.withLock { answer }!.get()
+    }
+
+    func reply(_ result: Result<String, any Error>) {
+        let resumed = lock.withLock {
+            answer = result
+            defer { waiting = nil }
+            return waiting
+        }
+        resumed?.resume()
+    }
+
+    var cleanup: DictationCleanup {
+        { try await CleanupRun(client: self).run(server: .ollama, model: "m", prompt: "Clean it", text: $0).text }
+    }
+}
+
+/// A box with "uno dos" and the caret after "uno ", which dictated "um hola" and was stopped: the session cleans.
+@MainActor private func cleaning(_ server: ScriptedServer, partial: PartialText = .native) async -> (Rig, ScriptedRecognizer) {
+    let rig = Rig(text: "uno dos", caret: 4)
+    let recognizer = ScriptedRecognizer(partial: partial, atAudioEnd: [.final("um hola")])
+    rig.dictate(with: recognizer, cleanup: server.cleanup)
+    await rig.reaches(.listening)
+    rig.session.stop()
+    await rig.reaches(.cleaning)
+    return (rig, recognizer)
+}
+
+@MainActor @Test(arguments: [PartialText.native, .atTheEnd])
+private func theCleanedTextReplacesOnlyWhatTheDictationAddedAndTheRestOfTheBoxStays(partial: PartialText) async {
+    let server = ScriptedServer()
+    let (rig, _) = await cleaning(server, partial: partial)
+    // the raw text is in the box while the model works, and the model is asked for what the dictation added and nothing around it
+    #expect(rig.text == "uno um holados" && server.asked == ["um hola"])
+    server.reply(.success("Hola."))
+    await rig.reaches(.idle)
+    #expect(rig.text == "uno Hola.dos" && rig.tentative == nil && rig.session.failure(for: "box") == nil)
+    // the caret that was after the dictated text is after the cleaned one
+    #expect(rig.caret == 9)
+    #expect(rig.said.lines.last == "Dictation stopped, 1 word added")
+}
+
+@MainActor @Test func aDictationWithNoWordsIsNotCleaned() async {
+    let server = ScriptedServer()
+    let rig = Rig(text: "uno", caret: 3)
+    rig.dictate(with: ScriptedRecognizer(atAudioEnd: [.final("")]), cleanup: server.cleanup)
+    await rig.reaches(.listening)
+    rig.session.stop()
+    await rig.reaches(.idle)
+    #expect(server.asked.isEmpty && rig.text == "uno")
+}
+
+@MainActor @Test func theTimeTheRecognizerWasGivenDoesNotRunOutWhileTheModelCleans() async {
+    let server = ScriptedServer()
+    let (rig, _) = await cleaning(server, partial: .atTheEnd)
+    rig.clock.advance()
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(rig.session.state == .cleaning && rig.session.failure(for: "box") == nil)
+    server.reply(.success("Hola."))
+    await rig.reaches(.idle)
+    #expect(rig.text == "uno Hola.dos")
+}
+
+@MainActor @Test(arguments: [
+    CleanupFailure.serverDown(.ollama), .noModel, .timeout,
+])
+private func aCleanupThatFailsLeavesTheRawTextTellsTheCauseAndLogsItAlone(failure: CleanupFailure) async {
+    let server = ScriptedServer()
+    let (rig, _) = await cleaning(server)
+    server.reply(.failure(failure))
+    await rig.reaches(.idle)
+    #expect(rig.text == "uno um holados" && rig.caret == 11)
+    #expect(rig.session.failure(for: "box") == DictationFailure(failure.message))
+    #expect(rig.said.logged == [failure.message])
+    #expect(rig.said.lines.last == "Dictation failed: \(failure.message)")
+}
+
+@MainActor @Test func cancellingWhileItCleansKeepsTheRawTextAndIgnoresTheLateAnswer() async {
+    let server = ScriptedServer()
+    let (rig, _) = await cleaning(server)
+    #expect(rig.session.cancel())
+    #expect(rig.session.state == .idle && rig.text == "uno um holados" && rig.session.failure(for: "box") == nil)
+    server.reply(.success("Hola."))
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(rig.text == "uno um holados" && rig.said.logged.isEmpty)
+}
+
+@MainActor @Test func aKeyTypedInTheBoxOrLeavingItSkipsTheCleanup() async {
+    let server = ScriptedServer()
+    let (rig, _) = await cleaning(server)
+    rig.session.stop(ownedBy: "box")
+    #expect(rig.session.state == .idle && rig.text == "uno um holados")
+}
+
+@MainActor @Test func aTextThatChangedWhileItCleanedIsNeverOverwritten() async {
+    let server = ScriptedServer()
+    let (rig, _) = await cleaning(server)
+    rig.text = "otro uno um holados"
+    server.reply(.success("Hola."))
+    await rig.reaches(.idle)
+    #expect(rig.text == "otro uno um holados" && rig.session.failure(for: "box") == nil)
+}
+
+@MainActor @Test func anotherBoxStartingWhileItCleansSkipsTheCleanupAndStartsAtOnce() async {
+    let server = ScriptedServer()
+    let (rig, _) = await cleaning(server)
+    let next = ScriptedRecognizer()
+    rig.dictate(with: next, owner: "other")
+    #expect(rig.session.state != .cleaning && rig.text == "uno um holados")
+    await rig.reaches(.listening)
+    #expect(rig.session.owner == "other")
 }

@@ -52,6 +52,11 @@ public func dictationPresentation(_ state: DictationSession.State, registered: B
         return DictationPresentation(icon: .mic, inAccent: true, pressable: true, caption: nil, sendEnabled: false, label: "Stop dictation", help: "Stop dictation")
     case .transcribing:
         return DictationPresentation(icon: .spinner, inAccent: false, pressable: false, caption: "Transcribing…", sendEnabled: false, label: "Transcribing", help: "Transcribing…")
+    case .cleaning:
+        // pressable: a click, like Esc, skips the cleanup and keeps the raw text
+        return DictationPresentation(
+            icon: .spinner, inAccent: false, pressable: true, caption: "Cleaning…", sendEnabled: false, label: "Cleaning, press to skip", help: "Cleaning… Click to skip"
+        )
     }
 }
 

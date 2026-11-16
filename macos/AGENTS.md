@@ -9,15 +9,15 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 ## Tests
 
-The gated recognizer tests (`AppleRecognizerTests` with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`) check text from the Spanish clip (`hello-en.wav` for English-only models), an empty final for no speech, and a model folder missing a file failing with its cause and downloading nothing. FluidAudio's and Whisper's run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, `<folder>/whisper/<model>/models/...`).
+The gated tests of the recognizers (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`; clips `hola-es.wav` and `hello-en.wav` in `Tests/CarrierTests/Resources`: text, an empty final for no speech, and a folder missing a file fails with its cause and downloads nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
 The embedded-terminal live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
 
 ## Starting Carrier and the chat host
 
 What the person sees: [lifecycle](../docs/macos/lifecycle.md).
 
-The decision and command line are in `CarrierCore/StartCarrier.swift`; the spawn and alert are untested.
-The decision, command line and notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert; the wiring and views are untested.
+The decision and command line are in `CarrierCore/StartCarrier.swift` (spawn and alert untested).
+The decision, command line and notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert (wiring and views untested).
 The sequence is tested on a real socket against a scripted engine (`EngineReplacementTests`).
 
 ## Dev build and release build
@@ -119,6 +119,7 @@ Sounds: `CarrierCore/DictationSounds.swift` (`dictationSound(for:_:)`, `Dictatio
 ### Cleanup
 
 `CarrierCore/DictationCleanup.swift` (the `TextModelClient` port, `CleanupRun`; `CleanupRunTests`, scripted client) and `LocalModelClient.swift` (loopback HTTP; `LocalModelClientTests`, stub on a real socket); the group is `Carrier/CleanupController.swift` and `CleanupGroup.swift`, untested.
+In the boxes: the `.cleaning` state of `DictationSession` (`start(cleanup:)`, built by `DictationController.cleanup()`; `DictationSessionTests`, scripted client).
 
 ## Embedded terminal
 

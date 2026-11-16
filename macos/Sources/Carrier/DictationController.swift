@@ -31,6 +31,7 @@ import SwiftUI
     private(set) var enabled: Bool
     @ObservationIgnored private let access: MicrophoneAccess
     @ObservationIgnored private let preferences: AppPreferences
+    @ObservationIgnored private let cleanupClient: any TextModelClient
     /// Whether macOS has the microphone prompt open, and the box whose click waits for its answer (nil once that box stops or leaves).
     @ObservationIgnored private var prompting = false
     @ObservationIgnored private var waiting: String?
@@ -41,12 +42,13 @@ import SwiftUI
         log: DictationLog? = nil, preferences: AppPreferences = AppPreferences(),
         // a fixture build keeps its pretend downloads in a temporary folder, away from the person's own
         modelsRoot: URL = FileManager.default.temporaryDirectory.appending(path: "carrier-fixture-models"),
-        downloader: any ModelDownloader = FixtureModelDownloader(),
+        downloader: any ModelDownloader = FixtureModelDownloader(), cleanupClient: any TextModelClient = LocalModelClient(),
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.registry = registry
         self.access = access
         self.preferences = preferences
+        self.cleanupClient = cleanupClient
         enabled = preferences.dictationEnabled
         microphone = access.status()
         store = ModelStore(
@@ -140,7 +142,8 @@ import SwiftUI
     func toggle(into field: DictationField) -> DictationClick {
         guard enabled else { return .start }
         guard session.owner != field.owner else {
-            if session.state == .listening { session.stop() }
+            // a click while it cleans skips the cleanup and keeps the raw text
+            if session.state == .listening { session.stop() } else if session.state == .cleaning { session.cancel() }
             return .start
         }
         // a second click while macOS asks waits for that answer, it does not ask again
@@ -153,7 +156,7 @@ import SwiftUI
             return click
         }
         if microphone == .allowed {
-            session.start(recognizer: recognizer, model: model, into: field)
+            session.start(recognizer: recognizer, model: model, into: field, cleanup: cleanup())
         } else {
             // the first click: macOS asks, and the dictation starts when the person allows it and the box is still there
             prompting = true
@@ -163,10 +166,17 @@ import SwiftUI
                 microphone = access.status()
                 prompting = false
                 defer { waiting = nil }
-                if allowed, enabled, waiting == field.owner { session.start(recognizer: recognizer, model: model, into: field) }
+                if allowed, enabled, waiting == field.owner { session.start(recognizer: recognizer, model: model, into: field, cleanup: cleanup()) }
             }
         }
         return click
+    }
+
+    /// The cleanup of the text a box dictates, when the person turned it on (a server and a model chosen); nil otherwise, and the dictation ends as it always did.
+    private func cleanup() -> DictationCleanup? {
+        guard preferences.dictationCleanupEnabled, let server = preferences.dictationCleanupServer, let model = preferences.dictationCleanupModel else { return nil }
+        let run = CleanupRun(client: cleanupClient), prompt = preferences.dictationCleanupPrompt
+        return { try await run.run(server: server, model: model, prompt: prompt, text: $0).text }
     }
 
     /// Escape: cancels the dictation of `owner` and keeps the text that was on the screen. Says whether there was one, so the key is taken only then.

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-16
+
+The app tells the accounts of one tool apart with a label, an icon and a color, the sidebar shows when a session is Done and gets Pin and Archive on hover, archiving is immediate, and the message box and Settings get a round of fixes.
+
 ### Added
 
 - An account of `providers.json` can have a label, an icon and a color (Settings › Providers, Edit an account), so two logins of one tool are told apart where the app names them: the message box's button and its provider tabs, a session's row in the sidebar, the footer of an answer, the account rows of Settings and the corner of an epic session's avatar. All three are optional; with none, the app looks as it did. They need an up-to-date `carrier` (the editor says so and writes nothing while it is older), because an older one refuses a `providers.json` that has them.
@@ -253,7 +257,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/AshuLab/carrier/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/AshuLab/carrier/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/AshuLab/carrier/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/AshuLab/carrier/compare/v0.4.0...v0.5.0

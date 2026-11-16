@@ -613,46 +613,8 @@ struct AppearanceTabView: View {
     @Environment(\.colorScheme) private var scheme
     @AppStorage(TypeScale.percentKey) private var textSize = 100
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
-    @AppStorage(AppPreferences.monospaceFamilyKey) private var family = MonospaceSettings.systemFamily
-    @AppStorage(AppPreferences.monospaceSizeKey) private var codeSize = Double(MonospaceSettings.defaultSize)
-    @AppStorage(AppPreferences.monospaceLineHeightKey) private var lineHeight = LineHeight.normal
-    @AppStorage(AppPreferences.monospaceLigaturesKey) private var ligatures = true
-    @AppStorage(AppPreferences.monospaceWrapKey) private var wrapLongLines = true
-    @AppStorage(AppPreferences.monospaceLineNumbersKey) private var lineNumbers = false
-
-    /// A few lines of code under the settings: a long line to wrap, and the pairs of characters a ligature joins.
-    private static let sample = """
-        func total(_ lines: [Int]) -> Int {
-            // a line that is longer than the room it has, so wrapping and scrolling sideways show: 0123456789 abcdefghij 0123456789
-            lines.filter { $0 != 0 && $0 >= 1 }.reduce(0, +)
-        }
-        """
-
-    private func codePreview() -> some View {
-        SettingsPreview { CodeBlockView(language: "swift", code: Self.sample) }
-    }
 
     @AppStorage(AppPreferences.statesByShapeKey) private var statesByShape = false
-    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
-    @State private var previewRoom: CGFloat = 0
-
-    /// A message of the agent in a column that is to the room as the chosen width is to the widest one, drawn as a bubble on a track that is
-    /// the widest, so the four differ in where the lines break and in how much of the track the bubble takes.
-    private var messagePreview: some View {
-        SettingsPreview {
-            VStack(alignment: .leading, spacing: 0) {
-                MarkdownView(text: "I opened a pull request for the settings epic and asked the reviewer for a second look. The width of a message is how far a line runs before it wraps: a narrow column is easy on the eye, and a wide one fits more of a table or a long command, like `pnpm test && pnpm typecheck`.")
-                    .padding(12)
-                    .frame(width: previewRoom * messageWidth.points / MessageWidth.ultraWide.points, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.themeAccent.opacity(0.14)))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .onGeometryChange(for: CGFloat.self, of: \.size.width) { previewRoom = $0 }
-            .padding(8)
-            .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
-        }
-    }
-
     /// The four states as the app draws them now, with or without their symbols, larger than they are in a row so the mark inside reads.
     private var statesPreview: some View {
         SettingsPreview {
@@ -695,47 +657,10 @@ struct AppearanceTabView: View {
                 SettingsTabRow(title: "Density", detail: "The space in the sidebar rows and between the messages") {
                     ChoicePopUp(label: "Density", options: Density.allCases.map { (value: $0, title: $0.title) }, selection: $density)
                 }
-                SettingsTabRow(title: "Message width", detail: "How wide a message gets before it wraps") {
-                    ChoicePopUp(
-                        label: "Message width", options: MessageWidth.allCases.map { (value: $0, title: "\($0.title) · \(Int($0.points)) pt") },
-                        selection: $messageWidth, width: 180
-                    )
-                }
-                messagePreview
                 SettingsTabRow(title: "Tell states apart by shape", detail: "A symbol in each state, so that color is not the only clue") {
                     Toggle("Tell states apart by shape", isOn: $statesByShape).labelsHidden().toggleStyle(.switch)
                 }
                 statesPreview
-            }
-            SettingsGroup(title: "Code and output") {
-                SettingsTabRow(title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
-                    // a family that is no longer installed shows as the system's, as the views draw it
-                    ChoicePopUp(
-                        label: "Font", options: ([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies).map { (value: $0, title: $0) },
-                        selection: Binding(
-                            get: { MonospaceStyle.installedFamilies.contains(family) ? family : MonospaceSettings.systemFamily },
-                            set: { family = $0 }
-                        ),
-                        width: 200
-                    )
-                }
-                SettingsTabRow(title: "Size", detail: "\(Int(codeSize)) pt, before the text size of the whole app") {
-                    Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
-                        .frame(width: 160).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
-                }
-                SettingsTabRow(title: "Line height", detail: "The room between the lines of code and output") {
-                    ChoicePopUp(label: "Line height", options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)
-                }
-                SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
-                    Toggle("Ligatures", isOn: $ligatures).labelsHidden().toggleStyle(.switch)
-                }
-                SettingsTabRow(title: "Wrap long lines", detail: "Off keeps each line whole and scrolls sideways") {
-                    Toggle("Wrap long lines", isOn: $wrapLongLines).labelsHidden().toggleStyle(.switch)
-                }
-                SettingsTabRow(title: "Line numbers", detail: "In code blocks and the output of a command") {
-                    Toggle("Line numbers", isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
-                }
-                codePreview()
             }
             SettingsGroup(title: "Color") {
                 SettingsTabRow(title: "Accent color", detail: "Buttons, switches and the selection; the first one is the theme's own", first: true) {
@@ -973,6 +898,43 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.diffStyleKey) private var diffStyle = AppPreferences.defaultDiffStyle
     @AppStorage(AppPreferences.outputLengthKey) private var outputLength = AppPreferences.defaultOutputLength
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
+    @AppStorage(AppPreferences.monospaceFamilyKey) private var family = MonospaceSettings.systemFamily
+    @AppStorage(AppPreferences.monospaceSizeKey) private var codeSize = Double(MonospaceSettings.defaultSize)
+    @AppStorage(AppPreferences.monospaceLineHeightKey) private var lineHeight = LineHeight.normal
+    @AppStorage(AppPreferences.monospaceLigaturesKey) private var ligatures = true
+    @AppStorage(AppPreferences.monospaceWrapKey) private var wrapLongLines = true
+    @AppStorage(AppPreferences.monospaceLineNumbersKey) private var lineNumbers = false
+    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+    @State private var previewRoom: CGFloat = 0
+
+    /// A few lines of code under the settings: a long line to wrap, and the pairs of characters a ligature joins.
+    private static let sample = """
+        func total(_ lines: [Int]) -> Int {
+            // a line that is longer than the room it has, so wrapping and scrolling sideways show: 0123456789 abcdefghij 0123456789
+            lines.filter { $0 != 0 && $0 >= 1 }.reduce(0, +)
+        }
+        """
+
+    private func codePreview() -> some View {
+        SettingsPreview { CodeBlockView(language: "swift", code: Self.sample) }
+    }
+
+    /// A message of the agent in a column that is to the room as the chosen width is to the widest one, drawn as a bubble on a track that is
+    /// the widest, so the four differ in where the lines break and in how much of the track the bubble takes.
+    private var messagePreview: some View {
+        SettingsPreview {
+            VStack(alignment: .leading, spacing: 0) {
+                MarkdownView(text: "I opened a pull request for the settings epic and asked the reviewer for a second look. The width of a message is how far a line runs before it wraps: a narrow column is easy on the eye, and a wide one fits more of a table or a long command, like `pnpm test && pnpm typecheck`.")
+                    .padding(12)
+                    .frame(width: previewRoom * messageWidth.points / MessageWidth.ultraWide.points, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.themeAccent.opacity(0.14)))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self, of: \.size.width) { previewRoom = $0 }
+            .padding(8)
+            .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+        }
+    }
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.chat) }) {
@@ -1015,6 +977,43 @@ struct ChatTabView: View {
                 SettingsTabRow(title: "Show reasoning", detail: "The agent's reasoning, folded under its message, when its host sends it") {
                     Toggle("Show reasoning", isOn: $showsReasoning).labelsHidden().toggleStyle(.switch)
                 }
+                SettingsTabRow(title: "Message width", detail: "How wide a message gets before it wraps") {
+                    ChoicePopUp(
+                        label: "Message width", options: MessageWidth.allCases.map { (value: $0, title: "\($0.title) · \(Int($0.points)) pt") },
+                        selection: $messageWidth, width: 180
+                    )
+                }
+                messagePreview
+            }
+            SettingsGroup(title: "Code and output") {
+                SettingsTabRow(title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
+                    // a family that is no longer installed shows as the system's, as the views draw it
+                    ChoicePopUp(
+                        label: "Font", options: ([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies).map { (value: $0, title: $0) },
+                        selection: Binding(
+                            get: { MonospaceStyle.installedFamilies.contains(family) ? family : MonospaceSettings.systemFamily },
+                            set: { family = $0 }
+                        ),
+                        width: 200
+                    )
+                }
+                SettingsTabRow(title: "Size", detail: "\(Int(codeSize)) pt, before the text size of the whole app") {
+                    Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
+                        .frame(width: 160).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
+                }
+                SettingsTabRow(title: "Line height", detail: "The room between the lines of code and output") {
+                    ChoicePopUp(label: "Line height", options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)
+                }
+                SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
+                    Toggle("Ligatures", isOn: $ligatures).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Wrap long lines", detail: "Off keeps each line whole and scrolls sideways") {
+                    Toggle("Wrap long lines", isOn: $wrapLongLines).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Line numbers", detail: "In code blocks and the output of a command") {
+                    Toggle("Line numbers", isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
+                }
+                codePreview()
             }
         }
     }

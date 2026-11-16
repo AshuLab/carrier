@@ -406,14 +406,14 @@ public struct AppPreferences {
             ]
         case .appearance:
             [
-                colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey, messageWidthKey,
-                monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
+                colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey,
             ]
         case .terminal: terminalKeys
         case .chat:
             [
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
-                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey,
+                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey, messageWidthKey,
+                monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
             ]
         // the ages of the session clock live in chat.json: the page's own Reset writes them back
         case .sessions: [confirmDeleteKey, newSessionAgentKey, newSessionModelKey, newSessionEffortKey, newSessionAccessKey, workInKey]

@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Message width and the Code and output settings (font, size, line height, ligatures, wrapping, line numbers) moved from Appearance to Chat, with their Reset; the Terminal page now says "Same as Chat".
 - Settings › Appearance › Accent color: a line separates the theme's own accent from the seven colors, and a multicolor disc at the end opens the Mac's color panel for a color of your own.
 - The message box's send button is tinted glass like the New session pill, no longer the loud solid accent.
 - Settings stops growing at 1300 pt wide on a large window; its height still follows the window.

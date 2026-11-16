@@ -51,3 +51,14 @@ private func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.ma
     #expect(filter.matches(row("a")) && filter.matches(row("b", workspace: "api")) == false)
     #expect(filter.chips.map(\.title) == ["web"] && filter.count == 1)
 }
+
+@Test func aSessionThatWorksOrWaitsCannotBeArchivedAndSaysWhy() {
+    #expect(archiveBlock(row("a")) == nil && archiveBlock(row("a", state: .done)) == nil)
+    #expect(archiveBlock(row("a", state: .working)) == "Stop the session to archive it")
+    #expect(archiveBlock(row("a", state: .waiting)) == "Answer or stop the session to archive it")
+    let archive = { (row: SessionRow) in sessionMenu(row).flatMap { $0 }.first { $0.title == "Archive" } }
+    #expect(archive(row("a"))?.disabledReason == nil)
+    #expect(archive(row("a", state: .working))?.disabledReason == "Stop the session to archive it")
+    // the others are as they were: Stop is still there to be used
+    #expect(sessionMenu(row("a", state: .working)).flatMap { $0 }.first { $0.title == "Stop" }?.disabledReason == nil)
+}

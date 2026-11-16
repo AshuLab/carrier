@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Archiving a session is immediate: its row goes as soon as you ask, the chat host no longer waits for the agent to end, and the lists are read again at once. A refusal brings the row back with the reason.
+- Archive is off for a session that is working or waiting for an answer (the button on its row, the one on the Sessions home and the menu item), with a tooltip that says to stop it first.
 - The sidebar stacks Home, Sessions, Terminal and Carrier in that order, and the open section takes all the room left: Terminal no longer sits under the list of Sessions, the sections above the open one are folded at the top, the ones under it at the foot, and Archive closes the Sessions panel. The open section's row stays at the top while its list scrolls, with a soft fade under it once rows slide beneath.
 - The sidebar opens at 360 points wide, can be 260 to 800, and the width you drag it to is remembered.
 

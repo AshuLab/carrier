@@ -125,9 +125,21 @@ public struct SessionMenuItem: Equatable {
     public let action: SessionMenuAction?
     public var children: [SessionMenuItem] = []
     public var destructive = false
+    /// Why the item cannot be used now, in words for its tooltip; nil while it can.
+    public var disabledReason: String?
 
-    init(_ title: String, _ icon: String, _ action: SessionMenuAction?, children: [SessionMenuItem] = [], destructive: Bool = false) {
-        (self.title, self.icon, self.action, self.children, self.destructive) = (title, icon, action, children, destructive)
+    init(_ title: String, _ icon: String, _ action: SessionMenuAction?, children: [SessionMenuItem] = [], destructive: Bool = false, disabledReason: String? = nil) {
+        (self.title, self.icon, self.action, self.children, self.destructive, self.disabledReason) = (title, icon, action, children, destructive, disabledReason)
+    }
+}
+
+/// Why a session cannot be archived now, nil when it can: the host refuses one that works or waits for an answer, so the buttons say it
+/// beforehand and are off, and the person knows to stop it first.
+public func archiveBlock(_ row: SessionRow) -> String? {
+    switch row.state {
+    case .working: "Stop the session to archive it"
+    case .waiting: "Answer or stop the session to archive it"
+    case .idle, .done: nil
     }
 }
 
@@ -145,7 +157,7 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
     if row.archived == false { control.append(pinned ? SessionMenuItem("Unpin", "pin.slash", .unpin) : SessionMenuItem("Pin", "pin", .pin)) }
     var open = [SessionMenuItem("Open in Terminal", "terminal", .openInTerminal(path: row.folder)), SessionMenuItem("Copy", "doc.on.doc", nil, children: copies)]
     if canFilter { open.append(SessionMenuItem("Filter by \u{201C}\(row.workspace)\u{201D}", "line.3.horizontal.decrease", .filterWorkspace(row.workspace))) }
-    var end = [row.archived ? SessionMenuItem("Restore", "arrow.uturn.backward", .restore) : SessionMenuItem("Archive", "archivebox", .archive)]
+    var end = [row.archived ? SessionMenuItem("Restore", "arrow.uturn.backward", .restore) : SessionMenuItem("Archive", "archivebox", .archive, disabledReason: archiveBlock(row))]
     if row.archived { end.append(SessionMenuItem("Delete\u{2026}", "trash", .delete, destructive: true)) }
     return [
         control,

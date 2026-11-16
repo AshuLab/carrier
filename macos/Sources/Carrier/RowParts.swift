@@ -15,6 +15,8 @@ struct RowIconButton: View {
     let symbol: String
     let title: String
     var selected = false
+    /// Why the button is off, in words: the tooltip then.
+    var why: String?
     let action: () -> Void
 
     var body: some View {
@@ -22,6 +24,6 @@ struct RowIconButton: View {
             Image(systemName: symbol).font(.scaled(12)).foregroundStyle(selected ? Color.themeAccent : .secondary).frame(width: 28, height: 28)
                 .background(Circle().fill(selected ? Color.themeAccent.opacity(0.2) : Color.secondary.opacity(0.14)))
         }
-        .buttonStyle(.plain).help(title).accessibilityLabel(title).accessibilityAddTraits(selected ? .isSelected : [])
+        .buttonStyle(.plain).disabled(why != nil).opacity(why == nil ? 1 : 0.4).help(why ?? title).accessibilityLabel(title).accessibilityHint(why ?? "").accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

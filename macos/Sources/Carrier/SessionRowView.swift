@@ -125,7 +125,7 @@ struct SessionRowView: View {
                         if hoverActions && hovered {
                             HStack(spacing: 2) {
                                 hoverButton(pinned ? "pin.slash" : "pin", pinned ? "Unpin" : "Pin", togglePin)
-                                hoverButton("archivebox", "Archive", archive)
+                                hoverButton("archivebox", "Archive", why: archiveBlock(row), archive)
                             }
                             .transition(.opacity)
                         }
@@ -153,14 +153,15 @@ struct SessionRowView: View {
         .accessibilityLabel(label(content))
         // the buttons are drawn on hover only: VoiceOver reaches the same two here
         .accessibilityAction(named: pinned ? "Unpin" : "Pin") { if hoverActions { togglePin() } }
-        .accessibilityAction(named: "Archive") { if hoverActions { archive() } }
+        .accessibilityAction(named: "Archive") { if hoverActions && archiveBlock(row) == nil { archive() } }
     }
 
-    private func hoverButton(_ symbol: String, _ title: String, _ action: @escaping () -> Void) -> some View {
+    /// `why` is what keeps the button off: it is the tooltip then, and what VoiceOver reads after the name.
+    private func hoverButton(_ symbol: String, _ title: String, why: String? = nil, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol).font(.scaled(11)).foregroundStyle(.secondary).frame(width: 22, height: 20).contentShape(Rectangle())
         }
-        .buttonStyle(HoverFillButtonStyle(radius: 5)).help(title).accessibilityLabel(title)
+        .buttonStyle(HoverFillButtonStyle(radius: 5)).disabled(why != nil).help(why ?? title).accessibilityLabel(title).accessibilityHint(why ?? "")
     }
 
     /// What the row says aloud: the title, the state in words (the icon draws it), where it works, the providers and "5 minutes ago",

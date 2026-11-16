@@ -117,21 +117,27 @@ struct ComposerMenuButton: View {
     }
 
     private var tabs: some View {
-        HStack(spacing: 2) {
-            ForEach(providers) { provider in
-                let on = provider.name == agent
-                let enabled = provider.available && (locked == false || on)
-                Button { if on == false { chooseAgent(provider.name) } } label: {
-                    ProviderMark(name: provider.icon, size: 18).frame(width: 42, height: 40)
-                        .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, 9) } }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 2) {
+                ForEach(providers) { provider in
+                    let on = provider.name == agent
+                    let enabled = provider.available && (locked == false || on)
+                    Button { if on == false { chooseAgent(provider.name) } } label: {
+                        VStack(spacing: 3) {
+                            ProviderMark(name: provider.icon, size: 18)
+                            Text(provider.name).font(.scaled(10, weight: .medium)).lineLimit(1)
+                        }
+                        .frame(minWidth: 54).padding(.horizontal, 6).padding(.vertical, 6)
+                        .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, 8) } }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).disabled(enabled == false).opacity(enabled ? (on ? 1 : 0.7) : 0.3)
+                    .help(provider.note.map { "\(provider.name) (\($0))" } ?? provider.name).accessibilityLabel(provider.name)
+                    .accessibilityAddTraits(on ? .isSelected : [])
                 }
-                .buttonStyle(.plain).disabled(enabled == false).opacity(enabled ? (on ? 1 : 0.7) : 0.3)
-                .help(provider.note.map { "\(provider.name) (\($0))" } ?? provider.name).accessibilityLabel(provider.name)
-                .accessibilityAddTraits(on ? .isSelected : [])
             }
-            Spacer(minLength: 0)
+            .padding(.horizontal, 12).padding(.top, 4)
         }
-        .padding(.horizontal, 12).padding(.top, 4)
         .overlay(alignment: .bottom) { Divider() }
     }
 

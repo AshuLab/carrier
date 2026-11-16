@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings › Appearance › Accent color: a line separates the theme's own accent from the seven colors, and a multicolor disc at the end opens the Mac's color panel for a color of your own.
 - The message box's send button is tinted glass like the New session pill, no longer the loud solid accent.
 - Settings stops growing at 1300 pt wide on a large window; its height still follows the window.
+- The provider menu of the message box names each provider under its mark, as the Settings picker does, and scrolls sideways when there are many.
 
 ## [0.6.0] - 2026-11-15
 

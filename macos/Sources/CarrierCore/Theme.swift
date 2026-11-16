@@ -58,25 +58,45 @@ public enum Theme: String, CaseIterable, Codable, Sendable {
     }
 }
 
-/// The seven colors the accent can be, one value for both versions.
-public enum AccentColor: String, CaseIterable, Sendable {
-    case blue, purple, pink, red, orange, green, graphite
+/// The accent the person picked: one of seven colors, or any color of their own. The raw value is what is stored: a preset's name, or
+/// `#rrggbb` for their own. One value for both versions of a theme.
+public struct AccentColor: RawRepresentable, CaseIterable, Hashable, Sendable {
+    public let rawValue: String
 
-    public var title: String { rawValue.capitalized }
+    private static let presets: [(name: String, hex: UInt32)] = [
+        ("blue", 0x0a84ff), ("purple", 0xbf5af2), ("pink", 0xff375f), ("red", 0xff453a), ("orange", 0xff9f0a), ("green", 0x30d158), ("graphite", 0x8e8e93),
+    ]
 
-    fileprivate var hex: UInt32 {
-        switch self {
-        case .blue: 0x0a84ff
-        case .purple: 0xbf5af2
-        case .pink: 0xff375f
-        case .red: 0xff453a
-        case .orange: 0xff9f0a
-        case .green: 0x30d158
-        case .graphite: 0x8e8e93
-        }
+    public static let blue = AccentColor(preset: 0), purple = AccentColor(preset: 1), pink = AccentColor(preset: 2), red = AccentColor(preset: 3)
+    public static let orange = AccentColor(preset: 4), green = AccentColor(preset: 5), graphite = AccentColor(preset: 6)
+    /// The seven presets, not their own color.
+    public static let allCases = (0..<presets.count).map { AccentColor(preset: $0) }
+
+    private init(preset: Int) { rawValue = Self.presets[preset].name }
+
+    /// Nil for a value that is neither a preset's name nor `#` and six hex digits.
+    public init?(rawValue: String) {
+        guard Self.presets.contains(where: { $0.name == rawValue }) || Self.hex(rawValue) != nil else { return nil }
+        self.rawValue = rawValue
     }
 
-    public var color: RGBA { RGBA(hex: hex) }
+    /// The person's own color.
+    public static func own(_ color: RGBA) -> AccentColor {
+        func byte(_ value: Double) -> Int { Int((min(max(value, 0), 1) * 255).rounded()) }
+        let hex = String(format: "#%02x%02x%02x", byte(color.red), byte(color.green), byte(color.blue))
+        return AccentColor(rawValue: hex)!
+    }
+
+    private static func hex(_ text: String) -> UInt32? {
+        guard text.count == 7, text.hasPrefix("#") else { return nil }
+        return UInt32(text.dropFirst(), radix: 16)
+    }
+
+    public var isCustom: Bool { Self.hex(rawValue) != nil }
+
+    public var title: String { isCustom ? "Custom" : rawValue.capitalized }
+
+    public var color: RGBA { RGBA(hex: Self.hex(rawValue) ?? Self.presets.first { $0.name == rawValue }?.hex ?? 0) }
 }
 
 /// How much of the accent shows on the backgrounds.

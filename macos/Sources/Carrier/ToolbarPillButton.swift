@@ -44,6 +44,11 @@ struct ToolbarPillButton: View {
     }
 }
 
+extension Color {
+    /// The accent a main action is tinted with on glass (the New session pill, the message box's send button): darkened, so white reads on it and it is not as loud as the system's prominent button.
+    static var accentGlass: Color { themeAccent.mix(with: .black, by: 0.4) }
+}
+
 /// Accent glass capsule pill button at `ToolbarPillButton.height` (28 pt), shared between headers and primary empty-state CTAs.
 struct AccentGlassPillButton: View {
     let title: String
@@ -64,7 +69,7 @@ struct AccentGlassPillButton: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.tint(Color.themeAccent.mix(with: .black, by: 0.4)).interactive(), in: .capsule)
+        .glassEffect(.regular.tint(Color.accentGlass).interactive(), in: .capsule)
     }
 }
 

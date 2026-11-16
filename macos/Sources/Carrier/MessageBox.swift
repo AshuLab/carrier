@@ -346,27 +346,22 @@ struct MessageBox<Selects: View>: View {
         send()
     }
 
-    /// A round glass button of the system's, tinted when there is something to send and plain when there is not; it gives under the finger
-    /// and springs back. The arrow becomes the Stop square while the agent answers, bounces up on a send and pulses while it works.
+    /// A round glass button, tinted like the New session pill when there is something to send and plain when there is not; it gives under the
+    /// finger and springs back. The arrow becomes the Stop square while the agent answers, bounces up on a send and pulses while it works.
     @ViewBuilder private var button: some View {
         let active = (ready && sendAllowed) || busy
-        let action = busy ? stop : fire
         let label = Image(systemName: busy ? "stop.fill" : "arrow.up")
             .font(.scaled(busy ? 12 : 14, weight: .bold)).foregroundStyle(active ? .white : .secondary)
             .contentTransition(.symbolEffect(.replace))
             .symbolEffect(.bounce.up, value: sent)
             .symbolEffect(.pulse, isActive: busy)
-            .frame(width: 20, height: 20)
-        Group {
-            if active {
-                Button(action: action) { label }.buttonStyle(.glassProminent)
-            } else {
-                Button(action: action) { label }.buttonStyle(.glass).disabled(true)
-            }
-        }
-        // a circle by construction: the system's border shape, over a label that is square
-        .buttonBorderShape(.circle).controlSize(.large).tint(.themeAccent)
-        .animation(.smooth(duration: 0.25), value: active)
+            .frame(width: 32, height: 32)
+            .contentShape(Circle())
+        Button(action: busy ? stop : fire) { label }
+            .buttonStyle(.plain)
+            .glassEffect(active ? .regular.tint(Color.accentGlass).interactive() : .regular, in: .circle)
+            .disabled(active == false)
+            .animation(.smooth(duration: 0.25), value: active)
         .help(busy ? "Stop" : "\(sendHelp) (\(sendKey == .return ? "↩" : "⌘↩")) · New line (\(sendKey == .return ? "⇧↩" : "↩"))").accessibilityLabel(busy ? "Stop" : "Send")
     }
 }

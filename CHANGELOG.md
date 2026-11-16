@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The toolbar of a session shows only the terminal icon where it said Show Terminal / Hide Terminal.
 - The Message width preview in Settings › Chat draws a short conversation (your message, the agent's work and its answer) with the feed's own rows, centered.
 - Message width and the Code and output settings (font, size, line height, ligatures, wrapping, line numbers) moved from Appearance to Chat, with their Reset; the Terminal page now says "Same as Chat".
 - Settings › Appearance › Accent color: a line separates the theme's own accent from the seven colors, and a multicolor disc at the end opens the Mac's color panel for a color of your own.

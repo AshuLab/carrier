@@ -17,10 +17,14 @@ public struct DictationField {
     }
 }
 
-/// One dictation, from the click that starts it to idle: getting ready (the recognizer loads its model), listening, and transcribing
-/// when the model gives its text only at the end. A failure at any point returns to idle with its cause and keeps the text heard so far.
+/// What a box asks of the Cleanup (docs/adr/0030): the text the dictation added goes in, the cleaned text comes out, or it throws (a `CleanupFailure`
+/// says its cause in words).
+public typealias DictationCleanup = @Sendable (String) async throws -> String
+
+/// One dictation, from the click that starts it to idle: getting ready (the recognizer loads its model), listening, transcribing
+/// when the model gives its text only at the end, and cleaning when the box asked for it. A failure at any point returns to idle with its cause and keeps the text heard so far.
 @MainActor @Observable public final class DictationSession {
-    public enum State: Equatable, Sendable { case idle, gettingReady, listening, transcribing }
+    public enum State: Equatable, Sendable { case idle, gettingReady, listening, transcribing, cleaning }
 
     /// How long a recognizer has to answer after the audio ends before the dictation gives up: a floor, and a second more for each second of
     /// audio, because a model that gives its text at the end reads all of it in one pass.
@@ -43,6 +47,7 @@ public struct DictationField {
     @ObservationIgnored public var onListening: (() -> Void)?
     @ObservationIgnored private var field: DictationField?
     @ObservationIgnored private var model: SpeechModel?
+    @ObservationIgnored private var cleanup: DictationCleanup?
     @ObservationIgnored private var tentative = TentativeText(caret: 0, in: "")
     @ObservationIgnored private var running: Task<Void, Never>?
     @ObservationIgnored private var watchdog: Task<Void, Never>?
@@ -55,7 +60,7 @@ public struct DictationField {
     /// The seconds of audio the capture gave, for the time a recognizer is given to answer after the stop.
     @ObservationIgnored private var captured = Duration.zero
     /// A dictation asked for while another one stops: it starts when that one is idle.
-    @ObservationIgnored private var queued: (recognizer: any Recognizer, model: SpeechModel, field: DictationField)?
+    @ObservationIgnored private var queued: (recognizer: any Recognizer, model: SpeechModel, field: DictationField, cleanup: DictationCleanup?)?
 
     /// `announce` is told what VoiceOver should say (`dictationAnnouncement`): the start, the stop and a failure, never partial text; `log` hears
     /// every failure, with its cause only.
@@ -79,12 +84,13 @@ public struct DictationField {
         log(cause)
     }
 
-    /// Starts a dictation at the field's caret. Only one runs at a time: while another does, it stops (keeping its text) and this one
-    /// starts when it is idle.
-    public func start(recognizer: any Recognizer, model: SpeechModel, into field: DictationField) {
+    /// Starts a dictation at the field's caret. Only one runs at a time: while another does, it stops (keeping its text, and skipping its cleanup)
+    /// and this one starts when it is idle. With a `cleanup`, the text this dictation added is replaced by the cleaned one when it ends; a failure
+    /// of it, or a skip, leaves the raw text.
+    public func start(recognizer: any Recognizer, model: SpeechModel, into field: DictationField, cleanup: DictationCleanup? = nil) {
         guard state == .idle else {
-            queued = (recognizer, model, field)
-            halt()
+            queued = (recognizer, model, field, cleanup)
+            if state == .cleaning { skip() } else { halt() }
             return
         }
         failure = nil
@@ -93,6 +99,7 @@ public struct DictationField {
         captured = .zero
         self.field = field
         self.model = model
+        self.cleanup = cleanup
         owner = field.owner
         tentative = TentativeText(caret: field.caret(), in: field.text())
         stopped = false
@@ -111,29 +118,34 @@ public struct DictationField {
     }
 
     /// `stop` for a box that leaves or is typed in: it stops its own dictation and drops its own dictation that waits, and no other's.
+    /// A box that is typed in or left skips its cleanup too, since the text it would replace is no longer as the dictation left it.
     public func stop(ownedBy owner: String) {
         if queued?.field.owner == owner { queued = nil }
-        if self.owner == owner { halt() }
+        guard self.owner == owner else { return }
+        if state == .cleaning { skip() } else { halt() }
     }
 
     /// Cancels the dictation at once, in any state: the audio is dropped, nothing the recognizer says afterwards is written, and the text on the
-    /// screen, a partial one included, stays as it is, as final. A model that gives its text at the end, which has shown none, adds none.
-    /// Returns whether there was a dictation to cancel.
+    /// screen, a partial one included, stays as it is, as final. A model that gives its text at the end, which has shown none, adds none, and a
+    /// cleanup that has not answered is given up: the raw text stays. Returns whether there was a dictation to cancel.
     @discardableResult
     public func cancel() -> Bool {
         queued = nil
         guard state != .idle else { return false }
+        skip()
+        return true
+    }
+
+    private func skip() {
         running?.cancel()
         end()
-        return true
     }
 
     private func halt() {
         switch state {
-        case .idle, .transcribing: return
+        case .idle, .transcribing, .cleaning: return
         case .gettingReady:
-            running?.cancel()
-            end()
+            skip()
         case .listening:
             guard stopped == false else { return }
             stopped = true
@@ -142,7 +154,7 @@ public struct DictationField {
             let mine = generation
             let timeout = Self.answerFloor + Self.answerPerAudioSecond * captured.components.seconds
             watchdog = Task {
-                guard (try? await sleep(timeout)) != nil, generation == mine else { return }
+                guard (try? await sleep(timeout)) != nil, Task.isCancelled == false, generation == mine else { return }
                 running?.cancel()
                 fail(DictationFailure("The recognizer did not answer."))
             }
@@ -193,7 +205,53 @@ public struct DictationField {
                 field.put(edit.text, edit.caret, tentative.range)
             }
         }
-        if generation == mine { end() }
+        guard generation == mine else { return }
+        await clean(mine)
+        // a cleanup that failed has told its cause, which is not a stop
+        if generation == mine { end(announcing: failure == nil) }
+    }
+
+    /// Replaces the text this dictation added with the cleaned one, in the state `.cleaning`, which a skip, a failure and a text that changed meanwhile
+    /// leave as it was: the raw text is never lost.
+    private func clean(_ mine: Int) async {
+        // the recognizer has answered: the time it was given is spent, and the cleanup has its own
+        watchdog?.cancel()
+        watchdog = nil
+        guard let cleanup, let field else { return }
+        settle()
+        guard let range = tentative.written else { return }
+        let ns = field.text() as NSString
+        guard NSMaxRange(NSRange(location: range.lowerBound, length: range.count)) <= ns.length else { return }
+        let added = ns.substring(with: NSRange(location: range.lowerBound, length: range.count))
+        guard added.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
+        state = .cleaning
+        let cleaned: String
+        do { cleaned = try await cleanup(added) } catch {
+            guard generation == mine, let owner else { return }
+            refuse(DictationFailure((error as? CleanupFailure)?.message ?? error.localizedDescription), for: owner)
+            return
+        }
+        guard generation == mine else { return }
+        let text = field.text() as NSString
+        let place = NSRange(location: range.lowerBound, length: range.count)
+        guard NSMaxRange(place) <= text.length, text.substring(with: place) == added else { return }
+        let caret = field.caret(), delta = (cleaned as NSString).length - place.length
+        field.put(
+            text.replacingCharacters(in: place, with: cleaned),
+            caret <= place.location ? caret : caret >= NSMaxRange(place) ? caret + delta : place.location + (cleaned as NSString).length, nil
+        )
+        words = wordCount(cleaned)
+    }
+
+    /// A partial text on the screen stays, as final, and its words count.
+    private func settle() {
+        guard let field else { return }
+        if tentative.range != nil {
+            words += partialWords
+            partialWords = 0
+            tentative.close()
+        }
+        field.put(field.text(), field.caret(), nil)
     }
 
     private func wordCount(_ heard: String) -> Int { heard.split(whereSeparator: \.isWhitespace).count }
@@ -207,20 +265,15 @@ public struct DictationField {
     /// Back to idle: the audio is dropped, and a partial text on the screen is kept as final.
     private func end(announcing: Bool = true) {
         capture.stop()
-        // a partial text on the screen stays, so its words count; the range is cleared even when the person's edit had already ended the writing
-        if let field {
-            if tentative.range != nil {
-                words += partialWords
-                tentative.close()
-            }
-            field.put(field.text(), field.caret(), nil)
-        }
-        if announcing, state == .listening || state == .transcribing { announce(dictationAnnouncement(.stopped(words: words))) }
+        // the range is cleared even when the person's edit had already ended the writing
+        settle()
+        if announcing, state == .listening || state == .transcribing || state == .cleaning { announce(dictationAnnouncement(.stopped(words: words))) }
         watchdog?.cancel()
         watchdog = nil
         running = nil
         field = nil
         model = nil
+        cleanup = nil
         let finished = owner
         owner = nil
         generation += 1
@@ -228,7 +281,7 @@ public struct DictationField {
         onEnd?(finished)
         if let next = queued {
             queued = nil
-            start(recognizer: next.recognizer, model: next.model, into: next.field)
+            start(recognizer: next.recognizer, model: next.model, into: next.field, cleanup: next.cleanup)
         }
     }
 }

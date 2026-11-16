@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Settings stops growing at 1300 pt wide on a large window; its height still follows the window.
+
 ## [0.6.0] - 2026-11-15
 
 Carrier gets embedded terminals with their own Settings page, a redesigned epic view, and an update pill in the sidebar in place of Sparkle's window.

@@ -426,7 +426,8 @@ final class WindowController: NSObject, NSWindowDelegate {
         let pages: [(String, () -> Void)] = [
             ("home", { self.model.shell.selection = .home }), ("sessions", { self.model.shell.selection = .sessions }),
             ("new session", { self.model.shell.selection = .newSession }), ("archive", { self.model.shell.selection = .archive }),
-            ("carrier", { self.model.shell.selection = .carrier }), ("usage", { self.model.shell.selection = .usage }),
+            ("carrier", { self.model.shell.selection = .carrier }), ("terminals", { self.model.shell.selection = .terminals }),
+            ("usage", { self.model.shell.selection = .usage }),
             ("first session", { self.selectFirstSession() }),
         ]
         for (name, select) in pages {

@@ -359,7 +359,9 @@ private struct CarrierRow: View {
             }
         }, below: {
             if state == .stopped, let notice = engineNotConfiguredNotice(configExists: start.configExists) {
-                Text(notice).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                // a line limit, so the height this asks for has a ceiling: measured at no width, wrapped text wants a line per word, and the
+                // foot of the sidebar then asked for more than the window had and pushed the rows above and under it out of sight
+                Text(notice).font(.caption).foregroundStyle(.orange).lineLimit(4).fixedSize(horizontal: false, vertical: true).help(notice)
             }
             if let slots = card.slots {
                 HStack(spacing: 8) {

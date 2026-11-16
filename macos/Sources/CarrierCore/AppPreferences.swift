@@ -42,6 +42,10 @@ public struct AppPreferences {
     public static let newSessionAccessKey = "chat.newSession.access"
     public static let workInKey = "chat.newSession.workIn"
     public static let dictationEnabledKey = "dictation.enabled"
+    public static let dictationCleanupEnabledKey = "dictation.cleanup.enabled"
+    public static let dictationCleanupServerKey = "dictation.cleanup.server"
+    public static let dictationCleanupModelKey = "dictation.cleanup.model"
+    public static let dictationCleanupPromptKey = "dictation.cleanup.prompt"
     public static let dictationModelKey = "dictation.model"
     public static let dictationLanguageKey = "dictation.language"
     public static let terminalThemeKey = "terminal.theme"
@@ -308,6 +312,30 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationEnabledKey) }
     }
 
+    /// Whether Cleanup is on: off until the person turns it on, and never on without a server and a model.
+    public var dictationCleanupEnabled: Bool {
+        get { defaults.bool(forKey: Self.dictationCleanupEnabledKey) && cleanupCanBeOn(server: dictationCleanupServer, model: dictationCleanupModel) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationCleanupEnabledKey) }
+    }
+
+    /// The model server Cleanup uses; nil while the person chose none.
+    public var dictationCleanupServer: CleanupServer? {
+        get { defaults.string(forKey: Self.dictationCleanupServerKey).flatMap(CleanupServer.init(rawValue:)) }
+        nonmutating set { defaults.set(newValue?.rawValue, forKey: Self.dictationCleanupServerKey) }
+    }
+
+    /// The model of that server Cleanup uses; nil while the person chose none.
+    public var dictationCleanupModel: String? {
+        get { defaults.string(forKey: Self.dictationCleanupModelKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationCleanupModelKey) }
+    }
+
+    /// The prompt of Cleanup: the default until the person writes one, and what they left (an empty box too) after.
+    public var dictationCleanupPrompt: String {
+        get { defaults.string(forKey: Self.dictationCleanupPromptKey) ?? defaultCleanupPrompt }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationCleanupPromptKey) }
+    }
+
     /// The id of the speech model the person chose; nil while they did not.
     public var dictationModelID: String? {
         get { defaults.string(forKey: Self.dictationModelKey) }
@@ -433,6 +461,10 @@ public struct AppPreferences {
         case .dictation:
             [
                 dictationEnabledKey,
+                dictationCleanupEnabledKey,
+                dictationCleanupServerKey,
+                dictationCleanupModelKey,
+                dictationCleanupPromptKey,
                 dictationModelKey,
                 dictationLanguageKey,
             ]

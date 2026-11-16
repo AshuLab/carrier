@@ -53,13 +53,21 @@ import Testing
 }
 
 @Test func settingsSaysWhereTheUpdateIsAndOffersTheNextClick() {
+    let version = "0.9.0"
     #expect(UpdatePhase.none.settingsDetail == nil)
     #expect(UpdatePhase.none.settingsAction == nil)
-    #expect(UpdatePhase.available(version: "0.9.0").settingsDetail == "Carrier 0.9.0 is available")
-    #expect(UpdatePhase.available(version: "0.9.0").settingsAction == "Update")
-    #expect(UpdatePhase.downloading(version: "0.9.0", percent: 42).settingsDetail == "Downloading Carrier 0.9.0, 42%")
-    #expect(UpdatePhase.downloading(version: "0.9.0", percent: 42).settingsAction == nil)
-    #expect(UpdatePhase.ready(version: "0.9.0").settingsAction == "Restart")
-    #expect(UpdatePhase.installing.settingsAction == nil)
-    #expect(UpdatePhase.failed(version: "0.9.0").settingsAction == "Retry")
+    #expect(UpdatePhase.available(version: version).settingsDetail == "Carrier 0.9.0 is available")
+    #expect(UpdatePhase.downloading(version: version, percent: 42).settingsDetail == "Downloading Carrier 0.9.0, 42%")
+    #expect(UpdatePhase.ready(version: version).settingsDetail == "Carrier 0.9.0 is downloaded and waits for a restart")
+    #expect(UpdatePhase.installing.settingsDetail == "Restarting…")
+    #expect(UpdatePhase.failed(version: version).settingsDetail == "Carrier 0.9.0 could not be updated")
+}
+
+@Test func theSettingsButtonKeepsItsWordsWhileItsStepRuns() {
+    let available = UpdatePhase.available(version: "0.9.0").settingsAction
+    #expect(available == UpdateAction(title: "Update", symbol: "arrow.down.to.line", working: false))
+    #expect(UpdatePhase.downloading(version: "0.9.0", percent: 5).settingsAction == UpdateAction(title: "Update", symbol: "arrow.down.to.line", working: true))
+    #expect(UpdatePhase.ready(version: "0.9.0").settingsAction == UpdateAction(title: "Restart", symbol: "arrow.clockwise", working: false))
+    #expect(UpdatePhase.installing.settingsAction == UpdateAction(title: "Restart", symbol: "arrow.clockwise", working: true))
+    #expect(UpdatePhase.failed(version: "0.9.0").settingsAction == UpdateAction(title: "Retry", symbol: "arrow.clockwise", working: false))
 }

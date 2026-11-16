@@ -8,6 +8,14 @@ public enum UpdatePhase: Equatable, Sendable {
     case failed(version: String)
 }
 
+/// The button of Settings > Updates > This Carrier while an update is on its way: the pill's own step, drawn as a button.
+public struct UpdateAction: Equatable, Sendable {
+    public let title: String
+    public let symbol: String
+    /// The step is running (a download, a restart): the button keeps its words, is dimmed and shows a spinner beside it.
+    public let working: Bool
+}
+
 extension UpdatePhase {
     /// What Settings > Updates says about this Carrier while an update is on its way, in place of the time of the last check; nil with nothing new.
     public var settingsDetail: String? {
@@ -17,17 +25,19 @@ extension UpdatePhase {
         case .downloading(let version, let percent): "Downloading Carrier \(version), \(percent)%"
         case .ready(let version): "Carrier \(version) is downloaded and waits for a restart"
         case .installing: "Restarting…"
-        case .failed(let version): "The download of Carrier \(version) failed"
+        case .failed(let version): "Carrier \(version) could not be updated"
         }
     }
 
-    /// The words of the button that moves the update one step, the same click as the sidebar's pill; nil when nothing waits for a click.
-    public var settingsAction: String? {
+    /// The button that moves the update one step, the same click as the sidebar's pill; nil when there is no update.
+    public var settingsAction: UpdateAction? {
         switch self {
-        case .available: "Update"
-        case .ready: "Restart"
-        case .failed: "Retry"
-        case .none, .downloading, .installing: nil
+        case .none: nil
+        case .available: UpdateAction(title: "Update", symbol: "arrow.down.to.line", working: false)
+        case .downloading: UpdateAction(title: "Update", symbol: "arrow.down.to.line", working: true)
+        case .ready: UpdateAction(title: "Restart", symbol: "arrow.clockwise", working: false)
+        case .installing: UpdateAction(title: "Restart", symbol: "arrow.clockwise", working: true)
+        case .failed: UpdateAction(title: "Retry", symbol: "arrow.clockwise", working: false)
         }
     }
 }

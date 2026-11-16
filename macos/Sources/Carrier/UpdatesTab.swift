@@ -55,15 +55,15 @@ struct UpdatesTabView: View {
     }
 
     @ViewBuilder private var thisCarrierAction: some View {
-        let phase = model.flow.phase
-        if let action = phase.settingsAction {
-            Button { model.press() } label: { Label(action, systemImage: action == "Update" ? "arrow.down.to.line" : "arrow.clockwise") }
-                .buttonStyle(PrimaryCapsuleButtonStyle())
-        } else if phase == UpdatePhase.none {
+        if let action = model.flow.phase.settingsAction {
+            HStack(spacing: 10) {
+                if action.working { ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Updating") }
+                Button { model.press() } label: { Label(action.title, systemImage: action.symbol) }
+                    .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(action.working)
+            }
+        } else {
             Button { prefs.checkNow() } label: { Label("Check now", systemImage: "arrow.clockwise") }
                 .buttonStyle(SecondaryCapsuleButtonStyle()).disabled(prefs.canCheck == false)
-        } else {
-            ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Updating")
         }
     }
 

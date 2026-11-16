@@ -16,6 +16,8 @@ import Testing
     var decision = PasteDecision.paste
     var hasModel = true
     var activation = DictationActivation.toggle
+    /// The model server of Cleanup; nil is Cleanup off.
+    var server: ScriptedModel?
 
     init(recognizer: ScriptedRecognizer = ScriptedRecognizer(atAudioEnd: [.final("")]), capture: ScriptedCapture = ScriptedCapture()) {
         self.capture = capture
@@ -26,7 +28,8 @@ import Testing
             session: session, speechModel: { [unowned self] in hasModel ? (recognizer, recognizer.models[0]) : nil }, microphone: { [unowned self] in microphone },
             decision: { [unowned self] in decision }, activation: { [unowned self] in activation },
             moment: { [unowned self] in moments.append($0) }, record: { [unowned self] in recorded.append($0) }, frontApp: { [unowned self] in frontApp },
-            perform: { [unowned self] in effects.append($0) })
+            cleanup: { [unowned self] in server.map { server in { try await CleanupRun(client: server).run(server: .ollama, model: "m", prompt: "Clean it", text: $0).text } } },
+            cleanupModel: { "m" }, perform: { [unowned self] in effects.append($0) })
     }
 
     var session: DictationSession { machine.session }
@@ -43,6 +46,33 @@ import Testing
     func listen() async {
         machine.handle(.down)
         await until { session.state == .listening }
+    }
+}
+
+/// A model server that answers when a test says so.
+private final class ScriptedModel: TextModelClient, @unchecked Sendable {
+    private let lock = NSLock()
+    private var answer: Result<String, any Error>?
+    private var waiting: CheckedContinuation<Void, Never>?
+
+    func models(of server: CleanupServer) async throws -> [String] { [] }
+
+    func complete(server: CleanupServer, model: String, system: String, text: String, timeout: Duration) async throws -> String {
+        await withCheckedContinuation { continuation in
+            lock.withLock {
+                if answer == nil { waiting = continuation } else { continuation.resume() }
+            }
+        }
+        return try lock.withLock { answer }!.get()
+    }
+
+    func reply(_ result: Result<String, any Error>) {
+        let resumed = lock.withLock {
+            answer = result
+            defer { waiting = nil }
+            return waiting
+        }
+        resumed?.resume()
     }
 }
 
@@ -484,4 +514,94 @@ func aTextThatCannotBePastedIsCopiedAndStaysInTheWidgetWithItsReason(reason: Pas
     widget.machine.handle(.down)
     await widget.until { widget.machine.state == .idle }
     #expect(widget.machine.farewell == nil)
+}
+
+// The cleanup of the widget's text (docs/adr/0030): the model client is scripted, and the session is the one of the boxes.
+
+/// A widget that dictated "um hola mundo" and was ended, so it is cleaning, with `reason` as what the paste decides.
+@MainActor private func cleaningWidget(_ decision: PasteDecision = .paste) async -> (Widget, ScriptedModel) {
+    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("um hola mundo")]))
+    let server = ScriptedModel()
+    widget.server = server
+    widget.decision = decision
+    await widget.listen()
+    widget.machine.handle(.down)
+    await widget.until { widget.session.state == .cleaning }
+    return (widget, server)
+}
+
+@MainActor @Test func aDictationEndedWithTheCleanupOnShowsCleaningWithTheRawTextAndThenPastesTheCleanedText() async {
+    let (widget, server) = await cleaningWidget()
+    #expect(widget.machine.shown == .cleaning && widget.machine.text == "um hola mundo" && widget.effects == [.show])
+    server.reply(.success("Hola mundo."))
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.effects == [.show, .paste("Hola mundo."), .close] && widget.machine.shown == .pasted && widget.machine.notCleaned == nil)
+    #expect(widget.recorded.map(\.text) == ["um hola mundo"] && widget.recorded.map(\.cleaned) == ["Hola mundo."] && widget.recorded.map(\.cleanupModel) == ["m"])
+    #expect(widget.recorded.map(\.outcome) == [.pasted] && widget.logged.causes.isEmpty)
+}
+
+@MainActor @Test func aCleanedTextThatCannotBePastedIsTheOneCopiedAndKept() async {
+    let (widget, server) = await cleaningWidget(.copyOnly(.noField))
+    server.reply(.success("Hola mundo."))
+    await widget.until { widget.machine.state != .running }
+    #expect(widget.effects == [.show, .copy("Hola mundo.")] && widget.machine.state == .copied(.noField) && widget.machine.notCleaned == nil)
+}
+
+@MainActor @Test func escapeWhileItCleansSkipsTheCleanupAndPastesTheRawText() async {
+    let (widget, server) = await cleaningWidget()
+    widget.machine.handle(.escape)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.effects == [.show, .paste("um hola mundo"), .close] && widget.machine.shown == .pasted && widget.machine.notCleaned == nil)
+    #expect(widget.recorded.map(\.cleaned) == [nil] && widget.recorded.map(\.cleanupModel) == [nil] && widget.recorded.map(\.outcome) == [.pasted])
+    // the answer that comes late changes nothing
+    server.reply(.success("Hola mundo."))
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(widget.effects == [.show, .paste("um hola mundo"), .close] && widget.logged.causes.isEmpty)
+}
+
+@MainActor @Test(arguments: [CleanupFailure.serverDown(.ollama), .noModel, .timeout])
+func aCleanupThatFailsPastesTheRawTextSaysItWasNotCleanedAndLogsTheCauseAlone(failure: CleanupFailure) async {
+    let (widget, server) = await cleaningWidget()
+    server.reply(.failure(failure))
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.effects == [.show, .paste("um hola mundo"), .close])
+    #expect(widget.machine.shown == .pastedRaw && widget.machine.notCleaned == failure.message)
+    #expect(widget.logged.causes == [failure.message])
+    #expect(widget.recorded.map(\.outcome) == [.pasted] && widget.recorded.map(\.cleaned) == [nil])
+}
+
+@MainActor @Test func aCleanupThatFailsOnATextThatCannotBePastedKeepsTheRawTextCopiedWithTheCause() async {
+    let (widget, server) = await cleaningWidget(.copyOnly(.secureField))
+    server.reply(.failure(CleanupFailure.timeout))
+    await widget.until { widget.machine.state != .running }
+    #expect(widget.effects == [.show, .copy("um hola mundo")] && widget.machine.state == .copied(.secureField))
+    #expect(widget.machine.notCleaned == CleanupFailure.timeout.message)
+}
+
+@MainActor @Test func theNextDictationForgetsWhyTheLastOneWasNotCleaned() async {
+    let (widget, server) = await cleaningWidget()
+    server.reply(.failure(CleanupFailure.timeout))
+    await widget.until { widget.machine.state == .idle }
+    widget.server = nil
+    await widget.listen()
+    #expect(widget.machine.notCleaned == nil && widget.machine.shown == .listening)
+    widget.machine.handle(.escape)
+}
+
+@MainActor @Test func withTheCleanupOffTheFlowIsTheOneItWas() async {
+    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("um hola")]))
+    await widget.listen()
+    widget.machine.handle(.down)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.effects == [.show, .paste("um hola"), .close] && widget.recorded.map(\.cleaned) == [nil] && widget.machine.shown == .pasted)
+}
+
+@MainActor @Test func aFailureToRecognizeIsStillAFailureWithTheCleanupOn() async {
+    let widget = Widget()
+    widget.server = ScriptedModel()
+    await widget.listen()
+    widget.recognizer.say(.partial("hola"))
+    widget.recognizer.say(.failed(DictationFailure("The model broke")))
+    await widget.until { widget.machine.state == .failed("The model broke") }
+    #expect(widget.effects == [.show] && widget.machine.notCleaned == nil)
 }

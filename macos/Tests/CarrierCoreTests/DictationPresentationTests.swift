@@ -70,7 +70,8 @@ func theBoxStylesAreTwoThreeAndFourLinesAtTheirWidthsAndTextSizes(style: Dictati
 }
 
 @Test(arguments: [
-    (DictationWidgetState.working, DictationWidgetIcon.spinner), (.listening, .mic), (.pasted, .check), (.cancelled, .xmark),
+    (DictationWidgetState.working, DictationWidgetIcon.spinner), (.listening, .mic), (.cleaning, .sparkle), (.pasted, .check), (.pastedRaw, .warning),
+    (.cancelled, .xmark),
 ])
 func thePillsIconFollowsTheState(state: DictationWidgetState, icon: DictationWidgetIcon) {
     let look = dictationWidgetLook(state, style: .pill)
@@ -94,9 +95,17 @@ func theStatesThatNeedTextOrAButtonOpenThePillAsTheSmallBoxAndKeepTheChosenBox(s
     #expect(large.box == DictationWidgetStyle.large.box && large.opensAsSmall == false)
 }
 
-@Test func onlyPastedAndCancelledFade() {
-    let fading = [DictationWidgetState.working, .listening, .failed, .copied, .pasted, .cancelled].filter { dictationWidgetLook($0, style: .medium).fades }
-    #expect(fading == [.pasted, .cancelled])
+@Test func onlyPastedPastedRawAndCancelledFadeAndThePastedRawOneStaysLongerForItsCause() {
+    let all: [DictationWidgetState] = [.working, .listening, .cleaning, .failed, .copied, .pasted, .pastedRaw, .cancelled]
+    #expect(all.filter { dictationWidgetLook($0, style: .medium).fades } == [.pasted, .pastedRaw, .cancelled])
+    #expect(dictationWidgetLook(.pastedRaw, style: .pill).linger > dictationWidgetLook(.pasted, style: .pill).linger)
+}
+
+@Test(arguments: [DictationWidgetState.cleaning, .pastedRaw])
+func cleaningAndThePastedWithoutCleaningNeedNoTextOrButtonSoThePillStaysAPill(state: DictationWidgetState) {
+    let pill = dictationWidgetLook(state, style: .pill)
+    #expect(pill.box == nil && pill.opensAsSmall == false)
+    #expect(dictationWidgetLook(state, style: .large).box == DictationWidgetStyle.large.box)
 }
 
 @Test(arguments: [(DictationWidgetPosition.top, 748.0), (.bottom, 124.0)])

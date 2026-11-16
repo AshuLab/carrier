@@ -507,6 +507,6 @@ private struct ClosedSessionNotice: View {
     let chosen: Bool
 
     var body: some View {
-        NoticeCard(symbol: "moon.zzz.fill", tint: .indigo, title: closedSessionNotice.title, detail: chosen ? closedSessionNotice.chosen : closedSessionNotice.detail, tinted: true) {}
+        NoticeCard(symbol: "moon.zzz.fill", tint: .indigo, title: closedSessionNotice.title, detail: chosen ? closedSessionNotice.chosen : closedSessionNotice.detail) {}
     }
 }

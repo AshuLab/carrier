@@ -20,3 +20,37 @@ public final class PollPace: Sendable {
     /// The wait before the next ask.
     public var seconds: TimeInterval { attentive.withLock { $0 } ? Self.attentiveSeconds : Self.backgroundSeconds }
 }
+
+/// The wait between two reads of the chat host, which can be cut short: after the person archives a session, the list is read at once and
+/// not at the next tick. A `wake` that comes before the wait starts (while a read is in flight) makes the next wait return at once.
+public final class PollNap: Sendable {
+    private struct State {
+        var sleeping: Task<Void, Never>?
+        var woken = false
+    }
+
+    private let state = Mutex(State())
+
+    public init() {}
+
+    public func wake() {
+        state.withLock {
+            $0.woken = true
+            $0.sleeping?.cancel()
+        }
+    }
+
+    public func sleep(seconds: TimeInterval) async {
+        let nap = Task<Void, Never> { _ = try? await Task.sleep(for: .seconds(seconds)) }
+        let skip = state.withLock { state in
+            if state.woken { return true }
+            state.sleeping = nap
+            return false
+        }
+        if skip { nap.cancel() } else { await nap.value }
+        state.withLock {
+            $0.sleeping = nil
+            $0.woken = false
+        }
+    }
+}

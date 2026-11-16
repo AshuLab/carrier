@@ -33,7 +33,7 @@ struct AccountEditor: View {
         VStack(alignment: .leading, spacing: 8) {
             if inFile == false {
                 // never a blank form that would write over an account it did not read
-                Label("\(account.title) is not in providers.json, so there is nothing to edit.", systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                Label("\(account.title) is not in providers.json, so there is nothing to edit.", systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange)
                 Button("Close") { close() }.buttonStyle(SecondaryCapsuleButtonStyle())
             } else {
                 SettingsGroup(title: "Edit \(account.title)") {

@@ -28,11 +28,11 @@ struct AgentsTabView: View {
                 flow(page)
                 if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
                 ReloadNote().padding(.horizontal, 4)
-                if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
-                if let note = page.bots.note { Text(note).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
+                if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.scaled(12)).foregroundStyle(.secondary).padding(.horizontal, 4) }
+                if let note = page.bots.note { Text(note).font(.scaled(12)).foregroundStyle(.secondary).padding(.horizontal, 4) }
             } else {
                 Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout).foregroundStyle(.orange)
+                    .font(.scaled(12)).foregroundStyle(.orange)
             }
         }
         .writingToolsBehavior(.disabled)
@@ -139,15 +139,15 @@ struct AgentsTabView: View {
     /// the account and the identity it works as.
     @ViewBuilder private func listLines(_ row: RoleRow) -> some View {
         if row.off {
-            Text("Off").font(.caption).foregroundStyle(.secondary)
+            Text("Off").font(.scaled(11)).foregroundStyle(.secondary)
         } else {
             let model = row.fields.model.flatMap { $0.isEmpty ? nil : $0 }
             let effort = row.fields.effort.flatMap { $0.isEmpty ? nil : $0 }
             (Text(model ?? "No model").fontWeight(.medium).foregroundStyle(model == nil ? Color.secondary : Color.primary)
                 + Text(effort.map { "  \u{00b7}  \($0)" } ?? "").foregroundStyle(.secondary))
-                .font(.caption).lineLimit(1)
+                .font(.scaled(11)).lineLimit(1)
             Text([row.fields.provider, row.fields.profile].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: "  \u{00b7}  "))
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                .font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
         }
     }
 
@@ -160,7 +160,7 @@ struct AgentsTabView: View {
                             .labelsHidden().toggleStyle(.switch)
                     }
                 }
-                if turningOnLead, let hint = leadDraft.hint { Text(hint).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
+                if turningOnLead, let hint = leadDraft.hint { Text(hint).font(.scaled(12)).foregroundStyle(.secondary).padding(.horizontal, 4) }
             }
             VStack(alignment: .leading, spacing: 14) {
                 SettingsGroup(title: "Who") {
@@ -181,7 +181,7 @@ struct AgentsTabView: View {
                             }
                         }
                     }
-                    if let problem { ProblemLine(text: problem, font: .caption).textSelection(.enabled).padding(.vertical, 8) }
+                    if let problem { ProblemLine(text: problem, font: .scaled(11)).textSelection(.enabled).padding(.vertical, 8) }
                 }
                 SettingsGroup(title: "Details") {
                     SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
@@ -213,7 +213,7 @@ struct AgentsTabView: View {
                     }
                     if row.steps.count > 2 {
                         Text("The file has \(row.steps.count - 2) more step\(row.steps.count == 3 ? "" : "s"), kept and tried in order.")
-                            .font(.caption).foregroundStyle(.secondary).padding(.vertical, 8)
+                            .font(.scaled(11)).foregroundStyle(.secondary).padding(.vertical, 8)
                     }
                 }
             }
@@ -308,7 +308,7 @@ private struct CommitField: View {
 
     var body: some View {
         TextField(label, text: $draft, prompt: Text(prompt))
-            .font(mono ? .scaled(11.5, design: .monospaced) : .body).settingsField(width: width, focused: $focused)
+            .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(13)).settingsField(width: width, focused: $focused)
             .onSubmit(save)
             .onChange(of: focused) { _, now in if now == false { save() } }
             .accessibilityLabel(label)
@@ -339,7 +339,7 @@ private struct CommitEditor: View {
     }
 
     var body: some View {
-        TextEditor(text: $draft).font(.body).scrollContentBackground(.hidden).frame(height: 96)
+        TextEditor(text: $draft).font(.scaled(13)).scrollContentBackground(.hidden).frame(height: 96)
             .overlay(alignment: .topLeading) {
                 if draft.isEmpty { Text(prompt).foregroundStyle(.tertiary).padding(.leading, 5).allowsHitTesting(false) }
             }

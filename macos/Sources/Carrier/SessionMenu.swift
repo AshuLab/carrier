@@ -25,6 +25,8 @@ private struct SessionContextMenu: ViewModifier {
     private func menu() -> NSMenu {
         let menu = NSMenu()
         menu.allowsContextMenuPlugIns = false
+        // an item the menu cannot use stays off: with auto-enabling the target it has would turn it on
+        menu.autoenablesItems = false
         let sections = sessionMenu(row, pinned: pinnedIds(pinnedStored).contains(row.id), canFilter: filterWorkspace != nil)
         for (index, section) in sections.enumerated() {
             if index > 0 { menu.addItem(.separator()) }
@@ -43,6 +45,10 @@ private struct SessionContextMenu: ViewModifier {
             entry.target = handler
             entry.action = #selector(MenuHandler.fire)
             entry.representedObject = handler  // the item does not keep its target alive
+            if let reason = item.disabledReason {
+                entry.isEnabled = false
+                entry.toolTip = reason
+            }
         } else {
             entry.submenu = NSMenu()
             entry.submenu?.allowsContextMenuPlugIns = false

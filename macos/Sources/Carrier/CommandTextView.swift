@@ -252,6 +252,13 @@ struct CommandTextView: NSViewRepresentable {
             case #selector(NSResponder.moveUp(_:)): return parent.onKey(.up)
             case #selector(NSResponder.moveDown(_:)): return parent.onKey(.down)
             case #selector(NSResponder.cancelOperation(_:)): return parent.onKey(.escape)
+            // Home and End only scroll in a text view; in the message box they take the caret to the start and the end of the text
+            case #selector(NSResponder.scrollToBeginningOfDocument(_:)):
+                textView.moveToBeginningOfDocument(nil)
+                return true
+            case #selector(NSResponder.scrollToEndOfDocument(_:)):
+                textView.moveToEndOfDocument(nil)
+                return true
             default: return false
             }
         }
@@ -354,6 +361,22 @@ final class PillTextView: NSTextView {
         guard urls.isEmpty == false else { return super.performDragOperation(sender) }
         onFileDrag?(false)
         return onFiles?(urls) ?? false
+    }
+
+    /// ⌘↓ is the menu's "Jump to the Latest Message" as well, and the menu would take it before the text sees it. In the box it first takes the
+    /// caret to the end of the text, as any text field does; with the caret already there (or the box empty) it is the menu's again.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard takesCommandDown(event) else { return super.performKeyEquivalent(with: event) }
+        moveToEndOfDocument(nil)
+        return true
+    }
+
+    /// Whether `event` is ⌘↓ with the caret somewhere before the end of the text, here: the window's shortcut monitor leaves it to the box.
+    func takesCommandDown(_ event: NSEvent) -> Bool {
+        let range = selectedRange()
+        let atEnd = range.length == 0 && range.location == (string as NSString).length
+        let commandDown = event.keyCode == 125 && event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command
+        return commandDown && atEnd == false && window?.firstResponder === self
     }
 
     /// ⌘Return does not reach `insertNewline` on its own (the system reads it as a shortcut), so the box asks the coordinator itself.

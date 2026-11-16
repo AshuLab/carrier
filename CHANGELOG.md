@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Code blocks wrap long lines when Wrap long lines is on (a command in a tool call no longer runs off the card): a block that wraps has no horizontal scroll, which offered the text no width to break at.
 - Choosing an accent color no longer changes the tint of the windows: with Tint the windows on, the backgrounds keep the theme's own color and the accent only colors the elements.
 - The agent's work card lines up: the icon of its line sits over the steps' nodes and the first line of a thought is level with its icon; thoughts read a little larger and looser.
 - An update whose restart was held up (the app did not close) no longer leaves the pill stuck on Restarting…: clicking it asks Carrier to quit again.

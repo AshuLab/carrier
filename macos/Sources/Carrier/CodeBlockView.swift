@@ -35,8 +35,8 @@ struct CodeBlockView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            ScrollView(.horizontal) { content }
-                .scrollDisabled(wrapped)
+            // a horizontal scroll offers its content no width to wrap at, so a block that wraps has none: the text takes the width of the card
+            if wrapped { content } else { ScrollView(.horizontal) { content } }
             if foldable { foldButton }
         }
         // the header and the fold are tints inside the shape; glass draws the edge, so there is no border to meet the corners badly

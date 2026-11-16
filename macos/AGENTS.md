@@ -9,7 +9,7 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 ## Tests
 
-The gated tests of Apple's recognizer (`AppleRecognizerTests`, with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`), of FluidAudio's models (`FluidAudioRecognizerTests`, one run per entry: the Spanish clip, or `hello-en.wav` for the English-only ones, gives text (partial first for the native ones) twice with one loaded model; no speech gives an empty final; a Parakeet folder missing a file fails with its cause and downloads nothing) and of Whisper's (`WhisperKitRecognizerTests`: text from the Spanish clip for each of the four models, an empty final for no speech, and a tiny folder missing a model file or the tokenizer fails with its cause and fetches nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
+The gated recognizer tests (`AppleRecognizerTests` with the clip `Tests/CarrierTests/Resources/hola-es.wav` made by `say`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`) check text from the Spanish clip (`hello-en.wav` for English-only models), an empty final for no speech, and a model folder missing a file failing with its cause and downloading nothing. FluidAudio's and Whisper's run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, `<folder>/whisper/<model>/models/...`).
 The embedded-terminal live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
 
 ## Starting Carrier and the chat host
@@ -109,7 +109,8 @@ The page is `Carrier/DictationTab.swift`, a list of one view per group (a new gr
 
 ### Global dictation
 
-See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, real session, scripted recognizer).
+See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, real session, scripted recognizer; Hold is `.up`).
+Shortcut and activation: `CarrierCore/DictationShortcut.swift` (`recordShortcut`, `DictationShortcutTests`) and the recorder row in `GlobalDictationGroup`, untested.
 `CarrierCore/PasteDecision.swift` (`pasteDecision`, `PasteDecisionTests`) picks paste or copy from `Carrier/FocusedField.swift`, which reads the focus (untested).
 `Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); keys, panel and real ⌘V untested.
 Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest` (`MessageBoxDictationTests`).

@@ -13,9 +13,9 @@ import SwiftUI
 
     private let panel: NSPanel
 
-    init(dictation: GlobalDictation, shortcut: String) {
+    init(dictation: GlobalDictation, hint: @escaping () -> String) {
         panel = WidgetPanel(contentRect: NSRect(x: 0, y: 0, width: Self.width, height: Self.height))
-        panel.contentView = NSHostingView(rootView: DictationWidgetView(dictation: dictation, shortcut: shortcut))
+        panel.contentView = NSHostingView(rootView: DictationWidgetView(dictation: dictation, hint: hint))
     }
 
     func show() {
@@ -68,7 +68,8 @@ private final class WidgetPanel: NSPanel {
 
 private struct DictationWidgetView: View {
     let dictation: GlobalDictation
-    let shortcut: String
+    /// The keys line: what ends the dictation and Esc.
+    let hint: () -> String
     /// Copy was pressed; it goes back when the widget has new text.
     @State private var copied = false
 
@@ -96,7 +97,7 @@ private struct DictationWidgetView: View {
                     }
                 }
                 Spacer()
-                Text("\(shortcut) to finish · Esc to cancel")
+                Text(hint())
             }
             .font(.caption).foregroundStyle(.secondary)
         }

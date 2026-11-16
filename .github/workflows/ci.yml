@@ -1,29 +1,32 @@
 name: CI
 
-# The one entry for a pull request into main. Slice PRs into an epic branch and drafts run nothing:
-# ship opens the integration PR as a draft, so this runs once a person marks it ready.
+# The one entry for a pull request into main, and for main itself after a merge.
+# Slice PRs into an epic branch and drafts run nothing: ship opens the integration PR as a draft, so this runs once a person marks it ready.
 # It always triggers (no paths filter on the workflow), and `changes` decides what runs, so `success` is never left pending.
 # A job skipped by its `if:` counts as passed, so a draft never blocks.
 # Order: engine (cheap, Linux) first, macOS (10x the minutes) only if it did not fail.
+# A push to main runs the engine only: two PRs that were green apart can still break main together.
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
 
-# A new push replaces the run of the previous one.
+# A new push to a PR replaces the previous run; main's runs all finish.
 concurrency:
-  group: ci-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
-  pull-requests: read # `changes` lists the files of the PR
+  pull-requests: read # `changes` and `changelog` read the PR's files and labels
 
 jobs:
   # engine: anything but a change that is only inside macos/. macos: the app, its notices, or the workflows themselves.
   changes:
     name: Changes
-    if: github.event.pull_request.draft == false
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -33,8 +36,14 @@ jobs:
       - id: files
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
           PR: ${{ github.event.pull_request.number }}
         run: |
+          if [ "$EVENT" = push ]; then
+            echo "engine=true" >> "$GITHUB_OUTPUT"
+            echo "macos=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           FILES="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename')"
           echo "$FILES"
           echo "engine=$(echo "$FILES" | grep -qvE '^macos/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
@@ -53,11 +62,30 @@ jobs:
     if: ${{ !cancelled() && needs.changes.outputs.macos == 'true' && needs.engine.result != 'failure' }}
     uses: ./.github/workflows/_macos.yml
 
+  # CONTRIBUTING: a change someone can see adds a line under [Unreleased]. Source other than tests or the app's sources needs one,
+  # unless the PR has the `no-changelog` label (read when the job runs, so add the label and re-run this job).
+  changelog:
+    name: Changelog
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          FILES="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename')"
+          echo "$FILES" | grep -qxF CHANGELOG.md && { echo "CHANGELOG.md is in the PR"; exit 0; }
+          echo "$FILES" | grep -E '^(src/|macos/Sources/)' | grep -vE '(\.test\.ts|Tests?\.swift)$' | grep -q . || { echo "no user-visible source in the PR"; exit 0; }
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -qxF no-changelog && { echo "labelled no-changelog"; exit 0; }
+          echo "::error file=CHANGELOG.md::The PR changes src/ or macos/Sources/ without a line under [Unreleased]. Add it, or label the PR no-changelog if nobody can see the change, and re-run this job." >&2
+          exit 1
+
   # The single check to require on main: it fails if any job failed or was cancelled, and passes when they were skipped.
   success:
     name: Success
-    needs: [changes, engine, macos]
-    if: ${{ always() && github.event.pull_request.draft == false }}
+    needs: [changes, engine, macos, changelog]
+    if: ${{ always() && (github.event_name == 'push' || github.event.pull_request.draft == false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

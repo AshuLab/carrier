@@ -168,7 +168,7 @@ struct ModelPickerButton: View {
 
     private var pill: some View {
         HStack(spacing: 8) {
-            if let current { ProviderMark(name: current.icon, size: 14) }
+            if let current { AccountMark(account: current.name, icon: current.icon, size: 14) }
             HStack(spacing: 5) {
                 if followsAll {
                     Text("Same as everywhere").lineLimit(1)
@@ -254,8 +254,8 @@ struct ModelPickerButton: View {
                     let on = account.name == shownName
                     Button { viewing = account.name; query = "" } label: {
                         VStack(spacing: 3) {
-                            ProviderMark(name: account.icon, size: 18)
-                            Text(account.name).font(.scaled(10, weight: .medium)).lineLimit(1)
+                            AccountMark(account: account.name, icon: account.icon, size: 18)
+                            Text(ProviderIdentityStore.shared.shortName(of: account.name)).font(.scaled(10, weight: .medium)).lineLimit(1)
                         }
                         .frame(minWidth: 54).padding(.horizontal, 6).padding(.vertical, 6)
                         .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, 8) } }

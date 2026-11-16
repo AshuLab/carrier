@@ -47,19 +47,19 @@ private struct SpeechModelRowView: View {
         HStack(spacing: 10) {
             radio.frame(width: SpeechModelsTable.Column.radio)
             VStack(alignment: .leading, spacing: 1) {
-                Text(row.name).font(.body.weight(.medium))
+                Text(row.name).font(.scaled(13).weight(.medium))
                 HStack(spacing: 0) {
                     Text("\(row.recognizer) · ").foregroundStyle(.secondary)
                     // underlined: the accent alone does not say it is a link when it is pale or gray
                     Link(destination: row.card) { Text(row.licence).underline() }.tint(Color.themeAccent).help("Open the card of \(row.name)")
                 }
-                .font(.caption)
+                .font(.scaled(11))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text(row.size).font(.callout).monospacedDigit().frame(width: SpeechModelsTable.Column.size, alignment: .leading)
+            Text(row.size).font(.scaled(12)).monospacedDigit().frame(width: SpeechModelsTable.Column.size, alignment: .leading)
             VStack(alignment: .leading, spacing: 1) {
-                Text(row.languages).font(.callout)
-                if row.detectsLanguage { Text("Detects the language").font(.caption).foregroundStyle(.secondary) }
+                Text(row.languages).font(.scaled(12))
+                if row.detectsLanguage { Text("Detects the language").font(.scaled(11)).foregroundStyle(.secondary) }
             }
             .frame(width: SpeechModelsTable.Column.languages, alignment: .leading)
             StatusChip(text: row.text, tint: row.live ? Color.themeAccent : .secondary).frame(width: SpeechModelsTable.Column.text, alignment: .leading)
@@ -93,12 +93,12 @@ private struct SpeechModelRowView: View {
         case .downloading(let percent):
             HStack(spacing: 6) {
                 ProgressView(value: Double(percent), total: 100).tint(Color.themeAccent)
-                Text("\(percent)%").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                Text("\(percent)%").font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit()
                 IconButton(icon: "xmark", name: "Cancel the download of \(row.name)") { cancel(row.id) }
             }
         case .failed(let cause):
             VStack(alignment: .trailing, spacing: 2) {
-                Label(cause, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange).multilineTextAlignment(.trailing)
+                Label(cause, systemImage: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange).multilineTextAlignment(.trailing)
                 Button { download(row.id) } label: { Label("Retry", systemImage: "arrow.clockwise") }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         case .delete:

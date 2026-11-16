@@ -34,9 +34,9 @@ struct KeybindingsTabView: View {
         return SettingsTabRow(title: command.title, detail: "Default: \(command.defaultCombo?.text ?? "none")", first: first) {
             HStack(spacing: 8) {
                 if let refused, refused.command == command {
-                    Label("\(refused.combo.text) is the system's", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+                    Label("\(refused.combo.text) is the system's", systemImage: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange)
                 } else if let clash {
-                    Label("Also \(clash.title)", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+                    Label("Also \(clash.title)", systemImage: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange)
                 }
                 if table.isDefault(command) == false {
                     Button { table.set(command.defaultCombo, for: command); revision += 1 } label: {

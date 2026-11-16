@@ -56,6 +56,10 @@ import SwiftUI
         var viewing: String?
         if case .session(let id) = shell.selection { viewing = id }
         if seen.apply(to: &rows, viewing: viewing) { seen.store() }
+        // a session the person just archived is drawn archived before the host's list says so
+        actions.settle(hostRows)
+        let leaving = actions.archiving
+        for index in rows.indices where leaving.contains(rows[index].id) { rows[index].archived = true }
         if sessions.rows != rows { sessions.rows = rows }
     }
 
@@ -437,7 +441,8 @@ final class WindowController: NSObject, NSWindowDelegate {
         let pages: [(String, () -> Void)] = [
             ("home", { self.model.shell.selection = .home }), ("sessions", { self.model.shell.selection = .sessions }),
             ("new session", { self.model.shell.selection = .newSession }), ("archive", { self.model.shell.selection = .archive }),
-            ("carrier", { self.model.shell.selection = .carrier }), ("usage", { self.model.shell.selection = .usage }),
+            ("carrier", { self.model.shell.selection = .carrier }), ("terminals", { self.model.shell.selection = .terminals }),
+            ("usage", { self.model.shell.selection = .usage }),
             ("first session", { self.selectFirstSession() }),
         ]
         for (name, select) in pages {
@@ -470,6 +475,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         // lives as long as the window, which is kept for the life of the app
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak window] event in
             guard let self, let window, window.isKeyWindow, event.window === window,
+                (window.firstResponder as? PillTextView)?.takesCommandDown(event) != true,
                 let action = shortcutAction(key: event.charactersIgnoringModifiers ?? "", modifiers: .init(event.modifierFlags))
             else { return event }
             self.run(action)
@@ -565,11 +571,19 @@ final class WindowController: NSObject, NSWindowDelegate {
                 DispatchQueue.main.async { if stop.isSet == false { model.adopt(rows) } }
             }
         )
-        DispatchQueue.main.async { model.actions.changed = { sessions.invalidateArchived() } }
+        // what changes the list is read at once: the wait is cut short, and the archived ones are read again
+        let nap = PollNap()
+        DispatchQueue.main.async {
+            model.actions.changed = {
+                sessions.invalidateArchived()
+                nap.wake()
+            }
+            model.actions.archivingChanged = { DispatchQueue.main.async { model.refreshUnread() } }
+        }
         Task.detached {
             repeat {
                 await sessions.poll()
-                try? await Task.sleep(for: .seconds(PollPace.shared.seconds))
+                await nap.sleep(seconds: PollPace.shared.seconds)
             } while stop.isSet == false
         }
     }

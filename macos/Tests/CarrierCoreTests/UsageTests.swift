@@ -88,14 +88,18 @@ final class UsageHost: ChatHost, @unchecked Sendable {
     var capabilitiesAnswer: Set<ControlClient.Capability> = [.usage, .usageOverride]
     var snapshot: UsageSnapshot
     var failure: Error?
-    var queries: [UsageQuery] = []
+    /// Asked from several tasks at once (an appear and a look again run side by side), so the list is kept under a lock: an append that was lost
+    /// made a test see one ask where there were two.
+    private let lock = NSLock()
+    private var asked: [UsageQuery] = []
+    var queries: [UsageQuery] { lock.withLock { asked } }
     var overrides: [UsageOverride] = []
 
     init(_ snapshot: UsageSnapshot) { self.snapshot = snapshot }
 
     func capabilities() async throws -> Set<ControlClient.Capability> { capabilitiesAnswer }
     func usage(_ query: UsageQuery) async throws -> UsageSnapshot {
-        queries.append(query)
+        lock.withLock { asked.append(query) }
         if let failure { throw failure }
         return snapshot
     }

@@ -101,7 +101,6 @@ struct NewSessionView: View {
             .accessibilityElement(children: .contain)
             if model.branchesPartial { Text("Only the first branches GitHub lists are offered; the others can be checked out once the repository is on this Mac.").font(.subheadline).foregroundStyle(.secondary) }
             if let note = model.projectNote { Label(note, systemImage: "folder.badge.plus").font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
-            if let note = model.branchNote { Text(note).font(.callout).foregroundStyle(.secondary) }
             if case .problem(let reason) = model.nameState, model.worktree {
                 Text(reason).font(.callout).foregroundStyle(.red).textSelection(.enabled)
             }
@@ -182,7 +181,7 @@ struct NewSessionView: View {
         }
         .font(.scaled(12)).padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.15)), in: .rect(cornerRadius: 12))
+        .chatSurface(.regular.tint(Color.themeAccent.opacity(0.15)), flat: Color.themeAccent.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .contain)
     }
 

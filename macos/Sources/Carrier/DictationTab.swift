@@ -43,7 +43,7 @@ struct StatusChip: View {
     let tint: Color
 
     var body: some View {
-        Text(text).font(.caption.weight(.medium)).foregroundStyle(tint)
+        Text(text).font(.scaled(11).weight(.medium)).foregroundStyle(tint)
             .padding(.horizontal, 8).padding(.vertical, 1)
             .background(Capsule().fill(tint.opacity(0.16)))
     }

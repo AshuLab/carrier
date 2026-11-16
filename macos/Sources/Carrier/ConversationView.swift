@@ -364,9 +364,21 @@ extension FeedRowView {
             .compactMap { $0 }.joined(separator: " · ")
         return HStack(spacing: 10) {
             if let model = summary.shortModel {
-                Text(model).font(.scaled(11, weight: .medium)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(Color.secondary.opacity(0.14)))
-                    .help(summary.model ?? model)
+                // an account that was given an icon, a color or a label says so here; one with none shows the model alone, as it always did
+                let identity = ProviderIdentityStore.shared.identity(of: agent)
+                HStack(spacing: 5) {
+                    if identity != .none {
+                        AccountMark(account: agent, size: 11)
+                        if let label = identity.label {
+                            Text(label).fontWeight(.semibold)
+                            Text("·")
+                        }
+                    }
+                    Text(model)
+                }
+                .font(.scaled(11, weight: .medium)).foregroundStyle(.secondary)
+                .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(Color.secondary.opacity(0.14)))
+                .help([identity.label == nil ? nil : agent, summary.model ?? model].compactMap { $0 }.joined(separator: " · "))
             }
             if numbers.isEmpty == false {
                 Text(numbers).font(.scaled(12)).foregroundStyle(Color.secondary.opacity(0.8)).help(breakdown(summary))
@@ -512,6 +524,6 @@ private struct ClosedSessionNotice: View {
     let chosen: Bool
 
     var body: some View {
-        NoticeCard(symbol: "moon.zzz.fill", tint: .indigo, title: closedSessionNotice.title, detail: chosen ? closedSessionNotice.chosen : closedSessionNotice.detail, tinted: true) {}
+        NoticeCard(symbol: "moon.zzz.fill", tint: .indigo, title: closedSessionNotice.title, detail: chosen ? closedSessionNotice.chosen : closedSessionNotice.detail) {}
     }
 }

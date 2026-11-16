@@ -55,6 +55,7 @@ A feed that is a column of the window (the Agent output of an epic) is not made 
 - **Nothing is pinned over a feed that has no background**: the rows would scroll under its text.
 - **The column is as wide as the chat's message width** (`appearance.messageWidth`), never a fixed one.
 - **What ends a feed (a stop that needs a person) is a `NoticeCard` as its last element**, never pinned: `edge: true`, orange for what needs a person and red for what failed.
+- **Every `NoticeCard` is glass filled with its own colour** (the closed-session notice's look), with `edge: true` adding a thin edge for what failed or needs a person; there is no neutral dark variant. It goes through `chatSurface`, so Flat draws it as a quiet fill.
 - **Links in a toolbar are `ToolbarPillButton`s on one glass capsule**; the item hides the toolbar's own glass (`sharedBackgroundVisibility(.hidden)`).
 
 ## Lines
@@ -128,7 +129,7 @@ A page that writes `config.json` or `providers.json` does not wait for Carrier: 
 
 ## Text
 
-- Titles `fontWeight(.medium)`, details `.caption` in `secondary`, a path or a command `.scaled(11, design: .monospaced)`. Use `Font.scaled` (`ScaledFont.swift`), not a fixed size, so the person's text size applies.
+- Titles `fontWeight(.medium)`, details `.scaled(11)` in `secondary`, a path or a command `.scaled(11, design: .monospaced)`. Use `Font.scaled` (`ScaledFont.swift`), not a fixed size, so the person's text size applies. The system's styles (`.caption`, `.callout`, `.body`, `.title3`) do not follow it: use `.scaled(11)` for a detail, `.scaled(12)`, `.scaled(13)` and `.scaled(15)` for the others (`.scaled(10)` is for an uppercase label or a pill).
 - Do not put copy-on-hover (`copyOnHover`) on text that says nothing to copy ("Not checked yet", "Checking…"); keep it on a path, a reason and a fix.
 - Texts are English, short, and say what the control does, not how it works.
 

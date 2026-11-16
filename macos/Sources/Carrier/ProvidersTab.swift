@@ -24,7 +24,7 @@ struct ProvidersTabView: View {
         let page: ProvidersPage? = if case .reply(let reply) = store.outcome, reply.problem == nil { providersPage(reply, config: config, chat: chat) } else { nil }
         VStack(alignment: .leading, spacing: 14) {
             if let note = store.outcome.note {
-                Text(note).font(.callout).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                Text(note).font(.scaled(12)).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
                     .settingsCard()
             }
             if let page {
@@ -71,7 +71,7 @@ struct ProvidersTabView: View {
     /// of a button shows while the pointer is over it.
     private func titleRow(_ title: String, update tool: ProviderTool?) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(title).font(.title3.weight(.semibold))
+            Text(title).font(.scaled(15).weight(.semibold))
             Spacer(minLength: 8)
             if let tool {
                 // none of the three can only check: Update installs, so it opens Terminal on the command
@@ -99,12 +99,12 @@ struct ProvidersTabView: View {
                             .lineLimit(2).truncationMode(.middle).copyOnHover(tool.path ?? line)
                     }
                 }
-                if let failure { ProblemLine(text: failure, font: .caption) }
+                if let failure { ProblemLine(text: failure, font: .scaled(11)) }
                 // an editor that closed after a save the engine did not apply leaves its words here
                 if editing == nil, adding == nil {
-                    if let problem = store.editProblem { ProblemLine(text: problem, font: .caption) }
+                    if let problem = store.editProblem { ProblemLine(text: problem, font: .scaled(11)) }
                     // not a problem: said quietly, as the other pages say that Carrier reads it when it starts
-                    if let note = store.editNote { Label(note, systemImage: "info.circle").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                    if let note = store.editNote { Label(note, systemImage: "info.circle").font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 }
                 switch tool.status {
                 case .missing: EmptyStateView(icon: "arrow.down.circle", title: "\(tool.title) is not installed", line: "Not found on this Mac, so there are no accounts to show.").frame(minHeight: 260)
@@ -124,6 +124,7 @@ struct ProvidersTabView: View {
                                 title: account.title, detail: account.usedBy, first: index == 0, note: tool.id == "agy" ? nil : account.configDir ?? "This Mac's login"
                             ) {
                                 HStack(spacing: 10) {
+                                    AccountMark(account: account.name, icon: tool.icon, size: 16).help(account.title)
                                     AccountStateLabel(state: account.state)
                                     if account.state == .signedOut {
                                         Button("Sign in") { open(.signIn, harness: tool.id, command: account.command, configDir: account.configDir) }
@@ -187,7 +188,7 @@ struct ProvidersTabView: View {
     }
 
     private func note(_ text: String) -> some View {
-        Text(text).font(.callout).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        Text(text).font(.scaled(12)).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
             .settingsCard()
     }
 
@@ -206,7 +207,7 @@ private struct AccountStateLabel: View {
     var body: some View {
         HStack(spacing: 6) {
             Circle().fill(color).frame(width: 7, height: 7).accessibilityHidden(true)
-            Text(state.words).font(.callout).foregroundStyle(state == .signedOut || state == .missing ? SessionRowView.attention : Color.secondary)
+            Text(state.words).font(.scaled(12)).foregroundStyle(state == .signedOut || state == .missing ? SessionRowView.attention : Color.secondary)
         }
         .accessibilityElement(children: .combine)
     }
@@ -259,7 +260,7 @@ private struct ProviderListRow: View {
                 glyph.frame(width: 22, height: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).fontWeight(.medium).lineLimit(1)
-                    Text(line).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(line).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 4)
                 Circle().fill(color).frame(width: 8, height: 8).accessibilityHidden(true)

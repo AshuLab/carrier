@@ -93,7 +93,7 @@ export type McpSessions = {
   /** What the session is, from its row and its live options: nothing that says where a binary or a login is on this machine. */
   snapshot(sessionId: string): { id: string; agent: string; harness: string; folder: string; model: string | null; options: Record<string, string> };
   /** The configured chat agents. */
-  agents(): { name: string; harness: string; model?: string; found: boolean }[];
+  agents(): { name: string; harness: string; account: string; model?: string; found: boolean }[];
   /** The verdicts of the health check (kept thirty seconds); never starts an agent. */
   health(): Promise<Health>;
 };

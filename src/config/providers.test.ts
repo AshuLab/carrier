@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { loadProviders } from './providers.ts';
+import { accountColors, accountIcons, loadProviders } from './providers.ts';
 
 const errorsOf = (providers: unknown) => {
   const result = loadProviders({ providers });
@@ -51,6 +51,16 @@ describe('providers.json', () => {
   test('displayName is one trimmed line of 1 to 60 characters', () => {
     expect(loadProviders({ providers: { a: { harness: 'claude', displayName: 'b'.repeat(60) } } }).ok).toBe(true);
     for (const displayName of ['', '   ', 'two\nlines', 'two\r\nlines', 'b'.repeat(61), 7]) expect(pathsOf({ a: { harness: 'claude', displayName } })).toEqual(['providers.a.displayName']);
+  });
+
+  test('label is one trimmed line of 1 to 12 characters, icon and color come from their lists', () => {
+    const ok = loadProviders({ providers: { a: { harness: 'claude', label: '  Work  ', icon: 'bolt', color: 'teal' }, b: { harness: 'codex', label: 'b'.repeat(12) } } });
+    expect(ok).toMatchObject({ ok: true, providers: { a: { label: 'Work', icon: 'bolt', color: 'teal' } } });
+    for (const icon of accountIcons) expect(loadProviders({ providers: { a: { harness: 'claude', icon } } }).ok).toBe(true);
+    for (const color of accountColors) expect(loadProviders({ providers: { a: { harness: 'claude', color } } }).ok).toBe(true);
+    for (const label of ['', '   ', 'two\nlines', 'b'.repeat(13), 7]) expect(pathsOf({ a: { harness: 'claude', label } })).toEqual(['providers.a.label']);
+    for (const icon of ['default', 'Bolt', '', 7]) expect(pathsOf({ a: { harness: 'claude', icon } })).toEqual(['providers.a.icon']);
+    for (const color of ['magenta', 'Red', '', 7]) expect(pathsOf({ a: { harness: 'claude', color } })).toEqual(['providers.a.color']);
   });
 
   test('`provider` is optional and only lmstudio or ollama, and agy cannot use one', () => {

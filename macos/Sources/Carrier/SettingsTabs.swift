@@ -28,7 +28,7 @@ struct SettingsTabRow<Control: View>: View {
                     Group {
                         if let problem { Text("\(Image(systemName: "exclamationmark.triangle.fill")) \(problem)").foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
                     }
-                    .font(mono ? .scaled(11.5, design: .monospaced) : .caption).lineLimit(2).truncationMode(.middle)
+                    .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(11)).lineLimit(2).truncationMode(.middle)
                 }
                 if let note {
                     // cut in the middle to one line: the whole of it (a long PATH) is in the tooltip, and it can be selected to copy
@@ -177,7 +177,7 @@ struct SettingsStackedRow<Control: View>: View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).fontWeight(.medium)
-                if detail.isEmpty == false { Text(detail).font(.caption).foregroundStyle(.secondary) }
+                if detail.isEmpty == false { Text(detail).font(.scaled(11)).foregroundStyle(.secondary) }
             }
             control
         }
@@ -277,7 +277,7 @@ extension View {
     func settingsCard() -> some View { background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07))) }
 
     /// The small uppercase title over a group or a list: the type and the colour; the caller adds the padding its place needs.
-    func sectionLabel() -> some View { font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary).textCase(.uppercase) }
+    func sectionLabel() -> some View { font(.scaled(10)).fontWeight(.semibold).foregroundStyle(.secondary).textCase(.uppercase) }
 }
 
 /// A state as a 16 pt round mark with a white symbol: `checkmark` green for ready, `exclamationmark` yellow for a warning, `xmark` orange for a
@@ -385,8 +385,8 @@ struct SettingsPageHeader: View {
     // the two lines are about as tall as the tile (a Spacer here would take the whole height the page's bar offers)
     private var titles: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(page.rawValue).font(.title3.weight(.semibold))
-            Text(page.detail).font(.callout).foregroundStyle(.secondary)
+            Text(page.rawValue).font(.scaled(15).weight(.semibold))
+            Text(page.detail).font(.scaled(12)).foregroundStyle(.secondary)
         }
     }
 
@@ -400,7 +400,7 @@ struct SettingsPageHeader: View {
                 case .plain: Label(note.text, systemImage: "info.circle").foregroundStyle(.secondary)
                 }
             }
-            .font(.callout).fixedSize(horizontal: false, vertical: true)
+            .font(.scaled(12)).fixedSize(horizontal: false, vertical: true)
             if note.asksAgain { AskAgainButton() }
         }
     }
@@ -433,7 +433,7 @@ struct SettingsPageHeader: View {
 /// A line of a page that says what went wrong in its words, in orange, and says it to VoiceOver when it appears or changes (`announces`).
 struct ProblemLine: View {
     let text: String
-    var font: Font = .callout
+    var font: Font = .scaled(12)
     var announces = true
 
     var body: some View {
@@ -458,7 +458,7 @@ struct ReloadNote: View {
                     ProblemLine(text: words, announces: false)
                     AskAgainButton()
                 } else {
-                    Label(words, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Label(words, systemImage: "info.circle").font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
             }
@@ -693,7 +693,7 @@ private struct ThemeGallery: View {
                             ThemePreview(theme: option, scheme: .light)
                             ThemePreview(theme: option, scheme: .dark)
                         }
-                        Text(option.title).font(.callout)
+                        Text(option.title).font(.scaled(12))
                     }
                     .padding(8).frame(maxWidth: .infinity)
                     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(option == theme ? Color.themeAccent : Color.secondary.opacity(0.2), lineWidth: option == theme ? 2 : 1))
@@ -840,11 +840,18 @@ struct SidebarTabView: View {
     @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
     @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
 
-    /// A session of the preview: it has a branch, two providers and an age, so each switch has something to hide.
-    private static let sample = SessionRow(
-        id: "preview", title: "Fix the flaky login test", workspace: "carrier", agent: "claude", state: .idle,
-        updatedAt: Date(timeIntervalSinceNow: -11 * 60), branch: "fix/login-flake", folder: "/preview", providers: ["claude", "codex"]
-    )
+    /// Sessions of the preview: each has a branch, two providers and an age, so each switch has something to hide, and one is finished and one
+    /// waits, which is where "Done" and "Needs you" take the age's place.
+    private static let samples = [
+        ("preview-idle", "Fix the flaky login test", SessionState.idle, false, -11),
+        ("preview-done", "Add the retry to uploads", .idle, true, -3),
+        ("preview-waiting", "Rename the billing module", .waiting, false, -26),
+    ].map { id, title, state, unread, minutes in
+        SessionRow(
+            id: id, title: title, workspace: "carrier", agent: "claude", state: state, updatedAt: Date(timeIntervalSinceNow: Double(minutes) * 60),
+            branch: "fix/login-flake", folder: "/preview", providers: ["claude", "codex"], unread: unread
+        )
+    }
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.sidebar) }) {
@@ -869,11 +876,13 @@ struct SidebarTabView: View {
                 SettingsTabRow(title: "Providers", detail: "The marks of the providers the session used") {
                     Toggle("Providers", isOn: $showsProviders).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Age", detail: "How long ago the session was last active") {
+                SettingsTabRow(title: "Age", detail: "How long ago the session was last active; Done and Needs you take its place, and so do Pin and Archive on hover") {
                     Toggle("Age", isOn: $showsAge).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsPreview {
-                    SessionRowView(row: Self.sample, showsWorkspace: true).allowsHitTesting(false)
+                    VStack(spacing: 0) {
+                        ForEach(Self.samples, id: \.id) { SessionRowView(row: $0, showsWorkspace: true).allowsHitTesting(false) }
+                    }
                 }
             }
         }
@@ -1117,7 +1126,7 @@ struct NotificationsTabView: View {
                 }
             }
             if let testAdvice {
-                Label(testAdvice, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange).padding(.horizontal, 14)
+                Label(testAdvice, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange).padding(.horizontal, 14)
             }
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())

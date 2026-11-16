@@ -33,12 +33,24 @@ struct AccountEditor: View {
         VStack(alignment: .leading, spacing: 8) {
             if inFile == false {
                 // never a blank form that would write over an account it did not read
-                Label("\(account.title) is not in providers.json, so there is nothing to edit.", systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                Label("\(account.title) is not in providers.json, so there is nothing to edit.", systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange)
                 Button("Close") { close() }.buttonStyle(SecondaryCapsuleButtonStyle())
             } else {
                 SettingsGroup(title: "Edit \(account.title)") {
                     field("Display name", "displayName", "What the app shows instead of \(account.name)", first: true) {
                         TextField(account.name, text: $draft.displayName).settingsField(width: 240)
+                    }
+                    if store.identityEditable {
+                        field("Label", "label", "Short, for tabs, chips and the message box. Empty uses the name") {
+                            TextField(account.name, text: $draft.label).settingsField(width: 140)
+                        }
+                        field("Icon", "icon", "The tool's mark by default") { iconPicker }
+                        field("Color", "color", "Tints the mark wherever it shows") { colorPicker }
+                    } else {
+                        // the installed carrier would refuse the whole file with these keys in it, so they are not offered until it is updated
+                        SettingsTabRow(title: "Label, icon and color", detail: "The installed carrier does not know them yet. Update it (brew upgrade carrier) and restart the chat host to set them", roomy: true) {
+                            Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(.secondary).accessibilityHidden(true)
+                        }
                     }
                     field("Binary path", "command", "Empty runs \(harness) from the PATH") {
                         TextField("/opt/homebrew/bin/\(harness)", text: $draft.command).settingsField(width: 240)
@@ -79,14 +91,14 @@ struct AccountEditor: View {
                 if let problem = store.editProblem { ProblemLine(text: problem) }
                 HStack(spacing: 10) {
                     Button(role: .destructive) {
-                        Task { if await store.remove(name: account.name) { close() } }
+                        Task { if await store.remove(name: account.name) { ProviderIdentityStore.shared.reload(); close() } }
                     } label: { Label("Remove", systemImage: "trash") }
                     .disabled(store.busy)
                     .help("Removes \(account.name) from providers.json; refused while a role or a chat names it")
                     Spacer()
                     Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }.disabled(store.busy)
                     Button {
-                        Task { if await store.save(name: account.name, draft: draft) { close() } }
+                        Task { if await store.save(name: account.name, draft: draft) { ProviderIdentityStore.shared.reload(); close() } }
                     } label: { Label("Save", systemImage: "checkmark") }
                     .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(problems.isEmpty == false || draft == saved || store.busy)
                 }
@@ -96,6 +108,67 @@ struct AccountEditor: View {
         }
         // the system's writing tools have nothing to do with a path or an argument, and their button sits on the arguments box
         .writingToolsBehavior(.disabled)
+    }
+
+    /// The tool's own mark, then each glyph and the first letter, in the color chosen below so the choice is seen as it will look.
+    private var iconPicker: some View {
+        let choices: [AccountIcon?] = [nil] + AccountIcon.allCases
+        let tint = draft.color?.color ?? Color.primary
+        return LazyVGrid(columns: Array(repeating: GridItem(.fixed(32), spacing: 6), count: 7), alignment: .leading, spacing: 6) {
+            ForEach(choices, id: \.self) { choice in
+                let on = draft.icon == choice
+                Button { draft.icon = choice } label: {
+                    iconGlyph(choice).foregroundStyle(tint).frame(width: 32, height: 32)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.12)))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.accentColor, lineWidth: on ? 2 : 0))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).help(iconName(choice)).accessibilityLabel(iconName(choice)).accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .frame(width: 7 * 32 + 6 * 6, alignment: .leading)
+    }
+
+    @ViewBuilder private func iconGlyph(_ choice: AccountIcon?) -> some View {
+        if let symbol = choice?.symbol {
+            Image(systemName: symbol).font(.scaled(15, weight: .medium))
+        } else if choice == .letter {
+            Text(String(account.name.prefix(1)).uppercased()).font(.scaled(13, weight: .bold))
+        } else {
+            ProviderMark(name: providerIconName(harness: harness), size: 16)
+        }
+    }
+
+    private func iconName(_ choice: AccountIcon?) -> String {
+        switch choice {
+        case nil: "The tool's mark"
+        case .letter: "First letter"
+        case let named?: named.rawValue.capitalized
+        }
+    }
+
+    private var colorPicker: some View {
+        HStack(spacing: 8) {
+            swatch(nil)
+            ForEach(AccountColor.allCases, id: \.self) { swatch($0) }
+        }
+    }
+
+    private func swatch(_ choice: AccountColor?) -> some View {
+        let on = draft.color == choice
+        let name = choice?.rawValue.capitalized ?? "None"
+        return Button { draft.color = choice } label: {
+            Group {
+                if let choice {
+                    Circle().fill(choice.color)
+                } else {
+                    Circle().strokeBorder(Color.secondary, lineWidth: 1.5).overlay(Image(systemName: "slash.circle").font(.scaled(9)).foregroundStyle(.secondary))
+                }
+            }
+            .frame(width: 20, height: 20).padding(3)
+            .overlay(Circle().strokeBorder(Color.primary, lineWidth: 2).opacity(on ? 1 : 0))
+        }
+        .buttonStyle(.plain).help(name).accessibilityLabel(name).accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private func field<Control: View>(

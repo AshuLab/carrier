@@ -418,6 +418,8 @@ struct PanelView: View {
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
         .onChange(of: shell.archiveRequest) {
             guard let id = shell.archiveRequest?.sessionId else { return }
+            // the shortcut has no button to be off: a session that works says why it is not archived, as the buttons do in their tooltip
+            if let reason = model.sessions.rows.first(where: { $0.id == id }).flatMap(archiveBlock) { return tell(reason) }
             Task { if let refusal = await model.actions.archive(id) { tell(refusal) } }
         }
         .onChange(of: snapshot) {

@@ -316,7 +316,7 @@ private struct SessionHomeRow: View {
             if row.archived {
                 RowIconButton(symbol: "arrow.uturn.backward", title: "Restore") { Task { if let refusal = await actions.restore(row.id) { tell(refusal) } } }
             } else {
-                RowIconButton(symbol: "archivebox", title: "Archive") { Task { if let refusal = await actions.archive(row.id) { tell(refusal) } } }
+                RowIconButton(symbol: "archivebox", title: "Archive", why: archiveBlock(row)) { Task { if let refusal = await actions.archive(row.id) { tell(refusal) } } }
             }
         }
     }

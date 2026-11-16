@@ -20,6 +20,10 @@ public enum IdleCompaction: Equatable, CaseIterable {
 /// The editor's fields as the person typed them. An empty text is a key that is not there.
 public struct AccountDraft: Equatable {
     public var displayName = ""
+    public var label = ""
+    /// nil is the tool's own mark.
+    public var icon: AccountIcon?
+    public var color: AccountColor?
     public var command = ""
     public var configDir = ""
     public var autoCompact = ""
@@ -32,6 +36,10 @@ public struct AccountDraft: Equatable {
     /// The draft of an account as the file has it.
     public init(account: [String: Any]) {
         displayName = account["displayName"] as? String ?? ""
+        let identity = ProviderIdentity(account: account)
+        label = identity.label ?? ""
+        icon = identity.icon
+        color = identity.color
         command = account["command"] as? String ?? ""
         configDir = account["configDir"] as? String ?? ""
         if let text = account["autoCompact"] as? String { autoCompact = text } else if let number = account["autoCompact"] as? Int { autoCompact = String(number) }
@@ -45,7 +53,7 @@ public struct AccountDraft: Equatable {
     }
 
     /// The fields in the order they are shown, with the key of each, which is what a problem is keyed by.
-    public static let fields = ["displayName", "command", "configDir", "autoCompact", "launchArgs", "idleCompaction"]
+    public static let fields = ["displayName", "label", "icon", "color", "command", "configDir", "autoCompact", "launchArgs", "idleCompaction"]
 }
 
 /// "~" or "~/..." or "/...", with no control character: what the schema accepts once `~` is expanded.
@@ -105,6 +113,10 @@ public func draftProblems(_ draft: AccountDraft, harness: String) -> [String: St
     let name = draft.displayName.trimmingCharacters(in: .whitespaces)
     if name.count > 60 || name.contains(where: \.isNewline) {
         problems["displayName"] = "Display name is a single line of at most 60 characters."
+    }
+    let label = draft.label.trimmingCharacters(in: .whitespaces)
+    if label.count > ProviderIdentity.labelLimit || label.contains(where: \.isNewline) {
+        problems["label"] = "Label is a single line of at most \(ProviderIdentity.labelLimit) characters."
     }
     if draft.command.isEmpty == false, isAbsolute(draft.command) == false {
         problems["command"] = "Binary path must be an absolute path, or start with ~/."
@@ -192,6 +204,10 @@ public func applyingEdit(name: String, draft: AccountDraft, to json: Data?) thro
     func set(_ key: String, _ value: Any?) { account[key] = value }
     let display = draft.displayName.trimmingCharacters(in: .whitespaces)
     set("displayName", display.isEmpty ? nil : display)
+    let label = draft.label.trimmingCharacters(in: .whitespaces)
+    set("label", label.isEmpty ? nil : label)
+    set("icon", draft.icon?.rawValue)
+    set("color", draft.color?.rawValue)
     set("command", draft.command.isEmpty ? nil : draft.command)
     set("configDir", draft.configDir.isEmpty ? nil : normalizedConfigDir(draft.configDir))
     set("autoCompact", draft.autoCompact.isEmpty ? nil : (Int(draft.autoCompact) as Any? ?? draft.autoCompact))

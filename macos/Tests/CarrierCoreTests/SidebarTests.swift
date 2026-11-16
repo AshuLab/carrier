@@ -147,6 +147,20 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(carrierCardState(.running(snapshot(busy: 1)), lastTotal: 9) == CarrierCardState(kind: .running, slots: (1, 3)))
 }
 
+@Test func theSidebarOpensAt360UntilTheWidthIsMovedAndThenKeepsIt() {
+    let name = "carrier-sidebar-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+    #expect(SidebarStore(defaults: defaults).width == 360)
+    SidebarStore(defaults: defaults).width = 420
+    #expect(SidebarStore(defaults: defaults).width == 420)
+    // what the column cannot be is not kept
+    SidebarStore(defaults: defaults).width = 100
+    #expect(SidebarStore(defaults: defaults).width == 260)
+    SidebarStore(defaults: defaults).width = 900
+    #expect(SidebarStore(defaults: defaults).width == 800)
+}
+
 @Test func theLastSlotsTotalSurvivesARelaunch() {
     let name = "carrier-sidebar-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: name)!
@@ -505,8 +519,10 @@ private func content(_ row: SessionRow = workRow, workspace: Bool = true, parts:
         defaults.set(false, forKey: key)
     }
     store.open = .archive
+    store.width = 500
     defaults.set(false, forKey: AppPreferences.animatesKey)
     AppPreferences(defaults: defaults).reset(.sidebar)
+    #expect(store.width == SidebarStore.defaultWidth)
     #expect(store.groupBy == .status && store.sessionSort == .workspace && store.archiveSort == .dateArchived)
     for key in [SidebarStore.showsIconKey, SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey] {
         #expect(defaults.object(forKey: key) == nil)

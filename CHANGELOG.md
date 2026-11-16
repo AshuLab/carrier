@@ -22,6 +22,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings › Dictation › Statistics also shows the hours of the day you dictate in (with the hour you dictate most), a weekly summary that compares the last 7 days with the 7 before (words, dictations, change in percent, busiest day and time saved, with a small chart by day) and your records: most dictations and most words in a day, the longest dictation and the longest streak of days in a row.
 - The dictation widget is glass in your accent colour and, while it listens, draws the same glowing line as the message box around it, following your voice. Its text starts at the top and, once it fills the box, scrolls so the newest words are on the last line while the older lines fade out at the top.
 - Cleanup in the dictation widget: with it on, ending a dictation in any app makes the widget shimmer over what you said (a sparkle in the Pill) while the model cleans it, and the cleaned text is what gets pasted. Esc skips the cleanup and pastes the raw text; if the server is down, the model is missing or it times out, the raw text is pasted anyway, the widget shows a warning that it was not cleaned and why (a warning in the Pill), and the cause goes to `dictation.log`. The history keeps both texts, the cleanup model and its time.
+- An account of `providers.json` can have a label, an icon and a color (Settings › Providers, Edit an account), so two logins of one tool are told apart where the app names them: the message box's button and its provider tabs, a session's row in the sidebar, the footer of an answer, the account rows of Settings and the corner of an epic session's avatar. All three are optional; with none, the app looks as it did. They need an up-to-date `carrier` (the editor says so and writes nothing while it is older), because an older one refuses a `providers.json` that has them.
+- Pin and Archive appear on a session's row in the sidebar when the pointer is on it, in place of the age.
+- A session whose turn ended says "Done" in green in the place of its time until you open it, and the icon's glow turns green and goes round once, fast, as the turn ends. It is not "Needs you", which stays orange for a permission or a question.
+
+### Changed
+
+- Archiving a session is immediate: its row goes as soon as you ask, the chat host no longer waits for the agent to end, and the lists are read again at once. A refusal brings the row back with the reason.
+- Archive is off for a session that is working or waiting for an answer (the button on its row, the one on the Sessions home and the menu item), with a tooltip that says to stop it first.
+- The sidebar stacks Home, Sessions, Terminal and Carrier in that order, and the open section takes all the room left: Terminal no longer sits under the list of Sessions, the sections above the open one are folded at the top, the ones under it at the foot, and Archive closes the Sessions panel. The open section's row stays at the top while its list scrolls, with a soft fade under it once rows slide beneath.
+- The sidebar opens at 360 points wide, can be 260 to 800, and the width you drag it to is remembered.
+- Settings > Sidebar previews three sessions (idle, Done and Needs you) so each switch is seen against them, says on Age that those states and the hover buttons take its place, and Reset also takes the sidebar back to 360 points wide on the next launch.
+
+### Fixed
+
+- In the message box, ⌘↓ takes the caret to the end of the text (the window's shortcut for Jump to the Latest Message took it before the text saw it; with the caret already at the end, or the box empty, it still jumps), and Home and End go to the start and the end of the text instead of only scrolling.
+- The notices over the message box (errors, uncommitted files, a held message, a question) are glass filled with their own colour, like the one of a session that is asleep, and not dark grey with an edge.
+- The block under the message box that says what sending does follows Settings > Chat > Surfaces: it stayed glass when Flat was chosen.
+- The note that the folder's branch will change when the message is sent is now a step of the block under the message box that says what sending does, with an icon and a title, and not a line under the sentence.
+- Settings now follows the Text size: the titles, details, notes and fields of every page grew and shrank only for the parts that set a size by hand, and now all of them do.
 
 ## [0.7.0] - 2026-11-16
 

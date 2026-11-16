@@ -661,3 +661,22 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     defaults.set("press", forKey: AppPreferences.dictationActivationKey)
     #expect(store.dictationShortcut == .standard && store.dictationActivation == .toggle)
 }
+
+@Test func theWidgetIsMediumAtTheBottomUntilChosenOtherwiseAndResetsWithDictation() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(AppPreferences.dictationWidgetStyleKey == "dictation.widget.style" && AppPreferences.dictationWidgetPositionKey == "dictation.widget.position")
+    #expect(store.dictationWidgetStyle == .medium && store.dictationWidgetPosition == .bottom)
+    store.dictationWidgetStyle = .pill
+    store.dictationWidgetPosition = .top
+    let relaunched = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(relaunched.dictationWidgetStyle == .pill && relaunched.dictationWidgetPosition == .top)
+    store.reset(.notifications)
+    #expect(store.dictationWidgetStyle == .pill && store.dictationWidgetPosition == .top)
+    store.reset(.dictation)
+    #expect(store.dictationWidgetStyle == .medium && store.dictationWidgetPosition == .bottom)
+    #expect(defaults.object(forKey: AppPreferences.dictationWidgetStyleKey) == nil && defaults.object(forKey: AppPreferences.dictationWidgetPositionKey) == nil)
+    defaults.set("huge", forKey: AppPreferences.dictationWidgetStyleKey)
+    defaults.set("middle", forKey: AppPreferences.dictationWidgetPositionKey)
+    #expect(store.dictationWidgetStyle == .medium && store.dictationWidgetPosition == .bottom)
+}

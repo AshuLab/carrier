@@ -55,3 +55,45 @@ func theMicrophonePermissionDecidesWhatTheIconDoesAndWhatAClickOffers(permission
     // a dictation that is already running keeps its own states
     #expect(try #require(dictationPresentation(.listening, registered: true, microphone: .denied)).icon == .mic)
 }
+
+@Test(arguments: [(DictationWidgetStyle.small, 2, 340.0, 12.0), (.medium, 3, 420, 14), (.large, 4, 540, 17)])
+func theBoxStylesAreTwoThreeAndFourLinesAtTheirWidthsAndTextSizes(style: DictationWidgetStyle, lines: Int, width: Double, text: Double) throws {
+    let box = try #require(dictationWidgetLook(.listening, style: style).box)
+    #expect(box == DictationWidgetBox(lines: lines, width: width, text: text))
+    #expect(box.height(textSize: text) > CGFloat(lines) * text)
+}
+
+@Test func theBoxIsTallerTheMoreLinesItHoldsAndThePillHasNoBoxAndNoText() {
+    let heights = [DictationWidgetStyle.small, .medium, .large].compactMap { $0.box.map { $0.height(textSize: $0.text) } }
+    #expect(heights == heights.sorted() && Set(heights).count == 3)
+    #expect(DictationWidgetStyle.pill.box == nil && dictationWidgetLook(.listening, style: .pill).box == nil)
+}
+
+@Test(arguments: [
+    (DictationWidgetState.working, DictationWidgetIcon.spinner), (.listening, .mic), (.pasted, .check), (.cancelled, .xmark),
+])
+func thePillsIconFollowsTheState(state: DictationWidgetState, icon: DictationWidgetIcon) {
+    let look = dictationWidgetLook(state, style: .pill)
+    #expect(look.icon == icon && look.box == nil && look.opensAsSmall == false)
+}
+
+@Test(arguments: [DictationWidgetState.failed, .copied])
+func theStatesThatNeedTextOrAButtonOpenThePillAsTheSmallBoxAndKeepTheChosenBox(state: DictationWidgetState) {
+    let pill = dictationWidgetLook(state, style: .pill)
+    #expect(pill.box == DictationWidgetStyle.small.box && pill.opensAsSmall && pill.icon == nil && pill.fades == false)
+    let large = dictationWidgetLook(state, style: .large)
+    #expect(large.box == DictationWidgetStyle.large.box && large.opensAsSmall == false)
+}
+
+@Test func onlyPastedAndCancelledFade() {
+    let fading = [DictationWidgetState.working, .listening, .failed, .copied, .pasted, .cancelled].filter { dictationWidgetLook($0, style: .medium).fades }
+    #expect(fading == [.pasted, .cancelled])
+}
+
+@Test(arguments: [(DictationWidgetPosition.top, 748.0), (.bottom, 124.0)])
+func theWidgetIsCentredUnderTheMenuBarOrAboveTheDockOfTheVisibleFrame(position: DictationWidgetPosition, y: Double) {
+    // a second display to the right and above, with the Dock taking 100 points at the bottom and the menu bar 38 at the top
+    let area = CGRect(x: 1440, y: 100, width: 1920, height: 762)
+    let origin = dictationWidgetOrigin(size: CGSize(width: 420, height: 90), in: area, position: position)
+    #expect(origin.x == 1440 + 960 - 210 && origin.y == y)
+}

@@ -15,12 +15,12 @@ Under `--fixture` the app registers the fixture recognizer instead (`CarrierCore
 
 ## The Dictation page
 
-The Dictation page has two segments, General and [History](#history) (`DictationSegment` in `Carrier/DictationTab.swift`, drawn with `SegmentedChoice`); the Reset row is at the bottom of General.
+The Dictation page has three segments, General, [History](#history) and [Statistics](#statistics) (`DictationSegment` in `Carrier/DictationTab.swift`, drawn with `SegmentedChoice`); the Reset row is at the bottom of General.
 General (`Carrier/DictationTab.swift`, which lists its groups, each its own view: `DictationGroup`, `GlobalDictationGroup`, `CleanupGroup`, `SpeechModelsGroup` and `StorageGroup`; `SettingsPage.dictation`, the App group right after Chat) has the switch (`dictation.enabled`, on by default; off takes the microphone out of both boxes at once, asks macOS for nothing and stops a dictation that listens, keeping its text), the Speech model popup (`dictation.model`; an unknown one reads as Apple's), the Language popup (`dictation.language`; `languageChoices` in `CarrierCore/DictationSettings.swift` says what each model offers) and the microphone's state with Open System Settings when it is blocked, then the Global dictation group (`Carrier/GlobalDictationGroup.swift`: Dictate in any app, `dictation.global`, on by default, which is dimmed with Dictation off and turns the shortcut off with it), then Sounds (below), then Cleanup (below), then the speech models table (`Carrier/SpeechModelsTable.swift`; the rows and what each offers are `speechModelRows` in `CarrierCore/SpeechModelsTable.swift`: a recognizer filter, a radio on the downloaded rows that chooses the model, Download with its size, a progress bar with Cancel, the cause with Retry, a trash, and the licence linking to the model's card) and Storage (the size of the files under `<Carrier folder>/app/models`, with Show in Finder).
 
 ## Global dictation
 
-The shortcut (⌥⇧ Space until the person records another) dictates in any app (`Carrier/GlobalHotKey.swift`, a system hot key, which needs no permission): it opens a small floating widget over the display of the window in front, at the bottom centre, that never takes the focus from the app the person is in and lets every click through (`Carrier/DictationWidget.swift`).
+The shortcut (⌥⇧ Space until the person records another) dictates in any app (`Carrier/GlobalHotKey.swift`, a system hot key, which needs no permission): it opens a floating widget over the display of the window in front, in the style and place the person chose ([below](#the-widget-style-and-position)), that never takes the focus from the app the person is in and lets every click through (`Carrier/DictationWidget.swift`).
 The widget shows the text as it is said, the time and the keys (`⌥⇧ Space to finish · Esc to cancel`), with the same wait captions as the message box (Getting the model ready…, Transcribing…).
 By default it is a toggle: the shortcut starts the dictation, the next press ends it and pastes the text once at the cursor of the app in front, and the widget closes.
 In Hold the dictation listens while the keys are down and the release ends it and pastes, as the second press does (a hot key gives the key release, `GlobalHotKey`'s `released`); the widget says "Release ⌥⇧ Space to finish". A release right after the press, or while the model is getting ready, pastes nothing and closes with no trace; Esc while the keys are held cancels, and the release after it does nothing. The mode is read when the dictation starts. With Carrier in front on a session, the release ends the message box's dictation too.
@@ -31,7 +31,7 @@ The first dictation asks macOS for the microphone.
 
 The paste (`Carrier/ClipboardPaste.swift`) saves every item of the clipboard with every type, writes the text marked as transient (clipboard managers skip it) and for this Mac only, sends a ⌘V after the keys of the shortcut are up, waits 200 ms and puts the clipboard back as it was; if the person copied something meanwhile their copy stays.
 When the dictation ends, `pasteDecision` (`CarrierCore/PasteDecision.swift`) decides from what the system says about the permission and the field with the cursor (`Carrier/FocusedField.swift`: the focused element of the app in front, its role and subrole, never its value): an editable field with Accessibility on is pasted; a secure field (the subrole says so, or macOS has secure input on), no field at all and an unreadable focus are only copied, and without Accessibility it is never a paste.
-A text that was only copied stays in the widget, which grows to a taller box and takes clicks (still without taking the focus), with the text complete and scrollable, the reason in orange (No text field has the cursor; The field is secure; Accessibility is off for Carrier) and the words "It is on the clipboard".
+A text that was only copied stays in the widget, which becomes a box (the Small one when the style is the Pill) and takes clicks (still without taking the focus), with the text complete and scrollable, the reason in orange (No text field has the cursor; The field is secure; Accessibility is off for Carrier) and the words "It is on the clipboard".
 Its buttons are Copy (puts the text on the clipboard again and says Copied) and Dismiss, and Open System Settings (opens Privacy & Security › Accessibility) when the reason is the permission.
 It stays until Dismiss, Esc, or the shortcut, which closes it and starts a new dictation; Esc is held by Carrier only while a dictation is open, so a widget left open does not hold it.
 The first time the person turns on Dictate in any app (`dictation.accessibilityExplained`, which Reset leaves alone) with Accessibility not allowed, the page explains what it is for (to see which field has the cursor and press ⌘V; it never reads the fields) and then asks macOS; if the person says Not now it asks again next time, and it never explains once it has.
@@ -42,6 +42,15 @@ The Global dictation group has two more rows (`dictation.shortcut` and `dictatio
 The recorder (`recordShortcut` in `CarrierCore/DictationShortcut.swift`) refuses a combination with none of ⌃, ⌥ or ⌘ (⇧ alone would stop the key from typing) with a line that says why and goes on listening, and a key that has no name and no printable character; while it listens the shortcut is let go, so pressing it records it instead of dictating. A saved shortcut that does not pass the same rules reads as the default. A shortcut that another app holds is not told by the system.
 With Carrier in front on a session, the shortcut does not open the widget: it focuses that session's message box and dictates into it as the microphone button does (the partial text and the listening line), and the shortcut again ends it, with the text kept in the box. In Settings, an epic or any other view of Carrier, and in any other app, it opens the widget, which pastes into Carrier's focused field if there is one.
 The rule is `dictationFront` and `dictationRoute(for:)` in `CarrierCore/DictationRoute.swift`: Carrier's main window, or the Settings sheet over it, must be the key window, Settings over a session counts as Settings, and an archived session, which has no message box, uses the widget. A dictation that the widget already runs is ended by the shortcut wherever the person is. With the Dictation switch off, or Dictate in any app, the shortcut is not registered, so nothing happens in Carrier either.
+
+### The widget style and position
+
+The Global dictation group has a Widget style row (Pill, Small, Medium, Large; Medium by default), a Position row (Top, Bottom; Bottom by default) and under them a Preview of the chosen style, listening to a sample, that changes as the row does (`dictation.widget.style` and `dictation.widget.position`, both put back by `reset(.dictation)`; a saved value that is not one of them reads as the default). The widget reads them each time it opens.
+Small, Medium and Large are a box of 2, 3 and 4 lines, 340, 420 and 540 points wide, with 12, 14 and 17 point text (at the person's text size), and the box has one height per style; the text starts at the top, and when it is longer than the lines it scrolls, the newest words last. The Pill is a capsule badge with no text: the microphone in the accent while it listens, a spinner while it gets ready or transcribes, a check when pasted and an x when cancelled.
+In a box, a pasted or cancelled dictation shows its text with Pasted or Cancelled under it. A check or an x stays for 1.2 seconds and fades (with no animation under Reduce Motion); a new dictation takes it away at once. A dictation with no words, a failure and a text that was only copied show no check or x.
+The states that need text or a button (a failure to start or to recognize, and a text that was only copied) open the Pill as the Small box until they are dismissed; with another style they use that box.
+Top puts the widget at the top centre of the display under the menu bar and Bottom at the bottom centre above the Dock, 24 points from the edge of what the menu bar and the Dock leave (`dictationWidgetOrigin`).
+What the widget draws for a state and a style is `dictationWidgetLook` in `CarrierCore/DictationWidgetLook.swift`, from what `GlobalDictation.shown` says; the glass and the listening line come later.
 
 ## History
 
@@ -66,6 +75,23 @@ Delete audio older than (`dictation.history.deleteAudioAfter`: 7 days, 30 days, 
 Audio on disk says how much there is ("182 MB in 214 files"), and Delete all audio, after a confirmation, deletes every audio file and keeps every transcript. Deleting an entry deletes its audio.
 An entry with audio shows a player in its detail (`Carrier/AudioPlayerView.swift`, over `AVAudioPlayer`): Play and Pause, the place it has got to and the time; it stops when the row closes.
 `reset(.dictation)` puts the two switches back and never deletes audio.
+
+## Statistics
+
+The Statistics segment of the Dictation page (`Carrier/StatisticsGroup.swift`) shows how much the person dictates, from counters kept apart from the history ([0031](../adr/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md)).
+The counters are `<Carrier folder>/app/dictation-statistics.json`: per day, hour and speech model, the dictations, the words, the seconds dictated and the longest one, and no text.
+`DictationRecords.record` counts a dictation that ended pasted or copied with words, whatever Keep the text says; a cancelled, failed or empty one is not counted.
+Deleting entries and turning the history off leave the counters as they were, and Reset statistics is the only thing that deletes them.
+A day is the person's calendar day (`dictationDayKey`), so a change of time zone does not move what was counted.
+Under `--fixture` and in the tests the counters are in a temporary folder.
+
+The segment starts with a range, 7 days, 30 days (the one it opens on), 90 days or All time, over four cards: Dictations, Words, Speaking time and Time saved, each with the change against the period just before it ("▲ 12% vs previous", nothing for All time, which has no period before it, or when the period before had none).
+Under them is a chart of words or dictations by day, with the busiest day in the full accent.
+With no counters (nothing dictated yet, or after Reset) it says No statistics yet and what it needs: a dictation that ends with the text pasted or copied.
+The figures are pure functions of the counters (`dictationFigures`, `statisticsChange` and `statisticsDuration` in `CarrierCore/DictationStatistics.swift`, tested in `DictationStatisticsTests`).
+The time saved is `timeSaved(words:speaking:wpm:)` as the [spec](../specs/global-dictation.md) writes it: the words over the typing speed, minus the time spent speaking, never negative.
+
+At the bottom, Statistics settings has the Typing speed (`dictation.statistics.wpm`, 40 words a minute by default, from 10 to 200, put back by `reset(.dictation)`) and Reset statistics, which asks first, deletes the counters and leaves the history as it is.
 
 ## Sounds
 

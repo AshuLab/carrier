@@ -37,7 +37,7 @@ import CarrierCore
             // the entry is of the take that just ended, whose audio goes with it
             record: { [dictation] in dictation.records.record($0, audio: dictation.session.take?.clip) }, frontApp: { NSWorkspace.shared.frontmostApplication?.localizedName },
             perform: { [unowned self] in perform($0) })
-        widget = DictationWidget(dictation: machine, hint: { dictationHint(shortcut: preferences.dictationShortcut, activation: preferences.dictationActivation) })
+        widget = DictationWidget(dictation: machine, preferences: preferences, hint: { dictationHint(shortcut: preferences.dictationShortcut, activation: preferences.dictationActivation) })
     }
 
     /// Follows the two switches, now and each time the preferences change.

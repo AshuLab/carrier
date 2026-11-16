@@ -52,9 +52,12 @@ public struct AppPreferences {
     public static let dictationKeepTextKey = "dictation.history.keepText"
     public static let dictationKeepAudioKey = "dictation.history.keepAudio"
     public static let dictationDeleteAudioAfterKey = "dictation.history.deleteAudioAfter"
+    public static let dictationTypingSpeedKey = "dictation.statistics.wpm"
     public static let dictationAccessibilityExplainedKey = "dictation.accessibilityExplained"
     public static let dictationShortcutKey = "dictation.shortcut"
     public static let dictationActivationKey = "dictation.activation"
+    public static let dictationWidgetStyleKey = "dictation.widget.style"
+    public static let dictationWidgetPositionKey = "dictation.widget.position"
     public static let dictationStartSoundOnKey = "dictation.sound.start.on"
     public static let dictationStartSoundKey = "dictation.sound.start"
     public static let dictationEndSoundOnKey = "dictation.sound.end.on"
@@ -109,6 +112,8 @@ public struct AppPreferences {
     public static let defaultDictationKeepText = true
     public static let defaultDictationKeepAudio = false
     public static let defaultDictationDeleteAudioAfter = 30
+    public static let defaultDictationTypingSpeed = 40
+    public static let dictationTypingSpeedRange = 10...200
 
     private let defaults: UserDefaults
 
@@ -390,6 +395,12 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationDeleteAudioAfterKey) }
     }
 
+    /// How fast the person types, in words a minute, which the time saved is measured against: 40 until they set it, always within 10 to 200.
+    public var dictationTypingSpeed: Int {
+        get { min(max(defaults.object(forKey: Self.dictationTypingSpeedKey) as? Int ?? Self.defaultDictationTypingSpeed, Self.dictationTypingSpeedRange.lowerBound), Self.dictationTypingSpeedRange.upperBound) }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationTypingSpeedKey) }
+    }
+
     /// Whether the global shortcut dictates in any app: on until the person turns it off. It only counts while `dictationEnabled` is on too (`globalDictationIsOn`).
     public var dictationGlobal: Bool {
         get { defaults.object(forKey: Self.dictationGlobalKey) as? Bool ?? Self.defaultDictationGlobal }
@@ -412,6 +423,18 @@ public struct AppPreferences {
     public var dictationActivation: DictationActivation {
         get { defaults.string(forKey: Self.dictationActivationKey).flatMap(DictationActivation.init(rawValue:)) ?? .toggle }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationActivationKey) }
+    }
+
+    /// Medium until the person chooses another.
+    public var dictationWidgetStyle: DictationWidgetStyle {
+        get { defaults.string(forKey: Self.dictationWidgetStyleKey).flatMap(DictationWidgetStyle.init(rawValue:)) ?? .medium }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationWidgetStyleKey) }
+    }
+
+    /// Bottom until the person chooses Top.
+    public var dictationWidgetPosition: DictationWidgetPosition {
+        get { defaults.string(forKey: Self.dictationWidgetPositionKey).flatMap(DictationWidgetPosition.init(rawValue:)) ?? .bottom }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationWidgetPositionKey) }
     }
 
     /// The Sounds group of the Dictation page; a saved sound that is not on offer reads as the default, and the volume as 0 to 100.
@@ -552,8 +575,11 @@ public struct AppPreferences {
                 dictationKeepTextKey,
                 dictationKeepAudioKey,
                 dictationDeleteAudioAfterKey,
+                dictationTypingSpeedKey,
                 dictationShortcutKey,
                 dictationActivationKey,
+                dictationWidgetStyleKey,
+                dictationWidgetPositionKey,
                 dictationStartSoundOnKey,
                 dictationStartSoundKey,
                 dictationEndSoundOnKey,

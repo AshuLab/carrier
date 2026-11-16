@@ -76,8 +76,12 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
 
 @MainActor @Observable public final class DictationRecords {
     public let path: String
+    /// The counters of the statistics, in their own file: they hold no text and neither the switch nor a delete touches them.
+    public let statisticsPath: String
     /// Every entry, newest first.
     public private(set) var entries: [DictationEntry] = []
+    /// What was dictated per day, hour and model, in the order it was first counted.
+    public private(set) var counts: [DictationCount] = []
     /// The audio files, `<id>.wav` each, next to the history.
     public let audioFolder: String
     /// The entries that have their audio on disk, and what it takes.
@@ -87,19 +91,23 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
     @ObservationIgnored private let keepAudio: () -> Bool
     @ObservationIgnored private let audioDays: () -> Int
     @ObservationIgnored private let now: () -> Date
+    @ObservationIgnored private let calendar: Calendar
 
     /// `keep` says whether the text is kept right now (the Keep the text switch), `keepAudio` whether the audio is too, and `audioDays` how many days
-    /// the audio stays (0 is for ever).
+    /// the audio stays (0 is for ever); `calendar` says which day and hour a dictation belongs to.
     public init(
         carrierFolder: String, keep: @escaping () -> Bool, keepAudio: @escaping () -> Bool = { false }, audioDays: @escaping () -> Int = { 0 },
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init, calendar: Calendar = .current
     ) {
         path = carrierFolder + "/app/dictations.jsonl"
+        statisticsPath = carrierFolder + "/app/dictation-statistics.json"
         audioFolder = carrierFolder + "/app/audio"
         self.keep = keep
         self.keepAudio = keepAudio
         self.audioDays = audioDays
         self.now = now
+        self.calendar = calendar
+        if let data = FileManager.default.contents(atPath: statisticsPath) { counts = (try? JSONDecoder().decode([DictationCount].self, from: data)) ?? [] }
         scanAudio()
         guard let file = try? String(contentsOfFile: path, encoding: .utf8) else { return }
         let decoder = Self.decoder
@@ -108,10 +116,13 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         entries = kept.reversed().sorted { $0.started > $1.started }
     }
 
-    /// Adds an entry at the top, when the text is kept and the dictation had words, and saves its `audio` when that is kept too. Says whether it did.
+    /// Counts a dictation that had words and ended pasted or copied, whatever the switches say, adds its entry at the top when the text is kept, and
+    /// saves its `audio` when that is kept too. Says whether it added the entry.
     @discardableResult
     public func record(_ entry: DictationEntry, audio: AudioClip? = nil) -> Bool {
-        guard keep(), entry.words > 0 else { return false }
+        guard entry.words > 0 else { return false }
+        count(entry)
+        guard keep() else { return false }
         do {
             try FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
             var line = try Self.encoder.encode(entry)
@@ -186,6 +197,36 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         }
         audioIDs = ids
         audioBytes = bytes
+    }
+
+    private func count(_ entry: DictationEntry) {
+        guard entry.outcome == .pasted || entry.outcome == .copied else { return }
+        let day = dictationDayKey(entry.started, calendar: calendar)
+        let hour = calendar.component(.hour, from: entry.started)
+        if let index = counts.firstIndex(where: { $0.day == day && $0.hour == hour && $0.model == entry.model }) {
+            counts[index].dictations += 1
+            counts[index].words += entry.words
+            counts[index].seconds += entry.audio
+            counts[index].longest = max(counts[index].longest, entry.audio)
+        } else {
+            counts.append(DictationCount(day: day, hour: hour, model: entry.model, dictations: 1, words: entry.words, seconds: entry.audio, longest: entry.audio))
+        }
+        saveCounts()
+    }
+
+    /// Deletes every counter. The history stays as it is.
+    public func resetStatistics() {
+        counts = []
+        saveCounts()
+    }
+
+    private func saveCounts() {
+        do {
+            try FileManager.default.createDirectory(atPath: (statisticsPath as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+            try JSONEncoder().encode(counts).write(to: URL(fileURLWithPath: statisticsPath), options: .atomic)
+        } catch {
+            FileHandle.standardError.write(Data("carrier: dictation-statistics.json could not be written: \(error)\n".utf8))
+        }
     }
 
     /// Deletes an entry, whatever the switch says. The file is written again without it.

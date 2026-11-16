@@ -147,6 +147,20 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(carrierCardState(.running(snapshot(busy: 1)), lastTotal: 9) == CarrierCardState(kind: .running, slots: (1, 3)))
 }
 
+@Test func theSidebarOpensAt360UntilTheWidthIsMovedAndThenKeepsIt() {
+    let name = "carrier-sidebar-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+    #expect(SidebarStore(defaults: defaults).width == 360)
+    SidebarStore(defaults: defaults).width = 420
+    #expect(SidebarStore(defaults: defaults).width == 420)
+    // what the column cannot be is not kept
+    SidebarStore(defaults: defaults).width = 100
+    #expect(SidebarStore(defaults: defaults).width == 260)
+    SidebarStore(defaults: defaults).width = 900
+    #expect(SidebarStore(defaults: defaults).width == 800)
+}
+
 @Test func theLastSlotsTotalSurvivesARelaunch() {
     let name = "carrier-sidebar-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: name)!

@@ -28,6 +28,10 @@ public struct SidebarStore {
     public static let showsAgeKey = "sidebar.row.age"
     private static let openKey = "sidebar.open"
     private static let slotsTotalKey = "sidebar.slotsTotal"
+    private static let widthKey = "sidebar.width"
+    /// How narrow and how wide the sidebar can be dragged, in points, and the width it opens at until the person moves it.
+    public static let widthRange: ClosedRange<Double> = 260...800
+    public static let defaultWidth: Double = 360
 
     private let defaults: UserDefaults
 
@@ -49,6 +53,14 @@ public struct SidebarStore {
         get { defaults.string(forKey: Self.archiveSortKey).flatMap(ArchiveSort.init(rawValue:)) ?? .dateArchived }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.archiveSortKey) }
     }
+
+    /// The width the person left the sidebar at, kept inside `widthRange`; `defaultWidth` until they move it.
+    public var width: Double {
+        get { Self.clamped(defaults.object(forKey: Self.widthKey) as? Double ?? Self.defaultWidth) }
+        nonmutating set { defaults.set(Self.clamped(newValue), forKey: Self.widthKey) }
+    }
+
+    private static func clamped(_ width: Double) -> Double { min(max(width, widthRange.lowerBound), widthRange.upperBound) }
 
     /// The slots total the engine last reported, for the bars of a stopped engine; nil until one was seen.
     public var slotsTotal: Int? {

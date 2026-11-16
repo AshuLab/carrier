@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Pin and Archive appear on a session's row in the sidebar when the pointer is on it, in place of the age.
 - A session whose turn ended says "Done" in green in the place of its time until you open it, and the icon's glow turns green and goes round once, fast, as the turn ends. It is not "Needs you", which stays orange for a permission or a question.
 
+### Changed
+
+- The sidebar stacks Home, Sessions, Terminal and Carrier in that order, and the open section takes all the room left: Terminal no longer sits under the list of Sessions, the sections above the open one are folded at the top, the ones under it at the foot, and Archive closes the Sessions panel. The open section's row stays at the top while its list scrolls, with a soft fade under it once rows slide beneath.
+- The sidebar opens at 360 points wide, can be 260 to 800, and the width you drag it to is remembered.
+
 ### Fixed
 
 - Settings now follows the Text size: the titles, details, notes and fields of every page grew and shrank only for the parts that set a size by hand, and now all of them do.

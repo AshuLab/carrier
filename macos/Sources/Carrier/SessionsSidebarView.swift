@@ -14,6 +14,8 @@ struct SessionsRows: View {
     /// Chooses Sessions, which unfolds it.
     let select: () -> Void
     @Binding var open: Bool
+    /// Drawn as the section header of the scroll it is in, so its row stays at the top while the list moves under it.
+    var pinHeader = false
     /// The last ⌘F: when it asks for Sessions, the search field opens and takes the keyboard.
     let searchRequest: SearchRequest?
     let newSession: () -> Void
@@ -43,6 +45,16 @@ struct SessionsRows: View {
     }
 
     var body: some View {
+        if pinHeader {
+            // the open section's row stays at the top of the scroll while its list moves under it
+            Section { list } header: { header.pinnedSectionHeader() }
+        } else {
+            header
+            list
+        }
+    }
+
+    @ViewBuilder private var header: some View {
         SidebarSectionRow(title: "Sessions", icon: "bubble.left.and.bubble.right", selected: selected, keepActions: sortOpen || query != nil, action: select, actions: {
             if sessions.open > 0 {
                 Text("\(sessions.open)").font(SidebarMetrics.detail.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
@@ -70,6 +82,9 @@ struct SessionsRows: View {
         // the field is only drawn while unfolded, so a query must not outlive it: the magnifier would look pressed with no field
         .onChange(of: open) { if open == false { query = nil } }
         .onChange(of: searchRequest) { if searchRequest?.section == .sessions { openSearch() } }
+    }
+
+    @ViewBuilder private var list: some View {
         if open {
             let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", pinned: pinnedIds(pinnedStored), now: Date(), calendar: .current)
             let items = groups.flatMap { group in [ListItem.header(group)] + group.rows.map { ListItem.row($0, group: group.title) } }

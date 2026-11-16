@@ -28,7 +28,6 @@ struct NewSessionView: View {
             VStack(alignment: .leading, spacing: 16) {
                 sentence
                 box
-                if let note = model.branchNote { NoticeCard(symbol: "arrow.triangle.branch", tint: .blue, title: note.title, detail: note.detail) {} }
                 if let warning = model.warning { uncommittedNotice(warning) }
                 if let reason = model.noAgentReason { Text(reason).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
                 if model.hostOlder { Text(NewSessionModel.olderHostNotice).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }

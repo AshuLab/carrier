@@ -457,16 +457,19 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     let model = await draft(host)
     await model.choose(folder: "/w/clean")
     // nothing picked, or the checked-out branch picked: the folder keeps its branch and says nothing
-    #expect(model.branchNote == nil && model.branchChange == nil)
+    #expect(branchStep(model) == nil && model.branchChange == nil)
     model.choose(startBranch: "main")
-    #expect(model.branchNote == nil)
+    #expect(branchStep(model) == nil)
     model.choose(startBranch: "feat/x")
-    #expect(model.branchNote?.title == "The branch of the folder will change" && model.branchNote?.detail == "From main to feat/x when the message is sent.")
+    #expect(branchStep(model)?.parts == [.text("Switches the folder from "), .code("main"), .text(" to "), .code("feat/x"), .text(" when you send.")])
     #expect(model.warning == nil)
     model.text = "go"
     #expect(await model.send() == opened)
     #expect(host.plans.map(\.branch) == ["feat/x"] && host.plans.map(\.worktree) == [nil])
 }
+
+/// The step that says the folder's branch will be switched, nil when it will not.
+@MainActor private func branchStep(_ model: NewSessionModel) -> SendStep? { model.sendSteps.first { $0.title == "Change the folder's branch" } }
 
 @MainActor @Test func aFolderWithUncommittedChangesWarnsThatTheBranchChangeWillFailAndSendingIsStillAllowed() async {
     let host = FakeChat()
@@ -476,13 +479,13 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     // no change picked: the worktree way out is offered
     #expect(model.warning == "2 uncommitted files in the folder. A worktree keeps them out of the agent's way.")
     model.choose(startBranch: "feat/x")
-    #expect(model.branchNote?.title == "The branch of the folder will change" && model.branchNote?.detail == "From main to feat/x when the message is sent.")
+    #expect(branchStep(model)?.parts == [.text("Switches the folder from "), .code("main"), .text(" to "), .code("feat/x"), .text(" when you send.")])
     #expect(model.warning == "2 uncommitted files in the folder, so changing its branch will fail and it keeps the branch it is on. Save the work first, or use a worktree.")
     model.text = "go"
     #expect(model.canSend)
     // a worktree is cut from the pick and changes no folder: no branch change, and the pick is the worktree's start
     await model.useWorktree(true)
-    #expect(model.branchNote == nil && model.warning == nil)
+    #expect(branchStep(model) == nil && model.warning == nil)
     model.worktreeName = "my-fix"
     #expect(await model.send() == opened)
     #expect(host.plans.map(\.branch) == [nil] && host.plans.map(\.worktree) == [WorktreeRequest(from: "feat/x", name: "my-fix")])
@@ -725,9 +728,9 @@ private func projectsRoot(_ names: [String]) throws -> String {
     #expect(model.sendSteps == [SendStep(
         icon: "arrow.down.circle", title: "Download the repository", parts: [.text("When you send, Carrier downloads "), .code("AshuLab/carrier"), .text(" from GitHub into "), .code(model.projectsPath), .text(". Only this first time: later sessions reuse that copy.")], help: "/nowhere/AshuLab/carrier")])
     // a fresh clone has no uncommitted changes, and nothing is said of the folder's branch
-    #expect(model.warning == nil && model.branchNote == nil)
+    #expect(model.warning == nil && branchStep(model) == nil)
     model.choose(startBranch: "feat/x")
-    #expect(model.branchNote == nil && model.warning == nil)
+    #expect(branchStep(model) == nil && model.warning == nil)
 }
 
 @MainActor @Test func aWorktreeForARepositoryToCloneGetsAGeneratedNameAtOnceAndTheHostIsNotAskedForOne() async {
@@ -852,7 +855,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     #expect(model.newProject == "my-idea" && model.folder == "/nowhere/local/my-idea")
     #expect(model.projectNote == "/nowhere/local/my-idea will be created, with git ready, when the message is sent.")
     #expect(model.sentence == "Work in my-idea in the folder (new project, no commits yet: no worktree)")
-    #expect(model.offersWorktree == false && model.warning == nil && model.branchNote == nil && model.picked == nil)
+    #expect(model.offersWorktree == false && model.warning == nil && branchStep(model) == nil && model.picked == nil)
     await model.useWorktree(true)
     #expect(model.worktree == false && model.workspaceProblem == nil)
     #expect(model.watchNotes.isEmpty)

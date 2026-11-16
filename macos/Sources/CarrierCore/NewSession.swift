@@ -549,7 +549,7 @@ public struct WatchNote: Equatable {
         return "\(folder) will be created, with git ready, when the message is sent."
     }
 
-    /// What sending will do, in order, for the block under the box: download or update the repository, and cut the worktree's branch. Empty
+    /// What sending will do, in order, for the block under the box: download or update the repository, switch the folder's branch, and cut the worktree's branch. Empty
     /// when sending only starts the agent in the folder.
     public var sendSteps: [SendStep] {
         var steps: [SendStep] = []
@@ -560,6 +560,10 @@ public struct WatchNote: Equatable {
             } else {
                 steps.append(SendStep(icon: "arrow.triangle.2.circlepath", title: "Update the repository", parts: [.text("Updates "), .code(repo), .text(" from GitHub first")], help: folder))
             }
+        }
+        // a fresh clone follows the pick, so only a folder that is already there is switched
+        if toClone == false, let change = branchChange {
+            steps.append(SendStep(icon: "arrow.triangle.swap", title: "Change the folder's branch", parts: [.text("Switches the folder from "), .code(change.from), .text(" to "), .code(change.to), .text(" when you send.")], help: folder))
         }
         if worktree, let branch = startBranch {
             let name = worktreeBranchPrefix + (worktreeName.isEmpty ? "<name>" : worktreeName)
@@ -675,12 +679,6 @@ public struct WatchNote: Equatable {
     public var branchChange: (from: String, to: String)? {
         guard worktree == false, gitMissing == false, let workspace, workspace.git, workspace.bare == false, let to = picked, to != workspace.branch else { return nil }
         return (workspace.branch ?? "detached HEAD", to)
-    }
-
-    /// What says beforehand that the folder's branch will change: a title and the branches, for the notice under the message box.
-    public var branchNote: (title: String, detail: String)? {
-        guard toClone == false else { return nil }
-        return branchChange.map { (title: "The branch of the folder will change", detail: "From \($0.from) to \($0.to) when the message is sent.") }
     }
 
     /// The line under the sentence: the uncommitted files of the base folder, which a worktree would keep out of the agent's way; when the

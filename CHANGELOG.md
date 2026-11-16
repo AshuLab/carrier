@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Pin and Archive appear on a session's row in the sidebar when the pointer is on it, in place of the age.
-- A session whose turn ended shows a green check on its icon and a dot at the edge of its row until you open it, and the icon's glow turns green and goes round once, fast, as the turn ends. It is not "Needs you", which stays orange for a permission or a question.
+- A session whose turn ended says "Done" in green in the place of its time until you open it, and the icon's glow turns green and goes round once, fast, as the turn ends. It is not "Needs you", which stays orange for a permission or a question.
 
 ### Fixed
 

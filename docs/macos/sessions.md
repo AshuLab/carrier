@@ -24,9 +24,9 @@ On a row of the sidebar's list the pointer brings Pin (Unpin) and Archive in pla
 The Archive section and Settings' preview draw the row without them.
 A "Base folder" session says it with a folder mark, as a worktree's branch has its own.
 
-A session whose turn ended and that the person has not opened since (`SessionRow.unread`, `SessionStatus.unread`) wears a green disc with a check at the corner of its project icon and a dot at the row's edge, and VoiceOver says "Done"; opening it clears both.
-It is not "Needs you": that is orange, for a permission or a question the agent is blocked on.
-When the turn ends while the row is on screen, the icon's glow turns green and goes once round, fast, from where the arc was (`WorkingRing`, `finished`); with Reduce Motion the lap is skipped and the check still appears.
+A session whose turn ended and that the person has not opened since (`SessionRow.unread`, `SessionStatus.unread`) says "Done" in green in the place of the time (on the second line when the time is switched off), as "Needs you" does in orange; opening it brings the time back.
+"Needs you" is for a permission or a question the agent is blocked on, "Done" for a turn that simply ended.
+When the turn ends while the row is on screen, the icon's glow turns green and goes once round, fast, from where the arc was (`WorkingRing`, `finished`); with Reduce Motion the lap is skipped and the word still appears.
 
 A session row's context menu in the sidebar and on the Sessions home has Archive (Restore for an archived match), Reveal in Finder and Copy session id.
 `SessionActions` runs archive, restore, delete and clear through `ChatHost` and tells `ChatSessionsPoller.invalidateArchived()` after each, so the Archive row's count is right within a second.

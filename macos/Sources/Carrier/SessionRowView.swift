@@ -30,7 +30,7 @@ struct SessionRowView: View {
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .systemOrange : NSColor(red: 0.70, green: 0.36, blue: 0, alpha: 1)
     })
 
-    /// The green of "Done" (the turn ended and the person has not opened the session): the system's on dark, a deeper one on light, so the white check keeps its contrast.
+    /// The green of "Done" (the turn ended and the person has not opened the session): a lighter one on dark, a deeper one on light.
     static let done = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(red: 0.19, green: 0.70, blue: 0.31, alpha: 1) : NSColor(red: 0.12, green: 0.55, blue: 0.24, alpha: 1)
     })
@@ -68,9 +68,14 @@ struct SessionRowView: View {
     /// switched off it is the second line's, where it has always been.
     private func waitsAtTop(_ content: SessionRowContent) -> Bool { row.state == .waiting && content.age != nil }
 
+    /// The same for "Done" (the turn ended and the session has not been opened since): the word takes the place of the time.
+    private func doneAtTop(_ content: SessionRowContent) -> Bool { row.status == .unread && content.age != nil }
+
     @ViewBuilder private func detail(_ content: SessionRowContent) -> some View {
         if row.state == .waiting && waitsAtTop(content) == false {
             Text("Needs you").fontWeight(.medium).foregroundStyle(Self.attention)
+        } else if row.status == .unread && doneAtTop(content) == false {
+            Text("Done").fontWeight(.medium).foregroundStyle(Self.done)
         } else {
             switch (content.workspace, content.place) {
             case (let workspace?, let placed?): Text("\(workspace) · \(place(placed))").foregroundStyle(.secondary)
@@ -86,6 +91,8 @@ struct SessionRowView: View {
     @ViewBuilder private func ageOrStopwatch(_ content: SessionRowContent) -> some View {
         if waitsAtTop(content) {
             Text("Needs you").fontWeight(.medium).foregroundStyle(Self.attention)
+        } else if doneAtTop(content) {
+            Text("Done").fontWeight(.medium).foregroundStyle(Self.done)
         } else if content.age != nil, let since = WorkingClock.shared.since(row) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text(workingElapsed(Int(context.date.timeIntervalSince(since)))).foregroundStyle(Color.thought)
@@ -101,7 +108,7 @@ struct SessionRowView: View {
             if content.showsIcon {
                 ProjectIcon(
                     name: row.workspace, colorKey: projectColorKey(row.base), working: row.state == .working,
-                    finished: ringKept && row.state != .working, done: row.status == .unread
+                    finished: ringKept && row.state != .working
                 )
             }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
@@ -132,8 +139,6 @@ struct SessionRowView: View {
             }
         }
         .padding(.horizontal, content.showsIcon ? density.rowPadding : SidebarMetrics.inset).padding(.vertical, density.rowPadding)
-        // a dot at the edge while the turn ended and the session has not been opened: the same signal as the check on the icon
-        .overlay(alignment: .leading) { if row.status == .unread { Circle().fill(Color.themeAccent).frame(width: 6, height: 6).padding(.leading, 3).accessibilityHidden(true) } }
         .onChange(of: row.state == .working, initial: true) { _, working in if working { ringKept = true } }
         .onChange(of: row.status) { old, new in
             guard old == .working, ringKept else { return }
@@ -192,8 +197,6 @@ struct ProjectIcon: View {
     var working = false
     /// The ring goes once round in green, fast, after `working`: the agent just ended its turn. The owner takes it away a moment later.
     var finished = false
-    /// The check on a green disc at the corner: the turn ended and the person has not opened the session.
-    var done = false
     @Environment(\.rowActive) private var active
     static let size: CGFloat = 32
     static let radius: CGFloat = 9
@@ -216,19 +219,7 @@ struct ProjectIcon: View {
             }
             .animation(.easeOut(duration: 0.15), value: active)
             .overlay { if working || finished { WorkingRing(finished: finished && working == false).transition(.opacity) } }
-            .overlay(alignment: .bottomTrailing) { if done { DoneMark().offset(x: 4, y: 4).transition(.scale.combined(with: .opacity)) } }
             .animation(.easeOut(duration: 0.3), value: finished)
-            .animation(.spring(duration: 0.35, bounce: 0.4), value: done)
-    }
-}
-
-/// The check on a green disc at the corner of a project icon: the session's turn ended and it waits for the person (not for an answer: that is "Needs you").
-private struct DoneMark: View {
-    var body: some View {
-        Image(systemName: "checkmark").font(.scaled(8, weight: .heavy)).foregroundStyle(.white)
-            .frame(width: 15, height: 15).background(Circle().fill(SessionRowView.done))
-            .shadow(color: .black.opacity(0.3), radius: 1, y: 0.5)
-            .accessibilityHidden(true)
     }
 }
 

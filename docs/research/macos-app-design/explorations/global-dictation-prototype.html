@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Global dictation — prototype</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* g- = global dictation prototype. Tokens follow the Settings code (docs/macos-ui.md); accent is the person's, teal here. */
+body{--acc:#4fd1b8;--sec:rgba(235,235,245,.60);--ter:rgba(235,235,245,.30);--fill:rgba(235,235,245,.05);--rail:rgba(235,235,245,.036);--hov:rgba(235,235,245,.085);--pri:rgba(255,255,255,.09);--prih:rgba(255,255,255,.15);--prib:rgba(255,255,255,.10);--div:rgba(255,255,255,.08)}
+body.light{--acc:#0e9f8b;--sec:rgba(60,60,67,.60);--ter:rgba(60,60,67,.30);--fill:rgba(60,60,67,.05);--rail:rgba(60,60,67,.04);--hov:rgba(60,60,67,.09);--pri:rgba(0,0,0,.07);--prih:rgba(0,0,0,.11);--prib:rgba(0,0,0,.10);--div:rgba(0,0,0,.10)}
+.g-sheet{width:min(1130px,100%);height:760px;border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;margin-top:6px}
+.g-body{flex:1;display:flex;min-height:0}
+.g-rail{width:230px;flex:none;padding:24px 16px 14px;background:var(--rail);display:flex;flex-direction:column;gap:4px;overflow:auto}
+.g-rh{padding:0 8px 8px}.g-rh b{display:block;font-size:15px;font-weight:600}.g-rh span{display:block;font-size:11px;color:var(--sec)}
+.g-gh{margin:10px 0 0 8px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ter)}
+.g-r{display:flex;gap:10px;align-items:center;padding:6px 8px;border-radius:8px}
+.g-r.on{background:color-mix(in srgb,var(--acc) 22%,transparent)}
+.g-r .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:13px;background:rgba(128,128,128,.12);color:var(--sec);flex:none}
+.g-r.on .ic{background:color-mix(in srgb,var(--acc) 18%,transparent);color:var(--acc)}
+.g-r b{display:block;font-size:13px;font-weight:500}.g-r small{display:block;font-size:11px;color:var(--sec);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-page{flex:1;min-width:0;overflow:auto}
+.g-ph{display:flex;gap:12px;align-items:center;padding:24px 24px 6px}
+.g-ph .ic{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;font-size:16px;background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc)}
+.g-ph b{display:block;font-size:15px;font-weight:600}.g-ph span{display:block;font-size:12px;color:var(--sec);margin-top:2px}
+.g-segbar{padding:8px 24px 0;display:flex}
+.g-seg{display:inline-flex;gap:1px;background:var(--pri);border-radius:99px;padding:2px}
+.g-seg button{border:0;background:none;color:var(--sec);font:inherit;font-size:12px;font-weight:500;padding:3px 13px;border-radius:99px;cursor:default;white-space:nowrap}
+.g-seg button.on{background:var(--prih);color:var(--text)}
+.g-pb{padding:8px 24px 28px;display:flex;flex-direction:column;gap:12px}
+.g-gt{display:flex;align-items:center;margin:8px 0 6px 14px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--sec)}.g-gt .sp1{flex:1;display:block}.g-gt .acc{margin-right:14px;text-transform:none;font-weight:400}
+.g-card{border-radius:14px;background:var(--fill);padding:0 14px}
+.g-row{display:flex;align-items:center;gap:12px;padding:10px 0;min-height:46px;border-top:.5px solid var(--div)}.g-row.first{border-top:0}
+.g-row .t{flex:1;min-width:0}.g-row .t b{display:block;font-size:13px;font-weight:500}.g-row .t span{display:block;font-size:10px;color:var(--sec);margin-top:1px}
+.g-pop{appearance:none;border:0;font:inherit;font-size:13px;color:var(--acc);background:var(--pri);border-radius:99px;padding:3px 12px;white-space:nowrap}
+.g-cap{border:0;font:inherit;font-size:12px;font-weight:500;color:var(--text);cursor:default;padding:3px 11px;border-radius:99px;background:var(--pri);box-shadow:0 0 0 .5px var(--prib) inset;white-space:nowrap}
+.g-cap:hover{background:var(--prih)}.g-cap.pri{background:var(--acc);color:#06201b;box-shadow:none}.g-cap.red{color:var(--red)}
+.g-ib{border:0;background:none;color:var(--sec);cursor:default;font-size:13px;padding:3px 7px;border-radius:6px}.g-ib:hover{background:var(--hov);color:var(--text)}
+.g-chip{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:500;background:var(--pri);color:var(--sec);white-space:nowrap}
+.g-chip.acc{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc)}
+.g-chip.g{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.g-chip.r{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
+.g-chip.o{background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--orange)}
+.g-sw{width:38px;height:22px;border-radius:99px;background:var(--pri);position:relative;flex:none;box-shadow:0 0 0 .5px var(--prib) inset;cursor:pointer}
+.g-sw::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .15s}
+.g-sw.on{background:var(--acc)}.g-sw.on::after{left:18px}
+.g-dim{opacity:.4;pointer-events:none}
+.g-key{font:600 12px var(--font);padding:3px 10px;border-radius:7px;background:var(--pri);box-shadow:0 0 0 .5px var(--prib) inset,0 1px 0 var(--prib);letter-spacing:.04em}
+.g-key.rec{color:var(--acc);box-shadow:0 0 0 1.5px var(--acc) inset}
+textarea.g-ta{width:100%;min-height:74px;resize:vertical;border:0;border-radius:10px;background:var(--pri);color:var(--text);font:12px/1.45 var(--font);padding:9px 11px;box-shadow:0 0 0 .5px var(--prib) inset}
+input[type=range]{accent-color:var(--acc);width:140px}
+.g-prev{border-radius:12px;background:linear-gradient(135deg,rgba(120,120,160,.28),rgba(60,120,140,.22));padding:26px 14px 16px;display:flex;justify-content:center;align-items:flex-end;margin:10px 0 12px;position:relative}
+.g-prev small{position:absolute;left:12px;top:7px;font-size:10px;color:var(--sec);text-transform:uppercase;font-weight:600}
+.g-tip{font-size:10px;color:var(--sec);padding:8px 0 10px}
+/* ---------- widget: the message box, floating ---------- */
+@property --ang{syntax:'<angle>';inherits:false;initial-value:0deg}
+@keyframes wspin{to{--ang:360deg}}
+.wg{--w:420px;--fs:14px;--lines:3;--wsec:rgba(235,235,245,.6);--tint:var(--acc);--c1:var(--acc);--c2:oklch(from var(--acc) l c calc(h + 40));--c3:oklch(from var(--acc) l c calc(h - 40));
+ --r:16px;width:var(--w);max-width:100%;border-radius:var(--r);position:relative;background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.05)),rgba(22,22,27,.52);backdrop-filter:blur(34px) saturate(1.9);-webkit-backdrop-filter:blur(34px) saturate(1.9);box-shadow:0 0 0 .5px rgba(255,255,255,.22) inset,0 1px 0 rgba(255,255,255,.3) inset,0 14px 36px rgba(0,0,0,.32);color:#f5f5f7;padding:13px 16px 11px;display:flex;flex-direction:column;gap:9px;font:13px/1.4 var(--font);user-select:none}
+body.light .wg{--wsec:rgba(60,60,67,.62);background:linear-gradient(180deg,rgba(255,255,255,.72),rgba(255,255,255,.42)),rgba(240,240,246,.3);color:#1d1d1f;box-shadow:0 0 0 .5px rgba(0,0,0,.12) inset,0 1px 0 rgba(255,255,255,.95) inset,0 14px 36px rgba(30,30,60,.2)}
+.wg.sz-s{--w:340px;--fs:12px;--lines:2}.wg.sz-m{--w:420px;--fs:14px;--lines:3}.wg.sz-l{--w:540px;--fs:17px;--lines:4}
+.wg.t-g{--tint:var(--green)}.wg.t-o{--tint:var(--orange)}.wg.t-r{--tint:var(--red)}.wg.t-n{--tint:var(--wsec)}
+ /* the message box's own listening line (DictationIndicator.swift): a ring OUTSIDE the edge in the accent and two hues turned 40 degrees, a bright arc with a bloom that goes round, and the voice sets its speed, width and tremble (the script at the bottom drives --rw, the angle and the opacities) */
+.wg .fx{position:absolute;inset:0;border-radius:var(--r);pointer-events:none;--rw:1.5px;opacity:.6}
+.wg .fx i{position:absolute;inset:calc(var(--rw) * -1);border-radius:calc(var(--r) + var(--rw));padding:var(--rw);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.wg .fx .rg{background:conic-gradient(var(--c1),var(--c2),var(--c3),var(--c1));opacity:.4}
+.wg .fx .arw{position:absolute;inset:0;filter:drop-shadow(0 0 3px color-mix(in srgb,var(--c1) 40%,transparent))}
+.wg .fx .ar{--ang:200deg;background:conic-gradient(from var(--ang),transparent 0%,transparent 35%,color-mix(in srgb,var(--c3) 40%,transparent) 60%,color-mix(in srgb,var(--c2) 85%,transparent) 80%,var(--c1) 92%,color-mix(in srgb,var(--c1) 50%,transparent) 97%,transparent 100%)}
+.wg .txt{font-size:var(--fs);line-height:1.4;max-height:calc(var(--lines) * 1.4em);min-height:1.4em;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;scroll-behavior:smooth}
+.wg .txt.fix{height:calc(var(--lines) * 1.4em)}
+.wg .txt.end{justify-content:flex-start;overflow:auto;-webkit-mask-image:none;mask-image:none}
+.wg .car{display:inline-block;width:1.5px;height:1em;background:var(--acc);vertical-align:-2px;margin-left:1px;animation:p 1s steps(1) infinite}
+.wg.sz-p{--r:99px;width:auto;min-width:76px;height:38px;padding:0;border-radius:99px;flex-direction:row;align-items:center;justify-content:center;gap:0}
+.wg.sz-p .pi{display:grid;place-items:center;width:76px;height:38px;color:var(--tint);font-size:15px}
+.wg.sz-p.live .pi{color:var(--acc)}
+.wg .txt.ov{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 1.7em);mask-image:linear-gradient(to bottom,transparent 0,#000 1.7em)}
+.wg .in.ph{color:var(--wsec)}
+.wg .in .tent{color:var(--acc);text-decoration:underline dotted;text-underline-offset:3px}
+.wg .txt.shim .in{background:linear-gradient(90deg,var(--wsec) 0,currentColor 45%,var(--wsec) 90%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shim 1.3s linear infinite}
+@keyframes shim{to{background-position:-220% 0}}
+.wg .note{font-size:11.5px;color:var(--tint)}
+.wg .bot{display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--wsec);min-height:24px}
+.wg .bot .ic{width:16px;display:grid;place-items:center;flex:none;color:var(--tint);font-size:12px}
+.wg .bot .sp1{flex:1}
+.wg .bot .lab{font-weight:550;color:var(--tint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.wg .bot .tmr{font-variant-numeric:tabular-nums;font-weight:550}
+.wg.sz-s .bot .model{display:none}
+.wg .rd{width:8px;height:8px;border-radius:50%;background:var(--acc);animation:p 1.2s ease-in-out infinite}
+.wg .wave{flex:1;min-width:20px;height:20px;display:flex;align-items:center;justify-content:flex-end;gap:2px;overflow:hidden;color:var(--acc)}
+.wg .wave i{display:block;width:2px;border-radius:1px;background:currentColor;height:3px;animation:wv .9s ease-in-out infinite}
+@keyframes wv{0%,100%{height:3px}50%{height:16px}}
+.wg .kc{font:600 10px var(--font);padding:1px 6px;border-radius:5px;background:rgba(128,128,128,.22);color:inherit;white-space:nowrap}
+.wg .bot button{border:0;font:inherit;font-size:11.5px;font-weight:550;padding:2px 11px;border-radius:99px;background:rgba(128,128,128,.22);color:inherit;cursor:default;white-space:nowrap}
+.wg .bot button.pri{background:var(--acc);color:#06201b}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:s 1s linear infinite}
+.pul{animation:p 1.1s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.wg .car,.spin,.pul,.wg .txt.shim .in{animation:none}}
+.states{display:grid;grid-template-columns:repeat(auto-fill,minmax(430px,1fr));gap:18px;max-width:1130px;margin-top:14px}
+.sc{background:var(--card);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.sc h3{margin:0;font-size:13px;display:flex;gap:8px;align-items:center}.sc p{margin:0;color:var(--dim);font-size:12px}
+.sc .stage{background:linear-gradient(135deg,rgba(120,120,160,.25),rgba(60,120,140,.18));border-radius:12px;padding:18px 14px;display:flex;justify-content:center}
+/* demo desktop */
+.desk{width:min(1130px,100%);height:560px;border-radius:22px;position:relative;overflow:hidden;box-shadow:var(--shadow);background:radial-gradient(900px 500px at 15% 0,#4b5aa0 0,transparent 60%),radial-gradient(800px 500px at 100% 100%,#1f6f78 0,transparent 55%),#1a1b26}
+.desk .menubar{height:26px;background:rgba(0,0,0,.35);backdrop-filter:blur(20px);display:flex;align-items:center;gap:16px;padding:0 14px;color:#eee;font-size:12px}
+.desk .menubar b{font-weight:650}.desk .menubar .sp{flex:1}
+.fakewin{position:absolute;left:90px;top:70px;width:520px;height:300px;border-radius:14px;background:rgba(250,250,252,.96);color:#222;box-shadow:0 20px 50px rgba(0,0,0,.45);overflow:hidden}
+.fakewin .tb2{height:34px;background:#ececf0;display:flex;align-items:center;gap:7px;padding:0 12px;font-size:12px;color:#555}
+.fakewin .tb2 i{width:11px;height:11px;border-radius:50%;display:block}
+.fakewin .field{margin:18px;min-height:160px;border-radius:10px;border:1.5px solid #d4d4d8;padding:12px;font-size:14px;line-height:1.5;white-space:pre-wrap}
+.fakewin .field.focus{border-color:#0a84ff;box-shadow:0 0 0 3px rgba(10,132,255,.25)}
+.fakewin .field .car{display:inline-block;width:1.5px;height:16px;background:#0a84ff;vertical-align:-3px;animation:p 1s steps(1) infinite}
+.fakewin .hint{margin:-4px 18px;color:#888;font-size:11px}
+.dock{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;gap:10px;padding:8px 12px;border-radius:20px;background:rgba(255,255,255,.18)}
+.dock i{width:38px;height:38px;border-radius:10px;display:block;background:rgba(255,255,255,.35)}
+.wslot{position:absolute;left:50%;transform:translateX(-50%);transition:opacity .2s,transform .2s}
+.wslot.bottom{bottom:84px}.wslot.top{top:44px}.wslot.hide{opacity:0;transform:translateX(-50%) translateY(8px);pointer-events:none}
+.ctrls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0 0}
+.ctrls label{display:flex;gap:6px;align-items:center;font-size:12px;background:var(--card2);padding:6px 12px;border-radius:99px}
+.bigkey{border:0;font:600 13px var(--font);padding:8px 18px;border-radius:12px;background:var(--card2);color:var(--text);box-shadow:0 0 0 .5px var(--line) inset,0 2px 0 var(--line);cursor:pointer;user-select:none}
+.bigkey.down{transform:translateY(2px);background:var(--acc);color:#06201b}
+/* history */
+.g-search{display:flex;gap:8px;align-items:center;flex:1}
+.g-search input{flex:1;max-width:340px;border:0;border-radius:99px;background:var(--pri);color:var(--text);font:13px var(--font);padding:5px 14px;box-shadow:0 0 0 .5px var(--prib) inset}
+.g-day{font-size:10px;font-weight:600;text-transform:uppercase;color:var(--sec);margin:12px 0 4px 14px}
+.hrow{padding:9px 0;border-top:.5px solid var(--div);cursor:default}.hrow.first{border-top:0}
+.hrow .top{display:flex;gap:10px;align-items:flex-start}
+.hrow .tm{width:44px;flex:none;font-size:11px;color:var(--sec);font-variant-numeric:tabular-nums;padding-top:2px}
+.hrow .tx{flex:1;min-width:0;font-size:13px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hrow.open .tx{display:block;-webkit-line-clamp:unset}
+.hrow.canc .tx{color:var(--sec);font-style:italic}
+.hrow .acts{display:flex;opacity:0}.hrow:hover .acts,.hrow.open .acts{opacity:1}
+.hrow .chips{display:flex;gap:6px;margin:5px 0 0 54px;flex-wrap:wrap;align-items:center}
+.det{margin:10px 0 2px 54px;border-radius:10px;background:var(--pri);padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;font-size:12px}
+.det .k{font-size:10px;font-weight:600;text-transform:uppercase;color:var(--sec);display:block;margin-bottom:1px}
+.det .full{grid-column:1/-1}
+.player{display:flex;gap:8px;align-items:center}.player i{flex:1;height:4px;border-radius:2px;background:var(--prih);display:block}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--sec);padding:44px 0;text-align:center}.empty b{color:var(--text);font-size:14px}
+/* stats */
+.sums{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.sum{border-radius:14px;background:var(--fill);padding:12px 14px}.sum .k{font-size:10px;font-weight:600;text-transform:uppercase;color:var(--sec)}.sum .v{font-size:24px;font-weight:700;letter-spacing:-.02em;margin-top:3px}.sum .s{font-size:10px;color:var(--sec);margin-top:2px}
+.sum.hero{background:color-mix(in srgb,var(--acc) 14%,transparent)}.sum.hero .v{color:var(--acc)}
+.chart{display:flex;align-items:flex-end;gap:2px;height:130px;padding-top:8px}
+.chart .b{flex:1;min-width:2px;background:color-mix(in srgb,var(--acc) 70%,transparent);border-radius:3px 3px 0 0;position:relative}
+.chart .b:hover{background:var(--acc)}
+.chart .b.max{background:var(--acc)}
+.axis{display:flex;justify-content:space-between;font-size:10px;color:var(--sec);margin-top:4px}
+.hours{display:grid;grid-template-columns:repeat(24,1fr);gap:3px}
+.hours i{display:block;height:34px;border-radius:5px;background:var(--acc)}
+.hlab{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;font-size:9px;color:var(--sec);text-align:center;margin-top:3px}
+.two{display:grid;grid-template-columns:1.1fr 1fr;gap:12px}
+.rec{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:.5px solid var(--div)}.rec.first{border-top:0}
+.rec .ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc);font-size:12px}
+.rec .t{flex:1}.rec .t b{display:block;font-size:13px;font-weight:500}.rec .t span{font-size:10px;color:var(--sec)}.rec .v{font-weight:650;font-size:14px}
+.wk p{margin:0;font-size:13px;line-height:1.5}.wk .wmini{display:flex;gap:5px;align-items:flex-end;height:54px;margin:10px 0 4px}.wk .wmini i{flex:1;border-radius:3px;background:color-mix(in srgb,var(--acc) 55%,transparent);display:block}.wk .wmini i.t{background:var(--acc)}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#2a2a2f;color:#fff;padding:8px 16px;border-radius:99px;font-size:12px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}.toast.on{opacity:1}
+.q{max-width:1130px;margin-top:26px;background:var(--card);border-radius:14px;padding:14px 18px}.q h3{margin:0 0 6px;font-size:14px}.q li{margin:5px 0;color:var(--dim)}.q li b{color:var(--text)}
+</style></head><body>
+<h1>Global dictation — prototype</h1>
+<div class="sub">Throwaway prototype for <code>docs/specs/global-dictation.md</code>: the Dictation page of Settings with everything we talked about (General · History · Statistics), the widget with a live demo, and the widget in every state. Everything is clickable. UI copy is in English, as the app's.</div>
+<div class="bar" id="top"></div>
+<div id="root"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- state ---------------- */
+const S={tab:'settings',seg:'general',acc:'Teal',
+ g:{on:true,key:'⌥ Space',mode:'toggle',inSnd:true,outSnd:true,vol:60,size:'m',pos:'bottom',cleanup:true,engine:'LM Studio',model:'qwen2.5-7b-instruct',
+   prompt:'Remove filler words, fix punctuation and keep the language I spoke. Reply with the text only.',hist:true,audio:false,days:30,wpm:40,ax:true},
+ hq:'',hf:'all',open:null,range:30,metric:'words',confirmReset:false,statsOn:true,recording:false,
+ demo:{pos:'bottom',field:true,fail:false,state:null,pasted:'',down:false}};
+const $=s=>document.querySelector(s);
+const setp=(p,v)=>{const a=p.split('.');let o=S;while(a.length>1)o=o[a.shift()];o[a[0]]=v};
+const tg=p=>{const a=p.split('.');let o=S;while(a.length>1)o=o[a.shift()];setp(p,!o[a[0]]);render()};
+const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),1600)};
+const sw=p=>{const a=p.split('.');let o=S;while(a.length)o=o[a.shift()];return `<div class="g-sw ${o?'on':''}" onclick="tg('${p}')"></div>`};
+const segc=(p,opts)=>{const a=p.split('.');let o=S;while(a.length)o=o[a.shift()];return `<div class="g-seg">${opts.map(([v,l])=>`<button class="${o===v?'on':''}" onclick="setp('${p}',${JSON.stringify(v).replace(/"/g,"'")});render()">${l}</button>`).join('')}</div>`};
+function beep(kind){ // the two sounds, with the volume slider: IN rises, OUT falls
+ try{const c=beep.c||(beep.c=new AudioContext());const t=c.currentTime;[kind==='in'?[660,880]:[740,520]].forEach(([a,b])=>{const o=c.createOscillator(),g=c.createGain();o.frequency.setValueAtTime(a,t);o.frequency.setValueAtTime(b,t+.09);g.gain.setValueAtTime(S.g.vol/100*.25,t);g.gain.exponentialRampToValueAtTime(.0001,t+.22);o.connect(g).connect(c.destination);o.start(t);o.stop(t+.23)})}catch(e){}}
+
+/* ---------------- data (seeded) ---------------- */
+function rnd(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const R=rnd(42),HW=[0,0,0,0,0,0,1,3,6,9,11,10,5,4,8,10,9,6,3,2,2,3,1,0];
+const DAYS=[];for(let d=119;d>=0;d--){const dt=new Date();dt.setHours(0,0,0,0);dt.setDate(dt.getDate()-d);const wd=dt.getDay();
+ const f=wd===0?.15:wd===6?.3:1,ramp=.5+.5*(1-d/119);let n=Math.round(R()*13*f*ramp+(R()<.1?6:0));if(R()<.12)n=0;
+ const h=Array(24).fill(0);let w=0,s=0,lg=0;for(let i=0;i<n;i++){let r=R()*HW.reduce((a,b)=>a+b),k=0;while(r>HW[k]){r-=HW[k];k++}h[k]++;const ww=Math.round(8+R()*R()*160);w+=ww;const ss=Math.round(ww/2.6+3);s+=ss;lg=Math.max(lg,ss)}
+ DAYS.push({dt,n,w,s,h,lg})}
+const STATS0=JSON.parse(JSON.stringify(DAYS.map(x=>({...x,dt:+x.dt}))));
+const P=[
+ ['eh bueno entonces lo que quería decir es que el el endpoint de usage tiene que devolver los datos este por día y no por hora o sea','El endpoint de usage tiene que devolver los datos por día, no por hora.'],
+ ['hey can you check if the the migration is um idempotent before we merge it','Can you check if the migration is idempotent before we merge it?'],
+ ['necesito que me mandes el el resumen de la reunión de ayer con los puntos de acción','Necesito que me mandes el resumen de la reunión de ayer, con los puntos de acción.'],
+ ['la verdad que no sé si conviene meter un cache ahí porque los datos cambian cada minuto más o menos','La verdad, no sé si conviene meter un caché ahí, porque los datos cambian cada minuto.'],
+ ['perfect thanks I will review it tonight and leave comments on the PR','Perfect, thanks. I\'ll review it tonight and leave comments on the PR.'],
+ ['dale lo vemos mañana a la mañana si te parece','Dale, lo vemos mañana a la mañana si te parece.'],
+ ['agregá un test que cubra el caso donde el modelo no responde y se pega el texto crudo','Agregá un test que cubra el caso en que el modelo no responde y se pega el texto crudo.'],
+ ['so the plan is basically ship the widget first then history then stats and the visual effect at the end','The plan: ship the widget first, then history, then stats, and the visual effect at the end.']];
+const APPS=['Carrier · Session','Slack','Cursor','Mail','Notes','Widget only'],MODELS=['Parakeet TDT v3','Parakeet TDT v3','Nemotron 3.5 Multilingual','Apple Speech'];
+const H=[];{const r=rnd(7);for(let i=0;i<30;i++){const p=P[Math.floor(r()*P.length)],d=new Date();d.setMinutes(d.getMinutes()-(i*95+Math.floor(r()*70)));if(i>14)d.setDate(d.getDate()-1-Math.floor(i/8));
+ const app=APPS[Math.floor(r()*APPS.length)],st=r()<.1?'cancelled':r()<.08?'failed':app==='Widget only'?'copied':'pasted',cl=S.g.cleanup&&r()<.7;
+ H.push({id:i,t:d,raw:p[0],clean:cl?p[1]:null,model:MODELS[Math.floor(r()*4)],tr:+(.25+r()*.9).toFixed(2),cl_t:cl?+(.6+r()).toFixed(1):0,sec:Math.round(4+r()*28),app,st:app==='Widget only'&&st==='pasted'?'copied':st,aud:r()<.25,lang:r()<.6?'Spanish':'English'})}H.sort((a,b)=>b.t-a.t)}
+const wc=t=>t.split(/\s+/).filter(Boolean).length;
+const fmt=t=>t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
+const dayName=d=>{const n=new Date();n.setHours(0,0,0,0);const x=new Date(d);x.setHours(0,0,0,0);const k=Math.round((n-x)/864e5);return k===0?'Today':k===1?'Yesterday':x.toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'})};
+const mins=m=>m>=60?`${Math.floor(m/60)} h ${Math.round(m%60)} min`:`${Math.round(m)} min`;
+
+/* ---------------- widget (one builder for the demo and the gallery) ---------------- */
+const KEY=()=>S.g.key;
+const LONG='Necesito que me mandes el resumen de la reunión de ayer con los puntos de acción, y también la lista de pendientes de cada equipo para revisarla antes de la próxima semana, así llegamos con todo claro a la planificación del trimestre';
+const FX='<div class="fx"><i class="rg"></i><b class="arw"><i class="ar"></i></b></div>';
+const MIC='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+function inner(o){const t=o.text||'',tent=o.tent||'';return (t||tent)?`${t}<span class="tent">${tent}</span>`:'<span class="car"></span>'}
+const OPENS=['nofield','noperm','failed']; // states that need text or a button: the pill opens as the Small box for them
+function widget(st,o={}){
+ let sz=o.size||S.g.size;if(sz==='p'&&OPENS.includes(st))sz='s';
+ const keys=S.g.mode==='toggle'?`<span class="kc">${KEY()}</span><span class="kc">esc</span>`:`<span class="kc">hold ${KEY().split(' ')[0]}</span><span class="kc">esc</span>`;
+ const btn='<button>Dismiss</button>';
+ const C={
+  preparing:{ph:'Getting ready…',ic:'<span class="spin"></span>',lab:'Loading the model',pill:'<span class="spin"></span>'},
+  listening:{live:1,fix:1,txt:inner(o),tmr:`0:${String(o.secs??4).padStart(2,'0')}`,right:keys,pill:MIC},
+  transcribing:{ph:'Transcribing…',ic:'<span class="spin"></span>',lab:'Transcribing',right:'<span>Gives its text when you stop</span>',pill:'<span class="spin"></span>'},
+  cleaning:{shim:1,fix:1,txt:o.text,ic:'<span class="pul">✦</span>',lab:'Cleaning',right:`<span>${S.g.model}</span><span class="kc">esc</span><span>skip</span>`,pill:'<span class="pul">✦</span>'},
+  pasted:{tint:'g',txt:o.text,ic:'✓',lab:`Pasted into ${o.app||'Notes'}`,pill:'✓'},
+  nofield:{end:1,txt:o.text,ic:'⧉',lab:'Copied · no text field has the cursor',right:'<button class="pri" onclick="toast(\'Copied\')">Copy</button>'+btn},
+  noperm:{end:1,tint:'o',txt:o.text,ic:'⚠',lab:'Accessibility is off',note:'Copied to the clipboard. Press ⌘V to paste.',right:'<button class="pri">Open System Settings</button>'+btn},
+  cleanfail:{tint:'o',txt:o.text,ic:'⚠',lab:'Pasted without cleaning',note:`Couldn't clean: ${S.g.engine} isn't running. The raw text was pasted.`,pill:'⚠'},
+  failed:{tint:'r',ph:'Could not start',ic:'🎙',lab:'The microphone is blocked',right:'<button class="pri">Open System Settings</button>'+btn},
+  cancelled:{tint:'n',ph:'Cancelled',ic:'✕',lab:'Nothing pasted · kept in History',pill:'✕'}}[st];
+ const tint=C.tint?'t-'+C.tint:'';
+ if(sz==='p')return `<div class="wg sz-p ${tint}" role="status" aria-label="${st}">${C.live?FX:''}<div class="pi">${C.pill}</div></div>`;
+ const has=!!C.txt;
+ return `<div class="wg sz-${sz} ${tint}" role="status">${C.live?FX:''}<div class="txt ${C.shim?'shim':''} ${C.fix?'fix':''} ${C.end?'end':''}"><div class="in ${has?'':'ph'}">${has?C.txt:C.ph}</div></div>${C.note?`<div class="note">${C.note}</div>`:''}<div class="bot">${C.ic?`<span class="ic">${C.ic}</span>`:''}${C.lab?`<span class="lab">${C.lab}</span>`:''}${C.tmr?`<span class="tmr">${C.tmr}</span>`:''}<span class="sp1"></span>${C.right||''}</div></div>`}
+function fit(){document.querySelectorAll('.wg .txt').forEach(t=>{const i=t.firstElementChild;const end=t.classList.contains('end');if(!end)t.scrollTop=t.scrollHeight;t.classList.toggle('ov',!end&&t.scrollHeight>t.clientHeight+1)})}
+
+/* ---------------- Settings page ---------------- */
+const group=(title,rows,acc='')=>`<div><div class="g-gt">${title}<span class="sp1"></span>${acc}</div><div class="g-card">${rows}</div></div>`;
+const row=(t,l,ctl,first)=>`<div class="g-row ${first?'first':''}"><div class="t"><b>${t}</b><span>${l}</span></div>${ctl}</div>`;
+const pop=(opts,cur,fn)=>`<select class="g-pop" onchange="${fn}">${opts.map(o=>`<option ${o===cur?'selected':''}>${o}</option>`).join('')}</select>`;
+const dimIf=(c,h)=>`<div class="${c?'':'g-dim'}">${h}</div>`;
+function general(){const g=S.g;
+ const dict=group('Dictation',
+  row('Dictation','The microphone in the message boxes',sw('statsOn'),1)+
+  row('Speech model','Parakeet TDT v3 · FluidAudio',pop(['Apple Speech','Parakeet TDT v3','Whisper Tiny'],'Parakeet TDT v3',''))+
+  row('Language','Picks the language as you speak, so you can mix Spanish and English',pop(['Automatic','Spanish','English'],'Automatic',''))+
+  row('Microphone','Carrier can listen','<span class="g-chip g">Allowed</span>'));
+ const glob=group('Global dictation',
+  row('Dictate in any app','A shortcut anywhere on the Mac opens a small widget and pastes what you say where your cursor is',sw('g.on'),1)+
+  dimIf(g.on,
+   row('Shortcut','With Carrier in front on a session it dictates into the message box, with no widget',`<div style="display:flex;gap:8px;align-items:center"><span class="g-key ${S.recording?'rec':''}" id="keycap">${S.recording?'Press keys…':g.key}</span><button class="g-cap" onclick="rec()">${S.recording?'Cancel':'Record'}</button></div>`)+
+   row('Activation','Toggle: press to start, press again to finish. Hold: speak while the keys are down',segc('g.mode',[['toggle','Toggle'],['hold','Hold']]))+
+   row('Accessibility','Needed to paste into other apps. Without it the text is copied and the widget tells you',g.ax?'<span class="g-chip g">Allowed</span>':'<span class="g-chip o">Not allowed</span><button class="g-cap">Open System Settings</button>')+
+   row('Widget style','Pill is a small badge with a microphone and no text. Small, Medium and Large are a box with the text as you say it: the text starts at the top and goes down, and once it reaches the bottom it scrolls, the older lines fading out at the top',segc('g.size',[['p','Pill'],['s','Small'],['m','Medium'],['l','Large']]))+
+   row('Position','Where it appears on the screen',segc('g.pos',[['top','Top'],['bottom','Bottom']]))+
+   `<div style="padding:4px 0 2px;border-top:.5px solid var(--div)"><div class="g-prev"><small>Preview</small>${widget('listening',{text:LONG.slice(0,150)+' ',tent:'y también la lista',secs:12})}</div><div class="g-tip">The widget never takes the focus from the app you are in. Esc cancels. If no text field has the cursor, the text stays in the widget with a Copy button.</div></div>`));
+ const snd=group('Sounds',dimIf(g.on,
+  row('Start sound','Plays when it begins to listen',`<button class="g-ib" title="Play" onclick="beep('in')">▶</button>${pop(['Rise','Pop','Tick'],'Rise','')}${sw('g.inSnd')}`,1)+
+  row('End sound','Plays when it stops listening and goes on to clean and paste',`<button class="g-ib" title="Play" onclick="beep('out')">▶</button>${pop(['Fall','Pop','Tick'],'Fall','')}${sw('g.outSnd')}`)+
+  row('Volume','For both sounds',`<span class="g-chip">${g.vol}%</span><input type="range" min="0" max="100" value="${g.vol}" oninput="S.g.vol=+this.value;this.previousElementSibling.textContent=this.value+'%'" onchange="beep('in')">`)));
+ const eng={'LM Studio':['qwen2.5-7b-instruct','llama-3.2-3b-instruct','gemma-3-4b-it'],'Ollama':['qwen2.5:7b','llama3.2:3b']};
+ const cl=group('Cleanup',
+  row('Clean the text with a model','After you finish, a local model rewrites the text with your prompt and that is what gets pasted. Applies in the widget and in the message boxes',sw('g.cleanup'),1)+
+  dimIf(g.cleanup,
+   row('Server','Runs on this Mac; nothing leaves it',`<span class="g-chip g">Running</span>${pop(Object.keys(eng),g.engine,"S.g.engine=this.value;S.g.model=({'LM Studio':'qwen2.5-7b-instruct','Ollama':'qwen2.5:7b'})[this.value];render()")}`)+
+   row('Model','Small models are faster; the paste waits for it',pop(eng[g.engine],g.model,'S.g.model=this.value'))+
+   `<div style="padding:10px 0 12px;border-top:.5px solid var(--div)"><div class="t" style="margin-bottom:6px"><b style="font-size:13px;font-weight:500">Prompt</b><span style="display:block;font-size:10px;color:var(--sec)">What you ask the model to do with every dictation. One prompt: translate, make it technical, drop filler words…</span></div><textarea class="g-ta" onchange="S.g.prompt=this.value">${g.prompt}</textarea><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><button class="g-cap" onclick="testClean()">Test with a sample</button><span id="tres" style="font-size:11px;color:var(--sec)">If the model fails or is slow, the raw text is pasted and the widget says so.</span></div></div>`),
+  '');
+ const models=group('Speech models',['Apple Speech|System|built into macOS','Parakeet TDT v3|500 MB|CC-BY-4.0','Whisper Tiny|75 MB|MIT'].map((x,i)=>{const [n,s,l]=x.split('|');return `<div class="g-row ${i?'':'first'}"><span style="width:15px;height:15px;border-radius:50%;box-shadow:0 0 0 ${i===1?'4.5px var(--acc)':'1.5px var(--ter)'} inset"></span><div class="t"><b>${n}</b><span>${l}</span></div><span style="font-size:12px">${s}</span></div>`}).join('')+row('Storage','The table of models is unchanged by this work','<button class="g-cap">Show in Finder</button>'),'<span class="g-chip acc" style="margin-right:14px">unchanged</span>');
+ return dict+glob+snd+cl+models+`<div class="g-card" style="padding:8px 14px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:var(--sec)">Back to the defaults</span><button class="g-cap">Reset</button></div>`}
+function historySettings(){const g=S.g;return group('History',
+  row('Keep the text of my dictations','The list below, with search, copy and delete. Off: nothing new is saved and what is there stays',sw('g.hist'),1)+
+  row('Keep the audio','Off by default. Each dictation then has its audio to play back',sw('g.audio'))+
+  dimIf(g.audio,row('Delete audio older than','The transcripts stay',pop(['7 days','30 days','90 days','Never'],g.days+' days',"S.g.days=parseInt(this.value)||0"))+
+   row('Audio on disk','182 MB in 214 files',`<button class="g-cap red" onclick="toast('Audio deleted · transcripts kept')">Delete all audio</button>`)))}
+function statsSettings(){const g=S.g;return group('Statistics settings',
+  row('Typing speed','Used for the time saved: words ÷ speed, minus the time you spent speaking',`<div style="display:flex;gap:8px;align-items:center"><button class="g-ib" onclick="S.g.wpm=Math.max(10,S.g.wpm-5);render()">−</button><span class="g-chip" style="font-size:12px">${g.wpm} words/min</span><button class="g-ib" onclick="S.g.wpm=Math.min(200,S.g.wpm+5);render()">+</button></div>`,1)+
+  row('Reset statistics','Deletes the counters. The history stays, and deleting history never changes the statistics',S.confirmReset?`<span style="font-size:12px;color:var(--red)">Sure?</span><button class="g-cap" onclick="S.confirmReset=false;render()">Cancel</button><button class="g-cap red" onclick="doReset()">Reset</button>`:`<button class="g-cap red" onclick="S.confirmReset=true;render()">Reset statistics…</button>`))}
+function rec(){S.recording=!S.recording;render()}
+addEventListener('keydown',e=>{if(!S.recording)return;e.preventDefault();if(['Shift','Control','Alt','Meta'].includes(e.key))return;
+ const m=(e.ctrlKey?'⌃':'')+(e.altKey?'⌥':'')+(e.shiftKey?'⇧':'')+(e.metaKey?'⌘':'');if(!m){S.recording=false;render();return}
+ S.g.key=m+' '+(e.code==='Space'?'Space':e.key.toUpperCase());S.recording=false;render();toast('Shortcut set to '+S.g.key)},true);
+function testClean(){const r=$('#tres');r.textContent='Cleaning…';setTimeout(()=>{r.innerHTML='<b style="color:var(--text)">“'+P[0][1]+'”</b> · 0.8 s'},700)}
+function doReset(){S.confirmReset=false;S.statsOn=true;DAYS.forEach(d=>{d.n=0;d.w=0;d.s=0;d.lg=0;d.h.fill(0)});toast('Statistics reset');render()}
+
+/* ---------------- History ---------------- */
+function history(){const q=S.hq.toLowerCase(),f=S.hf;
+ const list=H.filter(h=>(f==='all'||h.st===f)&&(!q||(h.raw+' '+(h.clean||'')+' '+h.app).toLowerCase().includes(q)));
+ const filt=[['all','All'],['pasted','Pasted'],['copied','Copied'],['cancelled','Cancelled'],['failed','Failed']];
+ let out=`<div class="g-pb" style="padding-bottom:8px">${historySettings()}<div style="display:flex;gap:10px;align-items:center;margin-top:6px"><div class="g-search"><input placeholder="Search your dictations" value="${S.hq}" oninput="S.hq=this.value;renderKeep()"></div>${segc('hf',filt)}</div>`;
+ if(!list.length)return out+`<div class="empty"><b>${H.length?'Nothing matches':'No dictations yet'}</b>${H.length?'Try another word or filter.':'What you dictate will show up here.'}</div></div>`;
+ let day='',html='';list.forEach((h,i)=>{const d=dayName(h.t);if(d!==day){day=d;html+=`<div class="g-day">${d}</div>`}
+  const open=S.open===h.id,txt=h.clean||h.raw,st={pasted:'<span class="g-chip g">Pasted</span>',copied:'<span class="g-chip acc">Copied</span>',cancelled:'<span class="g-chip">Cancelled</span>',failed:'<span class="g-chip r">Failed</span>'}[h.st];
+  html+=`<div class="hrow ${open?'open':''} ${h.st==='cancelled'?'canc':''} ${i&&d===dayName(list[i-1].t)?'':'first'}" onclick="S.open=${open?'null':h.id};render()"><div class="top"><span class="tm">${fmt(h.t)}</span><div class="tx">${h.st==='cancelled'?'Cancelled — '+h.raw:txt}</div><div class="acts" onclick="event.stopPropagation()"><button class="g-ib" title="Copy text" onclick="toast('Copied')">⧉</button>${h.aud?'<button class="g-ib" title="Play audio">▶</button>':''}<button class="g-ib" title="Delete" onclick="delH(${h.id})">🗑</button></div></div>
+  <div class="chips">${st}<span class="g-chip">${h.app}</span><span class="g-chip">${h.model}</span><span class="g-chip">transcribed in ${h.tr} s</span><span class="g-chip">${wc(h.raw)} words · ${h.sec} s</span>${h.clean?'<span class="g-chip acc">✦ cleaned</span>':''}</div>
+  ${open?`<div class="det"><div class="full"><span class="k">${h.clean?'Cleaned text':'Text'}</span>${txt}</div>${h.clean?`<div class="full"><span class="k">As recognized</span><span style="color:var(--sec)">${h.raw}</span></div>`:''}<div><span class="k">Speech model</span>${h.model} · ${h.lang}</div><div><span class="k">Transcription</span>${h.tr} s for ${h.sec} s of audio</div><div><span class="k">Cleanup</span>${h.clean?S.g.model+' · '+h.cl_t+' s':'Not used'}</div><div><span class="k">Went to</span>${h.app}</div>${h.aud?`<div class="full"><span class="k">Audio</span><div class="player"><button class="g-ib">▶</button><i></i><span style="font-size:11px;color:var(--sec)">0:${String(h.sec).padStart(2,'0')}</span></div></div>`:''}</div>`:''}</div>`});
+ return out+`<div class="g-card" style="padding:4px 14px">${html}</div><div class="g-tip" style="text-align:center">${list.length} of ${H.length} dictations · deleting an entry removes its text and audio, never the statistics</div></div>`}
+function delH(id){const i=H.findIndex(h=>h.id===id);H.splice(i,1);toast('Deleted · statistics unchanged');render()}
+function renderKeep(){const p=$('.g-page'),y=p.scrollTop,f=document.activeElement&&document.activeElement.tagName==='INPUT',pos=f?document.activeElement.selectionStart:0;render();if(f){const i=$('.g-search input');i.focus();i.setSelectionRange(pos,pos)}$('.g-page').scrollTop=y}
+
+/* ---------------- Statistics ---------------- */
+function stats(){const N=S.range>=120?120:S.range,sl=DAYS.slice(-N),prev=DAYS.slice(-2*N,-N);
+ const sum=a=>a.reduce((x,d)=>({n:x.n+d.n,w:x.w+d.w,s:x.s+d.s}),{n:0,w:0,s:0}),c=sum(sl),all=sum(DAYS);
+ const wpm=S.g.wpm,saved=x=>Math.max(0,x.w/wpm-x.s/60);
+ if(!all.n)return `<div class="g-pb"><div class="empty"><b>No statistics yet</b>Dictate something and the numbers start here.<br>Counters were reset.</div></div>`;
+ const val=d=>S.metric==='words'?d.w:d.n,mx=Math.max(...sl.map(val),1),hrs=Array(24).fill(0);sl.forEach(d=>d.h.forEach((v,i)=>hrs[i]+=v));const hm=Math.max(...hrs,1);
+ const best=(k)=>DAYS.reduce((a,d)=>d[k]>a[k]?d:a,DAYS[0]),dfmt=d=>d.dt.toLocaleDateString('en',{weekday:'short',month:'short',day:'numeric'});
+ let streak=0,bs=0;DAYS.forEach(d=>{streak=d.n?streak+1:0;bs=Math.max(bs,streak)});const bh=hrs.indexOf(Math.max(...hrs));
+ const wk=DAYS.slice(-7),pw=DAYS.slice(-14,-7),ws=sum(wk),ps=sum(pw),dl=ps.w?Math.round((ws.w-ps.w)/ps.w*100):0,bd=wk.reduce((a,d)=>d.w>a.w?d:a,wk[0]);
+ const delta=(a,b)=>b?`${a>=b?'▲':'▼'} ${Math.abs(Math.round((a-b)/b*100))}% vs previous`:'';
+ return `<div class="g-pb">
+ <div style="display:flex;align-items:center;gap:10px"><span class="g-gt" style="margin:0;flex:1">Overview</span>${segc('range',[[7,'7 days'],[30,'30 days'],[90,'90 days'],[120,'All time']]).replace(/setp\('range','(\d+)'\)/g,"setp('range',$1)")}</div>
+ <div class="sums"><div class="sum"><div class="k">Dictations</div><div class="v">${c.n.toLocaleString()}</div><div class="s">${delta(c.n,sum(prev).n)}</div></div>
+ <div class="sum"><div class="k">Words</div><div class="v">${c.w.toLocaleString()}</div><div class="s">${delta(c.w,sum(prev).w)}</div></div>
+ <div class="sum"><div class="k">Speaking time</div><div class="v">${mins(c.s/60)}</div><div class="s">${Math.round(c.w/Math.max(c.s/60,1))} words/min while speaking</div></div>
+ <div class="sum hero"><div class="k">Time saved</div><div class="v">${mins(saved(c))}</div><div class="s">words ÷ ${wpm} wpm, minus speaking</div></div></div>
+ <div><div class="g-gt">${S.metric==='words'?'Words':'Dictations'} per day<span class="sp1"></span>${segc('metric',[['words','Words'],['n','Dictations']])}</div><div class="g-card" style="padding:6px 14px 10px"><div class="chart">${sl.map(d=>`<div class="b ${val(d)===mx?'max':''}" style="height:${Math.max(val(d)/mx*100,1.5)}%" title="${dfmt(d)} · ${val(d)} ${S.metric==='words'?'words':'dictations'}"></div>`).join('')}</div><div class="axis"><span>${dfmt(sl[0])}</span><span>Today</span></div></div></div>
+ <div class="two"><div><div class="g-gt">By hour of the day</div><div class="g-card" style="padding:12px 14px 10px"><div class="hours">${hrs.map((v,i)=>`<i style="opacity:${(.08+.92*v/hm).toFixed(2)}" title="${String(i).padStart(2,'0')}:00 · ${v} dictations"></i>`).join('')}</div><div class="hlab">${hrs.map((_,i)=>`<span>${i%6===0?i:''}</span>`).join('')}</div><div class="g-tip" style="padding:8px 0 0">You dictate most around ${String(bh).padStart(2,'0')}:00.</div></div></div>
+ <div><div class="g-gt">This week</div><div class="g-card wk" style="padding:12px 14px"><p>You dictated <b>${ws.w.toLocaleString()} words</b> in ${ws.n} dictations, ${dl>=0?dl+'% more':Math.abs(dl)+'% less'} than last week. ${bd.dt.toLocaleDateString('en',{weekday:'long'})} was your busiest day, and you saved about <b>${mins(saved(ws))}</b>.</p><div class="wmini">${wk.map(d=>`<i class="${d===bd?'t':''}" style="height:${Math.max(d.w/Math.max(bd.w,1)*100,4)}%"></i>`).join('')}</div><div class="axis">${wk.map(d=>`<span>${d.dt.toLocaleDateString('en',{weekday:'narrow'})}</span>`).join('')}</div></div></div></div>
+ <div><div class="g-gt">Records</div><div class="g-card" style="padding:2px 14px">
+ <div class="rec first"><span class="ic">#</span><div class="t"><b>Most dictations in a day</b><span>${dfmt(best('n'))}</span></div><span class="v">${best('n').n}</span></div>
+ <div class="rec"><span class="ic">Aa</span><div class="t"><b>Most words in a day</b><span>${dfmt(best('w'))}</span></div><span class="v">${best('w').w.toLocaleString()}</span></div>
+ <div class="rec"><span class="ic">⏱</span><div class="t"><b>Longest dictation</b><span>${dfmt(best('lg'))}</span></div><span class="v">${best('lg').lg} s</span></div>
+ <div class="rec"><span class="ic">🔥</span><div class="t"><b>Longest streak</b><span>days in a row with a dictation</span></div><span class="v">${bs} days</span></div></div></div>
+ <div class="g-tip">The statistics are their own counters: they hold no text, and turning the history off or deleting entries does not change them.</div>${statsSettings()}</div>`}
+
+function settingsView(){const seg=S.seg;
+ return `<div class="g-sheet"><div class="g-body"><div class="g-rail"><div class="g-rh"><b>Settings</b><span>How Carrier runs here</span></div>
+ ${[['⚙','General','The menu bar and the questions Carrier asks'],['🔔','Notifications','What to tell you'],['🖌','Appearance','Theme, color, text size'],['💬','Chat','The message box and the conversation'],['🎙','Dictation','Speak instead of typing','on'],['⌨','Keybindings','The keys that run the app\'s actions']].map(([i,n,s,o])=>`<div class="g-r ${o||''}"><span class="ic">${i}</span><div><b>${n}</b><small>${s}</small></div></div>`).join('')}
+ <div class="g-gh">Carrier</div><div class="g-r"><span class="ic">◍</span><div><b>Providers</b><small>The AI tools on this Mac</small></div></div></div>
+ <div class="g-page"><div class="g-ph"><span class="ic">🎙</span><div><b>Dictation</b><span>Speak instead of typing, in Carrier and in any app</span></div></div>
+ <div class="g-segbar">${segc('seg',[['general','General'],['history','History'],['stats','Statistics']])}</div>
+ ${seg==='general'?`<div class="g-pb">${general()}</div>`:seg==='history'?history():stats()}</div></div></div>
+ <div class="q"><h3>Still open on this page</h3><ul>
+ <li><b>General is still the longest segment</b> (Dictation, Global dictation, Sounds, Cleanup, Speech models). History settings now sit at the top of History and statistics settings at the bottom of Statistics. If General is still too much, Cleanup can be its own segment.</li></ul></div>`}
+
+/* ---------------- Widget demo ---------------- */
+const SCRIPT=(P[0][0]+' '+P[3][0]).split(' '),CLEAN=P[0][1]+' '+P[3][1];let tm=[];
+const clr=()=>{tm.forEach(clearTimeout);tm=[]};
+const later=(f,ms)=>tm.push(setTimeout(f,ms));
+function showW(st,o){const d=S.demo,sl=$('#wslot');d.state=st;d.o=o;
+ if(sl&&st==='listening'&&sl.dataset.st==='listening'){const i=sl.querySelector('.in'),m=sl.querySelector('.tmr');if(i)i.innerHTML=inner(o);if(m)m.textContent='0:'+String(o.secs).padStart(2,'0');fit();return}
+ paintDemo()}
+function paintDemo(){const sl=$('#wslot');if(!sl)return;const d=S.demo;sl.className='wslot '+S.g.pos+(d.state?'':' hide');sl.dataset.st=d.state||'';if(d.state)sl.innerHTML=widget(d.state,d.o);
+ const f=$('#fld');if(f){f.className='field'+(d.field?' focus':'');f.innerHTML=d.pasted+(d.field?'<span class="car"></span>':'')}
+ const k=$('#bk');if(k)k.className='bigkey'+(d.down?' down':'');fit()}
+function demoStart(){if(S.demo.listening)return;clr();const d=S.demo;if(!S.g.on){toast('Global dictation is off in Settings');return}
+ if(S.g.inSnd)beep('in');d.listening=true;showW('preparing',{});let i=0,secs=0;
+ later(function tick(){showW('listening',{text:SCRIPT.slice(0,Math.max(i-1,0)).join(' ')+(i>1?' ':''),tent:SCRIPT[Math.max(i-1,0)]&&i?SCRIPT[i-1]:'',secs:Math.floor(i/4)});if(i<SCRIPT.length){i++;later(tick,260)}else later(tick,2000)},500);
+ d.raw=()=>SCRIPT.slice(0,Math.max(i,1)).join(' ')}
+function demoStop(cancel){const d=S.demo;if(!d.listening)return;clr();d.listening=false;const raw=d.raw();
+ if(cancel){showW('cancelled',{});later(()=>showW(null),1600);return}
+ if(S.g.outSnd)beep('out');
+ const done=txt=>{
+  if(!d.field)return showW('nofield',{text:txt});
+  if(!S.g.ax){return showW('noperm',{text:txt})}
+  d.pasted=(d.pasted||'')+txt+' ';showW('pasted',{text:txt,app:'Notes'});later(()=>showW(null),1800)};
+ if(S.g.cleanup){showW('cleaning',{text:raw});later(()=>{if(d.fail){showW('cleanfail',{text:raw});d.pasted=(d.pasted||'')+raw+' ';later(()=>showW(null),2600)}else done(CLEAN)},1700)}
+ else done(raw.charAt(0).toUpperCase()+raw.slice(1)+'.')}
+function demoView(){const d=S.demo;return `<div class="sub" style="margin-bottom:10px">Press the key (toggle) or keep it down (hold). The mode, the cleanup, Accessibility and the sounds come from Settings.</div>
+ <div class="desk"><div class="menubar"><b></b><b>Notes</b><span>File</span><span>Edit</span><span>View</span><span class="sp"></span><span>${S.g.on?'🎙':''}</span><span>Mon 10:42</span></div>
+ <div class="fakewin"><div class="tb2"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span style="margin-left:8px">Notes — Meeting</span></div><div class="field" id="fld"></div><div class="hint">${d.field?'The cursor is in this field.':'The cursor is not in a text field.'}</div></div>
+ <div class="wslot ${S.g.pos} hide" id="wslot"></div><div class="dock"><i></i><i></i><i></i><i></i><i></i></div></div>
+ <div class="ctrls"><button class="bigkey" id="bk" ${S.g.mode==='toggle'?`onclick="S.demo.listening?demoStop():demoStart();paintDemo()"`:`onmousedown="S.demo.down=true;demoStart();paintDemo()" onmouseup="S.demo.down=false;demoStop();paintDemo()" onmouseleave="if(S.demo.down){S.demo.down=false;demoStop();paintDemo()}"`}>${KEY()} · ${S.g.mode==='toggle'?'press':'hold'}</button>
+ <button class="bigkey" onclick="demoStop(true)">esc</button>
+ <label><input type="checkbox" ${d.field?'checked':''} onchange="S.demo.field=this.checked;paintDemo()"> Cursor in a text field</label>
+ <label><input type="checkbox" ${S.g.ax?'checked':''} onchange="S.g.ax=this.checked"> Accessibility allowed</label>
+ <label><input type="checkbox" ${S.g.cleanup?'checked':''} onchange="S.g.cleanup=this.checked"> Cleanup on</label>
+ <label><input type="checkbox" ${d.fail?'checked':''} onchange="S.demo.fail=this.checked"> Cleanup server down</label>
+ <label>Position ${segc('g.pos',[['bottom','Bottom'],['top','Top']])}</label><label>Style ${segc('g.size',[['p','Pill'],['s','S'],['m','M'],['l','L']])}</label></div>
+ <div class="q"><h3>Questions the widget puts to you</h3><ul><li><b>Where does it appear?</b> Bottom centre, above the Dock, as drawn, or top centre under the menu bar. Near the text cursor looks nicer and needs the focus detection to also give the caret's position, which is less reliable across apps.</li>
+ <li><b>The pill and the states that need you.</b> The pill has no room for text or buttons, so when there is no text field, Accessibility is off or the microphone is blocked it opens as the Small box for that moment. The other states stay a pill with an icon.</li>
+ <li><b>How long do the end states stay?</b> Pasted fades after about 2 s; the others (no field, no permission, failed) stay until you dismiss them or start another dictation.</li></ul></div>`}
+function statesView(){const T='Necesito que me mandes el resumen de la reunión de ayer.';
+ const L=[['preparing','Getting ready','The model loads, a few seconds the first time.',{}],
+ ['listening','Listening','Text as it is said, read only; the last words are tentative and settle. Time on the left, the shortcut and Esc on the right.',{text:'Necesito que me mandes el resumen de la reunión de ',tent:'ayer',secs:7}],
+ ['listening','Listening, long text','The box has one default height. The text starts at the top and goes down like in any text box; when it reaches the bottom it scrolls, the newest words stay on the last line and the older lines fade out at the top.',{text:LONG.slice(0,205)+' ',tent:'revisarla antes',secs:21}],
+ ['transcribing','Transcribing','Models that give their text only at the end (Whisper Large).',{}],
+ ['cleaning','Cleaning','The cleanup model works on the text; it shimmers. Esc skips it and pastes the raw text.',{text:'eh bueno necesito que me mandes el el resumen de la reunión de ayer'}],
+ ['pasted','Pasted','Fades by itself.',{text:T,app:'Slack'}],
+ ['nofield','No text field','Nothing to paste into: the text stays, copied too. A long text scrolls here, so none of it is out of reach.',{text:LONG.slice(0,260)}],
+ ['noperm','Accessibility is off','macOS forgot the permission (an update, or it was never given): copied, with the way to fix it.',{text:T}],
+ ['cleanfail','Cleanup failed','Never loses the dictation: the raw text goes in and it says why.',{text:'necesito que me mandes el resumen de la reunión de ayer'}],
+ ['failed','Could not start','The cause in words, like the red line of the message box.',{}],
+ ['cancelled','Cancelled','Esc: nothing pasted; the History keeps it as cancelled.',{}]];
+ const names={p:'Pill',s:'Small',m:'Medium',l:'Large'},desc={s:'2 lines · 340 pt · 12 pt text',m:'3 lines · 420 pt · 14 pt text',l:'4 lines · 540 pt · 17 pt text'};
+ const pills=[['listening',{secs:7}],['preparing',{}],['cleaning',{text:'x'}],['pasted',{text:'x'}],['cleanfail',{text:'x'}],['cancelled',{}]].map(([k,o])=>`<span title="${k}">${widget(k,{...o,size:'p'})}</span>`).join('');
+ const sizes=`<div class="sc" style="grid-column:1/-1"><h3>Pill</h3><div class="stage" style="gap:18px;flex-wrap:wrap;align-items:center">${pills}</div><p>No text: the microphone while it listens, with the accent glow around it; then a spinner while it works, ✦ while it cleans, ✓ pasted, ⚠ pasted without cleaning, ✕ cancelled. States that need text or a button (no field, no permission, couldn't start) open as the Small box.</p></div>`+
+  ['s','m','l'].map(z=>`<div class="sc"><h3>${names[z]}</h3><div class="stage" style="align-items:flex-end">${widget('listening',{text:LONG.slice(0,215)+' ',tent:'revisarla',secs:21,size:z})}</div><p>${desc[z]}</p></div>`).join('');
+ return `<div class="sub">The widget in each state, in the current mode (${S.g.mode}), shortcut (${KEY()}), accent (${S.acc}) and style (${names[S.g.size]}). Change the accent and light/dark above; the style is in Settings and under the demo.</div>
+ <div class="g-gt" style="margin-left:2px">Four styles</div><div class="states" style="margin-top:4px">${sizes}</div>
+ <div class="g-gt" style="margin:24px 0 0 2px">States, in the chosen style</div><div class="states" style="margin-top:4px">${L.map(([s,t,p,o])=>`<div class="sc"><h3>${t}</h3><div class="stage" style="align-items:flex-end">${widget(s,o)}</div><p>${p}</p></div>`).join('')}</div>`}
+
+/* ---------------- shell ---------------- */
+const ACC={Teal:['#4fd1b8','#0e9f8b'],Blue:['#5ac8fa','#007aff'],Purple:['#bf5af2','#a23bd6'],Pink:['#ff6482','#e5446a'],Orange:['#ffb340','#e08600'],Green:['#6fdc8c','#28a745']};
+function render(){
+ document.body.style.setProperty('--acc',ACC[S.acc][document.body.classList.contains('light')?1:0]);
+ $('#top').innerHTML=[['settings','Settings · Dictation'],['demo','Widget · live demo'],['states','Widget · all states']].map(([k,l])=>`<button class="tab ${S.tab===k?'on':''}" onclick="S.tab='${k}';render()">${l}</button>`).join('')+'<span class="sp"></span>'+Object.keys(ACC).map(k=>`<button class="tog" style="padding:7px 10px;${S.acc===k?'box-shadow:0 0 0 2px var(--text)':''}" title="${k}" onclick="S.acc=\'${k}\';render()"><i style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${ACC[k][0]};vertical-align:-2px"></i></button>`).join('')+'<button class="tog" onclick="document.body.classList.toggle(\'light\');render()">Light / dark</button>';
+ const p=$('.g-page'),y=p?p.scrollTop:0;
+ $('#root').innerHTML=S.tab==='settings'?settingsView():S.tab==='demo'?demoView():statesView();
+ const q=$('.g-page');if(q)q.scrollTop=y;if(S.tab==='demo')paintDemo();fit()}
+const q=new URLSearchParams(location.search);if(q.get('tab'))S.tab=q.get('tab');if(q.get('seg'))S.seg=q.get('seg');if(q.get('light'))document.body.classList.add('light');if(q.get('open'))S.open=+q.get('open');
+if(q.get('mode'))S.g.mode=q.get('mode');if(q.get('ax')==='0')S.g.ax=false;if(q.get('field')==='0')S.demo.field=false;if(q.get('fail'))S.demo.fail=true;
+
+/* the voice and the line: the same follower and formulas as DictationIndicator.swift / IndicatorMotion (spin 6 + 150 * voice deg/s, tremble with mids and highs, a 4.2 s breath) */
+const MO={spin:0,drift:0,last:0,o:.05,m:.05,h:.05,speaking:false,next:0,rm:matchMedia('(prefers-reduced-motion: reduce)').matches};
+function motion(now){const dt=Math.min(.1,MO.last?(now-MO.last)/1000:0);MO.last=now;
+ if(now>MO.next){MO.speaking=!MO.speaking;MO.next=now+(MO.speaking?700+Math.random()*1800:350+Math.random()*800)}
+ const r=Math.random,tg=MO.speaking?{o:.3+.6*r(),m:.2+.6*r(),h:.15+.5*r()}:{o:.03+.04*r(),m:.03,h:.03};
+ for(const k of ['o','m','h']){MO[k]+=(tg[k]-MO[k])*(1-Math.exp(-dt*(tg[k]>MO[k]?16:5)))}
+ const live=document.querySelectorAll('.wg .fx');if(live.length){
+  const v=MO.o,moving=!MO.rm;if(moving){MO.spin+=dt*(6+150*v);MO.drift+=dt*(.9+3*MO.m)}
+  const breath=moving?.5+.5*Math.sin(now/1000*2*Math.PI/4.2):.5,tr=moving?(MO.m+MO.h)/2*Math.sin(MO.drift*6):0;
+  const w=1.3+.7*breath*(1-v)+(moving?2.4*v:0)+.9*tr,base=.3+.2*breath*(1-v)+.3*v,sh=.3+.3*breath*(1-v)+.4*v,sr=2+3*breath*(1-v)+6*v,op=.55+.3*breath*(1-v)+.45*v;
+  live.forEach(f=>{f.style.setProperty('--rw',w.toFixed(2)+'px');f.style.opacity=op.toFixed(2);f.querySelector('.rg').style.opacity=base.toFixed(2);
+   f.querySelector('.ar').style.setProperty('--ang',(moving?MO.spin%360:200).toFixed(1)+'deg');
+   f.querySelector('.arw').style.filter=`drop-shadow(0 0 ${sr.toFixed(1)}px color-mix(in srgb,var(--c1) ${(sh*100).toFixed(0)}%,transparent))`})}
+ requestAnimationFrame(motion)}
+requestAnimationFrame(motion);
+render();
+if(q.get('run')){setTimeout(demoStart,50);setTimeout(()=>demoStop(),+q.get('run'))}
+</script></body></html>

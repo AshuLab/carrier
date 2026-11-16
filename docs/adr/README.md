@@ -36,3 +36,6 @@ A status that names a later record means that record changed part or all of this
 | 0026 | [Claude's usage reads the login from the macOS Keychain, and never refreshes it](0026-claude-usage-reads-the-login-from-the-keychain-and-never-refreshes-it.md) | accepted |
 | 0027 | [The embedded terminal runs in-process with GhosttyKit and restores layout across launches](0027-embedded-terminal-runs-in-process-with-ghosttykit.md) | accepted; owner types and epic integration updated in [0028](0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md) |
 | 0028 | [Epic Continue in Terminal runs inside an ephemeral embedded Ghostty drawer](0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md) | accepted |
+| 0029 | [Global dictation is a widget that pastes once at the end and falls back to the clipboard](0029-global-dictation-is-a-widget-that-pastes-once-and-falls-back-to-the-clipboard.md) | proposed |
+| 0030 | [Dictation cleanup runs on local model servers through their API, not on agent CLIs](0030-dictation-cleanup-runs-on-local-model-servers-through-their-api.md) | proposed |
+| 0031 | [Dictation keeps a history, and its statistics live apart from it](0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md) | proposed |

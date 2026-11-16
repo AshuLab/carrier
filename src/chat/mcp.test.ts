@@ -268,7 +268,7 @@ test('capabilities is a readsAsSession tool that takes no arguments and answers 
   const own = await startMcpServer({
     registry,
     tools: [capabilities],
-    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', found: true }], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }) },
+    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }) },
   });
   try {
     const token = issue();
@@ -276,7 +276,7 @@ test('capabilities is a readsAsSession tool that takes no arguments and answers 
     for (const args of [undefined, {}]) {
       const result = await ask(args);
       expect(result.isError).toBe(false);
-      expect(JSON.parse(result.content[0].text)).toEqual({ session: view, agents: [{ name: 'a', harness: 'claude', found: true, state: 'ready' }], environment: { git: 'ready', gh: 'missing' } });
+      expect(JSON.parse(result.content[0].text)).toEqual({ session: view, agents: [{ name: 'a', harness: 'claude', account: 'claude', found: true, state: 'ready' }], environment: { git: 'ready', gh: 'missing' } });
     }
     expect((await ask({ extra: 1 })).isError).toBe(true);
     expect((await ask([])).isError).toBe(true);

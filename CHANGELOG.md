@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- An account of `providers.json` can have a label, an icon and a color (Settings › Providers, Edit an account), so two logins of one tool are told apart where the app names them: the message box's button and its provider tabs, a session's row in the sidebar, the footer of an answer, the account rows of Settings and the corner of an epic session's avatar. All three are optional; with none, the app looks as it did. They need an up-to-date `carrier` (the editor says so and writes nothing while it is older), because an older one refuses a `providers.json` that has them.
 - Pin and Archive appear on a session's row in the sidebar when the pointer is on it, in place of the age.
 - A session whose turn ended says "Done" in green in the place of its time until you open it, and the icon's glow turns green and goes round once, fast, as the turn ends. It is not "Needs you", which stays orange for a permission or a question.
 

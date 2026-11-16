@@ -57,7 +57,7 @@ test('a chat.json that sets agents and a log level is what the host lists and lo
   stops.push(started.stop);
   expect(installLogging).toHaveBeenCalledWith(expect.any(String), 'debug');
   const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
-  expect(await client.request('agents')).toEqual([{ name: 'mine', harness: 'claude', found: true }]);
+  expect(await client.request('agents')).toEqual([{ name: 'mine', harness: 'claude', account: 'claude', found: true }]);
   client.close();
 });
 
@@ -132,8 +132,8 @@ test('a client opens a conversation, sends, reads the events by cursor and close
   const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
   expect(client.hello.capabilities).toEqual(expect.arrayContaining(['agents', 'open', 'send', 'events', 'close', 'list']));
   expect(await client.request('agents')).toEqual([
-    { name: 'claude', harness: 'claude', found: true },
-    { name: 'codex', harness: 'codex', found: true },
+    { name: 'claude', harness: 'claude', account: 'claude', found: true },
+    { name: 'codex', harness: 'codex', account: 'codex', found: true },
   ]);
   await expect(client.request('open', { agent: 'claude', folder: join(root, 'chat') })).resolves.toBeDefined(); // the chat folder is the host's own, not a forbidden one
   await expect(client.request('open', { agent: 'claude', folder: join(root, 'engine') })).rejects.toThrow('does not exist');

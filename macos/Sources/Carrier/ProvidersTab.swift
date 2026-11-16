@@ -124,6 +124,7 @@ struct ProvidersTabView: View {
                                 title: account.title, detail: account.usedBy, first: index == 0, note: tool.id == "agy" ? nil : account.configDir ?? "This Mac's login"
                             ) {
                                 HStack(spacing: 10) {
+                                    AccountMark(account: account.name, icon: tool.icon, size: 16).help(account.title)
                                     AccountStateLabel(state: account.state)
                                     if account.state == .signedOut {
                                         Button("Sign in") { open(.signIn, harness: tool.id, command: account.command, configDir: account.configDir) }

@@ -1,4 +1,4 @@
-import { readProvidersFile, type Providers } from '../config/providers.ts';
+import { readProvidersFile, type accountColors, type accountIcons, type Providers } from '../config/providers.ts';
 import { detect, type Machine } from '../doctor/detect.ts';
 import { harnessNames, type HarnessName } from '../harnesses/names.ts';
 import { localKinds, type LocalProvider } from '../harnesses/local.ts';
@@ -6,7 +6,7 @@ import type { Clock } from '../orchestration/clock.ts';
 import { PROBE_LIMIT_MS, type ToolState } from './health.ts';
 
 export type ProvidersReply = {
-  accounts: { name: string; harness: HarnessName; displayName?: string; command?: string; configDir?: string; found: boolean; path?: string; version?: string; state: ToolState }[];
+  accounts: { name: string; harness: HarnessName; displayName?: string; label?: string; icon?: (typeof accountIcons)[number]; color?: (typeof accountColors)[number]; command?: string; configDir?: string; found: boolean; path?: string; version?: string; state: ToolState }[];
   /** A harness whose CLI is found and no account has. */
   unadded: { harness: HarnessName; path: string; version?: string }[];
   servers: { kind: LocalProvider; running: boolean; models: string[] }[];
@@ -63,6 +63,9 @@ export function createProviders({ clock, machine, binaryFound }: { clock: Clock;
           name,
           harness: account.harness,
           ...(account.displayName !== undefined && { displayName: account.displayName }),
+          ...(account.label !== undefined && { label: account.label }),
+          ...(account.icon !== undefined && { icon: account.icon }),
+          ...(account.color !== undefined && { color: account.color }),
           ...(account.command !== undefined && { command: account.command }),
           ...(account.configDir !== undefined && { configDir: account.configDir }),
           found,

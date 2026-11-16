@@ -191,7 +191,7 @@ struct SessionHeaderView: View {
             HStack(spacing: 18) {
                 Hairline(leading: true, bright: hovered)
                 HStack(spacing: 12) {
-                    AgentAvatar(text: text, harness: section.agent, size: 34, working: section.state == .running)
+                    AgentAvatar(text: text, harness: section.agent, size: 34, working: section.state == .running, account: section.account)
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 8) {
                             Text(text.name).font(.scaled(14, weight: .bold)).lineLimit(1).layoutPriority(1)
@@ -342,6 +342,8 @@ struct AgentAvatar: View {
     let working: Bool
     /// The tool's mark on the corner; the stack of earlier sessions leaves it out.
     var mark = true
+    /// The account the session runs on: the corner wears its icon and color when it has them (the disc is the profile's, not the account's).
+    var account: String?
     @MainActor private static var marks: [String: NSImage] = [:]
 
     var body: some View {
@@ -361,7 +363,9 @@ struct AgentAvatar: View {
 
     private var corner: some View {
         Group {
-            if let image = Self.mark(harness) {
+            if let account {
+                AccountMark(account: account, icon: harness, size: 9)
+            } else if let image = Self.mark(harness) {
                 Image(nsImage: image).renderingMode(.template).resizable().scaledToFit().frame(width: 9, height: 9)
             } else {
                 Text(harness.prefix(1)).font(.scaled(8, weight: .bold))

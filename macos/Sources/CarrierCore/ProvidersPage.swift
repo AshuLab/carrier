@@ -249,6 +249,9 @@ public enum ProvidersOutcome: Equatable {
     public private(set) var editNote: String?
     /// An Add, Save or Remove is being written and the engine asked: its buttons wait for the answer, so a second click does not save twice.
     public private(set) var busy = false
+    /// Whether the host knows the `label`, `icon` and `color` of an account (its hello lists `accountIdentity`). An older `carrier` refuses a
+    /// `providers.json` that has them, accounts and all, so the editor does not offer them and writes none until it does.
+    public private(set) var identityEditable = false
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let file: () -> ProvidersFile
@@ -376,9 +379,11 @@ public enum ProvidersOutcome: Equatable {
     public func load() async {
         let capabilities: Set<ControlClient.Capability>
         do { capabilities = try await host.capabilities() } catch {
+            identityEditable = false
             outcome = .noHost
             return
         }
+        identityEditable = capabilities.contains(.accountIdentity)
         guard capabilities.contains(.providers) else {
             outcome = .tooOld
             return

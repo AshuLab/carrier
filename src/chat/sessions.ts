@@ -485,10 +485,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     return listed().map((chosen) => {
       try {
         const { harness, command } = chatAccount(providers, chosen);
-        return { name: chosen.name, harness, model: chosen.model, found: binaryFound(command ?? harness) };
+        return { name: chosen.name, harness, account: chosen.account, model: chosen.model, found: binaryFound(command ?? harness) };
       } catch (error) {
         if (error instanceof ChatRefused === false) throw error;
-        return { name: chosen.name, harness: providers[chosen.account]?.harness ?? 'unknown', model: chosen.model, found: false };
+        return { name: chosen.name, harness: providers[chosen.account]?.harness ?? 'unknown', account: chosen.account, model: chosen.model, found: false };
       }
     });
   };

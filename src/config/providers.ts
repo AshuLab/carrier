@@ -8,11 +8,20 @@ import { refusedLaunchArg } from './launch-args.ts';
 /** The key of an account: stored and shown as is. */
 export const optionNamePattern = /^[a-z][a-z0-9-]{0,39}$/;
 
+/** The icons an app may draw for an account; absent means the tool's own mark. */
+export const accountIcons = ['bolt', 'star', 'briefcase', 'person', 'people', 'code', 'flask', 'leaf', 'moon', 'heart', 'cube', 'letter'] as const;
+/** The colors an app may give an account; absent means none. */
+export const accountColors = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink'] as const;
+
 /** An account: one login of an agent CLI, or a local server through one. */
 export const account = z.strictObject({
   harness: z.enum(harnessNames),
   /** What the app shows instead of the key: a single line of at most 60 characters. */
   displayName: z.string().trim().min(1).max(60).regex(/^[^\r\n]*$/, 'must be a single line').optional(),
+  /** A short tag an app shows beside the account: a single line of 1 to 12 characters. */
+  label: z.string().trim().min(1).max(12).regex(/^[^\r\n]*$/, 'must be a single line').optional(),
+  icon: z.enum(accountIcons).optional(),
+  color: z.enum(accountColors).optional(),
   /** Optional default model for this account. */
   model: z.string().min(1).optional(),
   /** Run on a local server through the harness's CLI instead of the cloud. */

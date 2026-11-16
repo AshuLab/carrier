@@ -46,6 +46,8 @@ struct ComposerMenuButton: View {
 
     private var menu: ComposerMenu { composerMenu(options) }
     private var icon: String { providers.first { $0.name == agent }?.icon ?? agent }
+    /// The account's label, said before the model in the pill.
+    private var label: String? { ProviderIdentityStore.shared.identity(of: agent).label }
 
     var body: some View {
         Button { open.toggle() } label: { pill }
@@ -60,9 +62,13 @@ struct ComposerMenuButton: View {
 
     private var pill: some View {
         HStack(spacing: 7) {
-            ProviderMark(name: icon)
+            AccountMark(account: agent, icon: icon)
             // the dot is its own element so it sits the same distance from the word on each side
             HStack(spacing: 5) {
+                if let label {
+                    Text(label).fontWeight(.semibold).lineLimit(1)
+                    Text("·").foregroundStyle(.secondary)
+                }
                 Text(menu.pillModel ?? agent).fontWeight(.medium).lineLimit(1)
                 ForEach([menu.pillReasoning, menu.accessFlag].compactMap { $0 }, id: \.self) { part in
                     Text("·").foregroundStyle(.secondary)
@@ -124,8 +130,8 @@ struct ComposerMenuButton: View {
                     let enabled = provider.available && (locked == false || on)
                     Button { if on == false { chooseAgent(provider.name) } } label: {
                         VStack(spacing: 3) {
-                            ProviderMark(name: provider.icon, size: 18)
-                            Text(provider.name).font(.scaled(10, weight: .medium)).lineLimit(1)
+                            AccountMark(account: provider.name, icon: provider.icon, size: 18)
+                            Text(ProviderIdentityStore.shared.shortName(of: provider.name)).font(.scaled(10, weight: .medium)).lineLimit(1)
                         }
                         .frame(minWidth: 54).padding(.horizontal, 6).padding(.vertical, 6)
                         .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, 8) } }

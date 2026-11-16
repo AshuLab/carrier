@@ -45,6 +45,15 @@ test('each account has its state, found by its own binary and judged by its own 
   expect(asked).toContainEqual(['claude', undefined]);
 });
 
+test('an account carries its label, icon and color when set and none of them when not', async () => {
+  writeProviders({ claude: { harness: 'claude' }, 'claude-work': { harness: 'claude', label: 'Work', icon: 'briefcase', color: 'blue' } });
+  const reply = await providers()();
+  expect(reply.accounts[0]).not.toHaveProperty('label');
+  expect(reply.accounts[0]).not.toHaveProperty('icon');
+  expect(reply.accounts[0]).not.toHaveProperty('color');
+  expect(reply.accounts[1]).toMatchObject({ name: 'claude-work', label: 'Work', icon: 'briefcase', color: 'blue' });
+});
+
 test('a harness found with no account is unadded, and the servers say what answers', async () => {
   writeProviders({ claude: { harness: 'claude' } });
   const reply = await providers()();

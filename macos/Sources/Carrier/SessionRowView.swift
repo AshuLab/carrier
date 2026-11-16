@@ -11,12 +11,20 @@ struct SessionRowView: View {
     let row: SessionRow
     /// Outside the workspace order the group is not the workspace, so the second line says it.
     let showsWorkspace: Bool
+    /// Pin and Archive take the age's place while the pointer is on the row. Only the sessions list asks for them: the Archive section draws
+    /// this row inside a button, and Settings draws it as a preview.
+    var hoverActions = false
+    @State private var hovered = false
+    @Environment(SessionActions.self) private var actions
+    @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
     @AppStorage(SidebarStore.showsIconKey) private var showsIcon = true
     @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
     @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
     @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
+    /// Two buttons of 22 points and the gap between them.
+    private static let actionsWidth: CGFloat = 46
     /// The orange of "Waiting for you" as text: the system's on dark, a deeper one on light, where the system's is too pale to read.
     static let attention = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .systemOrange : NSColor(red: 0.70, green: 0.36, blue: 0, alpha: 1)
@@ -37,10 +45,22 @@ struct SessionRowView: View {
         )
     }
 
+    private var pinned: Bool { pinnedIds(pinnedStored).contains(row.id) }
+
+    private func togglePin() {
+        let ids = pinnedIds(pinnedStored)
+        pinnedStored = storedPins(pinned ? ids.subtracting([row.id]) : ids.union([row.id]))
+    }
+
+    /// What the host refuses (a session that is working) is told in an alert, as the context menu does.
+    private func archive() {
+        Task { if let refusal = await actions.archive(row.id) { tell(refusal) } }
+    }
+
     private func place(_ place: SessionPlace) -> Text {
         switch place {
         case .branch(let name): Text("\(Image(systemName: "arrow.triangle.branch")) \(name)")
-        case .baseFolder: Text("Base folder")
+        case .baseFolder: Text("\(Image(systemName: "folder")) Base folder")
         }
     }
 
@@ -90,12 +110,25 @@ struct SessionRowView: View {
                 detail(content).font(SidebarMetrics.detail).lineLimit(1).truncationMode(.tail).frame(height: Self.detailLine, alignment: .leading)
             }
             Spacer(minLength: 4)
-            if content.age != nil || content.providers.isEmpty == false {
+            if content.age != nil || content.providers.isEmpty == false || hoverActions {
                 VStack(alignment: .trailing, spacing: SidebarMetrics.lineGap) {
-                    ageOrStopwatch(content)
-                        .font(SidebarMetrics.detail.monospacedDigit()).lineLimit(1).frame(height: Self.titleLine)
+                    // the age stays in the layout, hidden, so the column does not change its width as the buttons come in
+                    ZStack(alignment: .trailing) {
+                        ageOrStopwatch(content).opacity(hoverActions && hovered ? 0 : 1)
+                        if hoverActions && hovered {
+                            HStack(spacing: 2) {
+                                hoverButton(pinned ? "pin.slash" : "pin", pinned ? "Unpin" : "Pin", togglePin)
+                                hoverButton("archivebox", "Archive", archive)
+                            }
+                            .transition(.opacity)
+                        }
+                    }
+                    .font(SidebarMetrics.detail.monospacedDigit()).lineLimit(1).frame(height: Self.titleLine)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovered)
                     ProviderMarks(names: content.providers).frame(height: Self.detailLine)
                 }
+                // room for the two buttons even while they are hidden, so the title does not move as the pointer comes in
+                .frame(minWidth: hoverActions ? Self.actionsWidth : nil, alignment: .trailing)
             }
         }
         .padding(.horizontal, content.showsIcon ? density.rowPadding : SidebarMetrics.inset).padding(.vertical, density.rowPadding)
@@ -108,10 +141,21 @@ struct SessionRowView: View {
             guard new == .unread, reduceMotion == false else { ringKept = false; return }
             Task { try? await Task.sleep(for: .seconds(1.2)); ringKept = false }
         }
+        .onHover { hovered = $0 }
         .sessionContextMenu(row)
         .hoverCard { SessionPeekView(card: sessionPeek(row, now: Date())) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label(content))
+        // the buttons are drawn on hover only: VoiceOver reaches the same two here
+        .accessibilityAction(named: pinned ? "Unpin" : "Pin") { if hoverActions { togglePin() } }
+        .accessibilityAction(named: "Archive") { if hoverActions { archive() } }
+    }
+
+    private func hoverButton(_ symbol: String, _ title: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.scaled(11)).foregroundStyle(.secondary).frame(width: 22, height: 20).contentShape(Rectangle())
+        }
+        .buttonStyle(HoverFillButtonStyle(radius: 5)).help(title).accessibilityLabel(title)
     }
 
     /// What the row says aloud: the title, the state in words (the icon draws it), where it works, the providers and "5 minutes ago",

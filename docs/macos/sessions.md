@@ -20,6 +20,10 @@ Nothing archived says "Nothing archived" ("Archived sessions are kept here."), a
 On hover a row shows Open (selects the session's conversation, read only: the session stays archived and the message box gives way to a notice with Resume), Resume (`archive` with false, then opens it) and Delete (asks first, then `delete`).
 Clear sessions asks with an alert that names the count ("Delete all 5 archived sessions?", Cancel is the default button) and deletes all of them, not only what a search shows; a refusal of the host is told in an alert in its words.
 Under each archived row a line says when the session will be deleted ("Deletes in 12 days", "Deletes soon" once it is due) or, for a session the clock spares because its worktree holds unsaved work, "Kept because its worktree has unsaved work" (`archiveNote`, `ArchivePage.notes`): the host's `list` rows carry `kept` and `deleteAt`, and a host that leaves them out reads as not kept and no date, so the row has no line.
+On a row of the sidebar's list the pointer brings Pin (Unpin) and Archive in place of the age, the two the context menu has (`SessionRowView`, `hoverActions`); the column keeps the room of the two buttons, so the title does not move, and a refusal of the host (an archive of a working session) is told in an alert as the menu does.
+The Archive section and Settings' preview draw the row without them.
+A "Base folder" session says it with a folder mark, as a worktree's branch has its own.
+
 A session whose turn ended and that the person has not opened since (`SessionRow.unread`, `SessionStatus.unread`) wears a green disc with a check at the corner of its project icon and a dot at the row's edge, and VoiceOver says "Done"; opening it clears both.
 It is not "Needs you": that is orange, for a permission or a question the agent is blocked on.
 When the turn ends while the row is on screen, the icon's glow turns green and goes once round, fast, from where the arc was (`WorkingRing`, `finished`); with Reduce Motion the lap is skipped and the check still appears.

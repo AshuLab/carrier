@@ -24,7 +24,9 @@ import CarrierCore
         self.board = board
         machine = GlobalDictation(
             session: dictation.session, speechModel: { dictation.speechModel }, microphone: { dictation.microphoneStatus() },
-            decision: FocusedField.decision, perform: { [unowned self] in perform($0) })
+            decision: FocusedField.decision,
+            moment: { [preferences] moment in dictationSound(for: moment, preferences.dictationSounds).map { DictationSoundPlayer.play($0) } },
+            perform: { [unowned self] in perform($0) })
         widget = DictationWidget(dictation: machine, shortcut: GlobalHotKey.Shortcut.dictation.text)
     }
 

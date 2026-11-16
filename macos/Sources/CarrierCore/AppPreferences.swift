@@ -49,6 +49,11 @@ public struct AppPreferences {
     public static let dictationModelKey = "dictation.model"
     public static let dictationLanguageKey = "dictation.language"
     public static let dictationGlobalKey = "dictation.global"
+    public static let dictationStartSoundOnKey = "dictation.sound.start.on"
+    public static let dictationStartSoundKey = "dictation.sound.start"
+    public static let dictationEndSoundOnKey = "dictation.sound.end.on"
+    public static let dictationEndSoundKey = "dictation.sound.end"
+    public static let dictationSoundVolumeKey = "dictation.sound.volume"
     public static let terminalThemeKey = "terminal.theme"
     public static let terminalFontFamilyKey = "terminal.font.family"
     public static let terminalFontSizeKey = "terminal.font.size"
@@ -361,6 +366,26 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationGlobalKey) }
     }
 
+    /// The Sounds group of the Dictation page; a saved sound that is not on offer reads as the default, and the volume as 0 to 100.
+    public var dictationSounds: DictationSounds {
+        get {
+            var sounds = DictationSounds()
+            sounds.startOn = defaults.object(forKey: Self.dictationStartSoundOnKey) as? Bool ?? sounds.startOn
+            sounds.endOn = defaults.object(forKey: Self.dictationEndSoundOnKey) as? Bool ?? sounds.endOn
+            sounds.start = defaults.string(forKey: Self.dictationStartSoundKey).flatMap { dictationSoundChoices.contains($0) ? $0 : nil } ?? sounds.start
+            sounds.end = defaults.string(forKey: Self.dictationEndSoundKey).flatMap { dictationSoundChoices.contains($0) ? $0 : nil } ?? sounds.end
+            sounds.volume = (defaults.object(forKey: Self.dictationSoundVolumeKey) as? Int).map { min(max($0, 0), 100) } ?? sounds.volume
+            return sounds
+        }
+        nonmutating set {
+            defaults.set(newValue.startOn, forKey: Self.dictationStartSoundOnKey)
+            defaults.set(newValue.start, forKey: Self.dictationStartSoundKey)
+            defaults.set(newValue.endOn, forKey: Self.dictationEndSoundOnKey)
+            defaults.set(newValue.end, forKey: Self.dictationEndSoundKey)
+            defaults.set(newValue.volume, forKey: Self.dictationSoundVolumeKey)
+        }
+    }
+
     /// Settings for the embedded terminal (theme override, font overrides, cursor, padding, contrast, panes, input, scrollback, close confirmation).
     public var terminal: TerminalSettings {
         get {
@@ -476,6 +501,11 @@ public struct AppPreferences {
                 dictationModelKey,
                 dictationLanguageKey,
                 dictationGlobalKey,
+                dictationStartSoundOnKey,
+                dictationStartSoundKey,
+                dictationEndSoundOnKey,
+                dictationEndSoundKey,
+                dictationSoundVolumeKey,
             ]
         case .keybindings: [ShortcutTable.key]
         // the Providers page only reads, the Updates page writes Sparkle's own preferences, the Carrier pages write config.json or (Engine) a few switches that have no Reset, and the Legacy page keeps its own settings

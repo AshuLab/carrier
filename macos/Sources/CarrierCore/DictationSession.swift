@@ -39,6 +39,8 @@ public struct DictationField {
     @ObservationIgnored private let log: (DictationFailure) -> Void
     /// Told, with the owner of the box it was, each time a dictation ends: the widget of the global dictation hears its own end here.
     @ObservationIgnored public var onEnd: ((String?) -> Void)?
+    /// Told each time a dictation begins to listen (the capture runs); `owner` says whose.
+    @ObservationIgnored public var onListening: (() -> Void)?
     @ObservationIgnored private var field: DictationField?
     @ObservationIgnored private var model: SpeechModel?
     @ObservationIgnored private var tentative = TentativeText(caret: 0, in: "")
@@ -162,6 +164,7 @@ public struct DictationField {
         }
         state = .listening
         announce(dictationAnnouncement(.listening))
+        onListening?()
         // the recognizer reads the audio through a stream that counts it
         let counted = AsyncStream<AudioBuffer> { continuation in
             let relay = Task { @MainActor in

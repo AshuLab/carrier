@@ -9,6 +9,9 @@ import Observation
 /// What the person does with the keys of the global dictation: the shortcut going down and up, and Esc.
 public enum GlobalDictationKey: Sendable { case down, up, escape }
 
+/// The moments of a dictation that the sounds follow: it begins to listen, the person stops it and it goes on, the person cancels it.
+public enum GlobalDictationMoment: Equatable, Sendable { case listening, stopped, cancelled }
+
 /// What the machine asks the outside to do. The text on show is `GlobalDictation.text`, which the widget reads.
 public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String), copy(String), close }
 
@@ -30,12 +33,16 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
     @ObservationIgnored private let refusal: () -> String?
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let perform: (GlobalDictationEffect) -> Void
+    @ObservationIgnored private let moment: (GlobalDictationMoment) -> Void
+    /// Whether the widget's dictation listens and has not been stopped, so a second press before the text arrives is no second end.
+    @ObservationIgnored private var listening = false
 
     /// `speechModel` is the speech model the person chose and its recognizer (nil when there is none); `refusal` says why the text must not be pasted
     /// right now (no Accessibility permission, a secure field), nil when it may.
     public init(
         session: DictationSession, speechModel: @escaping () -> (any Recognizer, SpeechModel)?, microphone: @escaping () -> MicrophonePermission,
-        refusal: @escaping () -> String?, now: @escaping () -> Date = Date.init, perform: @escaping (GlobalDictationEffect) -> Void
+        refusal: @escaping () -> String?, now: @escaping () -> Date = Date.init,
+        moment: @escaping (GlobalDictationMoment) -> Void = { _ in }, perform: @escaping (GlobalDictationEffect) -> Void
     ) {
         self.session = session
         self.speechModel = speechModel
@@ -43,17 +50,29 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         self.refusal = refusal
         self.now = now
         self.perform = perform
+        self.moment = moment
         session.onEnd = { [weak self] owner in self?.ended(owner) }
+        session.onListening = { [weak self] in self?.began() }
     }
 
     public func handle(_ key: GlobalDictationKey) {
         switch (key, state) {
         case (.down, .idle): begin()
-        case (.down, .running): if session.state != .transcribing { session.stop() }
+        case (.down, .running):
+            guard session.state != .transcribing else { break }
+            session.stop()
+            if listening {
+                listening = false
+                moment(.stopped)
+            }
         case (.down, .failed), (.escape, .failed): dismiss()
         case (.escape, .running):
             // before the cancel, so the session's end is not taken for the person's own
             state = .idle
+            if listening {
+                listening = false
+                moment(.cancelled)
+            }
             session.cancel()
             dismiss()
         // a toggle has nothing to do with the key coming up
@@ -82,8 +101,15 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         state = .failed(cause.cause)
     }
 
+    private func began() {
+        guard session.owner == Self.owner, state == .running else { return }
+        listening = true
+        moment(.listening)
+    }
+
     private func ended(_ owner: String?) {
         guard owner == Self.owner, state == .running else { return }
+        listening = false
         if let cause = session.failure(for: Self.owner) {
             state = .failed(cause.cause)
             return

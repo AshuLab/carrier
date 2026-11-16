@@ -107,12 +107,13 @@ What the person sees: [dictation](../docs/macos/dictation.md).
 
 The logic is `CarrierCore/Dictation.swift` (the boundary and the registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the recognizer and capture of `ScriptedDictation.swift`.
 `DictationController` holds the switch both boxes read.
-The page is `Carrier/DictationTab.swift`, a list of one view per group (`DictationGroup`, `GlobalDictationGroup`, `CleanupGroup`, `SpeechModelsGroup`, `StorageGroup`; a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`, one per line (Dictate in any app on; Cleanup off, no server, no model, default prompt); the views are untested (`SettingsPageTests` and `DictationSettingsTests` hold the rules).
+The page is `Carrier/DictationTab.swift`, a list of one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`, one per line; the views are untested (`SettingsPageTests` and `DictationSettingsTests` hold the rules).
 
 ### Global dictation
 
 See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, real session, scripted recognizer).
 `Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); keys, panel and real ⌘V untested.
+Sounds: `CarrierCore/DictationSounds.swift` (`dictationSound(for:_:)`, `DictationSoundsTests`); `SoundsGroup` and `DictationSoundPlayer` untested.
 
 ### Cleanup
 

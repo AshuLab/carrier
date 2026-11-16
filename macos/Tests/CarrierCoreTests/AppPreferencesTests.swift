@@ -541,6 +541,27 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(store.dictationGlobal)
 }
 
+@Test func theDictationSoundsStartOnAtSixtySurviveARelaunchReadOnlyWhatIsOnOfferAndResetWithDictation() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.dictationSounds == DictationSounds())
+    #expect(store.dictationSounds.startOn && store.dictationSounds.endOn && store.dictationSounds.volume == 60)
+    #expect(AppPreferences.dictationStartSoundOnKey == "dictation.sound.start.on" && AppPreferences.dictationStartSoundKey == "dictation.sound.start")
+    #expect(AppPreferences.dictationEndSoundOnKey == "dictation.sound.end.on" && AppPreferences.dictationEndSoundKey == "dictation.sound.end")
+    #expect(AppPreferences.dictationSoundVolumeKey == "dictation.sound.volume")
+    var sounds = DictationSounds()
+    (sounds.startOn, sounds.start, sounds.endOn, sounds.end, sounds.volume) = (false, "Glass", false, "Tink", 25)
+    store.dictationSounds = sounds
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).dictationSounds == sounds)
+    defaults.set("Basso", forKey: AppPreferences.dictationStartSoundKey)
+    defaults.set(500, forKey: AppPreferences.dictationSoundVolumeKey)
+    #expect(store.dictationSounds.start == DictationSounds.defaultStart && store.dictationSounds.volume == 100)
+    store.reset(.notifications)
+    #expect(store.dictationSounds.endOn == false)
+    store.reset(.dictation)
+    #expect(store.dictationSounds == DictationSounds())
+}
+
 @Test func workInIsTheBaseFolderByDefaultSurvivesARelaunchFallsBackAndResetsWithSessionsOnly() {
     let name = "workin-\(UUID().uuidString)"
     let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)

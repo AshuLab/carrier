@@ -9,15 +9,15 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 ## Tests
 
-The gated tests of the recognizers (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`; clips `hola-es.wav` and `hello-en.wav` in `Tests/CarrierTests/Resources`: text, an empty final for no speech, and a folder missing a file fails with its cause and downloads nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
-The embedded-terminal live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
+The gated tests of the recognizers (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`; clips `hola-es.wav` and `hello-en.wav` in `Tests/CarrierTests/Resources`: text, an empty final for no speech, and a folder missing a file fails with its cause and downloads nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models ([layout](../docs/macos/dictation.md#speech-models)).
+The live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
 
 ## Starting Carrier and the chat host
 
 What the person sees: [lifecycle](../docs/macos/lifecycle.md).
 
 The decision and command line are in `CarrierCore/StartCarrier.swift` (spawn and alert untested).
-The decision, command line and notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert (wiring and views untested).
+The decision, command line and notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert (wiring, views untested).
 The sequence is tested on a real socket against a scripted engine (`EngineReplacementTests`).
 
 ## Dev build and release build
@@ -37,7 +37,7 @@ The words and the request are tested; the sheet, the "Resuming…" state and the
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#slices-and-findings-in-an-epics-log).
 
-The rows, the words and the marks are two pure functions, `sliceCard(lane:)` in `CarrierCore/SliceCard.swift` (`SliceCardTests`) and `findingsCard(_:stage:round:)` in `CarrierCore/FindingsCard.swift` (`FindingsCardTests`, which also reads the golden epic reply); the views (`SliceCardView`, `FindingsCardView`) are checked only for their heights (`LaneHeaderTests`).
+The rows, words and marks are two pure functions, `sliceCard(lane:)` in `CarrierCore/SliceCard.swift` (`SliceCardTests`) and `findingsCard(_:stage:round:)` in `CarrierCore/FindingsCard.swift` (`FindingsCardTests`, which also reads the golden epic reply); the views are checked only for their heights (`LaneHeaderTests`).
 The session row's words are `sessionRowText` and `RoleIdentities` (`SessionRowTests`), and the epic's events become the chat's calls in `flowItems` (`EpicTranscriptAdapterTests`).
 
 ## File icons
@@ -120,9 +120,13 @@ Sounds: `CarrierCore/DictationSounds.swift` (`dictationSound(for:_:)`, `Dictatio
 
 See [dictation](../docs/macos/dictation.md#history). `CarrierCore/DictationRecords.swift` (`DictationRecordsTests`, temporary folder); `DictationSession.take` feeds it; `Carrier/HistoryGroup.swift` untested.
 
+### Statistics
+
+See [dictation](../docs/macos/dictation.md#statistics). Counters: `DictationRecords`; figures: `DictationStatistics.swift` (`DictationRecordsTests`, `DictationStatisticsTests`); `StatisticsGroup` untested.
+
 ### Cleanup
 
-`CarrierCore/DictationCleanup.swift` (the `TextModelClient` port, `CleanupRun`; `CleanupRunTests`, scripted client) and `LocalModelClient.swift` (loopback HTTP; `LocalModelClientTests`, stub on a real socket); the group is `Carrier/CleanupController.swift` and `CleanupGroup.swift`, untested.
+`CarrierCore/DictationCleanup.swift` (the `TextModelClient` port, `CleanupRun`; `CleanupRunTests`, scripted client) and `LocalModelClient.swift` (`LocalModelClientTests`, stub socket); the group is `Carrier/CleanupController.swift` and `CleanupGroup.swift`, untested.
 In the boxes: the `.cleaning` state of `DictationSession` (`start(cleanup:)`, built by `DictationController.cleanup()`; `DictationSessionTests`, scripted client).
 
 ## Embedded terminal

@@ -15,7 +15,7 @@ Under `--fixture` the app registers the fixture recognizer instead (`CarrierCore
 
 ## The Dictation page
 
-The Dictation page has two segments, General and [History](#history) (`DictationSegment` in `Carrier/DictationTab.swift`, drawn with `SegmentedChoice`); the Reset row is at the bottom of General.
+The Dictation page has three segments, General, [History](#history) and [Statistics](#statistics) (`DictationSegment` in `Carrier/DictationTab.swift`, drawn with `SegmentedChoice`); the Reset row is at the bottom of General.
 General (`Carrier/DictationTab.swift`, which lists its groups, each its own view: `DictationGroup`, `GlobalDictationGroup`, `CleanupGroup`, `SpeechModelsGroup` and `StorageGroup`; `SettingsPage.dictation`, the App group right after Chat) has the switch (`dictation.enabled`, on by default; off takes the microphone out of both boxes at once, asks macOS for nothing and stops a dictation that listens, keeping its text), the Speech model popup (`dictation.model`; an unknown one reads as Apple's), the Language popup (`dictation.language`; `languageChoices` in `CarrierCore/DictationSettings.swift` says what each model offers) and the microphone's state with Open System Settings when it is blocked, then the Global dictation group (`Carrier/GlobalDictationGroup.swift`: Dictate in any app, `dictation.global`, on by default, which is dimmed with Dictation off and turns the shortcut off with it), then Sounds (below), then Cleanup (below), then the speech models table (`Carrier/SpeechModelsTable.swift`; the rows and what each offers are `speechModelRows` in `CarrierCore/SpeechModelsTable.swift`: a recognizer filter, a radio on the downloaded rows that chooses the model, Download with its size, a progress bar with Cancel, the cause with Retry, a trash, and the licence linking to the model's card) and Storage (the size of the files under `<Carrier folder>/app/models`, with Show in Finder).
 
 ## Global dictation
@@ -57,6 +57,23 @@ Under `--fixture` and in the tests the history is in a temporary folder, never i
 The list is grouped by day, newest first (Today, Yesterday, then the weekday and the date), under a search over the text, the cleaned text and the destination, and the filters All, Pasted, Copied, Cancelled and Failed (`dictationEntries`, `dictationDays`).
 A row shows the time, the text (two lines) and chips with the outcome, the destination, the model, the transcription time, the words and the length; a click opens its detail (the text as recognized and as cleaned, the model, the transcription time for the audio length, the cleanup and where it went).
 Copy puts the text on the clipboard (the cleaned text when there is one) and the trash deletes the entry at once, with the switch on or off; an empty list says No dictations yet, and a search or filter with no match says Nothing matches.
+
+## Statistics
+
+The Statistics segment of the Dictation page (`Carrier/StatisticsGroup.swift`) shows how much the person dictates, from counters kept apart from the history ([0031](../adr/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md)).
+The counters are `<Carrier folder>/app/dictation-statistics.json`: per day, hour and speech model, the dictations, the words, the seconds dictated and the longest one, and no text.
+`DictationRecords.record` counts a dictation that ended pasted or copied with words, whatever Keep the text says; a cancelled, failed or empty one is not counted.
+Deleting entries and turning the history off leave the counters as they were, and Reset statistics is the only thing that deletes them.
+A day is the person's calendar day (`dictationDayKey`), so a change of time zone does not move what was counted.
+Under `--fixture` and in the tests the counters are in a temporary folder.
+
+The segment starts with a range, 7 days, 30 days (the one it opens on), 90 days or All time, over four cards: Dictations, Words, Speaking time and Time saved, each with the change against the period just before it ("▲ 12% vs previous", nothing for All time, which has no period before it, or when the period before had none).
+Under them is a chart of words or dictations by day, with the busiest day in the full accent.
+With no counters (nothing dictated yet, or after Reset) it says No statistics yet and what it needs: a dictation that ends with the text pasted or copied.
+The figures are pure functions of the counters (`dictationFigures`, `statisticsChange` and `statisticsDuration` in `CarrierCore/DictationStatistics.swift`, tested in `DictationStatisticsTests`).
+The time saved is `timeSaved(words:speaking:wpm:)` as the [spec](../specs/global-dictation.md) writes it: the words over the typing speed, minus the time spent speaking, never negative.
+
+At the bottom, Statistics settings has the Typing speed (`dictation.statistics.wpm`, 40 words a minute by default, from 10 to 200, put back by `reset(.dictation)`) and Reset statistics, which asks first, deletes the counters and leaves the history as it is.
 
 ## Sounds
 

@@ -132,3 +132,64 @@ private func entry(
         outcome: .pasted, destination: DictationEntry.carrier, cleanupModel: "qwen")
     #expect(raw.cleaned == nil && raw.cleanupModel == nil)
 }
+
+private var utc: Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    return calendar
+}
+
+@MainActor @Test func aDictationThatEndsPastedOrCopiedIsCountedWhateverTheHistorySaysAndTheCountersHoldNoText() throws {
+    let folder = folder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    var keep = true
+    let records = DictationRecords(carrierFolder: folder, keep: { keep }, calendar: utc)
+    // 2023-11-14 22:13:20 UTC
+    records.record(entry("uno dos", at: 0))
+    records.record(entry("tres", at: 60, outcome: .copied))
+    keep = false
+    records.record(entry("cuatro cinco seis", at: 120))
+    #expect(records.counts == [DictationCount(day: "2023-11-14", hour: 22, model: "Apple", dictations: 3, words: 6, seconds: 18, longest: 6)])
+    #expect(records.entries.count == 2)
+    let file = try String(contentsOfFile: records.statisticsPath, encoding: .utf8)
+    #expect(file.contains("uno") == false && file.contains("hola") == false)
+    #expect(DictationRecords(carrierFolder: folder, keep: { true }, calendar: utc).counts == records.counts)
+}
+
+@MainActor @Test func aCancelledFailedOrEmptyDictationIsNotCounted() {
+    let folder = folder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let records = DictationRecords(carrierFolder: folder, keep: { true }, calendar: utc)
+    records.record(entry("uno", outcome: .cancelled))
+    records.record(entry("dos", outcome: .failed))
+    records.record(entry("  ", outcome: .pasted))
+    #expect(records.counts.isEmpty && FileManager.default.fileExists(atPath: records.statisticsPath) == false)
+}
+
+@MainActor @Test func theCountersSplitByHourDayAndModelAndSurviveDeletingEntriesAndTurningTheHistoryOff() {
+    let folder = folder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    var keep = true
+    let records = DictationRecords(carrierFolder: folder, keep: { keep }, calendar: utc)
+    let first = entry("uno", at: 0)
+    records.record(first)
+    records.record(entry("dos", at: 3600))
+    records.record(entry("tres", at: 86400))
+    records.record(DictationEntry(started: first.started, text: "cuatro", model: "Whisper", transcription: 1, audio: 9, destination: "Notes", outcome: .pasted))
+    #expect(records.counts.map(\.hour) == [22, 23, 22, 22] && records.counts.map(\.day) == ["2023-11-14", "2023-11-14", "2023-11-15", "2023-11-14"])
+    let before = records.counts
+    records.delete(first.id)
+    keep = false
+    #expect(records.counts == before && records.entries.count == 3)
+}
+
+@MainActor @Test func resetStatisticsDeletesTheCountersAndLeavesTheHistory() {
+    let folder = folder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let records = DictationRecords(carrierFolder: folder, keep: { true }, calendar: utc)
+    records.record(entry("uno dos"))
+    records.resetStatistics()
+    #expect(records.counts.isEmpty && records.entries.count == 1)
+    #expect(DictationRecords(carrierFolder: folder, keep: { true }, calendar: utc).counts.isEmpty)
+    #expect(DictationRecords(carrierFolder: folder, keep: { true }, calendar: utc).entries.count == 1)
+}

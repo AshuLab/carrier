@@ -569,16 +569,18 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
 @Test func aNapCutShortReturnsAtOnceAndAWakeBeforeItStartsSkipsIt() async {
     let nap = PollNap()
     let started = ContinuousClock.now
-    async let sleeping: Void = nap.sleep(seconds: 30)
+    // the nap is a minute and the limit half of it: a nap that was not cut short fails, and a runner too busy to start a task for several
+    // seconds (it took twelve in CI) does not
+    async let sleeping: Void = nap.sleep(seconds: 60)
     try? await Task.sleep(for: .milliseconds(50))
     nap.wake()
     await sleeping
-    #expect(ContinuousClock.now - started < .seconds(5))
+    #expect(ContinuousClock.now - started < .seconds(30))
     // woken while a read is in flight: the next wait does not happen
     nap.wake()
     let again = ContinuousClock.now
-    await nap.sleep(seconds: 30)
-    #expect(ContinuousClock.now - again < .seconds(5))
+    await nap.sleep(seconds: 60)
+    #expect(ContinuousClock.now - again < .seconds(30))
     // and the one after that waits again
     let third = ContinuousClock.now
     async let last: Void = nap.sleep(seconds: 0.2)

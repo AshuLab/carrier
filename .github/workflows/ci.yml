@@ -81,10 +81,20 @@ jobs:
           echo "::error file=CHANGELOG.md::The PR changes src/ or macos/Sources/ without a line under [Unreleased]. Add it, or label the PR no-changelog if nobody can see the change, and re-run this job." >&2
           exit 1
 
+  # AGENTS.md files are read in full by every agent that works in their folder: each has a budget in bytes (.github/scripts/agent-context.sh).
+  agent-context:
+    name: Agent context
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - run: .github/scripts/agent-context.sh
+
   # The single check to require on main: it fails if any job failed or was cancelled, and passes when they were skipped.
   success:
     name: Success
-    needs: [changes, engine, macos, changelog]
+    needs: [changes, engine, macos, changelog, agent-context]
     if: ${{ always() && (github.event_name == 'push' || github.event.pull_request.draft == false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

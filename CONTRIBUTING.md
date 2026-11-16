@@ -142,7 +142,7 @@ Files are not reformatted in bulk: they get it as they are edited.
 
 `main` is the only long-lived branch; there is no `develop` branch.
 Every change reaches `main` through a PR, and PRs merge with merge commits, never squash or rebase.
-A PR into `main` that is not a draft runs CI (Carrier Engine: types, unit tests, migrations, package smoke; Carrier macOS app, only if it changed: unit tests and bundle; Changelog; the one check to require is `CI / Success`). After a merge, the engine's checks run again on `main` and needs one teammate's review.
+A PR into `main` that is not a draft runs CI (Carrier Engine: types, unit tests, migrations, package smoke; Carrier macOS app, only if it changed: unit tests and bundle; Changelog; Agent context, a byte budget per `AGENTS.md`; the one check to require is `CI / Success`). After a merge, the engine's checks run again on `main` and needs one teammate's review.
 Force-pushes to `main` are refused, and epic branches have no rules, so `ship` merges slices into them unattended.
 
 There are two lanes.

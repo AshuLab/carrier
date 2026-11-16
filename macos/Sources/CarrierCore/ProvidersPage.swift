@@ -330,6 +330,12 @@ public enum ProvidersOutcome: Equatable {
         editNote = outcome.isProblem ? nil : words
     }
 
+    /// A quiet line when another account of `harness` already has this config folder, which makes it the same login and not a new one; nil otherwise.
+    public func sharedFolderNote(configDir: String, harness: String, except name: String? = nil) -> String? {
+        let json = (try? file().read()).flatMap { $0 }
+        return accountSharingFolder(configDir: configDir, harness: harness, except: name, in: json).map { "\($0) already uses this folder, so this is the same login, not another one." }
+    }
+
     /// The Add account of a tool: a new account with a name and, when given, a config folder.
     @discardableResult public func addAccount(name: String, harness: String, configDir: String) async -> Bool {
         await change("add \(name)") { try applyingNewAccount(name: name, harness: harness, configDir: configDir, to: $0) }

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Add account and the account editor say, in a quiet line, when another account of the same tool already uses the config folder you typed, since it is the same login and not a new one.
+
 ## [0.8.0] - 2026-11-16
 
 The app tells the accounts of one tool apart with a label, an icon and a color, the sidebar shows when a session is Done and gets Pin and Archive on hover, archiving is immediate, and the message box and Settings get a round of fixes.

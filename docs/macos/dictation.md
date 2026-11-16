@@ -73,7 +73,7 @@ Under `--fixture` and in the tests the history is in a temporary folder, never i
 
 The list is grouped by day, newest first (Today, Yesterday, then the weekday and the date), under a search over the text, the cleaned text and the destination, and the filters All, Pasted, Copied, Cancelled and Failed (`dictationEntries`, `dictationDays`).
 A row shows the time, the text (two lines) and chips with the outcome, the destination, the model, the transcription time, the words and the length; a click opens its detail (the text as recognized and as cleaned, the model, the transcription time for the audio length, the cleanup and where it went).
-Copy puts the text on the clipboard (the cleaned text when there is one) and the trash deletes the entry at once, with the switch on or off; an empty list says No dictations yet, and a search or filter with no match says Nothing matches.
+Copy puts the text on the clipboard (the cleaned text when there is one) and says Copied for a moment, and the trash asks Delete this dictation? first (its text and its audio go, the statistics stay), with the switch on or off; an empty list says No dictations yet, and a search or filter with no match says Nothing matches.
 
 ### Audio
 

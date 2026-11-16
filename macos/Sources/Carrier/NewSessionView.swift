@@ -28,6 +28,7 @@ struct NewSessionView: View {
             VStack(alignment: .leading, spacing: 16) {
                 sentence
                 box
+                if let note = model.branchNote { NoticeCard(symbol: "arrow.triangle.branch", tint: .blue, title: note.title, detail: note.detail) {} }
                 if let warning = model.warning { uncommittedNotice(warning) }
                 if let reason = model.noAgentReason { Text(reason).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
                 if model.hostOlder { Text(NewSessionModel.olderHostNotice).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
@@ -101,7 +102,6 @@ struct NewSessionView: View {
             .accessibilityElement(children: .contain)
             if model.branchesPartial { Text("Only the first branches GitHub lists are offered; the others can be checked out once the repository is on this Mac.").font(.subheadline).foregroundStyle(.secondary) }
             if let note = model.projectNote { Label(note, systemImage: "folder.badge.plus").font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
-            if let note = model.branchNote { Text(note).font(.callout).foregroundStyle(.secondary) }
             if case .problem(let reason) = model.nameState, model.worktree {
                 Text(reason).font(.callout).foregroundStyle(.red).textSelection(.enabled)
             }

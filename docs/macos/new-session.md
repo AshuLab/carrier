@@ -8,6 +8,7 @@ Sending makes one `open` and the chat host prepares the session in the backgroun
 The conversation lists the steps, each running, done or failed, until the agent answers.
 A failed step stops there with its reason in words and the message kept; Try again repeats the steps that did not finish and reuses what was made.
 Cancel, while it runs, stops the step, deletes the session with its worktree (a half clone goes too, a finished clone stays in the projects folder) and puts the plan and the text back in the draft.
+When the person picks a branch other than the one checked out in the folder, a notice under the message box says it beforehand ("The branch of the folder will change", "From main to feat/x when the message is sent"): the `NoticeCard` the other notes about sending use (`NewSessionModel.branchNote`), above the uncommitted-files one.
 A folder that already existed with uncommitted changes is never switched to the picked branch: the `checkout` step fails and says so, see [Troubleshooting](../troubleshooting.md#a-new-session-does-not-start).
 A repository is added to the engine's `repos` only once the agent has answered.
 The reasons are in [the spec](../specs/session-prepared-on-first-message.md) and [0018](../adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md); the details follow.

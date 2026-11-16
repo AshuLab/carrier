@@ -461,7 +461,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     model.choose(startBranch: "main")
     #expect(model.branchNote == nil)
     model.choose(startBranch: "feat/x")
-    #expect(model.branchNote == "The branch of the folder will change from main to feat/x when the message is sent.")
+    #expect(model.branchNote?.title == "The branch of the folder will change" && model.branchNote?.detail == "From main to feat/x when the message is sent.")
     #expect(model.warning == nil)
     model.text = "go"
     #expect(await model.send() == opened)
@@ -476,7 +476,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     // no change picked: the worktree way out is offered
     #expect(model.warning == "2 uncommitted files in the folder. A worktree keeps them out of the agent's way.")
     model.choose(startBranch: "feat/x")
-    #expect(model.branchNote == "The branch of the folder will change from main to feat/x when the message is sent.")
+    #expect(model.branchNote?.title == "The branch of the folder will change" && model.branchNote?.detail == "From main to feat/x when the message is sent.")
     #expect(model.warning == "2 uncommitted files in the folder, so changing its branch will fail and it keeps the branch it is on. Save the work first, or use a worktree.")
     model.text = "go"
     #expect(model.canSend)

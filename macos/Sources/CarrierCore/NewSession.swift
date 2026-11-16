@@ -677,10 +677,10 @@ public struct WatchNote: Equatable {
         return (workspace.branch ?? "detached HEAD", to)
     }
 
-    /// The line that says beforehand that the folder's branch will change.
-    public var branchNote: String? {
+    /// What says beforehand that the folder's branch will change: a title and the branches, for the notice under the message box.
+    public var branchNote: (title: String, detail: String)? {
         guard toClone == false else { return nil }
-        return branchChange.map { "The branch of the folder will change from \($0.from) to \($0.to) when the message is sent." }
+        return branchChange.map { (title: "The branch of the folder will change", detail: "From \($0.from) to \($0.to) when the message is sent.") }
     }
 
     /// The line under the sentence: the uncommitted files of the base folder, which a worktree would keep out of the agent's way; when the

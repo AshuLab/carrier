@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The note that the folder's branch will change when the message is sent is now a notice under the message box, with an icon and a title, like the other notes about sending, and not a line under the sentence.
 - Settings now follows the Text size: the titles, details, notes and fields of every page grew and shrank only for the parts that set a size by hand, and now all of them do.
 
 ## [0.7.0] - 2026-11-16

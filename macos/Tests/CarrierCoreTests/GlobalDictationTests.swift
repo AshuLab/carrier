@@ -449,3 +449,39 @@ func aTextThatCannotBePastedIsCopiedAndStaysInTheWidgetWithItsReason(reason: Pas
     await widget.until { widget.machine.state == .idle }
     #expect(widget.effects == [.show, .copy("hola mundo"), .close, .show, .paste("hola mundo"), .close])
 }
+
+@MainActor @Test func theWidgetShowsWhatTheDictationIsDoingAndLeavesACheckOrAnXForAMoment() async {
+    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola")]))
+    // before the session says anything, and with nothing under way, it reads as working
+    #expect(widget.machine.shown == .working && widget.machine.farewell == nil)
+    await widget.listen()
+    #expect(widget.machine.shown == .listening)
+    widget.machine.handle(.down)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.machine.shown == .pasted && widget.machine.farewell == .pasted)
+    // the next dictation takes it away
+    await widget.listen()
+    #expect(widget.machine.farewell == nil && widget.machine.shown == .listening)
+    widget.machine.handle(.escape)
+    #expect(widget.machine.shown == .cancelled)
+}
+
+@MainActor @Test func aTextThatWasOnlyCopiedAndAFailureHaveTheirOwnLookAndNoFarewell() async {
+    let kept = await keptWidget()
+    #expect(kept.machine.shown == .copied && kept.machine.farewell == nil)
+    kept.machine.dismissCopied()
+    #expect(kept.machine.farewell == nil)
+
+    let failed = Widget(capture: ScriptedCapture(startError: DictationFailure("The microphone could not start")))
+    failed.machine.handle(.down)
+    await failed.until { failed.machine.state != .running }
+    #expect(failed.machine.shown == .failed)
+}
+
+@MainActor @Test func aDictationWithNoWordsLeavesNoFarewell() async {
+    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("")]))
+    await widget.listen()
+    widget.machine.handle(.down)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.machine.farewell == nil)
+}

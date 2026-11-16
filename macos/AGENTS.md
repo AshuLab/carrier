@@ -9,7 +9,7 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 ## Tests
 
-The gated tests of the recognizers (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`; clips `hola-es.wav` and `hello-en.wav` in `Tests/CarrierTests/Resources`: text, an empty final for no speech, and a folder missing a file fails with its cause and downloads nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`, e.g. `<folder>/fluidaudio/parakeet-tdt-v3/parakeet-tdt-0.6b-v3`; Whisper's under `<folder>/whisper/<model>/models/...`).
+The gated tests of the recognizers (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`; clips `hola-es.wav` and `hello-en.wav` in `Tests/CarrierTests/Resources`) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models (`<folder>/fluidaudio/<model>/<repository>`; Whisper's `<folder>/whisper/<model>/models/...`).
 The embedded-terminal live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface and shell offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
 
 ## Starting Carrier and the chat host
@@ -55,17 +55,7 @@ What the person sees: [settings-app](../docs/macos/settings-app.md#providers).
 
 The rows are one pure function, `providersPage(_:config:chat:)` (`CarrierCore/ProvidersPage.swift`, `ProvidersPageTests`); the view is untested.
 
-#### Sign in and Update
-
-The buttons are untested.
-
-#### `providers.json`
-
-Tested in `ProvidersFileTests` and `FixtureServerTests`.
-
-#### Account editor
-
-The views are untested.
+The Sign in and Update buttons and the account editor are untested; `providers.json` is tested in `ProvidersFileTests` and `FixtureServerTests`.
 
 ### Sessions page
 
@@ -115,6 +105,7 @@ Shortcut and activation: `CarrierCore/DictationShortcut.swift` (`recordShortcut`
 `Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); keys, panel and real ⌘V untested.
 Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest` (`MessageBoxDictationTests`).
 Sounds: `CarrierCore/DictationSounds.swift` (`dictationSound(for:_:)`, `DictationSoundsTests`); `SoundsGroup` and `DictationSoundPlayer` untested.
+Widget style and place: `CarrierCore/DictationWidgetLook.swift` (`dictationWidgetLook`, `dictationWidgetOrigin`; `DictationPresentationTests`) from `GlobalDictation.shown`; `DictationWidget` untested.
 
 ### History
 

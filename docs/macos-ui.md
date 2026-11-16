@@ -24,7 +24,7 @@ A Settings page is a header and groups of rows (`SettingsSheet.swift`, `Settings
 | `.sectionLabel()` | The type and colour of the small uppercase title (`caption2`, semibold, `secondary`, upper case by `textCase`), for a title that cannot be a `SettingsGroup` (a list's label, the owners of a picker). The caller adds the padding its place needs; write the text as a normal sentence, not in capitals. |
 | `SettingsDivider` | The line between two rows: 1 pt, `primary` at 7 %. `SettingsDivider(vertical: true)` is the line between two columns (Usage's four figures); give their `HStack` `.fixedSize(horizontal: false, vertical: true)` so the line takes the height of the tallest. |
 | `EmptyStateView` | Icon, title and one line, centred. For nothing to show: not installed, not running, no model. Give it `.frame(minHeight: 260)` inside a page, or the height of what it stands for inside a card (Usage's chart, 220, so the card does not jump). Its `action` is the way out (Clear filters), a `SecondaryCapsuleButtonStyle` capsule by default or an `AccentGlassPillButton` (`actionStyle: .accentGlass`) with `actionIcon` before its words. `LoadingStateView` is its twin while something loads. |
-| `SettingsPreview` | A sample of what the rows around it change, inside their group. |
+| `SettingsPreview` | A sample of what the rows around it change, inside their group (the terminal's, the time format's, Dictation's widget style). |
 
 Spacing: **14 between blocks, 4 inside a block** (a name and its version), 12 between a tile and its text. The close button of the sheet is an `IconButton` (`xmark`) at the top right of the header; there is no footer, and Esc closes.
 
@@ -131,6 +131,14 @@ A page that writes `config.json` or `providers.json` does not wait for Carrier: 
 - Titles `fontWeight(.medium)`, details `.caption` in `secondary`, a path or a command `.scaled(11, design: .monospaced)`. Use `Font.scaled` (`ScaledFont.swift`), not a fixed size, so the person's text size applies.
 - Do not put copy-on-hover (`copyOnHover`) on text that says nothing to copy ("Not checked yet", "Checking…"); keep it on a path, a reason and a fix.
 - Texts are English, short, and say what the control does, not how it works.
+
+## The dictation widget
+
+The widget of the global dictation (`DictationWidget.swift`) is a floating panel, not a view of the window; [dictation](macos/dictation.md#the-widget-style-and-position) says what it shows.
+
+- **A box has one height per style** (2, 3 and 4 lines at 340, 420 and 540 pt, text at 12, 14 and 17 pt through `Font.scaled`), so it never jumps while the text grows: the text scrolls inside it. The Pill is a 76 by 38 capsule with an icon and no text.
+- **It wears `.chatSurface(in:)` like the message box**, never its own fill, and it is drawn once by `WidgetBox` and `PillIcon`, which the Preview in Settings uses too.
+- **What it draws is `dictationWidgetLook`**, never a check on the state in the view. A state that needs text or a button opens the Pill as the Small box.
 
 ## Mistakes seen
 

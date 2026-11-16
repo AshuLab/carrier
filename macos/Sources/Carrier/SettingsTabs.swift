@@ -906,6 +906,7 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.monospaceLineNumbersKey) private var lineNumbers = false
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
     @State private var previewRoom: CGFloat = 0
+    @State private var flipped: Set<String> = []
 
     /// A few lines of code under the settings: a long line to wrap, and the pairs of characters a ligature joins.
     private static let sample = """
@@ -919,17 +920,22 @@ struct ChatTabView: View {
         SettingsPreview { CodeBlockView(language: "swift", code: Self.sample) }
     }
 
-    /// A message of the agent in a column that is to the room as the chosen width is to the widest one, drawn as a bubble on a track that is
-    /// the widest, so the four differ in where the lines break and in how much of the track the bubble takes.
+    /// The column of a conversation as the person set it, drawn with the feed's own rows (a message of theirs, the agent's work, its answer) in the
+    /// middle of a track that is the widest column: the column is to the track as the chosen width is to the widest one, so the four differ in
+    /// where the lines break and in how much of the track they take.
     private var messagePreview: some View {
         SettingsPreview {
-            VStack(alignment: .leading, spacing: 0) {
-                MarkdownView(text: "I opened a pull request for the settings epic and asked the reviewer for a second look. The width of a message is how far a line runs before it wraps: a narrow column is easy on the eye, and a wide one fits more of a table or a long command, like `pnpm test && pnpm typecheck`.")
-                    .padding(12)
-                    .frame(width: previewRoom * messageWidth.points / MessageWidth.ultraWide.points, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.themeAccent.opacity(0.14)))
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(sampleConversation()) { row in
+                    FeedRowView(
+                        row: row, time: nil, summary: nil, pinned: false, flipped: $flipped, agent: "claude", commands: [], offersWayOut: false,
+                        work: WorkState(live: false, waiting: false, since: nil), continueTurn: {}, retry: {}, answer: { _, _ in }
+                    )
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 12)
+            .frame(width: previewRoom * messageWidth.points / MessageWidth.ultraWide.points, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .onGeometryChange(for: CGFloat.self, of: \.size.width) { previewRoom = $0 }
             .padding(8)
             .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))

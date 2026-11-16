@@ -35,20 +35,24 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let perform: (GlobalDictationEffect) -> Void
     @ObservationIgnored private let moment: (GlobalDictationMoment) -> Void
+    @ObservationIgnored private let activation: () -> DictationActivation
     /// Whether the widget's dictation listens and has not been stopped, so a second press before the text arrives is no second end.
     @ObservationIgnored private var listening = false
+    /// Whether this dictation was started as a hold, which the key coming up ends; read when it starts, so changing the setting under way changes nothing.
+    @ObservationIgnored private var holding = false
 
     /// `speechModel` is the speech model the person chose and its recognizer (nil when there is none); `decision` says whether the text may be pasted
     /// right now or only copied, and why (`pasteDecision`).
     public init(
         session: DictationSession, speechModel: @escaping () -> (any Recognizer, SpeechModel)?, microphone: @escaping () -> MicrophonePermission,
-        decision: @escaping () -> PasteDecision, now: @escaping () -> Date = Date.init,
+        decision: @escaping () -> PasteDecision, activation: @escaping () -> DictationActivation = { .toggle }, now: @escaping () -> Date = Date.init,
         moment: @escaping (GlobalDictationMoment) -> Void = { _ in }, perform: @escaping (GlobalDictationEffect) -> Void
     ) {
         self.session = session
         self.speechModel = speechModel
         self.microphone = microphone
         self.decision = decision
+        self.activation = activation
         self.now = now
         self.perform = perform
         self.moment = moment
@@ -59,13 +63,7 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
     public func handle(_ key: GlobalDictationKey) {
         switch (key, state) {
         case (.down, .idle): begin()
-        case (.down, .running):
-            guard session.state != .transcribing else { break }
-            session.stop()
-            if listening {
-                listening = false
-                moment(.stopped)
-            }
+        case (.down, .running), (.up, .running) where holding: finish()
         case (.down, .failed), (.escape, .failed), (.escape, .copied): dismiss()
         // a new dictation closes the widget that was left open
         case (.down, .copied):
@@ -80,12 +78,23 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
             }
             session.cancel()
             dismiss()
-        // a toggle has nothing to do with the key coming up
+        // a toggle has nothing to do with the key coming up, and a hold that Esc or a failure already ended has nothing left to end
         case (.up, _), (.escape, .idle): break
         }
     }
 
+    /// The end the person asked for, with the second press or the release: the session stops and goes on to paste.
+    private func finish() {
+        guard session.state != .transcribing else { return }
+        session.stop()
+        if listening {
+            listening = false
+            moment(.stopped)
+        }
+    }
+
     private func begin() {
+        holding = activation() == .hold
         text = ""
         startedAt = now()
         perform(.show)

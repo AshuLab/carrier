@@ -35,7 +35,7 @@ The global core and the widget:
 6. When the Accessibility permission is missing, the text is copied and the widget says so, with Open System Settings.
 7. The text is never pasted into a secure field, and the widget says why.
 8. With Carrier in front on a session, the shortcut focuses the message box and dictates into it as today, with no widget; in any other view of Carrier it uses the widget.
-9. A person records the shortcut in Settings, which starts at ⌥ Space and refuses a combination with no modifier.
+9. A person records the shortcut in Settings, which starts at ⌥⇧ Space (⌥ Space is held by ChatGPT and Handy, see the [input spike](../research/global-dictation-input.md)) and refuses a combination with no modifier.
 10. A person turns on Dictate in any app, is told what Accessibility is for before macOS asks, and the Dictation switch off turns the global dictation off too.
 11. A person chooses the Widget style (Pill, Small, Medium, Large) and the Position (Top, Bottom), and sees a preview in Settings.
 12. The widget is glass in the app's accent, draws the message box's listening line only while it listens, and its text starts at the top, goes down and scrolls with the older lines fading at the top.

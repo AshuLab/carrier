@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings › Dictation › Cleanup: choose LM Studio or Ollama running on this Mac, one of its models and a prompt (it starts by removing filler words and fixing punctuation in the language you spoke), and try it with Test with a sample. It is off until a server and a model are chosen, and the message boxes use it.
 - Dictate in any app: with Carrier in front on a session, ⌥⇧ Space focuses the message box and dictates into it, with no widget, and the same keys end it; in Settings or an epic it opens the widget as everywhere else.
 - Cleanup in the message boxes: with it on, a dictation ends with the box saying Cleaning… and then holding the cleaned text in place of what you dictated, with the rest of the box as it was; Esc or a click on the microphone skips it and keeps the raw text, and if the server is down, the model is missing or it times out, the raw text stays, the cause shows under the box and goes to `dictation.log`.
+- Settings › Dictation › Global dictation: record your own shortcut (it starts at ⌥⇧ Space and needs ⌃, ⌥ or ⌘ with the key) and choose Toggle or Hold; in Hold you speak while the keys are down and releasing them pastes, and Esc while they are down cancels.
 
 ## [0.7.0] - 2026-11-16
 

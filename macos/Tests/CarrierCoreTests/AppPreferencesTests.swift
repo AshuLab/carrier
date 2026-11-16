@@ -601,3 +601,31 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     UserDefaults(suiteName: name)!.set("frosted", forKey: AppPreferences.chatSurfaceKey)
     #expect(store.chatSurface == .glass)
 }
+
+@Test func theDictationShortcutIsOptionShiftSpaceAndToggleBySurvivesARelaunchAndResetsWithDictation() throws {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(AppPreferences.dictationShortcutKey == "dictation.shortcut" && AppPreferences.dictationActivationKey == "dictation.activation")
+    #expect(store.dictationShortcut == .standard && store.dictationShortcut.text == "⌥⇧ Space" && store.dictationActivation == .toggle)
+    guard case .accepted(let recorded) = recordShortcut(keyCode: 2, characters: "d", modifiers: [.control, .option]) else {
+        Issue.record("refused")
+        return
+    }
+    store.dictationShortcut = recorded
+    store.dictationActivation = .hold
+    let relaunched = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(relaunched.dictationShortcut == recorded && relaunched.dictationShortcut.text == "⌃⌥ D" && relaunched.dictationActivation == .hold)
+    store.reset(.notifications)
+    #expect(store.dictationShortcut == recorded && store.dictationActivation == .hold)
+    store.reset(.dictation)
+    #expect(store.dictationShortcut == .standard && store.dictationActivation == .toggle)
+    #expect(defaults.object(forKey: AppPreferences.dictationShortcutKey) == nil && defaults.object(forKey: AppPreferences.dictationActivationKey) == nil)
+}
+
+@Test func aSavedShortcutOrActivationThatMakesNoSenseReadsAsTheDefault() {
+    let defaults = dictationDefaults().defaults
+    let store = AppPreferences(defaults: defaults)
+    defaults.set("0:49:Space", forKey: AppPreferences.dictationShortcutKey)
+    defaults.set("press", forKey: AppPreferences.dictationActivationKey)
+    #expect(store.dictationShortcut == .standard && store.dictationActivation == .toggle)
+}

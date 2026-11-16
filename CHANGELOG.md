@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-16
+
+The chat gets a flat look as an option, files attached to a message that open in a preview, a wider message width and a handful of fixes to code blocks, accent colors, updates and usage-limit errors.
+
 ### Added
 
 - Settings › Chat › Surfaces: Glass or Flat. Flat draws the conversation's cards, your bubble, code blocks, attachments, notices and the message box as a quiet solid fill instead of glass.
@@ -227,7 +231,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/AshuLab/carrier/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/AshuLab/carrier/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/AshuLab/carrier/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/AshuLab/carrier/compare/v0.3.0...v0.4.0

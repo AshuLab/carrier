@@ -28,7 +28,7 @@ struct SettingsTabRow<Control: View>: View {
                     Group {
                         if let problem { Text("\(Image(systemName: "exclamationmark.triangle.fill")) \(problem)").foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
                     }
-                    .font(mono ? .scaled(11.5, design: .monospaced) : .caption).lineLimit(2).truncationMode(.middle)
+                    .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(11)).lineLimit(2).truncationMode(.middle)
                 }
                 if let note {
                     // cut in the middle to one line: the whole of it (a long PATH) is in the tooltip, and it can be selected to copy
@@ -177,7 +177,7 @@ struct SettingsStackedRow<Control: View>: View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).fontWeight(.medium)
-                if detail.isEmpty == false { Text(detail).font(.caption).foregroundStyle(.secondary) }
+                if detail.isEmpty == false { Text(detail).font(.scaled(11)).foregroundStyle(.secondary) }
             }
             control
         }
@@ -277,7 +277,7 @@ extension View {
     func settingsCard() -> some View { background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07))) }
 
     /// The small uppercase title over a group or a list: the type and the colour; the caller adds the padding its place needs.
-    func sectionLabel() -> some View { font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary).textCase(.uppercase) }
+    func sectionLabel() -> some View { font(.scaled(10)).fontWeight(.semibold).foregroundStyle(.secondary).textCase(.uppercase) }
 }
 
 /// A state as a 16 pt round mark with a white symbol: `checkmark` green for ready, `exclamationmark` yellow for a warning, `xmark` orange for a
@@ -385,8 +385,8 @@ struct SettingsPageHeader: View {
     // the two lines are about as tall as the tile (a Spacer here would take the whole height the page's bar offers)
     private var titles: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(page.rawValue).font(.title3.weight(.semibold))
-            Text(page.detail).font(.callout).foregroundStyle(.secondary)
+            Text(page.rawValue).font(.scaled(15).weight(.semibold))
+            Text(page.detail).font(.scaled(12)).foregroundStyle(.secondary)
         }
     }
 
@@ -400,7 +400,7 @@ struct SettingsPageHeader: View {
                 case .plain: Label(note.text, systemImage: "info.circle").foregroundStyle(.secondary)
                 }
             }
-            .font(.callout).fixedSize(horizontal: false, vertical: true)
+            .font(.scaled(12)).fixedSize(horizontal: false, vertical: true)
             if note.asksAgain { AskAgainButton() }
         }
     }
@@ -433,7 +433,7 @@ struct SettingsPageHeader: View {
 /// A line of a page that says what went wrong in its words, in orange, and says it to VoiceOver when it appears or changes (`announces`).
 struct ProblemLine: View {
     let text: String
-    var font: Font = .callout
+    var font: Font = .scaled(12)
     var announces = true
 
     var body: some View {
@@ -458,7 +458,7 @@ struct ReloadNote: View {
                     ProblemLine(text: words, announces: false)
                     AskAgainButton()
                 } else {
-                    Label(words, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Label(words, systemImage: "info.circle").font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
             }
@@ -693,7 +693,7 @@ private struct ThemeGallery: View {
                             ThemePreview(theme: option, scheme: .light)
                             ThemePreview(theme: option, scheme: .dark)
                         }
-                        Text(option.title).font(.callout)
+                        Text(option.title).font(.scaled(12))
                     }
                     .padding(8).frame(maxWidth: .infinity)
                     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(option == theme ? Color.themeAccent : Color.secondary.opacity(0.2), lineWidth: option == theme ? 2 : 1))
@@ -1117,7 +1117,7 @@ struct NotificationsTabView: View {
                 }
             }
             if let testAdvice {
-                Label(testAdvice, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange).padding(.horizontal, 14)
+                Label(testAdvice, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange).padding(.horizontal, 14)
             }
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())

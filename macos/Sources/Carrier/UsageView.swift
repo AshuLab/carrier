@@ -22,7 +22,7 @@ struct UsageView: View {
                 // an older host is a normal state after an update: told quietly, as an engine too old to reload is
                 let tooOld = store.error == usageNeedsNewerHost
                 if tooOld {
-                    Text(usageNeedsNewerHost).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(usageNeedsNewerHost).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 if let problem = (tooOld ? nil : store.error) ?? failure { ProblemLine(text: problem) }
                 if store.quotas.isEmpty, store.error == nil {

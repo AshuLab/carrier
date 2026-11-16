@@ -50,7 +50,12 @@ Small, Medium and Large are a box of 2, 3 and 4 lines, 340, 420 and 540 points w
 In a box, a pasted or cancelled dictation shows its text with Pasted or Cancelled under it. A check or an x stays for 1.2 seconds and fades (with no animation under Reduce Motion); a new dictation takes it away at once. A dictation with no words, a failure and a text that was only copied show no check or x.
 The states that need text or a button (a failure to start or to recognize, and a text that was only copied) open the Pill as the Small box until they are dismissed; with another style they use that box.
 Top puts the widget at the top centre of the display under the menu bar and Bottom at the bottom centre above the Dock, 24 points from the edge of what the menu bar and the Dock leave (`dictationWidgetOrigin`).
-What the widget draws for a state and a style is `dictationWidgetLook` in `CarrierCore/DictationWidgetLook.swift`, from what `GlobalDictation.shown` says; the glass and the listening line come later.
+What the widget draws for a state and a style is `dictationWidgetLook` in `CarrierCore/DictationWidgetLook.swift`, from what `GlobalDictation.shown` says.
+
+The widget is glass in the app's accent (`WidgetSurface` in `Carrier/DictationWidget.swift`, over the chat's `chatSurface`, so Settings › Chat › Surfaces turns it flat too) and, only while it listens, it draws the message box's own line, `DictationIndicator`, outside its edge with the radius of the box (the capsule's for the Pill), driven by the voice; Reduce Motion and Reduce Transparency do what they do in the message box.
+The panel is 14 points larger than the box on every side to hold the line and the shadow, which the clear margin lets the pointer through like the rest of it.
+While it listens the box holds only the text, the time, the shortcut and Esc.
+The text starts at the top and goes down; when it is longer than the lines of the style it scrolls so the newest words are on the last line, and the first line fades out (`WidgetBox`, which reads the text's height and asks `dictationTextFit` for the lines that are visible and whether the top fades). The text that was only copied is the person's to scroll, from the top, with no fade.
 
 ## History
 
@@ -66,6 +71,15 @@ Under `--fixture` and in the tests the history is in a temporary folder, never i
 The list is grouped by day, newest first (Today, Yesterday, then the weekday and the date), under a search over the text, the cleaned text and the destination, and the filters All, Pasted, Copied, Cancelled and Failed (`dictationEntries`, `dictationDays`).
 A row shows the time, the text (two lines) and chips with the outcome, the destination, the model, the transcription time, the words and the length; a click opens its detail (the text as recognized and as cleaned, the model, the transcription time for the audio length, the cleanup and where it went).
 Copy puts the text on the clipboard (the cleaned text when there is one) and the trash deletes the entry at once, with the switch on or off; an empty list says No dictations yet, and a search or filter with no match says Nothing matches.
+
+### Audio
+
+Keep the audio (`dictation.history.keepAudio`, off by default) saves the audio of each dictation that is recorded as `<Carrier folder>/app/audio/<entry id>.wav`, a 16-bit mono WAV readable by the account only; with it off no audio is written, and a dictation that is not recorded (no words, or Keep the text off) has none.
+The session gathers the samples only if the switch is on as the dictation starts and gives them in the `DictationTake`; the entry does not point to the file, which is named for its id, so `DictationRecords` knows what has audio by listing the folder (`audioIDs`, `audioURL(of:)`).
+Delete audio older than (`dictation.history.deleteAudioAfter`: 7 days, 30 days, 90 days or Never, 30 by default) deletes the audio of the entries that started before the limit when the app starts, once a day while it runs (`DictationController.startAudioSweep`) and at once when the choice changes; the entries stay.
+Audio on disk says how much there is ("182 MB in 214 files"), and Delete all audio, after a confirmation, deletes every audio file and keeps every transcript. Deleting an entry deletes its audio.
+An entry with audio shows a player in its detail (`Carrier/AudioPlayerView.swift`, over `AVAudioPlayer`): Play and Pause, the place it has got to and the time; it stops when the row closes.
+`reset(.dictation)` puts the two switches back and never deletes audio.
 
 ## Statistics
 

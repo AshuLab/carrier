@@ -137,7 +137,8 @@ A page that writes `config.json` or `providers.json` does not wait for Carrier: 
 The widget of the global dictation (`DictationWidget.swift`) is a floating panel, not a view of the window; [dictation](macos/dictation.md#the-widget-style-and-position) says what it shows.
 
 - **A box has one height per style** (2, 3 and 4 lines at 340, 420 and 540 pt, text at 12, 14 and 17 pt through `Font.scaled`), so it never jumps while the text grows: the text scrolls inside it. The Pill is a 76 by 38 capsule with an icon and no text.
-- **It wears `.chatSurface(in:)` like the message box**, never its own fill, and it is drawn once by `WidgetBox` and `PillIcon`, which the Preview in Settings uses too.
+- **It wears `WidgetSurface`** (`.chatSurface` tinted with the accent, never its own fill) and is drawn once by `WidgetBox` and `PillIcon`, which the Preview in Settings uses too. The tint is the accent at 12 % in light and the accent mixed 60 % into black at 55 % in dark, so the text reads over a white window; these are first numbers, to be checked by hand over a white and a dark window in light and dark appearance and then written here as the ones that hold.
+- **The listening line is `DictationIndicator`, reused with the look's `radius`**, only while it listens; the panel is `DictationWidget.glow` points larger than the box on every side so the line is not cut. A box fades its first line once the text is longer than its lines (`dictationTextFit`).
 - **What it draws is `dictationWidgetLook`**, never a check on the state in the view. A state that needs text or a button opens the Pill as the Small box.
 
 ## Mistakes seen

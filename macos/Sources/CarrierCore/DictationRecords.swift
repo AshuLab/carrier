@@ -82,16 +82,33 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
     public private(set) var entries: [DictationEntry] = []
     /// What was dictated per day, hour and model, in the order it was first counted.
     public private(set) var counts: [DictationCount] = []
+    /// The audio files, `<id>.wav` each, next to the history.
+    public let audioFolder: String
+    /// The entries that have their audio on disk, and what it takes.
+    public private(set) var audioIDs: Set<UUID> = []
+    public private(set) var audioBytes = 0
     @ObservationIgnored private let keep: () -> Bool
+    @ObservationIgnored private let keepAudio: () -> Bool
+    @ObservationIgnored private let audioDays: () -> Int
+    @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let calendar: Calendar
 
-    /// `keep` says whether the text is kept right now (the Keep the text switch); `calendar` says which day and hour a dictation belongs to.
-    public init(carrierFolder: String, keep: @escaping () -> Bool, calendar: Calendar = .current) {
+    /// `keep` says whether the text is kept right now (the Keep the text switch), `keepAudio` whether the audio is too, and `audioDays` how many days
+    /// the audio stays (0 is for ever); `calendar` says which day and hour a dictation belongs to.
+    public init(
+        carrierFolder: String, keep: @escaping () -> Bool, keepAudio: @escaping () -> Bool = { false }, audioDays: @escaping () -> Int = { 0 },
+        now: @escaping () -> Date = Date.init, calendar: Calendar = .current
+    ) {
         path = carrierFolder + "/app/dictations.jsonl"
         statisticsPath = carrierFolder + "/app/dictation-statistics.json"
+        audioFolder = carrierFolder + "/app/audio"
         self.keep = keep
+        self.keepAudio = keepAudio
+        self.audioDays = audioDays
+        self.now = now
         self.calendar = calendar
         if let data = FileManager.default.contents(atPath: statisticsPath) { counts = (try? JSONDecoder().decode([DictationCount].self, from: data)) ?? [] }
+        scanAudio()
         guard let file = try? String(contentsOfFile: path, encoding: .utf8) else { return }
         let decoder = Self.decoder
         // a line that does not read (the last one, cut by a crash) is left out, and goes when the next delete rewrites the file
@@ -99,10 +116,10 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         entries = kept.reversed().sorted { $0.started > $1.started }
     }
 
-    /// Counts a dictation that had words and ended pasted or copied, whatever the switch says, and adds its entry at the top when the text is kept.
-    /// Says whether it added the entry.
+    /// Counts a dictation that had words and ended pasted or copied, whatever the switches say, adds its entry at the top when the text is kept, and
+    /// saves its `audio` when that is kept too. Says whether it added the entry.
     @discardableResult
-    public func record(_ entry: DictationEntry) -> Bool {
+    public func record(_ entry: DictationEntry, audio: AudioClip? = nil) -> Bool {
         guard entry.words > 0 else { return false }
         count(entry)
         guard keep() else { return false }
@@ -125,7 +142,61 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
             return false
         }
         entries.insert(entry, at: 0)
+        if keepAudio(), let audio, audio.samples.isEmpty == false { saveAudio(audio, of: entry.id) }
         return true
+    }
+
+    /// The file of an entry's audio, when it has one.
+    public func audioURL(of id: UUID) -> URL? { audioIDs.contains(id) ? audioFile(id) : nil }
+
+    /// Deletes the audio of the entries older than the limit of days; the entries stay. Run when the app starts and once a day.
+    public func deleteOldAudio() {
+        let days = audioDays()
+        guard days > 0 else { return }
+        let cutoff = now().addingTimeInterval(-Double(days) * 86_400)
+        for entry in entries where entry.started < cutoff { removeAudio(of: entry.id) }
+        scanAudio()
+    }
+
+    /// Deletes every audio file; every entry stays.
+    public func deleteAllAudio() {
+        for id in audioIDs { removeAudio(of: id) }
+        scanAudio()
+    }
+
+    private func audioFile(_ id: UUID) -> URL { URL(fileURLWithPath: audioFolder).appending(path: id.uuidString + ".wav") }
+
+    private func saveAudio(_ clip: AudioClip, of id: UUID) {
+        do {
+            try FileManager.default.createDirectory(atPath: audioFolder, withIntermediateDirectories: true)
+            // the audio is private to the person's account, like the text
+            guard FileManager.default.createFile(atPath: audioFile(id).path, contents: wavData(clip), attributes: [.posixPermissions: 0o600]) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+        } catch {
+            FileHandle.standardError.write(Data("carrier: the audio of a dictation could not be written: \(error)\n".utf8))
+            return
+        }
+        scanAudio()
+    }
+
+    private func removeAudio(of id: UUID) {
+        guard audioIDs.contains(id) else { return }
+        try? FileManager.default.removeItem(at: audioFile(id))
+    }
+
+    /// What is on disk now: the files named for an id, and their bytes.
+    private func scanAudio() {
+        let files = (try? FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: audioFolder), includingPropertiesForKeys: [.fileSizeKey])) ?? []
+        var ids: Set<UUID> = []
+        var bytes = 0
+        for file in files where file.pathExtension == "wav" {
+            guard let id = UUID(uuidString: file.deletingPathExtension().lastPathComponent) else { continue }
+            ids.insert(id)
+            bytes += (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        }
+        audioIDs = ids
+        audioBytes = bytes
     }
 
     private func count(_ entry: DictationEntry) {
@@ -171,6 +242,8 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
             return
         }
         entries = rest
+        removeAudio(of: id)
+        scanAudio()
     }
 
     private static let encoder: JSONEncoder = {

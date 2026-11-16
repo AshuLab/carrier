@@ -77,6 +77,15 @@ func thePillsIconFollowsTheState(state: DictationWidgetState, icon: DictationWid
     #expect(look.icon == icon && look.box == nil && look.opensAsSmall == false)
 }
 
+@Test(arguments: [DictationWidgetStyle.small, .medium, .large])
+func aTextStartsAtTheTopAndOnlyFadesOnceItIsLongerThanTheBox(style: DictationWidgetStyle) throws {
+    let lines = try #require(style.box).lines
+    #expect(dictationTextFit(textLines: 0, boxLines: lines) == DictationTextFit(visibleLines: 0, fadesTop: false))
+    #expect(dictationTextFit(textLines: 1, boxLines: lines) == DictationTextFit(visibleLines: 1, fadesTop: false))
+    #expect(dictationTextFit(textLines: lines, boxLines: lines) == DictationTextFit(visibleLines: lines, fadesTop: false))
+    #expect(dictationTextFit(textLines: lines + 3, boxLines: lines) == DictationTextFit(visibleLines: lines, fadesTop: true))
+}
+
 @Test(arguments: [DictationWidgetState.failed, .copied])
 func theStatesThatNeedTextOrAButtonOpenThePillAsTheSmallBoxAndKeepTheChosenBox(state: DictationWidgetState) {
     let pill = dictationWidgetLook(state, style: .pill)

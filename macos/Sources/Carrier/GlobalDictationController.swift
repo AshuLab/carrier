@@ -34,9 +34,11 @@ import CarrierCore
             session: dictation.session, speechModel: { dictation.speechModel }, microphone: { dictation.microphoneStatus() },
             decision: FocusedField.decision, activation: { preferences.dictationActivation },
             moment: { [preferences] moment in dictationSound(for: moment, preferences.dictationSounds).map { DictationSoundPlayer.play($0) } },
-            record: { [records = dictation.records] in records.record($0) }, frontApp: { NSWorkspace.shared.frontmostApplication?.localizedName },
+            // the entry is of the take that just ended, whose audio goes with it
+            record: { [dictation] in dictation.records.record($0, audio: dictation.session.take?.clip) }, frontApp: { NSWorkspace.shared.frontmostApplication?.localizedName },
             perform: { [unowned self] in perform($0) })
-        widget = DictationWidget(dictation: machine, preferences: preferences, hint: { dictationHint(shortcut: preferences.dictationShortcut, activation: preferences.dictationActivation) })
+        widget = DictationWidget(dictation: machine, preferences: preferences, hint: { dictationHint(shortcut: preferences.dictationShortcut, activation: preferences.dictationActivation) },
+            voice: { dictation.voice })
     }
 
     /// Follows the two switches, now and each time the preferences change.

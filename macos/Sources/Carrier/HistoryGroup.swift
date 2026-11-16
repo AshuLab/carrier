@@ -6,6 +6,9 @@ struct HistoryGroup: View {
     var dictation = DictationController.shared
     // the preference is read and written by the switch; this makes the group redraw when Reset changes it
     @AppStorage(AppPreferences.dictationKeepTextKey) private var keep = AppPreferences.defaultDictationKeepText
+    @AppStorage(AppPreferences.dictationKeepAudioKey) private var keepAudio = AppPreferences.defaultDictationKeepAudio
+    @AppStorage(AppPreferences.dictationDeleteAudioAfterKey) private var days = AppPreferences.defaultDictationDeleteAudioAfter
+    @State private var confirmingDelete = false
 
     var body: some View {
         SettingsGroup(title: "History") {
@@ -16,6 +19,22 @@ struct HistoryGroup: View {
             ) {
                 Toggle("Keep the text of my dictations", isOn: $keep).labelsHidden().toggleStyle(.switch)
             }
+            SettingsTabRow(title: "Keep the audio", detail: "Off by default. Each dictation that is recorded then has its audio to play back") {
+                Toggle("Keep the audio", isOn: $keepAudio).labelsHidden().toggleStyle(.switch)
+            }
+            SettingsTabRow(title: "Delete audio older than", detail: "The transcripts stay") {
+                ChoicePopUp(label: "Delete audio older than", options: dictationAudioLimits.map { (value: $0.days, title: $0.title) }, selection: $days, width: 110)
+            }
+            SettingsTabRow(title: "Audio on disk", detail: formatAudioOnDisk(bytes: dictation.records.audioBytes, files: dictation.records.audioIDs.count)) {
+                Button("Delete all audio", role: .destructive) { confirmingDelete = true }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(dictation.records.audioIDs.isEmpty)
+            }
+        }
+        .onChange(of: days) { dictation.records.deleteOldAudio() }
+        .confirmationDialog("Delete all the audio?", isPresented: $confirmingDelete) {
+            Button("Delete all audio", role: .destructive) { dictation.records.deleteAllAudio() }
+        } message: {
+            Text("The transcripts stay.")
         }
         HistoryList(records: dictation.records)
     }
@@ -52,7 +71,7 @@ struct HistoryList: View {
                         SettingsTabCard {
                             ForEach(Array(day.entries.enumerated()), id: \.element.id) { index, entry in
                                 if index > 0 { SettingsDivider() }
-                                HistoryRow(entry: entry, open: open == entry.id, toggle: { open = open == entry.id ? nil : entry.id }, delete: { records.delete(entry.id) })
+                                HistoryRow(entry: entry, audio: records.audioURL(of: entry.id), open: open == entry.id, toggle: { open = open == entry.id ? nil : entry.id }, delete: { records.delete(entry.id) })
                             }
                         }
                     }
@@ -65,6 +84,7 @@ struct HistoryList: View {
 
 private struct HistoryRow: View {
     let entry: DictationEntry
+    let audio: URL?
     let open: Bool
     let toggle: () -> Void
     let delete: () -> Void
@@ -125,6 +145,15 @@ private struct HistoryRow: View {
             GridRow {
                 field("Cleanup", entry.cleanupModel.map { "\($0) · \(seconds(entry.cleanupSeconds ?? 0))" } ?? "Not used")
                 field("Went to", entry.destination)
+            }
+            if let audio {
+                GridRow {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Audio").sectionLabel()
+                        AudioPlayerView(url: audio)
+                    }
+                    .gridCellColumns(2)
+                }
             }
         }
         .padding(10).frame(maxWidth: .infinity, alignment: .leading)

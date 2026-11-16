@@ -430,7 +430,12 @@ public struct AppPreferences {
                 notifyNeedsYouKey, notifyReadyForTestKey, notifyProblemKey, notifyChatNeedsAttentionKey, notifyChatDoneKey, notifyOnlyWhenAwayKey,
                 notifyDockBadgeKey, notifySoundKey, notifyReminderKey, notifyQuietKey, notifyQuietStartKey, notifyQuietEndKey,
             ]
-        case .dictation: [dictationEnabledKey, dictationModelKey, dictationLanguageKey]
+        case .dictation:
+            [
+                dictationEnabledKey,
+                dictationModelKey,
+                dictationLanguageKey,
+            ]
         case .keybindings: [ShortcutTable.key]
         // the Providers page only reads, the Updates page writes Sparkle's own preferences, the Carrier pages write config.json or (Engine) a few switches that have no Reset, and the Legacy page keeps its own settings
         case .providers, .updates, .engine, .behavior, .repos, .agents, .health: []

@@ -108,6 +108,7 @@ What the person sees: [dictation](../docs/macos/dictation.md).
 
 The logic is `CarrierCore/Dictation.swift` (the boundary and the registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the scripted recognizer and capture of `ScriptedDictation.swift`.
 `DictationController` holds the switch so both boxes read it.
+The page is `Carrier/DictationTab.swift`, a list of one view per group (`DictationGroup.swift`, `SpeechModelsGroup.swift`, `StorageGroup.swift`; a new group is a file and a line there), and the keys `reset(.dictation)` restores are one per line in `AppPreferences.keys(of:)`; the views have no automated test (`SettingsPageTests` and `DictationSettingsTests` hold the rules).
 
 ## Embedded terminal
 

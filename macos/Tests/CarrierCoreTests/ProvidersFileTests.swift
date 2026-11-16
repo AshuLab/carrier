@@ -493,3 +493,12 @@ private var work: AccountDraft {
     #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "claude", in: nil) == nil)
     #expect(accountSharingFolder(configDir: "~/.claude-lab", harness: "claude", in: Data("not json".utf8)) == nil)
 }
+
+@Test func anAccountWithNoFolderHasTheToolsOwnAndTheNoteNamesItByItsDisplayName() {
+    let file = Data(#"{"providers":{"claude":{"harness":"claude"},"codex":{"harness":"codex","displayName":"Codex Pro"},"empty":{"harness":"claude","configDir":""}}}"#.utf8)
+    #expect(accountSharingFolder(configDir: "~/.claude", harness: "claude", in: file) == "claude")
+    #expect(accountSharingFolder(configDir: NSHomeDirectory() + "/.codex", harness: "codex", in: file) == "Codex Pro")
+    #expect(accountSharingFolder(configDir: "~/.claude", harness: "claude", except: "claude", in: file) == "empty")
+    #expect(accountSharingFolder(configDir: "~/.codex", harness: "claude", in: file) == nil)
+    #expect(accountSharingFolder(configDir: "/", harness: "agy", in: file) == nil)
+}

@@ -69,16 +69,22 @@ public func normalizedConfigDir(_ text: String) -> String {
     return "~/" + (path.hasPrefix("./") ? String(path.dropFirst(2)) : path)
 }
 
-/// The account of `harness` whose config folder is `configDir` (`~` expanded, trailing slash ignored), so with the same login; nil when none is
-/// or the folder is empty. `except` is the account being edited. Not a problem: two accounts may share a login for another model or other arguments.
+/// The account of `harness` whose config folder is `configDir` (`~` expanded, trailing slash ignored), so with the same login: its display name,
+/// else its key. An account with no folder has the tool's own (`~/.claude`, `~/.codex`). Nil when none is or the folder is empty. `except` is the
+/// account being edited. Not a problem: two accounts may share a login for another model or other arguments.
 public func accountSharingFolder(configDir: String, harness: String, except name: String? = nil, in json: Data?) -> String? {
     func resolved(_ path: String) -> String { URL(fileURLWithPath: (normalizedConfigDir(path) as NSString).expandingTildeInPath).standardizedFileURL.path }
     guard configDir.trimmingCharacters(in: .whitespaces).isEmpty == false, let providers = try? parsed(json).providers else { return nil }
     let wanted = resolved(configDir)
-    return providers.keys.sorted().first { other in
-        guard other != name, let account = providers[other] as? [String: Any], account["harness"] as? String == harness, let folder = account["configDir"] as? String else { return false }
+    let toolFolder = ["claude": "~/.claude", "codex": "~/.codex"][harness]
+    let key = providers.keys.sorted().first { other in
+        guard other != name, let account = providers[other] as? [String: Any], account["harness"] as? String == harness else { return false }
+        let own = (account["configDir"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        guard let folder = own ?? toolFolder else { return false }
         return resolved(folder) == wanted
     }
+    guard let key else { return nil }
+    return (providers[key] as? [String: Any])?["displayName"] as? String ?? key
 }
 
 /// A name the engine accepts: `optionNamePattern`, `^[a-z][a-z0-9-]{0,39}$`.

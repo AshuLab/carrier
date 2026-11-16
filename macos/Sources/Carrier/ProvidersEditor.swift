@@ -89,7 +89,7 @@ struct AccountEditor: View {
                     }
                 }
                 if let problem = store.editProblem { ProblemLine(text: problem) }
-                if problems["configDir"] == nil, let note = store.sharedFolderNote(configDir: draft.configDir, harness: harness, except: account.name) {
+                if problems["configDir"] == nil, draft.configDir != saved.configDir, let note = store.sharedFolderNote(configDir: draft.configDir, harness: harness, except: account.name) {
                     Label(note, systemImage: "info.circle").font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 HStack(spacing: 10) {

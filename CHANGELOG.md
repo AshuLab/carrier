@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-16
+
+Dictate in any app: a global shortcut opens a widget over whatever you are in and pastes what you say, with optional cleanup by a local model, a history of your dictations with their audio and statistics on how much you dictate.
+
 ### Added
 
 - Dictate in any app: ⌥⇧ Space opens a small widget over the app you are in, without taking its focus, and shows what you say; the same keys again paste it once at the cursor and put your clipboard back, and Esc cancels. Settings › Dictation › Global dictation has the Dictate in any app switch, which follows the Dictation switch.
@@ -283,7 +287,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/AshuLab/carrier/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/AshuLab/carrier/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/AshuLab/carrier/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/AshuLab/carrier/compare/v0.5.0...v0.6.0

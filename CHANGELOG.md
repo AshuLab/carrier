@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-16
+
+The chat gets a flat look as an option, files attached to a message that open in a preview, a wider message width and a handful of fixes to code blocks, accent colors, updates and usage-limit errors.
+
 ### Added
 
 - Settings › Chat › Surfaces: Glass or Flat. Flat draws the conversation's cards, your bubble, code blocks, attachments, notices and the message box as a quiet solid fill instead of glass.

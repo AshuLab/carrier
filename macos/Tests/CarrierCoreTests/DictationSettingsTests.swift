@@ -65,7 +65,7 @@ private func theLanguagePageOffersAFunctionOfTheModelMacOSAndTheSavedChoice(c: C
 }
 
 @Test func theSwitchDimsEveryRowButItselfStorageAndReset() {
-    let rows: [DictationRow] = [.enabledSwitch, .speechModel, .language, .microphone, .modelsTable, .storage, .reset, .cleanup]
+    let rows: [DictationRow] = [.enabledSwitch, .speechModel, .language, .microphone, .modelsTable, .storage, .reset, .cleanup, .sounds]
     #expect(rows.filter { dictationRowIsLive($0, enabled: false) } == [.enabledSwitch, .storage, .reset])
     #expect(rows.allSatisfy { dictationRowIsLive($0, enabled: true) })
 }
@@ -76,4 +76,10 @@ private func theLanguagePageOffersAFunctionOfTheModelMacOSAndTheSavedChoice(c: C
     #expect(globalDictationIsOn(dictation: true, global: true))
     #expect(globalDictationIsOn(dictation: false, global: true) == false)
     #expect(globalDictationIsOn(dictation: true, global: false) == false)
+}
+
+@Test func accessibilityIsExplainedOnlyTheFirstTimeAndNeverWhenItIsAlreadyAllowed() {
+    #expect(shouldExplainAccessibility(explained: false, trusted: false))
+    #expect(shouldExplainAccessibility(explained: true, trusted: false) == false)
+    #expect(shouldExplainAccessibility(explained: false, trusted: true) == false)
 }

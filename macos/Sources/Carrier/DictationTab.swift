@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-/// The Dictation page: one view per group (`DictationGroup`, `GlobalDictationGroup`, `CleanupGroup`, `SpeechModelsGroup`, `StorageGroup`). With the switch off the groups under it are drawn at 40% and take no
+/// The Dictation page: one view per group (`DictationGroup`, `GlobalDictationGroup`, `SoundsGroup`, `CleanupGroup`, `SpeechModelsGroup`, `StorageGroup`). With the switch off the groups under it are drawn at 40% and take no
 /// clicks (`dictationRowIsLive`).
 struct DictationTabView: View {
     var dictation = DictationController.shared
@@ -11,6 +11,7 @@ struct DictationTabView: View {
         SettingsPageBody(reset: { dictation.reset() }) {
             DictationGroup()
             GlobalDictationGroup()
+            SoundsGroup().live(.sounds, enabled: enabled)
             CleanupGroup().live(.cleanup, enabled: enabled)
             SpeechModelsGroup().live(.modelsTable, enabled: enabled)
             StorageGroup().live(.storage, enabled: enabled)

@@ -8,9 +8,10 @@ import Testing
     let recognizer: ScriptedRecognizer
     let logged = Logged()
     private(set) var effects: [GlobalDictationEffect] = []
+    private(set) var moments: [GlobalDictationMoment] = []
     var machine: GlobalDictation!
     var microphone = MicrophonePermission.allowed
-    var refusal: String?
+    var decision = PasteDecision.paste
     var hasModel = true
 
     init(recognizer: ScriptedRecognizer = ScriptedRecognizer(atAudioEnd: [.final("")]), capture: ScriptedCapture = ScriptedCapture()) {
@@ -20,7 +21,8 @@ import Testing
         let session = DictationSession(capture: capture, log: { logged.causes.append($0.cause) })
         machine = GlobalDictation(
             session: session, speechModel: { [unowned self] in hasModel ? (recognizer, recognizer.models[0]) : nil }, microphone: { [unowned self] in microphone },
-            refusal: { [unowned self] in refusal }, perform: { [unowned self] in effects.append($0) })
+            decision: { [unowned self] in decision },
+            moment: { [unowned self] in moments.append($0) }, perform: { [unowned self] in effects.append($0) })
     }
 
     var session: DictationSession { machine.session }
@@ -161,15 +163,62 @@ private final class Logged: @unchecked Sendable { var causes: [String] = [] }
     #expect(none.machine.state == .failed("No speech model is available") && none.logged.causes == ["No speech model is available"])
 }
 
-@MainActor @Test func aTextThatCannotBePastedIsCopiedAndStaysInTheWidgetWithItsReason() async {
-    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola")]))
-    widget.refusal = "Accessibility is off."
+@MainActor @Test(arguments: [PasteReason.noField, .noPermission, .secureField])
+func aTextThatCannotBePastedIsCopiedAndStaysInTheWidgetWithItsReason(reason: PasteReason) async {
+    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final(" hola mundo ")]))
+    widget.decision = .copyOnly(reason)
     await widget.listen()
     widget.machine.handle(.down)
     await widget.until { widget.machine.state != .running }
-    #expect(widget.effects == [.show, .copy("hola")])
-    #expect(widget.machine.state == .failed("Accessibility is off. The text is on the clipboard.") && widget.machine.text == "hola")
+    #expect(widget.effects == [.show, .copy("hola mundo")])
+    #expect(widget.machine.state == .copied(reason) && widget.machine.text == "hola mundo")
     #expect(widget.logged.causes.isEmpty)
+}
+
+@MainActor @Test func aTextThatCanBePastedIsPastedOnceAndTheWidgetCloses() async {
+    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola")]))
+    widget.decision = .paste
+    await widget.listen()
+    widget.machine.handle(.down)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.effects == [.show, .paste("hola"), .close])
+}
+
+@MainActor private func keptWidget(_ reason: PasteReason = .noField) async -> Widget {
+    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola")]))
+    widget.decision = .copyOnly(reason)
+    await widget.listen()
+    widget.machine.handle(.down)
+    await widget.until { widget.machine.state != .running }
+    return widget
+}
+
+@MainActor @Test func copyPutsTheTextOnTheClipboardAgainAndDismissAndEscapeCloseTheWidget() async {
+    let widget = await keptWidget()
+    widget.machine.copyAgain()
+    #expect(widget.effects == [.show, .copy("hola"), .copy("hola")] && widget.machine.state == .copied(.noField))
+    widget.machine.dismissCopied()
+    #expect(widget.machine.state == .idle && widget.effects.last == .close)
+
+    let escaped = await keptWidget()
+    escaped.machine.handle(.escape)
+    #expect(escaped.machine.state == .idle && escaped.effects == [.show, .copy("hola"), .close])
+}
+
+@MainActor @Test func copyAndDismissDoNothingWhenNothingWasKept() {
+    let widget = Widget()
+    widget.machine.copyAgain()
+    widget.machine.dismissCopied()
+    #expect(widget.effects.isEmpty && widget.machine.state == .idle)
+}
+
+@MainActor @Test func aNewDictationClosesTheWidgetThatWasLeftOpenAndStarts() async {
+    let widget = await keptWidget(.secureField)
+    widget.decision = .paste
+    widget.machine.handle(.down)
+    await widget.until { widget.session.state == .listening }
+    #expect(widget.effects == [.show, .copy("hola"), .close, .show])
+    #expect(widget.machine.state == .running && widget.machine.text.isEmpty)
 }
 
 @MainActor @Test func theEndOfAMessageBoxDictationIsNotTheWidgetsOwn() async {
@@ -197,4 +246,35 @@ private final class Logged: @unchecked Sendable { var causes: [String] = [] }
     #expect(displayIndex(of: CGRect(x: 900, y: 100, width: 400, height: 300), in: [left, right]) == 1)
     #expect(displayIndex(of: CGRect(x: 5000, y: 0, width: 10, height: 10), in: [left, right]) == nil)
     #expect(displayIndex(of: left, in: []) == nil)
+}
+
+@MainActor @Test func theMachineTellsWhenItBeginsToListenAndWhenThePersonStopsIt() async {
+    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola")]))
+    widget.machine.handle(.down)
+    #expect(widget.moments.isEmpty)
+    await widget.until { widget.session.state == .listening }
+    #expect(widget.moments == [.listening])
+    widget.machine.handle(.down)
+    widget.machine.handle(.down)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.moments == [.listening, .stopped])
+}
+
+@MainActor @Test func aCancelIsTold() async {
+    let widget = Widget()
+    await widget.listen()
+    widget.machine.handle(.escape)
+    #expect(widget.moments == [.listening, .cancelled])
+}
+
+@MainActor @Test func aDictationThatNeverListenedTellsNothing() async {
+    let recognizer = ScriptedRecognizer()
+    recognizer.holdPrepare()
+    let widget = Widget(recognizer: recognizer)
+    widget.machine.handle(.down)
+    widget.machine.handle(.escape)
+    recognizer.releasePrepare()
+    widget.microphone = .denied
+    widget.machine.handle(.down)
+    #expect(widget.moments.isEmpty)
 }

@@ -666,7 +666,7 @@ struct AppearanceTabView: View {
                 SettingsTabRow(title: "Accent color", detail: "Buttons, switches and the selection; the first one is the theme's own", first: true) {
                     AccentSwatches(theme: theme, scheme: scheme == .dark ? .dark : .light, accent: $accent)
                 }
-                SettingsTabRow(title: "Tint the windows", detail: "A touch of the accent on the backgrounds") {
+                SettingsTabRow(title: "Tint the windows", detail: "A touch of the theme's own color on the backgrounds; the accent you pick does not change it") {
                     ChoicePopUp(label: "Tint the windows", options: Tint.allCases.map { (value: $0, title: $0.title) }, selection: $tint)
                 }
                 SettingsTabRow(title: "Translucent windows", detail: "Off draws solid backgrounds; it follows the Mac's Reduce transparency until you choose") {

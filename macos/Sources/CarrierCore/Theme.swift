@@ -124,15 +124,17 @@ public struct ThemeSurfaces: Equatable {
 
 /// The surface colors and the accent for a theme, a scheme, an accent choice (nil is the theme's own), a tint and whether windows are
 /// translucent. Solid draws every surface opaque; translucent lets the sidebar through a little, and Carrier's own surfaces are left to
-/// the system. The tint is the accent laid over the surface at its opacity.
+/// the system. The tint is the theme's own accent laid over the surface at its opacity; the accent chosen is only returned, for the elements.
 public func themeSurfaces(_ theme: Theme, scheme: ThemeScheme, accent: AccentColor? = nil, tint: Tint = .off, translucent: Bool) -> ThemeSurfaces {
     let colors = theme.colors(scheme)
     let chosen = accent.map(\.color) ?? colors.accent.map { RGBA(hex: $0) }
     let system = theme == .carrier && translucent
     var window = system ? RGBA.clear : RGBA(hex: colors.window)
     var sidebar = system ? RGBA.clear : RGBA(hex: colors.sidebar, alpha: translucent ? 0.6 : 1)
-    // Carrier's tint over the system's surface is the accent alone; the Mac's own accent is the blue of its default
-    if let over = chosen ?? (tint == .off ? nil : RGBA(hex: scheme == .dark ? 0x0a84ff : 0x007aff)) {
+    // The tint is the theme's own color, never the accent the person chose for the elements: picking a color for the buttons must not paint
+    // the windows. Carrier's tint over the system's surface is its accent alone; the Mac's own accent is the blue of its default
+    if tint != .off {
+        let over = colors.accent.map { RGBA(hex: $0) } ?? RGBA(hex: scheme == .dark ? 0x0a84ff : 0x007aff)
         let layer = RGBA(red: over.red, green: over.green, blue: over.blue, alpha: tint.opacity)
         window = window.covered(by: layer)
         sidebar = sidebar.covered(by: layer)

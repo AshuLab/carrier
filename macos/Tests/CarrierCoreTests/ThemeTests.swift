@@ -55,9 +55,10 @@ import Testing
             #expect(tinted.accent == base.accent)
         }
         #expect(Tint.subtle.opacity < Tint.strong.opacity)
-        // the tint follows the accent that was chosen
+        // the tint is the theme's own color: the accent chosen for the elements changes them and not the windows
         let pink = themeSurfaces(.forest, scheme: .dark, accent: .pink, tint: .strong, translucent: false)
-        #expect(pink.window.red > themeSurfaces(.forest, scheme: .dark, tint: .strong, translucent: false).window.red)
+        let own = themeSurfaces(.forest, scheme: .dark, tint: .strong, translucent: false)
+        #expect(pink.window == own.window && pink.sidebar == own.sidebar && pink.accent == AccentColor.pink.color)
     }
 
     @Test func solid_draws_opaque_surfaces_and_translucent_lets_the_sidebar_through() {

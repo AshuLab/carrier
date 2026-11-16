@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Choosing an accent color no longer changes the tint of the windows: with Tint the windows on, the backgrounds keep the theme's own color and the accent only colors the elements.
 - The agent's work card lines up: the icon of its line sits over the steps' nodes and the first line of a thought is level with its icon; thoughts read a little larger and looser.
 - An update whose restart was held up (the app did not close) no longer leaves the pill stuck on Restarting…: clicking it asks Carrier to quit again.
 - What you type in a session's message box and have not sent is kept when you go to another session, the terminal or another view, and is there when you come back.

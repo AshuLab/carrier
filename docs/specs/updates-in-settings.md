@@ -8,6 +8,8 @@ The app already updates itself ([carrier-updates-itself.md](carrier-updates-itse
 
 - A page **Updates** in the App group of Settings, after Keybindings. It reads and writes Sparkle's own preferences, so it needs no setting of ours and has no Reset.
 - **This Carrier**: the version (`CFBundleShortVersionString`), the time of the last check ("Never" until the updater has checked; `updateCheckedText`) and a **Check now** button, dimmed while a check runs.
+  Once a check finds an update the row says so (version, percent while it downloads) and the button becomes the sidebar pill's own step: Update, Restart or Retry.
+  While a step runs the button keeps its words, dimmed, with a spinner beside it.
 - **Updates**: *Check by itself* (on by default; Sparkle's `automaticallyChecksForUpdates`) and *Install by itself* (off by default, so Sparkle asks before it installs; `automaticallyDownloadsUpdates`, dimmed while checking is off, because Sparkle cannot install by itself without checking).
 - **Check for Updates…** in the Carrier menu, under About Carrier. The updater's controller answers it, so it is dimmed when there is no updater.
 - **Engine and chat host**: where the `brew upgrade` of the installed `carrier` stands (`EngineUpdateState`): "Updating Carrier…" with a spinner while it runs, "Up to date" or "Updated" when it ends, and when it fails "Could not be updated" with the notice's text (the last lines of the log, copyable on hover) and a **Try again** button. Only a Homebrew `carrier` older than the app is upgraded; any other install reads "Looked at when the app opens, for a Carrier installed with Homebrew".

@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Add account and the account editor say, in a quiet line, when another account of the same tool already uses the config folder you typed, since it is the same login and not a new one.
 
+### Fixed
+
+- Settings > Updates no longer leaves Check now dimmed once an update is found: the row says which version is available and has the same Update, Restart or Retry button as the sidebar's pill, with the percent while it downloads.
+
 ## [0.8.0] - 2026-11-16
 
 The app tells the accounts of one tool apart with a label, an icon and a color, the sidebar shows when a session is Done and gets Pin and Archive on hover, archiving is immediate, and the message box and Settings get a round of fixes.

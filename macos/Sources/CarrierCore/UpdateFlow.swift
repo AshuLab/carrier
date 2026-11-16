@@ -8,6 +8,40 @@ public enum UpdatePhase: Equatable, Sendable {
     case failed(version: String)
 }
 
+/// The button of Settings > Updates > This Carrier while an update is on its way: the pill's own step, drawn as a button.
+public struct UpdateAction: Equatable, Sendable {
+    public let title: String
+    public let symbol: String
+    /// The step is running (a download, a restart): the button keeps its words, is dimmed and shows a spinner beside it.
+    public let working: Bool
+}
+
+extension UpdatePhase {
+    /// What Settings > Updates says about this Carrier while an update is on its way, in place of the time of the last check; nil with nothing new.
+    public var settingsDetail: String? {
+        switch self {
+        case .none: nil
+        case .available(let version): "Carrier \(version) is available"
+        case .downloading(let version, let percent): "Downloading Carrier \(version), \(percent)%"
+        case .ready(let version): "Carrier \(version) is downloaded and waits for a restart"
+        case .installing: "Restarting…"
+        case .failed(let version): "Carrier \(version) could not be updated"
+        }
+    }
+
+    /// The button that moves the update one step, the same click as the sidebar's pill; nil when there is no update.
+    public var settingsAction: UpdateAction? {
+        switch self {
+        case .none: nil
+        case .available: UpdateAction(title: "Update", symbol: "arrow.down.to.line", working: false)
+        case .downloading: UpdateAction(title: "Update", symbol: "arrow.down.to.line", working: true)
+        case .ready: UpdateAction(title: "Restart", symbol: "arrow.clockwise", working: false)
+        case .installing: UpdateAction(title: "Restart", symbol: "arrow.clockwise", working: true)
+        case .failed: UpdateAction(title: "Retry", symbol: "arrow.clockwise", working: false)
+        }
+    }
+}
+
 /// The phase and the bytes of the download behind it, moved by what Sparkle tells the app, one call a step.
 public struct UpdateFlow: Equatable, Sendable {
     public private(set) var phase = UpdatePhase.none

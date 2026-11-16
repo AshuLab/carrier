@@ -53,7 +53,8 @@ struct ChatToolGroupView: View {
     private var header: some View {
         HStack(spacing: 12) {
             // what the run is doing: as long as it is, and what does not fit fades out at the edge of its room instead of pushing the right side
-            HStack(spacing: 8) {
+            // the room is the one offered (a clear box), and the words, as long as they are, hang in it: a fixed-size child inside a flexible frame would widen the card
+            Color.clear.frame(maxWidth: .infinity).overlay(alignment: .leading) { HStack(spacing: 8) {
                 if lead != .none { LeadView(lead: lead, reduceMotion: reduceMotion).transition(.scale(scale: 0.5).combined(with: .opacity)) }
                 // the words roll up when they change: the new ones come in from below, the old ones leave above
                 ZStack(alignment: .leading) { words.id(key).transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity))) }
@@ -70,8 +71,7 @@ struct ChatToolGroupView: View {
                 }
             }
             .fixedSize(horizontal: true, vertical: false)
-            .padding(.leading, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 4) }
             .clipped()
             .mask { HStack(spacing: 0) { Rectangle(); LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 28) } }
             // the right side never moves or shrinks: the time, and the chevron as wide as a node

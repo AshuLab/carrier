@@ -216,7 +216,7 @@ struct PanelView: View {
                             let over: Bool = if case .ended = epic.subject { true } else { false }
                             EpicView(
                                 subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files),
-                                sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, files: data?.files,
+                                sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, subagents: $shell.subagents, subagentHeader: $shell.subagentHeader, files: data?.files,
                                 plan: queuedPlan(epic.subject), resume: resumeCard(epic.subject).map { ($0, model.epics) },
                                 fileDiffs: epics.canOpenFiles ? FileDiffs(open: Binding(get: { epics.openFiles[ref] ?? [] }, set: { epics.openFiles[ref] = $0 }), shown: $epics.filesTabShown, fragments: data?.fragments ?? [:]) : nil,
                                 onContinueInTerminal: { section, resume in
@@ -343,8 +343,23 @@ struct PanelView: View {
                 .sharedBackgroundVisibility(.hidden)
             }
             if let epic {
-                ToolbarItem(placement: .primaryAction) { EpicLinks(prURL: epic.header.prURL, issueURL: epic.header.issueURL) }
+                if let open = shell.subagentHeader {
+                    // a slice card's subagent view wears the same header as a conversation's, with the epic in its subtitle and no Stop
+                    ToolbarItem(placement: .navigation) {
+                        Button { shell.leaveSubagent() } label: { Label("Back", systemImage: "chevron.left") }
+                            .help("Back to Agent output")
+                    }
+                    ToolbarItem(placement: .navigation) {
+                        SubagentTitle(title: open.title, subtitle: open.subtitle(of: epic.header.title))
+                            .frame(maxWidth: windowSize.width * 0.35, alignment: .leading)
+                    }
                     .sharedBackgroundVisibility(.hidden)
+                    ToolbarItem(placement: .primaryAction) { SubagentStatePill(header: open) }
+                        .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .primaryAction) { EpicLinks(prURL: epic.header.prURL, issueURL: epic.header.issueURL) }
+                        .sharedBackgroundVisibility(.hidden)
+                }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
                     Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemImage: "sidebar.trailing") }

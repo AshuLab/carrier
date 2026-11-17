@@ -12,13 +12,21 @@ public struct SubagentHeader: Equatable {
     public let startedAt: Int
     /// How long it ran; nil while it runs.
     public let durationMs: Int?
+    /// The epic's title when the subagent is a slice card's (its subtitle names the epic, and Stop is not offered); nil in a conversation.
+    public let epic: String?
     /// What stopping it takes, from its `task` events; nil until one names it.
     public let taskId: String?
     /// Whether the host lists `stopTask`: set by the model, which knows the hello; an older host cannot stop a subagent.
     public var hostStops: Bool
 
-    public init(title: String, type: String, state: SubagentStatus, startedAt: Int, durationMs: Int?, taskId: String? = nil, hostStops: Bool = false) {
-        (self.title, self.type, self.state, self.startedAt, self.durationMs, self.taskId, self.hostStops) = (title, type, state, startedAt, durationMs, taskId, hostStops)
+    public init(title: String, type: String, state: SubagentStatus, startedAt: Int, durationMs: Int?, epic: String? = nil, taskId: String? = nil, hostStops: Bool = false) {
+        (self.title, self.type, self.state, self.startedAt, self.durationMs, self.epic, self.taskId, self.hostStops) = (title, type, state, startedAt, durationMs, epic, taskId, hostStops)
+    }
+
+    /// A slice card's subagent: the slice's title, the role of the session it ran in (Builder, Reviewer) and the lane's own state.
+    init(lane: LaneSection, role: String, epic: String) {
+        let state: SubagentStatus = switch lane.state { case .running: .running; case .finished: .completed; case .failed: .failed }
+        self.init(title: lane.title, type: role, state: state, startedAt: lane.startedAt ?? 0, durationMs: state == .running ? nil : lane.duration, epic: epic)
     }
 
     init(_ subagent: Subagent) {
@@ -28,11 +36,11 @@ public struct SubagentHeader: Equatable {
         )
     }
 
-    /// Whether the header offers Stop: only while it runs, only to a host that can, and only when its task is known.
-    public var canStop: Bool { state == .running && hostStops && taskId != nil }
+    /// Whether the header offers Stop: only while it runs, only to a host that can, only when its task is known, and never for a slice card's.
+    public var canStop: Bool { state == .running && hostStops && taskId != nil && epic == nil }
 
-    /// The line under the title: "Explore · Subagent of Fix the login".
-    public func subtitle(of session: String) -> String { "\(type) · Subagent of \(session)" }
+    /// The line under the title: "Explore · Subagent of Fix the login", or "Builder · <the epic's title>" for a slice card's.
+    public func subtitle(of session: String) -> String { "\(type) · \(epic ?? "Subagent of \(session)")" }
 
     /// The state pill: "Running 1m 11s" with the timer at `now`, "Finished · 42 s" with how long it took, "Failed" and "Stopped".
     public func stateWords(now: Int) -> String {
@@ -92,6 +100,18 @@ public func subagentWork(in events: [ChatEvent], call: String) -> SubagentWork? 
     }
     let launch = events.first { $0.kind == "tool_start" && $0.callId == call }
     return SubagentWork(header: SubagentHeader(subagent), brief: launch?.arg.flatMap(brief(of:)), items: items)
+}
+
+/// The subagent of the slice card `id` in the epic's sessions, as its view draws it: the lane's own flow items, all its runs in one view (a
+/// resumed subagent is still one lane). The role is that of the session the card sits in. Nil when no card has that id.
+public func subagentWork(lane id: String, in sessions: SessionList, epic: String) -> SubagentWork? {
+    for section in sessions.sections {
+        guard case .items(let items) = section.body else { continue }
+        for case .slice(let lane) in items where lane.id == id {
+            return SubagentWork(header: SubagentHeader(lane: lane, role: section.role, epic: epic), brief: nil, items: flowItems(lane.items, running: lane.state == .running))
+        }
+    }
+    return nil
 }
 
 /// A row's id is `e` and its event's id.

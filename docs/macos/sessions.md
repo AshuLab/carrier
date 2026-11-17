@@ -77,6 +77,6 @@ The engine's events (`ExecEvent`, from the harness parser) are turned into the c
 An edit with a diff shows as a call with its diff inside the card, as in a session.
 The newest run of a running session is live (shimmer, ring, glow), and a call that never ended in a session that is over shows as stopped.
 A thought is drawn if the events carry one (`reasoning`; today's parsers send none) and follows Settings, Show reasoning.
-What is only the epic's stays between the runs, in event order: notes (a change the agent published, "created 736 (main)", is a quiet line with the pull request as a link), skills as a row of their own, and a subagent's slice row, which opens on its own runs.
+What is only the epic's stays between the runs, in event order: notes (a change the agent published, "created 736 (main)", is a quiet line with the pull request as a link), skills as a row of their own, and a subagent's slice row, which opens its Subagent view.
 A harness with no parser shows its summarised `tail` lines instead.
 The calls are hidden when Tool output is hidden.

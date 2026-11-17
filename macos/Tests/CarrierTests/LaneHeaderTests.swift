@@ -12,7 +12,7 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
 }
 
 @MainActor private func height(_ lanes: [LaneSection], width: CGFloat = 480) throws -> Int {
-    let card = SliceCardView(lane: lanes[0], flipped: .constant([]), slices: .constant(SliceFolds()))
+    let card = SliceCardView(lane: lanes[0])
     let renderer = ImageRenderer(content: card.frame(width: width))
     renderer.scale = 2
     return try #require(renderer.cgImage).height

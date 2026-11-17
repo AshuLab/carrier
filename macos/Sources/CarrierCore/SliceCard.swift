@@ -48,10 +48,8 @@ public struct SliceCardRow: Equatable, Identifiable {
     public var quiet: [SliceQuiet]
     public var prNumber: Int?
     public var prState: SlicePRState
-    /// What opens under the row: the slice's own steps.
+    /// What the card opens: the subagent's view of the slice's own steps.
     public var lane: LaneSection
-    /// Open while the slice works.
-    public var openByDefault: Bool
     /// What VoiceOver reads, without open or closed.
     public var spoken: String
 
@@ -86,7 +84,6 @@ public func sliceCard(lane: LaneSection) -> SliceCardRow {
     let state = switch mark { case .done: "finished"; case .working: "working"; case .failed: "failed" }
     return SliceCardRow(
         id: lane.id, number: lane.slice, title: lane.title, mark: mark, quiet: quiet, prNumber: lane.prNumber, prState: prState, lane: lane,
-        openByDefault: mark == .working,
         spoken: ([lane.slice.map { "Slice \($0), \(lane.title)" } ?? lane.title, state] + quiet.map(\.text)
             + [lane.prNumber.map { "pull request \($0)" + (prState == .unknown ? "" : " \(prState)") }].compactMap { $0 }).joined(separator: ", ")
     )

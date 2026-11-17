@@ -1425,10 +1425,11 @@ private func flow(_ work: SubagentWork?) -> [String] {
 // MARK: stopping a subagent
 
 @Test func aRunningSubagentsHeaderOffersStopOnlyWhileItRunsAndOnlyAHostThatListsItAndATaskToStopIt() {
-    func header(_ state: SubagentStatus, task: String? = "t1", host: Bool = true) -> SubagentHeader {
-        SubagentHeader(title: "T", type: "Explore", state: state, startedAt: 0, durationMs: nil, taskId: task, hostStops: host)
+    func header(_ state: SubagentStatus, task: String? = "t1", host: Bool = true, epic: String? = nil) -> SubagentHeader {
+        SubagentHeader(title: "T", type: "Explore", state: state, startedAt: 0, durationMs: nil, epic: epic, taskId: task, hostStops: host)
     }
     #expect(header(.running).canStop)
+    #expect(header(.running, epic: "Epic").canStop == false)
     for ended in [SubagentStatus.completed, .failed, .stopped] { #expect(header(ended).canStop == false) }
     #expect(header(.running, host: false).canStop == false && header(.running, task: nil).canStop == false)
     #expect(subagentWork(in: subagentTurn, call: "c1")?.header.taskId == "t1")

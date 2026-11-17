@@ -89,7 +89,7 @@ _Avoid_: lane (that is where a builder runs), worker, child agent.
 **Call group** - A run of the agent's tool calls (and thoughts, when the events carry them) with nothing between them but other calls, drawn in the Agent output tab and in a session's conversation as the same one glass card: "Ran 4 commands" (or Explored, Changed, Worked), what it counted, "N failed", and a timer and shimmer while the agent works in it. It folds until opened and then lists its steps. A message, a note, an error, a skill or a slice ends the run; a lone call is a group of one.
 _Avoid_: batch (that is slices started together), step, turn.
 
-**Slice card** - The card of the Agent output tab that stands for one subagent building one slice: its state, its slice and title, its counts and pull request, placed in the log where the slice was taken and opening in place on the subagent's own calls. One card per subagent; a resumed one is still one card.
+**Slice card** - The card of the Agent output tab that stands for one subagent building one slice: its state, its slice and title, its counts and pull request, placed in the log where the slice was taken and opening the subagent's view on its own calls. One card per subagent; a resumed one is still one card.
 _Avoid_: lane (the place it runs in), lane card, task.
 
 **Subagent row** - The line a subagent has in a conversation: its type as a chip, its title, the step it is on now, its steps, its timer and its state, with the height of a call group's line. One row per subagent, under the line of the run that launched it, and tapping it opens the subagent view. In the Agent output tab the slice card plays this part.

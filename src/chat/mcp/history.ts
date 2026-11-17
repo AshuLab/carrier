@@ -14,11 +14,11 @@ const noItem = () => new ChatRefused('There is no such item');
 const textOf = (event: StoredEvent, status: Record<string, 'ok' | 'err'>) =>
   event.kind === 'tool_start' ? `${String(event.data.tool)}${typeof event.data.arg === 'string' && event.data.arg !== '' ? ` ${event.data.arg}` : ''} (${status[String(event.data.callId)] ?? 'running'})` : String(event.data.text ?? '');
 
-/** The stored events of the calling session, so an agent that took over from another can read what came before. Only its own session for now. */
+/** The stored events of the calling session, so an agent that took over from another can read what came before; a parent also reads its children and a child its parent, and nothing else. */
 export const history = defineTool({
   name: 'history',
   description:
-    "Reads the stored events of this session, oldest first. view 'messages' (default) lists what the person and the assistant said; 'activity' also lists each tool call as one line, with no output. Reasoning is never returned. " +
+    "Reads the stored events of this session, or of one of its children or its parent when sessionId names it, oldest first. view 'messages' (default) lists what the person and the assistant said; 'activity' also lists each tool call as one line, with no output. Reasoning is never returned. " +
     `A list holds at most limit events (1 to 100, default 40) after afterPosition (-1, the default, starts at the beginning); each event has a position, its id, and its text cut to ${LIST_TEXT} characters. ` +
     `Call again with afterPosition set to nextPosition until it is null. To read one event whole, pass its id as itemId: it answers ${PART} characters at a time with nextTextOffset, which you pass back as textOffset until it is null.`,
   access: 'readsAsSession',
@@ -34,8 +34,9 @@ export const history = defineTool({
     })
     .refine((args) => args.textOffset === undefined || args.itemId !== undefined, { message: 'textOffset needs an itemId' }),
   handler: ({ sessionId: asked, view = 'messages', afterPosition = -1, limit = 40, itemId, textOffset = 0 }, ctx) => {
-    if (asked !== undefined && asked !== ctx.sessionId) throw noSession(); // the same words as a session that does not exist
-    const { sessions, sessionId } = ctx;
+    const { sessions } = ctx;
+    if (asked !== undefined && asked !== ctx.sessionId && !sessions.related(ctx.sessionId, asked)) throw noSession(); // the same words as a session that does not exist
+    const sessionId = asked ?? ctx.sessionId;
 
     if (itemId !== undefined) {
       const position = /^(0|[1-9]\d*)$/.test(itemId) ? Number(itemId) : NaN;

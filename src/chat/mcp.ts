@@ -108,7 +108,14 @@ export type McpSessions = {
   toolStatuses(sessionId: string, callIds: string[]): Record<string, 'ok' | 'err'>;
   /** Starts a child session of `parentId` for a configured agent with the task as its first message, and answers its id once its conversation is open and the task sent; refuses with words ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). A `requestId` seen before returns the child it made. */
   startChild(parentId: string, args: { agent: string; task: string; model?: string; requestId?: string }): Promise<{ childId: string }>;
+  /** Whether `otherId` is a child of `sessionId` or its parent: the only sessions besides its own that a session may read. */
+  related(sessionId: string, otherId: string): boolean;
+  /** Waits until none of the children of `parentId` is working (one that waits for an approval counts as stopped) or `timeoutMs` passes, and answers the state of each, with the last assistant message of one that is done; refuses with words an id that is not a child of `parentId`. */
+  waitChildren(parentId: string, childIds: string[], timeoutMs: number): Promise<ChildReport[]>;
 };
+
+export type ChildState = 'working' | 'needs_approval' | 'done' | 'error' | 'usage_limit' | 'interrupted';
+export type ChildReport = { childId: string; agent: string; state: ChildState; message?: string };
 
 export type StoredEvent = { position: number; kind: string; data: Record<string, unknown> };
 

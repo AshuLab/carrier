@@ -2201,3 +2201,102 @@ test('a child cannot start children of its own', async () => {
   await expect(s.start(childId, 'edit')).rejects.toThrow(/cannot start children/);
   expect(s.children()).toHaveLength(1);
 });
+
+const approval = { kind: 'approval' as const, approvalId: 'a1', tool: 'Bash', choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }] };
+
+test('waitChildren answers working when the time ends, and done with the last message cut to 4,000 characters once the turn ended, as soon as it does', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit');
+  const child = s.claude.conversations.at(-1)!;
+  const wait = (timeoutMs: number) => s.sessions.mcpView.waitChildren(parent.id, [childId], timeoutMs);
+
+  const timedOut = wait(2000);
+  await s.clock.advance(1999);
+  let answered = false;
+  void timedOut.then(() => (answered = true));
+  await Promise.resolve();
+  expect(answered).toBe(false);
+  await s.clock.advance(1);
+  expect(await timedOut).toEqual([{ childId, agent: 'edit', state: 'working' }]);
+
+  const ended = wait(45_000);
+  await s.clock.advance(10_000);
+  child.emit({ kind: 'assistant', text: 'x'.repeat(5000) });
+  child.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(await ended).toEqual([{ childId, agent: 'edit', state: 'done', message: 'x'.repeat(4000) }]);
+  expect(await wait(1000)).toEqual([{ childId, agent: 'edit', state: 'done', message: 'x'.repeat(4000) }]); // answers at once, with no time passing
+});
+
+test('waitChildren waits for every child that works, and counts one that waits for an approval as stopped', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const [a, b] = [(await s.start(parent.id, 'edit')).childId, (await s.start(parent.id, 'edit')).childId];
+  const [first, second] = s.claude.conversations.slice(-2) as [FakeConversation, FakeConversation];
+  const waiting = s.sessions.mcpView.waitChildren(parent.id, [a, b], 45_000);
+  first.emit({ kind: 'turn_end', outcome: 'ok' });
+  second.emit(approval);
+  expect((await waiting).map((report) => report.state)).toEqual(['done', 'needs_approval']);
+});
+
+test('a child in each situation is answered as it is: needs_approval, error, usage_limit and interrupted, and a child closed in the middle of a turn is interrupted and not done', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const stateOf = async (childId: string) => (await s.sessions.mcpView.waitChildren(parent.id, [childId], 1000))[0]!.state;
+  const child = async () => ({ id: (await s.start(parent.id, 'edit')).childId, conversation: s.claude.conversations.at(-1)! });
+
+  const asking = await child();
+  asking.conversation.emit(approval);
+  expect(await stateOf(asking.id)).toBe('needs_approval');
+
+  const failed = await child();
+  failed.conversation.emit({ kind: 'error', text: 'boom' });
+  failed.conversation.emit({ kind: 'turn_end', outcome: 'error' });
+  expect(await stateOf(failed.id)).toBe('error');
+
+  const limited = await child();
+  limited.conversation.emit({ kind: 'error', text: 'limit', reason: 'usage_limit', resetText: 'later' });
+  limited.conversation.emit({ kind: 'turn_end', outcome: 'error' });
+  expect(await stateOf(limited.id)).toBe('usage_limit');
+
+  const stopped = await child();
+  await s.sessions.interrupt({ sessionId: stopped.id });
+  expect(await stateOf(stopped.id)).toBe('interrupted');
+  s.sessions.mcpView.waitChildren(parent.id, [asking.id], 1000); // a wait that goes on is harmless
+
+  await s.sessions.close({ sessionId: asking.id });
+  expect(await stateOf(asking.id)).toBe('interrupted'); // closed with its turn open
+
+  const dropped = await child(); // a host that restarts finds the row working with no live conversation
+  s.db.update(schemaSessions).set({ state: 'working' }).where(eq(schemaSessions.id, dropped.id)).run();
+  await s.sessions.close({ sessionId: dropped.id });
+  s.db.update(schemaSessions).set({ state: 'working' }).where(eq(schemaSessions.id, dropped.id)).run();
+  expect(await stateOf(dropped.id)).toBe('interrupted');
+});
+
+test('a wait wakes when a child is closed mid-turn, and refuses an id that is not the caller\'s child like one that does not exist', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const other = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit');
+  const waiting = s.sessions.mcpView.waitChildren(parent.id, [childId], 45_000);
+  await s.sessions.close({ sessionId: childId });
+  expect((await waiting)[0]!.state).toBe('interrupted');
+
+  for (const [caller, id] of [[other.id, childId], [parent.id, other.id], [parent.id, 'nope'], [childId, childId]] as const) {
+    await expect(s.sessions.mcpView.waitChildren(caller, [id], 1000)).rejects.toThrow('There is no such session');
+  }
+  const mine = await s.start(parent.id, 'edit');
+  await expect(s.sessions.mcpView.waitChildren(parent.id, [mine.childId, 'nope'], 1000)).rejects.toThrow('There is no such session');
+});
+
+test('related says a parent and its child are, and a sibling, a stranger and an unknown id are not', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const stranger = await s.parent();
+  const a = (await s.start(parent.id, 'edit')).childId;
+  const b = (await s.start(parent.id, 'edit')).childId;
+  const { related } = s.sessions.mcpView;
+  expect([related(parent.id, a), related(a, parent.id)]).toEqual([true, true]);
+  expect([related(a, b), related(a, stranger.id), related(stranger.id, a), related(parent.id, 'nope'), related(parent.id, stranger.id)]).toEqual([false, false, false, false, false]);
+});

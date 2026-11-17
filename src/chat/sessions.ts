@@ -18,15 +18,20 @@ import type { ChildReport, McpSessionRegistry } from './mcp.ts';
 import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
 import type { Plan, Step, StepEvent } from './plan.ts';
-import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
+import { ChatRefused, type BackgroundTask, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
+import { clean } from '../execution/events.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, previewOf, titleOf } from './transcript.ts';
 import { checkName, suggestName } from './names.ts';
 import { createProject, projectFolder, type createProjects } from './projects.ts';
+import type { PullRequests } from './pull-requests.ts';
+import { createSessionData } from './session-data.ts';
 import { createWorktree, deleteWorktree, previewWorktree, removeWorktree } from './worktree.ts';
 import { checkout, fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
+
+const noPullRequests: PullRequests = { find: async () => null, states: async () => new Map() };
 
 export const IDLE_CLOSE_MS = 60_000;
 /** The children of one session that may work or wait for an approval at the same time ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). */
@@ -51,7 +56,7 @@ export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: 
 /** A child session as its parent's summary lists it; `level` is the permission level it runs at, and `needsPerson` says that it waits for an approval or a question. */
 export type ChildSummary = { id: string; agent: string; harness: Harness; state: State; level: Level | null; needsPerson: boolean };
 
-export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath' | 'delegationRequestId'> & {
+export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'prRepo' | 'prNumber' | 'prUrl' | 'prState' | 'prChecks' | 'prCheckedAt' | 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath' | 'delegationRequestId'> & {
   workspace: SessionWorkspace;
   /** The sessions that this one started by delegating, oldest first. */
   children: ChildSummary[];
@@ -77,6 +82,8 @@ type Live = {
   /** True while the `message` step of a preparation waits for the agent's first answer. */
   awaitingAnswer?: boolean;
   cancelIdle?: () => void;
+  /** What the agent has running in the background after its turn ended, each with when the host first saw it (ms); kept in memory, as the agent says it, and gone with the conversation. */
+  background: (BackgroundTask & { startedAt: number })[];
   /** Ends the wait for the turn the SDK opens after the last subagent ended (`FOLLOW_UP_MS`). */
   cancelFollowUp?: () => void;
   /** The invocation its MCP token was issued for. */
@@ -103,6 +110,8 @@ export type ChatSessionsDeps = {
   probes?: HealthProbes;
   /** What the `providers` request asks of the machine; the real one unless a test replaces it. */
   machine?: Machine;
+  /** Where a session's pull request is read from; without it a row has none unless it was found before. */
+  pulls?: PullRequests;
   /** The lifecycle's ages now: `list` says from them when the clock will delete each archived session. */
   ages: () => SessionAges;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
@@ -132,7 +141,8 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, onLiveChange, mcp }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, onLiveChange, mcp, pulls = noPullRequests }: ChatSessionsDeps) {
+  const data = createSessionData({ db, git, pulls, clock });
   const listed = () => (typeof agents === 'function' ? agents() : agents);
   const health = createHealth({ agents, clock, binaryFound, probes });
   const providers = createProviders({ clock, machine, binaryFound });
@@ -179,7 +189,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       level: isScaleHarness(child.harness) ? (levelOf(child.harness, optionsOf(child.id, child.options)) ?? null) : null,
       needsPerson: child.state === 'waiting_approval',
     }));
-  const summary = ({ keptAt: _keptAt, options: _options, pid: _pid, pgid: _pgid, command: _command, delegationRequestId: _delegationRequestId, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
+  const summary = ({ keptAt: _keptAt, prRepo: _prRepo, prNumber: _prNumber, prUrl: _prUrl, prState: _prState, prChecks: _prChecks, prCheckedAt: _prCheckedAt, options: _options, pid: _pid, pgid: _pgid, command: _command, delegationRequestId: _delegationRequestId, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
     ...rest,
     children: childrenOf(rest.id),
     preparation: rest.state === 'preparing' ? 'running' : plan === null ? null : 'failed',
@@ -203,10 +213,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     return run;
   };
 
-  // An idle session with no client attached is closed after a minute; working or waiting ones are kept.
+  // An idle session with no client attached is closed after a minute; working or waiting ones are kept, and so is one that waits for something it started in the background.
   const armIdle = (sessionId: string, live: Live) => {
     live.cancelIdle?.();
-    live.cancelIdle = live.state === 'idle' && clients === 0 && !switching.has(sessionId) ? clock.after(IDLE_CLOSE_MS, async () => void (await close({ sessionId }))) : undefined;
+    live.cancelIdle = live.state === 'idle' && live.background.length === 0 && clients === 0 && !switching.has(sessionId) ? clock.after(IDLE_CLOSE_MS, async () => void (await close({ sessionId }))) : undefined;
   };
   /** What `delegate_wait` is waiting on: called whenever a session changes state. */
   const waiters = new Set<() => void>();
@@ -245,6 +255,14 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   }
 
   const onEvent = (sessionId: string, live: Live, event: ChatEvent) => {
+    // What the agent waits for in the background is the state of the session, not something said in it: it is kept as it is and never stored.
+    if (event.kind === 'background') {
+      // a task that was there keeps the time it began; one that is new begins now
+      live.background = event.tasks.map((task) => ({ id: task.id, kind: task.kind, description: clean(task.description, chatCaps.arg), startedAt: live.background.find((known) => known.id === task.id)?.startedAt ?? clock.now() }));
+      armIdle(sessionId, live);
+      onLiveChange();
+      return;
+    }
     if (event.kind === 'approval' && event.input !== undefined && event.tool === `mcp__${MCP_SERVER_NAME}__delegate_start`) event = delegationApproval(sessionId, live, event);
     // The first thing the agent does after the first message ends the `message` step: an answer, or an error that fails it.
     if (live.awaitingAnswer === true && event.kind !== 'option') {
@@ -259,6 +277,13 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       }
       stepEvent(sessionId, 'message', 'done');
       db.update(sessions).set({ plan: null }).where(eq(sessions.id, sessionId)).run();
+      touch(sessionId, live, 'working');
+    }
+    // The agent can begin a turn nobody asked for: the SDK wakes it when something it ran in the background ends. It is working from its first word,
+    // and the `turn_end` the adapter says when it finishes closes it as any other. Only a live conversation does: a word that comes late from one
+    // the host already closed is not a turn.
+    if (live.turn === undefined && live.state === 'idle' && lives.get(sessionId) === live && ['delta', 'assistant', 'reasoning', 'tool_start', 'approval'].includes(event.kind)) {
+      live.turn = { startedAt: clock.now(), toolCalls: 0 };
       touch(sessionId, live, 'working');
     }
     if (event.kind === 'delta') return void (live.streaming += event.text);
@@ -293,6 +318,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const { harness, agent } = row(sessionId);
       db.insert(chatTurns).values({ sessionId, startedAt, harness, agent, nativeId: live.conversation.nativeId ?? null, model: event.model ?? null, outcome: event.outcome, durationMs: clock.now() - startedAt, toolCalls: live.turn?.toolCalls ?? 0, usage: event.usage ?? null }).run();
       live.turn = undefined;
+      void data.afterTurn(sessionId);
     }
     // The SDK runs subagents in the background, so a turn can end before them: the session is idle only when the turn is over and no task runs.
     const busy = live.turn !== undefined || live.tasks.size > 0;
@@ -347,6 +373,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (row(sessionId).state === 'preparing') throw new ChatRefused(`This session is being prepared; wait for it to finish, then ${verb} it`);
     const family = [sessionId, ...kidsOf(sessionId)];
     if (family.some((id) => opening.has(id))) throw new ChatRefused(`A child of this session is starting; try again in a moment, then ${verb} it`);
+    for (const id of family) {
+      const waiting = lives.get(id)?.background.length ?? 0;
+      if (waiting > 0) throw new ChatRefused(`${id === sessionId ? 'This session is' : 'A child of this session is'} waiting for ${waiting === 1 ? 'a background task' : 'background tasks'}; stop ${waiting === 1 ? 'it' : 'them'} first, then ${verb} ${id === sessionId ? 'it' : 'the session'}`);
+    }
     for (const id of family) {
       const state = lives.get(id)?.state;
       if (state !== undefined && state !== 'idle') throw new ChatRefused(`${id === sessionId ? 'This session' : 'A child of this session'} is ${state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} ${id === sessionId ? 'it' : 'the session'}`);
@@ -428,7 +458,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     db.update(sessions).set({ pid, pgid, command }).where(eq(sessions.id, sessionId)).run();
   };
   const attach = (sessionId: string, conversation: ChatConversation, invocationId: string, state: State = 'idle', { record = true }: { record?: boolean } = {}) => {
-    const live: Live = { conversation, state, streaming: '', approvals: new Map(), tasks: new Set(), delegations: new Map(), invocationId };
+    const live: Live = { conversation, state, streaming: '', approvals: new Map(), tasks: new Set(), delegations: new Map(), background: [], invocationId };
     lives.set(sessionId, live);
     if (record) recordProcess(sessionId, conversation);
     conversation.onEvent((event) => {
@@ -938,14 +968,16 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       },
     },
 
-    /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
+    /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `diff` (lines added and removed, null when none or not yet read) and `background` (what the agent waits for after its turn ended: `{ id, kind, description, startedAt }` each; empty when nothing) and `pr` (its pull request: `repo`, `number`, `url`, `state` and `checks`; null while none is known; see `session-data.ts`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
     list: ({ archived = false }: { archived?: boolean }) => {
       const { archiveAfterDays, deleteAfterDays } = ages();
+      const found = db.select().from(sessions).where(and(eq(sessions.archived, archived), isNull(sessions.parentSessionId))).orderBy(desc(sessions.lastActiveAt)).all();
+      if (archived === false) data.kick(found);
       return {
-        sessions: db.select().from(sessions).where(and(eq(sessions.archived, archived), isNull(sessions.parentSessionId))).orderBy(desc(sessions.lastActiveAt)).all().map((found) => {
+        sessions: found.map((found) => {
           const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? familyClock(found).lastActiveAt + deleteAfterDays * DAY : null;
           const kept = found.keptAt !== null && dueAt !== null && clock.now() >= dueAt; // a session the clock no longer considers (ages raised or never) is not kept
-          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id) };
+          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id), ...data.view(found), background: lives.get(found.id)?.background ?? [] };
         }),
       };
     },
@@ -1129,12 +1161,16 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       return {};
     },
 
-    /** Ends the turn that is running, if any, and leaves the session idle for the next message. With no turn running it changes nothing. */
+    /** Ends the turn that is running, if any, and leaves the session idle for the next message. With no turn running it stops what the agent waits for in the background, or changes nothing. */
     async interrupt({ sessionId }: { sessionId: string }) {
       notSwitching(sessionId);
       row(sessionId);
       const live = lives.get(sessionId);
-      if (live?.turn === undefined) return {};
+      if (live?.turn === undefined) {
+        // no turn to end, but what the agent waits for in the background can be stopped: that is what the person sees as the session working
+        if (live !== undefined) await Promise.all(live.background.map((task) => live.conversation.stopTask?.(task.id).catch((error) => log.error('stopping a background task failed', error))));
+        return {};
+      }
       try {
         await live.conversation.interrupt();
       } catch (error) {
@@ -1145,18 +1181,18 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       return {};
     },
 
-    /** Stops one subagent that is running in the live session; its turn goes on. The row ends when the agent says the task stopped, not here. */
+    /** Stops one subagent or one background task of the live session; its turn goes on. The row ends when the agent says the task stopped, not here. */
     async stopTask({ sessionId, taskId }: { sessionId: string; taskId: string }) {
       row(sessionId);
       const live = lives.get(sessionId);
       if (live === undefined) throw new ChatRefused('This session is closed');
-      if (live.conversation.stopTask === undefined) throw new ChatRefused('This session cannot stop a subagent');
-      if (live.tasks.has(taskId) === false) throw new ChatRefused('That subagent is not running');
+      if (live.conversation.stopTask === undefined) throw new ChatRefused('This session cannot stop a task');
+      if (live.tasks.has(taskId) === false && live.background.some((task) => task.id === taskId) === false) throw new ChatRefused('That task is not running');
       try {
         await live.conversation.stopTask(taskId);
       } catch (error) {
-        log.error('stopping a subagent failed', error);
-        throw new ChatRefused('The subagent could not be stopped');
+        log.error('stopping a task failed', error);
+        throw new ChatRefused('The task could not be stopped');
       }
       return {};
     },

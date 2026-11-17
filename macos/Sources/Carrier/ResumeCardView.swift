@@ -13,7 +13,7 @@ struct ResumeCardView: View {
     private var resuming: Bool { store.resuming.contains(epic) }
 
     var body: some View {
-        NoticeCard(symbol: "exclamationmark", tint: card.attention.color, title: card.title, detail: card.words, edge: true) {
+        NoticeCard(symbol: "exclamationmark", tint: card.attention.color, title: card.title, detail: card.words) {
             if card.showsButton {
                 Button { confirming = true } label: { Label(resuming ? "Resuming…" : "Resume", systemImage: "play.fill") }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).labelStyle(.titleAndIcon).disabled(resuming)

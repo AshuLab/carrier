@@ -531,3 +531,25 @@ private func content(_ row: SessionRow = workRow, workspace: Bool = true, parts:
     #expect(store.open == .archive)
     #expect(defaults.object(forKey: AppPreferences.animatesKey) as? Bool == false)
 }
+
+@Test func theThirdLineHasThePullRequestAndTheLinesChangedAndFollowsItsTwoSwitches() {
+    var row = workRow
+    row.pullRequest = SessionPullRequest(number: 412, url: "https://github.com/AshuLab/carrier/pull/412", state: .open, checks: .passing)
+    row.diff = SessionDiff(added: 86, removed: 12)
+    let both = content(row)
+    #expect(both.hasThirdLine && both.pullRequest?.number == 412 && both.diff == SessionDiff(added: 86, removed: 12))
+    // the chip off: the line stays for the lines changed, and the other way round
+    let linesOnly = content(row, parts: SessionRowParts(pullRequest: false))
+    #expect(linesOnly.hasThirdLine && linesOnly.pullRequest == nil && linesOnly.diff != nil)
+    let chipOnly = content(row, parts: SessionRowParts(diff: false))
+    #expect(chipOnly.hasThirdLine && chipOnly.pullRequest != nil && chipOnly.diff == nil)
+    // both off: two lines
+    #expect(content(row, parts: SessionRowParts(pullRequest: false, diff: false)).hasThirdLine == false)
+    // a session with lines changed and no pull request has the third line for them alone
+    var changed = workRow
+    changed.diff = SessionDiff(added: 3, removed: 1)
+    #expect(content(changed).hasThirdLine && content(changed).pullRequest == nil && content(changed).diff != nil)
+    #expect(content(changed, parts: SessionRowParts(diff: false)).hasThirdLine == false)
+    // neither known: two lines
+    #expect(content(workRow).hasThirdLine == false)
+}

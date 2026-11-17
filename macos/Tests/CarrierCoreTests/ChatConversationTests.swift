@@ -422,6 +422,56 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     #expect(await model.rows.count == 2000)
 }
 
+@Test func theConversationModelKnowsWhatTheAgentWaitsForFromTheHostsList() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    // the fixture's session whose turn ended while a build runs, and one that waits for nothing
+    let building = await ConversationModel(host: host, sessionId: "9b8c7d6e-5f4a-4b3c-8d2e-1f0a9b8c7d07")
+    await building.poll()
+    #expect(await building.background.map(\.name) == ["pnpm build", "pnpm test", "Review the diff"])
+    let idle = await ConversationModel(host: host, sessionId: "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")
+    await idle.poll()
+    #expect(await idle.background.isEmpty)
+}
+
+@Test func aBackgroundTaskKnowsWhenItBeganAndTheCardsLineTakesTheTasksInTurn() throws {
+    let task = try JSONDecoder().decode(BackgroundTask.self, from: Data(#"{"id":"b","kind":"local_bash","description":"pnpm build","startedAt":1792000000000}"#.utf8))
+    #expect(task.startedAt == Date(timeIntervalSince1970: 1_792_000_000) && task.name == "pnpm build")
+    // a host that does not say when, and a task the agent did not describe
+    let bare = try JSONDecoder().decode(BackgroundTask.self, from: Data(#"{"id":"c","kind":"monitor","description":""}"#.utf8))
+    #expect(bare.startedAt == nil && bare.name == "monitor")
+
+    let tasks = [BackgroundTask(id: "a", kind: "local_bash", description: "pnpm build"), BackgroundTask(id: "b", kind: "local_bash", description: "pnpm test"), BackgroundTask(id: "c", kind: "local_agent", description: "review the diff")]
+    #expect(backgroundWords([], tick: 0) == nil && backgroundCount([]) == nil && backgroundCount([tasks[0]]) == nil)
+    #expect(backgroundWords([tasks[0]], tick: 7) == "Waiting on pnpm build")
+    // they take their turn each tick, round and round, whatever the tick is
+    #expect((0..<4).map { backgroundWords(tasks, tick: $0) } == ["Waiting on pnpm build", "Waiting on pnpm test", "Waiting on review the diff", "Waiting on pnpm build"])
+    #expect(backgroundWords(tasks, tick: -1) == "Waiting on pnpm test")
+    #expect(backgroundCount(tasks) == "· 3 tasks")
+}
+
+@MainActor @Test func aTaskCanBeStoppedByItselfAndAnInterruptWithNoTurnStopsThemAll() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let session = "9b8c7d6e-5f4a-4b3c-8d2e-1f0a9b8c7d07"
+    #expect(try await host.capabilities().contains(.stopTask))
+    let model = ConversationModel(host: host, sessionId: session)
+    await model.poll()
+    #expect(model.canStopTask && model.background.count == 3)
+    await model.stopTask("b2")
+    await model.poll()
+    #expect(model.background.map(\.id) == ["b1", "b3"] && model.refusal == nil)
+    // one that has already ended is refused in the host's words
+    await model.stopTask("b2")
+    #expect(model.refusal != nil)
+    // the line's Stop stops what is left: the host's interrupt, which with no turn running does that
+    await model.stop()
+    await model.poll()
+    #expect(model.background.isEmpty)
+}
+
 // MARK: the model
 
 private final class ScriptedHost: ChatHost, @unchecked Sendable {
@@ -1493,12 +1543,12 @@ private func flow(_ work: SubagentWork?) -> [String] {
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     let id = "a7b8c9d0-6e5f-4a21-9c4d-5e6f7a8b9c07"
     #expect(try await host.capabilities().contains(.stopTask))
-    await #expect(throws: ControlError.remote("That subagent is not running")) { try await host.stopTask(id, task: "t2") } // finished
-    await #expect(throws: ControlError.remote("That subagent is not running")) { try await host.stopTask(id, task: "nope") }
+    await #expect(throws: ControlError.remote("That task is not running")) { try await host.stopTask(id, task: "t2") } // finished
+    await #expect(throws: ControlError.remote("That task is not running")) { try await host.stopTask(id, task: "nope") }
     try await host.stopTask(id, task: "t3")
     let after = try await host.events(id, after: 25, limit: 200).events
     #expect(after.map(\.kind) == ["task"] && after[0].state == "stopped" && after[0].callId == "a3" && after[0].taskId == "t3")
-    await #expect(throws: ControlError.remote("That subagent is not running")) { try await host.stopTask(id, task: "t3") }
+    await #expect(throws: ControlError.remote("That task is not running")) { try await host.stopTask(id, task: "t3") }
 }
 
 @Test func theFixtureHostServesTheSubagentViewWithItsBriefItsThoughtItsMessageAndItsNestedSubagent() async throws {
@@ -1572,4 +1622,16 @@ private func launched(_ call: String, at: Int, id: Int) -> [ChatEvent] {
     await other.poll()
     await other.stop()
     #expect(older.interrupts == 1 && older.stopped.isEmpty)
+}
+
+@Test func theEverythingGoldenHasEveryKindOfRowAndTheQuestionGoldenAsksTwoQuestions() throws {
+    let all = try golden("everything")
+    let rows = chatFeed(all.events, pending: all.pending)
+    let kinds = Set(texts(rows).map { String($0.prefix { $0 != ":" }) })
+    // a user bubble, the agent's markdown, a run of work, a permission allowed and one declined, a card no longer waiting, an error, the turn lines and a stop
+    #expect(kinds.isSuperset(of: ["user", "agent", "tools", "allowed", "declined", "line", "error", "end", "stopped"]))
+    #expect(rows.contains { if case .tools(_, let group) = $0 { group.thoughts.isEmpty == false } else { false } })
+    let asked = try golden("question")
+    let cards = chatFeed(asked.events, pending: ["q1"]).compactMap { row -> ApprovalCard? in if case .approval(_, let card) = row { card } else { nil } }
+    #expect(cards.count == 1 && cards[0].questions.map(\.multiSelect) == [false, true])
 }

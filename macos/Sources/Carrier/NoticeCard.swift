@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The card the app uses to tell the person something over the message box: a badge, a title, what it means and the actions on the right,
 /// in glass. The errors, the notice of a session that is asleep or archived and the message held while the agent answers are all this
-/// card; each says its own colour, which fills the glass. `edge` adds a thin edge in the colour, for something that went wrong or needs attention.
+/// card; each says its own colour, which fills the glass.
 struct NoticeCard<Actions: View, Below: View>: View {
     let symbol: String
     let tint: Color
@@ -43,7 +43,6 @@ struct NoticeCard<Actions: View, Below: View>: View {
         }
         .padding(.horizontal, 13).padding(.vertical, 11)
         .chatSurface(.regular.tint(tint.opacity(0.3)), flat: tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
-        .overlay { if edge { RoundedRectangle(cornerRadius: 14).strokeBorder(tint.opacity(0.45), lineWidth: 1) } }
         .accessibilityElement(children: .contain)
     }
 

@@ -58,6 +58,9 @@ public func doctorFixtureOutput(home: String) -> String? { try? String(contentsO
 
 public final class FixtureServer {
     public let home: String
+    /// The sessions the list marks `fixtureUnread` and `fixturePinned`: the app, which keeps what the person has seen and pinned, starts with them so.
+    public let unreadSessionIds: [String]
+    public let pinnedSessionIds: [String]
     public var socketPath: String { home + "/engine/state/control.sock" }
     public var chatSocketPath: String { home + "/chat/state/chat.sock" }
 
@@ -86,7 +89,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"stopTask\"]}\n".utf8)
+    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\"]}\n".utf8)
     private let data: [String: Data]
     let hello: Data
     private var stopped = false
@@ -136,7 +139,10 @@ public final class FixtureServer {
             chatAgents = try JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-agents.json"))), options: .sortedKeys)
             let list = try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-list.json"))) as? [String: Any]
             guard let sessions = list?["sessions"] as? [[String: Any]] else { throw FixtureError.unreadable("\(fixtures)/chat-list.json") }
-            chatSessions = sessions
+            let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+            chatSessions = sessions.map { Self.relativeTimes($0, nowMs: nowMs) }
+            unreadSessionIds = sessions.filter { $0["fixtureUnread"] as? Bool == true }.compactMap { $0["id"] as? String }
+            pinnedSessionIds = sessions.filter { $0["fixturePinned"] as? Bool == true }.compactMap { $0["id"] as? String }
         } catch { throw FixtureError.unreadable("\(fixtures)/chat-agents.json or chat-list.json") }
         func golden<Value>(_ file: String, as _: Value.Type) throws -> Value {
             guard let value = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/" + file)))) as? Value else {
@@ -161,7 +167,13 @@ public final class FixtureServer {
             guard let golden = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/" + file)))) as? [String: Any],
                 let session = golden["sessionId"] as? String, let events = golden["events"] as? [[String: Any]]
             else { throw FixtureError.unreadable("\(fixtures)/\(file)") }
-            chatConversations[session] = (events, golden["streaming"] as? String ?? "")
+            // an event with `ago` (milliseconds) happened that long before the launch, so a call still going has run for that long
+            let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+            chatConversations[session] = (events.map { event in
+                var event = event
+                if let ago = event.removeValue(forKey: "ago") as? Int { event["at"] = nowMs - ago }
+                return event
+            }, golden["streaming"] as? String ?? "")
             chatOptions[session] = golden["options"] as? [[String: Any]] ?? []
         }
         if longTranscript {
@@ -295,7 +307,12 @@ public final class FixtureServer {
             let reply: [String: Any] = [
                 "events": page, "cursor": page.last?["id"] as? Int ?? after, "streaming": conversation.1,
                 "approvals": Self.pending(conversation.0), "options": chatOptions[session] ?? [],
-                "session": ["state": locked { chatSessions.first { $0["id"] as? String == session }?["state"] as? String } ?? "idle"],
+                "session": locked {
+                    let listed = chatSessions.first { $0["id"] as? String == session }
+                    var summary: [String: Any] = ["state": listed?["state"] as? String ?? "idle"]
+                    if let preparation = listed?["preparation"] as? String { summary["preparation"] = preparation }
+                    return summary
+                },
             ]
             guard let body = try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys) else { break }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
@@ -357,20 +374,6 @@ public final class FixtureServer {
                 return true
             }
             return found ? Self.answer(id, [String: Any]()) : Self.refused(id, "unknown session")
-        case "stopTask":
-            guard let session = request?["sessionId"] as? String, let task = request?["taskId"] as? String else { break }
-            lock.lock()
-            defer { lock.unlock() }
-            var events = chatConversations[session]?.events ?? []
-            let own = events.filter { $0["kind"] as? String == "task" && $0["taskId"] as? String == task }
-            let ended = own.contains { ["completed", "failed", "stopped"].contains($0["state"] as? String ?? "") }
-            guard let started = own.first(where: { $0["state"] as? String == "started" }), ended == false else {
-                return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"That subagent is not running\"}")
-            }
-            // the host answers at once and the agent says the task stopped: here the event comes with the answer
-            events.append(["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "task", "callId": started["callId"] as Any, "taskId": task, "state": "stopped"])
-            chatConversations[session]?.events = events
-            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         case "answer":
             guard let session = request?["sessionId"] as? String, let approval = request?["approvalId"] as? String, let choice = request?["choiceId"] as? String else { break }
             lock.lock()
@@ -394,6 +397,32 @@ public final class FixtureServer {
             let listed = (chatOptions[session]?[at]["values"] as? [[String: Any]])?.contains { $0["id"] as? String == value } ?? false
             guard listed else { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"The agent does not offer that value for \(option)\"}") }
             chatOptions[session]?[at]["current"] = value
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
+        case "stopTask":
+            guard let session = request?["sessionId"] as? String, let task = request?["taskId"] as? String else { break }
+            lock.lock()
+            defer { lock.unlock() }
+            // a task the session waits for in the background: as the host does, it is gone from the session's row
+            if let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }), var tasks = chatSessions[at]["background"] as? [[String: Any]],
+                let found = tasks.firstIndex(where: { $0["id"] as? String == task }) {
+                tasks.remove(at: found)
+                chatSessions[at]["background"] = tasks
+                return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
+            }
+            // else a running subagent: the host answers at once and the agent says the task stopped, here the event comes with the answer
+            var events = chatConversations[session]?.events ?? []
+            let own = events.filter { $0["kind"] as? String == "task" && $0["taskId"] as? String == task }
+            let ended = own.contains { ["completed", "failed", "stopped"].contains($0["state"] as? String ?? "") }
+            guard let started = own.first(where: { $0["state"] as? String == "started" }), ended == false else {
+                return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"That task is not running\"}")
+            }
+            events.append(["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "task", "callId": started["callId"] as Any, "taskId": task, "state": "stopped"])
+            chatConversations[session]?.events = events
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
+        case "interrupt":
+            guard let session = request?["sessionId"] as? String else { break }
+            // with no turn running it stops what the session waits for in the background
+            locked { if let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) { chatSessions[at]["background"] = [] as [[String: Any]] } }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         case "archive", "delete":
             let verb = request?["cmd"] as? String ?? ""
@@ -566,5 +595,23 @@ public final class FixtureServer {
             if n > 0 { sent += n } else if n < 0 && errno == EINTR { continue } else { return false }
         }
         return true
+    }
+}
+
+extension FixtureServer {
+    /// A time that is "N ms ago" in the golden list is made relative to the launch, so ages ("now", "5m", "3h") and the working clock look
+    /// as they do live: `lastActiveAgo` sets `lastActiveAt`, `createdAgo` `createdAt`, and `startedAgo` the `startedAt` of a background task.
+    static func relativeTimes(_ session: [String: Any], nowMs: Int) -> [String: Any] {
+        var session = session
+        for (ago, field) in [("lastActiveAgo", "lastActiveAt"), ("createdAgo", "createdAt")] {
+            if let ms = session.removeValue(forKey: ago) as? Int { session[field] = nowMs - ms }
+        }
+        session["background"] = (session["background"] as? [[String: Any]])?.map { task in
+            var task = task
+            if let ms = task.removeValue(forKey: "startedAgo") as? Int { task["startedAt"] = nowMs - ms }
+            return task
+        }
+        if session["background"] == nil { session.removeValue(forKey: "background") }
+        return session
     }
 }

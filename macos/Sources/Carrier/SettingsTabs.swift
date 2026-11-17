@@ -840,19 +840,22 @@ struct SidebarTabView: View {
     @AppStorage(SidebarStore.archiveSortKey) private var archiveSort = ArchiveSort.dateArchived
     @AppStorage(SidebarStore.showsIconKey) private var showsIcon = true
     @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
+    @AppStorage(SidebarStore.showsPullRequestKey) private var showsPullRequest = true
+    @AppStorage(SidebarStore.showsDiffKey) private var showsDiff = true
     @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
     @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
 
-    /// Sessions of the preview: each has a branch, two providers and an age, so each switch has something to hide, and one is finished and one
-    /// waits, which is where "Done" and "Needs you" take the age's place.
+    /// Sessions of the preview: each has a branch, two providers and an age, so each switch has something to hide; one is finished and one waits,
+    /// which is where "Done" and "Needs you" take the age's place, and one has a pull request and one only the lines it changed: each gives the row its third line.
     private static let samples = [
-        ("preview-idle", "Fix the flaky login test", SessionState.idle, false, -11),
-        ("preview-done", "Add the retry to uploads", .idle, true, -3),
-        ("preview-waiting", "Rename the billing module", .waiting, false, -26),
-    ].map { id, title, state, unread, minutes in
+        ("preview-idle", "Fix the flaky login test", SessionState.idle, false, -11, SessionPullRequest?.none),
+        ("preview-done", "Add the retry to uploads", .idle, true, -3, SessionPullRequest(number: 412, url: "https://github.com/AshuLab/carrier/pull/412", state: .open, checks: .passing)),
+        ("preview-waiting", "Rename the billing module", .waiting, false, -26, nil),
+    ].map { id, title, state, unread, minutes, pullRequest in
         SessionRow(
             id: id, title: title, workspace: "carrier", agent: "claude", state: state, updatedAt: Date(timeIntervalSinceNow: Double(minutes) * 60),
-            branch: "fix/login-flake", folder: "/preview", providers: ["claude", "codex"], unread: unread
+            branch: "fix/login-flake", folder: "/preview", providers: ["claude", "codex"], unread: unread,
+            diff: pullRequest == nil ? (state == .idle && unread == false ? SessionDiff(added: 12, removed: 3) : nil) : SessionDiff(added: 86, removed: 12), pullRequest: pullRequest
         )
     }
 
@@ -876,6 +879,12 @@ struct SidebarTabView: View {
                 SettingsTabRow(title: "Branch", detail: "Where the session works, the branch or the base folder") {
                     Toggle("Branch", isOn: $showsBranch).labelsHidden().toggleStyle(.switch)
                 }
+                SettingsTabRow(title: "Pull request", detail: "The pull request of the session's branch, with its state and how its checks went, on a third line") {
+                    Toggle("Pull request", isOn: $showsPullRequest).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Lines changed", detail: "How many lines the session added and removed, on the third line with or without a pull request") {
+                    Toggle("Lines changed", isOn: $showsDiff).labelsHidden().toggleStyle(.switch)
+                }
                 SettingsTabRow(title: "Providers", detail: "The marks of the providers the session used") {
                     Toggle("Providers", isOn: $showsProviders).labelsHidden().toggleStyle(.switch)
                 }
@@ -884,7 +893,7 @@ struct SidebarTabView: View {
                 }
                 SettingsPreview {
                     VStack(spacing: 0) {
-                        ForEach(Self.samples, id: \.id) { SessionRowView(row: $0, showsWorkspace: true).allowsHitTesting(false) }
+                        ForEach(Self.samples, id: \.id) { SessionRowView(row: $0, showsWorkspace: true, roomy: true).allowsHitTesting(false) }
                     }
                 }
             }

@@ -239,6 +239,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // the Agents page lists the bots of this registry, names only
             setenv("AGENT_FORGE_CONFIG", server.home + "/agent-forge.json", 1)
             fixtureServer = server
+            // what the person has seen and pinned is the app's own: the sessions the list marks start unread (never seen) and pinned
+            var seen = SessionSeen.stored()
+            seen.markUnread(server.unreadSessionIds)
+            seen.store()
+            UserDefaults.standard.set(storedPins(Set(server.pinnedSessionIds)), forKey: SidebarStore.pinnedKey)
             let recognizer = FixtureRecognizer(mode: Self.fixtureDictationMode)
             MainActor.assumeIsolated { RecognizerRegistry.shared.register(recognizer) }
         } catch {

@@ -48,13 +48,13 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 ```ts
 // requests, all strict objects with a positive integer id
 { cmd: 'agents' }                                          // the configured agents and their binaries
-{ cmd: 'list'; archived?: boolean }                        // each row also says `kept` (spared by the lifecycle clock for unsaved work) and `deleteAt` (ms the clock deletes it; null unless archived, with both ages set and not kept), plus `lastMessage` (what the agent last wrote, on one line and cut to 200 characters; null before it answered), `turns` (the turns that finished) and `model` (of the last one; null before any)
+{ cmd: 'list'; archived?: boolean }                        // each row also says `kept` (spared by the lifecycle clock for unsaved work) and `deleteAt` (ms the clock deletes it; null unless archived, with both ages set and not kept), plus `lastMessage` (what the agent last wrote, on one line and cut to 200 characters; null before it answered), `turns` (the turns that finished) and `model` (of the last one; null before any), `background` (what the agent waits for after its turn ended, `[{ id, kind, description, startedAt }]` with `startedAt` the ms the host first saw each task, empty when nothing: the Claude adapter takes it from the SDK's `background_tasks_changed`, the whole set each time and without the watchers; it is kept in memory and not stored; a session that has some is not closed for being idle and cannot be archived or deleted), `diff` (`{ added, removed }`: the lines the session changed, counted by git on this Mac from where its worktree was cut or its folder left the default branch, else from what is committed; null when none or not read yet) and `pr` (`{ repo, number, url, state, checks }`: the pull request of its branch, with `state` one of `open`, `draft`, `merged` or `closed` and `checks` one of `passing`, `failing`, `pending` or null; null while none is known). Neither is read inside the request: `list` answers with what is known and starts a sweep in the background (at most every 15 seconds) that fills them in for the next one
 { cmd: 'open'; agent: string; folder: string; options?: Record<string, string> }
 { cmd: 'resume'; sessionId: string }
 { cmd: 'send'; sessionId: string; text: string; command?: string }   // `command` is the id of one the session lists; `text` is then what follows its name and may be empty
 { cmd: 'answer'; sessionId: string; approvalId: string; choiceId: string; answers?: Record<string, string> }   // `answers` (question text to answer, a multiple choice's picks joined with a comma, an own answer as typed; at most four) is required to `allow` an approval that has `questions`, and refused on any other approval
-{ cmd: 'interrupt'; sessionId: string }
-{ cmd: 'stopTask'; sessionId: string; taskId: string }   // stops one running subagent and not the turn; behind the `stopTask` capability; refused for a session that is closed, an adapter without `stopTask` (Codex) and a task that is not running in that session
+{ cmd: 'interrupt'; sessionId: string }                        // ends the turn that is running; with none running it stops what the agent waits for in the background (a command, a monitor, a subagent), if anything
+{ cmd: 'stopTask'; sessionId: string; taskId: string }       // stops one running subagent or one task the agent waits for in the background (`background[].id` of the session's row), and not the turn; behind the `stopTask` capability; refused for a session that is closed, an adapter without `stopTask` (Codex) and a task that is not running in that session
 { cmd: 'setOption'; sessionId: string; option: string; value: string }
 { cmd: 'agentOptions'; agent: string }   // what an agent offers before a session exists: it is started in a folder of nobody's, read and ended; kept ten minutes
 { cmd: 'close'; sessionId: string }
@@ -158,6 +158,12 @@ interface ChatRunner {
 The runner's `open` rejects when the provider is not installed or not logged in, and the host turns each into a reason a client can show. A native id the provider does not know is not one of them for Claude: its adapter starts a new conversation (`startedOver`), and the host stores a `notice` with the lost id, drops the id from the session and carries on; a provider without that fallback rejects, as the others do. Adapters keep their own typed parsing and never throw on a line they do not know. The host treats an agent process that ends on its own as the end of the turn if one was running (outcome error) and of the live session otherwise.
 
 The chat socket's request union is its own and strict, in the style of the engine's, with the same hello (`protocol: 1`). The cursor polling choice is a reversible default, which is why it has no ADR.
+
+A session's pull request is looked for once, by its branch, with the person's own `gh` login ([ADR 0015](../adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)), and stored on the session (`prRepo`, `prNumber`, `prUrl`, `prState`, `prChecks`, `prCheckedAt`).
+After that only its state is asked again, by number and in one GraphQL request for all the open ones, at most once a minute.
+A merged or closed one is final, and gives way only to a newer open one on the same branch.
+The lines changed come from `git diff --numstat`, read-only and with the repository's own diff and text filters off.
+Without `gh`, a network or an origin on GitHub, a row simply has no pull request.
 
 Testing seams, by story:
 

@@ -335,6 +335,11 @@ class ClaudeConversation implements ChatConversation {
     const m = message as { type: string; subtype?: string; session_id?: string; [key: string]: any };
     if (typeof m.session_id === 'string') this.nativeId = m.session_id;
     if (m.type === 'result') return this.turnEnd(m);
+    // the whole set of live background tasks each time (the SDK's level signal); the ones that are not activity (watchers) are left out
+    if (m.type === 'system' && m.subtype === 'background_tasks_changed' && Array.isArray(m.tasks)) {
+      const tasks = (m.tasks as { task_id?: unknown; task_type?: unknown; description?: unknown; ambient?: unknown }[]).filter((task) => task.ambient !== true && typeof task.task_id === 'string');
+      return [{ kind: 'background', tasks: tasks.map((task) => ({ id: String(task.task_id), kind: String(task.task_type ?? 'task'), description: String(task.description ?? '') })) }];
+    }
     if (this.hidden > 0) return [];
     switch (m.type) {
       case 'system':

@@ -88,7 +88,7 @@ public func sessionsPage(
 /// A search on the home is one group, "Results": the active matches newest first and then the archived ones newest first.
 private func searchResults(_ rows: [SessionRow], _ query: String) -> [SessionGroup] {
     let hits = matching(rows, query)
-    let newest: (SessionRow, SessionRow) -> Bool = { $0.updatedAt > $1.updatedAt }
+    let newest: (SessionRow, SessionRow) -> Bool = { $0.sortedAt > $1.sortedAt }
     let found = hits.filter { $0.archived == false }.sorted(by: newest) + hits.filter(\.archived).sorted(by: newest)
     return found.isEmpty ? [] : [SessionGroup(title: "Results", rows: found)]
 }

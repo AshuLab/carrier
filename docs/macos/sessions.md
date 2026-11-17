@@ -53,7 +53,12 @@ The Agent output tab's live line does the same, since it draws with the same vie
 Each subagent the agent launches is a **Subagent row** under the run that launched it: its type as a chip, its title (the description it was launched with), the step it is on, its steps and its timer, with a spinner while it runs, a tick when it finished, a red mark when it failed and a square when it was stopped.
 Several launched together each have a row, in the order they started, and the launching `Agent` call is not drawn as another tool.
 While any of a run's subagents runs, the run's line reads "N subagents · Waiting for them…", N being those running, and the finished run's summary counts "1 subagent" or "N subagents" apart from "other tools"; both keep following the subagents' events after the turn that launched them has ended, and a subagent that started and never ended keeps showing as running.
-The row is not tappable yet, and a session stored before the host linked subagents to their calls shows no rows.
+A session stored before the host linked subagents to their calls shows no rows.
+Tapping a row opens its **Subagent view** over the conversation (the conversation stays under it, so Back finds its feed as it was): `subagentWork` turns the stored events into its brief (the `prompt` of the launching call's input, as stored and cut), its calls, thoughts and messages as flow items, and the rows of the subagents it launched, which open one level deeper.
+The window's header then has a ‹ Back button next to the sidebar's, the subagent's description as the title, "<type> · Subagent of <session title>" under it, and its state (Running with a timer, Finished with its duration, Failed or Stopped) where the worktree pill is; the panel button stays.
+Back leaves one level, and so does choosing another session or page.
+The place of the message box holds "Subagent work is read-only." and a ‹ Back to chat button, so nothing can be typed to it.
+While it runs, its live line is the conversation's, for it; once it ended or its session stopped working, a call that never ended shows stopped.
 Once the run finishes, its summary counts MCP calls apart from other tools.
 A poll that fails shows its reason under the feed and is logged once; polling goes on.
 

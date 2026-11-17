@@ -1310,3 +1310,119 @@ private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: S
     // what the subagents said and did is not in the main conversation
     #expect(texts(rows).filter { $0.hasPrefix("agent") } == ["agent: Three subagents are look"])
 }
+
+// MARK: a subagent's view
+
+private func flow(_ work: SubagentWork?) -> [String] {
+    (work?.items ?? []).map {
+        switch $0 {
+        case .message(_, let text): "message: \(text)"
+        case .note(_, let text): "note: \(text)"
+        case .error(_, let text): "error: \(text)"
+        case .skill: "skill"
+        case .tools(_, let group, let live): "tools\(live ? " live" : ""): \(group.title) | \(group.summary) | \(group.thoughts.map(\.text).joined(separator: ","))"
+        case .slice: "slice"
+        }
+    }
+}
+
+@Test func aSubagentsViewIsItsOwnCallsThoughtsAndMessagesWithTheRowOfTheSubagentItLaunched() {
+    var events = subagentTurn
+    events[1].arg = #"{"description":"Explore","prompt":"Find \"it\".\nReport paths.","subagent_type":"Explore"}"#
+    let work = subagentWork(in: events, call: "c1")
+    // the header says what the row said: its title and type, finished and how long it took
+    #expect(work?.header == SubagentHeader(title: "Explore", type: "Explore", state: .completed, startedAt: 110, durationMs: 600))
+    // the brief is the prompt it was launched with; then its thought and call as one run with the row of the subagent it launched (still going,
+    // so the run is live: the line waits for it), and its message
+    #expect(work?.brief == "Find \"it\".\nReport paths.")
+    #expect(flow(work) == ["tools live: Working | 1 thought · 1 file read · 1 subagent | Where is it?", "message: Found it in a.ts"])
+    guard case .tools(_, let run, _)? = work?.items.first else { Issue.record("no run"); return }
+    #expect(run.subagents.map(\.id) == ["c3"] && run.subagents[0].name == "Look inside" && run.subagents[0].status == .running)
+    // what the main agent did and said is not in it, and the launching call of the nested subagent is not a call of the run
+    #expect(flow(work).allSatisfy { $0.contains("pnpm test") == false && $0.contains("Done") == false })
+}
+
+@Test func theViewOfASubagentLaunchedByASubagentIsItsOwnAndHasNoneOfItsParents() {
+    let work = subagentWork(in: subagentTurn, call: "c3")
+    #expect(work?.header.title == "Look inside" && work?.header.type == "general-purpose" && work?.header.state == .running)
+    #expect(work?.header.durationMs == nil && work?.brief == nil && work?.items.isEmpty == true)
+    // opened from a parent that launched it, and a third level goes one level at a time
+    var deeper = subagentTurn
+    deeper.append(ChatEvent(id: 16, at: 1200, kind: "tool_start", callId: "d1", tool: "Grep", arg: "x", parentCallId: "c3"))
+    deeper.append(ChatEvent(id: 17, at: 1210, kind: "task", text: "Deepest", callId: "c4", parentCallId: "c3", taskId: "t3", state: "started", agentType: "Explore"))
+    deeper.append(ChatEvent(id: 18, at: 1220, kind: "assistant", text: "deep", parentCallId: "c4"))
+    #expect(flow(subagentWork(in: deeper, call: "c3")) == ["tools live: Working | 1 search · 1 subagent | "])
+    #expect(subagentWork(in: deeper, call: "c3").flatMap { work -> [String] in
+        guard case .tools(_, let run, _)? = work.items.first else { return [] }
+        return run.subagents.map(\.id) + run.calls.map(\.id)
+    } == ["c4", "d1"])
+    #expect(flow(subagentWork(in: deeper, call: "c4")) == ["message: deep"])
+    #expect(flow(subagentWork(in: deeper, call: "c1")).contains { $0.hasPrefix("message: Found it") })
+}
+
+@Test func whileASubagentRunsItsLastRunIsLiveAndOnceItEndedACallThatNeverEndedWasStopped() {
+    let begun: [ChatEvent] = [
+        ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "a1", tool: "Agent"), task(2, 10, "a1", "started", text: "Slow", type: "Explore"),
+        ChatEvent(id: 3, at: 20, kind: "tool_start", callId: "s1", tool: "Read", arg: "a.ts", parentCallId: "a1"),
+        ChatEvent(id: 4, at: 25, kind: "tool_end", callId: "s1", tool: "Read", output: ["x"], status: "ok", parentCallId: "a1"),
+        ChatEvent(id: 5, at: 30, kind: "assistant", text: "Reading", parentCallId: "a1"),
+        ChatEvent(id: 6, at: 40, kind: "tool_start", callId: "s2", tool: "Bash", arg: "pnpm test", parentCallId: "a1"),
+    ]
+    // the run the subagent is working in is the one the line shows live, as the conversation's is for the main agent; the earlier one is not
+    #expect(flow(subagentWork(in: begun, call: "a1")) == ["tools: Explored | 1 file read | ", "message: Reading", "tools live: Working | 1 command | "])
+    let ended = subagentWork(in: begun + [task(7, 50, "a1", "stopped", ms: 40)], call: "a1")
+    #expect(ended?.header.state == .stopped && ended?.header.durationMs == 40)
+    #expect(flow(ended) == ["tools: Explored | 1 file read | ", "message: Reading", "tools: Worked | 1 command | "])
+    guard case .tools(_, let last, _)? = ended?.items.last else { Issue.record("no run"); return }
+    #expect(last.calls.map(\.status) == [.stopped] && last.isStopped)
+    // a call nobody launched has no view
+    #expect(subagentWork(in: begun, call: "zz") == nil)
+}
+
+@Test func theBriefIsThePromptOfTheLaunchingCallsInputCutLikeAnythingTheHostStoresAndNilWithoutOne() {
+    #expect(brief(of: #"{"description":"d","prompt":"Read a.ts","subagent_type":"Explore"}"#) == "Read a.ts")
+    #expect(brief(of: #"{"prompt":"  Say \"hi\" \\ done\n\nbye  "}"#) == "Say \"hi\" \\ done\n\nbye")
+    // cut at 1,024 characters: no closing quote, maybe an escape left half, and the ellipsis the host ends it with
+    #expect(brief(of: #"{"description":"d","prompt":"Read the chat adapter and its tests, then\nlist wh…"#) == "Read the chat adapter and its tests, then\nlist wh…")
+    #expect(brief(of: #"{"prompt":"half an escape \"#) == "half an escape")
+    #expect(brief(of: #"{"description":"d","subagent_type":"Explore"}"#) == nil && brief(of: "Agent") == nil && brief(of: #"{"prompt":""}"#) == nil)
+}
+
+@Test func theStateOfASubagentReadsAsRunningWithItsTimerOrHowItEnded() {
+    func header(_ state: SubagentStatus, ms: Int? = nil) -> SubagentHeader { SubagentHeader(title: "T", type: "Explore", state: state, startedAt: 1_000, durationMs: ms) }
+    #expect(header(.running).stateWords(now: 72_000) == "Running 1m 11s")
+    #expect(header(.running).stateWords(now: 500) == "Running 0 ms")
+    #expect(header(.completed, ms: 42_000).stateWords(now: 99_000) == "Finished · 42 s")
+    #expect(header(.failed, ms: 5).stateWords(now: 0) == "Failed" && header(.stopped).stateWords(now: 0) == "Stopped")
+    #expect(header(.running).subtitle(of: "Fix the login") == "Explore · Subagent of Fix the login")
+}
+
+@MainActor @Test func theModelRebuildsTheOpenSubagentsViewAsEventsArriveAndLeavesItWhenAskedTo() async {
+    let host = ScriptedHost()
+    host.events = Array(subagentTurn[..<6])
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.openSubagent == nil)
+    model.show(subagent: "c1")
+    #expect(model.openSubagent?.header.state == .running && flow(model.openSubagent) == ["tools live: Explored | 1 thought · 1 file read | Where is it?"])
+    // the conversation's own feed is as it was
+    let before = model.rows
+    host.events = subagentTurn
+    await model.poll()
+    #expect(model.openSubagent?.header.state == .completed && flow(model.openSubagent).last == "message: Found it in a.ts")
+    model.show(subagent: nil)
+    #expect(model.openSubagent == nil && model.rows != before && texts(model.rows).first == "user: Look into it")
+}
+
+@Test func theFixtureHostServesTheSubagentViewWithItsBriefItsThoughtItsMessageAndItsNestedSubagent() async throws {
+    let events = try golden("subagents").events
+    let work = subagentWork(in: events, call: "a1")
+    #expect(work?.header.title == "Find subagent code in chat host" && work?.header.state == .completed)
+    #expect(work?.brief?.hasPrefix("Read the chat adapter in src/chat/claude.ts") == true && work?.brief?.contains("\nReport file paths") == true)
+    #expect(flow(work) == [
+        "tools: Explored | 1 search | ", "message: translate() never reads parent_tool_use_id.",
+        "tools: Worked | 1 thought · 1 subagent | translate() drops sidechain info; checking the types next.",
+    ])
+    #expect(subagentWork(in: events, call: "a3")?.header.state == .running)
+    #expect(subagentWork(in: events, call: "n1")?.header.title == "Check the runner types")
+}

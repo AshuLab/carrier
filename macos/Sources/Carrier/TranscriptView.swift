@@ -71,8 +71,12 @@ struct FlowItemView: View {
         case .skill(_, let call):
             SkillRowView(call: call).padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
         case .tools(let id, let group, let live):
-            ChatToolGroupView(id: "t\(id)", group: group, live: live, startsOpen: mode == .expanded || (opensFailed && group.failed > 0), flipped: $flipped)
-                .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
+            // the rows of the subagents the run launched (a subagent view's own groups have them; the epic's have none)
+            VStack(alignment: .leading, spacing: 6) {
+                ChatToolGroupView(id: "t\(id)", group: group, live: live, startsOpen: mode == .expanded || (opensFailed && group.failed > 0), flipped: $flipped)
+                ForEach(group.subagents) { SubagentRowView(subagent: $0) }
+            }
+            .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
         case .slice(let lane):
             SliceCardView(lane: lane, flipped: $flipped, slices: $slices)
                 .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)

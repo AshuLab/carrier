@@ -35,10 +35,19 @@ struct ConversationView: View {
     private let cancelled: (SessionPlan) -> Void
     /// The last shortcut that asked something of the conversation (focus the box, the latest message, fold the tools, copy the answer).
     private let request: ConversationRequest?
+    /// The subagent views open over the conversation, the window's (`WindowShell.subagents`): the last one is shown. The header says of it
+    /// what `header` is told, which is the window's too.
+    @Binding private var subagents: [String]
+    @Binding private var header: SubagentHeader?
 
-    init(sessionId: String, draft: NewSessionModel? = nil, request: ConversationRequest? = nil, cancelled: @escaping (SessionPlan) -> Void = { _ in }) {
+    init(
+        sessionId: String, draft: NewSessionModel? = nil, request: ConversationRequest? = nil, subagents: Binding<[String]> = .constant([]),
+        header: Binding<SubagentHeader?> = .constant(nil), cancelled: @escaping (SessionPlan) -> Void = { _ in }
+    ) {
         self.draft = draft
         self.request = request
+        _subagents = subagents
+        _header = header
         self.cancelled = cancelled
         let model = ConversationModel(host: SocketChatHost(), sessionId: sessionId, memory: .userDefaults)
         model.onQuotaError = { AppUsage.refresher.limitHit() }
@@ -46,6 +55,32 @@ struct ConversationView: View {
     }
 
     var body: some View {
+        conversation
+            // the conversation stays under the subagent view, so Back finds its feed and its place as they were; nothing under it takes keys or taps
+            .disabled(subagents.isEmpty == false)
+            .accessibilityHidden(subagents.isEmpty == false)
+            .overlay {
+                if subagents.isEmpty == false {
+                    Group {
+                        if let work = model.openSubagent {
+                            SubagentView(work: work, backToChat: { subagents = [] })
+                        } else {
+                            LoadingRow()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.themeWindow)
+                }
+            }
+            .environment(\.openSubagent) { subagents.append($0) }
+            .onChange(of: subagents, initial: true) { _, stack in
+                model.show(subagent: stack.last)
+                if stack.isEmpty == false { boxFocused = false }
+            }
+            .onChange(of: model.openSubagent?.header) { _, shown in header = shown }
+    }
+
+    private var conversation: some View {
         // derived once per evaluation: the feed the tools' mode and the reasoning setting leave, with the closing lines folded into their messages
         let shown = foldingClosingLines(visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning))
         return ScrollView {

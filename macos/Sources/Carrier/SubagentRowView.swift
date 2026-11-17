@@ -3,13 +3,28 @@ import SwiftUI
 
 /// A subagent as a row of the conversation, under the run that launched it (docs/research/macos-app-design/explorations/subagent-view.html): its
 /// state, its type as a chip, its title, the step it is on, its steps and its timer, on one line as high as a "Worked" card's. What does not fit
-/// is cut, never wrapped, so the row is one height at any width. It is not tappable yet.
+/// is cut, never wrapped, so the row is one height at any width. Where a conversation or a subagent view draws it, tapping it opens that
+/// subagent's view (`openSubagent`) and it ends in a chevron.
 struct SubagentRowView: View {
     let subagent: Subagent
     /// The time the timer reads instead of the clock; a test sets it.
     var clock: Date?
+    @Environment(\.openSubagent) private var open
+    @State private var hovered = false
 
     var body: some View {
+        let row = line
+        if let open {
+            Button { open(subagent.id) } label: { row }
+                .buttonStyle(.plain).onHover { hovered = $0 }
+                .overlay { if hovered { RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.04)).allowsHitTesting(false) } }
+                .accessibilityHint("Opens the subagent")
+        } else {
+            row
+        }
+    }
+
+    private var line: some View {
         HStack(spacing: 9) {
             lead.frame(width: 16, height: 16)
             KindChipView(chip: .subagent(type: subagent.type))
@@ -19,6 +34,7 @@ struct SubagentRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(subagent.steps) \(subagent.steps == 1 ? "step" : "steps")").font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
             timer
+            if open != nil { CardChevron(open: false, width: 9) }
         }
         .font(.scaled(12, weight: .medium)).monospacedDigit()
         .padding(.horizontal, 10)
@@ -26,6 +42,7 @@ struct SubagentRowView: View {
         .workCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(subagent.type) subagent, \(subagent.name), \(subagent.words), \(subagent.steps) steps")
+        .contentShape(RoundedRectangle(cornerRadius: 12))
     }
 
     @ViewBuilder private var lead: some View {
@@ -51,4 +68,9 @@ struct SubagentRowView: View {
     private func time(_ now: Int) -> some View {
         Text(formatCallDuration(subagent.elapsedMs(now: now))).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
     }
+}
+
+extension EnvironmentValues {
+    /// What tapping a subagent's row does, given the call that launched it; nil where a row is only shown.
+    @Entry var openSubagent: ((String) -> Void)?
 }

@@ -87,7 +87,7 @@ public func visibleFlow(_ flow: [FlowItem], mode: ToolOutputMode, showsReasoning
         case .tools(let id, var group, let live):
             if mode == .hidden { group.calls = [] }
             if showsReasoning == false { group.thoughts = [] }
-            return group.calls.isEmpty && group.thoughts.isEmpty ? nil : .tools(id: id, group, live: live)
+            return group.calls.isEmpty && group.thoughts.isEmpty && group.subagents.isEmpty ? nil : .tools(id: id, group, live: live)
         default: return item
         }
     }

@@ -588,6 +588,9 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// What the person sent as the first message of the session the draft opened, shown until the host's own record of it arrives (a failed
     /// step before the message leaves none) so the text is never lost.
     public private(set) var firstMessage: String?
+    /// The subagent view open over the conversation, rebuilt with the feed; nil with none open.
+    public private(set) var openSubagent: SubagentWork?
+    @ObservationIgnored private var openCall: String?
     /// Counts the sends, so a poll that began before one does not tell the model the agent is idle when it is not.
     @ObservationIgnored private var sends = 0
 
@@ -693,6 +696,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             let next = feed()
             if quotaErrorAppeared(from: rows, to: next) { onQuotaError?() }
             rows = next
+            openSubagent = openCall.flatMap { subagentWork(in: events, call: $0) }
             times = Dictionary(events.filter { $0.kind == "user" || $0.kind == "assistant" }.map { ("e\($0.id)", $0.at) }) { $1 }
             if followsOutput && atEnd { scrolls += 1 }
         }
@@ -797,6 +801,12 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         let rows = chatFeed(events, streaming: streaming, pending: pending)
         guard let firstMessage, events.contains(where: { $0.kind == "user" }) == false else { return rows }
         return [.user(id: "first-message", text: firstMessage)] + rows
+    }
+
+    /// The subagent view the person opened (the call that launched it), nil for the conversation itself.
+    public func show(subagent call: String?) {
+        openCall = call
+        openSubagent = call.flatMap { subagentWork(in: events, call: $0) }
     }
 
     /// Drops the queued message.

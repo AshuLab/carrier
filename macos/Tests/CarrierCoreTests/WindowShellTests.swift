@@ -293,3 +293,22 @@ private let fakeSessions = [
     shell.showSettings(.engine)
     #expect(shell.settingsTab == .engine)
 }
+
+@Test func aSubagentViewIsLeftOneLevelAtATimeAndWithTheSession() {
+    let shell = WindowShell()
+    shell.selection = .session(id: "a")
+    shell.openSubagent("c1")
+    shell.openSubagent("c3")
+    #expect(shell.subagents == ["c1", "c3"])
+    shell.leaveSubagent()
+    #expect(shell.subagents == ["c1"])
+    shell.subagentHeader = SubagentHeader(title: "T", type: "Explore", state: .running, startedAt: 0, durationMs: nil)
+    // choosing another page or session leaves it, the header with it; Back with none open is nothing
+    shell.selection = .session(id: "b")
+    #expect(shell.subagents.isEmpty && shell.subagentHeader == nil)
+    shell.leaveSubagent()
+    #expect(shell.subagents.isEmpty)
+    shell.openSubagent("c1")
+    shell.reset()
+    #expect(shell.subagents.isEmpty)
+}

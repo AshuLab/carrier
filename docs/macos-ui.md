@@ -43,8 +43,13 @@ Work the agent did (calls, thoughts, messages, an error) is drawn with the chat'
 - **Subagent row (`SubagentRowView`)**: one subagent of a run, a card of its own under the run's line (6 pt below it, one per subagent in the order they started), built on `.workCard()` and so on `chatSurface` (flat when Settings > Chat > Surfaces says so).
   It is one line as high as the card's line (30 pt) at any width: a 16 pt lead (a turning ring while it runs, a green tick, a red mark, a square when stopped), the type as a `KindChipView`, the title (12.5 pt, semibold; it is the one that gives way last), the step it is on (`tertiary`; Finished, Failed or Stopped once it ended), "N steps" and its timer, those two never cut.
   A long title or step is cut, never wrapped, so the row does not change height.
-  It is not a button yet, so it has no chevron.
+  Where a conversation or a subagent view draws it, it is a `Button` as a whole (a 4 % fill under the pointer, a `CardChevron` at its end, the same 30 pt) that opens the subagent's view.
   While a subagent of a run is running the run's line reads "N subagents · Waiting for them…" (the chip is the count of those running) whether or not the turn has ended.
+- **Subagent view (`SubagentView`)**: what replaces the conversation when a subagent row is tapped, one component that takes `SubagentWork` (header description, brief and flow items) and so serves the epic's slice card unchanged.
+  It is the brief as a bubble on the right with the label "Brief from the main agent" (`chatSurface`, tinted), then `FlowItemView` for the subagent's own groups, thoughts and messages (the same live line and chip, and the rows of the subagents it launched, which open in turn), and in the message box's place `SubagentNote`: a `workCard()` with "Subagent work is read-only." and a ‹ Back to chat button.
+  All three are on `chatSurface` or the work card shell, so Settings > Chat > Surfaces applies.
+  Its **header** is the window's toolbar (`PanelView`): the sidebar's round button, then a round ‹ Back button (one level up), then `SubagentTitle` (the description, 13 pt semibold, over "<type> · Subagent of <session title>", 11 pt `secondary`), and where the worktree pill is `SubagentStatePill` (Running with a timer, Finished · duration, Failed or Stopped); the panel button stays.
+  `SubagentTitle` is 34 pt high (the round buttons') and cuts a long title on one line, so the header is as high as the conversation's at any width (`SubagentHeaderTests`, 480, 560 and 900 pt, four states, a 120-character title).
 - **Rows hang under the line** behind a `SettingsDivider`, edge to edge.
 - **A row that opens or links is one click target as a whole**: a 4 % fill under the pointer, and no lone small icon as the only way in.
   A `Button` or a `Link`, never only `.onTapGesture`: a tap gesture is not reachable with the keyboard.

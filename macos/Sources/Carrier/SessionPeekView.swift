@@ -6,11 +6,16 @@ import SwiftUI
 struct SessionPeekView: View {
     let card: SessionPeek
 
-    /// The colours of the row's own words: orange for what needs the person, green for Done, the ring's for work in hand.
+    /// The violet of the ring for work in hand, deeper on light, where the ring's own pale one has about 2:1 against the card.
+    private static let working = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(red: 0.79, green: 0.63, blue: 1.0, alpha: 1) : NSColor(red: 0.42, green: 0.22, blue: 0.72, alpha: 1)
+    })
+
+    /// The colours of the row's own words: orange for what needs the person, green for Done, violet for work in hand.
     private var tone: Color {
         switch card.tone {
         case .quiet: .secondary
-        case .working: .thought
+        case .working: Self.working
         case .attention: SessionRowView.attention
         case .done: SessionRowView.done
         }

@@ -34,4 +34,14 @@ import Testing
     #expect(peek(.idle).subtitle == "Idle" && peek(.idle).tone == .quiet)
     // the row says Done for a turn that ended and has not been opened, so the card does too
     #expect(peek(.idle, unread: true).subtitle == "Done" && peek(.idle, unread: true).tone == .done)
+    #expect(peek(.done, unread: true).subtitle == "Done" && peek(.done).subtitle == "Idle")
+    // a session the host put to sleep says so; a turn that ended unread outranks it, as it does for the row
+    func asleep(unread: Bool) -> SessionPeek {
+        sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date(), asleep: true, unread: unread), now: Date())
+    }
+    #expect(asleep(unread: false).subtitle == "Asleep" && asleep(unread: false).tone == .quiet)
+    #expect(asleep(unread: true).subtitle == "Done")
+    // waiting and working outrank unread: the person is needed, or the agent is at work, whatever was or was not opened
+    #expect(peek(.waiting, unread: true).subtitle == "Waiting for you" && peek(.waiting, unread: true).tone == .attention)
+    #expect(peek(.working, unread: true).subtitle == "Working…" && peek(.working, unread: true).tone == .working)
 }

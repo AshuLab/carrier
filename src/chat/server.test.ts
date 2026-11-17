@@ -39,6 +39,10 @@ const controls = (): ChatControls => ({
   },
   answer: ({ approvalId, choiceId }) => ({ approvalId, choiceId }),
   interrupt: async () => ({}),
+  switchAgent: async ({ sessionId, agent }) => {
+    if (agent === 'busy') throw new ChatRefused('This session is working; interrupt it or wait, then switch its agent');
+    return { session: { id: sessionId, agent }, options: [] };
+  },
   setOption: async ({ option, value }) => ({ option, value }),
   agentOptions: async ({ agent }) => ({ agent }),
   events: ({ after = 0, reasoning }) => ({ after, ...(reasoning !== undefined && { reasoning }) }),
@@ -101,7 +105,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'switchAgent'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -215,6 +219,17 @@ test('archive takes a session and a boolean, delete a session, both strict', asy
   expect(await c.ask(`{"id":2,"cmd":"archive","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
   expect(await c.ask(`{"id":3,"cmd":"delete","sessionId":"${uuid}"}`)).toEqual({ id: 3, ok: true, data: {} });
   expect(await c.ask(`{"id":4,"cmd":"delete","sessionId":"${uuid}","archived":true}`)).toEqual({ id: 4, ok: false, error: 'invalid request' });
+});
+
+test('switchAgent takes a session and the name of an agent, strict, and a refusal reaches the client in words', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"switchAgent","sessionId":"${uuid}","agent":"codex"}`)).toEqual({ id: 1, ok: true, data: { session: { id: uuid, agent: 'codex' }, options: [] } });
+  expect(await c.ask(`{"id":2,"cmd":"switchAgent","sessionId":"${uuid}","agent":"busy"}`)).toEqual({ id: 2, ok: false, error: 'This session is working; interrupt it or wait, then switch its agent' });
+  expect(await c.ask(`{"id":3,"cmd":"switchAgent","sessionId":"${uuid}"}`)).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":4,"cmd":"switchAgent","sessionId":"${uuid}","agent":""}`)).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":5,"cmd":"switchAgent","sessionId":"../x","agent":"codex"}')).toEqual({ id: 5, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":6,"cmd":"switchAgent","sessionId":"${uuid}","agent":"codex","options":{}}`)).toEqual({ id: 6, ok: false, error: 'invalid request' });
 });
 
 test('rename takes a session and a title, strict', async () => {

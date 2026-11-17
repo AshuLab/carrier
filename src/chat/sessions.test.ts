@@ -2201,3 +2201,315 @@ test('a child cannot start children of its own', async () => {
   await expect(s.start(childId, 'edit')).rejects.toThrow(/cannot start children/);
   expect(s.children()).toHaveLength(1);
 });
+
+// Switching an idle session to another configured agent (ADR 0032).
+function switching(extra: Partial<Parameters<typeof createSessions>[0]> = {}) {
+  const [claude, codex] = [new FakeChatRunner(), new FakeChatRunner()];
+  const values = (...ids: string[]) => ids.map((id) => ({ id, label: id }));
+  const lists = (runner: FakeChatRunner, name: string, models: string[], mode: [id: string, values: string[]]) => {
+    runner.setup = (conversation) => {
+      const asked = runner.opened.at(-1)!.options ?? {};
+      conversation.nativeId = `${name}-${runner.opened.length}`;
+      conversation.options = [
+        { id: 'model', label: 'Model', values: values(...models), current: asked.model ?? models[0]! },
+        { id: mode[0], label: mode[0], values: values(...mode[1]), current: asked[mode[0]] ?? mode[1][0]! },
+      ];
+    };
+  };
+  lists(claude, 'claude', ['haiku', 'sonnet'], ['permissionMode', ['default', 'acceptEdits']]);
+  lists(codex, 'codex', ['gpt-5', 'gpt-5-mini'], ['sandbox', ['workspace-write', 'read-only']]);
+  const agents = {
+    a: { account: 'claude' },
+    other: { account: 'claude', options: { permissionMode: 'acceptEdits' } },
+    b: { account: 'codex', options: { sandbox: 'read-only' } },
+    withmodel: { account: 'codex', model: 'gpt-5-mini' },
+    unlisted: { account: 'codex', model: 'gpt-9' },
+  };
+  const mcp = withMcp();
+  const s = setup({ agents }, { runners: { claude, codex }, probes: probesOf(), binaryFound: () => true, ...mcp.extra, ...extra });
+  /** A session of `a` that has said one thing and has been answered, idle. */
+  const talked = async () => {
+    const { session } = await s.sessions.open({ agent: 'a', folder: work });
+    const old = claude.conversations[0]!;
+    s.sessions.send({ sessionId: session.id, text: 'Plan the export' });
+    old.emit({ kind: 'assistant', text: 'Start with the schema.' }, { kind: 'turn_end', outcome: 'ok', model: 'haiku' });
+    return { id: session.id, old };
+  };
+  const sessionRow = (id: string) => s.db.select().from(schemaSessions).where(eq(schemaSessions.id, id)).get()!;
+  const notices = (id: string) => (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((event) => event.kind === 'notice');
+  return { ...s, claude, codex, registry: mcp.registry, talked, sessionRow, notices };
+}
+
+test('a switch answers the session and the options of the new agent, and the next message goes to a conversation that opened with the handoff', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  const tokenOfOld = s.claude.opened[0]!.mcp!.token;
+  const answered = await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+
+  expect(answered.session).toMatchObject({ id, agent: 'b', harness: 'codex', nativeId: 'codex-1', state: 'idle', folder: expect.stringContaining('work') });
+  expect(answered.options.map((option) => [option.id, option.current])).toEqual([['model', 'gpt-5'], ['sandbox', 'read-only']]);
+  expect(s.sessionRow(id).options).toEqual({ sandbox: 'read-only' });
+  const instructions = s.codex.opened[0]!.instructions!;
+  expect(instructions).toContain('Plan the export');
+  expect(instructions).toContain('Start with the schema.');
+  expect(s.codex.opened[0]).toMatchObject({ folder: expect.stringContaining('work'), options: { sandbox: 'read-only' }, mcp: { serverName: 'carrier-chat' } });
+  expect(s.codex.opened[0]!.resume).toBeUndefined();
+
+  // the notice says it, and carries the agents as the config names them
+  expect(s.notices(id)).toEqual([expect.objectContaining({ switched: { from: 'a', to: 'b' }, text: expect.stringContaining('from a to b') })]);
+  // the old conversation ended and its token is gone; the new one holds one
+  expect(old.closed).toBe(true);
+  expect(s.registry.lookup(tokenOfOld)).toBeUndefined();
+  expect(s.registry.lookup(s.codex.opened[0]!.mcp!.token)).toMatchObject({ sessionId: id });
+
+  // the next message is the new conversation's; the old one is no longer recorded
+  s.sessions.send({ sessionId: id, text: 'Now build it' });
+  const fresh = s.codex.conversations[0]!;
+  expect(fresh.sent).toEqual(['Now build it']);
+  old.emit({ kind: 'assistant', text: 'a late word of the old agent' });
+  fresh.emit({ kind: 'assistant', text: 'Building.' }, { kind: 'turn_end', outcome: 'ok', model: 'gpt-5' });
+  const said = (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((event) => event.kind === 'assistant').map((event) => event.text);
+  expect(said).toEqual(['Start with the schema.', 'Building.']);
+
+  // each turn records who ran it: the earlier one stays on the first agent
+  const turns = rows('chat_turns');
+  expect(turns[0]).toMatchObject({ harness: 'claude', agent: 'a', nativeId: 'claude-1' });
+  expect(turns[1]).toMatchObject({ harness: 'codex', agent: 'b', nativeId: 'codex-1', model: 'gpt-5' });
+});
+
+test('a switch can go to another account of the same harness, and the agent takes its configured model', async () => {
+  const s = switching();
+  const { id } = await s.talked();
+  await s.sessions.switchAgent({ sessionId: id, agent: 'other' });
+  expect(s.sessionRow(id)).toMatchObject({ agent: 'other', harness: 'claude', nativeId: 'claude-2', options: { permissionMode: 'acceptEdits' } });
+  const listed = await s.sessions.switchAgent({ sessionId: id, agent: 'withmodel' });
+  expect(listed.options.find((option) => option.id === 'model')!.current).toBe('gpt-5-mini');
+  expect(s.sessionRow(id).options).toEqual({ model: 'gpt-5-mini' });
+});
+
+test('a session with no message switches with no handoff, and keeps no instructions at all', async () => {
+  const s = switching();
+  const { session } = await s.sessions.open({ agent: 'a', folder: work });
+  await s.sessions.switchAgent({ sessionId: session.id, agent: 'b' });
+  expect(s.codex.opened[0]).not.toHaveProperty('instructions');
+  expect(s.notices(session.id)).toHaveLength(1);
+  // and a resume of it still has none
+  await s.sessions.close({ sessionId: session.id });
+  await s.sessions.resume({ sessionId: session.id });
+  expect(s.codex.opened[1]).not.toHaveProperty('instructions');
+});
+
+test('a switch of a closed session works, with no old conversation to close', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  await s.sessions.close({ sessionId: id });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ live: false });
+  const answered = await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  expect(answered.session).toMatchObject({ agent: 'b', harness: 'codex' });
+  expect(old.closed).toBe(true); // by the close above, and not again
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ live: true });
+  expect(s.codex.opened[0]!.instructions).toContain('Plan the export');
+  s.sessions.send({ sessionId: id, text: 'go on' });
+  expect(s.codex.conversations[0]!.sent).toEqual(['go on']);
+});
+
+test('after a resume of the switched session the handoff is passed again, built from before the switch whatever was said after it', async () => {
+  const s = switching();
+  const { id } = await s.talked();
+  await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  const first = s.codex.opened[0]!.instructions!;
+  s.sessions.send({ sessionId: id, text: 'Now build it' });
+  s.codex.conversations[0]!.emit({ kind: 'assistant', text: 'Building.' }, { kind: 'turn_end', outcome: 'ok' });
+  await s.sessions.close({ sessionId: id });
+  await s.sessions.resume({ sessionId: id });
+  expect(s.codex.opened[1]).toMatchObject({ resume: 'codex-1', instructions: first });
+  expect(first).not.toContain('Building.');
+  // a session that never switched resumes with none
+  const plain = await s.sessions.open({ agent: 'a', folder: work });
+  await s.sessions.close({ sessionId: plain.session.id });
+  await s.sessions.resume({ sessionId: plain.session.id });
+  expect(s.claude.opened.at(-1)).not.toHaveProperty('instructions');
+});
+
+test('a second switch hands over what was said since, the new agent gets the handoff of the whole conversation', async () => {
+  const s = switching();
+  const { id } = await s.talked();
+  await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  s.sessions.send({ sessionId: id, text: 'Now build it' });
+  s.codex.conversations[0]!.emit({ kind: 'assistant', text: 'Building.' }, { kind: 'turn_end', outcome: 'ok' });
+  await s.sessions.switchAgent({ sessionId: id, agent: 'other' });
+  expect(s.claude.opened.at(-1)!.instructions).toContain('Building.');
+  expect(s.notices(id).map((notice) => notice.switched)).toEqual([{ from: 'a', to: 'b' }, { from: 'b', to: 'other' }]);
+});
+
+/** Runs a switch that has to be refused and shows the session as it was: the old conversation live and open, nothing stored, the next message going to it. */
+async function refusedSwitch(s: ReturnType<typeof switching>, id: string, old: FakeConversation, agent: string, words: RegExp) {
+  const before = s.sessionRow(id);
+  const storedBefore = rows('chat_events').length;
+  const refused = await s.sessions.switchAgent({ sessionId: id, agent }).then(() => undefined, (error: Error) => error);
+  expect(refused).toBeInstanceOf(ChatRefused);
+  expect(refused!.message).toMatch(words);
+  expect(s.sessionRow(id)).toEqual(before);
+  expect(rows('chat_events')).toHaveLength(storedBefore);
+  expect(old.closed).toBe(false);
+  expect(s.registry.lookup(s.claude.opened[0]!.mcp!.token)).toBeDefined();
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ live: true, agent: 'a' });
+  s.sessions.send({ sessionId: id, text: 'still here' });
+  expect(old.sent.at(-1)).toBe('still here');
+  old.emit({ kind: 'turn_end', outcome: 'ok' });
+}
+
+test('a switch of a session that is working or waiting for an approval is refused, in words, and leaves it as it was', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  s.sessions.send({ sessionId: id, text: 'busy now' });
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'b' })).rejects.toThrow('This session is working; interrupt it or wait, then switch its agent');
+  old.emit({ kind: 'approval', approvalId: 'p1', tool: 'Bash', choices: [{ id: 'allow', label: 'Allow', allow: true }] });
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'b' })).rejects.toThrow('waiting for an approval');
+  expect(s.codex.opened).toEqual([]);
+  expect(old.closed).toBe(false);
+  expect(s.sessionRow(id)).toMatchObject({ agent: 'a', harness: 'claude', nativeId: 'claude-1' });
+});
+
+test('a switch is refused for a session that is preparing, one whose preparation failed, an archived one and a child', async () => {
+  const s = switching();
+  const { id } = await s.talked();
+  await s.sessions.close({ sessionId: id });
+  s.db.update(schemaSessions).set({ state: 'preparing' }).where(eq(schemaSessions.id, id)).run();
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'b' })).rejects.toThrow(/being prepared/);
+  s.db.update(schemaSessions).set({ state: 'idle', plan: { workspace: { kind: 'folder', folder: work }, agent: 'a', text: 'x' } }).where(eq(schemaSessions.id, id)).run();
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'b' })).rejects.toThrow('did not finish preparing');
+  s.db.update(schemaSessions).set({ plan: null, archived: true }).where(eq(schemaSessions.id, id)).run();
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'b' })).rejects.toThrow(/archived/);
+  s.db.update(schemaSessions).set({ archived: false }).where(eq(schemaSessions.id, id)).run();
+  await expect(s.sessions.switchAgent({ sessionId: '3f2b6a52-8f5e-4a63-9d5b-0a1d2c3e4f50', agent: 'b' })).rejects.toThrow('There is no such session');
+  expect(s.codex.opened).toEqual([]);
+  expect(s.sessionRow(id)).toMatchObject({ agent: 'a', harness: 'claude' });
+});
+
+test('a switch is refused for the agent the session has, one not configured, one not found and one signed out', async () => {
+  const signedOut = { value: false };
+  const s = switching({ probes: probesOf({ loggedIn: async (harness) => !(signedOut.value && harness === 'codex') }), binaryFound: (command) => command !== 'gone' });
+  const { id, old } = await s.talked();
+  await refusedSwitch(s, id, old, 'a', /already has the agent "a"/);
+  await refusedSwitch(s, id, old, 'nobody', /no chat agent named "nobody"/);
+  signedOut.value = true;
+  await refusedSwitch(s, id, old, 'b', /"b" is signed out/);
+  expect(s.codex.opened).toEqual([]);
+});
+
+test('a switch to an agent whose binary is not found is refused', async () => {
+  const s = switching({ binaryFound: (command) => command === 'claude' });
+  const { id, old } = await s.talked();
+  await refusedSwitch(s, id, old, 'b', /"b" is not found on this machine/);
+  expect(s.codex.opened).toEqual([]);
+});
+
+test('a switch to an agent whose model the harness does not list is refused, checked against the probe, and a probe that fails refuses too', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  await refusedSwitch(s, id, old, 'unlisted', /"gpt-9" is not a model of the agent "unlisted"; it lists: gpt-5, gpt-5-mini/);
+  // the probe's conversation is not the session's: it ended
+  expect(s.codex.conversations.every((conversation) => conversation.closed)).toBe(true);
+  s.clock.time += 11 * 60_000; // what the probe kept is old
+  s.codex.refuseWith = 'codex is not logged in';
+  await refusedSwitch(s, id, old, 'withmodel', /models of the agent "withmodel" could not be listed/);
+});
+
+test('a new conversation that cannot open refuses the switch and leaves the old one live, and the same switch works once it can', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  s.codex.refuseOpen = { nth: 1, with: 'codex is not logged in' };
+  await refusedSwitch(s, id, old, 'b', /codex is not logged in/);
+  expect(s.codex.opened).toHaveLength(1);
+  await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  expect(s.sessionRow(id)).toMatchObject({ agent: 'b', nativeId: 'codex-2' });
+  expect(old.closed).toBe(true);
+});
+
+test('a new conversation that opens without the chat MCP refuses the switch, is closed again, and its token is revoked', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  const tokens = () => (s.registry as any).records.size as number;
+  const live = tokens();
+  const listed = s.codex.setup;
+  s.codex.setup = (conversation) => (listed(conversation), void (conversation.mcpProblem = 'it did not start'));
+  await refusedSwitch(s, id, old, 'b', /could not get Carrier's own tools, so the session keeps "a"/);
+  expect(s.codex.conversations.every((conversation) => conversation.closed)).toBe(true);
+  expect(tokens()).toBe(live);
+  expect(noticesOf(s, id)).toEqual([]);
+});
+
+test('a switch of a host whose chat MCP is down is refused', async () => {
+  const s = switching(withMcp(true).extra);
+  const { session } = await s.sessions.open({ agent: 'a', folder: work });
+  await expect(s.sessions.switchAgent({ sessionId: session.id, agent: 'b' })).rejects.toThrow(/could not get Carrier's own tools/);
+  expect(s.claude.conversations[0]!.closed).toBe(false);
+  expect(s.codex.conversations.every((conversation) => conversation.closed)).toBe(true);
+});
+
+test('while a switch runs, a message, a resume, a close, an option, an interrupt, a delete, an archive and a second switch are refused, and the idle clock leaves the session alone', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = s.codex.open.bind(s.codex);
+  s.codex.open = async (args) => (await gate, open(args));
+  const switched = s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  const refused = /switching to another agent/;
+  expect(() => s.sessions.send({ sessionId: id, text: 'too soon' })).toThrow(refused);
+  await expect(s.sessions.resume({ sessionId: id })).rejects.toThrow(refused);
+  await expect(s.sessions.close({ sessionId: id })).rejects.toThrow(refused);
+  await expect(s.sessions.setOption({ sessionId: id, option: 'model', value: 'sonnet' })).rejects.toThrow(refused);
+  await expect(s.sessions.interrupt({ sessionId: id })).rejects.toThrow(refused);
+  await expect(s.sessions.delete({ sessionId: id })).rejects.toThrow(refused);
+  await expect(s.sessions.archive({ sessionId: id, archived: true })).rejects.toThrow(refused);
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'other' })).rejects.toThrow(refused);
+  s.clock.time += 2 * IDLE_AFTER; // no client is attached: the idle close would fire
+  expect(old.closed).toBe(false);
+  // reads still work
+  expect(s.sessions.events({ sessionId: id, limit: 10 }).session).toMatchObject({ id });
+  release();
+  await switched;
+  expect(old.closed).toBe(true);
+  s.sessions.send({ sessionId: id, text: 'now it works' });
+  expect(s.codex.conversations[0]!.sent).toEqual(['now it works']);
+  expect(s.codex.conversations[0]!.closed).toBe(false);
+});
+const IDLE_AFTER = 60_000;
+
+test('the old conversation stays recorded as the session\'s process until it ends, and the new one is recorded after', async () => {
+  const s = switching();
+  for (const [runner, process] of [[s.claude, { pid: 11, pgid: 11, command: '/bin/claude' }], [s.codex, { pid: 22, pgid: 22, command: '/bin/codex' }]] as const) {
+    const listed = runner.setup;
+    runner.setup = (conversation) => (listed(conversation), void (conversation.process = process));
+  }
+  const { id, old } = await s.talked();
+  let release!: () => void;
+  const ended = new Promise<void>((resolve) => (release = resolve));
+  old.close = async () => {
+    await ended;
+    old.closed = true;
+  };
+  const switched = s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  await vi.waitFor(() => expect(s.sessionRow(id).agent).toBe('b'));
+  expect(s.sessionRow(id)).toMatchObject({ pid: 11, pgid: 11, command: '/bin/claude' }); // a host that died here can still sweep it
+  release();
+  await switched;
+  expect(s.sessionRow(id)).toMatchObject({ pid: 22, pgid: 22, command: '/bin/codex' });
+});
+
+test('an old conversation that dies while the switch opens does not stop it', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = s.codex.open.bind(s.codex);
+  s.codex.open = async (args) => (await gate, open(args));
+  const switched = s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  old.die({ kind: 'error', text: 'the process ended' });
+  await vi.waitFor(() => expect(s.sessions.list({}).sessions[0]!.live).toBe(false));
+  release();
+  await expect(switched).resolves.toMatchObject({ session: { agent: 'b' } });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ live: true, agent: 'b' });
+});

@@ -2201,3 +2201,53 @@ test('a child cannot start children of its own', async () => {
   await expect(s.start(childId, 'edit')).rejects.toThrow(/cannot start children/);
   expect(s.children()).toHaveLength(1);
 });
+
+test('a child takes no send, resume, archive, delete, rename or setOption: each is refused with words that say it belongs to its parent, and the session is unchanged', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit', 'the task');
+  const child = s.claude.conversations.at(-1)!;
+  const before = s.db.select().from(schemaSessions).where(eq(schemaSessions.id, childId)).get();
+  const sentBefore = [...child.sent];
+  const refusals: [string, () => unknown][] = [
+    ['send', () => s.sessions.send({ sessionId: childId, text: 'one more thing' })],
+    ['resume', () => s.sessions.resume({ sessionId: childId })],
+    ['archive', () => s.sessions.archive({ sessionId: childId, archived: true })],
+    ['delete', () => s.sessions.delete({ sessionId: childId })],
+    ['rename', () => s.sessions.rename({ sessionId: childId, title: 'mine' })],
+    ['setOption', () => s.sessions.setOption({ sessionId: childId, option: 'permissionMode', value: 'auto' })],
+  ];
+  for (const [name, call] of refusals) {
+    const refused = await Promise.resolve().then(call).then(() => undefined, (error: unknown) => error);
+    expect(refused, name).toBeInstanceOf(ChatRefused);
+    expect((refused as Error).message, name).toMatch(/belongs to its parent session/);
+  }
+  expect(s.db.select().from(schemaSessions).where(eq(schemaSessions.id, childId)).get()).toEqual(before);
+  expect(child.sent).toEqual(sentBefore);
+  expect(s.claude.opened).toHaveLength(2); // the parent's and the child's: nothing was resumed
+  expect(s.sessions.mcpView.live(childId)).toBe(true);
+
+  // closed, it still cannot be resumed
+  await s.sessions.close({ sessionId: childId });
+  await expect(s.sessions.resume({ sessionId: childId })).rejects.toThrow(/belongs to its parent session/);
+  expect(s.claude.opened).toHaveLength(2);
+
+  // a session that is nobody's child is refused none of these
+  expect(s.sessions.rename({ sessionId: parent.id, title: 'mine' })).toEqual({});
+});
+
+test('interrupt, close, answer and events work on a child as on any session', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit', 'the task');
+  const child = s.claude.conversations.at(-1)!;
+
+  expect(s.sessions.events({ sessionId: childId, limit: 10 }).session).toMatchObject({ id: childId, parentSessionId: parent.id });
+  child.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }] });
+  expect(s.sessions.events({ sessionId: childId, limit: 10 }).approvals).toMatchObject([{ approvalId: 'a1' }]);
+  expect(s.sessions.answer({ sessionId: childId, approvalId: 'a1', choiceId: 'deny' })).toEqual({});
+  expect(s.sessions.events({ sessionId: childId, limit: 10 }).approvals).toEqual([]);
+  await expect(s.sessions.interrupt({ sessionId: childId })).resolves.toEqual({});
+  await expect(s.sessions.close({ sessionId: childId })).resolves.toEqual({});
+  expect(child.closed).toBe(true);
+});

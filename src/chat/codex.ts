@@ -78,7 +78,7 @@ export const realCodexDeps: CodexChatDeps = { resolve: (command, env) => resolve
 
 export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, launch = {}, env, mcp, instructions }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env, mcp, instructions, child = false }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -86,7 +86,7 @@ export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner
         throw new ChatRefused(`Codex is not installed: ${command === undefined ? 'there is no "codex" on the path' : `"${command}" cannot be run`}`);
       }
       if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('Codex is not logged in; run "codex login" once to log in');
-      const conversation = new CodexConversation(options, binary);
+      const conversation = new CodexConversation(options, binary, child);
       try {
         await conversation.start(deps, { folder, env, resume, launch, mcp, instructions });
       } catch (error) {
@@ -129,14 +129,17 @@ class CodexConversation implements ChatConversation {
   private closing = false;
   private chosen: Record<string, string>;
   private binary: string;
+  /** A child session: its approvals offer no always-allow of a command. */
+  private child: boolean;
   /** The key the chat MCP is registered under, when it was handed over: its elicitations are accepted for the person. */
   private mcpServerName: string | undefined;
   mcpProblem: string | undefined;
   /** Called when the chat MCP reports that it started or failed, so `start` can stop waiting. */
   private mcpSettled = () => {};
 
-  constructor(chosen: Record<string, string>, binary: string) {
+  constructor(chosen: Record<string, string>, binary: string, child: boolean) {
     this.chosen = chosen;
+    this.child = child;
     this.binary = binary;
     this.model = chosen.model ?? '';
     this.effort = chosen.effort ?? '';
@@ -361,7 +364,7 @@ class CodexConversation implements ChatConversation {
       { id: 'accept', label: 'Allow', allow: true },
       { id: 'decline', label: 'Deny', allow: false },
     ];
-    if (amendment !== undefined) {
+    if (amendment !== undefined && !this.child) {
       decisions.amend = amendment;
       choices.push({ id: 'amend', label: `Always allow ${Array.isArray(params.proposedExecpolicyAmendment) ? params.proposedExecpolicyAmendment.join(' ') : 'this command'}`, allow: true });
     }

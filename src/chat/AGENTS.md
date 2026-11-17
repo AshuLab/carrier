@@ -23,6 +23,8 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   A child session (`parentSessionId`, from `startChild` of the MCP's `delegate_start`, [ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)) is a session of its own agent in its parent's folder, recorded as a plain folder, with its agent's options lowered to the parent's level.
   Its row is inserted first, so it holds one of the parent's four slots and its `delegationRequestId` while its conversation opens, and goes if the open fails; the check and that insert have no `await` between them.
   The list of sessions leaves children out and a parent's summary lists them as `children`; the `delegationRequestId` is never in a summary.
+  A child belongs to its parent: `send`, `resume`, `archive`, `delete`, `rename` and `setOption` (and a switch of agent) are refused through `refuseChild`, while `interrupt`, `close`, `answer` and `events` work as on any session.
+  It opens with `child: true`, so its adapter's approvals offer Allow and Deny and none of the suggestions that would raise it (Claude's mode, folders and rules, Codex's always-allow of a command), and its MCP token never gets `act`.
 - `plan.ts`: the plan's request schema and the step types.
 - `runner.ts`: the chat runner port, with `fake.ts` its test double; `claude.ts` and `codex.ts` are the Claude and Codex adapters.
 - `folder.ts`: the check of a session's folder, never inside `<folder>/engine/` (and `checkProjectsFolder`, the same rule for the projects folder).

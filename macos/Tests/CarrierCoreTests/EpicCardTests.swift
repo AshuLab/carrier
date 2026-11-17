@@ -25,6 +25,8 @@ private func running(
     #expect(card.steps.map(\.progress) == [nil, 0.4, nil])
     #expect(card.facts.map(\.label) == ["In this step", "Review", "Slices", "PR", "Branch"])
     #expect(card.facts.map(\.value) == ["10m", "round 2/5", "5/5 closed", "#28", "feat/issue-12/epic"])
+    // only the branch is drawn as one cut line; the rest are words
+    #expect(card.facts.map(\.kind) == [.text, .text, .text, .text, .branch])
     #expect(card.timeline == "queued 11m ago · started 10m ago")
 }
 

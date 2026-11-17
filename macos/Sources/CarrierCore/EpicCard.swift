@@ -11,10 +11,7 @@ public struct EpicCard: Equatable {
         public var progress: Double?
     }
 
-    public struct Fact: Equatable {
-        public var label: String
-        public var value: String
-    }
+    public typealias Fact = CardFact
 
     public var title: String
     /// The repository's name, never its owner: the project's icon is made from it.
@@ -61,7 +58,7 @@ public func epicCard(_ subject: EpicSubject, now: Int) -> EpicCard {
         ago("finished", epic.finishedAt)
     }
     if let pr = header.prLabel { facts.append(.init(label: "PR", value: String(pr.dropFirst(3)))) }
-    if case .active(let epic) = subject, let branch = epic.branch, branch.isEmpty == false { facts.append(.init(label: "Branch", value: branch)) }
+    if case .active(let epic) = subject, let branch = epic.branch, branch.isEmpty == false { facts.append(.init(label: "Branch", value: branch, kind: .branch)) }
 
     return EpicCard(title: header.title, name: header.repo.split(separator: "/").last.map(String.init) ?? header.repo, subtitle: header.subtitle, steps: steps, facts: facts, timeline: times.isEmpty ? nil : times.joined(separator: " · "))
 }

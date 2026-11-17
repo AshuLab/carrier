@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The cards that open when the pointer rests on a session or an epic in the sidebar are tidier: a long folder or branch is one line cut in the middle (the whole of it in its tooltip) instead of breaking over several lines, the branch has its own line, the agent shows its account's mark and name, and a session's state has the color of its row and says Done, as the row does, for a turn you have not opened.
+
 ## [0.9.0] - 2026-11-16
 
 Dictate in any app: a global shortcut opens a widget over whatever you are in and pastes what you say, with optional cleanup by a local model, a history of your dictations with their audio and statistics on how much you dictate.

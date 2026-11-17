@@ -22,15 +22,7 @@ struct EpicCardView: View {
                 }
             }
             if card.facts.isEmpty == false {
-                Grid(alignment: .topLeading, horizontalSpacing: 14, verticalSpacing: 5) {
-                    ForEach(card.facts.indices, id: \.self) { index in
-                        GridRow {
-                            Text(card.facts[index].label).foregroundStyle(.secondary)
-                            Text(card.facts[index].value).fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-                .font(SidebarMetrics.detail)
+                CardFactsGrid(facts: card.facts)
             }
             if let timeline = card.timeline {
                 Text(timeline).font(.scaled(11.5)).foregroundStyle(.tertiary)

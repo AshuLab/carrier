@@ -10,7 +10,7 @@ import { openChatDatabase } from './db.ts';
 import { FakeChatRunner, FakeGit, fakeProjects, type FakeConversation, type FakeRepo } from './fake.ts';
 import { ChatRefused } from './runner.ts';
 import { chatCaps } from './transcript.ts';
-import { sessions as schemaSessions } from './schema.ts';
+import { chatEvents, chatTurns, sessions as schemaSessions } from './schema.ts';
 import type { HealthProbes } from './health.ts';
 import { capabilities } from './mcp/capabilities.ts';
 import { McpSessionRegistry } from './mcp.ts';
@@ -2665,6 +2665,116 @@ test('an old conversation that dies while the switch opens does not stop it', as
   release();
   await expect(switched).resolves.toMatchObject({ session: { agent: 'b' } });
   expect(s.sessions.list({}).sessions[0]).toMatchObject({ live: true, agent: 'b' });
+});
+
+// A parent and its children as one: archive, delete, the clock and the host's idle exit (ADR 0033).
+async function family() {
+  const git = new FakeGit();
+  const s = delegation({ git, projects: fakeProjects(git, new FakeClock()) });
+  const repo = realpathSync(work);
+  git.repos.set(repo, { head: 'main', branches: ['main'], remoteBranches: ['main'], origin: 'git@github.com:acme/app.git' });
+  const { session: parent } = await s.sessions.open({ agent: 'main', folder: repo, worktree: { from: 'main', name: 'fam' } });
+  const workspace = parent.workspace as { path: string; branch: string };
+  git.repos.set(workspace.path, { head: workspace.branch, branches: [workspace.branch], status: [], unpushed: { [workspace.branch]: 0 } });
+  const parentConversation = s.claude.conversations[0]!;
+  const { childId } = await s.start(parent.id, 'edit');
+  const childConversation = s.claude.conversations.at(-1)!;
+  const rowOf = (id: string) => s.db.select().from(schemaSessions).where(eq(schemaSessions.id, id)).get();
+  const count = (id: string) => ({ events: s.db.select().from(chatEvents).where(eq(chatEvents.sessionId, id)).all().length, turns: s.db.select().from(chatTurns).where(eq(chatTurns.sessionId, id)).all().length });
+  return { ...s, git, parent, workspace, parentConversation, childId, childConversation, rowOf, count, finish: () => childConversation.emit({ kind: 'turn_end', outcome: 'ok' }) };
+}
+
+test('archiving a parent is refused with words while a child works and closes nothing, then closes the idle child and never archives it', async () => {
+  const f = await family();
+  await expect(f.sessions.archive({ sessionId: f.parent.id, archived: true })).rejects.toThrow(/A child of this session is working.*archive the session/);
+  expect(f.rowOf(f.parent.id)!.archived).toBe(false);
+  expect(f.parentConversation.closed).toBe(false);
+  f.finish();
+  await f.sessions.archive({ sessionId: f.parent.id, archived: true });
+  expect(f.rowOf(f.parent.id)!.archived).toBe(true);
+  expect(f.rowOf(f.childId)).toMatchObject({ archived: false, state: 'idle' });
+  expect(f.sessions.liveCount()).toBe(0);
+});
+
+test('deleting a parent is refused while a child works, leaving the family and its worktree, then removes the worktree and deletes the children and the parent', async () => {
+  const f = await family();
+  f.childConversation.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices: [{ id: 'allow', label: 'Allow', allow: true }] });
+  await expect(f.sessions.delete({ sessionId: f.parent.id })).rejects.toThrow(/A child of this session is waiting for an approval/);
+  expect(f.parentConversation.closed).toBe(false); // nothing was closed before the refusal
+  expect(existsSync(f.workspace.path)).toBe(true);
+  expect(f.rowOf(f.childId)).toBeDefined();
+  f.sessions.answer({ sessionId: f.childId, approvalId: 'a1', choiceId: 'allow' });
+  f.finish();
+  expect(f.count(f.childId).events).toBeGreaterThan(0);
+  await f.sessions.delete({ sessionId: f.parent.id });
+  expect(f.childConversation.closed).toBe(true);
+  expect(existsSync(f.workspace.path)).toBe(false);
+  expect(f.db.select().from(schemaSessions).all()).toEqual([]);
+  expect(f.count(f.childId)).toEqual({ events: 0, turns: 0 });
+  expect(f.count(f.parent.id)).toEqual({ events: 0, turns: 0 });
+});
+
+test('a parent whose worktree cannot be removed keeps its children', async () => {
+  const f = await family();
+  f.finish();
+  const run = f.git.run.bind(f.git);
+  f.git.run = async (folder, args, options) => (args[0] === 'worktree' && args[1] === 'remove' ? { ok: false, code: 1, stderr: 'locked' } : run(folder, args, options));
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  await expect(f.sessions.delete({ sessionId: f.parent.id })).rejects.toThrow();
+  expect(f.rowOf(f.parent.id)).toBeDefined();
+  expect(f.rowOf(f.childId)).toBeDefined();
+});
+
+test('the delete preview of a parent shows what deleting its family would discard: the worktree it shares with its children', async () => {
+  const f = await family();
+  f.git.repos.get(f.workspace.path)!.status = [' M a.ts'];
+  expect((await f.sessions.deletePreview({ sessionIds: [f.parent.id] })).sessions).toEqual([{ sessionId: f.parent.id, worktree: expect.objectContaining({ path: f.workspace.path, dirty: 1 }) }]);
+});
+
+test('the clock ages a parent and its children as one: a working child keeps a closed parent from being archived, and the latest activity of the family sets when it is archived and deleted', async () => {
+  const f = await family();
+  const ages = { archiveAfterDays: 15, deleteAfterDays: 30 };
+  await f.sessions.close({ sessionId: f.parent.id }); // closed for being idle, the child still works
+  f.clock.time = 20 * DAY;
+  await f.sessions.applyClock(ages);
+  expect(f.rowOf(f.parent.id)!.archived).toBe(false); // the family is live
+  f.clock.time = 25 * DAY;
+  f.finish(); // the child's last activity: day 25
+  await f.sessions.close({ sessionId: f.childId });
+  f.clock.time = 39 * DAY;
+  await f.sessions.applyClock(ages);
+  expect(f.rowOf(f.parent.id)!.archived).toBe(false); // the parent alone has been idle 39 days, the family 14
+  f.clock.time = 40 * DAY;
+  await f.sessions.applyClock(ages);
+  expect(f.rowOf(f.parent.id)!.archived).toBe(true);
+  expect(f.rowOf(f.childId)!.archived).toBe(false); // a child is never archived by itself
+  expect(f.sessions.list({ archived: true }).sessions[0]).toMatchObject({ deleteAt: 55 * DAY, kept: false });
+  f.clock.time = 54 * DAY;
+  await f.sessions.applyClock(ages);
+  expect(f.rowOf(f.parent.id)).toBeDefined(); // the parent alone is long past 30 days
+  f.clock.time = 55 * DAY;
+  await f.sessions.applyClock(ages);
+  expect(f.db.select().from(schemaSessions).all()).toEqual([]);
+});
+
+test('an archived parent whose child is live is not deleted by the clock, and a kept family reads kept from the family\'s clock', async () => {
+  const f = await family();
+  f.finish();
+  await f.sessions.archive({ sessionId: f.parent.id, archived: true });
+  f.git.repos.get(f.workspace.path)!.status = [' M a.ts'];
+  f.clock.time = 60 * DAY;
+  await f.sessions.applyClock({ archiveAfterDays: 15, deleteAfterDays: 30 });
+  expect(f.rowOf(f.parent.id)).toBeDefined();
+  expect(f.sessions.list({ archived: true }).sessions[0]).toMatchObject({ kept: true, deleteAt: null });
+});
+
+test('a host with a child working is live: a closed parent does not make it idle', async () => {
+  const f = await family();
+  await f.sessions.close({ sessionId: f.parent.id });
+  expect(f.sessions.liveCount()).toBe(1);
+  f.finish();
+  await f.sessions.close({ sessionId: f.childId });
+  expect(f.sessions.liveCount()).toBe(0);
 });
 
 test('the delegation is offered only in a mode that asks, on the scale, on a harness that is new enough, and each refusal says why in the words `agents` gives', async () => {

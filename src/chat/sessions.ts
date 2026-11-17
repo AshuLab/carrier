@@ -157,6 +157,11 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const live = lives.get(sessionId);
     return live === undefined ? (stored ?? {}) : Object.fromEntries(live.conversation.options.map((option) => [option.id, option.current]));
   };
+  /** A session aged with its children as one (ADR 0033): the latest activity of the family, live when any member is. */
+  const familyClock = (found: { id: string; lastActiveAt: number }) => {
+    const kids = db.select({ id: sessions.id, lastActiveAt: sessions.lastActiveAt }).from(sessions).where(eq(sessions.parentSessionId, found.id)).all();
+    return { lastActiveAt: Math.max(found.lastActiveAt, ...kids.map((kid) => kid.lastActiveAt)), live: [found, ...kids].some((member) => lives.has(member.id)) };
+  };
   const childrenOf = (parentId: string): ChildSummary[] =>
     db.select().from(sessions).where(eq(sessions.parentSessionId, parentId)).orderBy(asc(sessions.createdAt)).all().map((child) => ({
       id: child.id,
@@ -305,16 +310,24 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     return {};
   }
 
-  /** Readies a session to be archived or deleted: refuses an unknown one, and one working or waiting for an approval; closes an idle live one.
+  /** The ids of a session's children. */
+  const kidsOf = (parentId: string) => db.select({ id: sessions.id }).from(sessions).where(eq(sessions.parentSessionId, parentId)).all().map((kid) => kid.id);
+
+  /** Readies a session and its children to be archived or deleted: refuses, before closing anything, an unknown one, one working or waiting for an approval and a child that does; then closes the idle live ones.
    * An archive does not wait for the agent to end, which can take seconds (the person is watching the row go); a delete does, as its worktree cannot be removed under a running agent. */
   async function settle(sessionId: string, verb: 'archive' | 'delete') {
     notSwitching(sessionId);
     if (row(sessionId).state === 'preparing') throw new ChatRefused(`This session is being prepared; wait for it to finish, then ${verb} it`);
-    const live = lives.get(sessionId);
-    if (live === undefined) return;
-    if (live.state !== 'idle') throw new ChatRefused(`This session is ${live.state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} it`);
-    await close({ sessionId }, { wait: verb === 'delete' });
-    if (lives.has(sessionId)) throw new ChatRefused('This session was resumed meanwhile; close it first'); // a resume that finished during the close
+    const family = [sessionId, ...kidsOf(sessionId)];
+    for (const id of family) {
+      const state = lives.get(id)?.state;
+      if (state !== undefined && state !== 'idle') throw new ChatRefused(`${id === sessionId ? 'This session' : 'A child of this session'} is ${state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} ${id === sessionId ? 'it' : 'the session'}`);
+    }
+    for (const id of family) {
+      if (lives.has(id) === false) continue;
+      await close({ sessionId: id }, { wait: verb === 'delete' });
+      if (lives.has(id)) throw new ChatRefused('This session was resumed meanwhile; close it first'); // a resume that finished during the close
+    }
   }
 
   /** How an agent starts, from its account as `providers.json` has it now: refuses, naming the account, one that is missing or Antigravity's. */
@@ -354,10 +367,11 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const { workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } = row(sessionId);
       // The worktree goes first: one that cannot be removed stops the deletion and the session stays.
       if (workspaceKind === 'worktree') await deleteWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! });
+      const family = [...kidsOf(sessionId), sessionId]; // the children first: they reference the parent
       db.transaction((tx) => {
-        tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
-        tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
-        tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
+        tx.delete(chatEvents).where(inArray(chatEvents.sessionId, family)).run();
+        tx.delete(chatTurns).where(inArray(chatTurns.sessionId, family)).run();
+        for (const id of family) tx.delete(sessions).where(eq(sessions.id, id)).run();
       });
     } finally {
       deleting.delete(sessionId);
@@ -889,7 +903,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const { archiveAfterDays, deleteAfterDays } = ages();
       return {
         sessions: db.select().from(sessions).where(and(eq(sessions.archived, archived), isNull(sessions.parentSessionId))).orderBy(desc(sessions.lastActiveAt)).all().map((found) => {
-          const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? found.lastActiveAt + deleteAfterDays * DAY : null;
+          const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? familyClock(found).lastActiveAt + deleteAfterDays * DAY : null;
           const kept = found.keptAt !== null && dueAt !== null && clock.now() >= dueAt; // a session the clock no longer considers (ages raised or never) is not kept
           return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id) };
         }),
@@ -1156,18 +1170,21 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
      */
     async applyClock({ archiveAfterDays, deleteAfterDays }: SessionAges) {
       const now = clock.now();
-      for (const found of db.select().from(sessions).where(eq(sessions.archived, false)).all()) {
-        if (idleFor(found, lives.has(found.id), now, archiveAfterDays)) db.update(sessions).set({ archived: true }).where(eq(sessions.id, found.id)).run();
+      for (const found of db.select().from(sessions).where(and(eq(sessions.archived, false), isNull(sessions.parentSessionId))).all()) {
+        const { lastActiveAt, live } = familyClock(found);
+        if (idleFor({ state: found.state, lastActiveAt }, live, now, archiveAfterDays)) db.update(sessions).set({ archived: true }).where(eq(sessions.id, found.id)).run();
       }
       if (archiveAfterDays === 'never') return;
-      for (const { id } of db.select().from(sessions).where(eq(sessions.archived, true)).all()) {
+      for (const { id } of db.select().from(sessions).where(and(eq(sessions.archived, true), isNull(sessions.parentSessionId))).all()) {
         if (closed) return;
         try {
           // read again after each wait: the person may have restored or resumed it meanwhile, or the host may be shutting down
           const due = () => {
             if (closed) return undefined;
             const found = db.select().from(sessions).where(eq(sessions.id, id)).get();
-            return found?.archived === true && idleFor(found, lives.has(id), now, deleteAfterDays) ? found : undefined;
+            if (found?.archived !== true) return undefined;
+            const { lastActiveAt, live } = familyClock(found);
+            return idleFor({ state: found.state, lastActiveAt }, live, now, deleteAfterDays) ? found : undefined;
           };
           const found = due();
           if (found === undefined) continue;

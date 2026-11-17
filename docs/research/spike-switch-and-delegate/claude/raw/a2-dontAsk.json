@@ -3,45 +3,174 @@
   "init": {
     "model": "claude-haiku-5-5",
     "permissionMode": "dontAsk",
-    "claude_code_version": "2.1.325",
+    "claude_code_version": "2.1.326",
     "mcp_servers": [
       {
-        "name": "codegraph",
+        "name": "claude.ai Claude Data",
         "status": "connected",
-        "source": "user"
+        "source": "claudeai"
       },
       {
-        "name": "sentry",
+        "name": "claude.ai Claude Docs",
+        "status": "connected",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Meetings",
+        "status": "connected",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Slides",
         "status": "needs-auth",
-        "source": "user"
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Sheets",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Docs",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Calendar",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Slack",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Notion",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai monday.com",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Linear",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Intercom",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai HubSpot",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Figma",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Canva",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Box",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Atlassian",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Asana",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Sass BluePrint",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Vercel",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Drive",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Gmail",
+        "status": "needs-auth",
+        "source": "claudeai"
       }
     ],
     "tools": [
       "Task",
       "AskUserQuestion",
       "Bash",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "DesignSync",
       "Edit",
+      "EnterPlanMode",
       "EnterWorktree",
+      "ExitPlanMode",
       "ExitWorktree",
       "ListAgents",
       "Monitor",
+      "NotebookEdit",
       "PublishPlugin",
+      "PushNotification",
       "Read",
+      "RemoteTrigger",
+      "ReportFindings",
+      "ScheduleWakeup",
+      "SendMessage",
       "ShareOnboardingGuide",
       "Skill",
       "TaskStop",
       "ToolSearch",
       "WebFetch",
       "WebSearch",
+      "Workflow",
       "Write",
-      "mcp__codegraph__analyze_diff",
-      "mcp__codegraph__analyze_impact",
-      "mcp__codegraph__find_dead_code",
-      "mcp__codegraph__inspect_symbol",
-      "mcp__codegraph__open_explorer",
-      "mcp__codegraph__search_symbols",
-      "mcp__codegraph__survey_repo",
-      "mcp__codegraph__trace_path"
+      "mcp__claude_ai_Claude_Data__certify_query",
+      "mcp__claude_ai_Claude_Data__get_certified_query_source",
+      "mcp__claude_ai_Claude_Data__get_live_results",
+      "mcp__claude_ai_Claude_Data__list_certified_queries",
+      "mcp__claude_ai_Claude_Data__set_certified_query_source",
+      "mcp__claude_ai_Claude_Data__share_connector",
+      "mcp__claude_ai_Claude_Data__share_live_queries",
+      "mcp__claude_ai_Claude_Data__shared_results",
+      "mcp__claude_ai_Claude_Data__uncertify_query",
+      "mcp__claude_ai_Claude_Data__unshare_connector",
+      "mcp__claude_ai_Claude_Data__unshare_live_queries",
+      "mcp__claude_ai_Claude_Docs__batch",
+      "mcp__claude_ai_Claude_Docs__create",
+      "mcp__claude_ai_Claude_Docs__delete",
+      "mcp__claude_ai_Claude_Docs__export",
+      "mcp__claude_ai_Claude_Docs__guide",
+      "mcp__claude_ai_Claude_Docs__query",
+      "mcp__claude_ai_Claude_Docs__read",
+      "mcp__claude_ai_Claude_Docs__update",
+      "mcp__claude_ai_Meetings__follow_meeting_transcript",
+      "mcp__claude_ai_Meetings__get_meeting",
+      "mcp__claude_ai_Meetings__get_meeting_action_items",
+      "mcp__claude_ai_Meetings__get_meeting_transcript",
+      "mcp__claude_ai_Meetings__list_meetings"
     ]
   },
   "turns": [
@@ -49,34 +178,34 @@
       "probe": "write-inside",
       "turn": {
         "prompt": "Create a file named a.txt in the current working folder with the text hi inside. Do nothing else, and if it is refused do not try another way.",
-        "ms": 2480,
+        "ms": 3874,
         "asked": [],
         "tools": [
           {
             "name": "Bash",
             "input": {
-              "command": "printf 'hi' > a.txt && cat a.txt",
-              "description": "Create a.txt containing hi and verify it"
+              "command": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-WpONyD/a.txt\" && cat \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-WpONyD/a.txt\"",
+              "description": "Create a.txt containing hi and verify its contents"
             }
           }
         ],
         "results": [
           {
-            "tool": "toolu_011WryG3vjnsHogrf6rnjCDS",
+            "tool": "toolu_01RwWLVm4DkGbidAKivzXZ5T",
             "error": true,
             "text": "Permission to use Bash has been denied because Claude Code is running in don't ask mode. IMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to accomplish this goal, e.g. using head instead "
           }
         ],
-        "said": "No, I couldn't create `a.txt`. The shell command was denied because this session is running in \"don't ask\" mode. You said not to try another way if refused, so I stopped there and did not use another tool to write the file.\n\nTo create it, allow Bash for this session, or create the file yourself with `printf 'hi' > a.txt`.\n",
+        "said": "I couldn't create `a.txt`. The shell command was refused because Claude Code is running in \"don't ask\" mode, and you asked me not to try another way if it was refused, so I stopped there. Nothing was written.\n\nThe command I tried was `printf 'hi'` redirected to `a.txt` in `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-WpONyD/`. If you want the file created, you'll need to allow shell commands for this session or create it yourself with `echo hi > a.txt`.\n",
         "outcome": "success",
-        "resultText": "No, I couldn't create `a.txt`. The shell command was denied because this session is running in \"don't ask\" mode. You said not to try another way if refused, so I stopped there and did not use another tool to write the file.\n\nTo create it, allow Bash for this session, or create the file yourself with",
+        "resultText": "I couldn't create `a.txt`. The shell command was refused because Claude Code is running in \"don't ask\" mode, and you asked me not to try another way if it was refused, so I stopped there. Nothing was written.\n\nThe command I tried was `printf 'hi'` redirected to `a.txt` in `/private/var/folders/k_/fj",
         "denials": [
           {
             "tool_name": "Bash",
-            "tool_use_id": "toolu_011WryG3vjnsHogrf6rnjCDS",
+            "tool_use_id": "toolu_01RwWLVm4DkGbidAKivzXZ5T",
             "tool_input": {
-              "command": "printf 'hi' > a.txt && cat a.txt",
-              "description": "Create a.txt containing hi and verify it"
+              "command": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-WpONyD/a.txt\" && cat \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-WpONyD/a.txt\"",
+              "description": "Create a.txt containing hi and verify its contents"
             }
           }
         ]
@@ -86,35 +215,35 @@
     {
       "probe": "write-outside",
       "turn": {
-        "prompt": "Create a file named b.txt with the text hi inside, in the folder /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF. Do nothing else, and if it is refused do not try another way.",
-        "ms": 2288,
+        "prompt": "Create a file named b.txt with the text hi inside, in the folder /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-0YJMIt. Do nothing else, and if it is refused do not try another way.",
+        "ms": 2456,
         "asked": [],
         "tools": [
           {
             "name": "Bash",
             "input": {
-              "command": "printf 'hi' > /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt && cat /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt",
-              "description": "Create b.txt containing hi in the given folder and verify it"
+              "command": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-0YJMIt/b.txt\"",
+              "description": "Create b.txt containing hi in the specified folder"
             }
           }
         ],
         "results": [
           {
-            "tool": "toolu_01A5vSo4wrhcvUJaJfyfACVt",
+            "tool": "toolu_01V8PN9Z66MbnoYLep95AXv9",
             "error": true,
             "text": "Permission to use Bash has been denied because Claude Code is running in don't ask mode. IMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to accomplish this goal, e.g. using head instead "
           }
         ],
-        "said": "No, I couldn't create `b.txt`. The shell command was denied again (\"don't ask\" mode), so I stopped as you asked and did not try another way.\n\nTo create it, allow Bash for this session, or run `printf 'hi' > /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt` yourself.\n",
+        "said": "I couldn't create `b.txt`. The shell command was refused again because Claude Code is running in \"don't ask\" mode. You asked me not to try another way if it was refused, so I stopped. Nothing was written to `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-0YJMIt/`.\n\nTo get it created, allow shell commands for this session or run `echo hi > b.txt` in that folder yourself.\n",
         "outcome": "success",
-        "resultText": "No, I couldn't create `b.txt`. The shell command was denied again (\"don't ask\" mode), so I stopped as you asked and did not try another way.\n\nTo create it, allow Bash for this session, or run `printf 'hi' > /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt` yourself.",
+        "resultText": "I couldn't create `b.txt`. The shell command was refused again because Claude Code is running in \"don't ask\" mode. You asked me not to try another way if it was refused, so I stopped. Nothing was written to `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-0YJMIt/`.\n\nTo get it created",
         "denials": [
           {
             "tool_name": "Bash",
-            "tool_use_id": "toolu_01A5vSo4wrhcvUJaJfyfACVt",
+            "tool_use_id": "toolu_01V8PN9Z66MbnoYLep95AXv9",
             "tool_input": {
-              "command": "printf 'hi' > /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt && cat /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt",
-              "description": "Create b.txt containing hi in the given folder and verify it"
+              "command": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-0YJMIt/b.txt\"",
+              "description": "Create b.txt containing hi in the specified folder"
             }
           }
         ]
@@ -125,34 +254,34 @@
       "probe": "curl",
       "turn": {
         "prompt": "Run the shell command: curl -sI https://example.com | head -1 Do nothing else, and if it is refused do not try another way.",
-        "ms": 1868,
+        "ms": 2232,
         "asked": [],
         "tools": [
           {
             "name": "Bash",
             "input": {
               "command": "curl -sI https://example.com | head -1",
-              "description": "Fetch HTTP status line from example.com"
+              "description": "Fetch HTTP headers from example.com and show status line"
             }
           }
         ],
         "results": [
           {
-            "tool": "toolu_01R1dcmA65QMtDoRHndBcGqr",
+            "tool": "toolu_01V47kubNeT3xhijJrVFz49A",
             "error": true,
             "text": "Permission to use Bash has been denied because Claude Code is running in don't ask mode. IMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to accomplish this goal, e.g. using head instead "
           }
         ],
-        "said": "No, the command was refused. Bash is denied in this session (\"don't ask\" mode), so I did not run `curl -sI https://example.com | head -1` and did not try another way.\n\nTo run it, allow Bash for this session, or run the command yourself.\n",
+        "said": "The shell command `curl -sI https://example.com | head -1` was refused. Claude Code is running in \"don't ask\" mode, so Bash is blocked. You asked me not to try another way, so I stopped. Nothing was fetched.\n\nTo run it, allow Bash for this session or run the command yourself in a terminal.\n",
         "outcome": "success",
-        "resultText": "No, the command was refused. Bash is denied in this session (\"don't ask\" mode), so I did not run `curl -sI https://example.com | head -1` and did not try another way.\n\nTo run it, allow Bash for this session, or run the command yourself.",
+        "resultText": "The shell command `curl -sI https://example.com | head -1` was refused. Claude Code is running in \"don't ask\" mode, so Bash is blocked. You asked me not to try another way, so I stopped. Nothing was fetched.\n\nTo run it, allow Bash for this session or run the command yourself in a terminal.",
         "denials": [
           {
             "tool_name": "Bash",
-            "tool_use_id": "toolu_01R1dcmA65QMtDoRHndBcGqr",
+            "tool_use_id": "toolu_01V47kubNeT3xhijJrVFz49A",
             "tool_input": {
               "command": "curl -sI https://example.com | head -1",
-              "description": "Fetch HTTP status line from example.com"
+              "description": "Fetch HTTP headers from example.com and show status line"
             }
           }
         ]
@@ -162,7 +291,7 @@
       "probe": "ls",
       "turn": {
         "prompt": "Run the shell command: ls Do nothing else, and if it is refused do not try another way.",
-        "ms": 2847,
+        "ms": 3037,
         "asked": [],
         "tools": [
           {
@@ -175,14 +304,14 @@
         ],
         "results": [
           {
-            "tool": "toolu_019vAE2RArGhJDMkCcfVXaon",
+            "tool": "toolu_01Lfu1JAd2AoSqPNPstjjp2s",
             "error": false,
             "text": "(Bash completed with no output)"
           }
         ],
-        "said": "The `ls` command ran and printed nothing, so the current folder is empty. This time Bash was allowed.\n",
+        "said": "The `ls` command ran and printed nothing, so the current working directory is empty.\n",
         "outcome": "success",
-        "resultText": "The `ls` command ran and printed nothing, so the current folder is empty. This time Bash was allowed.",
+        "resultText": "The `ls` command ran and printed nothing, so the current working directory is empty.",
         "denials": []
       }
     }

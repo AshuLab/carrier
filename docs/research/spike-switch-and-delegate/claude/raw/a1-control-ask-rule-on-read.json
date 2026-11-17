@@ -13,65 +13,170 @@
   "init": {
     "model": "claude-haiku-5-5",
     "permissionMode": "default",
-    "claude_code_version": "2.1.325",
+    "claude_code_version": "2.1.326",
     "mcp_servers": [
-      {
-        "name": "codegraph",
-        "status": "connected",
-        "source": "user"
-      },
-      {
-        "name": "sentry",
-        "status": "needs-auth",
-        "source": "user"
-      },
       {
         "name": "carrier-chat",
         "status": "connected",
         "source": "dynamic"
+      },
+      {
+        "name": "claude.ai Claude Data",
+        "status": "pending",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Claude Docs",
+        "status": "pending",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Meetings",
+        "status": "pending",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Slides",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Sheets",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Docs",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Calendar",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Slack",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Notion",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai monday.com",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Linear",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Intercom",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai HubSpot",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Figma",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Canva",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Box",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Atlassian",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Asana",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Sass BluePrint",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Vercel",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Drive",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Gmail",
+        "status": "needs-auth",
+        "source": "claudeai"
       }
     ],
     "tools": [
       "Task",
       "AskUserQuestion",
       "Bash",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "DesignSync",
       "Edit",
+      "EnterPlanMode",
       "EnterWorktree",
+      "ExitPlanMode",
       "ExitWorktree",
       "ListAgents",
       "Monitor",
+      "NotebookEdit",
       "PublishPlugin",
+      "PushNotification",
       "Read",
+      "RemoteTrigger",
+      "ReportFindings",
+      "ScheduleWakeup",
+      "SendMessage",
       "ShareOnboardingGuide",
       "Skill",
       "TaskStop",
       "ToolSearch",
       "WebFetch",
       "WebSearch",
+      "Workflow",
       "Write",
       "mcp__carrier-chat__ping_act",
-      "mcp__carrier-chat__ping_read",
-      "mcp__codegraph__analyze_diff",
-      "mcp__codegraph__analyze_impact",
-      "mcp__codegraph__find_dead_code",
-      "mcp__codegraph__inspect_symbol",
-      "mcp__codegraph__open_explorer",
-      "mcp__codegraph__search_symbols",
-      "mcp__codegraph__survey_repo",
-      "mcp__codegraph__trace_path"
+      "mcp__carrier-chat__ping_read"
     ]
   },
-  "readyMs": 436,
+  "readyMs": 1131,
   "turn": {
     "prompt": "Call ping_read, then call ping_act, then say what happened",
-    "ms": 4767,
+    "ms": 6197,
     "asked": [
       {
         "turn": 1,
         "tool": "mcp__carrier-chat__ping_read",
         "input": {},
         "displayName": "Ping Read",
-        "toolUseID": "toolu_019URM8UJ7r36BCE1AfNz5bL"
+        "toolUseID": "toolu_011ZnmUkjNabhrey3ffNPTJT"
       },
       {
         "turn": 1,
@@ -90,7 +195,7 @@
             "destination": "localSettings"
           }
         ],
-        "toolUseID": "toolu_01XKmC8tpsiqMmdjw95KPekd"
+        "toolUseID": "toolu_01XQbrHz4B7cvPTXaYYCyoye"
       }
     ],
     "tools": [
@@ -112,33 +217,33 @@
     ],
     "results": [
       {
-        "tool": "toolu_01LLKeDtBy3Uw2MKRjvGNn9d",
+        "tool": "toolu_01VwPWKBQgjygGShxURMgrT2",
         "error": false,
         "text": " "
       },
       {
-        "tool": "toolu_019URM8UJ7r36BCE1AfNz5bL",
+        "tool": "toolu_011ZnmUkjNabhrey3ffNPTJT",
         "error": true,
         "text": "Denied by the spike probe."
       },
       {
-        "tool": "toolu_01XKmC8tpsiqMmdjw95KPekd",
+        "tool": "toolu_01XQbrHz4B7cvPTXaYYCyoye",
         "error": true,
         "text": "Denied by the spike probe."
       }
     ],
-    "said": "Ambos fallaron con \"Denied by the spike probe\".\n\n- `ping_read`: denegado.\n- `ping_act`: denegado.\n\nEs un bloqueo del lado del servidor, no un error de parámetros (no reciben argumentos). No sé si el probe es intencional; si lo esperas, no hay nada que arreglar. Si no, habría que revisar la configuración del servidor `carrier-chat`.\n",
+    "said": "`ping_read` was denied, but you asked me to call `ping_act` regardless, so I'll make that call now.\nBoth calls were denied, each with the same message: \"Denied by the spike probe.\"\n\n1. **`ping_read`**: denied. I loaded both tool schemas with ToolSearch first, then called it.\n2. **`ping_act`**: denied, with the same message. I called it after `ping_read`, as you asked, even though the first call failed.\n\nThe error comes from the tool side, not from anything in the content. The denial doesn't say why, and I didn't retry either call.\n",
     "outcome": "success",
-    "resultText": "Ambos fallaron con \"Denied by the spike probe\".\n\n- `ping_read`: denegado.\n- `ping_act`: denegado.\n\nEs un bloqueo del lado del servidor, no un error de parámetros (no reciben argumentos). No sé si el probe es intencional; si lo esperas, no hay nada que arreglar. Si no, habría que revisar la configura",
+    "resultText": "Both calls were denied, each with the same message: \"Denied by the spike probe.\"\n\n1. **`ping_read`**: denied. I loaded both tool schemas with ToolSearch first, then called it.\n2. **`ping_act`**: denied, with the same message. I called it after `ping_read`, as you asked, even though the first call fa",
     "denials": [
       {
         "tool_name": "mcp__carrier-chat__ping_read",
-        "tool_use_id": "toolu_019URM8UJ7r36BCE1AfNz5bL",
+        "tool_use_id": "toolu_011ZnmUkjNabhrey3ffNPTJT",
         "tool_input": {}
       },
       {
         "tool_name": "mcp__carrier-chat__ping_act",
-        "tool_use_id": "toolu_01XKmC8tpsiqMmdjw95KPekd",
+        "tool_use_id": "toolu_01XQbrHz4B7cvPTXaYYCyoye",
         "tool_input": {}
       }
     ]

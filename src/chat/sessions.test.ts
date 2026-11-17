@@ -680,6 +680,69 @@ test('stopTask reaches the agent only for a task running in that session; an unk
   await expect(sessions.stopTask({ sessionId: id, taskId: 'c' })).rejects.toThrow('This session is closed');
 });
 
+const task = (taskId: string, state: 'started' | 'completed' | 'failed' | 'stopped') => ({ kind: 'task' as const, callId: `call-${taskId}`, taskId, state });
+const stateOf = (s: { sessions: ReturnType<typeof createSessions> }, id: string) => s.sessions.list({}).sessions.find((x) => x.id === id)!.state;
+
+test('a session works while a subagent runs, after its turn ended: idle only when the turn is over and every task ended', async () => {
+  const s = setup();
+  const { conversation, id } = await openOne(s);
+  conversation.reply = (_text, c) => c.emit(task('a', 'started'), task('b', 'started'), { kind: 'turn_end', outcome: 'ok' });
+  s.sessions.send({ sessionId: id, text: 'launch two' });
+  expect(stateOf(s, id)).toBe('working'); // the turn ended with two tasks running
+  conversation.emit(task('a', 'completed'));
+  expect(stateOf(s, id)).toBe('working'); // two tasks need both to end
+  conversation.emit(task('b', 'failed'));
+  expect(stateOf(s, id)).toBe('idle');
+
+  // a turn that ends with none is idle at once, and a task that ends inside its turn leaves the turn working
+  conversation.reply = (_text, c) => c.emit(task('c', 'started'), task('c', 'stopped'), { kind: 'turn_end', outcome: 'ok' });
+  s.sessions.send({ sessionId: id, text: 'one that ends in the turn' });
+  expect(stateOf(s, id)).toBe('idle');
+  conversation.reply = () => {};
+  s.sessions.send({ sessionId: id, text: 'go' });
+  conversation.emit(task('d', 'started'), task('d', 'stopped'));
+  expect(stateOf(s, id)).toBe('working'); // the turn has not ended
+  conversation.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(stateOf(s, id)).toBe('idle');
+});
+
+test('a task that outlives its interrupted turn keeps the session working until it stops', async () => {
+  const s = setup();
+  const { conversation, id } = await openOne(s);
+  conversation.reply = () => {};
+  s.sessions.send({ sessionId: id, text: 'go' });
+  conversation.emit(task('a', 'started'));
+  await s.sessions.interrupt({ sessionId: id });
+  expect(stateOf(s, id)).toBe('working');
+  await s.sessions.stopTask({ sessionId: id, taskId: 'a' });
+  conversation.emit(task('a', 'stopped'));
+  expect(stateOf(s, id)).toBe('idle');
+});
+
+test('a session that works only because of a task is refused by archive and by delete, and the idle sweep does not close it', async () => {
+  const s = setup();
+  const { conversation, id } = await openOne(s);
+  conversation.emit(task('a', 'started'), { kind: 'turn_end', outcome: 'ok' });
+  expect(stateOf(s, id)).toBe('working');
+  await expect(s.sessions.archive({ sessionId: id, archived: true })).rejects.toThrow(/working; interrupt or close it first, then archive it/);
+  await expect(s.sessions.delete({ sessionId: id })).rejects.toThrow(/working; interrupt or close it first, then delete it/);
+  await s.clock.advance(10 * 60_000);
+  expect(conversation.closed).toBe(false);
+  conversation.emit(task('a', 'completed'));
+  await s.clock.advance(60_000); // idle now: the minute runs
+  expect(conversation.closed).toBe(true);
+});
+
+test('a session resumed after the host restarted has no running tasks and is idle, whatever its stored events say', async () => {
+  const s = setup();
+  const { conversation, id, sessions } = await openOne(s);
+  conversation.emit(task('a', 'started'), { kind: 'turn_end', outcome: 'ok' });
+  await sessions.close({ sessionId: id });
+  await sessions.resume({ sessionId: id });
+  expect(stateOf(s, id)).toBe('idle');
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'a' })).rejects.toThrow('That subagent is not running');
+});
+
 test('an interrupt ends the running turn as interrupted and the session takes the next message; with no turn it changes nothing', async () => {
   const { sessions, conversation, id, clock } = await openOne();
   expect(await sessions.interrupt({ sessionId: id })).toEqual({});

@@ -93,14 +93,38 @@ public struct BackgroundTask: Equatable, Decodable {
     public var id: String
     public var kind: String
     public var description: String
+    /// When the host first saw it; nil from a host that does not say.
+    public var startedAt: Date?
 
-    public init(id: String, kind: String, description: String) { (self.id, self.kind, self.description) = (id, kind, description) }
+    public init(id: String, kind: String, description: String, startedAt: Date? = nil) { (self.id, self.kind, self.description, self.startedAt) = (id, kind, description, startedAt) }
+
+    private enum CodingKeys: String, CodingKey { case id, kind, description, startedAt }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        kind = try values.decode(String.self, forKey: .kind)
+        description = try values.decode(String.self, forKey: .description)
+        startedAt = try values.decodeIfPresent(Double.self, forKey: .startedAt).map { Date(timeIntervalSince1970: $0 / 1000) }
+    }
+
+    /// What names it: what the agent said it was, else its kind.
+    public var name: String { description.isEmpty ? kind : description }
 }
+
+/// The tasks the card's line names, one at a time: they take their turn each `tick` (the line rolls from one to the next), and none is no line.
+public func backgroundWords(_ tasks: [BackgroundTask], tick: Int) -> String? {
+    guard tasks.isEmpty == false else { return nil }
+    return "Waiting on \(tasks[abs(tick) % tasks.count].name)"
+}
+
+/// How many they are, after the words, when there is more than one: "· 3 tasks".
+public func backgroundCount(_ tasks: [BackgroundTask]) -> String? { tasks.count > 1 ? "· \(tasks.count) tasks" : nil }
 
 /// What a session whose turn ended waits for, in a line: "Waiting on pnpm build", "Waiting on pnpm build and 2 more"; nil when it waits for nothing.
 public func waitingOnText(_ tasks: [BackgroundTask]) -> String? {
     guard let first = tasks.first else { return nil }
-    let name = first.description.isEmpty ? first.kind : first.description
+    let name = first.name
     return tasks.count == 1 ? "Waiting on \(name)" : "Waiting on \(name) and \(tasks.count - 1) more"
 }
 

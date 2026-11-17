@@ -416,6 +416,35 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     #expect(await model.rows.count == 2000)
 }
 
+@Test func theConversationModelKnowsWhatTheAgentWaitsForFromTheHostsList() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    // the fixture's session whose turn ended while a build runs, and one that waits for nothing
+    let building = await ConversationModel(host: host, sessionId: "9b8c7d6e-5f4a-4b3c-8d2e-1f0a9b8c7d07")
+    await building.poll()
+    #expect(await building.background.map(\.name) == ["pnpm build", "pnpm test", "Review the diff"])
+    let idle = await ConversationModel(host: host, sessionId: "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")
+    await idle.poll()
+    #expect(await idle.background.isEmpty)
+}
+
+@Test func aBackgroundTaskKnowsWhenItBeganAndTheCardsLineTakesTheTasksInTurn() throws {
+    let task = try JSONDecoder().decode(BackgroundTask.self, from: Data(#"{"id":"b","kind":"local_bash","description":"pnpm build","startedAt":1792000000000}"#.utf8))
+    #expect(task.startedAt == Date(timeIntervalSince1970: 1_792_000_000) && task.name == "pnpm build")
+    // a host that does not say when, and a task the agent did not describe
+    let bare = try JSONDecoder().decode(BackgroundTask.self, from: Data(#"{"id":"c","kind":"monitor","description":""}"#.utf8))
+    #expect(bare.startedAt == nil && bare.name == "monitor")
+
+    let tasks = [BackgroundTask(id: "a", kind: "local_bash", description: "pnpm build"), BackgroundTask(id: "b", kind: "local_bash", description: "pnpm test"), BackgroundTask(id: "c", kind: "local_agent", description: "review the diff")]
+    #expect(backgroundWords([], tick: 0) == nil && backgroundCount([]) == nil && backgroundCount([tasks[0]]) == nil)
+    #expect(backgroundWords([tasks[0]], tick: 7) == "Waiting on pnpm build")
+    // they take their turn each tick, round and round, whatever the tick is
+    #expect((0..<4).map { backgroundWords(tasks, tick: $0) } == ["Waiting on pnpm build", "Waiting on pnpm test", "Waiting on review the diff", "Waiting on pnpm build"])
+    #expect(backgroundWords(tasks, tick: -1) == "Waiting on pnpm test")
+    #expect(backgroundCount(tasks) == "· 3 tasks")
+}
+
 // MARK: the model
 
 private final class ScriptedHost: ChatHost, @unchecked Sendable {

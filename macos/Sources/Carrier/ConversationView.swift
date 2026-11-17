@@ -222,6 +222,9 @@ private struct ConversationBox: View {
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            if model.background.isEmpty == false {
+                BackgroundWorkCard(tasks: model.background) { Task { await model.stop() } }.transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             if model.asleep { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
             if let queued = model.queued {
                 QueuedMessageCard(

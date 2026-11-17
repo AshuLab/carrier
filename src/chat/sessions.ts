@@ -64,8 +64,8 @@ type Live = {
   /** True while the `message` step of a preparation waits for the agent's first answer. */
   awaitingAnswer?: boolean;
   cancelIdle?: () => void;
-  /** What the agent has running in the background after its turn ended; kept in memory, as the agent says it, and gone with the conversation. */
-  background: BackgroundTask[];
+  /** What the agent has running in the background after its turn ended, each with when the host first saw it (ms); kept in memory, as the agent says it, and gone with the conversation. */
+  background: (BackgroundTask & { startedAt: number })[];
   /** The invocation its MCP token was issued for. */
   invocationId: string;
 };
@@ -200,7 +200,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const onEvent = (sessionId: string, live: Live, event: ChatEvent) => {
     // What the agent waits for in the background is the state of the session, not something said in it: it is kept as it is and never stored.
     if (event.kind === 'background') {
-      live.background = event.tasks.map((task) => ({ id: task.id, kind: task.kind, description: clean(task.description, chatCaps.arg) }));
+      // a task that was there keeps the time it began; one that is new begins now
+      live.background = event.tasks.map((task) => ({ id: task.id, kind: task.kind, description: clean(task.description, chatCaps.arg), startedAt: live.background.find((known) => known.id === task.id)?.startedAt ?? clock.now() }));
       armIdle(sessionId, live);
       onLiveChange();
       return;
@@ -549,7 +550,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       health: () => health({}),
     },
 
-    /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `diff` (lines added and removed, null when none or not yet read) and `background` (what the agent waits for after its turn ended: `{ id, kind, description }` each; empty when nothing) and `pr` (its pull request: `repo`, `number`, `url`, `state` and `checks`; null while none is known; see `session-data.ts`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
+    /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `diff` (lines added and removed, null when none or not yet read) and `background` (what the agent waits for after its turn ended: `{ id, kind, description, startedAt }` each; empty when nothing) and `pr` (its pull request: `repo`, `number`, `url`, `state` and `checks`; null while none is known; see `session-data.ts`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
     list: ({ archived = false }: { archived?: boolean }) => {
       const { archiveAfterDays, deleteAfterDays } = ages();
       const found = db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all();

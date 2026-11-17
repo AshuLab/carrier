@@ -495,6 +495,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     private static let settle: TimeInterval = 1
     /// Whether the session is in the archive: its transcript is read only and the box gives way to a notice with Resume.
     public private(set) var archived = false
+    /// What the agent waits for after its turn ended, from the host's list: the card over the box says it.
+    public private(set) var background: [BackgroundTask] = []
     /// The message whose send or resume the host refused, for the banner's Try again; nil with no refusal or when it was not a send.
     public private(set) var refusedText: String?
     /// Why the last send, resume, stop or answer was refused, said under the box; nil when it worked.
@@ -590,17 +592,20 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
                 archived = false
                 known = true
                 preparingSession = session.state == .preparing
+                background = session.background
             } else if let session = try await host.list(archived: true).first(where: { $0.id == sessionId }) {
                 agent = session.agent
                 live = false
                 archived = true
                 known = true
                 preparingSession = false
+                background = []
             } else {
                 live = false
                 archived = false
                 known = false
                 preparingSession = false
+                background = []
             }
             settleAsleep(first: first)
             changed = changed || reply.streaming != streaming

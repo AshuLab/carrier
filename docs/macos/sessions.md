@@ -37,6 +37,11 @@ Both come from the host's `list` (`pr` and `diff`, read by git on this Mac and b
 
 A session whose turn ended while the agent waits for something it started (a build, a monitor, a subagent) is working, not idle: `SessionRow.background` is what the host's `list` says (`isWorking`), its ring and its clock go on, in cyan and not in the violet of one that writes, it is in the Working group, it can be stopped (Stop in its menu, which stops those tasks) and it cannot be archived ("Stop the background task to archive it"), and it is not "Done" until the last one ends.
 
+In the conversation, while the host lists background tasks for the session (`ConversationModel.background`, from the same list the sidebar reads), a card sits over the message box, with the notices that are there (`BackgroundWorkCard`, in `ChatToolGroupView.swift` with the pieces it shares with the agent's runs): one line of the glass a run has, in cyan, with a turning ring, a glow round the edge and a shimmer over the words.
+Shut, its line names one task at a time ("Waiting on pnpm build…") and rolls to the next every three seconds, with "· 3 tasks" after it, the time since the oldest began at the right (`startedAt`, which the host stamps when it first sees each task) and Stop, which stops them all.
+Open (the chevron), it lists the tasks, each with its kind and how long it has run.
+It is gone with the last task.
+
 Archiving is felt at once: the row is drawn archived as soon as it is asked (`SessionActions.archiving`, put on the list by `refreshUnread`), the host answers without waiting for the agent to end, and the lists are read again right away (`PollNap`) and not at the next tick.
 A session that works or waits for an answer cannot be archived (the host refuses it), so the Archive button of the hover, the one of the Sessions home and the item of the context menu are off, with the reason as their tooltip ("Stop the session to archive it"; `archiveBlock`), and the shortcut says it in an alert.
 If the host refuses anyway, the row comes back and an alert says why.

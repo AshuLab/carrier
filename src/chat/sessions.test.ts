@@ -468,8 +468,12 @@ test('what the agent waits for in the background is in its row, as it says it, r
   const one = await openOne(s);
   expect(background(s, one.id)).toEqual([]);
   one.conversation.emit({ kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: `deploy with ${token}` }, { id: 'b', kind: 'local_agent', description: 'review' }] });
-  expect(background(s, one.id)).toEqual([{ id: 'a', kind: 'local_bash', description: 'deploy with [redacted]' }, { id: 'b', kind: 'local_agent', description: 'review' }]);
-  one.conversation.emit(bg('b'));
+  expect(background(s, one.id)).toEqual([{ id: 'a', kind: 'local_bash', description: 'deploy with [redacted]', startedAt: 0 }, { id: 'b', kind: 'local_agent', description: 'review', startedAt: 0 }]);
+  // a task keeps the time it began while it stays; one that comes later begins when it comes
+  await s.clock.advance(5_000);
+  one.conversation.emit(bg('b', 'c'));
+  expect(background(s, one.id)).toMatchObject([{ id: 'b', startedAt: 0 }, { id: 'c', startedAt: 5_000 }]);
+  one.conversation.emit(bg('c'));
   expect(background(s, one.id)).toHaveLength(1);
   one.conversation.emit(bg());
   expect(background(s, one.id)).toEqual([]);

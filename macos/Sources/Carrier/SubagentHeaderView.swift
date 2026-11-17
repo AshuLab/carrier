@@ -10,13 +10,20 @@ struct SubagentTitle: View {
     /// As high as the round glass buttons of the toolbar.
     static let height: CGFloat = 34
 
+    /// The bases of the two lines. They follow the person's text size up to 14 and 12 pt and no further: past that the two lines are taller than the
+    /// round buttons (39 pt at 130 %) and spill out of the toolbar, which the system's own title, that does not scale, never does.
+    static func bases(percent: Int) -> (title: CGFloat, subtitle: CGFloat) {
+        (min(13, 14 * 100 / CGFloat(percent)), min(11, 12 * 100 / CGFloat(percent)))
+    }
+
     let title: String
     let subtitle: String
 
     var body: some View {
+        let bases = Self.bases(percent: TextSize.shared.scale.percent)
         VStack(alignment: .leading, spacing: 1) {
-            Text(title).font(.scaled(13, weight: .semibold)).lineLimit(1).truncationMode(.tail)
-            Text(subtitle).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+            Text(title).font(.scaled(bases.title, weight: .semibold)).lineLimit(1).truncationMode(.tail)
+            Text(subtitle).font(.scaled(bases.subtitle)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
         }
         .frame(height: Self.height, alignment: .leading)
         .accessibilityElement(children: .combine)

@@ -26,6 +26,9 @@ export type ExecEvent = {
   /** The first and last lines of the result, capped. */
   output?: string[];
   diff?: { sign: '+' | '-' | ' '; text: string }[];
+  /** A subagent's progress (a `task` with a `tool` and no `status`): the usage so far, its time in `durationMs`. */
+  tools?: number;
+  tokens?: number;
 };
 
 /** What it takes to continue a session in a terminal; validated by the app before it builds a command (ADR 0007). */

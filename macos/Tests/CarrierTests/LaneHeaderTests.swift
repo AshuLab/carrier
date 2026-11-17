@@ -44,6 +44,9 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
     )
     #expect(try height([busy], width: 300) >= (try height([lane()], width: 480)))
     #expect(try height([lane()], width: 300) >= (try height([lane()], width: 480)))
+    var stepping = lane(.running)
+    stepping.lastStep = "Bash"
+    #expect(try height([stepping], width: 300) >= (try height([lane()], width: 480)))
 }
 
 // The findings card is its 30 pt line and a divider and a row for each finding; a fixed one and one with no id or link are as tall as any

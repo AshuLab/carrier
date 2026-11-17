@@ -35,6 +35,8 @@ public struct LaneSection: Equatable, Identifiable {
     /// `draft`, `merged` or `closed`, nil from an engine that predates it.
     public var prNumber: Int? = nil
     public var prState: String? = nil
+    /// The step the subagent is on now (the last tool's name from the newest progress event); nil once it ended or when none arrived.
+    public var lastStep: String? = nil
 
     /// Just taken: running with no events to count yet.
     public var isStarting: Bool { state == .running && items.isEmpty }
@@ -64,7 +66,7 @@ struct LaneState: Equatable {
 
     mutating func add(_ event: ExecEvent) {
         events.append(event)
-        if event.kind == "task", description == nil { description = event.text }
+        if event.kind == "task", event.tool == nil, description == nil { description = event.text }
         if lane == nil, let arg = event.arg { lane = number(after: "--lane-", in: arg) }
         builder.add(event)
     }
@@ -82,15 +84,20 @@ struct LaneState: Equatable {
         let match = slice.flatMap { number in slices.first { $0.number == number } }
         let sliceTitle = match?.title
         let pullRequest = match?.prNumber.map { "PR #\($0)" + (match?.prState.map { " \($0)" } ?? "") } ?? "no PR yet"
-        let tasks = events.filter { $0.kind == "task" }
-        let start = tasks.first { $0.status == nil }
-        let end = tasks.first { $0.status != nil }
+        // Progress `task` events carry `tool` and no `status`; lifecycle events are starts (`tool == nil`) and ends (`status != nil`).
+        let runs = events.filter { $0.kind == "task" && ($0.status != nil || $0.tool == nil) }
+        let start = runs.first { $0.status == nil }
+        let end = runs.first { $0.status != nil }
         // The latest run decides: a last start is running while the session is, else it did not complete.
-        let state: SubagentState = switch tasks.last?.status {
+        let state: SubagentState = switch runs.last?.status {
         case nil: running ? .running : .failed
         case "ok": .finished
         default: .failed
         }
+        let latestStart = events.lastIndex { $0.kind == "task" && $0.status == nil && $0.tool == nil } ?? events.startIndex
+        let lastStep: String? = state == .running
+            ? events[latestStart...].last { $0.kind == "task" && $0.status == nil && $0.tool?.isEmpty == false }?.tool
+            : nil
         let timeLabel = start.flatMap { start in
             end.map { "\(clockTime(start.at, time: time))–\(clockTime($0.at, time: time))" }
                 ?? (state == .running ? "since \(clockTime(start.at, time: time))" : nil)
@@ -100,9 +107,10 @@ struct LaneState: Equatable {
             state: state,
             duration: start.flatMap { start in (end?.at ?? (state == .running ? now : nil)).map { $0 - start.at } },
             startedAt: start?.at, endedAt: end?.at,
-            resumes: tasks.drop { $0.status == nil }.dropFirst().filter { $0.status == nil }.count, timeLabel: timeLabel,
+            resumes: runs.drop { $0.status == nil }.dropFirst().filter { $0.status == nil }.count, timeLabel: timeLabel,
             counts: sessionCounts(events), items: builder.items, slice: slice, laneNumber: lane, pullRequest: pullRequest,
-            prNumber: match?.prNumber, prState: match?.prNumber == nil ? nil : match?.prState
+            prNumber: match?.prNumber, prState: match?.prNumber == nil ? nil : match?.prState,
+            lastStep: lastStep
         )
     }
 }

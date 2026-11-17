@@ -66,7 +66,7 @@ The clock at the right is the time the epic started on the first step and how lo
 
 ## Slices and findings in an epic's log
 
-In the builder's session each slice is a glass card of its own, in the order it happened between what the builder said and did: its state, `#730` and title, a quiet line (calls, edits, test runs, errors, the lane, when it ran) and its pull request with a dot for its state (merged, open, draft), which opens GitHub.
+In the builder's session each slice is a glass card of its own, in the order it happened between what the builder said and did: its state, `#730` and title, a quiet line (the step it is on while it works, calls, edits, test runs, errors, the lane, when it ran) and its pull request with a dot for its state (merged, open, draft), which opens GitHub.
 The card opens to what that subagent did, and is open while the slice works.
 In a reviewer's session a second card shows the review: its verdict ("Ready", "Changes requested"), the round and the reviewer's name, its blockers first and then its suggestions, each with its kind as a word, its id, a line, whether it is new, carried (still open) or fixed (verified by the next round, dimmed), and the whole row opens the discussion on GitHub.
 An approval's suggestions wait behind one line ("4 suggestions").

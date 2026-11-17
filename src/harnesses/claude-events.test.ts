@@ -85,7 +85,7 @@ test('it never throws, whatever the line holds', () => {
 
 test('the sanitised subagent stream: three tasks start and end, the slice and the lane are hints, calls pair', () => {
   const events = parseAll(readLines('claude-subagents.fixture.jsonl'));
-  const tasks = events.filter((e) => e.kind === 'task');
+  const tasks = events.filter((e) => e.kind === 'task' && e.tool === undefined); // the recording's progress line is checked below
   expect(tasks.map((e) => [e.agentId, e.status ?? 'start', e.slice, e.lane])).toEqual([
     ['af4e38341539ac2cf', 'start', 653, undefined],
     ['a97cac545564d0d61', 'start', 654, undefined],
@@ -99,6 +99,41 @@ test('the sanitised subagent stream: three tasks start and end, the slice and th
     { kind: 'tool_start', tool: 'Read', agentId: 'af4e38341539ac2cf' },
     { kind: 'tool_end', tool: 'Read', status: 'ok', agentId: 'af4e38341539ac2cf', durationMs: 155 },
   ]);
+});
+
+test('task_progress: only a change of the last tool is an event, with the usage, bounded', () => {
+  const lines = readLines('claude-subagents.fixture.jsonl');
+  const progress = (taskId: string, extra: Record<string, unknown>) => line({ type: 'system', subtype: 'task_progress', task_id: taskId, tool_use_id: 'toolu_01CAbxviqoDjBDmLYCjTL7QQ', ...extra });
+  const usage = (tools: number, tokens: number, ms: number) => ({ total_tokens: tokens, tool_uses: tools, duration_ms: ms });
+  const index = lines.findIndex((l) => l.includes('"task_progress"'));
+  const extra = [
+    progress('af4e38341539ac2cf', { last_tool_name: 'Read', usage: usage(2, 900, 4000) }), // same tool as the recording's line: nothing
+    progress('af4e38341539ac2cf', { last_tool_name: 'Bash', usage: usage(3, 1500, 6500) }),
+    progress('af4e38341539ac2cf', { last_tool_name: 'Bash', usage: usage(4, 2100, 9000) }), // same again: nothing
+    progress('af4e38341539ac2cf', { last_tool_name: 'Read', usage: usage(5, 2200, 9500) }), // back to a tool it used: a change
+    progress('af4e38341539ac2cf', { usage: usage(6, 2300, 9900) }), // no last tool
+    progress('af4e38341539ac2cf', { last_tool_name: 42 }), // wrong type
+    progress('af4e38341539ac2cf', { last_tool_name: 'Edit', usage: 'lots' }), // a usage that is not one: the tool alone
+    progress('af4e38341539ac2cf', { last_tool_name: 'Grep'.repeat(200), usage: usage(7, 1, 2) }), // bounded
+    progress('unknown-task', { last_tool_name: 'Write', usage: usage(1, 1, 1) }), // a task that never started
+  ];
+  const events = parseAll([...lines.slice(0, index + 1), ...extra, ...lines.slice(index + 1)]);
+  const steps = events.filter((e) => e.kind === 'task' && e.tool !== undefined);
+  expect(steps.map((e) => [e.agentId, e.tool?.slice(0, 4), e.tools, e.tokens, e.durationMs, e.status, e.slice])).toEqual([
+    ['af4e38341539ac2cf', 'Read', undefined, undefined, undefined, undefined, 653], // the recording's own line, which has no usage
+    ['af4e38341539ac2cf', 'Bash', 3, 1500, 6500, undefined, 653],
+    ['af4e38341539ac2cf', 'Read', 5, 2200, 9500, undefined, 653],
+    ['af4e38341539ac2cf', 'Edit', undefined, undefined, undefined, undefined, 653],
+    ['af4e38341539ac2cf', 'Grep', 7, 1, 2, undefined, 653],
+  ]);
+  expect(steps[0]).toMatchObject({ callId: 'toolu_01CAbxviqoDjBDmLYCjTL7QQ' });
+  expect(steps.at(-1)!.tool).toHaveLength(caps.summary);
+  // The starts and the ends are as they were.
+  expect(events.filter((e) => e.kind === 'task' && e.tool === undefined)).toHaveLength(6);
+  // A line that is not a task_progress of the right shape never throws.
+  const state = createEventState();
+  expect(parseClaudeEvents(line({ type: 'system', subtype: 'task_progress', task_id: 7, last_tool_name: 'Read' }), state)).toEqual([]);
+  expect(parseClaudeEvents(line({ type: 'system', subtype: 'task_progress' }), state)).toEqual([]);
 });
 
 test('the caps: argument 1 KB, summary 200 characters, message 4 KB', () => {

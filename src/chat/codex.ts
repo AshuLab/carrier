@@ -78,7 +78,7 @@ export const realCodexDeps: CodexChatDeps = { resolve: (command, env) => resolve
 
 export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, launch = {}, env, mcp }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env, mcp, instructions }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -88,7 +88,7 @@ export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner
       if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('Codex is not logged in; run "codex login" once to log in');
       const conversation = new CodexConversation(options, binary);
       try {
-        await conversation.start(deps, { folder, env, resume, launch, mcp });
+        await conversation.start(deps, { folder, env, resume, launch, mcp, instructions });
       } catch (error) {
         log.error('codex could not be started', error);
         await conversation.close();
@@ -144,7 +144,7 @@ class CodexConversation implements ChatConversation {
     this.sandbox = chosen.sandbox ?? 'workspace-write';
   }
 
-  async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string } | undefined }) {
+  async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp, instructions }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string } | undefined; instructions: string | undefined }) {
     this.mcpServerName = mcp?.serverName;
     const settled = new Promise<void>((resolve) => (this.mcpSettled = resolve));
     this.transport = deps.spawn(this.binary, { cwd: folder, env, args: argsOf(launch) });
@@ -155,6 +155,7 @@ class CodexConversation implements ChatConversation {
     if (version !== CODEX_APP_SERVER_VERSION) log.warn('codex app-server is not the version this adapter was written against', { found: version, expected: CODEX_APP_SERVER_VERSION });
     this.notify('initialized');
     const params = { cwd: folder, approvalPolicy: this.approvalPolicy, sandbox: this.sandbox, ...(this.chosen.model && { model: this.chosen.model }),
+      ...(instructions !== undefined && { developerInstructions: instructions }), // thread/start and thread/resume both take it
       // over the pipe, so that the token is in neither `argv` nor a config file
       ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, default_tools_approval_mode: 'approve', http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
     };

@@ -9,6 +9,7 @@ export interface AgentEvent {
   callId?: string;
   /** The subagent that produced it. */
   agentId?: string;
+  /** On a `task`: the last tool a subagent used, in a progress line (no `status`, unlike an end). Its time is `durationMs`. */
   tool?: string;
   arg?: string;
   /** The model's own short sentence for a call, when it wrote one (a Bash call's `description`); `arg` is untouched. */
@@ -22,12 +23,15 @@ export interface AgentEvent {
   /** Hints from the model's own wording (docs/research/claude-subagent-attribution.md); only on `task`. */
   slice?: number;
   lane?: number;
+  /** A subagent's usage so far, only on a progress `task`. */
+  tools?: number;
+  tokens?: number;
 }
 
 /** What an adapter keeps between lines of one run, to pair a call with its result. */
 export interface EventState {
   calls: Map<string, { at?: number; tool: string }>;
-  tasks: Map<string, { description: string; slice?: number }>;
+  tasks: Map<string, { description: string; slice?: number; lastTool?: string }>;
   lanes: Map<string, number>;
   /** The streamed fragments of each model turn not yet closed (Antigravity). */
   text: Map<string, string>;

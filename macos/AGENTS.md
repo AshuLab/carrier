@@ -84,6 +84,7 @@ The logic is `CarrierCore/WorktreeChoice.swift` (pure values over the `workspace
 What the person sees: [sessions](../docs/macos/sessions.md#conversation).
 
 The words are tested; the Finder and pasteboard calls not.
+A subagent's row is `Subagent` (`CarrierCore/ChatToolGroups.swift`), built by `chatFeed` from `task` events (`ChatConversationTests`, `SubagentRowTests`).
 
 ## Usage
 
@@ -94,9 +95,9 @@ What the person sees: [usage](../docs/macos/usage.md).
 What the person sees: [dictation](../docs/macos/dictation.md).
 
 The logic is `CarrierCore/Dictation.swift` (boundary and registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read.
-Readiness: `speechModelStep`, `ModelSlot` (`SpeechModelReadiness.swift`), run by `DictationController.warmUp` (`DictationReadinessTests`); `DictationSession.run` captures before `prepare` (`modelReady`, `answerIsSlow`, `DictationTimings`).
-Firm and tentative: `DictationEvent.partial`, `TentativeText.tentativeRange`, `GlobalDictation.split` (`TentativeTextTests`, `MessageBoxDictationTests`).
-The page is `Carrier/DictationTab.swift`, one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`; the views are untested (rules: `SettingsPageTests`, `DictationSettingsTests`).
+Readiness: `speechModelStep`, `ModelSlot`, run by `DictationController.warmUp` (`DictationReadinessTests`); `DictationSession.run` captures before `prepare`.
+Firm and tentative: `DictationEvent.partial`, `TentativeText.tentativeRange`, `GlobalDictation.split` (`TentativeTextTests`).
+The page is `Carrier/DictationTab.swift`, one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`; the views are untested (`DictationSettingsTests`).
 
 ### Global dictation
 
@@ -111,7 +112,7 @@ Widget look and place: `CarrierCore/DictationWidgetLook.swift` (`DictationPresen
 ### History
 
 See [dictation](../docs/macos/dictation.md#history).
-`CarrierCore/DictationRecords.swift` (`DictationRecordsTests`), fed by `DictationSession.take`; the group untested.
+`CarrierCore/DictationRecords.swift` (`DictationRecordsTests`), fed by `DictationSession.take`.
 Audio: `DictationRecords` (fake clock), `DictationAudio.swift`; `AudioPlayerView` untested.
 
 ### Statistics

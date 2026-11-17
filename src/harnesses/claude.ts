@@ -243,6 +243,26 @@ function claudeEvents(line: string, state: EventState): AgentEvent[] {
         ...(slice !== undefined && { slice }),
         ...(lane !== undefined && { lane }),
       });
+    } else if (event.subtype === 'task_progress' && taskId !== undefined && state.tasks.has(taskId)) {
+      // Only a change of the last tool is a step worth a row: the table would fill with one line per progress tick.
+      const task = state.tasks.get(taskId)!;
+      const lastTool = str(event.last_tool_name);
+      if (lastTool && lastTool !== task.lastTool) {
+        task.lastTool = lastTool;
+        const usage = (event.usage ?? {}) as Record<string, unknown>;
+        const count = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : undefined);
+        const [tools, tokens, ms] = [count(usage.tool_uses), count(usage.total_tokens), count(usage.duration_ms)];
+        events.push({
+          kind: 'task',
+          agentId: taskId,
+          ...(callId && { callId }),
+          tool: clean(lastTool, caps.summary),
+          ...(tools !== undefined && { tools }),
+          ...(tokens !== undefined && { tokens }),
+          ...(ms !== undefined && { durationMs: ms }),
+          ...(task.slice !== undefined && { slice: task.slice }), // the live hints of the epic read the newest `task` of an agent
+        });
+      }
     } else if (event.subtype === 'code_change_published') {
       const branch = str(event.branch);
       const text = [str(event.action) ?? 'published', str(event.identifier), branch && `(${branch})`].filter(Boolean).join(' ');

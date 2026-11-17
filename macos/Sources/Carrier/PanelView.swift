@@ -216,7 +216,7 @@ struct PanelView: View {
                             let over: Bool = if case .ended = epic.subject { true } else { false }
                             EpicView(
                                 subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files),
-                                sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, files: data?.files,
+                                sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, subagents: $shell.subagents, subagentHeader: $shell.subagentHeader, files: data?.files,
                                 plan: queuedPlan(epic.subject), resume: resumeCard(epic.subject).map { ($0, model.epics) },
                                 fileDiffs: epics.canOpenFiles ? FileDiffs(open: Binding(get: { epics.openFiles[ref] ?? [] }, set: { epics.openFiles[ref] = $0 }), shown: $epics.filesTabShown, fragments: data?.fragments ?? [:]) : nil,
                                 onContinueInTerminal: { section, resume in
@@ -249,7 +249,7 @@ struct PanelView: View {
                         } else if let emptyPage {
                             EmptyStateView(state: emptyPage)
                         } else if case .session(let id) = shell.selection {
-                            ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest) { plan in
+                            ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest, subagents: $shell.subagents, header: $shell.subagentHeader) { plan in
                                 model.newSession.restore(plan)
                                 shell.selection = .newSession
                             }.id(id)
@@ -319,6 +319,8 @@ struct PanelView: View {
             .themedWindowBackground()
             .navigationTitle(title)
             .navigationSubtitle(subtitle)
+            // the subagent's own title is in the toolbar, as one item with the line that says whose it is
+            .toolbar(removing: shell.subagentHeader == nil ? nil : .title)
             .onChange(of: model.shell.selection) { _, _ in
                 if let target = activeDrawerTarget,
                    target.isSessionDrawer == false,
@@ -341,8 +343,23 @@ struct PanelView: View {
                 .sharedBackgroundVisibility(.hidden)
             }
             if let epic {
-                ToolbarItem(placement: .primaryAction) { EpicLinks(prURL: epic.header.prURL, issueURL: epic.header.issueURL) }
+                if let open = shell.subagentHeader {
+                    // a slice card's subagent view wears the same header as a conversation's, with the epic in its subtitle and no Stop
+                    ToolbarItem(placement: .navigation) {
+                        Button { shell.leaveSubagent() } label: { Label("Back", systemImage: "chevron.left") }
+                            .help("Back to Agent output")
+                    }
+                    ToolbarItem(placement: .navigation) {
+                        SubagentTitle(title: open.title, subtitle: open.subtitle(of: epic.header.title))
+                            .frame(maxWidth: windowSize.width * 0.35, alignment: .leading)
+                    }
                     .sharedBackgroundVisibility(.hidden)
+                    ToolbarItem(placement: .primaryAction) { SubagentStatePill(header: open) }
+                        .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .primaryAction) { EpicLinks(prURL: epic.header.prURL, issueURL: epic.header.issueURL) }
+                        .sharedBackgroundVisibility(.hidden)
+                }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
                     Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemImage: "sidebar.trailing") }
@@ -357,8 +374,31 @@ struct PanelView: View {
             }
             if let session = openSession {
                 let drawerOpen = shell.isTerminalDrawerOpen(for: .session(session.id))
-                ToolbarItem(placement: .primaryAction) { SessionPlacePill(row: session) }
+                if let open = shell.subagentHeader {
+                    // a subagent view wears the window's header: Back next to the sidebar's button, its title, and its state where the worktree pill is
+                    ToolbarItem(placement: .navigation) {
+                        Button { shell.leaveSubagent() } label: { Label("Back", systemImage: "chevron.left") }
+                            .help(shell.subagents.count > 1 ? "Back to the subagent that launched this one" : "Back to the conversation")
+                    }
+                    ToolbarItem(placement: .navigation) {
+                        SubagentTitle(title: open.title, subtitle: open.subtitle(of: conversationTitle(session)))
+                            .frame(maxWidth: windowSize.width * 0.35, alignment: .leading)
+                    }
                     .sharedBackgroundVisibility(.hidden)
+                    ToolbarItem(placement: .primaryAction) { SubagentStatePill(header: open) }
+                        .sharedBackgroundVisibility(.hidden)
+                    if open.canStop {
+                        ToolbarItem(placement: .primaryAction) {
+                            ToolbarPillButton(title: "Stop", icon: "stop.fill", iconTint: .red) { shell.perform(.conversation(.stopSubagent)) }
+                                .glassEffect(.regular, in: .capsule)
+                                .help("Stop this subagent; the main agent goes on")
+                        }
+                        .sharedBackgroundVisibility(.hidden)
+                    }
+                } else {
+                    ToolbarItem(placement: .primaryAction) { SessionPlacePill(row: session) }
+                        .sharedBackgroundVisibility(.hidden)
+                }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
                     ToolbarGlassIconButton(icon: drawerOpen ? "terminal.fill" : "terminal", name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {

@@ -72,26 +72,14 @@ extension SlicePRState {
 struct SliceCardView: View {
     /// The subagent of the slice.
     let lane: LaneSection
-    /// What the person opened in the transcript's work cards, shared by the whole tab.
-    @Binding var flipped: Set<String>
-    /// What the person flipped: the row from how it starts (open while the slice works).
-    @Binding var slices: SliceFolds
     @Environment(\.epicRepo) private var repo
-    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
-    @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
+    @Environment(\.openSubagent) private var open
 
     var body: some View {
         let row = sliceCard(lane: lane)
-        let open = row.openByDefault != slices.isOpen(row.id)
-        SliceCardRowView(row: row, open: open, prURL: prURL(row), toggle: { flipCard { slices.toggle(row.id) } }) {
-            VStack(alignment: .leading, spacing: 9) {
-                ForEach(visibleFlow(flowItems(lane.items, running: lane.state == .running), mode: mode, showsReasoning: showsReasoning)) { FlowItemView(flow: $0, flipped: $flipped, slices: $slices) }
-            }
-            // under the title: the mark's column and gap, less the 12 pt a row of the log has of its own
-            .padding(.leading, 33).padding(.top, 8).padding(.bottom, 6)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .workCard()
+        SliceCardRowView(row: row, prURL: prURL(row), open: { open?(lane.id) })
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .workCard()
     }
 
     private func prURL(_ row: SliceCardRow) -> String? {
@@ -101,43 +89,38 @@ struct SliceCardView: View {
 }
 
 /// A slice: its mark, `#730` and the title, the quiet line under it, and at the right the pull request and the chevron. The row is a
-/// button, away from the chip, and opens to the slice's own steps.
-private struct SliceCardRowView<Opened: View>: View {
+/// button, away from the chip, and opens the subagent's view.
+private struct SliceCardRowView: View {
     let row: SliceCardRow
-    let open: Bool
     let prURL: String?
-    let toggle: () -> Void
-    @ViewBuilder let opened: () -> Opened
+    let open: () -> Void
     @State private var hovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 0) {
-                Button(action: toggle) {
-                    HStack(alignment: .top, spacing: 11) {
-                        mark.frame(width: 22, height: 18, alignment: .leading).padding(.top, 1).accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 3) {
-                            title.font(.scaled(13, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
-                            quiet
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(alignment: .top, spacing: 0) {
+            Button(action: open) {
+                HStack(alignment: .top, spacing: 11) {
+                    mark.frame(width: 22, height: 18, alignment: .leading).padding(.top, 1).accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        title.font(.scaled(13, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+                        quiet
                     }
-                    .padding(.leading, 12).padding(.vertical, 10)
-                    .contentShape(Rectangle())
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(row.spoken + (open ? ", open" : ", closed"))
-                if let number = row.prNumber { PullRequestChip(number: number, dot: row.prState.dot, url: prURL).padding(.top, 11).padding(.leading, 10) }
-                // the chevron is the same click, away from the chip; the row's button is the one the keyboard reaches
-                Button(action: toggle) {
-                    CardChevron(open: open, width: 12).padding(.leading, 10).padding(.trailing, 12).padding(.top, 11).padding(.bottom, 10).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).focusable(false).accessibilityHidden(true)
+                .padding(.leading, 12).padding(.vertical, 10)
+                .contentShape(Rectangle())
             }
-            .background(Color.primary.opacity(hovered ? 0.04 : 0))
-            .onHover { hovered = $0 }
-            if open { opened() }
+            .buttonStyle(.plain)
+            .accessibilityLabel(row.spoken).accessibilityHint("Opens the subagent")
+            if let number = row.prNumber { PullRequestChip(number: number, dot: row.prState.dot, url: prURL).padding(.top, 11).padding(.leading, 10) }
+            // the chevron is the same click, away from the chip; the row's button is the one the keyboard reaches
+            Button(action: open) {
+                CardChevron(open: false, width: 12).padding(.leading, 10).padding(.trailing, 12).padding(.top, 11).padding(.bottom, 10).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).focusable(false).accessibilityHidden(true)
         }
+        .background(Color.primary.opacity(hovered ? 0.04 : 0))
+        .onHover { hovered = $0 }
     }
 
     private var title: Text {
@@ -151,6 +134,7 @@ private struct SliceCardRowView<Opened: View>: View {
                 if index > 0 { Text("·").foregroundStyle(.tertiary) }
                 switch part.kind {
                 case .plain: Text(part.text)
+                case .step: Text(part.text).foregroundStyle(.primary).fontWeight(.medium).lineLimit(1)
                 case .error: Text(part.text).foregroundStyle(.red)
                 case .lane:
                     Text(part.text).font(.scaled(10.5, weight: .semibold)).padding(.horizontal, 7)

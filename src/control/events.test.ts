@@ -182,5 +182,9 @@ test('the newest event of an execution is described in a line; none yet is null'
   recordEvents(db, run, [{ at: 7, kind: 'say', text: 'x'.repeat(500) }], 0);
   expect(lastEventOf(db, run)).toMatchObject({ kind: 'say', at: 7 });
   expect(lastEventOf(db, run)!.text).toHaveLength(200);
+  recordEvents(db, run, [{ at: 8, kind: 'task', agentId: 'a1', callId: 'c1', tool: 'Bash', tools: 4, tokens: 1800, durationMs: 6000, slice: 10 }], 0);
+  expect(lastEventOf(db, run)).toEqual({ kind: 'task', text: 'Bash', at: 8 });
+  expect(eventsOf(db, run, 0, 200)!.events.at(-1)).toMatchObject({ kind: 'task', agentId: 'a1', callId: 'c1', tool: 'Bash', tools: 4, tokens: 1800, durationMs: 6000 });
+  expect(eventsOf(db, run, 0, 200)!.events.at(-1)).not.toHaveProperty('slice');
   expect(lastEventOf(db, other)).toBeNull();
 });

@@ -86,7 +86,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\"]}\n".utf8)
+    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"stopTask\"]}\n".utf8)
     private let data: [String: Data]
     let hello: Data
     private var stopped = false
@@ -357,6 +357,20 @@ public final class FixtureServer {
                 return true
             }
             return found ? Self.answer(id, [String: Any]()) : Self.refused(id, "unknown session")
+        case "stopTask":
+            guard let session = request?["sessionId"] as? String, let task = request?["taskId"] as? String else { break }
+            lock.lock()
+            defer { lock.unlock() }
+            var events = chatConversations[session]?.events ?? []
+            let own = events.filter { $0["kind"] as? String == "task" && $0["taskId"] as? String == task }
+            let ended = own.contains { ["completed", "failed", "stopped"].contains($0["state"] as? String ?? "") }
+            guard let started = own.first(where: { $0["state"] as? String == "started" }), ended == false else {
+                return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"That subagent is not running\"}")
+            }
+            // the host answers at once and the agent says the task stopped: here the event comes with the answer
+            events.append(["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "task", "callId": started["callId"] as Any, "taskId": task, "state": "stopped"])
+            chatConversations[session]?.events = events
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         case "answer":
             guard let session = request?["sessionId"] as? String, let approval = request?["approvalId"] as? String, let choice = request?["choiceId"] as? String else { break }
             lock.lock()

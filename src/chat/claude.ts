@@ -116,6 +116,8 @@ class ClaudeConversation implements ChatConversation {
   private input = inputQueue();
   private pending = new Map<string, { input: Record<string, unknown>; suggestions: PermissionUpdate[]; asking: boolean; resolve: (result: PermissionResult) => void }>();
   private tools = new Map<string, string>();
+  /** The subagents seen start, by task id, to the call that launched each: a progress or an end of any other task is not a subagent's, and a nested subagent finds its launcher's call here. */
+  private agents = new Map<string, string>();
   /** The name the chat MCP was injected under, so `delegate_start` is recognised as that server's tool and no other's. */
   private mcpServerName: string | undefined;
   private turning = false;
@@ -156,6 +158,8 @@ class ClaudeConversation implements ChatConversation {
         env: mcp ? { ...env, [MCP_TOKEN_ENV]: mcp.token } : env,
         pathToClaudeCodeExecutable: binary,
         includePartialMessages: true,
+        // without it a foreground subagent's thinking and text never arrive, only its calls (docs/research/chat-subagents.md)
+        forwardSubagentText: true,
         // by default Claude Code sends each thinking block with its text left out, so there is nothing to show; this asks for the summary
         extraArgs: { ...extraArgs, 'thinking-display': 'summarized' },
         canUseTool: (tool, input, { toolUseID, suggestions = [], title }) => this.ask(toolUseID, tool, input, suggestions, title),
@@ -235,6 +239,10 @@ class ClaudeConversation implements ChatConversation {
     await this.query.interrupt();
     // The turn ends at its `result`; wait for it, so the host never sees the next turn start before this one's end.
     for (let waited = 0; this.turning && waited < 5_000; waited += 50) await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  async stopTask(taskId: string) {
+    await this.query.stopTask(taskId);
   }
 
   async setOption(id: string, value: string) {
@@ -331,19 +339,28 @@ class ClaudeConversation implements ChatConversation {
     switch (m.type) {
       case 'system':
         if (m.subtype === 'init' && typeof m.permissionMode === 'string') this.mode = m.permissionMode;
+        // A `system/init` with no message sent is a turn the SDK opened itself (a background subagent ended): the adapter is in a turn until its `result`.
+        if (m.subtype === 'init' && !this.turning) {
+          this.turning = true;
+          return [{ kind: 'turn_start' }];
+        }
         if (m.subtype === 'init' && Array.isArray(m.terminal_slash_commands)) this.terminalOnly = new Set(m.terminal_slash_commands as string[]);
         if (m.subtype === 'status' && typeof m.permissionMode === 'string' && m.permissionMode !== this.mode) {
           this.mode = m.permissionMode;
           return [{ kind: 'option', id: 'permissionMode', value: this.mode }];
         }
-        return [];
+        return this.task(m);
       case 'stream_event': {
+        // a subagent's partial text is dropped, not tagged: deltas are never stored (this SDK version sends none with a parent)
+        if (parentOf(m) !== undefined) return [];
         const delta = m.event?.type === 'content_block_delta' && m.event.delta?.type === 'text_delta' ? m.event.delta.text : undefined;
         return typeof delta === 'string' && delta !== '' ? [{ kind: 'delta', text: delta }] : [];
       }
       case 'assistant': {
-        // "<synthetic>" is the CLI's own message (a usage limit, an API error), not a model the person ran
-        if (typeof m.message?.model === 'string' && m.message.model !== '<synthetic>') this.lastModel = m.message.model;
+        const parentCallId = parentOf(m);
+        const own = parentCallId === undefined ? {} : { parentCallId };
+        // "<synthetic>" is the CLI's own message (a usage limit, an API error), not a model the person ran; a subagent's model is not the turn's
+        if (parentCallId === undefined && typeof m.message?.model === 'string' && m.message.model !== '<synthetic>') this.lastModel = m.message.model;
         const events: ChatEvent[] = [];
         // A usage limit comes out once, as the `error` of the result: its words are not an answer
         if (m.message?.model === '<synthetic>' && isUsageLimit(m.api_error, textOf(m.message.content))) {
@@ -352,26 +369,53 @@ class ClaudeConversation implements ChatConversation {
           return events;
         }
         for (const block of Array.isArray(m.message?.content) ? m.message.content : []) {
-          if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim() !== '') events.push({ kind: 'reasoning', text: block.thinking });
-          if (block?.type === 'text' && typeof block.text === 'string' && block.text !== '') events.push({ kind: 'assistant', text: block.text });
+          if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim() !== '') events.push({ kind: 'reasoning', text: block.thinking, ...own });
+          if (block?.type === 'text' && typeof block.text === 'string' && block.text !== '') events.push({ kind: 'assistant', text: block.text, ...own });
           if (block?.type === 'tool_use' && typeof block.id === 'string') {
             this.tools.set(block.id, String(block.name));
-            events.push({ kind: 'tool_start', callId: block.id, tool: String(block.name), arg: argOf(block.input) });
+            events.push({ kind: 'tool_start', callId: block.id, tool: String(block.name), arg: argOf(block.input), ...own });
           }
         }
         return events;
       }
       case 'user': {
+        const parentCallId = parentOf(m);
         const events: ChatEvent[] = [];
         for (const block of Array.isArray(m.message?.content) ? m.message.content : []) {
           if (block?.type !== 'tool_result' || typeof block.tool_use_id !== 'string') continue;
-          events.push({ kind: 'tool_end', callId: block.tool_use_id, tool: this.tools.get(block.tool_use_id) ?? '', output: textOf(block.content).split('\n'), status: block.is_error ? 'err' : 'ok' });
+          events.push({ kind: 'tool_end', callId: block.tool_use_id, tool: this.tools.get(block.tool_use_id) ?? '', output: textOf(block.content).split('\n'), status: block.is_error ? 'err' : 'ok', ...(parentCallId !== undefined && { parentCallId }) });
         }
         return events;
       }
       default:
         return [];
     }
+  }
+
+  /** The `task` event of a subagent's `task_started`, `task_progress` or `task_notification`; any other task (a subagent's Bash command is one too) and any other system message gives none. */
+  private task(m: { subtype?: string; [key: string]: any }): ChatEvent[] {
+    const state = m.subtype === 'task_started' ? 'started' : m.subtype === 'task_progress' ? 'progress' : m.subtype === 'task_notification' && ['completed', 'failed', 'stopped'].includes(m.status) ? m.status : undefined;
+    if (state === undefined || typeof m.task_id !== 'string' || typeof m.tool_use_id !== 'string') return [];
+    if (state === 'started') {
+      if (m.task_type !== 'local_agent') return [];
+      this.agents.set(m.task_id, m.tool_use_id);
+    } else if (this.agents.get(m.task_id) !== m.tool_use_id) return [];
+    const parentCallId = typeof m.parent_task_id === 'string' ? this.agents.get(m.parent_task_id) : undefined;
+    const usage = m.usage as { total_tokens?: unknown; tool_uses?: unknown; duration_ms?: unknown } | null | undefined;
+    const text = (value: unknown) => (typeof value === 'string' ? value : undefined);
+    const count = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+    const fields = {
+      agentType: text(m.subagent_type),
+      text: text(m.description),
+      lastTool: text(m.last_tool_name),
+      tools: count(usage?.tool_uses),
+      tokens: count(usage?.total_tokens),
+      ms: count(usage?.duration_ms),
+      background: typeof m.is_backgrounded === 'boolean' ? m.is_backgrounded : undefined,
+      parentCallId,
+    };
+    const present = Object.entries(fields).filter(([, value]) => value !== undefined);
+    return [{ kind: 'task', callId: m.tool_use_id, taskId: m.task_id, state, ...Object.fromEntries(present) }];
   }
 
   private turnEnd(m: { subtype?: string; is_error?: boolean; errors?: unknown; result?: unknown; api_error?: unknown; usage?: unknown; total_cost_usd?: unknown; modelUsage?: unknown }): ChatEvent[] {
@@ -400,6 +444,9 @@ class ClaudeConversation implements ChatConversation {
     return events;
   }
 }
+
+/** The call that launched the subagent a message was made in: the SDK's `parent_tool_use_id` when it is a non-empty string, else none (the main agent's own). */
+const parentOf = (m: Record<string, unknown>): string | undefined => (typeof m.parent_tool_use_id === 'string' && m.parent_tool_use_id !== '' ? m.parent_tool_use_id : undefined);
 
 /**
  * Whether a failure is the account's usage limit and not a rate limit that Claude retries. The CLI's own `api_error` says so and is the key (internal to the CLI, so not in the SDK's types);

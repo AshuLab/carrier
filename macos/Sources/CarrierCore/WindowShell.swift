@@ -49,6 +49,8 @@ public enum ShortcutAction: Equatable {
 /// What a shortcut asks of the open conversation.
 public enum ConversationAction: Equatable {
     case focusBox, stopAgent, jumpToLatest, toggleToolFolds, copyLastAnswer
+    /// The Stop button in a subagent view's header: not a shortcut, the header is the window's and the conversation holds the host.
+    case stopSubagent
     /// The global shortcut: focus the message box and start or stop its dictation.
     case dictate
 }
@@ -83,6 +85,8 @@ public struct ArchiveRequest: Equatable {
     public var selection: Selection = .home {
         didSet {
             if selection == .newSession { newSessionOpened += 1 }
+            subagents = []
+            subagentHeader = nil
             switch selection {
             case .sessions, .session, .newSession: open = .sessions
             case .terminals, .terminal: open = .terminal
@@ -92,6 +96,11 @@ public struct ArchiveRequest: Equatable {
             }
         }
     }
+    /// The subagent views open over the open conversation, outermost first, each the call that launched it: Back leaves the last. A session
+    /// is left with none open.
+    public var subagents: [String] = []
+    /// What the window's header says of the last one, set by the conversation, which has the events; nil with none open.
+    public var subagentHeader: SubagentHeader?
     /// Counts the times New session was asked for, the + while its draft is already open included: the draft starts blank each time.
     public private(set) var newSessionOpened = 0
     /// The Settings sheet is over the window, on this section; the selection underneath stays.
@@ -126,6 +135,10 @@ public struct ArchiveRequest: Equatable {
 
     /// A reason that points to the Health tab (a provider, `gh` or `git` that cannot be used) opens it.
     public func openHealth() { showSettings(.health) }
+
+    public func openSubagent(_ call: String) { subagents.append(call) }
+    /// Back: one level up, to the subagent that launched this one or to the conversation.
+    public func leaveSubagent() { _ = subagents.popLast() }
 
     public func toggleSidebar() { sidebarShown.toggle() }
     public func toggleInspector() { inspectorShown.toggle() }

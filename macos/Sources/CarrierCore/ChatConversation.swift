@@ -72,6 +72,19 @@ public struct ChatEvent: Codable, Equatable {
     /// A `step` event of a session's preparation: which step, and (in `status`, `running`, `done` or `failed`) how it stands; `detail` is the reason a step failed.
     public var step: String?
     public var detail: String?
+    /// The call that launched the subagent this event was made in; nil for the main agent's own. The main conversation does not draw an event that has one.
+    public var parentCallId: String?
+    /// A `task` event, the life of a subagent joined to its launching call by `callId`: `taskId` is what stopping it takes, `state` is
+    /// `started`, `progress`, `completed`, `failed` or `stopped`. Its title and step are in `text` and `lastTool`; `parentCallId` is the
+    /// call of the subagent that launched this one.
+    public var taskId: String?
+    public var state: String?
+    public var agentType: String?
+    public var lastTool: String?
+    public var tools: Int?
+    public var tokens: Int?
+    public var ms: Int?
+    public var background: Bool?
     /// A `notice` that says the session changed agent: the agents as the host's config names them. Nil for any other event, and from a host that does not switch.
     public var switched: Switched?
     /// An `error` the provider says is an account out of usage: `usage_limit`. Nil for any other error, and from a host that does not say.
@@ -96,7 +109,8 @@ public struct ChatEvent: Codable, Equatable {
         id: Int, at: Int, kind: String, text: String? = nil, callId: String? = nil, tool: String? = nil, arg: String? = nil, output: [String]? = nil,
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
         model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, questions: [ChatQuestion]? = nil,
-        answers: [String: String]? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil
+        answers: [String: String]? = nil, parentCallId: String? = nil, taskId: String? = nil, state: String? = nil, agentType: String? = nil,
+        lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil
     ) {
         self.id = id
         self.at = at
@@ -117,6 +131,15 @@ public struct ChatEvent: Codable, Equatable {
         self.usage = usage
         self.step = step
         self.detail = detail
+        self.parentCallId = parentCallId
+        self.taskId = taskId
+        self.state = state
+        self.agentType = agentType
+        self.lastTool = lastTool
+        self.tools = tools
+        self.tokens = tokens
+        self.ms = ms
+        self.background = background
         self.switched = switched
         self.reason = reason
         self.resetsAt = resetsAt
@@ -283,14 +306,21 @@ public struct ApprovalCard: Equatable {
 /// a line once answered, and a plain line when it is neither (the turn ended without it).
 /// A `reasoning` event is a thought of the run of calls it comes in (the host stores each block where the agent had it); one that comes
 /// before the first call of a run waits for it, and one with no call after it is a run of its own, before the message or the end of its
-/// turn: the agent's work is always above its answer. Anything else the host may add is not drawn.
-public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set<String> = []) -> [FeedRow] {
+/// turn: the agent's work is always above its answer. A subagent is a row of the run that launched it, built from the `task` events that share its
+/// launching call's id and the events made inside it (`parentCallId`); the launching call is not one of the run's calls, and a subagent goes on
+/// from events that come after the turn ended. What a nested subagent does is not drawn here. A subagent that started and never ended, in a
+/// session that is not `working`, is shown stopped: the host that ran it is gone.
+/// Anything else the host may add is not drawn.
+public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set<String> = [], working: Bool = true) -> [FeedRow] {
     var rows: [FeedRow] = []
     // where each call still going is: its row and its place in it
     var going: [String: (row: Int, call: Int)] = [:]
     var asked: [String: (row: Int, event: ChatEvent)] = [:]
     var turnStart: Int?
     var held: [Thought] = []
+    // the calls that launched a subagent of the main agent (a `task` event names its call), and where each subagent is: its row and its place in it
+    let launching = Set(events.compactMap { $0.kind == "task" && $0.parentCallId == nil ? $0.callId : nil })
+    var subagents: [String: (row: Int, index: Int)] = [:]
     // thoughts no call came to take: a run of their own, where the piece that ends them begins
     func release() {
         guard let first = held.first else { return }
@@ -298,8 +328,26 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
         held = []
     }
     for event in events {
+        // made inside a subagent: the main conversation does not draw it, it is what its row says it is doing
+        if let parent = event.parentCallId {
+            if let spot = subagents[parent], case .tools(let group, var run) = rows[spot.row] {
+                run.subagents[spot.index].apply(inside: event)
+                rows[spot.row] = .tools(id: group, run)
+            }
+            continue
+        }
         let id = "e\(event.id)"
         switch event.kind {
+        case "task":
+            guard let call = event.callId, launching.contains(call) else { continue }
+            if let spot = subagents[call], case .tools(let group, var run) = rows[spot.row] {
+                run.subagents[spot.index].apply(task: event)
+                rows[spot.row] = .tools(id: group, run)
+            } else {
+                subagents[call] = place(Subagent(task: event), in: &rows, id: id, held: &held)
+            }
+        case "tool_start" where event.callId.map(launching.contains) == true, "tool_end" where event.callId.map(launching.contains) == true:
+            continue
         case "reasoning":
             // trimmed: the provider's blocks start and end with blank lines, and the card shows two lines of a thought
             guard let text = event.text?.trimmingCharacters(in: .whitespacesAndNewlines), text.isEmpty == false else { continue }
@@ -361,8 +409,29 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
         }
     }
     release()
+    if working == false, let last = events.last?.at {
+        for index in rows.indices {
+            guard case .tools(let id, var run) = rows[index], run.runningSubagents > 0 else { continue }
+            for slot in run.subagents.indices where run.subagents[slot].status == .running { run.subagents[slot].stop(at: last) }
+            rows[index] = .tools(id: id, run)
+        }
+    }
     if streaming.isEmpty == false { rows.append(.agent(id: "streaming", text: streaming, inProgress: true)) }
     return rows
+}
+
+/// The ids of the subagents the events show running, in the order they started: a start with no end, as the host counts them.
+private func runningTasks(in events: [ChatEvent]) -> [String] {
+    var running: [String] = []
+    for event in events where event.kind == "task" {
+        guard let task = event.taskId else { continue }
+        switch event.state {
+        case "started": if running.contains(task) == false { running.append(task) }
+        case "completed", "failed", "stopped": running.removeAll { $0 == task }
+        default: break
+        }
+    }
+    return running
 }
 
 /// The run a turn that failed ended in: the last one of the turn, when the agent had not written an answer after it.
@@ -387,6 +456,18 @@ private func place(_ call: ToolCall, in rows: inout [FeedRow], id: String, held:
         return (rows.count - 1, run.calls.count - 1)
     }
     rows.append(.tools(id: held.first?.id ?? id, ToolGroup(calls: [call], thoughts: held)))
+    held = []
+    return (rows.count - 1, 0)
+}
+
+/// Puts a subagent at the end of the run the last row is, or opens a row for it, as `place` does for a call.
+private func place(_ subagent: Subagent, in rows: inout [FeedRow], id: String, held: inout [Thought]) -> (row: Int, index: Int) {
+    if case .tools(let group, var run)? = rows.last {
+        run.subagents.append(subagent)
+        rows[rows.count - 1] = .tools(id: group, run)
+        return (rows.count - 1, run.subagents.count - 1)
+    }
+    rows.append(.tools(id: held.first?.id ?? id, ToolGroup(calls: [], thoughts: held, subagents: [subagent])))
     held = []
     return (rows.count - 1, 0)
 }
@@ -556,6 +637,11 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// What the person sent as the first message of the session the draft opened, shown until the host's own record of it arrives (a failed
     /// step before the message leaves none) so the text is never lost.
     public private(set) var firstMessage: String?
+    /// The subagent view open over the conversation, rebuilt with the feed; nil with none open.
+    public private(set) var openSubagent: SubagentWork?
+    @ObservationIgnored private var openCall: String?
+    /// Whether the host lists `stopTask`, read from its hello once; false until then and for an older host.
+    @ObservationIgnored private var hostStops: Bool?
     /// Counts the sends, so a poll that began before one does not tell the model the agent is idle when it is not.
     @ObservationIgnored private var sends = 0
 
@@ -611,6 +697,10 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
                 changed = changed || reply.events.isEmpty == false
             } while reply.events.count >= Self.page
             let first = loaded == false
+            if hostStops == nil, let listed = try? await host.capabilities() {
+                hostStops = listed.contains(.stopTask)
+                changed = true
+            }
             if let session = try await host.list(archived: false).first(where: { $0.id == sessionId }) {
                 agent = session.agent
                 live = session.live
@@ -649,7 +739,11 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
                 remembered = reply.options
                 memory.save(sessionId, reply.options)
             }
-            if sends == sendsBefore, let state = reply.state { busy = state != .idle }
+            if sends == sendsBefore, let state = reply.state {
+                // the feed shows a subagent that never ended as stopped only while the session is not working
+                changed = changed || busy != (state != .idle)
+                busy = state != .idle
+            }
         } catch {
             let message = Self.words(error)
             if failure != message { log("session \(sessionId): \(message)") }
@@ -661,6 +755,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             let next = feed()
             if quotaErrorAppeared(from: rows, to: next) { onQuotaError?() }
             rows = next
+            openSubagent = openCall.flatMap(work)
             times = Dictionary(events.filter { $0.kind == "user" || $0.kind == "assistant" }.map { ("e\($0.id)", $0.at) }) { $1 }
             if followsOutput && atEnd { scrolls += 1 }
         }
@@ -762,9 +857,33 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     }
 
     private func feed() -> [FeedRow] {
-        let rows = chatFeed(events, streaming: streaming, pending: pending)
+        let rows = chatFeed(events, streaming: streaming, pending: pending, working: busy)
         guard let firstMessage, events.contains(where: { $0.kind == "user" }) == false else { return rows }
         return [.user(id: "first-message", text: firstMessage)] + rows
+    }
+
+    /// The subagent view the person opened (the call that launched it), nil for the conversation itself.
+    public func show(subagent call: String?) {
+        openCall = call
+        openSubagent = call.flatMap(work)
+    }
+
+    /// The subagent's view from the events, its header saying whether the host can stop it.
+    private func work(_ call: String) -> SubagentWork? {
+        var work = subagentWork(in: events, call: call, working: busy)
+        work?.header.hostStops = hostStops == true
+        return work
+    }
+
+    /// Stop in the subagent's header: asks the host to stop the open subagent and nothing else. The view shows it stopped when the host's
+    /// `stopped` event arrives, not before; a refusal (it ended meanwhile) needs no word, the next poll says how it stands.
+    public func stopOpenSubagent() async {
+        guard let header = openSubagent?.header, header.canStop, let task = header.taskId else { return }
+        do {
+            try await host.stopTask(sessionId, task: task)
+        } catch {
+            _ = report(error, "stop the subagent")
+        }
     }
 
     /// Drops the queued message.
@@ -784,7 +903,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         await poll()
     }
 
-    /// The Stop button: ends the turn; the queued message, if any, goes when the poll sees the agent idle.
+    /// The Stop button: ends the turn, then stops each subagent still running (only a host that lists `stopTask` can; a refusal means it ended
+    /// meanwhile); the queued message, if any, goes when the poll sees the agent idle.
     public func stop() async {
         do {
             try await host.interrupt(sessionId)
@@ -792,6 +912,14 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         } catch {
             refusedText = nil
             refusal = report(error, "stop the turn")
+        }
+        guard hostStops == true else { return }
+        for task in runningTasks(in: events) {
+            do {
+                try await host.stopTask(sessionId, task: task)
+            } catch {
+                _ = report(error, "stop the subagent")
+            }
         }
     }
 

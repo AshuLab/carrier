@@ -32,6 +32,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - In `carrier chat`, `/agent <name>` switches an idle session to another configured agent: the new agent starts a fresh conversation and can read the old one through the `history` tool, so you go on where you were when a quota runs out or you want a second opinion.
 - When Claude or Codex hits a usage limit, the chat host reports it as its own error that names the agent and its reset time, so a client can offer another agent.
 - A session's agent can start child sessions on other agents or models with `delegate_start`, wait for them with `delegate_wait` and read their results, and each delegation asks you first, saying what will be sent; a child takes no messages, and a parent and its children are archived, deleted and aged as one.
+- The live line of a conversation says what the agent is waiting on with a chip (Thinking, Read, Search, Edit, Shell, the MCP server's name, N subagents, Needs you), its timer counts the running call and not the whole turn, and a Shell or MCP call that runs past 30 seconds turns it amber; an MCP call reads as its tool and server, not as raw JSON, and a finished run counts MCP calls and subagents apart.
+- Each subagent a session starts is a row of the conversation (its type, title, current step, count of steps and timer, with a tick, a red mark or a square when it ends), and its calls, thoughts and messages no longer land in the main agent's message.
+- In an epic's Agent output tab, a slice card shows the step its subagent is on now.
+- A session stays working while its subagents run, even after the main agent's turn ended: the sidebar and the header show it working, Archive is off, and Stop in the message box stops the running subagents as well as the turn; a subagent that never ended in a session that is no longer working shows as stopped.
+- Stop a running subagent from its own view: a Stop button next to its state in the window's header ends only that subagent, not the main agent, and the row and the view show Stopped once it has; a chat host from before this change does not offer it.
+- Tap a subagent's row in a conversation to open its own view: its brief from the main agent, then its calls, thoughts and messages as the main agent's are drawn, with ‹ Back in the window's header (title, "Explore · Subagent of <session>" and its state in place of the worktree pill) and a read-only note where the message box is.
+- In an epic's Agent output tab, tapping a slice card opens the same subagent view (its calls, thoughts and messages, all its runs in one view) with ‹ Back in the window's header, the slice's title, "Builder · <epic>" and its state, instead of unfolding the card in place.
 
 ## [0.9.0] - 2026-11-16
 

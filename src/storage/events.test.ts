@@ -35,6 +35,7 @@ test('a row per event, in order; the time is the event own or the arrival; text,
       { kind: 'tool_start', callId: 'c', tool: 'Bash', arg: 'ls', agentId: 'a1' },
       { kind: 'tool_end', callId: 'c', tool: 'Bash', status: 'err', durationMs: 7, summary: 'boom', output: ['x'], diff: [{ sign: '+', text: 'y' }] },
       { kind: 'task', text: 'Build slice #3', slice: 3, lane: 2 },
+      { kind: 'task', agentId: 'a1', callId: 'c1', tool: 'Read', tools: 3, tokens: 1200, durationMs: 4500, slice: 3 },
     ],
     1000,
   );
@@ -43,6 +44,7 @@ test('a row per event, in order; the time is the event own or the arrival; text,
     { executionId: 'x1', at: 1000, kind: 'tool_start', callId: 'c', agentId: 'a1', tool: 'Bash', arg: 'ls', summary: null, status: null, durationMs: null, payload: null },
     { executionId: 'x1', at: 1000, kind: 'tool_end', callId: 'c', agentId: null, tool: 'Bash', arg: null, summary: 'boom', status: 'err', durationMs: 7, payload: { output: ['x'], diff: [{ sign: '+', text: 'y' }] } },
     { executionId: 'x1', at: 1000, kind: 'task', callId: null, agentId: null, tool: null, arg: null, summary: null, status: null, durationMs: null, payload: { text: 'Build slice #3', slice: 3, lane: 2 } },
+    { executionId: 'x1', at: 1000, kind: 'task', callId: 'c1', agentId: 'a1', tool: 'Read', arg: null, summary: null, status: null, durationMs: 4500, payload: { tools: 3, tokens: 1200, slice: 3 } },
   ]);
   const ids = rows().map((row) => row.id);
   expect(ids).toEqual([...ids].sort((a, b) => a - b));
@@ -76,6 +78,7 @@ test.each(Object.entries(secretFixtures))('no stored row keeps %s', (_shape, { t
     line({ type: 'assistant', message: { content: [{ type: 'text', text }, { type: 'tool_use', id: 'c1', name: 'Bash', input: { command: `env ${text}` } }] } }),
     line({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'c1', content: `a\n${text}\nz` }] }, tool_use_result: { structuredPatch: [{ lines: [`+${text}`] }] } }),
     line({ type: 'system', subtype: 'task_started', task_id: 't', task_type: 'local_agent', description: text }),
+    line({ type: 'system', subtype: 'task_progress', task_id: 't', last_tool_name: text }),
     line({ type: 'result', is_error: true, result: text }),
   ];
   recordEvents(db, 'x1', stream.flatMap((l) => parseClaudeEvents(l, state)), 1);

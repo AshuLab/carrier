@@ -62,8 +62,8 @@ public struct SubagentWork: Equatable {
 
 /// The subagent launched by `call`, from the events of the session: its own calls, thoughts and messages as flow items (the rows of any
 /// subagent it launched in turn are in its groups), drawn as the main agent's are. A run still going while the subagent runs is live; once
-/// it ended, a call that never ended was stopped. Nil when no `task` event names the call.
-public func subagentWork(in events: [ChatEvent], call: String) -> SubagentWork? {
+/// it ended, a call that never ended was stopped, and so is the subagent when its session is not `working`. Nil when no `task` event names the call.
+public func subagentWork(in events: [ChatEvent], call: String, working: Bool = true) -> SubagentWork? {
     var subagent: Subagent?
     for event in events where event.kind == "task" && event.callId == call {
         if subagent == nil { subagent = Subagent(task: event) } else { subagent?.apply(task: event) }
@@ -85,8 +85,9 @@ public func subagentWork(in events: [ChatEvent], call: String) -> SubagentWork? 
         return event
     }
     for event in own where event.kind != "task" && event.parentCallId == nil { subagent.apply(inside: event) }
+    if working == false, subagent.status == .running, let last = events.last?.at { subagent.stop(at: last) }
     let running = subagent.status == .running
-    let rows = chatFeed(own)
+    let rows = chatFeed(own, working: working)
     let working = running ? workInProgress(in: rows) : nil
     let items = rows.compactMap { row -> FlowItem? in
         switch row {

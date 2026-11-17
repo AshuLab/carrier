@@ -49,6 +49,22 @@ private func session(
     #expect(rows.map(\.state) == [.idle, .idle])
 }
 
+/// The host says `working` for a turn and for a session held by running subagents after its turn ended in the same words, so the app
+/// draws both alike: the row, the clock and the menu say working, and Archive is off with the reason.
+@MainActor @Test func aSessionTheHostReportsWorkingAfterItsTurnEndedIsDrawnWorkingWithArchiveOff() throws {
+    let rows = sessionRows([try session("turn", state: "working"), try session("subagents", state: "working")])
+    #expect(rows.map(\.state) == [.working, .working])
+    let row = rows[1]
+    #expect(WorkingClock().since(row) == row.updatedAt)
+    #expect(archiveBlock(row) == "Stop the session to archive it")
+    let menu = sessionMenu(row).flatMap { $0 }
+    #expect(menu.first { $0.title == "Archive" }?.disabledReason == "Stop the session to archive it")
+    #expect(menu.first { $0.title == "Stop" }?.disabledReason == nil)
+    // the same session once the last subagent ended: idle, Archive on
+    let idle = sessionRows([try session("subagents", state: "idle")])[0]
+    #expect(idle.state == .idle && archiveBlock(idle) == nil)
+}
+
 @Test func aSessionThatIsPreparingShowsAtOnceAsWorkingWhetherOrNotItsAgentHasStarted() throws {
     let rows = sessionRows([try session("p", state: "preparing", live: false), try session("q", state: "preparing", live: true)])
     #expect(rows.map(\.state) == [.working, .working])

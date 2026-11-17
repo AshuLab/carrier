@@ -441,6 +441,9 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var capabilities: Set<ControlClient.Capability> = [.stopTask]
     var stopped: [String] = []
     var refusingStopTask: ControlError?
+    /// The state the host reports with its events; nil leaves the model's as it was (idle).
+    var state: ChatSession.State?
+    var interrupts = 0
 
     func agents() async throws -> [ChatAgent] { [] }
     func open(plan: SessionPlan) async throws -> String { "" }
@@ -467,7 +470,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
         if let refusing { throw refusing }
     }
     func send(_ id: String, _ text: String) async throws { sent.append(text) }
-    func interrupt(_ id: String) async throws {}
+    func interrupt(_ id: String) async throws { interrupts += 1 }
     func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws {}
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
@@ -485,7 +488,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
         asked.append((after, limit))
         if let failing { throw failing }
         let page = Array(events.filter { $0.id > after }.prefix(limit))
-        return ChatEvents(events: page, cursor: page.last?.id ?? after, streaming: streaming, preparation: preparation, progress: progress)
+        return ChatEvents(events: page, cursor: page.last?.id ?? after, streaming: streaming, state: state, preparation: preparation, progress: progress)
     }
 }
 
@@ -1407,6 +1410,7 @@ private func flow(_ work: SubagentWork?) -> [String] {
 
 @MainActor @Test func theModelRebuildsTheOpenSubagentsViewAsEventsArriveAndLeavesItWhenAskedTo() async {
     let host = ScriptedHost()
+    host.state = .working
     host.events = Array(subagentTurn[..<6])
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
     await model.poll()
@@ -1437,6 +1441,7 @@ private func flow(_ work: SubagentWork?) -> [String] {
 
 @MainActor @Test func stopInTheSubagentsViewAsksTheHostForThatTaskAndTheViewShowsStoppedOnlyWhenTheEventArrives() async {
     let host = ScriptedHost()
+    host.state = .working
     host.events = Array(subagentTurn[..<6])
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
     await model.poll()
@@ -1457,6 +1462,7 @@ private func flow(_ work: SubagentWork?) -> [String] {
 
 @MainActor @Test func aHostThatDoesNotListStopTaskGetsNoStopAndNoRequest() async {
     let host = ScriptedHost()
+    host.state = .working
     host.capabilities = [.interrupt, .send, .events]
     host.events = Array(subagentTurn[..<6])
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
@@ -1469,6 +1475,7 @@ private func flow(_ work: SubagentWork?) -> [String] {
 
 @MainActor @Test func aRefusedStopLeavesTheViewAsItWasAndTheNextPollTellsHowItStands() async {
     let host = ScriptedHost()
+    host.state = .working
     host.events = Array(subagentTurn[..<6])
     host.refusingStopTask = .remote("That subagent is not running")
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
@@ -1503,4 +1510,64 @@ private func flow(_ work: SubagentWork?) -> [String] {
     ])
     #expect(subagentWork(in: events, call: "a3")?.header.state == .running)
     #expect(subagentWork(in: events, call: "n1")?.header.title == "Check the runner types")
+}
+
+// MARK: a subagent that outlives its session's work
+
+private func launched(_ call: String, at: Int, id: Int) -> [ChatEvent] {
+    [ChatEvent(id: id, at: at, kind: "tool_start", callId: call, tool: "Agent", arg: "{}"), task(id + 1, at + 1, call, "started", text: "Look", type: "Explore")]
+}
+
+@Test func aSubagentWithAStartAndNoEndShowsStoppedInItsRowTheParentsLineAndItsViewWhenTheSessionIsNotWorking() {
+    var events = launched("a1", at: 10, id: 2) + [
+        ChatEvent(id: 4, at: 50, kind: "tool_start", callId: "s1", tool: "Read", arg: "a.ts", parentCallId: "a1"),
+        ChatEvent(id: 5, at: 60, kind: "turn_end", outcome: "ok"),
+    ]
+    events.insert(ChatEvent(id: 1, at: 0, kind: "user", text: "go"), at: 0)
+    // working: it runs, the parent's line waits for it
+    var run = group(chatFeed(events, working: true))
+    #expect(run.subagents.map(\.status) == [.running] && run.doing == "Waiting for them" && run.chip(waiting: false) == .subagents(1))
+    #expect(subagentWork(in: events, call: "a1", working: true)?.header.state == .running)
+    // idle: the row, the parent's line (no more "Waiting for them") and the view all say stopped
+    run = group(chatFeed(events, working: false))
+    #expect(run.subagents.map(\.status) == [.stopped] && run.subagents[0].words == "Stopped" && run.subagents[0].endedAt == 60)
+    #expect(run.runningSubagents == 0 && run.isWorking == false && run.doing == nil && run.chip(waiting: false) == .thinking)
+    let work = subagentWork(in: events, call: "a1", working: false)
+    #expect(work?.header.state == .stopped && work?.header.durationMs == 49 && work?.header.stateWords(now: 0) == "Stopped")
+    // one that ended keeps how it ended
+    let done = events + [task(9, 55, "a1", "completed")]
+    #expect(group(chatFeed(done, working: false)).subagents.map(\.status) == [.completed])
+}
+
+@MainActor @Test func theConversationDrawsAnUnfinishedSubagentStoppedWhileTheHostSaysIdleAndRunningWhileItSaysWorking() async {
+    let host = ScriptedHost()
+    host.events = launched("a1", at: 10, id: 1) + [ChatEvent(id: 3, at: 60, kind: "turn_end", outcome: "ok")]
+    host.state = .working
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(group(model.rows).subagents.map(\.status) == [.running])
+    // no new event, only the state: the feed is drawn again
+    host.state = .idle
+    await model.poll()
+    #expect(group(model.rows).subagents.map(\.status) == [.stopped])
+}
+
+@MainActor @Test func stopInterruptsTheTurnThenStopsEachRunningSubagentAndNoneThatEnded() async {
+    let host = ScriptedHost()
+    host.state = .working
+    host.events = launched("a1", at: 10, id: 1) + launched("a2", at: 20, id: 3) + launched("a3", at: 30, id: 5) + [task(7, 40, "a3", "completed")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    await model.stop()
+    #expect(host.interrupts == 1)
+    #expect(host.stopped == ["s t-a1", "s t-a2"])
+    // a host that cannot stop a subagent only gets the interrupt
+    let older = ScriptedHost()
+    older.capabilities = [.interrupt, .send, .events]
+    older.state = .working
+    older.events = launched("a1", at: 10, id: 1)
+    let other = ConversationModel(host: older, sessionId: "s", log: { _ in })
+    await other.poll()
+    await other.stop()
+    #expect(older.interrupts == 1 && older.stopped.isEmpty)
 }

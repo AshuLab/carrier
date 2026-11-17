@@ -224,7 +224,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       db.insert(chatTurns).values({ sessionId, startedAt, model: event.model ?? null, outcome: event.outcome, durationMs: clock.now() - startedAt, toolCalls: live.turn?.toolCalls ?? 0, usage: event.usage ?? null }).run();
       live.turn = undefined;
     }
-    touch(sessionId, live, event.kind === 'approval' ? 'waiting_approval' : event.kind === 'turn_end' ? 'idle' : event.kind === 'approval_answered' ? 'working' : live.state);
+    // The SDK runs subagents in the background, so a turn can end before them: the session is idle only when the turn is over and no task runs.
+    const busy = live.turn !== undefined || live.tasks.size > 0;
+    const next = event.kind === 'turn_end' ? (busy ? 'working' : 'idle') : event.kind === 'task' ? (busy ? (live.state === 'idle' ? 'working' : live.state) : 'idle') : live.state;
+    touch(sessionId, live, event.kind === 'approval' ? 'waiting_approval' : event.kind === 'approval_answered' ? 'working' : next);
   };
 
   /** The agents that were told to end and have not yet: a close that does not wait leaves them here, and the host's stop waits for them. */

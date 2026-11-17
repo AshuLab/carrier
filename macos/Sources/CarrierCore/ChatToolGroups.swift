@@ -246,6 +246,12 @@ public struct Subagent: Equatable, Identifiable {
         }
     }
 
+    /// It started and never ended while its session is not working: the host restarted or lost it, so it is shown stopped, at the time of the last event.
+    mutating func stop(at time: Int) {
+        status = .stopped
+        endedAt = max(startedAt, time)
+    }
+
     /// An event made inside the subagent: a call it starts, a thought or its text is what it is doing now.
     mutating func apply(inside event: ChatEvent) {
         switch event.kind {

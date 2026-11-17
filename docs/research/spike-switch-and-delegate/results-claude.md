@@ -1,5 +1,6 @@
 # Spike A (Claude): permission modes, what each lets an agent do, and opening with a model
 
+Rerun on SDK 0.3.326: [results-claude-0.3.326.md](./results-claude-0.3.326.md).
 Run on 2026-11-16 with the user's own `claude` 2.1.325 and login, SDK 0.3.311 as installed in this worktree (not 0.3.325), model alias `haiku` (resolves to `claude-haiku-5-5`), in temporary folders under `/tmp` that the scripts removed.
 35 real turns were used, which is the whole budget: A1 8, A2 20, A3 1, plan follow-ups 4 (`a4.ts`) and 2 (`a5.ts`).
 No usage or rate limit was hit.

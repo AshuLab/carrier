@@ -4,13 +4,13 @@
     "options": {
       "model": "haiku"
     },
-    "openToReadyMs": 567,
+    "openToReadyMs": 532,
     "current": "haiku",
     "listed": [
       {
         "id": "default",
         "label": "Default (recommended)",
-        "version": "claude-sonnet-5-5"
+        "version": "claude-opus-5-5"
       },
       {
         "id": "opus",
@@ -89,13 +89,13 @@
     "options": {
       "model": "not-a-real-model-xyz"
     },
-    "openToReadyMs": 544,
+    "openToReadyMs": 593,
     "current": "not-a-real-model-xyz",
     "listed": [
       {
         "id": "default",
         "label": "Default (recommended)",
-        "version": "claude-sonnet-5-5"
+        "version": "claude-opus-5-5"
       },
       {
         "id": "opus",
@@ -176,13 +176,13 @@
     "turnEvents": [
       {
         "kind": "assistant",
-        "text": "There's an issue with the selected model (not-a-real-model-xyz). It may not exist or you may not have access to it.",
-        "at": 753
+        "text": "There's an issue with the selected model (not-a-real-model-xyz). It may not exist or you may not have access to it. Run --model to pick a different model.",
+        "at": 1054
       },
       {
         "kind": "error",
-        "text": "There's an issue with the selected model (not-a-real-model-xyz). It may not exist or you may not have access to it.",
-        "at": 756
+        "text": "There's an issue with the selected model (not-a-real-model-xyz). It may not exist or you may not have access to it. Run --model to pick a different model.",
+        "at": 1057
       },
       {
         "kind": "turn_end",
@@ -194,7 +194,7 @@
           "output_tokens": 0,
           "total_cost_usd": 0
         },
-        "at": 756
+        "at": 1057
       }
     ],
     "afterTurnCurrent": "not-a-real-model-xyz"
@@ -202,13 +202,13 @@
   {
     "case": "nothing",
     "options": {},
-    "openToReadyMs": 556,
+    "openToReadyMs": 542,
     "current": "default",
     "listed": [
       {
         "id": "default",
         "label": "Default (recommended)",
-        "version": "claude-sonnet-5-5"
+        "version": "claude-opus-5-5"
       },
       {
         "id": "opus",

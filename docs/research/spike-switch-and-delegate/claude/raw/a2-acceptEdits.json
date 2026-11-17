@@ -3,45 +3,174 @@
   "init": {
     "model": "claude-haiku-5-5",
     "permissionMode": "acceptEdits",
-    "claude_code_version": "2.1.325",
+    "claude_code_version": "2.1.326",
     "mcp_servers": [
       {
-        "name": "codegraph",
+        "name": "claude.ai Claude Data",
         "status": "connected",
-        "source": "user"
+        "source": "claudeai"
       },
       {
-        "name": "sentry",
+        "name": "claude.ai Claude Docs",
+        "status": "connected",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Meetings",
+        "status": "connected",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Slides",
         "status": "needs-auth",
-        "source": "user"
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Sheets",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Docs",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Calendar",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Slack",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Notion",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai monday.com",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Linear",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Intercom",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai HubSpot",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Figma",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Canva",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Box",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Atlassian",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Asana",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Sass BluePrint",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Vercel",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Drive",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Gmail",
+        "status": "needs-auth",
+        "source": "claudeai"
       }
     ],
     "tools": [
       "Task",
       "AskUserQuestion",
       "Bash",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "DesignSync",
       "Edit",
+      "EnterPlanMode",
       "EnterWorktree",
+      "ExitPlanMode",
       "ExitWorktree",
       "ListAgents",
       "Monitor",
+      "NotebookEdit",
       "PublishPlugin",
+      "PushNotification",
       "Read",
+      "RemoteTrigger",
+      "ReportFindings",
+      "ScheduleWakeup",
+      "SendMessage",
       "ShareOnboardingGuide",
       "Skill",
       "TaskStop",
       "ToolSearch",
       "WebFetch",
       "WebSearch",
+      "Workflow",
       "Write",
-      "mcp__codegraph__analyze_diff",
-      "mcp__codegraph__analyze_impact",
-      "mcp__codegraph__find_dead_code",
-      "mcp__codegraph__inspect_symbol",
-      "mcp__codegraph__open_explorer",
-      "mcp__codegraph__search_symbols",
-      "mcp__codegraph__survey_repo",
-      "mcp__codegraph__trace_path"
+      "mcp__claude_ai_Claude_Data__certify_query",
+      "mcp__claude_ai_Claude_Data__get_certified_query_source",
+      "mcp__claude_ai_Claude_Data__get_live_results",
+      "mcp__claude_ai_Claude_Data__list_certified_queries",
+      "mcp__claude_ai_Claude_Data__set_certified_query_source",
+      "mcp__claude_ai_Claude_Data__share_connector",
+      "mcp__claude_ai_Claude_Data__share_live_queries",
+      "mcp__claude_ai_Claude_Data__shared_results",
+      "mcp__claude_ai_Claude_Data__uncertify_query",
+      "mcp__claude_ai_Claude_Data__unshare_connector",
+      "mcp__claude_ai_Claude_Data__unshare_live_queries",
+      "mcp__claude_ai_Claude_Docs__batch",
+      "mcp__claude_ai_Claude_Docs__create",
+      "mcp__claude_ai_Claude_Docs__delete",
+      "mcp__claude_ai_Claude_Docs__export",
+      "mcp__claude_ai_Claude_Docs__guide",
+      "mcp__claude_ai_Claude_Docs__query",
+      "mcp__claude_ai_Claude_Docs__read",
+      "mcp__claude_ai_Claude_Docs__update",
+      "mcp__claude_ai_Meetings__follow_meeting_transcript",
+      "mcp__claude_ai_Meetings__get_meeting",
+      "mcp__claude_ai_Meetings__get_meeting_action_items",
+      "mcp__claude_ai_Meetings__get_meeting_transcript",
+      "mcp__claude_ai_Meetings__list_meetings"
     ]
   },
   "turns": [
@@ -49,27 +178,27 @@
       "probe": "write-inside",
       "turn": {
         "prompt": "Create a file named a.txt in the current working folder with the text hi inside. Do nothing else, and if it is refused do not try another way.",
-        "ms": 1816,
+        "ms": 2619,
         "asked": [],
         "tools": [
           {
             "name": "Write",
             "input": {
-              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-p8zugh/a.txt",
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-KFgFAv/a.txt",
               "content": "hi"
             }
           }
         ],
         "results": [
           {
-            "tool": "toolu_01DbLvbu9nZ5Npjyjt6Qp4GV",
+            "tool": "toolu_01WVWG99MnYrKMjw3rZtnZg6",
             "error": false,
-            "text": "File created successfully at: /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-p8zugh/a.txt (file state is current in your context — no need to Read it back)"
+            "text": "File created successfully at: /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-KFgFAv/a.txt (file state is current in your context — no need to Read it back)"
           }
         ],
-        "said": "Created `a.txt` with `hi` in the working folder.\n",
+        "said": "I created `a.txt` in the working folder with the text `hi`.\n",
         "outcome": "success",
-        "resultText": "Created `a.txt` with `hi` in the working folder.",
+        "resultText": "I created `a.txt` in the working folder with the text `hi`.",
         "denials": []
       },
       "fileExists": true,
@@ -78,56 +207,56 @@
     {
       "probe": "write-outside",
       "turn": {
-        "prompt": "Create a file named b.txt with the text hi inside, in the folder /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL. Do nothing else, and if it is refused do not try another way.",
-        "ms": 1719,
+        "prompt": "Create a file named b.txt with the text hi inside, in the folder /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-wuIjio. Do nothing else, and if it is refused do not try another way.",
+        "ms": 2210,
         "asked": [
           {
             "turn": 2,
             "tool": "Write",
             "input": {
-              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL/b.txt",
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-wuIjio/b.txt",
               "content": "hi"
             },
             "displayName": "Write",
-            "description": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL/b.txt",
+            "description": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-wuIjio/b.txt",
             "decisionReason": "Path is outside allowed working directories",
             "suggestions": [
               {
                 "type": "addDirectories",
                 "directories": [
-                  "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL"
+                  "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-wuIjio"
                 ],
                 "destination": "session"
               }
             ],
-            "toolUseID": "toolu_01DTvss1cdMmiqRKGjcabgbc"
+            "toolUseID": "toolu_01Xmf1CYNQQBEPjsEcfB93ke"
           }
         ],
         "tools": [
           {
             "name": "Write",
             "input": {
-              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL/b.txt",
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-wuIjio/b.txt",
               "content": "hi"
             }
           }
         ],
         "results": [
           {
-            "tool": "toolu_01DTvss1cdMmiqRKGjcabgbc",
+            "tool": "toolu_01Xmf1CYNQQBEPjsEcfB93ke",
             "error": true,
             "text": "Denied by the spike probe."
           }
         ],
-        "said": "Refused: \"Denied by the spike probe.\" I didn't retry or try another method, so `b.txt` was not created.\n",
+        "said": "The write to `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-wuIjio/b.txt` was refused with \"Denied by the spike probe.\" I didn't try another way, so `b.txt` was not created.\n",
         "outcome": "success",
-        "resultText": "Refused: \"Denied by the spike probe.\" I didn't retry or try another method, so `b.txt` was not created.",
+        "resultText": "The write to `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-wuIjio/b.txt` was refused with \"Denied by the spike probe.\" I didn't try another way, so `b.txt` was not created.",
         "denials": [
           {
             "tool_name": "Write",
-            "tool_use_id": "toolu_01DTvss1cdMmiqRKGjcabgbc",
+            "tool_use_id": "toolu_01Xmf1CYNQQBEPjsEcfB93ke",
             "tool_input": {
-              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL/b.txt",
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-wuIjio/b.txt",
               "content": "hi"
             }
           }
@@ -139,17 +268,17 @@
       "probe": "curl",
       "turn": {
         "prompt": "Run the shell command: curl -sI https://example.com | head -1 Do nothing else, and if it is refused do not try another way.",
-        "ms": 1473,
+        "ms": 1780,
         "asked": [
           {
             "turn": 3,
             "tool": "Bash",
             "input": {
               "command": "curl -sI https://example.com | head -1",
-              "description": "Fetch HTTP status line from example.com"
+              "description": "Fetch HTTP headers from example.com and show status line"
             },
             "displayName": "Bash",
-            "description": "Fetch HTTP status line from example.com",
+            "description": "Fetch HTTP headers from example.com and show status line",
             "suggestions": [
               {
                 "type": "addRules",
@@ -163,7 +292,7 @@
                 "destination": "localSettings"
               }
             ],
-            "toolUseID": "toolu_01SncNoguHwQ4hL8eB2fHNSy"
+            "toolUseID": "toolu_01Fg3uTrivwFM8SLTyYGzMx9"
           }
         ],
         "tools": [
@@ -171,27 +300,27 @@
             "name": "Bash",
             "input": {
               "command": "curl -sI https://example.com | head -1",
-              "description": "Fetch HTTP status line from example.com"
+              "description": "Fetch HTTP headers from example.com and show status line"
             }
           }
         ],
         "results": [
           {
-            "tool": "toolu_01SncNoguHwQ4hL8eB2fHNSy",
+            "tool": "toolu_01Fg3uTrivwFM8SLTyYGzMx9",
             "error": true,
             "text": "Denied by the spike probe."
           }
         ],
-        "said": "Refused: \"Denied by the spike probe.\" I didn't retry or use another method.\n",
+        "said": "The shell command `curl -sI https://example.com | head -1` was refused with \"Denied by the spike probe.\" I didn't try another way, so nothing was run.\n",
         "outcome": "success",
-        "resultText": "Refused: \"Denied by the spike probe.\" I didn't retry or use another method.",
+        "resultText": "The shell command `curl -sI https://example.com | head -1` was refused with \"Denied by the spike probe.\" I didn't try another way, so nothing was run.",
         "denials": [
           {
             "tool_name": "Bash",
-            "tool_use_id": "toolu_01SncNoguHwQ4hL8eB2fHNSy",
+            "tool_use_id": "toolu_01Fg3uTrivwFM8SLTyYGzMx9",
             "tool_input": {
               "command": "curl -sI https://example.com | head -1",
-              "description": "Fetch HTTP status line from example.com"
+              "description": "Fetch HTTP headers from example.com and show status line"
             }
           }
         ]
@@ -201,7 +330,7 @@
       "probe": "ls",
       "turn": {
         "prompt": "Run the shell command: ls Do nothing else, and if it is refused do not try another way.",
-        "ms": 2638,
+        "ms": 2961,
         "asked": [],
         "tools": [
           {
@@ -214,14 +343,14 @@
         ],
         "results": [
           {
-            "tool": "toolu_01KxHY8SUxRt9SRtgDkdMtPo",
+            "tool": "toolu_01URbxFhDQnvtJK9miaQ2wtj",
             "error": false,
             "text": "a.txt"
           }
         ],
-        "said": "Output: `a.txt`\n",
+        "said": "The command `ls` ran and returned one entry: `a.txt`.\n",
         "outcome": "success",
-        "resultText": "Output: `a.txt`",
+        "resultText": "The command `ls` ran and returned one entry: `a.txt`.",
         "denials": []
       }
     }

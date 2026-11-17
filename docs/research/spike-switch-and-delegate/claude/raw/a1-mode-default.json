@@ -6,18 +6,8 @@
   "init": {
     "model": "claude-haiku-5-5",
     "permissionMode": "default",
-    "claude_code_version": "2.1.325",
+    "claude_code_version": "2.1.326",
     "mcp_servers": [
-      {
-        "name": "codegraph",
-        "status": "connected",
-        "source": "user"
-      },
-      {
-        "name": "sentry",
-        "status": "needs-auth",
-        "source": "user"
-      },
       {
         "name": "carrier-chat",
         "status": "connected",
@@ -28,36 +18,41 @@
       "Task",
       "AskUserQuestion",
       "Bash",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "DesignSync",
       "Edit",
+      "EnterPlanMode",
       "EnterWorktree",
+      "ExitPlanMode",
       "ExitWorktree",
       "ListAgents",
       "Monitor",
+      "NotebookEdit",
       "PublishPlugin",
+      "PushNotification",
       "Read",
+      "RemoteTrigger",
+      "ReportFindings",
+      "ScheduleWakeup",
+      "SendMessage",
       "ShareOnboardingGuide",
       "Skill",
       "TaskStop",
       "ToolSearch",
       "WebFetch",
       "WebSearch",
+      "Workflow",
       "Write",
       "mcp__carrier-chat__ping_act",
-      "mcp__carrier-chat__ping_read",
-      "mcp__codegraph__analyze_diff",
-      "mcp__codegraph__analyze_impact",
-      "mcp__codegraph__find_dead_code",
-      "mcp__codegraph__inspect_symbol",
-      "mcp__codegraph__open_explorer",
-      "mcp__codegraph__search_symbols",
-      "mcp__codegraph__survey_repo",
-      "mcp__codegraph__trace_path"
+      "mcp__carrier-chat__ping_read"
     ]
   },
-  "readyMs": 430,
+  "readyMs": 465,
   "turn": {
     "prompt": "Call ping_read, then call ping_act, then say what happened",
-    "ms": 3683,
+    "ms": 4751,
     "asked": [
       {
         "turn": 1,
@@ -76,7 +71,7 @@
             "destination": "localSettings"
           }
         ],
-        "toolUseID": "toolu_01FVH43kFZSe2sDFDM2LvYrd"
+        "toolUseID": "toolu_01QQ7Kk4oXMxRfrWU2vQpBco"
       }
     ],
     "tools": [
@@ -98,28 +93,28 @@
     ],
     "results": [
       {
-        "tool": "toolu_0121ivWPzb1q7hF8ieaxwMzo",
+        "tool": "toolu_01BL2XhGxBEHmpVhUWRci2Yg",
         "error": false,
         "text": " "
       },
       {
-        "tool": "toolu_013U8S9jXksnjhXJBtbzbb2a",
+        "tool": "toolu_01RkhankKb1MHt3sqmgbW6wr",
         "error": false,
         "text": "\"ping_read says PONG\""
       },
       {
-        "tool": "toolu_01FVH43kFZSe2sDFDM2LvYrd",
+        "tool": "toolu_01QQ7Kk4oXMxRfrWU2vQpBco",
         "error": true,
         "text": "Denied by the spike probe."
       }
     ],
-    "said": "ping_read: OK, returned \"ping_read says PONG\".\nping_act: failed. The call was denied with \"Denied by the spike probe.\" I didn't retry it.\n",
+    "said": "I called `ping_read` first, and it returned \"ping_read says PONG\". Then I called `ping_act`, which was denied with the error \"Denied by the spike probe.\" So `ping_read` worked and `ping_act` did not.\n",
     "outcome": "success",
-    "resultText": "ping_read: OK, returned \"ping_read says PONG\".\nping_act: failed. The call was denied with \"Denied by the spike probe.\" I didn't retry it.",
+    "resultText": "I called `ping_read` first, and it returned \"ping_read says PONG\". Then I called `ping_act`, which was denied with the error \"Denied by the spike probe.\" So `ping_read` worked and `ping_act` did not.",
     "denials": [
       {
         "tool_name": "mcp__carrier-chat__ping_act",
-        "tool_use_id": "toolu_01FVH43kFZSe2sDFDM2LvYrd",
+        "tool_use_id": "toolu_01QQ7Kk4oXMxRfrWU2vQpBco",
         "tool_input": {}
       }
     ]

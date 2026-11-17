@@ -1,7 +1,7 @@
 import { accessSync, constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { and, asc, count, desc, eq, gt, isNotNull, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, isNotNull, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
 import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
@@ -133,9 +133,9 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     workspace: workspaceKind === 'worktree' ? { kind: 'worktree', branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase!, path: worktreePath! } : { kind: 'folder' },
   });
 
-  /** What a list says of how a session went: the words its agent last wrote (one line, already redacted as stored), the turns that finished and the model of the last. */
+  /** What a list says of how a session went: the words its agent last wrote, not a subagent's (one line, already redacted as stored), the turns that finished and the model of the last. */
   const activity = (sessionId: string) => {
-    const message = db.select({ data: chatEvents.data }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'assistant'))).orderBy(desc(chatEvents.id)).limit(1).get();
+    const message = db.select({ data: chatEvents.data }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'assistant'), sql`json_extract(${chatEvents.data}, '$.parentCallId') is null`)).orderBy(desc(chatEvents.id)).limit(1).get();
     const turns = db.select({ n: count() }).from(chatTurns).where(eq(chatTurns.sessionId, sessionId)).get()?.n ?? 0;
     const last = db.select({ model: chatTurns.model }).from(chatTurns).where(eq(chatTurns.sessionId, sessionId)).orderBy(desc(chatTurns.id)).limit(1).get();
     const text = message?.data.text;
@@ -214,7 +214,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const { options } = row(sessionId);
       db.update(sessions).set({ options: { ...options, [event.id]: event.value } }).where(eq(sessions.id, sessionId)).run();
     }
-    if (event.kind === 'tool_start' && live.turn) live.turn.toolCalls++;
+    if (event.kind === 'tool_start' && live.turn && event.parentCallId === undefined) live.turn.toolCalls++; // the turn's own calls, not its subagents'
     if (event.kind === 'turn_end') {
       const startedAt = live.turn?.startedAt ?? clock.now();
       db.insert(chatTurns).values({ sessionId, startedAt, model: event.model ?? null, outcome: event.outcome, durationMs: clock.now() - startedAt, toolCalls: live.turn?.toolCalls ?? 0, usage: event.usage ?? null }).run();

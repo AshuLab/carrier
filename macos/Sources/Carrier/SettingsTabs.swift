@@ -840,16 +840,17 @@ struct SidebarTabView: View {
     @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
     @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
 
-    /// Sessions of the preview: each has a branch, two providers and an age, so each switch has something to hide, and one is finished and one
-    /// waits, which is where "Done" and "Needs you" take the age's place.
+    /// Sessions of the preview: each has a branch, two providers and an age, so each switch has something to hide; one is finished and one waits,
+    /// which is where "Done" and "Needs you" take the age's place, and one has a pull request, which gives the row its third line.
     private static let samples = [
-        ("preview-idle", "Fix the flaky login test", SessionState.idle, false, -11),
-        ("preview-done", "Add the retry to uploads", .idle, true, -3),
-        ("preview-waiting", "Rename the billing module", .waiting, false, -26),
-    ].map { id, title, state, unread, minutes in
+        ("preview-idle", "Fix the flaky login test", SessionState.idle, false, -11, SessionPullRequest?.none),
+        ("preview-done", "Add the retry to uploads", .idle, true, -3, SessionPullRequest(number: 412, url: "https://github.com/AshuLab/carrier/pull/412", state: .open, checks: .passing)),
+        ("preview-waiting", "Rename the billing module", .waiting, false, -26, nil),
+    ].map { id, title, state, unread, minutes, pullRequest in
         SessionRow(
             id: id, title: title, workspace: "carrier", agent: "claude", state: state, updatedAt: Date(timeIntervalSinceNow: Double(minutes) * 60),
-            branch: "fix/login-flake", folder: "/preview", providers: ["claude", "codex"], unread: unread
+            branch: "fix/login-flake", folder: "/preview", providers: ["claude", "codex"], unread: unread,
+            diff: pullRequest == nil ? nil : SessionDiff(added: 86, removed: 12), pullRequest: pullRequest
         )
     }
 
@@ -881,7 +882,7 @@ struct SidebarTabView: View {
                 }
                 SettingsPreview {
                     VStack(spacing: 0) {
-                        ForEach(Self.samples, id: \.id) { SessionRowView(row: $0, showsWorkspace: true).allowsHitTesting(false) }
+                        ForEach(Self.samples, id: \.id) { SessionRowView(row: $0, showsWorkspace: true, roomy: true).allowsHitTesting(false) }
                     }
                 }
             }

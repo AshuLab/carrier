@@ -26,9 +26,12 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(agents.first?.model == "claude-sonnet-5-5")
 
     let active = try await host.list(archived: false)
-    #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle])
-    #expect(active.map(\.live) == [true, true, false, false])
-    #expect(active.map { $0.workspace?.base } == [nil, nil, nil, "/Users/dev/work/web"])
+    // the last of them is a session whose turn ended while a build runs
+    #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle, .idle])
+    #expect(active.map(\.live) == [true, true, false, false, true])
+    #expect(active.map { $0.workspace?.base } == [nil, nil, nil, "/Users/dev/work/web", nil])
+    #expect(active.map(\.background.count) == [0, 0, 0, 0, 1])
+    #expect(active.compactMap(\.pullRequest).map(\.number) == [983, 979, 412, 88] && active.compactMap(\.diff).count == 4)
     #expect(try await host.list(archived: true).map(\.archived) == [true, true])
 }
 

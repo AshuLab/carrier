@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A session in the sidebar that has a pull request shows it on a third line: its number and how it stands (draft, open with its checks, merged, closed), the lines the session changed and the providers. A click on the chip opens it on GitHub. The pull request is found once by the session's branch with your own `gh` login and then only its state is asked again.
+- A session whose turn ended while the agent waits for a build, a monitor or a subagent shows as working (a cyan ring and its clock) and not as idle or "Done"; it can be stopped and cannot be archived until the tasks end.
+
+### Changed
+
+- The rows of the sidebar have more room around their lines, and the branch is in monospace.
+
 ## [0.9.0] - 2026-11-16
 
 Dictate in any app: a global shortcut opens a widget over whatever you are in and pastes what you say, with optional cleanup by a local model, a history of your dictations with their audio and statistics on how much you dictate.

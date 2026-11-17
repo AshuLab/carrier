@@ -287,6 +287,7 @@ private struct SessionHomeRow: View {
         switch row.state {
         case .waiting: Text("Waiting for you").fontWeight(.medium).foregroundStyle(SessionRowView.attention).font(.callout)
         case .working: Text("Working…").foregroundStyle(.secondary).font(.callout)
+        case .idle, .done where row.background.isEmpty == false: Text("Waiting on background work…").foregroundStyle(.secondary).font(.callout)
         case .idle, .done:
             if let message = row.lastMessage {
                 Text(message).foregroundStyle(.secondary).font(.callout).lineLimit(1).truncationMode(.tail)

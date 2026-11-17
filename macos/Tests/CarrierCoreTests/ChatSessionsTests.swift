@@ -27,6 +27,61 @@ private func session(
     #expect(rows[3].updatedAt == Date(timeIntervalSince1970: 1_792_000_123.456))
 }
 
+private func decodedSession(_ extra: String, state: String = "idle", live: Bool = true) throws -> ChatSession {
+    try JSONDecoder().decode(
+        ChatSession.self,
+        from: Data("""
+            {"id":"x","agent":"claude","harness":"claude","folder":"/w","title":"t","state":"\(state)","createdAt":1,"lastActiveAt":2,"archived":false,"live":\(live)\(extra)}
+            """.utf8))
+}
+
+@Test func aRowCarriesTheLinesItChangedItsPullRequestAndWhatTheAgentWaitsFor() throws {
+    let full = try decodedSession(
+        """
+        ,"diff":{"added":86,"removed":12},"pr":{"repo":"AshuLab/carrier","number":983,"url":"https://github.com/AshuLab/carrier/pull/983","state":"draft","checks":null},
+         "background":[{"id":"b1","kind":"local_bash","description":"pnpm build"}]
+        """)
+    let row = try #require(sessionRows([full]).first)
+    #expect(row.diff == SessionDiff(added: 86, removed: 12))
+    #expect(row.pullRequest == SessionPullRequest(number: 983, url: "https://github.com/AshuLab/carrier/pull/983", state: .draft))
+    #expect(row.background == [BackgroundTask(id: "b1", kind: "local_bash", description: "pnpm build")])
+    // a host that says none of it, or a shape this app does not know, is no data and never a list that cannot be read
+    let bare = try #require(sessionRows([try decodedSession("")]).first)
+    #expect(bare.diff == nil && bare.pullRequest == nil && bare.background.isEmpty)
+    let odd = try #require(sessionRows([try decodedSession(#","diff":"lots","pr":{"number":"x"},"background":7"#)]).first)
+    #expect(odd.diff == nil && odd.pullRequest == nil && odd.background.isEmpty)
+    let unknownState = try #require(sessionRows([try decodedSession(#","pr":{"number":1,"url":"https://x","state":"queued","checks":null}"#)]).first)
+    #expect(unknownState.pullRequest == nil)
+}
+
+@Test func aSessionThatWaitsForBackgroundWorkIsWorkingNotIdleOrDoneAndAWaitingOneStaysWaiting() throws {
+    let task = #","background":[{"id":"b","kind":"local_bash","description":"pnpm build"}]"#
+    let idle = try #require(sessionRows([try decodedSession(task)]).first)
+    #expect(idle.state == .idle && idle.isWorking && idle.status == .working)
+    // it answered and was not opened: with the build still running it is not "Done" yet
+    var unread = idle
+    unread.unread = true
+    #expect(unread.status == .working)
+    unread.background = []
+    #expect(unread.isWorking == false && unread.status == .unread)
+    // waiting for an answer is what it is for the person, whatever else it runs
+    let waiting = try #require(sessionRows([try decodedSession(task, state: "waiting_approval")]).first)
+    #expect(waiting.status == .needsYou && waiting.isWorking == false)
+}
+
+@Test func aPullRequestSaysItsStateAndHowItsChecksWent() {
+    func pr(_ state: PullRequestState, _ checks: PullRequestChecks? = nil) -> SessionPullRequest { SessionPullRequest(number: 412, url: "u", state: state, checks: checks) }
+    #expect(pr(.draft).chipText == "#412 · draft" && pr(.draft).tone == .quiet)
+    #expect(pr(.open).chipText == "#412" && pr(.open).tone == .open)
+    #expect(pr(.open, .passing).chipText == "#412 · ✓" && pr(.open, .passing).tone == .open)
+    #expect(pr(.open, .failing).chipText == "#412 · CI ✕" && pr(.open, .failing).tone == .failing)
+    #expect(pr(.open, .pending).chipText == "#412 · …" && pr(.open, .pending).tone == .open)
+    #expect(pr(.merged).chipText == "#412 · merged" && pr(.merged).tone == .merged)
+    #expect(pr(.closed).chipText == "#412 · closed" && pr(.closed).tone == .quiet)
+    #expect(pr(.open, .passing).spoken == "Pull request 412, open, checks passing")
+    #expect(pr(.merged).spoken == "Pull request 412, merged")
+}
+
 @Test func aWorktreeSessionRowCarriesItsBranchAndAFolderSessionHasNone() throws {
     let tree = try JSONDecoder().decode(
         ChatSession.self,
@@ -648,7 +703,7 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     let working = "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01"
     try await host.archive(idle, true)
     #expect(try await host.list(archived: true).count == 3)
-    #expect(try await host.list(archived: false).count == 3)
+    #expect(try await host.list(archived: false).count == 4)
     try await host.archive(idle, false)
     #expect(try await host.list(archived: true).count == 2)
     await #expect(throws: ControlError.remote("This session is working; interrupt or close it first, then archive it")) { try await host.archive(working, true) }

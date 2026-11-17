@@ -28,6 +28,13 @@ A session whose turn ended and that the person has not opened since (`SessionRow
 "Needs you" is for a permission or a question the agent is blocked on, "Done" for a turn that simply ended.
 When the turn ends while the row is on screen, the icon's glow turns green and goes once round, fast, from where the arc was (`WorkingRing`, `finished`); with Reduce Motion the lap is skipped and the word still appears.
 
+A row of the sidebar's list has room around its lines (`Density.sessionRowPadding`: 12 points, 7 compact) and the branch in monospace.
+A session that has a pull request has a third line: its chip (`SessionPullRequestChip`: "#412 · ✓", "#979 · CI ✕", "#983 · draft", "#88 · merged", tinted green, red, grey or purple, and a click opens it on GitHub), the lines it changed as "+86 −12" and the providers, which go down from the second line with it.
+Without one the row has two lines, as before.
+Both come from the host's `list` (`pr` and `diff`, read by git on this Mac and by the person's own `gh`; the host does not wait for them, so a row has them a few seconds after it appears); a host that does not say leaves the row as it was, and the Archive section draws its rows without the third line.
+
+A session whose turn ended while the agent waits for something it started (a build, a monitor, a subagent) is working, not idle: `SessionRow.background` is what the host's `list` says (`isWorking`), its ring and its clock go on, in cyan and not in the violet of one that writes, it is in the Working group, it can be stopped (Stop in its menu, which stops those tasks) and it cannot be archived ("Stop the background task to archive it"), and it is not "Done" until the last one ends.
+
 Archiving is felt at once: the row is drawn archived as soon as it is asked (`SessionActions.archiving`, put on the list by `refreshUnread`), the host answers without waiting for the agent to end, and the lists are read again right away (`PollNap`) and not at the next tick.
 A session that works or waits for an answer cannot be archived (the host refuses it), so the Archive button of the hover, the one of the Sessions home and the item of the context menu are off, with the reason as their tooltip ("Stop the session to archive it"; `archiveBlock`), and the shortcut says it in an alert.
 If the host refuses anyway, the row comes back and an alert says why.

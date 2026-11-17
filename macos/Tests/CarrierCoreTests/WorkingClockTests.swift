@@ -24,3 +24,21 @@ private func row(_ state: SessionState, updatedAt: Date) -> SessionRow {
     let next = start.addingTimeInterval(300)
     #expect(clock.since(row(.working, updatedAt: next)) == next)
 }
+
+@MainActor @Test func aTurnThatEndedWhileTheAgentWaitsForWhatItStartedKeepsTheCountUntilThatEnds() {
+    let clock = WorkingClock()
+    let start = Date(timeIntervalSince1970: 1000)
+    let task = [BackgroundTask(id: "b", kind: "local_bash", description: "pnpm build")]
+    func waiting(_ updatedAt: Date) -> SessionRow {
+        var row = SessionRow(id: "s", title: "t", workspace: "w", agent: "a", state: .idle, updatedAt: updatedAt)
+        row.background = task
+        return row
+    }
+    #expect(clock.since(row(.working, updatedAt: start)) == start)
+    // the turn ended and the build runs: the same count goes on, and the row is working
+    #expect(waiting(start.addingTimeInterval(30)).isWorking && waiting(start.addingTimeInterval(30)).status == .working)
+    #expect(clock.since(waiting(start.addingTimeInterval(30))) == start)
+    #expect(clock.since(waiting(start.addingTimeInterval(200))) == start)
+    // the build ended: idle again, and the count with it
+    #expect(clock.since(row(.idle, updatedAt: start.addingTimeInterval(300))) == nil)
+}

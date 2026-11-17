@@ -637,6 +637,9 @@ public enum Density: String, CaseIterable {
 
     public var title: String { rawValue.capitalized }
     public var rowPadding: CGFloat { self == .compact ? 4 : 7 }
+    /// A session's row in the sidebar has room around its lines: it can have three of them.
+    public var sessionRowPadding: CGFloat { self == .compact ? 7 : 12 }
+    public var sessionLineGap: CGFloat { self == .compact ? 3 : 5 }
     public var messageGap: CGFloat { self == .compact ? 8 : 12 }
 }
 

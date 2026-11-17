@@ -25,6 +25,78 @@ public enum SessionStatus: CaseIterable, Hashable {
     }
 }
 
+/// The lines a session changed, counted by git on this Mac.
+public struct SessionDiff: Equatable, Decodable {
+    public var added: Int
+    public var removed: Int
+
+    public init(added: Int, removed: Int) { (self.added, self.removed) = (added, removed) }
+}
+
+/// A pull request's state on GitHub, and how its checks went (nil when it has none).
+public enum PullRequestState: String, Equatable, Decodable { case open, draft, merged, closed }
+public enum PullRequestChecks: String, Equatable, Decodable { case passing, failing, pending }
+
+/// The pull request of the branch a session works on.
+public struct SessionPullRequest: Equatable, Decodable {
+    public var number: Int
+    public var url: String
+    public var state: PullRequestState
+    public var checks: PullRequestChecks?
+
+    public init(number: Int, url: String, state: PullRequestState, checks: PullRequestChecks? = nil) { (self.number, self.url, self.state, self.checks) = (number, url, state, checks) }
+}
+
+extension SessionPullRequest {
+    /// How its chip is tinted: green while it is open (and its checks are not failing), red when its checks fail, purple once merged, quiet
+    /// for a draft or a closed one.
+    public enum Tone: Equatable { case open, failing, merged, quiet }
+
+    public var tone: Tone {
+        switch state {
+        case .merged: .merged
+        case .closed, .draft: .quiet
+        case .open: checks == .failing ? .failing : .open
+        }
+    }
+
+    /// What its chip says: "#983 · draft", "#412 · ✓", "#979 · CI ✕", "#88 · merged"; the number alone while it is open and has no checks.
+    public var chipText: String {
+        switch state {
+        case .merged: "#\(number) · merged"
+        case .closed: "#\(number) · closed"
+        case .draft: "#\(number) · draft"
+        case .open:
+            switch checks {
+            case .passing?: "#\(number) · ✓"
+            case .failing?: "#\(number) · CI ✕"
+            case .pending?: "#\(number) · …"
+            case nil: "#\(number)"
+            }
+        }
+    }
+
+    /// For VoiceOver: "Pull request 412, open, checks passing".
+    public var spoken: String {
+        let checks: String? = switch checks {
+        case .passing?: "checks passing"
+        case .failing?: "checks failing"
+        case .pending?: "checks running"
+        case nil: nil
+        }
+        return (["Pull request \(number)", state.rawValue] + [checks]).compactMap { $0 }.joined(separator: ", ")
+    }
+}
+
+/// Something the agent started and waits for after its turn ended: a command, a monitor, a subagent.
+public struct BackgroundTask: Equatable, Decodable {
+    public var id: String
+    public var kind: String
+    public var description: String
+
+    public init(id: String, kind: String, description: String) { (self.id, self.kind, self.description) = (id, kind, description) }
+}
+
 public struct SessionRow: Equatable {
     public var id: String
     public var title: String
@@ -59,20 +131,30 @@ public struct SessionRow: Equatable {
     public var asleep: Bool
     /// Whether it answered and the person has not opened it since; the app sets it (`SessionSeen`), the host does not know.
     public var unread: Bool
+    /// The lines it changed, nil when none or when the host has not read them (yet, or at all).
+    public var diff: SessionDiff?
+    /// The pull request of its branch, nil while none is known.
+    public var pullRequest: SessionPullRequest?
+    /// What the agent waits for after its turn ended. The session is not idle while it has some: it is working, in the background.
+    public var background: [BackgroundTask]
+
+    /// Whether the agent is busy: it works, or its turn ended and it waits for something it started. What shows as working, and what cannot be archived.
+    public var isWorking: Bool { state == .working || (state != .waiting && background.isEmpty == false) }
 
     /// What it is for the person; see `SessionStatus`.
     public var status: SessionStatus {
         switch state {
         case .waiting: .needsYou
         case .working: .working
-        case .idle, .done: unread ? .unread : asleep ? .asleep : .idle
+        case .idle, .done: background.isEmpty == false ? .working : unread ? .unread : asleep ? .asleep : .idle
         }
     }
 
     public init(
         id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil,
         folder: String = "", base: String? = nil, providers: [String] = [], titled: Bool = true, kept: Bool = false, deleteAt: Date? = nil,
-        lastMessage: String? = nil, turns: Int = 0, model: String? = nil, reportsActivity: Bool = false, asleep: Bool = false, unread: Bool = false
+        lastMessage: String? = nil, turns: Int = 0, model: String? = nil, reportsActivity: Bool = false, asleep: Bool = false, unread: Bool = false,
+        diff: SessionDiff? = nil, pullRequest: SessionPullRequest? = nil, background: [BackgroundTask] = []
     ) {
         self.id = id
         self.title = title
@@ -90,6 +172,7 @@ public struct SessionRow: Equatable {
         self.deleteAt = deleteAt
         (self.lastMessage, self.turns, self.model, self.reportsActivity) = (lastMessage, turns, model, reportsActivity)
         (self.asleep, self.unread) = (asleep, unread)
+        (self.diff, self.pullRequest, self.background) = (diff, pullRequest, background)
     }
 }
 

@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { query as sdkQuery, type ModelInfo, type PermissionResult, type PermissionUpdate, type Query, type SDKMessage, type SDKUserMessage, type SlashCommand } from '@anthropic-ai/claude-agent-sdk';
+import { query as sdkQuery, USAGE_LIMIT_ERROR_PREFIXES, type ModelInfo, type PermissionResult, type PermissionUpdate, type Query, type SDKMessage, type SDKUserMessage, type SlashCommand } from '@anthropic-ai/claude-agent-sdk';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { endGroup, resolveAgentBinary } from './group.ts';
@@ -118,6 +118,8 @@ class ClaudeConversation implements ChatConversation {
   /** Turns that Carrier started itself (an `/effort` change) and the person must not see. */
   private hidden = 0;
   private lastModel: string | undefined;
+  /** The reset the CLI's own message about a usage limit gave, held until the turn's result says whether it was one (epoch ms). */
+  private limitResetsAt: number | undefined;
   private closing = false;
   private pid: number | undefined;
   private command: string | undefined;
@@ -327,6 +329,12 @@ class ClaudeConversation implements ChatConversation {
         // "<synthetic>" is the CLI's own message (a usage limit, an API error), not a model the person ran
         if (typeof m.message?.model === 'string' && m.message.model !== '<synthetic>') this.lastModel = m.message.model;
         const events: ChatEvent[] = [];
+        // A usage limit comes out once, as the `error` of the result: its words are not an answer
+        if (m.message?.model === '<synthetic>' && isUsageLimit(m.api_error, textOf(m.message.content))) {
+          const resets = m.api_error_params?.rate_limit_info?.resetsAt;
+          if (typeof resets === 'number') this.limitResetsAt = resets * 1000; // seconds in the CLI's record
+          return events;
+        }
         for (const block of Array.isArray(m.message?.content) ? m.message.content : []) {
           if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim() !== '') events.push({ kind: 'reasoning', text: block.thinking });
           if (block?.type === 'text' && typeof block.text === 'string' && block.text !== '') events.push({ kind: 'assistant', text: block.text });
@@ -350,7 +358,9 @@ class ClaudeConversation implements ChatConversation {
     }
   }
 
-  private turnEnd(m: { subtype?: string; is_error?: boolean; errors?: unknown; result?: unknown; usage?: unknown; total_cost_usd?: unknown; modelUsage?: unknown }): ChatEvent[] {
+  private turnEnd(m: { subtype?: string; is_error?: boolean; errors?: unknown; result?: unknown; api_error?: unknown; usage?: unknown; total_cost_usd?: unknown; modelUsage?: unknown }): ChatEvent[] {
+    const resetsAt = this.limitResetsAt;
+    this.limitResetsAt = undefined;
     if (this.hidden > 0) {
       this.hidden--;
       return [];
@@ -359,7 +369,13 @@ class ClaudeConversation implements ChatConversation {
     this.turning = false;
     this.interrupting = false;
     const events: ChatEvent[] = [];
-    if (m.is_error && !interrupted) events.push({ kind: 'error', text: failureText(m) });
+    if (m.is_error && !interrupted) {
+      const text = failureText(m);
+      if (isUsageLimit(m.api_error, typeof m.result === 'string' ? m.result : text)) {
+        const resetText = resetsAt === undefined ? /\bresets\b.*$/i.exec(text)?.[0].trim() : undefined;
+        events.push({ kind: 'error', text, reason: 'usage_limit', ...(resetsAt !== undefined && { resetsAt }), ...(resetText !== undefined && { resetText }) });
+      } else events.push({ kind: 'error', text });
+    }
     const usage: ChatUsage = {};
     for (const [key, value] of Object.entries((m.usage ?? {}) as Record<string, unknown>)) if (typeof value === 'number') usage[key] = value;
     if (typeof m.total_cost_usd === 'number') usage.total_cost_usd = m.total_cost_usd;
@@ -368,6 +384,12 @@ class ClaudeConversation implements ChatConversation {
     return events;
   }
 }
+
+/**
+ * Whether a failure is the account's usage limit and not a rate limit that Claude retries. The CLI's own `api_error` says so and is the key (internal to the CLI, so not in the SDK's types);
+ * the SDK's prefixes of the limit's words are the fallback. `rate_limit` on an assistant message and a retried 429 are no signal: limits and throttles share them.
+ */
+const isUsageLimit = (apiError: unknown, text: string): boolean => apiError === 'usage_limit_reached' || USAGE_LIMIT_ERROR_PREFIXES.some((prefix) => text.trimStart().startsWith(prefix));
 
 /** Why a turn failed: its errors, else the CLI's own words in `result` (a session or weekly limit says when it resets there), else a plain line. */
 function failureText(m: { errors?: unknown; result?: unknown }): string {

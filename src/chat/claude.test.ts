@@ -251,16 +251,54 @@ test('a line it does not know is ignored and never throws', async () => {
   expect(await turn(conversation, events, 'hi')).toEqual([{ kind: 'turn_end', outcome: 'ok', model: undefined, usage: {} }]);
 });
 
-test('a usage limit says why: the CLI\'s own words, and the synthetic message is not the model', async () => {
-  const lines: Line[] = [
-    { type: 'assistant', message: { model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'working' }] } },
-    { type: 'assistant', message: { model: '<synthetic>', content: [{ type: 'text', text: "You've hit your weekly limit · resets Mon 9am" }] } },
-    { type: 'result', subtype: 'success', is_error: true, api_error_status: 429, api_error: 'usage_limit_reached', result: "You've hit your weekly limit · resets Mon 9am", usage: {} },
-  ];
+const limitText = "You've hit your session limit · resets 12:40pm (America/Montevideo)";
+// The CLI's own message about a limit, as its stream-json wraps it (`api_error*` are internal to the CLI and not in the SDK's types)
+const synthetic = (extra: Line = {}): Line => ({ type: 'assistant', error: 'rate_limit', message: { model: '<synthetic>', content: [{ type: 'text', text: limitText }] }, ...extra });
+// The real failed result the engine's fixture holds
+const limitResult = JSON.parse(readFileSync(join(import.meta.dirname, '../harnesses/claude-usage-limit.fixture.jsonl'), 'utf8')) as Line;
+const replayLimit = async (lines: Line[]) => {
   const { conversation, events } = await openWith([{ text: 'hi', lines }]);
-  const got = await turn(conversation, events, 'hi');
-  expect(got.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: "You've hit your weekly limit · resets Mon 9am" });
-  expect(got.find((e) => e.kind === 'turn_end')).toMatchObject({ outcome: 'error', model: 'claude-sonnet-5-5' });
+  return turn(conversation, events, 'hi');
+};
+
+test('a usage limit comes out as one error that says so and carries its reset: the timestamp of the CLI\'s own message, else its words', async () => {
+  const working: Line = { type: 'assistant', message: { model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'working' }] } };
+  const info = { rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour', resetsAt: 1_800_000_000 } };
+  const stamped = await replayLimit([working, synthetic({ api_error: 'usage_limit_reached', api_error_params: info }), limitResult]);
+  expect(stamped).toEqual([
+    { kind: 'assistant', text: 'working' },
+    { kind: 'error', text: limitText, reason: 'usage_limit', resetsAt: 1_800_000_000_000 },
+    { kind: 'turn_end', outcome: 'error', model: 'claude-sonnet-5-5', usage: expect.any(Object) },
+  ]);
+  // the real result alone: the reset is the words of the result, and no `assistant` carries the limit's text
+  const worded = await replayLimit([synthetic({ api_error: 'usage_limit_reached' }), limitResult]);
+  expect(worded.filter((e) => e.kind === 'assistant')).toEqual([]);
+  expect(worded.filter((e) => e.kind === 'error')).toEqual([{ kind: 'error', text: limitText, reason: 'usage_limit', resetText: 'resets 12:40pm (America/Montevideo)' }]);
+  expect(worded.find((e) => e.kind === 'turn_end')).toMatchObject({ outcome: 'error', model: 'claude-sonnet-5-5' });
+  // a limit with no reset says only that it is one
+  const bare = await replayLimit([{ ...limitResult, result: "You're out of usage credits" }]);
+  expect(bare.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: "You're out of usage credits", reason: 'usage_limit' });
+});
+
+test('the limit is told by its prefix when the result has no api_error, and a stamp of one turn does not leak into the next', async () => {
+  const { conversation, events } = await openWith([
+    { text: 'one', lines: [synthetic({ api_error: 'usage_limit_reached', api_error_params: { rate_limit_info: { resetsAt: 1_800_000_000 } } }), limitResult] },
+    { text: 'two', lines: [{ type: 'result', subtype: 'success', is_error: true, result: "You've reached your weekly limit · resets Mon 9am", usage: {} }] },
+  ]);
+  expect((await turn(conversation, events, 'one')).find((e) => e.kind === 'error')).toMatchObject({ reason: 'usage_limit', resetsAt: 1_800_000_000_000 });
+  expect((await turn(conversation, events, 'two')).find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: "You've reached your weekly limit · resets Mon 9am", reason: 'usage_limit', resetText: 'resets Mon 9am' });
+});
+
+test('a rate limit that Claude retries is no usage limit, and a failed result of another kind is an error without a reason', async () => {
+  const ok: Line = { type: 'result', subtype: 'success', is_error: false, result: 'done', usage: {} };
+  const retried = await replayLimit([{ type: 'system', subtype: 'api_retry', attempt: 1, max_retries: 3, retry_delay_ms: 1000, error_status: 429, error: 'rate_limit' }, { type: 'rate_limit_event', rate_limit_info: { status: 'rejected', resetsAt: 1_800_000_000 } }, ok]);
+  expect(retried.map((e) => e.kind)).toEqual(['turn_end']);
+  const throttled = await replayLimit([synthetic({ message: { model: '<synthetic>', content: [{ type: 'text', text: 'API Error: Rate limited. Retry shortly.' }] } }), { type: 'result', subtype: 'success', is_error: true, api_error_status: 429, result: 'API Error: Rate limited. Retry shortly.', usage: {} }]);
+  expect(throttled.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: 'API Error: Rate limited. Retry shortly.' });
+  const invalidModel = await replayLimit([{ type: 'result', subtype: 'success', is_error: true, api_error_status: 404, api_error: 'model_not_found', result: 'There\'s an issue with the selected model (nope).', usage: {} }]);
+  expect(invalidModel.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: "There's an issue with the selected model (nope)." });
+  const keyLimit = await replayLimit([{ type: 'result', subtype: 'success', is_error: true, api_error_status: 429, result: 'API Error: 429 rate limit on this API key', usage: {} }]);
+  expect(keyLimit.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: 'API Error: 429 rate limit on this API key' });
 });
 
 test('an effort change is a turn of its own that the person does not see', async () => {

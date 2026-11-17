@@ -60,14 +60,27 @@ public struct ToolCall: Equatable, Identifiable {
 
     public var durationMs: Int? { endedAt.map { $0 - startedAt } }
 
-    /// "Reading src/a.ts", for a call that is going on.
+    /// What the call is named in a row: the tool, and for an MCP call the tool without its server (`create_issue`, not `mcp__linear__create_issue`).
+    public var label: String {
+        if case .mcp(_, let name) = kind { return name }
+        return tool
+    }
+
+    /// What the row says the call is on: its argument, and for an MCP call its server, never the JSON of its arguments (those open with the step).
+    public var subject: String {
+        if case .mcp(let server, _) = kind { return server }
+        return arg
+    }
+
+    /// "Reading src/a.ts", for a call that is going on; an MCP call is its tool's name alone.
     var doing: String {
+        if case .mcp(_, let name) = kind { return name }
         let verb = switch kind {
         case .read: "Reading"
         case .search: "Searching"
         case .edit: "Editing"
         case .shell: "Running"
-        case .other: "Using \(tool)"
+        case .other, .mcp: "Using \(tool)"
         }
         return arg.isEmpty ? verb : "\(verb) \(arg)"
     }
@@ -97,10 +110,59 @@ public struct ToolCall: Equatable, Identifiable {
         case .search: return lines.isEmpty ? "no matches" : "\(lines.count) \(lines.count == 1 ? "match" : "matches")"
         case .edit: return added + removed > 0 ? "+\(added) −\(removed)" : "done"
         case .shell: return "done"
-        case .other: return lines.first.map { String($0.trimmingCharacters(in: .whitespaces).prefix(80)) } ?? "done"
+        case .other, .mcp: return lines.first.map { String($0.trimmingCharacters(in: .whitespaces).prefix(80)) } ?? "done"
         }
     }
 }
+
+/// What the live line of a call group says the agent is waiting on, as the chip at its start.
+public enum KindChip: Equatable {
+    case thinking, read, search, edit, shell
+    case mcp(server: String)
+    case subagents(Int)
+    case needsYou
+
+    /// The server's own name for an MCP call.
+    public var label: String {
+        switch self {
+        case .thinking: "Thinking"
+        case .read: "Read"
+        case .search: "Search"
+        case .edit: "Edit"
+        case .shell: "Shell"
+        case .mcp(let server): server
+        case .subagents(let count): "\(count) \(count == 1 ? "subagent" : "subagents")"
+        case .needsYou: "Needs you"
+        }
+    }
+
+    public var tint: ChipTint {
+        switch self {
+        case .thinking: .thought
+        case .read, .search, .edit: .files
+        case .shell: .shell
+        case .mcp: .mcp
+        case .subagents: .subagents
+        case .needsYou: .attention
+        }
+    }
+
+    /// An SF Symbol name; Thinking has none, it is the spark of the line's lead.
+    public var icon: String? {
+        switch self {
+        case .thinking, .needsYou: nil
+        case .read: "doc.text"
+        case .search: "magnifyingglass"
+        case .edit: "pencil"
+        case .shell: "terminal"
+        case .mcp: "powerplug"
+        case .subagents: "person.2"
+        }
+    }
+}
+
+/// The colour role of a chip; the view maps it to a colour.
+public enum ChipTint: Equatable { case thought, files, shell, mcp, subagents, attention }
 
 /// One block of the agent's reasoning, placed among the calls of its run.
 public struct Thought: Equatable, Identifiable {
@@ -164,17 +226,34 @@ public struct ToolGroup: Equatable {
         return calls.allSatisfy({ $0.kind == .read || $0.kind == .search }) ? "Explored" : "Worked"
     }
 
-    /// The non-zero counts as "3 thoughts · 2 files read · 1 search · 2 files changed · 1 command", in that order; files changed counts distinct paths.
+    /// The non-zero counts as "3 thoughts · 2 files read · 1 search · 2 files changed · 1 command · 1 MCP call · 1 other tool", in that order; files changed counts distinct paths.
     public var summary: String {
         func count(_ kind: ToolKind) -> Int { calls.filter { $0.kind == kind }.count }
         func part(_ n: Int, _ one: String, _ many: String) -> String? { n == 0 ? nil : "\(n) \(n == 1 ? one : many)" }
+        let mcpCalls = calls.filter { if case .mcp = $0.kind { true } else { false } }.count
         let changed = Set(calls.filter { $0.kind == .edit }.map { $0.arg.isEmpty ? $0.id : $0.arg }).count
         return [
             part(thoughts.count, "thought", "thoughts"),
             part(count(.read), "file read", "files read"), part(count(.search), "search", "searches"),
             part(changed, "file changed", "files changed"), part(count(.shell), "command", "commands"),
+            part(mcpCalls, "MCP call", "MCP calls"),
             part(count(.other), "other tool", "other tools"),
         ].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// The chip of the live line: Needs you while an approval waits, else the kind of the call going on, Thinking when none is.
+    /// Nil for a call with no kind of its own (a web fetch, a todo list): the line then says only its words.
+    public func chip(waiting: Bool) -> KindChip? {
+        if waiting { return .needsYou }
+        guard let call = calls.last(where: { $0.status == .running }) else { return .thinking }
+        switch call.kind {
+        case .read: return .read
+        case .search: return .search
+        case .edit: return .edit
+        case .shell: return .shell
+        case .mcp(let server, _): return .mcp(server: server)
+        case .other: return nil
+        }
     }
 
     public var failed: Int { calls.filter { $0.status == .failed }.count }

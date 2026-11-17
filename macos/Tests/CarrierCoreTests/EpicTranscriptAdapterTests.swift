@@ -135,3 +135,23 @@ private func chatGroup(_ events: [ChatEvent]) -> ToolGroup? {
     // the call after the message is the one going on
     #expect(run(flow, at: 1)?.calls.first?.status == .running)
 }
+
+@Test func theAgentOutputTabDrawsTheSameChipAndWordsAsTheChatForTheSameCalls() {
+    let epic = [
+        ExecEvent(id: 1, at: 1000, kind: "tool_start", callId: "a", tool: "Read", arg: "a.ts"),
+        ExecEvent(id: 2, at: 1100, kind: "tool_end", callId: "a", tool: "Read", summary: "10 lines", status: "ok"),
+        ExecEvent(id: 3, at: 1200, kind: "tool_start", callId: "b", tool: "mcp__linear__create_issue", arg: #"{"title":"Bug"}"#),
+    ]
+    let chat = [
+        ChatEvent(id: 1, at: 1000, kind: "tool_start", callId: "a", tool: "Read", arg: "a.ts"),
+        ChatEvent(id: 2, at: 1100, kind: "tool_end", callId: "a", tool: "Read", status: "ok"),
+        ChatEvent(id: 3, at: 1200, kind: "tool_start", callId: "b", tool: "mcp__linear__create_issue", arg: #"{"title":"Bug"}"#),
+    ]
+    let epicGroup = run(flowItems(transcriptItems(epic), running: true))
+    let equivalent = chatGroup(chat)
+    #expect(epicGroup?.chip(waiting: false) == .mcp(server: "linear"))
+    #expect(epicGroup?.chip(waiting: false) == equivalent?.chip(waiting: false))
+    #expect(epicGroup?.doing == "create_issue" && epicGroup?.doing == equivalent?.doing)
+    #expect(epicGroup?.calls.last?.label == "create_issue" && epicGroup?.calls.last?.subject == "linear")
+    #expect(epicGroup?.summary == "1 file read · 1 MCP call" && epicGroup?.summary == equivalent?.summary)
+}

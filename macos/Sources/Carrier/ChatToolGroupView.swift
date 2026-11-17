@@ -36,7 +36,7 @@ struct ChatToolGroupView: View {
             Button { toggle(id) } label: { header }
                 .buttonStyle(.plain)
                 .disabled(steps.isEmpty)
-                .accessibilityLabel(live ? "Working, \(liveLabel)" : "\(group.title), \(group.summary)\(group.failed > 0 ? ", \(group.failed) failed" : "")")
+                .accessibilityLabel(live ? liveAccessibility : "\(group.title), \(group.summary)\(group.failed > 0 ? ", \(group.failed) failed" : "")")
                 .accessibilityHint(open ? "Hides its steps" : "Shows its steps")
             if open { timeline.transition(reduceMotion ? .opacity : .reveal) }
         }
@@ -58,7 +58,7 @@ struct ChatToolGroupView: View {
                 if lead != .none { LeadView(lead: lead, reduceMotion: reduceMotion).transition(.scale(scale: 0.5).combined(with: .opacity)) }
                 // the words roll up when they change: the new ones come in from below, the old ones leave above
                 ZStack(alignment: .leading) { words.id(key).transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity))) }
-                    .frame(height: 18).clipped()
+                    .frame(height: 22).clipped()
                 if live {
                     Text("· step \(max(1, steps.count))").font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1)
                 }
@@ -99,7 +99,15 @@ struct ChatToolGroupView: View {
     }
 
     /// What the line says now; it is also what rolls when it changes.
-    private var key: String { live ? liveLabel : "\(group.title) \(group.summary)" }
+    private var key: String {
+        if live { return "\(group.chip(waiting: waiting)?.label ?? "")|\(liveLabel)" }
+        return "\(group.title) \(group.summary)"
+    }
+
+    private var liveAccessibility: String {
+        if let chip = group.chip(waiting: waiting) { return "Working, \(chip.label), \(liveLabel)" }
+        return "Working, \(liveLabel)"
+    }
 
     private var liveLabel: String {
         if waiting { return "Waiting for your answer" }
@@ -108,8 +116,11 @@ struct ChatToolGroupView: View {
 
     @ViewBuilder private var words: some View {
         if live {
-            Text(liveLabel).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
-                .modifier(Shimmer(active: reduceMotion == false))
+            HStack(spacing: 8) {
+                if let chip = group.chip(waiting: waiting) { KindChipView(chip: chip) }
+                Text(liveLabel).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
+                    .modifier(Shimmer(active: reduceMotion == false))
+            }
         } else {
             HStack(spacing: 8) {
                 Text(group.title).font(.scaled(12.5, weight: .semibold)).foregroundStyle(group.erred ? Color.red : .primary)
@@ -369,8 +380,8 @@ private struct CallRowView: View {
             } label: {
                 HStack(spacing: 9) {
                     node
-                    Text(call.tool).fontWeight(.medium)
-                    Text(call.arg).codeFont(12).lineLimit(1).truncationMode(.middle)
+                    Text(call.label).fontWeight(.medium)
+                    Text(call.subject).codeFont(12).lineLimit(1).truncationMode(.middle)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if call.status != .running {
                         StateMark(shape: call.status.shape, size: 11, weight: .semibold).foregroundStyle(.red)
@@ -384,7 +395,7 @@ private struct CallRowView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(call.tool) \(call.arg), \(call.result.isEmpty ? "running" : call.result)")
+            .accessibilityLabel("\(call.label) \(call.subject), \(call.result.isEmpty ? "running" : call.result)")
             .accessibilityHint(open ? "Hides the detail" : "Shows the detail")
             if open { CallDetailView(call: call).padding(.leading, 25).padding(.top, 6).padding(.bottom, 6) }
         }
@@ -419,6 +430,9 @@ private struct CallDetailView: View {
             VStack(alignment: .leading, spacing: 10) {
                 // the row cuts a long or multi-line command in the middle: opened, the call shows all of it
                 if call.kind == .shell, call.arg.contains("\n") || call.arg.count > 80 { CodeBlockView(language: "bash", code: call.arg) }
+                if case .mcp = call.kind, call.arg.isEmpty == false {
+                    CodeBlockView(language: resolvedCodeLanguage(nil, code: call.arg) ?? "Arguments", code: call.arg)
+                }
                 if call.output.isEmpty {
                     Text(call.status == .running ? "running…" : "no output").font(.scaled(11.5)).foregroundStyle(.secondary).padding(.horizontal, 6)
                 } else {
@@ -426,5 +440,65 @@ private struct CallDetailView: View {
                 }
             }
         }
+    }
+}
+
+/// The capsule at the start of a live line naming what the agent waits on; long names (e.g. an MCP server) are cut on one line.
+struct KindChipView: View {
+    let chip: KindChip
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        CappedWidth(maxWidth: 160) {
+            HStack(spacing: 4) {
+                if let icon = chip.icon {
+                    Image(systemName: icon).font(.scaled(9.5, weight: .semibold))
+                }
+                Text(chip.label).font(.scaled(11, weight: .semibold)).lineLimit(1).truncationMode(.tail)
+            }
+            .foregroundStyle(foreground)
+            .padding(.leading, chip.icon == nil ? 8 : 6).padding(.trailing, 8).padding(.vertical, 1)
+            .background(Capsule().fill(background))
+        }
+        .fixedSize()
+    }
+
+    private var foreground: Color {
+        let dark = scheme == .dark
+        return switch chip.tint {
+        case .thought: dark ? .thought : Color(red: 0.48, green: 0.29, blue: 0.75)
+        case .files: dark ? Color(red: 0.42, green: 0.71, blue: 1.0) : Color(red: 0.04, green: 0.39, blue: 0.78)
+        case .shell: dark ? Color(red: 0.31, green: 0.85, blue: 0.45) : Color(red: 0.11, green: 0.54, blue: 0.24)
+        case .mcp: dark ? Color(red: 1.0, green: 0.70, blue: 0.25) : Color(red: 0.66, green: 0.39, blue: 0.0)
+        case .subagents: dark ? Color(red: 0.84, green: 0.55, blue: 1.0) : Color(red: 0.54, green: 0.18, blue: 0.75)
+        case .attention: .attention
+        }
+    }
+
+    private var background: Color {
+        switch chip.tint {
+        case .thought: Color.thought.opacity(0.16)
+        case .files: Color.blue.opacity(0.16)
+        case .shell: Color.green.opacity(0.14)
+        case .mcp: Color.orange.opacity(0.16)
+        case .subagents: Color.purple.opacity(0.18)
+        case .attention: Color.attention.opacity(0.20)
+        }
+    }
+}
+
+/// Proposes at most `maxWidth` even when the parent proposes an unspecified width, so a chip truncates instead of widening the line.
+private struct CappedWidth: Layout {
+    let maxWidth: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        let cap = proposal.width.map { min($0, maxWidth) } ?? maxWidth
+        return child.sizeThatFits(ProposedViewSize(width: cap, height: proposal.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let child = subviews.first else { return }
+        child.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
     }
 }

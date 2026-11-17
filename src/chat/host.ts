@@ -13,6 +13,7 @@ import { createProjects, ghBranches, ghLogin, ghRepos, ghToken, type GithubRepos
 import { openChatDatabase } from './db.ts';
 import { idleExit } from './idle.ts';
 import { capabilities } from './mcp/capabilities.ts';
+import { agents } from './mcp/agents.ts';
 import { history } from './mcp/history.ts';
 import { McpSessionRegistry, startMcpServer, type McpServer } from './mcp.ts';
 import { startChatServer } from './server.ts';
@@ -141,7 +142,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   idle = idleExit({ clock: deps.clock, afterMs: deps.idleMs, live: sessions.liveCount, exit: stop });
   // The MCP is up before the socket answers; one that cannot bind leaves the host without it, and each session says so.
   try {
-    mcpServer = await deps.startMcp({ registry: mcpRegistry, sessions: sessions.mcpView, tools: [capabilities, history] });
+    mcpServer = await deps.startMcp({ registry: mcpRegistry, sessions: sessions.mcpView, tools: [capabilities, history, agents] });
   } catch (error) {
     log.error('the chat MCP could not start; sessions open without it', error);
   }

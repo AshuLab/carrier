@@ -480,6 +480,33 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   /** What each agent offered when it was last asked (a draft lists the models before a session exists), kept ten minutes. */
   const offered = new Map<string, { at: number; offer: Promise<{ options: ChatOption[]; commands: ChatCommand[] }> }>();
 
+  /**
+   * The options and the commands an agent offers, with the values it would start with, before any session exists: it starts the agent in a folder of
+   * nobody's, reads what it lists and ends it. Kept ten minutes, and a failure is not kept.
+   */
+  const offerOf = async ({ agent }: { agent: string }) => {
+    const chosen = listed().find((candidate) => candidate.name === agent);
+    if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
+    const launch = launchOf(chosen);
+    const known = offered.get(agent);
+    if (known !== undefined && clock.now() - known.at < 10 * 60_000) return await known.offer;
+    const offer = (async () => {
+      const conversation = await openConversation(launch, { folder: tmpdir(), options: { ...(chosen.model && { model: chosen.model }), ...chosen.options } });
+      try {
+        return { options: [...conversation.options], commands: [...conversation.commands] };
+      } finally {
+        await conversation.close().catch((error) => log.error('closing the agent that listed its options failed', error));
+      }
+    })();
+    offered.set(agent, { at: clock.now(), offer });
+    try {
+      return await offer;
+    } catch (error) {
+      offered.delete(agent);
+      throw error;
+    }
+  };
+
   /** Each agent with its account's harness and whether that account's binary is found; one whose account is missing or Antigravity's is not found, and `unknown` for its harness when it has none. */
   const listAgents = () => {
     const providers = readAccounts();
@@ -521,6 +548,12 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         return { id, agent, harness, folder, model: options.model ?? null, options };
       },
       agents: listAgents,
+      agentOptions: (name: string) => {
+        const chosen = listed().find((candidate) => candidate.name === name);
+        if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${name}"`);
+        return { ...chosen.options };
+      },
+      offer: async (name: string) => (await offerOf({ agent: name })).options,
       health: () => health({}),
       storedEvents: (sessionId: string, { after, kinds, limit }: { after: number; kinds: string[]; limit: number }) =>
         db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), gt(chatEvents.id, after), inArray(chatEvents.kind, kinds))).orderBy(asc(chatEvents.id)).limit(limit).all().map(({ id, kind, data }) => ({ position: id, kind, data })),
@@ -633,32 +666,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       return { plan };
     },
 
-    /**
-     * The options and the commands an agent offers, with the values it would start with, before any session exists: it starts the agent in a folder of
-     * nobody's, reads what it lists and ends it. Kept ten minutes, and a failure is not kept.
-     */
-    async agentOptions({ agent }: { agent: string }) {
-      const chosen = listed().find((candidate) => candidate.name === agent);
-      if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
-      const launch = launchOf(chosen);
-      const known = offered.get(agent);
-      if (known !== undefined && clock.now() - known.at < 10 * 60_000) return await known.offer;
-      const offer = (async () => {
-        const conversation = await openConversation(launch, { folder: tmpdir(), options: { ...(chosen.model && { model: chosen.model }), ...chosen.options } });
-        try {
-          return { options: [...conversation.options], commands: [...conversation.commands] };
-        } finally {
-          await conversation.close().catch((error) => log.error('closing the agent that listed its options failed', error));
-        }
-      })();
-      offered.set(agent, { at: clock.now(), offer });
-      try {
-        return await offer;
-      } catch (error) {
-        offered.delete(agent);
-        throw error;
-      }
-    },
+    agentOptions: offerOf,
 
     /** Opens a closed session again from its stored native id, folder and options; a live one is just attached to. */
     async resume({ sessionId }: { sessionId: string }) {

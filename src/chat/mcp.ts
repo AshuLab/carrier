@@ -94,6 +94,10 @@ export type McpSessions = {
   snapshot(sessionId: string): { id: string; agent: string; harness: string; folder: string; model: string | null; options: Record<string, string> };
   /** The configured chat agents. */
   agents(): { name: string; harness: string; account: string; model?: string; found: boolean }[];
+  /** The options the agent is configured with (its model apart), by the harness's own ids; refuses an agent that is not configured. */
+  agentOptions(name: string): Record<string, string>;
+  /** The options the agent's harness lists, with their values: it starts the agent briefly, never with the MCP (kept ten minutes); rejects when it cannot. */
+  offer(name: string): Promise<{ id: string; values: { id: string; label: string }[] }[]>;
   /** The verdicts of the health check (kept thirty seconds); never starts an agent. */
   health(): Promise<Health>;
   /** The stored events of a session of the given kinds with a position above `after`, oldest first, at most `limit`: the kind filters before the limit. A position is the event's id. */

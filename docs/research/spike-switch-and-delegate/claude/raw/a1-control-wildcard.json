@@ -1,0 +1,109 @@
+{
+  "run": "control-wildcard",
+  "allowedTools": [
+    "mcp__carrier-chat__*"
+  ],
+  "init": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "default",
+    "claude_code_version": "2.1.325",
+    "mcp_servers": [
+      {
+        "name": "codegraph",
+        "status": "connected",
+        "source": "user"
+      },
+      {
+        "name": "sentry",
+        "status": "needs-auth",
+        "source": "user"
+      },
+      {
+        "name": "carrier-chat",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "tools": [
+      "Task",
+      "AskUserQuestion",
+      "Bash",
+      "Edit",
+      "EnterWorktree",
+      "ExitWorktree",
+      "ListAgents",
+      "Monitor",
+      "PublishPlugin",
+      "Read",
+      "ShareOnboardingGuide",
+      "Skill",
+      "TaskStop",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Write",
+      "mcp__carrier-chat__ping_act",
+      "mcp__carrier-chat__ping_read",
+      "mcp__codegraph__analyze_diff",
+      "mcp__codegraph__analyze_impact",
+      "mcp__codegraph__find_dead_code",
+      "mcp__codegraph__inspect_symbol",
+      "mcp__codegraph__open_explorer",
+      "mcp__codegraph__search_symbols",
+      "mcp__codegraph__survey_repo",
+      "mcp__codegraph__trace_path"
+    ]
+  },
+  "readyMs": 424,
+  "turn": {
+    "prompt": "Call ping_read, then call ping_act, then say what happened",
+    "ms": 3518,
+    "asked": [],
+    "tools": [
+      {
+        "name": "ToolSearch",
+        "input": {
+          "query": "select:mcp__carrier-chat__ping_read,mcp__carrier-chat__ping_act",
+          "max_results": 2
+        }
+      },
+      {
+        "name": "mcp__carrier-chat__ping_read",
+        "input": {}
+      },
+      {
+        "name": "mcp__carrier-chat__ping_act",
+        "input": {}
+      }
+    ],
+    "results": [
+      {
+        "tool": "toolu_01GBsTrGkJrD8shNthT2ZHGw",
+        "error": false,
+        "text": " "
+      },
+      {
+        "tool": "toolu_01Qu5bTmyCSDbJxyu6uev9NW",
+        "error": false,
+        "text": "\"ping_read says PONG\""
+      },
+      {
+        "tool": "toolu_01HQc16r4XJqRueTHYRrLCg6",
+        "error": false,
+        "text": "\"ping_act says PONG\""
+      }
+    ],
+    "said": "Both calls worked, in order:\n- `ping_read` → \"ping_read says PONG\"\n- `ping_act` → \"ping_act says PONG\"\n",
+    "outcome": "success",
+    "resultText": "Both calls worked, in order:\n- `ping_read` → \"ping_read says PONG\"\n- `ping_act` → \"ping_act says PONG\"",
+    "denials": []
+  },
+  "serverLog": [
+    "ping_read executed",
+    "ping_act executed"
+  ],
+  "askedRead": false,
+  "askedAct": false,
+  "actExecuted": true,
+  "readExecuted": true
+}

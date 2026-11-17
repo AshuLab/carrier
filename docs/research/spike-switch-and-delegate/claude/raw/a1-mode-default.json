@@ -1,0 +1,134 @@
+{
+  "run": "mode-default",
+  "allowedTools": [
+    "mcp__carrier-chat__ping_read"
+  ],
+  "init": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "default",
+    "claude_code_version": "2.1.325",
+    "mcp_servers": [
+      {
+        "name": "codegraph",
+        "status": "connected",
+        "source": "user"
+      },
+      {
+        "name": "sentry",
+        "status": "needs-auth",
+        "source": "user"
+      },
+      {
+        "name": "carrier-chat",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "tools": [
+      "Task",
+      "AskUserQuestion",
+      "Bash",
+      "Edit",
+      "EnterWorktree",
+      "ExitWorktree",
+      "ListAgents",
+      "Monitor",
+      "PublishPlugin",
+      "Read",
+      "ShareOnboardingGuide",
+      "Skill",
+      "TaskStop",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Write",
+      "mcp__carrier-chat__ping_act",
+      "mcp__carrier-chat__ping_read",
+      "mcp__codegraph__analyze_diff",
+      "mcp__codegraph__analyze_impact",
+      "mcp__codegraph__find_dead_code",
+      "mcp__codegraph__inspect_symbol",
+      "mcp__codegraph__open_explorer",
+      "mcp__codegraph__search_symbols",
+      "mcp__codegraph__survey_repo",
+      "mcp__codegraph__trace_path"
+    ]
+  },
+  "readyMs": 430,
+  "turn": {
+    "prompt": "Call ping_read, then call ping_act, then say what happened",
+    "ms": 3683,
+    "asked": [
+      {
+        "turn": 1,
+        "tool": "mcp__carrier-chat__ping_act",
+        "input": {},
+        "displayName": "Ping Act",
+        "suggestions": [
+          {
+            "type": "addRules",
+            "rules": [
+              {
+                "toolName": "mcp__carrier-chat__ping_act"
+              }
+            ],
+            "behavior": "allow",
+            "destination": "localSettings"
+          }
+        ],
+        "toolUseID": "toolu_01FVH43kFZSe2sDFDM2LvYrd"
+      }
+    ],
+    "tools": [
+      {
+        "name": "ToolSearch",
+        "input": {
+          "query": "select:mcp__carrier-chat__ping_read,mcp__carrier-chat__ping_act",
+          "max_results": 2
+        }
+      },
+      {
+        "name": "mcp__carrier-chat__ping_read",
+        "input": {}
+      },
+      {
+        "name": "mcp__carrier-chat__ping_act",
+        "input": {}
+      }
+    ],
+    "results": [
+      {
+        "tool": "toolu_0121ivWPzb1q7hF8ieaxwMzo",
+        "error": false,
+        "text": " "
+      },
+      {
+        "tool": "toolu_013U8S9jXksnjhXJBtbzbb2a",
+        "error": false,
+        "text": "\"ping_read says PONG\""
+      },
+      {
+        "tool": "toolu_01FVH43kFZSe2sDFDM2LvYrd",
+        "error": true,
+        "text": "Denied by the spike probe."
+      }
+    ],
+    "said": "ping_read: OK, returned \"ping_read says PONG\".\nping_act: failed. The call was denied with \"Denied by the spike probe.\" I didn't retry it.\n",
+    "outcome": "success",
+    "resultText": "ping_read: OK, returned \"ping_read says PONG\".\nping_act: failed. The call was denied with \"Denied by the spike probe.\" I didn't retry it.",
+    "denials": [
+      {
+        "tool_name": "mcp__carrier-chat__ping_act",
+        "tool_use_id": "toolu_01FVH43kFZSe2sDFDM2LvYrd",
+        "tool_input": {}
+      }
+    ]
+  },
+  "serverLog": [
+    "ping_read executed"
+  ],
+  "askedRead": false,
+  "askedAct": true,
+  "actExecuted": false,
+  "readExecuted": true
+}

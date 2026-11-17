@@ -1,0 +1,229 @@
+{
+  "mode": "acceptEdits",
+  "init": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "acceptEdits",
+    "claude_code_version": "2.1.325",
+    "mcp_servers": [
+      {
+        "name": "codegraph",
+        "status": "connected",
+        "source": "user"
+      },
+      {
+        "name": "sentry",
+        "status": "needs-auth",
+        "source": "user"
+      }
+    ],
+    "tools": [
+      "Task",
+      "AskUserQuestion",
+      "Bash",
+      "Edit",
+      "EnterWorktree",
+      "ExitWorktree",
+      "ListAgents",
+      "Monitor",
+      "PublishPlugin",
+      "Read",
+      "ShareOnboardingGuide",
+      "Skill",
+      "TaskStop",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Write",
+      "mcp__codegraph__analyze_diff",
+      "mcp__codegraph__analyze_impact",
+      "mcp__codegraph__find_dead_code",
+      "mcp__codegraph__inspect_symbol",
+      "mcp__codegraph__open_explorer",
+      "mcp__codegraph__search_symbols",
+      "mcp__codegraph__survey_repo",
+      "mcp__codegraph__trace_path"
+    ]
+  },
+  "turns": [
+    {
+      "probe": "write-inside",
+      "turn": {
+        "prompt": "Create a file named a.txt in the current working folder with the text hi inside. Do nothing else, and if it is refused do not try another way.",
+        "ms": 1816,
+        "asked": [],
+        "tools": [
+          {
+            "name": "Write",
+            "input": {
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-p8zugh/a.txt",
+              "content": "hi"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01DbLvbu9nZ5Npjyjt6Qp4GV",
+            "error": false,
+            "text": "File created successfully at: /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-p8zugh/a.txt (file state is current in your context — no need to Read it back)"
+          }
+        ],
+        "said": "Created `a.txt` with `hi` in the working folder.\n",
+        "outcome": "success",
+        "resultText": "Created `a.txt` with `hi` in the working folder.",
+        "denials": []
+      },
+      "fileExists": true,
+      "fileText": "hi"
+    },
+    {
+      "probe": "write-outside",
+      "turn": {
+        "prompt": "Create a file named b.txt with the text hi inside, in the folder /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL. Do nothing else, and if it is refused do not try another way.",
+        "ms": 1719,
+        "asked": [
+          {
+            "turn": 2,
+            "tool": "Write",
+            "input": {
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL/b.txt",
+              "content": "hi"
+            },
+            "displayName": "Write",
+            "description": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL/b.txt",
+            "decisionReason": "Path is outside allowed working directories",
+            "suggestions": [
+              {
+                "type": "addDirectories",
+                "directories": [
+                  "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL"
+                ],
+                "destination": "session"
+              }
+            ],
+            "toolUseID": "toolu_01DTvss1cdMmiqRKGjcabgbc"
+          }
+        ],
+        "tools": [
+          {
+            "name": "Write",
+            "input": {
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL/b.txt",
+              "content": "hi"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01DTvss1cdMmiqRKGjcabgbc",
+            "error": true,
+            "text": "Denied by the spike probe."
+          }
+        ],
+        "said": "Refused: \"Denied by the spike probe.\" I didn't retry or try another method, so `b.txt` was not created.\n",
+        "outcome": "success",
+        "resultText": "Refused: \"Denied by the spike probe.\" I didn't retry or try another method, so `b.txt` was not created.",
+        "denials": [
+          {
+            "tool_name": "Write",
+            "tool_use_id": "toolu_01DTvss1cdMmiqRKGjcabgbc",
+            "tool_input": {
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-UcNQlL/b.txt",
+              "content": "hi"
+            }
+          }
+        ]
+      },
+      "fileExists": false
+    },
+    {
+      "probe": "curl",
+      "turn": {
+        "prompt": "Run the shell command: curl -sI https://example.com | head -1 Do nothing else, and if it is refused do not try another way.",
+        "ms": 1473,
+        "asked": [
+          {
+            "turn": 3,
+            "tool": "Bash",
+            "input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch HTTP status line from example.com"
+            },
+            "displayName": "Bash",
+            "description": "Fetch HTTP status line from example.com",
+            "suggestions": [
+              {
+                "type": "addRules",
+                "rules": [
+                  {
+                    "toolName": "Bash",
+                    "ruleContent": "curl -sI https://example.com"
+                  }
+                ],
+                "behavior": "allow",
+                "destination": "localSettings"
+              }
+            ],
+            "toolUseID": "toolu_01SncNoguHwQ4hL8eB2fHNSy"
+          }
+        ],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch HTTP status line from example.com"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01SncNoguHwQ4hL8eB2fHNSy",
+            "error": true,
+            "text": "Denied by the spike probe."
+          }
+        ],
+        "said": "Refused: \"Denied by the spike probe.\" I didn't retry or use another method.\n",
+        "outcome": "success",
+        "resultText": "Refused: \"Denied by the spike probe.\" I didn't retry or use another method.",
+        "denials": [
+          {
+            "tool_name": "Bash",
+            "tool_use_id": "toolu_01SncNoguHwQ4hL8eB2fHNSy",
+            "tool_input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch HTTP status line from example.com"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "probe": "ls",
+      "turn": {
+        "prompt": "Run the shell command: ls Do nothing else, and if it is refused do not try another way.",
+        "ms": 2638,
+        "asked": [],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "ls",
+              "description": "List files in current directory"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01KxHY8SUxRt9SRtgDkdMtPo",
+            "error": false,
+            "text": "a.txt"
+          }
+        ],
+        "said": "Output: `a.txt`\n",
+        "outcome": "success",
+        "resultText": "Output: `a.txt`",
+        "denials": []
+      }
+    }
+  ]
+}

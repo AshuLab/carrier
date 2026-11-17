@@ -1,0 +1,261 @@
+{
+  "mode": "default",
+  "init": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "default",
+    "claude_code_version": "2.1.325",
+    "mcp_servers": [
+      {
+        "name": "codegraph",
+        "status": "connected",
+        "source": "user"
+      },
+      {
+        "name": "sentry",
+        "status": "needs-auth",
+        "source": "user"
+      }
+    ],
+    "tools": [
+      "Task",
+      "AskUserQuestion",
+      "Bash",
+      "Edit",
+      "EnterWorktree",
+      "ExitWorktree",
+      "ListAgents",
+      "Monitor",
+      "PublishPlugin",
+      "Read",
+      "ShareOnboardingGuide",
+      "Skill",
+      "TaskStop",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Write",
+      "mcp__codegraph__analyze_diff",
+      "mcp__codegraph__analyze_impact",
+      "mcp__codegraph__find_dead_code",
+      "mcp__codegraph__inspect_symbol",
+      "mcp__codegraph__open_explorer",
+      "mcp__codegraph__search_symbols",
+      "mcp__codegraph__survey_repo",
+      "mcp__codegraph__trace_path"
+    ]
+  },
+  "turns": [
+    {
+      "probe": "write-inside",
+      "turn": {
+        "prompt": "Create a file named a.txt in the current working folder with the text hi inside. Do nothing else, and if it is refused do not try another way.",
+        "ms": 3745,
+        "asked": [
+          {
+            "turn": 1,
+            "tool": "Write",
+            "input": {
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-HKQ77o/a.txt",
+              "content": "hi"
+            },
+            "displayName": "Write",
+            "description": "a.txt",
+            "suggestions": [
+              {
+                "type": "setMode",
+                "mode": "acceptEdits",
+                "destination": "session"
+              }
+            ],
+            "toolUseID": "toolu_01ARFCzh7cjkCqiVhWE7CY7a"
+          }
+        ],
+        "tools": [
+          {
+            "name": "Write",
+            "input": {
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-HKQ77o/a.txt",
+              "content": "hi"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01ARFCzh7cjkCqiVhWE7CY7a",
+            "error": true,
+            "text": "Denied by the spike probe."
+          }
+        ],
+        "said": "No creé `a.txt`. La escritura fue denegada (\"Denied by the spike probe\"), y me pediste no intentar otra vía si se rechazaba, así que paré ahí.\n",
+        "outcome": "success",
+        "resultText": "No creé `a.txt`. La escritura fue denegada (\"Denied by the spike probe\"), y me pediste no intentar otra vía si se rechazaba, así que paré ahí.",
+        "denials": [
+          {
+            "tool_name": "Write",
+            "tool_use_id": "toolu_01ARFCzh7cjkCqiVhWE7CY7a",
+            "tool_input": {
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-HKQ77o/a.txt",
+              "content": "hi"
+            }
+          }
+        ]
+      },
+      "fileExists": false
+    },
+    {
+      "probe": "write-outside",
+      "turn": {
+        "prompt": "Create a file named b.txt with the text hi inside, in the folder /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-l4s5uw. Do nothing else, and if it is refused do not try another way.",
+        "ms": 1905,
+        "asked": [
+          {
+            "turn": 2,
+            "tool": "Write",
+            "input": {
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-l4s5uw/b.txt",
+              "content": "hi"
+            },
+            "displayName": "Write",
+            "description": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-l4s5uw/b.txt",
+            "decisionReason": "Path is outside allowed working directories",
+            "suggestions": [
+              {
+                "type": "setMode",
+                "mode": "acceptEdits",
+                "destination": "session"
+              },
+              {
+                "type": "addDirectories",
+                "directories": [
+                  "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-l4s5uw"
+                ],
+                "destination": "session"
+              }
+            ],
+            "toolUseID": "toolu_01XFqGaQ7A5iXvtDu3qP61xw"
+          }
+        ],
+        "tools": [
+          {
+            "name": "Write",
+            "input": {
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-l4s5uw/b.txt",
+              "content": "hi"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01XFqGaQ7A5iXvtDu3qP61xw",
+            "error": true,
+            "text": "Denied by the spike probe."
+          }
+        ],
+        "said": "No creé `b.txt`. La escritura en `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-l4s5uw/` fue denegada (\"Denied by the spike probe\"). Según tu instrucción, no lo intenté por otra vía.\n",
+        "outcome": "success",
+        "resultText": "No creé `b.txt`. La escritura en `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-l4s5uw/` fue denegada (\"Denied by the spike probe\"). Según tu instrucción, no lo intenté por otra vía.",
+        "denials": [
+          {
+            "tool_name": "Write",
+            "tool_use_id": "toolu_01XFqGaQ7A5iXvtDu3qP61xw",
+            "tool_input": {
+              "file_path": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-l4s5uw/b.txt",
+              "content": "hi"
+            }
+          }
+        ]
+      },
+      "fileExists": false
+    },
+    {
+      "probe": "curl",
+      "turn": {
+        "prompt": "Run the shell command: curl -sI https://example.com | head -1 Do nothing else, and if it is refused do not try another way.",
+        "ms": 1690,
+        "asked": [
+          {
+            "turn": 3,
+            "tool": "Bash",
+            "input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch HTTP status line from example.com"
+            },
+            "displayName": "Bash",
+            "description": "Fetch HTTP status line from example.com",
+            "suggestions": [
+              {
+                "type": "addRules",
+                "rules": [
+                  {
+                    "toolName": "Bash",
+                    "ruleContent": "curl -sI https://example.com"
+                  }
+                ],
+                "behavior": "allow",
+                "destination": "localSettings"
+              }
+            ],
+            "toolUseID": "toolu_01Q9ZekVnTA1Jq9YxVFzMUZU"
+          }
+        ],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch HTTP status line from example.com"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01Q9ZekVnTA1Jq9YxVFzMUZU",
+            "error": true,
+            "text": "Denied by the spike probe."
+          }
+        ],
+        "said": "No ejecuté el comando: `curl -sI https://example.com | head -1` fue denegado (\"Denied by the spike probe\"). No lo intenté por otra vía.\n",
+        "outcome": "success",
+        "resultText": "No ejecuté el comando: `curl -sI https://example.com | head -1` fue denegado (\"Denied by the spike probe\"). No lo intenté por otra vía.",
+        "denials": [
+          {
+            "tool_name": "Bash",
+            "tool_use_id": "toolu_01Q9ZekVnTA1Jq9YxVFzMUZU",
+            "tool_input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch HTTP status line from example.com"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "probe": "ls",
+      "turn": {
+        "prompt": "Run the shell command: ls Do nothing else, and if it is refused do not try another way.",
+        "ms": 2820,
+        "asked": [],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "ls",
+              "description": "List files in current directory"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01DGrQbZCJnokuJTHHTN3Usa",
+            "error": false,
+            "text": "(Bash completed with no output)"
+          }
+        ],
+        "said": "Ejecuté `ls`. No devolvió salida: el directorio actual está vacío.\n",
+        "outcome": "success",
+        "resultText": "Ejecuté `ls`. No devolvió salida: el directorio actual está vacío.",
+        "denials": []
+      }
+    }
+  ]
+}

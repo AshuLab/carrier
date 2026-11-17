@@ -1,0 +1,13 @@
+{
+ "which": "list",
+ "handoffBytes": 1340,
+ "commands": [
+  {
+   "id": "pong",
+   "name": "pong",
+   "kind": "skill",
+   "hint": "<word>",
+   "description": "Answers PONG followed by the argument (project)"
+  }
+ ]
+}

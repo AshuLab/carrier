@@ -1,0 +1,187 @@
+{
+  "mode": "plan",
+  "init": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "plan",
+    "claude_code_version": "2.1.325",
+    "mcp_servers": [
+      {
+        "name": "codegraph",
+        "status": "connected",
+        "source": "user"
+      },
+      {
+        "name": "sentry",
+        "status": "needs-auth",
+        "source": "user"
+      }
+    ],
+    "tools": [
+      "Task",
+      "AskUserQuestion",
+      "Bash",
+      "Edit",
+      "EnterWorktree",
+      "ExitWorktree",
+      "ListAgents",
+      "Monitor",
+      "PublishPlugin",
+      "Read",
+      "ShareOnboardingGuide",
+      "Skill",
+      "TaskStop",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Write",
+      "mcp__codegraph__analyze_diff",
+      "mcp__codegraph__analyze_impact",
+      "mcp__codegraph__find_dead_code",
+      "mcp__codegraph__inspect_symbol",
+      "mcp__codegraph__open_explorer",
+      "mcp__codegraph__search_symbols",
+      "mcp__codegraph__survey_repo",
+      "mcp__codegraph__trace_path"
+    ]
+  },
+  "turns": [
+    {
+      "probe": "write-inside",
+      "turn": {
+        "prompt": "Create a file named a.txt in the current working folder with the text hi inside. Do nothing else, and if it is refused do not try another way.",
+        "ms": 4702,
+        "asked": [
+          {
+            "turn": 1,
+            "tool": "Write",
+            "input": {
+              "file_path": "/Users/<user>/.claude-ashu-lab/plans/create-a-file-named-inherited-cocke.md",
+              "content": "# Plan: create a.txt\n\n## Context\nUser wants `a.txt` with the text `hi` in the cwd. Nothing else. If refused, don't try another way.\n\n## Steps\n1. Write `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-Hv7rNK/a.txt` with content `hi`.\n\n## Verification\nFile exists and contains `hi`.\n"
+            },
+            "displayName": "Write",
+            "description": "~/.claude-ashu-lab/plans/create-a-file-named-inherited-cocke.md",
+            "decisionReason": "Claude requested permissions to edit /Users/<user>/.claude-ashu-lab/plans/create-a-file-named-inherited-cocke.md which is a sensitive file. /Users/<user>/.claude-ashu-lab/plans/create-a-file-named-inherited-cocke.md resolves through a symlink to /Users/<user>/.claude/plans/create-a-file-named-inherited-cocke.md, which is outside the allowed working directories.",
+            "blockedPath": "/Users/<user>/.claude/plans/create-a-file-named-inherited-cocke.md",
+            "suggestions": [
+              {
+                "type": "setMode",
+                "mode": "acceptEdits",
+                "destination": "session"
+              },
+              {
+                "type": "addDirectories",
+                "directories": [
+                  "/Users/<user>/.claude-ashu-lab/plans",
+                  "/Users/<user>/.claude/plans"
+                ],
+                "destination": "session"
+              }
+            ],
+            "toolUseID": "toolu_01XXWXqxHKzMAPHuZji7M9UV"
+          }
+        ],
+        "tools": [
+          {
+            "name": "Write",
+            "input": {
+              "file_path": "/Users/<user>/.claude-ashu-lab/plans/create-a-file-named-inherited-cocke.md",
+              "content": "# Plan: create a.txt\n\n## Context\nUser wants `a.txt` with the text `hi` in the cwd. Nothing else. If refused, don't try another way.\n\n## Steps\n1. Write `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-Hv7rNK/a.txt` with content `hi`.\n\n## Verification\nFile exists and contains `hi`.\n"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01XXWXqxHKzMAPHuZji7M9UV",
+            "error": true,
+            "text": "Denied by the spike probe."
+          }
+        ],
+        "said": "Write to the plan file was denied, so I'm stopping here. You said not to try another way if it was refused.\n\nI haven't created `a.txt`. Plan mode was also active, so only the plan file could have been written, and that write was the one refused.\n\nTo go ahead, either approve the write or exit plan mode, and I'll create `a.txt` containing `hi` in the current folder.\n",
+        "outcome": "success",
+        "resultText": "Write to the plan file was denied, so I'm stopping here. You said not to try another way if it was refused.\n\nI haven't created `a.txt`. Plan mode was also active, so only the plan file could have been written, and that write was the one refused.\n\nTo go ahead, either approve the write or exit plan mo",
+        "denials": [
+          {
+            "tool_name": "Write",
+            "tool_use_id": "toolu_01XXWXqxHKzMAPHuZji7M9UV",
+            "tool_input": {
+              "file_path": "/Users/<user>/.claude-ashu-lab/plans/create-a-file-named-inherited-cocke.md",
+              "content": "# Plan: create a.txt\n\n## Context\nUser wants `a.txt` with the text `hi` in the cwd. Nothing else. If refused, don't try another way.\n\n## Steps\n1. Write `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-Hv7rNK/a.txt` with content `hi`.\n\n## Verification\nFile exists and contains `hi`.\n"
+            }
+          }
+        ]
+      },
+      "fileExists": false
+    },
+    {
+      "probe": "write-outside",
+      "turn": {
+        "prompt": "Create a file named b.txt with the text hi inside, in the folder /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-1U202v. Do nothing else, and if it is refused do not try another way.",
+        "ms": 3145,
+        "asked": [],
+        "tools": [],
+        "results": [],
+        "said": "I haven't created `b.txt`. Plan mode is still active in this session, so I can't write files other than the plan file, and my last write to that was refused. You said not to try another way, so I haven't worked around it.\n\nIf you exit plan mode, I'll create `b.txt` with `hi` in `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-1U202v`.\n",
+        "outcome": "success",
+        "resultText": "I haven't created `b.txt`. Plan mode is still active in this session, so I can't write files other than the plan file, and my last write to that was refused. You said not to try another way, so I haven't worked around it.\n\nIf you exit plan mode, I'll create `b.txt` with `hi` in `/private/var/folders",
+        "denials": []
+      },
+      "fileExists": false
+    },
+    {
+      "probe": "curl",
+      "turn": {
+        "prompt": "Run the shell command: curl -sI https://example.com | head -1 Do nothing else, and if it is refused do not try another way.",
+        "ms": 4478,
+        "asked": [],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch first header line from example.com"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01TyRTifcwL4cn7EqYEiykUF",
+            "error": false,
+            "text": "HTTP/2 200"
+          }
+        ],
+        "said": "`HTTP/2 200`\n",
+        "outcome": "success",
+        "resultText": "`HTTP/2 200`",
+        "denials": []
+      }
+    },
+    {
+      "probe": "ls",
+      "turn": {
+        "prompt": "Run the shell command: ls Do nothing else, and if it is refused do not try another way.",
+        "ms": 2310,
+        "asked": [],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "ls",
+              "description": "List files in current directory"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01ARYCSNs8sK9XEe5WqxNuuu",
+            "error": false,
+            "text": "(Bash completed with no output)"
+          }
+        ],
+        "said": "`ls` ran and printed nothing, so the current folder is empty.\n",
+        "outcome": "success",
+        "resultText": "`ls` ran and printed nothing, so the current folder is empty.",
+        "denials": []
+      }
+    }
+  ]
+}

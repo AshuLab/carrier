@@ -1,0 +1,151 @@
+{
+  "run": "control-ask-rule-on-read",
+  "settings": {
+    "permissions": {
+      "ask": [
+        "mcp__carrier-chat__ping_read"
+      ]
+    }
+  },
+  "allowedTools": [
+    "mcp__carrier-chat__ping_read"
+  ],
+  "init": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "default",
+    "claude_code_version": "2.1.325",
+    "mcp_servers": [
+      {
+        "name": "codegraph",
+        "status": "connected",
+        "source": "user"
+      },
+      {
+        "name": "sentry",
+        "status": "needs-auth",
+        "source": "user"
+      },
+      {
+        "name": "carrier-chat",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "tools": [
+      "Task",
+      "AskUserQuestion",
+      "Bash",
+      "Edit",
+      "EnterWorktree",
+      "ExitWorktree",
+      "ListAgents",
+      "Monitor",
+      "PublishPlugin",
+      "Read",
+      "ShareOnboardingGuide",
+      "Skill",
+      "TaskStop",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Write",
+      "mcp__carrier-chat__ping_act",
+      "mcp__carrier-chat__ping_read",
+      "mcp__codegraph__analyze_diff",
+      "mcp__codegraph__analyze_impact",
+      "mcp__codegraph__find_dead_code",
+      "mcp__codegraph__inspect_symbol",
+      "mcp__codegraph__open_explorer",
+      "mcp__codegraph__search_symbols",
+      "mcp__codegraph__survey_repo",
+      "mcp__codegraph__trace_path"
+    ]
+  },
+  "readyMs": 436,
+  "turn": {
+    "prompt": "Call ping_read, then call ping_act, then say what happened",
+    "ms": 4767,
+    "asked": [
+      {
+        "turn": 1,
+        "tool": "mcp__carrier-chat__ping_read",
+        "input": {},
+        "displayName": "Ping Read",
+        "toolUseID": "toolu_019URM8UJ7r36BCE1AfNz5bL"
+      },
+      {
+        "turn": 1,
+        "tool": "mcp__carrier-chat__ping_act",
+        "input": {},
+        "displayName": "Ping Act",
+        "suggestions": [
+          {
+            "type": "addRules",
+            "rules": [
+              {
+                "toolName": "mcp__carrier-chat__ping_act"
+              }
+            ],
+            "behavior": "allow",
+            "destination": "localSettings"
+          }
+        ],
+        "toolUseID": "toolu_01XKmC8tpsiqMmdjw95KPekd"
+      }
+    ],
+    "tools": [
+      {
+        "name": "ToolSearch",
+        "input": {
+          "query": "select:mcp__carrier-chat__ping_read,mcp__carrier-chat__ping_act",
+          "max_results": 2
+        }
+      },
+      {
+        "name": "mcp__carrier-chat__ping_read",
+        "input": {}
+      },
+      {
+        "name": "mcp__carrier-chat__ping_act",
+        "input": {}
+      }
+    ],
+    "results": [
+      {
+        "tool": "toolu_01LLKeDtBy3Uw2MKRjvGNn9d",
+        "error": false,
+        "text": " "
+      },
+      {
+        "tool": "toolu_019URM8UJ7r36BCE1AfNz5bL",
+        "error": true,
+        "text": "Denied by the spike probe."
+      },
+      {
+        "tool": "toolu_01XKmC8tpsiqMmdjw95KPekd",
+        "error": true,
+        "text": "Denied by the spike probe."
+      }
+    ],
+    "said": "Ambos fallaron con \"Denied by the spike probe\".\n\n- `ping_read`: denegado.\n- `ping_act`: denegado.\n\nEs un bloqueo del lado del servidor, no un error de parámetros (no reciben argumentos). No sé si el probe es intencional; si lo esperas, no hay nada que arreglar. Si no, habría que revisar la configuración del servidor `carrier-chat`.\n",
+    "outcome": "success",
+    "resultText": "Ambos fallaron con \"Denied by the spike probe\".\n\n- `ping_read`: denegado.\n- `ping_act`: denegado.\n\nEs un bloqueo del lado del servidor, no un error de parámetros (no reciben argumentos). No sé si el probe es intencional; si lo esperas, no hay nada que arreglar. Si no, habría que revisar la configura",
+    "denials": [
+      {
+        "tool_name": "mcp__carrier-chat__ping_read",
+        "tool_use_id": "toolu_019URM8UJ7r36BCE1AfNz5bL",
+        "tool_input": {}
+      },
+      {
+        "tool_name": "mcp__carrier-chat__ping_act",
+        "tool_use_id": "toolu_01XKmC8tpsiqMmdjw95KPekd",
+        "tool_input": {}
+      }
+    ]
+  },
+  "serverLog": [],
+  "askedRead": true,
+  "askedAct": true,
+  "actExecuted": false,
+  "readExecuted": false
+}

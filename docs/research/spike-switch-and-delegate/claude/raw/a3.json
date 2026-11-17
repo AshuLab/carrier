@@ -1,0 +1,285 @@
+[
+  {
+    "case": "haiku",
+    "options": {
+      "model": "haiku"
+    },
+    "openToReadyMs": 567,
+    "current": "haiku",
+    "listed": [
+      {
+        "id": "default",
+        "label": "Default (recommended)",
+        "version": "claude-sonnet-5-5"
+      },
+      {
+        "id": "opus",
+        "label": "Opus 5.5",
+        "version": "claude-opus-5-5"
+      },
+      {
+        "id": "sonnet",
+        "label": "Sonnet 5.5",
+        "version": "claude-sonnet-5-5"
+      },
+      {
+        "id": "fable",
+        "label": "Fable 5.2",
+        "version": "claude-fable-5-2"
+      },
+      {
+        "id": "haiku",
+        "label": "Haiku 5.5",
+        "version": "claude-haiku-5-5"
+      },
+      {
+        "id": "claude-fable-5-1",
+        "label": "Fable 5.1",
+        "version": "claude-fable-5-1"
+      },
+      {
+        "id": "claude-haiku-4-5-20251001",
+        "label": "Haiku 4.5",
+        "version": "claude-haiku-4-5-20251001"
+      },
+      {
+        "id": "claude-sonnet-5",
+        "label": "Sonnet 5",
+        "version": "claude-sonnet-5"
+      },
+      {
+        "id": "claude-opus-5",
+        "label": "Opus 5",
+        "version": "claude-opus-5"
+      },
+      {
+        "id": "claude-fable-5",
+        "label": "Fable 5",
+        "version": "claude-fable-5"
+      },
+      {
+        "id": "claude-opus-4-8",
+        "label": "Opus 4.8",
+        "version": "claude-opus-4-8"
+      },
+      {
+        "id": "claude-opus-4-7",
+        "label": "Opus 4.7",
+        "version": "claude-opus-4-7"
+      },
+      {
+        "id": "claude-opus-4-6",
+        "label": "Opus 4.6",
+        "version": "claude-opus-4-6"
+      },
+      {
+        "id": "claude-sonnet-4-6",
+        "label": "Sonnet 4.6",
+        "version": "claude-sonnet-4-6"
+      }
+    ],
+    "optionIds": [
+      "permissionMode",
+      "model",
+      "effort"
+    ]
+  },
+  {
+    "case": "invalid",
+    "options": {
+      "model": "not-a-real-model-xyz"
+    },
+    "openToReadyMs": 544,
+    "current": "not-a-real-model-xyz",
+    "listed": [
+      {
+        "id": "default",
+        "label": "Default (recommended)",
+        "version": "claude-sonnet-5-5"
+      },
+      {
+        "id": "opus",
+        "label": "Opus 5.5",
+        "version": "claude-opus-5-5"
+      },
+      {
+        "id": "sonnet",
+        "label": "Sonnet 5.5",
+        "version": "claude-sonnet-5-5"
+      },
+      {
+        "id": "fable",
+        "label": "Fable 5.2",
+        "version": "claude-fable-5-2"
+      },
+      {
+        "id": "haiku",
+        "label": "Haiku 5.5",
+        "version": "claude-haiku-5-5"
+      },
+      {
+        "id": "claude-fable-5-1",
+        "label": "Fable 5.1",
+        "version": "claude-fable-5-1"
+      },
+      {
+        "id": "claude-haiku-4-5-20251001",
+        "label": "Haiku 4.5",
+        "version": "claude-haiku-4-5-20251001"
+      },
+      {
+        "id": "claude-sonnet-5",
+        "label": "Sonnet 5",
+        "version": "claude-sonnet-5"
+      },
+      {
+        "id": "claude-opus-5",
+        "label": "Opus 5",
+        "version": "claude-opus-5"
+      },
+      {
+        "id": "claude-fable-5",
+        "label": "Fable 5",
+        "version": "claude-fable-5"
+      },
+      {
+        "id": "claude-opus-4-8",
+        "label": "Opus 4.8",
+        "version": "claude-opus-4-8"
+      },
+      {
+        "id": "claude-opus-4-7",
+        "label": "Opus 4.7",
+        "version": "claude-opus-4-7"
+      },
+      {
+        "id": "claude-opus-4-6",
+        "label": "Opus 4.6",
+        "version": "claude-opus-4-6"
+      },
+      {
+        "id": "claude-sonnet-4-6",
+        "label": "Sonnet 4.6",
+        "version": "claude-sonnet-4-6"
+      },
+      {
+        "id": "not-a-real-model-xyz",
+        "label": "not-a-real-model-xyz",
+        "version": "not-a-real-model-xyz"
+      }
+    ],
+    "optionIds": [
+      "permissionMode",
+      "model",
+      "effort"
+    ],
+    "turnEvents": [
+      {
+        "kind": "assistant",
+        "text": "There's an issue with the selected model (not-a-real-model-xyz). It may not exist or you may not have access to it.",
+        "at": 753
+      },
+      {
+        "kind": "error",
+        "text": "There's an issue with the selected model (not-a-real-model-xyz). It may not exist or you may not have access to it.",
+        "at": 756
+      },
+      {
+        "kind": "turn_end",
+        "outcome": "error",
+        "usage": {
+          "input_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "output_tokens": 0,
+          "total_cost_usd": 0
+        },
+        "at": 756
+      }
+    ],
+    "afterTurnCurrent": "not-a-real-model-xyz"
+  },
+  {
+    "case": "nothing",
+    "options": {},
+    "openToReadyMs": 556,
+    "current": "default",
+    "listed": [
+      {
+        "id": "default",
+        "label": "Default (recommended)",
+        "version": "claude-sonnet-5-5"
+      },
+      {
+        "id": "opus",
+        "label": "Opus 5.5",
+        "version": "claude-opus-5-5"
+      },
+      {
+        "id": "sonnet",
+        "label": "Sonnet 5.5",
+        "version": "claude-sonnet-5-5"
+      },
+      {
+        "id": "fable",
+        "label": "Fable 5.2",
+        "version": "claude-fable-5-2"
+      },
+      {
+        "id": "haiku",
+        "label": "Haiku 5.5",
+        "version": "claude-haiku-5-5"
+      },
+      {
+        "id": "claude-fable-5-1",
+        "label": "Fable 5.1",
+        "version": "claude-fable-5-1"
+      },
+      {
+        "id": "claude-haiku-4-5-20251001",
+        "label": "Haiku 4.5",
+        "version": "claude-haiku-4-5-20251001"
+      },
+      {
+        "id": "claude-sonnet-5",
+        "label": "Sonnet 5",
+        "version": "claude-sonnet-5"
+      },
+      {
+        "id": "claude-opus-5",
+        "label": "Opus 5",
+        "version": "claude-opus-5"
+      },
+      {
+        "id": "claude-fable-5",
+        "label": "Fable 5",
+        "version": "claude-fable-5"
+      },
+      {
+        "id": "claude-opus-4-8",
+        "label": "Opus 4.8",
+        "version": "claude-opus-4-8"
+      },
+      {
+        "id": "claude-opus-4-7",
+        "label": "Opus 4.7",
+        "version": "claude-opus-4-7"
+      },
+      {
+        "id": "claude-opus-4-6",
+        "label": "Opus 4.6",
+        "version": "claude-opus-4-6"
+      },
+      {
+        "id": "claude-sonnet-4-6",
+        "label": "Sonnet 4.6",
+        "version": "claude-sonnet-4-6"
+      }
+    ],
+    "optionIds": [
+      "permissionMode",
+      "model",
+      "effort"
+    ]
+  }
+]

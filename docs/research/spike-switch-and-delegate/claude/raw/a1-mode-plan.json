@@ -1,0 +1,111 @@
+{
+  "run": "mode-plan",
+  "allowedTools": [
+    "mcp__carrier-chat__ping_read"
+  ],
+  "init": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "plan",
+    "claude_code_version": "2.1.325",
+    "mcp_servers": [
+      {
+        "name": "codegraph",
+        "status": "connected",
+        "source": "user"
+      },
+      {
+        "name": "sentry",
+        "status": "needs-auth",
+        "source": "user"
+      },
+      {
+        "name": "carrier-chat",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "tools": [
+      "Task",
+      "AskUserQuestion",
+      "Bash",
+      "Edit",
+      "EnterWorktree",
+      "ExitWorktree",
+      "ListAgents",
+      "Monitor",
+      "PublishPlugin",
+      "Read",
+      "ShareOnboardingGuide",
+      "Skill",
+      "TaskStop",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Write",
+      "mcp__carrier-chat__ping_act",
+      "mcp__carrier-chat__ping_read",
+      "mcp__codegraph__analyze_diff",
+      "mcp__codegraph__analyze_impact",
+      "mcp__codegraph__find_dead_code",
+      "mcp__codegraph__inspect_symbol",
+      "mcp__codegraph__open_explorer",
+      "mcp__codegraph__search_symbols",
+      "mcp__codegraph__survey_repo",
+      "mcp__codegraph__trace_path"
+    ]
+  },
+  "readyMs": 385,
+  "turn": {
+    "prompt": "Call ping_read, then call ping_act, then say what happened",
+    "ms": 8076,
+    "asked": [
+      {
+        "turn": 1,
+        "tool": "mcp__carrier-chat__ping_read",
+        "input": {},
+        "displayName": "Ping Read",
+        "toolUseID": "toolu_01UpodAsH48BGuYkJ5RjYFUw"
+      }
+    ],
+    "tools": [
+      {
+        "name": "ToolSearch",
+        "input": {
+          "query": "select:mcp__carrier-chat__ping_read,mcp__carrier-chat__ping_act",
+          "max_results": 2
+        }
+      },
+      {
+        "name": "mcp__carrier-chat__ping_read",
+        "input": {}
+      }
+    ],
+    "results": [
+      {
+        "tool": "toolu_01Pff7LrwguvsZ546yNTdoQB",
+        "error": false,
+        "text": " "
+      },
+      {
+        "tool": "toolu_01UpodAsH48BGuYkJ5RjYFUw",
+        "error": true,
+        "text": "Denied by the spike probe."
+      }
+    ],
+    "said": "`ping_read` was denied with \"Denied by the spike probe.\" It returned nothing.\n\nI didn't call `ping_act`. Plan mode is on, and that blocks anything that isn't read-only. The tool's description says it only returns a fixed string, but I can't confirm it's harmless. The denial on `ping_read` is also a reason not to try the next call.\n\nDo you want me to call `ping_act` anyway? That would mean you exit plan mode first, or tell me the call is fine. I can also retry `ping_read` if you think the denial was a one-off.\n",
+    "outcome": "success",
+    "resultText": "`ping_read` was denied with \"Denied by the spike probe.\" It returned nothing.\n\nI didn't call `ping_act`. Plan mode is on, and that blocks anything that isn't read-only. The tool's description says it only returns a fixed string, but I can't confirm it's harmless. The denial on `ping_read` is also a ",
+    "denials": [
+      {
+        "tool_name": "mcp__carrier-chat__ping_read",
+        "tool_use_id": "toolu_01UpodAsH48BGuYkJ5RjYFUw",
+        "tool_input": {}
+      }
+    ]
+  },
+  "serverLog": [],
+  "askedRead": true,
+  "askedAct": false,
+  "actExecuted": false,
+  "readExecuted": false
+}

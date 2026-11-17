@@ -1,0 +1,190 @@
+{
+  "mode": "dontAsk",
+  "init": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "dontAsk",
+    "claude_code_version": "2.1.325",
+    "mcp_servers": [
+      {
+        "name": "codegraph",
+        "status": "connected",
+        "source": "user"
+      },
+      {
+        "name": "sentry",
+        "status": "needs-auth",
+        "source": "user"
+      }
+    ],
+    "tools": [
+      "Task",
+      "AskUserQuestion",
+      "Bash",
+      "Edit",
+      "EnterWorktree",
+      "ExitWorktree",
+      "ListAgents",
+      "Monitor",
+      "PublishPlugin",
+      "Read",
+      "ShareOnboardingGuide",
+      "Skill",
+      "TaskStop",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Write",
+      "mcp__codegraph__analyze_diff",
+      "mcp__codegraph__analyze_impact",
+      "mcp__codegraph__find_dead_code",
+      "mcp__codegraph__inspect_symbol",
+      "mcp__codegraph__open_explorer",
+      "mcp__codegraph__search_symbols",
+      "mcp__codegraph__survey_repo",
+      "mcp__codegraph__trace_path"
+    ]
+  },
+  "turns": [
+    {
+      "probe": "write-inside",
+      "turn": {
+        "prompt": "Create a file named a.txt in the current working folder with the text hi inside. Do nothing else, and if it is refused do not try another way.",
+        "ms": 2480,
+        "asked": [],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "printf 'hi' > a.txt && cat a.txt",
+              "description": "Create a.txt containing hi and verify it"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_011WryG3vjnsHogrf6rnjCDS",
+            "error": true,
+            "text": "Permission to use Bash has been denied because Claude Code is running in don't ask mode. IMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to accomplish this goal, e.g. using head instead "
+          }
+        ],
+        "said": "No, I couldn't create `a.txt`. The shell command was denied because this session is running in \"don't ask\" mode. You said not to try another way if refused, so I stopped there and did not use another tool to write the file.\n\nTo create it, allow Bash for this session, or create the file yourself with `printf 'hi' > a.txt`.\n",
+        "outcome": "success",
+        "resultText": "No, I couldn't create `a.txt`. The shell command was denied because this session is running in \"don't ask\" mode. You said not to try another way if refused, so I stopped there and did not use another tool to write the file.\n\nTo create it, allow Bash for this session, or create the file yourself with",
+        "denials": [
+          {
+            "tool_name": "Bash",
+            "tool_use_id": "toolu_011WryG3vjnsHogrf6rnjCDS",
+            "tool_input": {
+              "command": "printf 'hi' > a.txt && cat a.txt",
+              "description": "Create a.txt containing hi and verify it"
+            }
+          }
+        ]
+      },
+      "fileExists": false
+    },
+    {
+      "probe": "write-outside",
+      "turn": {
+        "prompt": "Create a file named b.txt with the text hi inside, in the folder /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF. Do nothing else, and if it is refused do not try another way.",
+        "ms": 2288,
+        "asked": [],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "printf 'hi' > /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt && cat /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt",
+              "description": "Create b.txt containing hi in the given folder and verify it"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01A5vSo4wrhcvUJaJfyfACVt",
+            "error": true,
+            "text": "Permission to use Bash has been denied because Claude Code is running in don't ask mode. IMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to accomplish this goal, e.g. using head instead "
+          }
+        ],
+        "said": "No, I couldn't create `b.txt`. The shell command was denied again (\"don't ask\" mode), so I stopped as you asked and did not try another way.\n\nTo create it, allow Bash for this session, or run `printf 'hi' > /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt` yourself.\n",
+        "outcome": "success",
+        "resultText": "No, I couldn't create `b.txt`. The shell command was denied again (\"don't ask\" mode), so I stopped as you asked and did not try another way.\n\nTo create it, allow Bash for this session, or run `printf 'hi' > /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt` yourself.",
+        "denials": [
+          {
+            "tool_name": "Bash",
+            "tool_use_id": "toolu_01A5vSo4wrhcvUJaJfyfACVt",
+            "tool_input": {
+              "command": "printf 'hi' > /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt && cat /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-IjLvIF/b.txt",
+              "description": "Create b.txt containing hi in the given folder and verify it"
+            }
+          }
+        ]
+      },
+      "fileExists": false
+    },
+    {
+      "probe": "curl",
+      "turn": {
+        "prompt": "Run the shell command: curl -sI https://example.com | head -1 Do nothing else, and if it is refused do not try another way.",
+        "ms": 1868,
+        "asked": [],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch HTTP status line from example.com"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_01R1dcmA65QMtDoRHndBcGqr",
+            "error": true,
+            "text": "Permission to use Bash has been denied because Claude Code is running in don't ask mode. IMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to accomplish this goal, e.g. using head instead "
+          }
+        ],
+        "said": "No, the command was refused. Bash is denied in this session (\"don't ask\" mode), so I did not run `curl -sI https://example.com | head -1` and did not try another way.\n\nTo run it, allow Bash for this session, or run the command yourself.\n",
+        "outcome": "success",
+        "resultText": "No, the command was refused. Bash is denied in this session (\"don't ask\" mode), so I did not run `curl -sI https://example.com | head -1` and did not try another way.\n\nTo run it, allow Bash for this session, or run the command yourself.",
+        "denials": [
+          {
+            "tool_name": "Bash",
+            "tool_use_id": "toolu_01R1dcmA65QMtDoRHndBcGqr",
+            "tool_input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch HTTP status line from example.com"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "probe": "ls",
+      "turn": {
+        "prompt": "Run the shell command: ls Do nothing else, and if it is refused do not try another way.",
+        "ms": 2847,
+        "asked": [],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "ls",
+              "description": "List files in current directory"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_019vAE2RArGhJDMkCcfVXaon",
+            "error": false,
+            "text": "(Bash completed with no output)"
+          }
+        ],
+        "said": "The `ls` command ran and printed nothing, so the current folder is empty. This time Bash was allowed.\n",
+        "outcome": "success",
+        "resultText": "The `ls` command ran and printed nothing, so the current folder is empty. This time Bash was allowed.",
+        "denials": []
+      }
+    }
+  ]
+}

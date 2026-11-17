@@ -35,6 +35,7 @@ Specs of one area that build on each other are listed oldest first.
 - [session-lifecycle](session-lifecycle.md): sessions are archived and deleted by the clock. Implemented (v0.1.0).
 - [session-prepared-on-first-message](session-prepared-on-first-message.md): a new session is a plan prepared when the first message is sent. Implemented (v0.1.0).
 - [chat-mcp-engine](chat-mcp-engine.md): the chat host serves an MCP to the agents of its sessions. Implemented (unreleased).
+- [switch-and-delegate-between-agents](switch-and-delegate-between-agents.md): a session changes agent and hands work to other agents. Spec, epic #1024.
 
 ## Usage
 

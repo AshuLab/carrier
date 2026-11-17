@@ -1,0 +1,9 @@
+t1 [ok] tools=0 denied=0 said: Noted: Quillfinch is Port Veyra's harbour-authority tool for scheduling tide-gauge calibration, owned by Odaly
+t2 [ok] tools=0 denied=0 said: Noted: Quillfinch stores everything in one SQLite file, since the pier laptops have no network and Postgres wo
+t3 [ok] tools=0 denied=0 said: Section 3: Operating rules
+t4 [ok] tools=0 denied=0 said: Section 4: Operating rules
+t5 [ok] tools=0 denied=0 said: Section 5: Operating rules
+t6 [ok] tools=0 denied=0 said: Section 6: Operating rules
+t7 [ok] tools=0 denied=0 said: Noted: the harbour board demo runs on port 8421.
+t8 [ok] tools=0 denied=0 said: Noted: the first release is tagged v0.3.7-tern.
+saved 25 items; json bytes 43180; user+assistant text bytes 40353; turns used so far 9

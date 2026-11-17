@@ -1,7 +1,7 @@
 import { accessSync, constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { and, asc, count, desc, eq, gt, isNotNull, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
 import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
@@ -521,6 +521,16 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       },
       agents: listAgents,
       health: () => health({}),
+      storedEvents: (sessionId: string, { after, kinds, limit }: { after: number; kinds: string[]; limit: number }) =>
+        db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), gt(chatEvents.id, after), inArray(chatEvents.kind, kinds))).orderBy(asc(chatEvents.id)).limit(limit).all().map(({ id, kind, data }) => ({ position: id, kind, data })),
+      storedEvent: (sessionId: string, position: number, kinds: string[]) => {
+        const found = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.id, position), inArray(chatEvents.kind, kinds))).get();
+        return found === undefined ? undefined : { position: found.id, kind: found.kind, data: found.data };
+      },
+      toolStatuses: (sessionId: string, callIds: string[]) => {
+        const ends = callIds.length === 0 ? [] : db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'tool_end'), inArray(sql`json_extract(${chatEvents.data}, '$.callId')`, callIds))).all();
+        return Object.fromEntries(ends.map(({ data }) => [String(data.callId), data.status === 'ok' ? 'ok' : 'err'])) as Record<string, 'ok' | 'err'>;
+      },
     },
 
     /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */

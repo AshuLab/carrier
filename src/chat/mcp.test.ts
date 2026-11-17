@@ -3,7 +3,8 @@ import { afterEach, beforeEach, expect, test } from 'vitest';
 import { z } from 'zod';
 import { FakeClock } from '../orchestration/fake.ts';
 import { capabilities } from './mcp/capabilities.ts';
-import { defineTool, McpSessionRegistry, startMcpServer, type McpServer } from './mcp.ts';
+import { history } from './mcp/history.ts';
+import { defineTool, McpSessionRegistry, startMcpServer, type McpServer, type McpSessions, type StoredEvent } from './mcp.ts';
 import { ChatRefused } from './runner.ts';
 
 const DAY = 24 * 60 * 60_000;
@@ -68,7 +69,7 @@ beforeEach(async () => {
   existing = new Set(['s1']);
   liveOnes = new Set(['s1']);
   seen = [];
-  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }) } });
+  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}) } });
 });
 afterEach(() => server.close());
 
@@ -268,7 +269,7 @@ test('capabilities is a readsAsSession tool that takes no arguments and answers 
   const own = await startMcpServer({
     registry,
     tools: [capabilities],
-    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }) },
+    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}) },
   });
   try {
     const token = issue();
@@ -280,6 +281,144 @@ test('capabilities is a readsAsSession tool that takes no arguments and answers 
     }
     expect((await ask({ extra: 1 })).isError).toBe(true);
     expect((await ask([])).isError).toBe(true);
+  } finally {
+    await own.close();
+  }
+});
+
+// ---- history ----
+
+type Stored = StoredEvent & { sessionId: string };
+const longText = 'x'.repeat(9000);
+const stored: Stored[] = [
+  { sessionId: 's1', position: 1, kind: 'user', data: { text: 'hello' } },
+  { sessionId: 's1', position: 2, kind: 'reasoning', data: { text: 'private thoughts' } },
+  { sessionId: 's1', position: 3, kind: 'tool_start', data: { callId: 'c1', tool: 'Bash', arg: 'ls' } },
+  { sessionId: 's1', position: 4, kind: 'tool_end', data: { callId: 'c1', tool: 'Bash', output: ['TOP SECRET OUTPUT'], status: 'ok' } },
+  { sessionId: 's1', position: 5, kind: 'tool_start', data: { callId: 'c2', tool: 'Read' } },
+  { sessionId: 's1', position: 6, kind: 'tool_start', data: { callId: 'c3', tool: 'Grep', arg: 'foo' } },
+  { sessionId: 's1', position: 7, kind: 'tool_end', data: { callId: 'c3', tool: 'Grep', output: ['STDERR'], status: 'err' } },
+  { sessionId: 's1', position: 8, kind: 'assistant', data: { text: longText } },
+  { sessionId: 's1', position: 9, kind: 'user', data: { text: '/review src', command: 'review' } },
+  { sessionId: 's2', position: 10, kind: 'assistant', data: { text: 'not yours' } },
+];
+const store: McpSessions = {
+  exists: (id) => id === 's1' || id === 's2',
+  live: () => true,
+  snapshot: () => { throw new Error('not used'); },
+  agents: () => [],
+  health: async () => ({ git: 'ready', gh: 'ready', agents: [] }),
+  storedEvents: (id, { after, kinds, limit }) => stored.filter((e) => e.sessionId === id && e.position > after && kinds.includes(e.kind)).slice(0, limit),
+  storedEvent: (id, position, kinds) => stored.find((e) => e.sessionId === id && e.position === position && kinds.includes(e.kind)),
+  toolStatuses: (_id, callIds) => Object.fromEntries(callIds.flatMap((c): [string, 'ok' | 'err'][] => (c === 'c1' ? [[c, 'ok']] : c === 'c3' ? [[c, 'err']] : []))),
+};
+
+test('history pages the messages view from the start to a null nextPosition, and filters before the limit', async () => {
+  const own = await startMcpServer({ registry, tools: [history], sessions: store });
+  try {
+    const token = issue();
+    const ask = async (args?: unknown) => {
+      const res = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'history', ...(args !== undefined && { arguments: args }) } }) })).json()) as any;
+      return { isError: res.result.isError as boolean, body: res.result.isError ? res.result.content[0].text : JSON.parse(res.result.content[0].text) };
+    };
+    expect(history).toMatchObject({ name: 'history', access: 'readsAsSession' });
+
+    const first = await ask();
+    expect(first.body.events.map((e: any) => [e.position, e.id, e.kind])).toEqual([[1, '1', 'user'], [8, '8', 'assistant'], [9, '9', 'user']]);
+    expect(first.body.events[1].text).toHaveLength(1500);
+    expect(first.body.events[2].text).toBe('/review src');
+    expect(first.body.nextPosition).toBeNull();
+
+    const one = await ask({ limit: 1 });
+    expect(one.body).toMatchObject({ events: [{ position: 1, text: 'hello' }], nextPosition: 1 });
+    const two = await ask({ limit: 1, afterPosition: one.body.nextPosition });
+    expect(two.body.events.map((e: any) => e.position)).toEqual([8]); // the reasoning and tool rows in between are filtered before the limit
+    expect(two.body.nextPosition).toBe(8);
+    const three = await ask({ limit: 1, afterPosition: two.body.nextPosition });
+    expect(three.body).toMatchObject({ events: [{ position: 9 }], nextPosition: null });
+    expect((await ask({ sessionId: 's1', view: 'messages', afterPosition: 9 })).body).toEqual({ events: [], nextPosition: null });
+  } finally {
+    await own.close();
+  }
+});
+
+test('history called with no arguments defaults to 40 events and pages via nextPosition until null', async () => {
+  const many: Stored[] = Array.from({ length: 45 }, (_, i) => ({ sessionId: 's1', position: i + 1, kind: i % 2 === 0 ? 'user' : 'assistant', data: { text: `msg-${i + 1}` } }));
+  const own = await startMcpServer({
+    registry,
+    tools: [history],
+    sessions: { ...store, storedEvents: (id, { after, kinds, limit }) => many.filter((e) => e.sessionId === id && e.position > after && kinds.includes(e.kind)).slice(0, limit) },
+  });
+  try {
+    const token = issue();
+    const ask = async (args?: unknown) => {
+      const res = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'history', ...(args !== undefined && { arguments: args }) } }) })).json()) as any;
+      return JSON.parse(res.result.content[0].text);
+    };
+    const first = await ask();
+    expect(first.events).toHaveLength(40);
+    expect(first.nextPosition).toBe(40);
+    const second = await ask({ afterPosition: first.nextPosition });
+    expect(second.events.map((e: any) => e.position)).toEqual([41, 42, 43, 44, 45]);
+    expect(second.nextPosition).toBeNull();
+  } finally {
+    await own.close();
+  }
+});
+
+test('history activity lists a tool call as one line with no output and never reasoning, and a long item is read whole in parts', async () => {
+  const own = await startMcpServer({ registry, tools: [history], sessions: store });
+  try {
+    const token = issue();
+    const ask = async (args?: unknown) => {
+      const res = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'history', ...(args !== undefined && { arguments: args }) } }) })).json()) as any;
+      return { isError: res.result.isError as boolean, body: res.result.isError ? res.result.content[0].text : JSON.parse(res.result.content[0].text) };
+    };
+    const activity = await ask({ view: 'activity' });
+    expect(activity.body.events.map((e: any) => [e.position, e.kind, e.text.slice(0, 20)])).toEqual([
+      [1, 'user', 'hello'],
+      [3, 'tool', 'Bash ls (ok)'],
+      [5, 'tool', 'Read (running)'],
+      [6, 'tool', 'Grep foo (err)'],
+      [8, 'assistant', 'x'.repeat(20)],
+      [9, 'user', '/review src'],
+    ]);
+    expect(JSON.stringify(activity.body)).not.toMatch(/SECRET|STDERR|private/);
+    expect((await ask({ itemId: '3', view: 'activity' })).body).toEqual({ itemId: '3', text: 'Bash ls (ok)', nextTextOffset: null });
+    expect((await ask({ itemId: '3' })).body).toEqual({ itemId: '3', text: 'Bash ls (ok)', nextTextOffset: null });
+
+    const part1 = await ask({ itemId: '8' });
+    expect(part1.body.text).toBe(longText.slice(0, 4000));
+    expect(part1.body.nextTextOffset).toBe(4000);
+    const part2 = await ask({ itemId: '8', textOffset: 4000 });
+    expect(part2.body).toMatchObject({ nextTextOffset: 8000 });
+    const part3 = await ask({ itemId: '8', textOffset: 8000 });
+    expect(part3.body).toEqual({ itemId: '8', text: longText.slice(8000), nextTextOffset: null });
+    expect((await ask({ itemId: '8', textOffset: 9000 })).body).toEqual({ itemId: '8', text: '', nextTextOffset: null });
+    expect((await ask({ itemId: '8', textOffset: 50_000 })).body).toEqual({ itemId: '8', text: '', nextTextOffset: null });
+  } finally {
+    await own.close();
+  }
+});
+
+test('history refuses a bad limit, position, offset or type, and another session or another session\'s item with the words of one that does not exist', async () => {
+  const own = await startMcpServer({ registry, tools: [history], sessions: store });
+  try {
+    const token = issue();
+    const ask = async (args?: unknown) => {
+      const res = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'history', ...(args !== undefined && { arguments: args }) } }) })).json()) as any;
+      return { isError: res.result.isError as boolean, text: res.result.content[0].text as string };
+    };
+    for (const bad of [{ limit: 0 }, { limit: 101 }, { limit: 1.5 }, { afterPosition: -2 }, { afterPosition: 0.5 }, { textOffset: 0 }, { textOffset: 3 }, { itemId: '8', textOffset: -1 }, { itemId: '8', textOffset: 1.5 }, { view: 'reasoning' }, { extra: 1 }]) {
+      const refused = await ask(bad);
+      expect([bad, refused.isError]).toEqual([bad, true]);
+      expect(refused.text).toMatch(/^Invalid arguments/);
+    }
+    const noSession = await ask({ sessionId: 's2' });
+    expect(noSession).toEqual({ isError: true, text: 'There is no such session' });
+    expect(await ask({ sessionId: 'ghost' })).toEqual(noSession);
+    for (const itemId of ['10', '99', '2', '4', '7', 'abc', '-1', '1.0', '01']) expect(await ask({ itemId })).toEqual({ isError: true, text: 'There is no such item' }); // another session's, missing, reasoning, tool ends, not a position
+    expect(await ask({ sessionId: 's2', itemId: '10' })).toEqual(noSession);
   } finally {
     await own.close();
   }

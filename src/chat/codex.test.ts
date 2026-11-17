@@ -547,7 +547,7 @@ async function limitTurn(notifications: Line[], limits: { result: Line } | { err
       const m = JSON.parse(text) as Line;
       if (m.id === undefined) return;
       const results: Record<string, unknown> = {
-        initialize: { userAgent: 'carrier/0.153.4' },
+        initialize: { userAgent: 'carrier/0.169.0' },
         'thread/start': { thread: { id: 'thread-1' }, model: 'gpt-fake' },
         'model/list': { data: [] },
         'skills/list': { data: [] },
@@ -617,5 +617,5 @@ test('a rate limit Codex retries is no usage limit, and the failed turn that ran
 
 test('the conversation exposes the version of its app-server', async () => {
   const { conversation } = await limitTurn([{ method: 'turn/completed', params: { turn: { id: 'turn-1', status: 'completed' } } }], null);
-  expect(conversation.appServerVersion).toBe('0.153.4');
+  expect(conversation.appServerVersion).toBe('0.169.0');
 });

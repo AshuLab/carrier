@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The first click on a session in the sidebar, or on its Archive button, works while the card that opens on hover is showing: that card used to swallow the click that closed it, and a second click was needed.
 - The sidebar no longer shuffles the sessions that work: with two of them at work their rows swapped places with every event of their agents. A session that works keeps the place it had when its turn began and takes its place once, when it stops.
 
 ### Changed

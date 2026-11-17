@@ -59,6 +59,7 @@ function replay(segments: Segment[], mcpServers?: { name: string; status: string
       }),
       mcpServerStatus: async () => mcpServers ?? [],
       interrupt: async () => (seen.calls.push('interrupt'), interrupted(), undefined),
+      stopTask: async (taskId: string) => void seen.calls.push(`stopTask ${taskId}`),
       setModel: async (model?: string) => void seen.calls.push(`setModel ${model}`),
       setPermissionMode: async (mode: string) => void seen.calls.push(`setPermissionMode ${mode}`),
       close: () => void seen.calls.push('close'),
@@ -582,4 +583,15 @@ test('a field of the wrong type is left out of a task event and a shape the adap
     { kind: 'task', callId: 'call-a', taskId: 'a', state: 'progress', text: 'step', tools: 2 },
     { kind: 'task', callId: 'call-a', taskId: 'a', state: 'failed' },
   ]);
+});
+
+test('stopTask asks the SDK to stop the task with the id its task_started carried, and nothing else', async () => {
+  const lines = subagentParts[0]!;
+  const { conversation, events, seen } = await openWith(sentSegments(lines));
+  answering(conversation);
+  conversation.send(sentSegments(lines)[0]!.text);
+  await vi.waitFor(() => expect(events.some((e) => e.kind === 'task' && e.state === 'started')).toBe(true));
+  const started = events.find((e) => e.kind === 'task' && e.state === 'started' && e.text === 'Slow check')!;
+  await conversation.stopTask!((started as { taskId: string }).taskId);
+  expect(seen.calls.filter((call) => call.startsWith('stopTask'))).toEqual([`stopTask ${(started as { taskId: string }).taskId}`]);
 });

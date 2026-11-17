@@ -56,6 +56,8 @@ type Live = {
   /** The approvals asked and not yet answered, as they are stored (redacted and bounded). */
   approvals: Map<string, PendingApproval>;
   turn?: { startedAt: number; toolCalls: number };
+  /** The subagents running, by task id: from their `started` until `completed`, `failed` or `stopped`. */
+  tasks: Set<string>;
   /** True while the `message` step of a preparation waits for the agent's first answer. */
   awaitingAnswer?: boolean;
   cancelIdle?: () => void;
@@ -214,6 +216,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const { options } = row(sessionId);
       db.update(sessions).set({ options: { ...options, [event.id]: event.value } }).where(eq(sessions.id, sessionId)).run();
     }
+    if (event.kind === 'task' && event.state === 'started') live.tasks.add(event.taskId);
+    if (event.kind === 'task' && ['completed', 'failed', 'stopped'].includes(event.state)) live.tasks.delete(event.taskId);
     if (event.kind === 'tool_start' && live.turn && event.parentCallId === undefined) live.turn.toolCalls++; // the turn's own calls, not its subagents'
     if (event.kind === 'turn_end') {
       const startedAt = live.turn?.startedAt ?? clock.now();
@@ -312,7 +316,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
   /** Makes a conversation the live one of a session. */
   const attach = (sessionId: string, conversation: ChatConversation, invocationId: string, state: State = 'idle') => {
-    const live: Live = { conversation, state, streaming: '', approvals: new Map(), invocationId };
+    const live: Live = { conversation, state, streaming: '', approvals: new Map(), tasks: new Set(), invocationId };
     lives.set(sessionId, live);
     const { pid = null, pgid = null, command = null } = conversation.process ?? {};
     db.update(sessions).set({ pid, pgid, command }).where(eq(sessions.id, sessionId)).run();
@@ -755,6 +759,22 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       }
       // The adapter says the turn ended; if it did not, the interrupt still did, so the host records it.
       if (live.turn !== undefined) onEvent(sessionId, live, { kind: 'turn_end', outcome: 'interrupted' });
+      return {};
+    },
+
+    /** Stops one subagent that is running in the live session; its turn goes on. The row ends when the agent says the task stopped, not here. */
+    async stopTask({ sessionId, taskId }: { sessionId: string; taskId: string }) {
+      row(sessionId);
+      const live = lives.get(sessionId);
+      if (live === undefined) throw new ChatRefused('This session is closed');
+      if (live.conversation.stopTask === undefined) throw new ChatRefused('This session cannot stop a subagent');
+      if (live.tasks.has(taskId) === false) throw new ChatRefused('That subagent is not running');
+      try {
+        await live.conversation.stopTask(taskId);
+      } catch (error) {
+        log.error('stopping a subagent failed', error);
+        throw new ChatRefused('The subagent could not be stopped');
+      }
       return {};
     },
 

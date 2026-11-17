@@ -49,6 +49,7 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 { cmd: 'send'; sessionId: string; text: string; command?: string }   // `command` is the id of one the session lists; `text` is then what follows its name and may be empty
 { cmd: 'answer'; sessionId: string; approvalId: string; choiceId: string; answers?: Record<string, string> }   // `answers` (question text to answer, a multiple choice's picks joined with a comma, an own answer as typed; at most four) is required to `allow` an approval that has `questions`, and refused on any other approval
 { cmd: 'interrupt'; sessionId: string }
+{ cmd: 'stopTask'; sessionId: string; taskId: string }   // stops one running subagent and not the turn; behind the `stopTask` capability; refused for a session that is closed, an adapter without `stopTask` (Codex) and a task that is not running in that session
 { cmd: 'setOption'; sessionId: string; option: string; value: string }
 { cmd: 'agentOptions'; agent: string }   // what an agent offers before a session exists: it is started in a folder of nobody's, read and ended; kept ten minutes
 { cmd: 'close'; sessionId: string }
@@ -137,6 +138,7 @@ interface ChatConversation {
   send(text: string, command?: ChatCommand): void;
   answer(approvalId: string, choiceId: string, answers?: Record<string, string>): void;
   interrupt(): Promise<void>;
+  stopTask?(taskId: string): Promise<void>;   // the Claude adapter's (`Query.stopTask`); the Codex adapter has none
   setOption(id: string, value: string): Promise<void>;
   close(): Promise<void>;
   onEvent(listener: (event: ChatEvent) => void): void;

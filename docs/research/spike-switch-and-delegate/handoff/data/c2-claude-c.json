@@ -1,0 +1,18 @@
+{
+ "which": "c",
+ "handoffBytes": 1340,
+ "first": {
+  "label": "c: handoff in systemPrompt append, then the command",
+  "said": "PONG:GAMMA",
+  "tools": [],
+  "outcome": "ok",
+  "errors": []
+ },
+ "recall": {
+  "label": "c: recall",
+  "said": "Odalys Prewitt is the project owner of Quillfinch.",
+  "tools": [],
+  "outcome": "ok",
+  "errors": []
+ }
+}

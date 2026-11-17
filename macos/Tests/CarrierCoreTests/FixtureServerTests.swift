@@ -101,3 +101,23 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
 @Test func missingFixturesAreAnErrorAndLeaveNothingBehind() {
     #expect(throws: FixtureError.self) { try FixtureServer(fixtures: "/nonexistent") }
 }
+
+@Test func theFixtureChatHostSwitchesAnIdleSessionAndRefusesTheRestInWords() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let sessions = try await host.list(archived: false)
+    let idle = try #require(sessions.first { $0.state == .idle && $0.agent == "claude" })
+    let working = try #require(sessions.first { $0.state == .working })
+
+    let switched = try await host.switchAgent(idle.id, to: "codex")
+    #expect(switched.session == AgentSwitch.Session(id: idle.id, agent: "codex", harness: "codex", state: .idle))
+    #expect(try await host.list(archived: false).first { $0.id == idle.id }?.agent == "codex")
+    let notice = try #require(try await host.events(idle.id, after: 0, limit: 200).events.last)
+    #expect(notice.kind == "notice" && notice.switched == ChatEvent.Switched(from: "claude", to: "codex"))
+
+    await #expect(throws: ControlError.remote("This session already has the agent \"codex\"")) { try await host.switchAgent(idle.id, to: "codex") }
+    await #expect(throws: ControlError.remote("There is no chat agent named \"ghost\"")) { try await host.switchAgent(idle.id, to: "ghost") }
+    await #expect(throws: ControlError.remote("The agent \"claude-beta\" is not found on this machine")) { try await host.switchAgent(idle.id, to: "claude-beta") }
+    await #expect(throws: ControlError.remote("This session is working; interrupt it or wait, then switch its agent")) { try await host.switchAgent(working.id, to: "codex") }
+}

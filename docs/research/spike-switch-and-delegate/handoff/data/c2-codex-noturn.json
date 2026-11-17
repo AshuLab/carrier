@@ -1,0 +1,47 @@
+{
+ "initialize": {
+  "userAgentVersion": "0.167.2"
+ },
+ "skills": [
+  {
+   "name": "pong",
+   "path": "<folder>/.agents/skills/pong/SKILL.md",
+   "scope": "repo",
+   "enabled": true
+  },
+  {
+   "name": "pong",
+   "path": "<folder>/.codex/skills/pong/SKILL.md",
+   "scope": "repo",
+   "enabled": true
+  }
+ ],
+ "skillsErrors": [],
+ "threadStartWithDeveloperInstructions": {
+  "ok": true,
+  "responseKeys": [
+   "thread",
+   "model",
+   "modelProvider",
+   "serviceTier",
+   "disabledPluginIds",
+   "cwd",
+   "runtimeWorkspaceRoots",
+   "instructionSources",
+   "approvalPolicy",
+   "approvalsReviewer",
+   "sandbox",
+   "activePermissionProfile",
+   "reasoningEffort",
+   "multiAgentMode"
+  ],
+  "instructionSources": 0
+ },
+ "injectItems": {
+  "ok": true,
+  "result": {}
+ },
+ "threadStartWithBaseInstructionsAccepted": {
+  "ok": true
+ }
+}

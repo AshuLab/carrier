@@ -1,0 +1,17 @@
+{
+ "which": "base",
+ "handoffBytes": 1340,
+ "base": {
+  "label": "base: /pong ALPHA through send(text, command)",
+  "said": "PONG:ALPHA",
+  "tools": [],
+  "outcome": "ok",
+  "errors": []
+ },
+ "userEvent": {
+  "kind": "user",
+  "text": "ALPHA",
+  "command": "pong",
+  "position": 0
+ }
+}

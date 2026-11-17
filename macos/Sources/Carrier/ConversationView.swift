@@ -471,7 +471,7 @@ struct BannerView: View {
     private var tint: Color { banner.hint == nil ? .red : .orange }
 
     var body: some View {
-        NoticeCard(symbol: "exclamationmark", tint: tint, title: banner.title, detail: banner.detail, hint: banner.hint, edge: true) {
+        NoticeCard(symbol: "exclamationmark", tint: tint, title: banner.title, detail: banner.detail, hint: banner.hint) {
             if copyDetails {
                 Button {
                     NSPasteboard.general.clearContents()

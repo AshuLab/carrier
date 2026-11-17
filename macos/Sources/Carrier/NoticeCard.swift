@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The card the app uses to tell the person something over the message box: a badge, a title, what it means and the actions on the right,
 /// in glass. The errors, the notice of a session that is asleep or archived and the message held while the agent answers are all this
-/// card; each says its own colour, which fills the glass. `edge` adds a thin edge in the colour, for something that went wrong or needs attention.
+/// card; each says its own colour, which fills the glass.
 struct NoticeCard<Actions: View, Below: View>: View {
     let symbol: String
     let tint: Color
@@ -13,7 +13,6 @@ struct NoticeCard<Actions: View, Below: View>: View {
     var tag: String?
     /// How many lines the detail may take; all of it when nil.
     var detailLines: Int?
-    var edge = false
     /// When set, the text is a button (the queued message puts itself back in the box).
     var onTap: (() -> Void)?
     @ViewBuilder var actions: () -> Actions
@@ -21,10 +20,10 @@ struct NoticeCard<Actions: View, Below: View>: View {
     @ViewBuilder var below: () -> Below
     init(
         symbol: String, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
-        edge: Bool = false, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions, @ViewBuilder below: @escaping () -> Below
+        onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions, @ViewBuilder below: @escaping () -> Below
     ) {
         (self.symbol, self.tint, self.title, self.detail, self.hint, self.tag) = (symbol, tint, title, detail, hint, tag)
-        (self.detailLines, self.edge, self.onTap, self.actions, self.below) = (detailLines, edge, onTap, actions, below)
+        (self.detailLines, self.onTap, self.actions, self.below) = (detailLines, onTap, actions, below)
     }
 
     var body: some View {
@@ -40,7 +39,6 @@ struct NoticeCard<Actions: View, Below: View>: View {
         }
         .padding(.horizontal, 13).padding(.vertical, 11)
         .chatSurface(.regular.tint(tint.opacity(0.3)), flat: tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
-        .overlay { if edge { RoundedRectangle(cornerRadius: 14).strokeBorder(tint.opacity(0.45), lineWidth: 1) } }
         .accessibilityElement(children: .contain)
     }
 
@@ -71,10 +69,10 @@ struct NoticeCard<Actions: View, Below: View>: View {
 extension NoticeCard where Below == EmptyView {
     init(
         symbol: String, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
-        edge: Bool = false, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions
+        onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions
     ) {
         self.init(
-            symbol: symbol, tint: tint, title: title, detail: detail, hint: hint, tag: tag, detailLines: detailLines, edge: edge, onTap: onTap,
+            symbol: symbol, tint: tint, title: title, detail: detail, hint: hint, tag: tag, detailLines: detailLines, onTap: onTap,
             actions: actions, below: { EmptyView() }
         )
     }

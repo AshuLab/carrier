@@ -34,6 +34,8 @@ const MAX_RUNNING_CHILDREN = 4;
 const LEVEL_WORDS = ['reads only', 'changes, asking before each change', 'edits without asking'];
 /** How much of a done child's last message `delegate_wait` answers. */
 const CHILD_MESSAGE = 4000;
+/** How long a session whose last subagent just ended waits for the turn the SDK opens by itself (it follows at once) before it is idle. */
+export const FOLLOW_UP_MS = 3_000;
 
 const DAY = 86_400_000;
 /** The lifecycle's ages (ADR 0019), as `chat.json` gives them. */
@@ -70,9 +72,13 @@ type Live = {
   /** The delegations the person was asked about in this turn, by approval: what each said, the level it showed and whether the person allowed it. `startChild` checks a call against them. */
   delegations: Map<string, { agent: string; model: string | undefined; task: string; level: Level | undefined; /** The choices that allow it. */ allowing: string[]; allowed: boolean }>;
   turn?: { startedAt: number; toolCalls: number };
+  /** The subagents running, by task id: from their `started` until `completed`, `failed` or `stopped`. */
+  tasks: Set<string>;
   /** True while the `message` step of a preparation waits for the agent's first answer. */
   awaitingAnswer?: boolean;
   cancelIdle?: () => void;
+  /** Ends the wait for the turn the SDK opens after the last subagent ended (`FOLLOW_UP_MS`). */
+  cancelFollowUp?: () => void;
   /** The invocation its MCP token was issued for. */
   invocationId: string;
   /** Set when a switch of agent replaced this conversation: its events are no longer recorded. */
@@ -180,9 +186,9 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     workspace: workspaceKind === 'worktree' ? { kind: 'worktree', branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase!, path: worktreePath! } : { kind: 'folder' },
   });
 
-  /** What a list says of how a session went: the words its agent last wrote (one line, already redacted as stored), the turns that finished and the model of the last. */
+  /** What a list says of how a session went: the words its agent last wrote, not a subagent's (one line, already redacted as stored), the turns that finished and the model of the last. */
   const activity = (sessionId: string) => {
-    const message = db.select({ data: chatEvents.data }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'assistant'))).orderBy(desc(chatEvents.id)).limit(1).get();
+    const message = db.select({ data: chatEvents.data }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'assistant'), sql`json_extract(${chatEvents.data}, '$.parentCallId') is null`)).orderBy(desc(chatEvents.id)).limit(1).get();
     const turns = db.select({ n: count() }).from(chatTurns).where(eq(chatTurns.sessionId, sessionId)).get()?.n ?? 0;
     const last = db.select({ model: chatTurns.model }).from(chatTurns).where(eq(chatTurns.sessionId, sessionId)).orderBy(desc(chatTurns.id)).limit(1).get();
     const text = message?.data.text;
@@ -256,6 +262,12 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       touch(sessionId, live, 'working');
     }
     if (event.kind === 'delta') return void (live.streaming += event.text);
+    if (event.kind === 'turn_start') {
+      // the SDK answers a subagent that ended after the turn did: no message opened this turn, so open it here, or its `turn_end` is dropped and the session shows idle while it runs
+      live.cancelFollowUp?.();
+      live.turn ??= { startedAt: clock.now(), toolCalls: 0 };
+      return touch(sessionId, live, 'working');
+    }
     if (event.kind === 'turn_end' && live.turn === undefined) return; // a turn already recorded (an interrupt, then the adapter's own end)
     if (event.kind === 'assistant' || event.kind === 'turn_end') live.streaming = '';
     store(sessionId, event);
@@ -273,14 +285,27 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const { options } = row(sessionId);
       db.update(sessions).set({ options: { ...options, [event.id]: event.value } }).where(eq(sessions.id, sessionId)).run();
     }
-    if (event.kind === 'tool_start' && live.turn) live.turn.toolCalls++;
+    if (event.kind === 'task' && event.state === 'started') live.tasks.add(event.taskId);
+    const lastEnded = event.kind === 'task' && ['completed', 'failed', 'stopped'].includes(event.state) && live.tasks.delete(event.taskId) && live.tasks.size === 0 && live.turn === undefined;
+    if (event.kind === 'tool_start' && live.turn && event.parentCallId === undefined) live.turn.toolCalls++; // the turn's own calls, not its subagents'
     if (event.kind === 'turn_end') {
       const startedAt = live.turn?.startedAt ?? clock.now();
       const { harness, agent } = row(sessionId);
       db.insert(chatTurns).values({ sessionId, startedAt, harness, agent, nativeId: live.conversation.nativeId ?? null, model: event.model ?? null, outcome: event.outcome, durationMs: clock.now() - startedAt, toolCalls: live.turn?.toolCalls ?? 0, usage: event.usage ?? null }).run();
       live.turn = undefined;
     }
-    touch(sessionId, live, event.kind === 'approval' ? 'waiting_approval' : event.kind === 'turn_end' ? 'idle' : event.kind === 'approval_answered' ? 'working' : live.state);
+    // The SDK runs subagents in the background, so a turn can end before them: the session is idle only when the turn is over and no task runs.
+    const busy = live.turn !== undefined || live.tasks.size > 0;
+    // The last subagent ending after the turn did is followed by a turn the SDK opens itself (`turn_start`): the session stays working until that turn ends, and goes idle if the SDK opens none.
+    if (lastEnded) {
+      live.cancelFollowUp?.();
+      live.cancelFollowUp = clock.after(FOLLOW_UP_MS, async () => {
+        live.cancelFollowUp = undefined;
+        if (lives.get(sessionId) === live && live.turn === undefined && live.tasks.size === 0 && live.state === 'working') touch(sessionId, live, 'idle');
+      });
+    }
+    const next = event.kind === 'turn_end' ? (busy ? 'working' : 'idle') : event.kind === 'task' ? (busy || lastEnded ? (live.state === 'idle' ? 'working' : live.state) : 'idle') : live.state;
+    touch(sessionId, live, event.kind === 'approval' ? 'waiting_approval' : event.kind === 'approval_answered' ? 'working' : next);
   };
 
   /** The agents that were told to end and have not yet: a close that does not wait leaves them here, and the host's stop waits for them. */
@@ -403,7 +428,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     db.update(sessions).set({ pid, pgid, command }).where(eq(sessions.id, sessionId)).run();
   };
   const attach = (sessionId: string, conversation: ChatConversation, invocationId: string, state: State = 'idle', { record = true }: { record?: boolean } = {}) => {
-    const live: Live = { conversation, state, streaming: '', approvals: new Map(), delegations: new Map(), invocationId };
+    const live: Live = { conversation, state, streaming: '', approvals: new Map(), tasks: new Set(), delegations: new Map(), invocationId };
     lives.set(sessionId, live);
     if (record) recordProcess(sessionId, conversation);
     conversation.onEvent((event) => {
@@ -1117,6 +1142,22 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       }
       // The adapter says the turn ended; if it did not, the interrupt still did, so the host records it.
       if (live.turn !== undefined) onEvent(sessionId, live, { kind: 'turn_end', outcome: 'interrupted' });
+      return {};
+    },
+
+    /** Stops one subagent that is running in the live session; its turn goes on. The row ends when the agent says the task stopped, not here. */
+    async stopTask({ sessionId, taskId }: { sessionId: string; taskId: string }) {
+      row(sessionId);
+      const live = lives.get(sessionId);
+      if (live === undefined) throw new ChatRefused('This session is closed');
+      if (live.conversation.stopTask === undefined) throw new ChatRefused('This session cannot stop a subagent');
+      if (live.tasks.has(taskId) === false) throw new ChatRefused('That subagent is not running');
+      try {
+        await live.conversation.stopTask(taskId);
+      } catch (error) {
+        log.error('stopping a subagent failed', error);
+        throw new ChatRefused('The subagent could not be stopped');
+      }
       return {};
     },
 

@@ -31,13 +31,33 @@ export type ChatUsage = Record<string, number>;
 
 export type ChatEvent =
   | { kind: 'user'; text: string; /** The name of the command invoked, when the message invoked one. */ command?: string }
-  | { kind: 'assistant'; text: string } // a finished message
-  | { kind: 'reasoning'; text: string } // one finished thinking block, before the answer of its turn; never streamed
+  // `parentCallId` is the call that launched the subagent the event was made in; absent for the main agent's own
+  | { kind: 'assistant'; text: string; parentCallId?: string } // a finished message
+  | { kind: 'reasoning'; text: string; parentCallId?: string } // one finished thinking block, before the answer of its turn; never streamed
   | { kind: 'delta'; text: string } // streaming, never stored
-  | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err' }
+  | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err'; parentCallId?: string }
+  // A subagent's life (a `local_agent` task of the provider), joined to its launching call by `callId`; `taskId` is what stopping it takes.
+  | {
+      kind: 'task';
+      callId: string;
+      taskId: string;
+      state: 'started' | 'progress' | 'completed' | 'failed' | 'stopped';
+      agentType?: string;
+      /** What the subagent was launched with (its title) or, in a progress event, what it is doing. */
+      text?: string;
+      lastTool?: string;
+      tools?: number;
+      tokens?: number;
+      ms?: number;
+      background?: boolean;
+      /** The call of the subagent that launched this one; absent for one the main agent launched. */
+      parentCallId?: string;
+    }
   | { kind: 'approval'; approvalId: string; tool: string; arg?: string; /** What the adapter hands the host to word the approval from (a delegation's agent, model and task); never stored. */ input?: Record<string, unknown>; choices: ChatChoice[]; /** Set when the approval is the agent asking questions: the person answers them with `answers`. */ questions?: ChatQuestion[] }
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; /** Question text to the answer; a multiple choice joins its picks with a comma. */ answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }
+  /** A turn the provider opened itself, with no message from the person (a background subagent ended and the SDK answers it). The host's own: never stored, never shown. */
+  | { kind: 'turn_start' }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
   | { kind: 'error'; text: string; /** Set when the provider says the account ran out, which a retried rate limit never is. */ reason?: 'usage_limit'; /** When it resets, in ms since the epoch, when the provider gives a timestamp. */ resetsAt?: number; /** When it resets, in the provider's own words, when it gives only those. Never set with `resetsAt`. */ resetText?: string }
   | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string; /** Set when the notice is a switch of agent, naming the agents as the config does. */ switched?: { from: string; to: string } }; // said by the host, never by an adapter: a plain line, not a failure
@@ -60,6 +80,8 @@ export interface ChatConversation {
   send(text: string, command?: ChatCommand): void;
   answer(approvalId: string, choiceId: string, answers?: Record<string, string>): void;
   interrupt(): Promise<void>;
+  /** Ends one running subagent by the task id its `task` event carried; the end itself arrives as that task's `stopped` event. Absent when the provider has no subagents to stop. */
+  stopTask?(taskId: string): Promise<void>;
   setOption(id: string, value: string): Promise<void>;
   close(): Promise<void>;
   onEvent(listener: (event: ChatEvent) => void): void;

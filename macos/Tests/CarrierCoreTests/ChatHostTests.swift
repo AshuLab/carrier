@@ -26,9 +26,9 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(agents.first?.model == "claude-sonnet-5-5")
 
     let active = try await host.list(archived: false)
-    #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle])
-    #expect(active.map(\.live) == [true, true, false, false])
-    #expect(active.map { $0.workspace?.base } == [nil, nil, nil, "/Users/dev/work/web"])
+    #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle, .idle])
+    #expect(active.map(\.live) == [true, true, false, false, false])
+    #expect(active.map { $0.workspace?.base } == [nil, nil, nil, "/Users/dev/work/web", nil])
     #expect(try await host.list(archived: true).map(\.archived) == [true, true])
     // the parent carries its children and none of the other sessions has a parent or children
     #expect(active.first?.children == [
@@ -58,7 +58,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .stopTask])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {

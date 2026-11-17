@@ -114,8 +114,9 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(sessions.sessions[0].result == nil) // an engine that does not send `result`
     #expect(sessions.sessions[0].failure == nil) // an engine that does not send `failure`
 
-    let events: EventsReply = try decode(#"{"events":[{"id":1,"at":2,"kind":"future_kind"}],"next":1,"running":false,"structured":false}"#)
+    let events: EventsReply = try decode(#"{"events":[{"id":1,"at":2,"kind":"future_kind"},{"id":2,"at":3,"kind":"task","agentId":"a1","tool":"Read","tools":4,"tokens":1500,"durationMs":6000}],"next":2,"running":false,"structured":false}"#)
     #expect(events.events[0] == ExecEvent(id: 1, at: 2, kind: "future_kind"))
+    #expect(events.events[1] == ExecEvent(id: 2, at: 3, kind: "task", agentId: "a1", tool: "Read", durationMs: 6000, tools: 4, tokens: 1500))
     #expect(events.structured == false)
 
     let epic: EpicReply = try decode(#"""

@@ -197,6 +197,9 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
 @Test func theClassificationIsATableByTheProvidersToolName() {
     let kinds = ["Read", "Grep", "Glob", "Edit", "Write", "MultiEdit", "apply_patch", "Bash", "shell", "command", "WebFetch", "read", ""].map { ToolKind(tool: $0) }
     #expect(kinds == [.read, .search, .search, .edit, .edit, .edit, .edit, .shell, .shell, .shell, .other, .other, .other])
+    #expect(ToolKind(tool: "mcp__linear__create_issue") == .mcp(server: "linear", tool: "create_issue"))
+    #expect(ToolKind(tool: "mcp__claude_ai_Notion__notion-fetch") == .mcp(server: "claude_ai_Notion", tool: "notion-fetch"))
+    #expect(["mcp__only", "mcp____x", "mcp__a__"].map { ToolKind(tool: $0) } == [.other, .other, .other])
 }
 
 @Test func aGoldenRunOfCallsIsOneRowWithItsSummaryTitleAndTotals() throws {
@@ -235,9 +238,10 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     // distinct paths: the same file edited, written and patched is one file changed
     #expect(summary([call(1, "Edit", "a.ts"), call(2, "Write", "a.ts"), call(3, "apply_patch", "a.ts")]) == "1 file changed")
     #expect(summary([call(1, "Edit", "a.ts"), call(2, "MultiEdit", "b.ts")]) == "2 files changed")
-    // all five, in the order reads, searches, changes, commands, other
-    #expect(summary([call(1, "Bash", "x"), call(2, "WebFetch", "u"), call(3, "Edit", "a"), call(4, "Edit", "b"), call(5, "Grep", "q"), call(6, "Read", "a"), call(7, "Read", "b")])
-        == "2 files read · 1 search · 2 files changed · 1 command · 1 other tool")
+    // all six, in the order reads, searches, changes, commands, MCP calls, other
+    #expect(summary([call(1, "Bash", "x"), call(2, "WebFetch", "u"), call(3, "Edit", "a"), call(4, "Edit", "b"), call(5, "Grep", "q"), call(6, "Read", "a"), call(7, "Read", "b"), call(8, "mcp__linear__create_issue")])
+        == "2 files read · 1 search · 2 files changed · 1 command · 1 MCP call · 1 other tool")
+    #expect(summary([call(1, "mcp__linear__create_issue"), call(2, "mcp__notion__fetch")]) == "2 MCP calls")
 }
 
 @Test func theTitleIsExploredForReadsAndSearchesChangedForAChangeAndWorkedOtherwise() {
@@ -435,6 +439,13 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var cancelled = 0
     var refusePreparation: ControlError?
     var cancelPlan = SessionPlan(agent: "claude", folder: "/x", text: "hello")
+    /// What the hello of the host lists; a host that predates `stopTask` leaves it out.
+    var capabilities: Set<ControlClient.Capability> = [.stopTask]
+    var stopped: [String] = []
+    var refusingStopTask: ControlError?
+    /// The state the host reports with its events; nil leaves the model's as it was (idle).
+    var state: ChatSession.State?
+    var interrupts = 0
 
     func agents() async throws -> [ChatAgent] { [] }
     func open(plan: SessionPlan) async throws -> String { "" }
@@ -461,12 +472,16 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
         if let refusing { throw refusing }
     }
     func send(_ id: String, _ text: String) async throws { sent.append(text) }
-    func interrupt(_ id: String) async throws {}
+    func interrupt(_ id: String) async throws { interrupts += 1 }
     func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws {}
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
-    func capabilities() async throws -> Set<ControlClient.Capability> { [] }
+    func capabilities() async throws -> Set<ControlClient.Capability> { capabilities }
+    func stopTask(_ id: String, task: String) async throws {
+        stopped.append("\(id) \(task)")
+        if let refusingStopTask { throw refusingStopTask }
+    }
     func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
     func createProject(_ name: String) async throws -> String { throw ControlError.closed }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
@@ -475,7 +490,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
         asked.append((after, limit))
         if let failing { throw failing }
         let page = Array(events.filter { $0.id > after }.prefix(limit))
-        return ChatEvents(events: page, cursor: page.last?.id ?? after, streaming: streaming, preparation: preparation, progress: progress)
+        return ChatEvents(events: page, cursor: page.last?.id ?? after, streaming: streaming, state: state, preparation: preparation, progress: progress)
     }
 }
 
@@ -1031,4 +1046,530 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
     guard case .table(let table) = markdownBlocks("| Plan | Price |\n|:--|--:|\n| **Free** | $0 |\n| Team | a \\| b |")[0] else { Issue.record("expected a table"); return }
     #expect(table.tsv == "Plan\tPrice\nFree\t$0\nTeam\ta | b")
     #expect(table.markdown == "| Plan | Price |\n| --- | ---: |\n| Free | $0 |\n| Team | a \\| b |")
+}
+
+// MARK: live line kind chips and MCP calls
+
+@Test func theLiveLinesChipFollowsWhatTheAgentWaitsOn() {
+    func runningChip(_ tool: String, arg: String = "x", waiting: Bool = false) -> KindChip? {
+        group(chatFeed([ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "c", tool: tool, arg: arg)])).chip(waiting: waiting)
+    }
+    let thinking = group(chatFeed([ChatEvent(id: 1, at: 0, kind: "user", text: "go"), ChatEvent(id: 2, at: 1, kind: "reasoning", text: "Hm.")]))
+    #expect(thinking.chip(waiting: false) == .thinking)
+    #expect(thinking.chip(waiting: true) == .needsYou)
+    #expect(runningChip("Read", arg: "a.ts") == .read)
+    #expect(runningChip("Grep", arg: "q") == .search)
+    #expect(runningChip("Glob", arg: "*.swift") == .search)
+    #expect(runningChip("Edit", arg: "a.ts") == .edit)
+    #expect(runningChip("Bash", arg: "pnpm test") == .shell)
+    #expect(runningChip("mcp__linear__create_issue", arg: #"{"title":"x"}"#) == .mcp(server: "linear"))
+    #expect(runningChip("Bash", arg: "git push", waiting: true) == .needsYou)
+    #expect(runningChip("WebFetch", arg: "https://example.test") == nil)
+}
+
+@Test func anMcpCallReadsAsItsServerAndToolWithoutTheInternalNameOrArgumentsJson() {
+    let args = #"{"title":"Subagent UI in chat","team":"ENG"}"#
+    let start = ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "m1", tool: "mcp__linear__create_issue", arg: args)
+    let live = group(chatFeed([start]))
+    #expect(live.chip(waiting: false) == .mcp(server: "linear"))
+    #expect(live.doing == "create_issue")
+    #expect(live.doing?.contains("mcp__") == false && live.doing?.contains("{") == false)
+    let step = live.calls[0]
+    #expect(step.label == "create_issue" && step.subject == "linear" && step.arg == args)
+}
+
+@Test func everyKindChipHasItsLabelTintAndIcon() {
+    let cases: [(KindChip, String, ChipTint, String?)] = [
+        (.thinking, "Thinking", .thought, nil),
+        (.read, "Read", .files, "doc.text"),
+        (.search, "Search", .files, "magnifyingglass"),
+        (.edit, "Edit", .files, "pencil"),
+        (.shell, "Shell", .shell, "terminal"),
+        (.mcp(server: "linear"), "linear", .mcp, "powerplug"),
+        (.subagents(1), "1 subagent", .subagents, "person.2"),
+        (.subagents(3), "3 subagents", .subagents, "person.2"),
+        (.subagent(type: "Explore"), "Explore", .subagents, "person.2"),
+        (.needsYou, "Needs you", .attention, nil),
+    ]
+    for (chip, label, tint, icon) in cases {
+        #expect(chip.label == label && chip.tint == tint && chip.icon == icon)
+    }
+}
+
+// MARK: the live line's timers and the slow call
+
+@Test func theLiveTimerIsTheRunningCallsOwnAndAShellOrMcpCallPastThirtySecondsIsSlow() {
+    func timer(_ tool: String, ageMs: Int, turnMs: Int = 0) -> LiveTimer {
+        // the turn began `turnMs` ago, the call `ageMs` ago, both read at 1_000_000
+        let started = ChatEvent(id: 2, at: 1_000_000 - ageMs, kind: "tool_start", callId: "c", tool: tool, arg: "x")
+        return group(chatFeed([ChatEvent(id: 1, at: 1_000_000 - max(turnMs, ageMs), kind: "user", text: "go"), started]))
+            .liveTimer(now: 1_000_000, turnStart: 1_000_000 - max(turnMs, ageMs))
+    }
+    #expect(timer("Bash", ageMs: 31_000).slow)
+    #expect(timer("Bash", ageMs: 30_000).slow == false)
+    #expect(timer("Bash", ageMs: 30_001).slow)
+    #expect(timer("mcp__linear__create_issue", ageMs: 31_000).slow)
+    #expect(timer("mcp__linear__create_issue", ageMs: 30_000).slow == false)
+    #expect(timer("Read", ageMs: 300_000).slow == false)
+    #expect(timer("Grep", ageMs: 300_000).slow == false)
+    #expect(timer("Edit", ageMs: 300_000).slow == false)
+    // the call's own time is the first, the turn's is beside it only while longer
+    let both = timer("Bash", ageMs: 5_000, turnMs: 65_000)
+    #expect(both.primaryMs == 5_000 && both.turnMs == 65_000 && both.slow == false)
+    let same = timer("Bash", ageMs: 5_000)
+    #expect(same.primaryMs == 5_000 && same.turnMs == nil)
+}
+
+@Test func aSlowCallEndsItsAmberAndAThinkingRunUsesTheTurnsTime() {
+    var ended = ChatEvent(id: 3, at: 1_060_000, kind: "tool_end", callId: "c", tool: "Bash")
+    ended.status = "ok"
+    let done = group(chatFeed([ChatEvent(id: 1, at: 1_000_000, kind: "tool_start", callId: "c", tool: "Bash", arg: "pnpm test"), ended]))
+    #expect(done.liveTimer(now: 1_090_000).slow == false)
+    // no call goes: the timer is the turn's, as before
+    let thinking = group(chatFeed([ChatEvent(id: 1, at: 1_000_000, kind: "user", text: "go"), ChatEvent(id: 2, at: 1_001_000, kind: "reasoning", text: "Hm.")]))
+    let timer = thinking.liveTimer(now: 1_045_000, turnStart: 1_000_000)
+    #expect(timer == LiveTimer(primaryMs: 45_000, turnMs: nil, slow: false))
+}
+
+// MARK: subagents
+
+/// A turn in which the main agent launches a subagent (its `Agent` call c1) that thinks, calls, answers and launches another (c3),
+/// while the main agent has a call of its own after it.
+private let subagentTurn: [ChatEvent] = [
+    ChatEvent(id: 1, at: 0, kind: "user", text: "Look into it"),
+    ChatEvent(id: 2, at: 100, kind: "tool_start", callId: "c1", tool: "Agent", arg: "{\"description\":\"Explore\"}"),
+    ChatEvent(id: 3, at: 110, kind: "task", text: "Explore", callId: "c1", taskId: "t1", state: "started", agentType: "Explore", background: false),
+    ChatEvent(id: 4, at: 200, kind: "reasoning", text: "Where is it?", parentCallId: "c1"),
+    ChatEvent(id: 5, at: 300, kind: "tool_start", callId: "s1", tool: "Read", arg: "a.ts", parentCallId: "c1"),
+    ChatEvent(id: 6, at: 400, kind: "tool_end", callId: "s1", tool: "Read", output: ["x"], status: "ok", parentCallId: "c1"),
+    ChatEvent(id: 7, at: 450, kind: "task", text: "Look inside", callId: "c3", parentCallId: "c1", taskId: "t2", state: "started", agentType: "general-purpose"),
+    ChatEvent(id: 8, at: 500, kind: "task", text: "Reading", callId: "c1", taskId: "t1", state: "progress", lastTool: "Read", tools: 1, tokens: 900, ms: 390),
+    ChatEvent(id: 9, at: 600, kind: "assistant", text: "Found it in a.ts", parentCallId: "c1"),
+    ChatEvent(id: 10, at: 700, kind: "task", callId: "c1", taskId: "t1", state: "completed", tools: 1, tokens: 1200, ms: 600),
+    ChatEvent(id: 11, at: 710, kind: "tool_end", callId: "c1", tool: "Agent", output: ["Found it"], status: "ok"),
+    ChatEvent(id: 12, at: 800, kind: "tool_start", callId: "m1", tool: "Bash", arg: "pnpm test"),
+    ChatEvent(id: 13, at: 900, kind: "tool_end", callId: "m1", tool: "Bash", output: ["ok"], status: "ok"),
+    ChatEvent(id: 14, at: 1000, kind: "assistant", text: "Done"),
+    ChatEvent(id: 15, at: 1100, kind: "turn_end", outcome: "ok", model: "claude-sonnet-5-5"),
+]
+
+@Test func theNewFieldsAreDecodedFromTheHostsEvents() throws {
+    let json = #"""
+    {"id":3,"at":1,"kind":"task","callId":"c1","taskId":"t1","state":"progress","agentType":"Explore","text":"Reading","lastTool":"Read","tools":2,"tokens":900,"ms":390,"background":true,"parentCallId":"c0"}
+    """#
+    let event = try JSONDecoder().decode(ChatEvent.self, from: Data(json.utf8))
+    #expect(event == ChatEvent(id: 3, at: 1, kind: "task", text: "Reading", callId: "c1", parentCallId: "c0", taskId: "t1", state: "progress", agentType: "Explore", lastTool: "Read", tools: 2, tokens: 900, ms: 390, background: true))
+    let call = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":4,"at":1,"kind":"tool_start","callId":"s1","tool":"Read","parentCallId":"c1"}"#.utf8))
+    #expect(call.parentCallId == "c1")
+    // an event of a host that predates it has none
+    #expect(try golden("tools").events.allSatisfy { $0.parentCallId == nil && $0.taskId == nil && $0.state == nil })
+}
+
+private func subagents(_ rows: [FeedRow]) -> [Subagent] {
+    rows.flatMap { row -> [Subagent] in if case .tools(_, let group) = row { group.subagents } else { [] } }
+}
+
+@Test func whatASubagentDidIsNotDrawnInTheMainConversationButItsLaunchingCallIsNotACallOfTheRunEither() {
+    let rows = chatFeed(subagentTurn)
+    // the subagent is a row of the run, the main agent's own call is its call, and the launching `Agent` call is neither an "other tool" nor drawn
+    #expect(texts(rows) == ["user: Look into it", "tools: Worked | 1 command · 1 subagent", "agent: Done", "end: sonnet 5.5 · 1s"])
+    let run = group(rows)
+    #expect(run.calls.map(\.id) == ["m1"] && run.thoughts.isEmpty && run.subagents.map(\.id) == ["c1"])
+}
+
+@Test func aPageThatStartsInsideASubagentDrawsNoOrphanForItsCallsAndTextNorItsEnds() {
+    let page = Array(subagentTurn[4...])
+    // what the subagent did before the page is not here; its progress and end still make its row, and the main agent's own work is drawn as it would be
+    #expect(texts(chatFeed(page)) == ["tools: Worked | 1 command · 1 subagent", "agent: Done", "end: sonnet 5.5"])
+    let only = subagents(chatFeed(page))
+    #expect(only.map(\.status) == [.completed] && only[0].type == "Agent" && only[0].name == "Agent")
+}
+
+@Test func aFeedWithNoLinkEventsIsTheFeedItWasAndOneWithThemIsTheSameWithTheLinkedEventsRemoved() throws {
+    let before = chatFeed(try golden("tools").events)
+    #expect(before == chatFeed(try golden("tools").events.filter { $0.parentCallId == nil && $0.kind != "task" }))
+    #expect(subagents(before).isEmpty)
+    // with the link events gone the launching call is drawn as the other tool it was, with no row
+    let without = chatFeed(subagentTurn.filter { $0.parentCallId == nil && $0.kind != "task" })
+    #expect(texts(without) == ["user: Look into it", "tools: Worked | 1 command · 1 other tool", "agent: Done", "end: sonnet 5.5 · 1s"])
+}
+
+// MARK: a subagent's row
+
+private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: String? = nil, type: String? = nil, lastTool: String? = nil, tools: Int? = nil, ms: Int? = nil) -> ChatEvent {
+    ChatEvent(id: id, at: at, kind: "task", text: text, callId: call, taskId: "t-\(call)", state: state, agentType: type, lastTool: lastTool, tools: tools, ms: ms)
+}
+
+@Test func aSubagentRowHasItsTypeTitleStepStepsTimerAndStateFromEvents() {
+    // running: from its start, its step is its last event, its count is its calls
+    var events = [
+        ChatEvent(id: 1, at: 1_000, kind: "tool_start", callId: "a1", tool: "Agent", arg: "{}"),
+        task(2, 1_100, "a1", "started", text: "Find the adapter", type: "Explore"),
+    ]
+    var row = subagents(chatFeed(events))[0]
+    #expect(row.type == "Explore" && row.name == "Find the adapter" && row.status == .running)
+    #expect(row.step == nil && row.words == "Starting" && row.steps == 0)
+    #expect(row.elapsedMs(now: 6_100) == 5_000)
+    events.append(ChatEvent(id: 3, at: 1_200, kind: "tool_start", callId: "s1", tool: "Read", arg: "src/a.ts", parentCallId: "a1"))
+    events.append(ChatEvent(id: 4, at: 1_300, kind: "tool_end", callId: "s1", tool: "Read", output: ["x"], status: "ok", parentCallId: "a1"))
+    events.append(ChatEvent(id: 5, at: 1_400, kind: "tool_start", callId: "s2", tool: "Grep", arg: "KindChip", parentCallId: "a1"))
+    row = subagents(chatFeed(events))[0]
+    #expect(row.words == "Searching KindChip" && row.steps == 2)
+    // a thought and its text are its last event too
+    events.append(ChatEvent(id: 6, at: 1_500, kind: "reasoning", text: "Hm", parentCallId: "a1"))
+    #expect(subagents(chatFeed(events))[0].words == "Thinking")
+    // with no event of its own the step is the last tool of its latest progress, and the count is the provider's
+    let progress = [task(1, 1_000, "a1", "started", text: "T", type: "Explore"), task(2, 2_000, "a1", "progress", lastTool: "Read", tools: 3), task(3, 3_000, "a1", "progress", lastTool: "Grep", tools: 4)]
+    row = subagents(chatFeed(progress))[0]
+    #expect(row.words == "Using Grep" && row.steps == 4)
+    // the end states, each with its mark and its own duration
+    let ends: [(String, SubagentStatus, String)] = [("completed", .completed, "Finished"), ("failed", .failed, "Failed"), ("stopped", .stopped, "Stopped")]
+    for (state, status, words) in ends {
+        row = subagents(chatFeed(progress + [task(4, 9_000, "a1", state, tools: 4, ms: 7_500)]))[0]
+        #expect(row.status == status && row.words == words && row.steps == 4)
+        // an ended subagent's timer stops: the provider's duration, whatever the time is now
+        #expect(row.elapsedMs(now: 99_000) == 7_500)
+        row = subagents(chatFeed(progress + [task(4, 9_000, "a1", state)]))[0]
+        #expect(row.elapsedMs(now: 99_000) == 8_000)
+    }
+}
+
+@Test func severalSubagentsLaunchedTogetherEachHaveARowInTheOrderTheyStarted() {
+    let events = [
+        ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
+        ChatEvent(id: 2, at: 10, kind: "tool_start", callId: "a1", tool: "Agent"), task(3, 11, "a1", "started", text: "One", type: "Explore"),
+        ChatEvent(id: 4, at: 12, kind: "tool_start", callId: "a2", tool: "Agent"), task(5, 13, "a2", "started", text: "Two", type: "general-purpose"),
+        ChatEvent(id: 6, at: 14, kind: "tool_start", callId: "a3", tool: "Agent"), task(7, 15, "a3", "started", text: "Three", type: "Explore"),
+        task(8, 20, "a2", "completed"),
+    ]
+    let rows = chatFeed(events)
+    #expect(texts(rows) == ["user: go", "tools: Working | 3 subagents"])
+    let run = group(rows)
+    #expect(run.subagents.map(\.name) == ["One", "Two", "Three"] && run.calls.isEmpty)
+    #expect(run.subagents.map(\.status) == [.running, .completed, .running])
+    // the line waits for the two that run; the chip counts them, and when none runs the line is the run's own
+    #expect(run.runningSubagents == 2 && run.chip(waiting: false) == .subagents(2) && run.doing == "Waiting for them")
+    #expect(run.chip(waiting: false)?.label == "2 subagents" && run.chip(waiting: true) == .needsYou)
+    #expect(run.liveTimer(now: 100, turnStart: 0) == LiveTimer(primaryMs: 89, turnMs: 100, slow: false))
+    let done = group(chatFeed(events + [task(9, 30, "a1", "failed"), task(10, 31, "a3", "stopped")]))
+    #expect(done.runningSubagents == 0 && done.isWorking == false && done.doing == nil && done.chip(waiting: false) == .thinking)
+    #expect(done.title == "Worked" && done.summary == "3 subagents")
+}
+
+@Test func theSummaryCountsSubagentsApartFromOtherToolsAndCallsAnAloneRunIsStillWorked() {
+    var events = subagentTurn
+    events.insert(ChatEvent(id: 16, at: 850, kind: "tool_start", callId: "w1", tool: "WebFetch", arg: "https://example.test"), at: 11)
+    let run = group(chatFeed(events))
+    #expect(run.summary == "1 command · 1 subagent · 1 other tool")
+    #expect(ToolGroup(calls: []).title == "Thought")
+}
+
+@Test func aSubagentGoesOnFromEventsThatArriveAfterTheTurnThatLaunchedItEnded() {
+    let launch: [ChatEvent] = [
+        ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
+        ChatEvent(id: 2, at: 10, kind: "tool_start", callId: "a1", tool: "Agent"), task(3, 11, "a1", "started", text: "Slow", type: "Explore"),
+        ChatEvent(id: 4, at: 12, kind: "tool_end", callId: "a1", tool: "Agent", output: ["Async agent launched"], status: "ok"),
+        ChatEvent(id: 5, at: 20, kind: "assistant", text: "I will wait."),
+        ChatEvent(id: 6, at: 30, kind: "turn_end", outcome: "ok"),
+    ]
+    // the turn ended and the subagent still runs: the end of the turn does not stop it, as it stops a call
+    let ended = subagents(chatFeed(launch))
+    #expect(ended.map(\.status) == [.running])
+    // what comes after the turn's end updates the row it had, and the run that launched it is not another
+    let after = chatFeed(launch + [
+        ChatEvent(id: 7, at: 40, kind: "tool_start", callId: "s1", tool: "Read", arg: "late.ts", parentCallId: "a1"),
+        task(8, 50, "a1", "progress", lastTool: "Read", tools: 1),
+        task(9, 60, "a1", "completed", tools: 1, ms: 50),
+    ])
+    #expect(texts(after) == ["user: go", "tools: Worked | 1 subagent", "agent: I will wait.", "end: 0s"])
+    let row = subagents(after)[0]
+    #expect(row.status == .completed && row.steps == 1 && row.words == "Finished" && row.endedAt == 60)
+}
+
+@Test func aSubagentWithAStartAndNoEndKeepsRunningAndOneThatIsNotLaunchedHereIsNoRow() {
+    let events = [
+        ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
+        ChatEvent(id: 2, at: 10, kind: "tool_start", callId: "a1", tool: "Agent"), task(3, 11, "a1", "started", text: "Never ends", type: "Explore"),
+        ChatEvent(id: 4, at: 30, kind: "turn_end", outcome: "ok"),
+        // a nested subagent is its parent's, not the conversation's
+        ChatEvent(id: 5, at: 40, kind: "task", text: "Nested", callId: "n1", parentCallId: "a1", taskId: "t-n1", state: "started", agentType: "Explore"),
+    ]
+    let found = subagents(chatFeed(events))
+    #expect(found.map(\.status) == [.running] && found[0].name == "Never ends")
+    #expect(group(chatFeed(events)).isWorking)
+}
+
+@Test func theFixtureHostServesThreeParallelSubagentsOneEndingAfterTheTurnAndOneThatNeverEnds() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let session = "a7b8c9d0-6e5f-4a21-9c4d-5e6f7a8b9c07"
+    let reply = try await host.events(session, after: 0, limit: 200)
+    let rows = chatFeed(reply.events)
+    // the three launching calls are not calls of the run, and the thought before them is
+    let run = group(rows)
+    #expect(run.calls.isEmpty && run.thoughts.count == 1 && run.subagents.count == 3)
+    #expect(run.subagents.map(\.type) == ["Explore", "general-purpose", "Explore"])
+    #expect(run.subagents.map(\.id) == ["a1", "a2", "a3"])
+    // one finished before the turn ended, one after it, and the third has a start and no end (so it is the only one the line waits for)
+    #expect(run.subagents.map(\.status) == [.completed, .completed, .running])
+    #expect(run.subagents[1].endedAt == 1_791_960_004_500 && run.subagents[0].endedAt == 1_791_960_009_000)
+    #expect(run.subagents[0].steps == 1 && run.subagents[1].words == "Finished" && run.subagents[2].words == "Starting")
+    // while the turn went on the line waited for three; the second ended before it did, and the first after it
+    #expect(group(chatFeed(reply.events.filter { $0.id < 17 })).chip(waiting: false) == .subagents(3))
+    #expect(group(chatFeed(reply.events.filter { $0.id < 20 })).chip(waiting: false) == .subagents(2))
+    #expect(group(chatFeed(reply.events.filter { $0.id < 21 })).runningSubagents == 2)
+    #expect(run.runningSubagents == 1 && run.chip(waiting: false) == .subagents(1) && run.liveTimer(now: 1_791_960_100_000).primaryMs == 97_500)
+    // what the subagents said and did is not in the main conversation
+    #expect(texts(rows).filter { $0.hasPrefix("agent") } == ["agent: Three subagents are look"])
+}
+
+// MARK: a subagent's view
+
+private func flow(_ work: SubagentWork?) -> [String] {
+    (work?.items ?? []).map {
+        switch $0 {
+        case .message(_, let text): "message: \(text)"
+        case .note(_, let text): "note: \(text)"
+        case .error(_, let text): "error: \(text)"
+        case .skill: "skill"
+        case .tools(_, let group, let live): "tools\(live ? " live" : ""): \(group.title) | \(group.summary) | \(group.thoughts.map(\.text).joined(separator: ","))"
+        case .slice: "slice"
+        }
+    }
+}
+
+@Test func aSubagentsViewIsItsOwnCallsThoughtsAndMessagesWithTheRowOfTheSubagentItLaunched() {
+    var events = subagentTurn
+    events[1].arg = #"{"description":"Explore","prompt":"Find \"it\".\nReport paths.","subagent_type":"Explore"}"#
+    let work = subagentWork(in: events, call: "c1")
+    // the header says what the row said: its title and type, finished and how long it took
+    #expect(work?.header == SubagentHeader(title: "Explore", type: "Explore", state: .completed, startedAt: 110, durationMs: 600, taskId: "t1"))
+    // the brief is the prompt it was launched with; then its thought and call as one run with the row of the subagent it launched (still going,
+    // so the run is live: the line waits for it), and its message
+    #expect(work?.brief == "Find \"it\".\nReport paths.")
+    #expect(flow(work) == ["tools live: Working | 1 thought · 1 file read · 1 subagent | Where is it?", "message: Found it in a.ts"])
+    guard case .tools(_, let run, _)? = work?.items.first else { Issue.record("no run"); return }
+    #expect(run.subagents.map(\.id) == ["c3"] && run.subagents[0].name == "Look inside" && run.subagents[0].status == .running)
+    // what the main agent did and said is not in it, and the launching call of the nested subagent is not a call of the run
+    #expect(flow(work).allSatisfy { $0.contains("pnpm test") == false && $0.contains("Done") == false })
+}
+
+@Test func theViewOfASubagentLaunchedByASubagentIsItsOwnAndHasNoneOfItsParents() {
+    let work = subagentWork(in: subagentTurn, call: "c3")
+    #expect(work?.header.title == "Look inside" && work?.header.type == "general-purpose" && work?.header.state == .running)
+    #expect(work?.header.durationMs == nil && work?.brief == nil && work?.items.isEmpty == true)
+    // opened from a parent that launched it, and a third level goes one level at a time
+    var deeper = subagentTurn
+    deeper.append(ChatEvent(id: 16, at: 1200, kind: "tool_start", callId: "d1", tool: "Grep", arg: "x", parentCallId: "c3"))
+    deeper.append(ChatEvent(id: 17, at: 1210, kind: "task", text: "Deepest", callId: "c4", parentCallId: "c3", taskId: "t3", state: "started", agentType: "Explore"))
+    deeper.append(ChatEvent(id: 18, at: 1220, kind: "assistant", text: "deep", parentCallId: "c4"))
+    #expect(flow(subagentWork(in: deeper, call: "c3")) == ["tools live: Working | 1 search · 1 subagent | "])
+    #expect(subagentWork(in: deeper, call: "c3").flatMap { work -> [String] in
+        guard case .tools(_, let run, _)? = work.items.first else { return [] }
+        return run.subagents.map(\.id) + run.calls.map(\.id)
+    } == ["c4", "d1"])
+    #expect(flow(subagentWork(in: deeper, call: "c4")) == ["message: deep"])
+    #expect(flow(subagentWork(in: deeper, call: "c1")).contains { $0.hasPrefix("message: Found it") })
+}
+
+@Test func whileASubagentRunsItsLastRunIsLiveAndOnceItEndedACallThatNeverEndedWasStopped() {
+    let begun: [ChatEvent] = [
+        ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "a1", tool: "Agent"), task(2, 10, "a1", "started", text: "Slow", type: "Explore"),
+        ChatEvent(id: 3, at: 20, kind: "tool_start", callId: "s1", tool: "Read", arg: "a.ts", parentCallId: "a1"),
+        ChatEvent(id: 4, at: 25, kind: "tool_end", callId: "s1", tool: "Read", output: ["x"], status: "ok", parentCallId: "a1"),
+        ChatEvent(id: 5, at: 30, kind: "assistant", text: "Reading", parentCallId: "a1"),
+        ChatEvent(id: 6, at: 40, kind: "tool_start", callId: "s2", tool: "Bash", arg: "pnpm test", parentCallId: "a1"),
+    ]
+    // the run the subagent is working in is the one the line shows live, as the conversation's is for the main agent; the earlier one is not
+    #expect(flow(subagentWork(in: begun, call: "a1")) == ["tools: Explored | 1 file read | ", "message: Reading", "tools live: Working | 1 command | "])
+    let ended = subagentWork(in: begun + [task(7, 50, "a1", "stopped", ms: 40)], call: "a1")
+    #expect(ended?.header.state == .stopped && ended?.header.durationMs == 40)
+    #expect(flow(ended) == ["tools: Explored | 1 file read | ", "message: Reading", "tools: Worked | 1 command | "])
+    guard case .tools(_, let last, _)? = ended?.items.last else { Issue.record("no run"); return }
+    #expect(last.calls.map(\.status) == [.stopped] && last.isStopped)
+    // a call nobody launched has no view
+    #expect(subagentWork(in: begun, call: "zz") == nil)
+}
+
+@Test func theBriefIsThePromptOfTheLaunchingCallsInputCutLikeAnythingTheHostStoresAndNilWithoutOne() {
+    #expect(brief(of: #"{"description":"d","prompt":"Read a.ts","subagent_type":"Explore"}"#) == "Read a.ts")
+    #expect(brief(of: #"{"prompt":"  Say \"hi\" \\ done\n\nbye  "}"#) == "Say \"hi\" \\ done\n\nbye")
+    // cut at 1,024 characters: no closing quote, maybe an escape left half, and the ellipsis the host ends it with
+    #expect(brief(of: #"{"description":"d","prompt":"Read the chat adapter and its tests, then\nlist wh…"#) == "Read the chat adapter and its tests, then\nlist wh…")
+    #expect(brief(of: #"{"prompt":"half an escape \"#) == "half an escape")
+    #expect(brief(of: #"{"description":"d","subagent_type":"Explore"}"#) == nil && brief(of: "Agent") == nil && brief(of: #"{"prompt":""}"#) == nil)
+}
+
+@Test func theStateOfASubagentReadsAsRunningWithItsTimerOrHowItEnded() {
+    func header(_ state: SubagentStatus, ms: Int? = nil) -> SubagentHeader { SubagentHeader(title: "T", type: "Explore", state: state, startedAt: 1_000, durationMs: ms) }
+    #expect(header(.running).stateWords(now: 72_000) == "Running 1m 11s")
+    #expect(header(.running).stateWords(now: 500) == "Running 0 ms")
+    #expect(header(.completed, ms: 42_000).stateWords(now: 99_000) == "Finished · 42 s")
+    #expect(header(.failed, ms: 5).stateWords(now: 0) == "Failed" && header(.stopped).stateWords(now: 0) == "Stopped")
+    #expect(header(.running).subtitle(of: "Fix the login") == "Explore · Subagent of Fix the login")
+}
+
+@MainActor @Test func theModelRebuildsTheOpenSubagentsViewAsEventsArriveAndLeavesItWhenAskedTo() async {
+    let host = ScriptedHost()
+    host.state = .working
+    host.events = Array(subagentTurn[..<6])
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.openSubagent == nil)
+    model.show(subagent: "c1")
+    #expect(model.openSubagent?.header.state == .running && flow(model.openSubagent) == ["tools live: Explored | 1 thought · 1 file read | Where is it?"])
+    // the conversation's own feed is as it was
+    let before = model.rows
+    host.events = subagentTurn
+    await model.poll()
+    #expect(model.openSubagent?.header.state == .completed && flow(model.openSubagent).last == "message: Found it in a.ts")
+    model.show(subagent: nil)
+    #expect(model.openSubagent == nil && model.rows != before && texts(model.rows).first == "user: Look into it")
+}
+
+// MARK: stopping a subagent
+
+@Test func aRunningSubagentsHeaderOffersStopOnlyWhileItRunsAndOnlyAHostThatListsItAndATaskToStopIt() {
+    func header(_ state: SubagentStatus, task: String? = "t1", host: Bool = true, epic: String? = nil) -> SubagentHeader {
+        SubagentHeader(title: "T", type: "Explore", state: state, startedAt: 0, durationMs: nil, epic: epic, taskId: task, hostStops: host)
+    }
+    #expect(header(.running).canStop)
+    #expect(header(.running, epic: "Epic").canStop == false)
+    for ended in [SubagentStatus.completed, .failed, .stopped] { #expect(header(ended).canStop == false) }
+    #expect(header(.running, host: false).canStop == false && header(.running, task: nil).canStop == false)
+    #expect(subagentWork(in: subagentTurn, call: "c1")?.header.taskId == "t1")
+}
+
+@MainActor @Test func stopInTheSubagentsViewAsksTheHostForThatTaskAndTheViewShowsStoppedOnlyWhenTheEventArrives() async {
+    let host = ScriptedHost()
+    host.state = .working
+    host.events = Array(subagentTurn[..<6])
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    model.show(subagent: "c1")
+    #expect(model.openSubagent?.header.canStop == true)
+    await model.stopOpenSubagent()
+    #expect(host.stopped == ["s t1"])
+    // the request is not the end: the header says Running until the host's `stopped` event
+    #expect(model.openSubagent?.header.state == .running)
+    await model.poll()
+    #expect(model.openSubagent?.header.state == .running && model.openSubagent?.header.canStop == true)
+    host.events.append(ChatEvent(id: 7, at: 500, kind: "task", callId: "c1", taskId: "t1", state: "stopped"))
+    await model.poll()
+    #expect(model.openSubagent?.header.state == .stopped && model.openSubagent?.header.canStop == false)
+    await model.stopOpenSubagent()
+    #expect(host.stopped == ["s t1"], "an ended subagent is not asked to stop again")
+}
+
+@MainActor @Test func aHostThatDoesNotListStopTaskGetsNoStopAndNoRequest() async {
+    let host = ScriptedHost()
+    host.state = .working
+    host.capabilities = [.interrupt, .send, .events]
+    host.events = Array(subagentTurn[..<6])
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    model.show(subagent: "c1")
+    #expect(model.openSubagent?.header.state == .running && model.openSubagent?.header.canStop == false)
+    await model.stopOpenSubagent()
+    #expect(host.stopped.isEmpty)
+}
+
+@MainActor @Test func aRefusedStopLeavesTheViewAsItWasAndTheNextPollTellsHowItStands() async {
+    let host = ScriptedHost()
+    host.state = .working
+    host.events = Array(subagentTurn[..<6])
+    host.refusingStopTask = .remote("That subagent is not running")
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    model.show(subagent: "c1")
+    await model.stopOpenSubagent()
+    #expect(host.stopped == ["s t1"] && model.openSubagent?.header.state == .running && model.refusal == nil)
+}
+
+@Test func theFixtureHostListsStopTaskAndStopsARunningSubagentOnlyOnce() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let id = "a7b8c9d0-6e5f-4a21-9c4d-5e6f7a8b9c07"
+    #expect(try await host.capabilities().contains(.stopTask))
+    await #expect(throws: ControlError.remote("That subagent is not running")) { try await host.stopTask(id, task: "t2") } // finished
+    await #expect(throws: ControlError.remote("That subagent is not running")) { try await host.stopTask(id, task: "nope") }
+    try await host.stopTask(id, task: "t3")
+    let after = try await host.events(id, after: 25, limit: 200).events
+    #expect(after.map(\.kind) == ["task"] && after[0].state == "stopped" && after[0].callId == "a3" && after[0].taskId == "t3")
+    await #expect(throws: ControlError.remote("That subagent is not running")) { try await host.stopTask(id, task: "t3") }
+}
+
+@Test func theFixtureHostServesTheSubagentViewWithItsBriefItsThoughtItsMessageAndItsNestedSubagent() async throws {
+    let events = try golden("subagents").events
+    let work = subagentWork(in: events, call: "a1")
+    #expect(work?.header.title == "Find subagent code in chat host" && work?.header.state == .completed)
+    #expect(work?.brief?.hasPrefix("Read the chat adapter in src/chat/claude.ts") == true && work?.brief?.contains("\nReport file paths") == true)
+    #expect(flow(work) == [
+        "tools: Explored | 1 search | ", "message: translate() never reads parent_tool_use_id.",
+        "tools: Worked | 1 thought · 1 subagent | translate() drops sidechain info; checking the types next.",
+    ])
+    #expect(subagentWork(in: events, call: "a3")?.header.state == .running)
+    #expect(subagentWork(in: events, call: "n1")?.header.title == "Check the runner types")
+}
+
+// MARK: a subagent that outlives its session's work
+
+private func launched(_ call: String, at: Int, id: Int) -> [ChatEvent] {
+    [ChatEvent(id: id, at: at, kind: "tool_start", callId: call, tool: "Agent", arg: "{}"), task(id + 1, at + 1, call, "started", text: "Look", type: "Explore")]
+}
+
+@Test func aSubagentWithAStartAndNoEndShowsStoppedInItsRowTheParentsLineAndItsViewWhenTheSessionIsNotWorking() {
+    var events = launched("a1", at: 10, id: 2) + [
+        ChatEvent(id: 4, at: 50, kind: "tool_start", callId: "s1", tool: "Read", arg: "a.ts", parentCallId: "a1"),
+        ChatEvent(id: 5, at: 60, kind: "turn_end", outcome: "ok"),
+    ]
+    events.insert(ChatEvent(id: 1, at: 0, kind: "user", text: "go"), at: 0)
+    // working: it runs, the parent's line waits for it
+    var run = group(chatFeed(events, working: true))
+    #expect(run.subagents.map(\.status) == [.running] && run.doing == "Waiting for them" && run.chip(waiting: false) == .subagents(1))
+    #expect(subagentWork(in: events, call: "a1", working: true)?.header.state == .running)
+    // idle: the row, the parent's line (no more "Waiting for them") and the view all say stopped
+    run = group(chatFeed(events, working: false))
+    #expect(run.subagents.map(\.status) == [.stopped] && run.subagents[0].words == "Stopped" && run.subagents[0].endedAt == 60)
+    #expect(run.runningSubagents == 0 && run.isWorking == false && run.doing == nil && run.chip(waiting: false) == .thinking)
+    let work = subagentWork(in: events, call: "a1", working: false)
+    #expect(work?.header.state == .stopped && work?.header.durationMs == 49 && work?.header.stateWords(now: 0) == "Stopped")
+    // one that ended keeps how it ended
+    let done = events + [task(9, 55, "a1", "completed")]
+    #expect(group(chatFeed(done, working: false)).subagents.map(\.status) == [.completed])
+}
+
+@MainActor @Test func theConversationDrawsAnUnfinishedSubagentStoppedWhileTheHostSaysIdleAndRunningWhileItSaysWorking() async {
+    let host = ScriptedHost()
+    host.events = launched("a1", at: 10, id: 1) + [ChatEvent(id: 3, at: 60, kind: "turn_end", outcome: "ok")]
+    host.state = .working
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(group(model.rows).subagents.map(\.status) == [.running])
+    // no new event, only the state: the feed is drawn again
+    host.state = .idle
+    await model.poll()
+    #expect(group(model.rows).subagents.map(\.status) == [.stopped])
+}
+
+@MainActor @Test func stopInterruptsTheTurnThenStopsEachRunningSubagentAndNoneThatEnded() async {
+    let host = ScriptedHost()
+    host.state = .working
+    host.events = launched("a1", at: 10, id: 1) + launched("a2", at: 20, id: 3) + launched("a3", at: 30, id: 5) + [task(7, 40, "a3", "completed")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    await model.stop()
+    #expect(host.interrupts == 1)
+    #expect(host.stopped == ["s t-a1", "s t-a2"])
+    // a host that cannot stop a subagent only gets the interrupt
+    let older = ScriptedHost()
+    older.capabilities = [.interrupt, .send, .events]
+    older.state = .working
+    older.events = launched("a1", at: 10, id: 1)
+    let other = ConversationModel(host: older, sessionId: "s", log: { _ in })
+    await other.poll()
+    await other.stop()
+    #expect(older.interrupts == 1 && older.stopped.isEmpty)
 }

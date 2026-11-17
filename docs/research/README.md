@@ -34,3 +34,4 @@ Folders hold the code or mockups of a spike and are linked from the document tha
 - [t3-code-provider-switching](t3-code-provider-switching.md): how T3 Code switches provider in a thread and delegates to other agents (2026-11-16).
 - [chat-agents-latest-versions-and-mcp-permissions](chat-agents-latest-versions-and-mcp-permissions.md): the latest Claude and Codex, and how the chat MCP's tools are approved and timed (2026-11-16).
 - [switch-and-delegate-spike](switch-and-delegate-spike.md): what the spike found about handoffs, one tool asking for approval, permission levels and usage limits (2026-11-16).
+- [chat-subagents](chat-subagents.md): a real chat session with subagents, what the SDK sends and the two questions the epic left open (2026-11-17).

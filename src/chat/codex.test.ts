@@ -92,7 +92,7 @@ function replay(lines: Line[]) {
 
 const deps = (transport: CodexTransport, over: Partial<CodexChatDeps> = {}): CodexChatDeps => ({ resolve: (command) => command ?? '/bin/codex', loggedIn: async () => true, spawn: () => transport, mcpWaitMs: 0, ...over });
 const mcp = { serverName: 'carrier-chat', url: 'http://127.0.0.1:1/mcp', token: 'secret-token' };
-const openWith = async (lines: Line[], args: { resume?: string; options?: Record<string, string>; mcp?: typeof mcp; instructions?: string } = {}) => {
+const openWith = async (lines: Line[], args: { resume?: string; options?: Record<string, string>; mcp?: typeof mcp; instructions?: string; child?: boolean } = {}) => {
   const { transport, seen } = replay(lines);
   const conversation = await codexChatRunner(deps(transport)).open({ folder: '/work', env: { A: 'b' }, ...args });
   const events: ChatEvent[] = [];
@@ -178,6 +178,17 @@ test('an approval is asked with the provider choices; an allow runs the command'
   ]);
   expect(texts(allowed)).toEqual(['I’ll create the requested file in the workspace.', 'DONE']);
   expect(allowed.at(-1)).toMatchObject({ kind: 'turn_end', outcome: 'ok' });
+  expect(seen.unexpected).toEqual([]);
+});
+
+test('the approvals of a child offer Allow and Deny and no always-allow of the command', async () => {
+  const { conversation, events, seen } = await openWith(main, { child: true });
+  answering(conversation);
+  for (const text of mainTexts.slice(0, 2)) await turn(conversation, events, text);
+
+  const allowed = await turn(conversation, events, mainTexts[2]!);
+  expect(allowed.find((e) => e.kind === 'approval')).toMatchObject({ choices: [{ id: 'accept', label: 'Allow', allow: true }, { id: 'decline', label: 'Deny', allow: false }, { id: 'cancel', label: 'Deny and stop the turn', allow: false }] });
+  expect(allowed.filter((e) => e.kind === 'approval_answered')).toEqual([{ kind: 'approval_answered', approvalId: '0', choiceId: 'accept' }]);
   expect(seen.unexpected).toEqual([]);
 });
 

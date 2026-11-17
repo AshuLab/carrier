@@ -54,7 +54,7 @@ export const realClaudeDeps: ClaudeChatDeps = { query: sdkQuery, resolve: resolv
 
 export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, launch = {}, env, mcp, instructions }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env, mcp, instructions, child = false }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -64,7 +64,7 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
       if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('Claude is not logged in; run "claude" once to log in');
       const extraArgs = extraArgsOf(launch); // before anything starts, so a refusal reaches the person in its own words
       const begin = async (from: string | undefined) => {
-        const conversation = new ClaudeConversation(options, from);
+        const conversation = new ClaudeConversation(options, from, child);
         try {
           await conversation.start(deps, { folder, binary, env, extraArgs, mcp, instructions });
         } catch (error) {
@@ -124,10 +124,13 @@ class ClaudeConversation implements ChatConversation {
   private pid: number | undefined;
   private command: string | undefined;
   private chosen: Record<string, string>;
+  /** A child session: its approvals carry none of the CLI's suggestions. */
+  private child: boolean;
   mcpProblem: string | undefined;
 
-  constructor(chosen: Record<string, string>, resume: string | undefined) {
+  constructor(chosen: Record<string, string>, resume: string | undefined, child: boolean) {
     this.chosen = chosen;
+    this.child = child;
     this.nativeId = resume;
     this.mode = chosen.permissionMode ?? 'default';
     this.model = chosen.model ?? 'default';
@@ -275,6 +278,7 @@ class ClaudeConversation implements ChatConversation {
 
   private ask(approvalId: string, tool: string, input: Record<string, unknown>, suggestions: PermissionUpdate[], title?: string): Promise<PermissionResult> {
     const questions = tool === 'AskUserQuestion' ? questionsOf(input) : undefined;
+    if (this.child) suggestions = []; // a child's approvals never change its mode, folders or rules: nothing raises it from inside
     const choices: ChatChoice[] = questions
       ? [{ id: 'allow', label: 'Send answers', allow: true }, { id: 'deny', label: 'Skip', allow: false }]
       : [

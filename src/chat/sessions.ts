@@ -143,6 +143,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (found === undefined) throw new ChatRefused('There is no such session');
     return found;
   };
+  /** Refuses, in words, a request that treats a child as a conversation of the person's: it belongs to its parent session (ADR 0033). An unknown session is refused as `row` does. */
+  const refuseChild = (sessionId: string, verb: string) => {
+    if (row(sessionId).parentSessionId !== null) throw new ChatRefused(`This session belongs to its parent session and cannot be ${verb}`);
+  };
   /** The options a session has now: its live conversation's, else the ones stored. */
   const optionsOf = (sessionId: string, stored: Record<string, string> | null) => {
     const live = lives.get(sessionId);
@@ -313,7 +317,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   };
   const revoke = (invocationId: string) => mcp?.registry.revokeByInvocation(invocationId);
 
-  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string; mcp?: { serverName: string; url: string; token: string }; instructions?: string }) {
+  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string; child?: boolean; mcp?: { serverName: string; url: string; token: string }; instructions?: string }) {
     try {
       return await runner.open({ ...args, command, launch, env });
     } catch (error) {
@@ -632,7 +636,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const issued = issueMcp(childId);
     let conversation: ChatConversation | undefined;
     try {
-      conversation = await openConversation(launch, { folder, options, mcp: issued.args });
+      conversation = await openConversation(launch, { folder, options, child: true, mcp: issued.args });
       for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
       if (!exists(parentId) || deleting.has(parentId)) throw new ChatRefused('The session that asked for this child no longer exists');
       deliver(childId, attach(childId, conversation, issued.invocationId), task, task);
@@ -667,7 +671,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     notSwitching(sessionId);
     const current = row(sessionId);
     if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
-    if (current.parentSessionId !== null) throw new ChatRefused('This session belongs to its parent, so its agent cannot be switched');
+    refuseChild(sessionId, 'switched to another agent');
     if (current.archived) throw new ChatRefused('This session is archived; restore it first, then switch its agent');
     if (current.plan !== null) throw new ChatRefused('This session did not finish preparing');
     const busy = lives.get(sessionId)?.state ?? current.state;
@@ -873,6 +877,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     /** Opens a closed session again from its stored native id, folder and options; a live one is just attached to. */
     async resume({ sessionId }: { sessionId: string }) {
+      refuseChild(sessionId, 'resumed');
       notSwitching(sessionId);
       const current = row(sessionId);
       if (current.plan !== null) throw new ChatRefused('This session did not finish preparing');
@@ -916,6 +921,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     },
 
     send({ sessionId, text, command }: { sessionId: string; text: string; command?: string }) {
+      refuseChild(sessionId, 'sent a message');
       if (text.length > chatCaps.message) throw new ChatRefused(`That message has ${text.length} characters; the most a message can have is ${chatCaps.message}`);
       notSwitching(sessionId);
       const current = row(sessionId);
@@ -976,8 +982,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     },
 
     async setOption({ sessionId, option, value }: { sessionId: string; option: string; value: string }) {
+      refuseChild(sessionId, 'given other options');
       notSwitching(sessionId);
-      row(sessionId);
       const live = lives.get(sessionId);
       if (live === undefined) throw new ChatRefused('This session is closed');
       checkOption(live.conversation.options, option, value);
@@ -1018,6 +1024,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     /** Sets or clears the archived mark. A live idle session is closed first; a working or waiting one is refused. */
     async archive({ sessionId, archived }: { sessionId: string; archived: boolean }) {
+      refuseChild(sessionId, archived ? 'archived' : 'restored');
       if (archived) await settle(sessionId, 'archive');
       else row(sessionId);
       db.update(sessions).set({ archived, ...(archived === false && { lastActiveAt: clock.now(), keptAt: null }) }).where(eq(sessions.id, sessionId)).run();
@@ -1026,7 +1033,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     /** Sets the title (first line, cut like an automatic one); fine while the session works. The first message only names an untitled session, so it never replaces this. */
     rename({ sessionId, title }: { sessionId: string; title: string }) {
-      row(sessionId);
+      refuseChild(sessionId, 'renamed');
       const named = titleOf(title);
       if (named === '') throw new ChatRefused('A title cannot be empty');
       db.update(sessions).set({ title: named }).where(eq(sessions.id, sessionId)).run();
@@ -1071,7 +1078,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     },
 
     /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
-    delete: deleteSession,
+    async delete(args: { sessionId: string }) {
+      refuseChild(args.sessionId, 'deleted');
+      return deleteSession(args);
+    },
 
     /** What deleting these sessions would discard: for each one in a worktree, its uncommitted files and the commits that exist nowhere else. An unknown id refuses the whole request. */
     async deletePreview({ sessionIds }: { sessionIds: string[] }) {

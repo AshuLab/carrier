@@ -714,6 +714,8 @@ private func theCleanedTextReplacesOnlyWhatTheDictationAddedAndTheRestOfTheBoxSt
     let server = ScriptedServer()
     let (rig, _) = await cleaning(server, partial: partial)
     // the raw text is in the box while the model works, and the model is asked for what the dictation added and nothing around it
+    // the ask follows the state by a hop
+    await rig.until { server.asked.isEmpty == false }
     #expect(rig.text == "uno um holados" && server.asked == ["um hola"])
     server.reply(.success("Hola."))
     await rig.reaches(.idle)

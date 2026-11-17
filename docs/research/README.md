@@ -31,3 +31,4 @@ Folders hold the code or mockups of a spike and are linked from the document tha
 - [codexbar-usage-fetching](codexbar-usage-fetching.md): how CodexBar, T3 Code and Paradev fetch usage and scan history (2026-11-12).
 - [dictation-chunked-partials](dictation-chunked-partials.md): partial text from a fast model that does not stream (2026-11-12).
 - [global-dictation-input](global-dictation-input.md): the global shortcut, the focus of another app and the paste with the clipboard kept (2026-11-16).
+- [chat-subagents](chat-subagents.md): a real chat session with subagents, what the SDK sends and the two questions the epic left open (2026-11-17).

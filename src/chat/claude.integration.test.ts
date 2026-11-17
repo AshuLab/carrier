@@ -2,11 +2,12 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { claudeChatRunner, realClaudeDeps } from './claude.ts';
+import { claudeChatRunner, HONOURS_SESSION_ALLOWANCE, realClaudeDeps } from './claude.ts';
 import { buildHandoff } from './handoff.ts';
 import { realClock } from '../orchestration/clock.ts';
 import { McpSessionRegistry, startMcpServer } from './mcp.ts';
 import { capabilities } from './mcp/capabilities.ts';
+import { delegateStart } from './mcp/delegate.ts';
 import type { ChatConversation, ChatEvent } from './runner.ts';
 
 // The real Claude, through the user's own `claude` binary and login, in a temporary folder: two turns in one
@@ -16,6 +17,7 @@ import type { ChatConversation, ChatEvent } from './runner.ts';
 //   CARRIER_IT_CLAUDE_CHAT=1   (optional: CARRIER_IT_CLAUDE_COMMAND=<path to the claude binary>, else the one on the path)
 // A second test interrupts a long turn and then asks a second message in the same session. A fourth has it ask to create
 // a file: declining leaves no file, allowing creates it. A fifth hands it the chat MCP, a real loopback server, and asks it to call `capabilities`.
+// A seventh has it call `delegate_start` of the chat MCP in `default` mode: it asks, declining starts no child, allowing starts one, and a second call after the allowance for the session either asks again or does not, as HONOURS_SESSION_ALLOWANCE says.
 // A sixth opens with a handoff in its instructions in a folder with a skill and sends the skill first: it must run as a command, and the handoff must still be known.
 // No token is read or printed: the agent runs with the environment of this process, as the chat host runs it.
 const enabled = process.env.CARRIER_IT_CLAUDE_CHAT === '1';
@@ -145,6 +147,58 @@ describe.skipIf(!enabled)('the Claude chat adapter against the real Claude', () 
       expect(events.filter((e) => e.kind === 'assistant').map((e) => (e as { text: string }).text).join(' ')).toContain('FOLDER-VIEW');
     } finally {
       await own.close();
+      await server.close();
+    }
+  });
+
+  test('delegate_start asks the person: declining starts no child, allowing starts one, and the allowance for the session is kept only if the CLI honours it', { timeout: 420_000 }, async () => {
+    const registry = new McpSessionRegistry(realClock);
+    const view = { id: 's1', agent: 'a', harness: 'claude', folder: 'FOLDER-VIEW', model: null, options: {} };
+    const started: unknown[] = [];
+    const server = await startMcpServer({
+      registry,
+      tools: [capabilities, delegateStart],
+      sessions: { exists: () => true, live: () => true, snapshot: () => view, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async (_id: string, args: unknown) => (started.push(args), { childId: `child-${started.length}` }), related: () => false, waitChildren: async () => [] },
+    });
+    const token = registry.issue({ sessionId: 's1', invocationId: 'i1', capabilities: ['read', 'act'] });
+    // one conversation per case, so no allowance of the one before carries over; `choose` answers each approval of delegate_start with the choice it returns
+    const run = async (choose: (asked: number) => string, calls: number) => {
+      const own = await claudeChatRunner().open({ folder, command: process.env.CARRIER_IT_CLAUDE_COMMAND, options: { model: 'haiku', permissionMode: 'default' }, env: process.env, mcp: { serverName: 'carrier-chat', url: server.url, token, readTools: ['capabilities'] } });
+      const approvals: Extract<ChatEvent, { kind: 'approval' }>[] = [];
+      let turns = 0;
+      own.onEvent((event) => {
+        if (event.kind === 'turn_end') turns++;
+        if (event.kind === 'approval') {
+          approvals.push(event);
+          queueMicrotask(() => own.answer(event.approvalId, choose(approvals.length - 1)));
+        }
+      });
+      try {
+        for (let call = 1; call <= calls; call++) {
+          own.send('Call the delegate_start tool of the carrier-chat MCP server once with agent "codex" and task "say hi". If it is refused, do not retry. Then reply with just: DONE');
+          await expect.poll(() => turns, { timeout: 200_000, interval: 200 }).toBe(call);
+        }
+      } finally {
+        await own.close();
+      }
+      return approvals;
+    };
+    try {
+      const declined = await run(() => 'deny', 1);
+      expect(declined[0]).toMatchObject({ tool: 'mcp__carrier-chat__delegate_start', input: { agent: 'codex', task: 'say hi' } });
+      expect(declined[0]!.choices.map((c) => c.id)).toEqual(HONOURS_SESSION_ALLOWANCE ? ['allow', 'deny', 'suggestion:0'] : ['allow', 'deny']);
+      expect(started).toEqual([]);
+
+      const allowed = await run(() => 'allow', 1);
+      expect(allowed).toHaveLength(1);
+      expect(started).toHaveLength(1);
+
+      const before = started.length;
+      const session = await run(() => (HONOURS_SESSION_ALLOWANCE ? 'suggestion:0' : 'allow'), 2);
+      expect(started.length - before).toBe(2);
+      // recorded: whether the second call after the allowance for the session asked again
+      expect(session.length === 2).toBe(!HONOURS_SESSION_ALLOWANCE);
+    } finally {
       await server.close();
     }
   });

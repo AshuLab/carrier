@@ -74,13 +74,28 @@ public struct ChatSession: Decodable, Equatable {
     public let model: String?
     /// Whether the host said anything of how the session went: an older one does not, and then no message is not "no reply yet".
     public let reportsActivity: Bool
+    /// The session that started this one by delegating, for a child session; nil for any other, and from a host that does not say.
+    public let parentSessionId: String?
+    /// The child sessions this one started, oldest first; empty from a host that does not say. The list of sessions leaves the children themselves out.
+    public let children: [Child]
+
+    /// A child session as its parent lists it. `level` is the permission level it runs at (0 reads only, 1 asks before each change, 2 edits without asking), nil when the host does not say.
+    public struct Child: Decodable, Equatable {
+        public let id: String
+        public let agent: String
+        public let harness: String
+        public let state: State
+        public let level: Int?
+        /// True while the child waits for an approval or a question.
+        public let needsPerson: Bool
+    }
 
     public struct Workspace: Decodable, Equatable {
         public let base: String
         public let branch: String?
     }
 
-    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt, lastMessage, turns, model }
+    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt, lastMessage, turns, model, parentSessionId, children }
     private struct Kind: Decodable {
         let kind: String
         let base: String?
@@ -107,6 +122,8 @@ public struct ChatSession: Decodable, Equatable {
         turns = try values.decodeIfPresent(Int.self, forKey: .turns) ?? 0
         reportsActivity = values.contains(.turns)
         model = try values.decodeIfPresent(String.self, forKey: .model)
+        parentSessionId = try values.decodeIfPresent(String.self, forKey: .parentSessionId)
+        children = try values.decodeIfPresent([Child].self, forKey: .children) ?? []
         let placed = try values.decodeIfPresent(Kind.self, forKey: .workspace)
         guard let placed, placed.kind == "worktree" else { workspace = nil; return }
         guard let base = placed.base else { throw DecodingError.keyNotFound(CodingKeys.workspace, .init(codingPath: decoder.codingPath, debugDescription: "a worktree without its base folder")) }

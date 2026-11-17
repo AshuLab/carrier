@@ -1931,3 +1931,273 @@ test('capabilities answers the session, the agents and the verdicts, with no loc
   expect(s.sessions.mcpView.exists(session.id)).toBe(true);
   expect(s.sessions.mcpView.exists('ghost')).toBe(false);
 });
+
+// Delegation: `delegate_start` through mcpView, which is what the MCP tool calls.
+// A fake conversation lists the options it was asked to open with, so a child's level reads from what it really runs at.
+const listing = (runner: FakeChatRunner) => (conversation: FakeConversation) => {
+  const asked = runner.opened.at(-1)!.options ?? {};
+  const values = (...ids: string[]) => ids.map((id) => ({ id, label: id }));
+  conversation.nativeId = `native-${runner.opened.length}`;
+  conversation.options = runner === codexRunnerOf.current
+    ? [
+        { id: 'sandbox', label: 'Sandbox', values: values('read-only', 'workspace-write'), current: asked.sandbox ?? 'workspace-write' },
+        { id: 'approvalPolicy', label: 'Approvals', values: values('untrusted', 'on-request', 'never'), current: asked.approvalPolicy ?? 'untrusted' },
+        { id: 'model', label: 'Model', values: values('gpt-5', 'gpt-5-mini'), current: asked.model ?? 'gpt-5' },
+      ]
+    : [
+        { id: 'permissionMode', label: 'Permission mode', values: values('dontAsk', 'default', 'acceptEdits', 'plan', 'auto'), current: asked.permissionMode ?? 'default' },
+        { id: 'model', label: 'Model', values: values('haiku', 'opus', 'sonnet'), current: asked.model ?? 'haiku' },
+      ];
+};
+const codexRunnerOf: { current?: FakeChatRunner } = {};
+
+function delegation(extra: Partial<Parameters<typeof createSessions>[0]> = {}) {
+  const [claude, codex] = [new FakeChatRunner(), new FakeChatRunner()];
+  codexRunnerOf.current = codex;
+  claude.setup = listing(claude);
+  codex.setup = listing(codex);
+  const agents = {
+    main: { account: 'claude', options: { permissionMode: 'acceptEdits' } },
+    careful: { account: 'claude', options: { permissionMode: 'default' } },
+    reader: { account: 'claude', options: { permissionMode: 'dontAsk' } },
+    planner: { account: 'claude', options: { permissionMode: 'plan' } },
+    edit: { account: 'claude', options: { permissionMode: 'acceptEdits' }, model: 'haiku' },
+    plain: { account: 'claude' },
+    cx: { account: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } },
+    cxcareful: { account: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' } },
+  };
+  const mcp = withMcp();
+  const s = setup({ agents }, { runners: { claude, codex }, probes: probesOf(), binaryFound: () => true, ...mcp.extra, ...extra });
+  const parent = async (agent = 'main', folder = work) => (await s.sessions.open({ agent, folder })).session;
+  const start = (parentId: string, agent: string, task = 'do the thing', more: { model?: string; requestId?: string } = {}) => s.sessions.mcpView.startChild(parentId, { agent, task, ...more });
+  const children = () => s.db.select().from(schemaSessions).all().filter((found) => found.parentSessionId !== null);
+  return { ...s, claude, codex, registry: mcp.registry, parent, start, children };
+}
+
+test('delegate_start makes a child session of its own agent in the parent\'s folder, plain even when the parent\'s is a worktree, with the task as its title and first message', async () => {
+  const git = new FakeGit();
+  const s = delegation({ git, projects: fakeProjects(git, new FakeClock()) });
+  git.repos.set(realpathSync(work), { head: 'main', branches: ['main'], remoteBranches: ['main'], origin: 'git@github.com:acme/app.git' });
+  const { session: parent } = await s.sessions.open({ agent: 'main', folder: work, worktree: { from: 'main', name: 'w1' } });
+  const worktree = parent.workspace as { path: string };
+
+  const { childId } = await s.start(parent.id, 'edit', 'Review the diff\nand say what is wrong');
+  const child = s.db.select().from(schemaSessions).where(eq(schemaSessions.id, childId)).get()!;
+  expect(child).toMatchObject({ parentSessionId: parent.id, agent: 'edit', harness: 'claude', folder: worktree.path, workspaceKind: 'folder', worktreePath: null, worktreeBranch: null, title: 'Review the diff', state: 'working', delegationRequestId: null, archived: false, plan: null, options: { model: 'haiku', permissionMode: 'acceptEdits' } });
+  expect(s.claude.opened.at(-1)).toMatchObject({ folder: realpathSync(worktree.path), options: { model: 'haiku', permissionMode: 'acceptEdits' }, mcp: { serverName: 'carrier-chat' } });
+  expect(s.claude.conversations.at(-1)!.sent).toEqual(['Review the diff\nand say what is wrong']);
+  expect(storedUserMessages(s, childId)).toEqual(['Review the diff\nand say what is wrong']);
+  expect(git.calls.filter((call) => call.args[0] === 'worktree' && call.args[1] === 'add')).toHaveLength(1); // the parent's, none for the child
+
+  // a child holds a token that only reads, and none for the parent's own
+  expect(s.registry.lookup(s.claude.opened.at(-1)!.mcp!.token)).toMatchObject({ sessionId: childId, capabilities: new Set(['read']) });
+});
+const storedUserMessages = (s: { sessions: ReturnType<typeof setup>['sessions'] }, id: string) => (s.sessions.events({ sessionId: id, limit: 100 }).events as any[]).filter((event) => event.kind === 'user').map((event) => event.text as string);
+
+test('a child is out of the list of sessions and its parent\'s summary lists it with its agent, harness, state and level, and says when it waits for the person', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'cx');
+  expect(s.sessions.list({}).sessions.map((found) => found.id)).toEqual([parent.id]);
+  expect(s.sessions.list({ archived: true }).sessions).toEqual([]);
+  expect(s.sessions.list({}).sessions[0]!.children).toEqual([{ id: childId, agent: 'cx', harness: 'codex', state: 'working', level: 2, needsPerson: false }]);
+  expect(JSON.stringify(s.sessions.list({}))).not.toContain('delegationRequestId');
+  const childEvents = s.sessions.events({ sessionId: childId, limit: 10 });
+  expect(childEvents.session).toMatchObject({ id: childId, parentSessionId: parent.id, children: [] });
+  expect(childEvents.session).not.toHaveProperty('delegationRequestId');
+  expect(s.sessions.events({ sessionId: parent.id, limit: 10 }).session).toMatchObject({ parentSessionId: null });
+
+  s.codex.conversations[0]!.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }] });
+  expect(s.sessions.list({}).sessions[0]!.children).toEqual([expect.objectContaining({ state: 'waiting_approval', needsPerson: true })]);
+  s.sessions.answer({ sessionId: childId, approvalId: 'a1', choiceId: 'allow' });
+  s.codex.conversations[0]!.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(s.sessions.list({}).sessions[0]!.children).toEqual([expect.objectContaining({ state: 'idle', needsPerson: false })]);
+});
+
+test('the turns of a child record its own harness, agent and conversation, not its parent\'s', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'cx');
+  s.codex.conversations[0]!.emit({ kind: 'turn_end', outcome: 'ok', model: 'gpt-5' });
+  s.sessions.send({ sessionId: parent.id, text: 'hello' });
+  s.claude.conversations[0]!.emit({ kind: 'turn_end', outcome: 'ok' });
+  const turns = rows('chat_turns');
+  expect(turns.find((turn) => turn.sessionId === childId)).toMatchObject({ harness: 'codex', agent: 'cx', nativeId: 'native-1', model: 'gpt-5' });
+  expect(turns.find((turn) => turn.sessionId === parent.id)).toMatchObject({ harness: 'claude', agent: 'main', nativeId: 'native-1' });
+});
+
+test('a child opens at the lower of its agent\'s level and its parent\'s, across both harnesses, and never above its own agent\'s', async () => {
+  const s = delegation();
+  const levelOfChild = async (parentAgent: string, childAgent: string) => {
+    const parent = await s.parent(parentAgent);
+    const { childId } = await s.start(parent.id, childAgent);
+    const summary = s.sessions.list({}).sessions.find((found) => found.id === parent.id)!.children.find((child) => child.id === childId)!;
+    return { level: summary.level, options: s.db.select().from(schemaSessions).where(eq(schemaSessions.id, childId)).get()!.options };
+  };
+  expect(await levelOfChild('main', 'edit')).toMatchObject({ level: 2, options: { permissionMode: 'acceptEdits' } });
+  expect(await levelOfChild('main', 'reader')).toMatchObject({ level: 0, options: { permissionMode: 'dontAsk' } }); // an agent that reads stays reading
+  expect(await levelOfChild('careful', 'edit')).toMatchObject({ level: 1, options: { permissionMode: 'default' } }); // lowered
+  expect(await levelOfChild('reader', 'edit')).toMatchObject({ level: 0, options: { permissionMode: 'dontAsk', model: 'haiku' } });
+  expect(await levelOfChild('main', 'plain')).toMatchObject({ level: 1, options: { permissionMode: 'default' } }); // none set: the adapter's default
+  expect(await levelOfChild('main', 'planner')).toMatchObject({ level: 2, options: { permissionMode: 'acceptEdits' } }); // off the scale: given the parent's level
+  expect(await levelOfChild('main', 'cx')).toMatchObject({ level: 2, options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } });
+  expect(await levelOfChild('careful', 'cx')).toMatchObject({ level: 1, options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' } });
+  expect(await levelOfChild('reader', 'cx')).toMatchObject({ level: 0, options: { sandbox: 'read-only', approvalPolicy: 'untrusted' } });
+  expect(await levelOfChild('main', 'cxcareful')).toMatchObject({ level: 1 });
+  expect(s.codex.opened.at(-1)).toMatchObject({ options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' } });
+});
+
+test('the parent\'s level is read from its options as they are at the call, and a parent off the scale cannot start a child', async () => {
+  const s = delegation();
+  const parent = await s.parent('main');
+  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'default' });
+  const { childId } = await s.start(parent.id, 'edit');
+  expect(s.children().find((child) => child.id === childId)!.options).toMatchObject({ permissionMode: 'default' });
+  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'plan' });
+  await expect(s.start(parent.id, 'edit')).rejects.toThrow(/off the permission scale/);
+  const off = await s.parent('planner');
+  await expect(s.start(off.id, 'edit')).rejects.toThrow(ChatRefused);
+  expect(s.children()).toHaveLength(1);
+});
+
+test('a repeated requestId returns the same child whatever the other arguments are, even with four running, and a new one is refused there', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const first = await s.start(parent.id, 'edit', 'one', { requestId: 'r1' });
+  expect(await s.start(parent.id, 'cx', 'another task', { requestId: 'r1' })).toEqual(first);
+  expect(await s.start(parent.id, 'ghost', 'x', { requestId: 'r1', model: 'nope' })).toEqual(first);
+  expect(s.children()).toHaveLength(1);
+  expect(s.claude.opened).toHaveLength(2); // the parent and the child
+  for (const task of ['two', 'three', 'four']) await s.start(parent.id, 'edit', task);
+  expect(s.children()).toHaveLength(4);
+  expect(await s.start(parent.id, 'edit', 'again', { requestId: 'r1' })).toEqual(first); // before the cap
+  await expect(s.start(parent.id, 'edit', 'five', { requestId: 'r2' })).rejects.toThrow(/already has 4 children/);
+  expect(s.children()).toHaveLength(4);
+  // the same request id under another parent is another request
+  const other = await s.parent();
+  expect((await s.start(other.id, 'edit', 'x', { requestId: 'r1' })).childId).not.toBe(first.childId);
+});
+
+test('two calls that arrive together with three children running start one child and refuse the other, and two with the same requestId start one', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  for (const task of ['one', 'two', 'three']) await s.start(parent.id, 'edit', task);
+  const settled = await Promise.allSettled([s.start(parent.id, 'edit', 'four'), s.start(parent.id, 'cx', 'five')]);
+  expect(settled.map((result) => result.status).sort()).toEqual(['fulfilled', 'rejected']);
+  expect((settled.find((result) => result.status === 'rejected') as PromiseRejectedResult).reason).toBeInstanceOf(ChatRefused);
+  expect(s.children()).toHaveLength(4);
+});
+
+test('two calls with the same requestId that arrive together start one child', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const [a, b] = await Promise.all([s.start(parent.id, 'edit', 'x', { requestId: 'same' }), s.start(parent.id, 'cx', 'y', { requestId: 'same' })]);
+  expect(a).toEqual(b);
+  expect(s.children()).toHaveLength(1);
+});
+
+test('only a child that works or waits counts toward the four: one that finished frees its slot', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  for (const task of ['one', 'two', 'three', 'four']) await s.start(parent.id, 'edit', task);
+  await expect(s.start(parent.id, 'edit', 'five')).rejects.toThrow(/4 children/);
+  s.claude.conversations[1]!.emit({ kind: 'turn_end', outcome: 'ok' });
+  s.claude.conversations[2]!.emit({ kind: 'approval', approvalId: 'a', tool: 'Bash', choices: [{ id: 'deny', label: 'Deny', allow: false }] }); // waiting still counts
+  await s.start(parent.id, 'edit', 'five');
+  await expect(s.start(parent.id, 'edit', 'six')).rejects.toThrow(/4 children/);
+});
+
+test('a failing open leaves no row, no token and no event, frees the requestId, and a task that cannot be sent does the same', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  s.claude.refuseWith = 'claude is not logged in';
+  await expect(s.start(parent.id, 'edit', 'x', { requestId: 'r1' })).rejects.toThrow('claude is not logged in');
+  expect(s.children()).toEqual([]);
+  expect(tokensLive(s.registry)).toBe(1); // the parent's
+  s.claude.refuseWith = undefined;
+
+  const options = s.claude.setup;
+  s.claude.setup = (conversation) => {
+    options(conversation);
+    conversation.send = () => {
+      throw new Error('closed pipe');
+    };
+  };
+  await expect(s.start(parent.id, 'edit', 'x', { requestId: 'r1' })).rejects.toThrow('could not be delivered');
+  expect(s.children()).toEqual([]);
+  expect(rows('chat_events').filter((event) => event.sessionId !== parent.id)).toEqual([]);
+  expect(s.claude.conversations.at(-1)!.closed).toBe(true);
+  expect(tokensLive(s.registry)).toBe(1);
+  expect(s.sessions.mcpView.live(parent.id)).toBe(true);
+  expect(s.sessions.liveCount()).toBe(1);
+
+  s.claude.setup = options;
+  const { childId } = await s.start(parent.id, 'edit', 'x', { requestId: 'r1' }); // the request id was freed
+  expect(s.children().map((child) => child.id)).toEqual([childId]);
+});
+
+test('a parent that no longer exists once the child\'s conversation has opened gets no child: the conversation is closed and the row goes', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = s.claude.open.bind(s.claude);
+  s.claude.open = async (args) => {
+    const conversation = await open(args);
+    await gate;
+    return conversation;
+  };
+  const pending = s.start(parent.id, 'edit', 'x');
+  await vi.waitFor(() => expect(s.children()).toHaveLength(1)); // the slot is held while it opens
+  s.db.$client.pragma('foreign_keys = OFF');
+  s.db.delete(schemaSessions).where(eq(schemaSessions.id, parent.id)).run(); // the parent goes
+  release();
+  await expect(pending).rejects.toThrow(/no longer exists/);
+  expect(rows('sessions').filter((found) => found.parentSessionId !== null)).toEqual([]);
+  expect(s.claude.conversations.at(-1)!.closed).toBe(true);
+});
+
+test('each refusal of delegate_start answers with words and leaves nothing behind', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const refused = async (agent: string, pattern: RegExp, more: { model?: string } = {}) => {
+    await expect(s.start(parent.id, agent, 'x', more)).rejects.toThrow(pattern);
+    await expect(s.start(parent.id, agent, 'x', more)).rejects.toBeInstanceOf(ChatRefused);
+  };
+  await refused('ghost', /no chat agent named "ghost"/);
+  await refused('edit', /"gpt-9" is not a model of the agent "edit"; it lists: haiku, opus, sonnet/, { model: 'gpt-9' });
+  await expect(s.start('missing-parent', 'edit')).rejects.toThrow('There is no such session');
+  expect(s.children()).toEqual([]);
+  expect((await s.start(parent.id, 'edit', 'x', { model: 'opus' })).childId).toBeDefined();
+  expect(s.children()[0]!.options).toMatchObject({ model: 'opus' });
+
+});
+
+test('delegate_start refuses an agent that is not found on this machine, one that is signed out and a probe that cannot list the models', async () => {
+  let missing = false;
+  let signedOut = false;
+  const s = delegation({ binaryFound: (command) => !(missing && command === 'codex'), probes: probesOf({ loggedIn: async (harness) => !(signedOut && harness === 'codex') }) });
+  const parent = await s.parent();
+  missing = true;
+  await expect(s.start(parent.id, 'cx')).rejects.toThrow('The agent "cx" is not found on this machine');
+  missing = false;
+  signedOut = true;
+  await expect(s.start(parent.id, 'cx')).rejects.toThrow('The agent "cx" is signed out');
+  expect(s.children()).toEqual([]);
+  expect(s.codex.opened).toEqual([]);
+  signedOut = false;
+  s.clock.time += 31_000; // the verdicts are kept thirty seconds
+  expect((await s.start(parent.id, 'cx')).childId).toBeDefined();
+
+  s.claude.refuseWith = 'claude is not logged in';
+  await expect(s.start(parent.id, 'edit', 'x', { model: 'opus' })).rejects.toThrow(/models of the agent "edit" could not be listed/);
+  expect(s.children()).toHaveLength(1);
+});
+
+test('a child cannot start children of its own', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit');
+  await expect(s.start(childId, 'edit')).rejects.toThrow(/cannot start children/);
+  expect(s.children()).toHaveLength(1);
+});

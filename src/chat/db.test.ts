@@ -33,13 +33,14 @@ test('the worktree migration leaves every existing session a folder session', ()
 });
 
 test('the turn migration gives every existing turn its session\'s harness, agent and native id', () => {
-  // the database as it was before the turns kept them: every migration but the last applied
+  // the database as it was before the turns kept them: every migration before theirs applied
   const before = join(dir, 'migrations');
   cpSync(join(import.meta.dirname, 'migrations'), before, { recursive: true });
   const journalPath = join(before, 'meta', '_journal.json');
   const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as { entries: { tag: string }[] };
-  expect(journal.entries.at(-1)!.tag).toMatch(/^0007_/);
-  journal.entries = journal.entries.slice(0, -1);
+  const turnMigration = journal.entries.findIndex((entry) => entry.tag.startsWith('0007_'));
+  expect(turnMigration).toBeGreaterThan(0);
+  journal.entries = journal.entries.slice(0, turnMigration);
   writeFileSync(journalPath, JSON.stringify(journal));
   const file = join(dir, 'chat.db');
   const old = new Database(file);
@@ -55,5 +56,20 @@ test('the turn migration gives every existing turn its session\'s harness, agent
     { sessionId: 's1', harness: 'codex', agent: 'coder', nativeId: 'N1' },
     { sessionId: 's2', harness: 'claude', agent: 'claude', nativeId: null },
   ]);
+  db.$client.close();
+});
+
+test('the delegation migration adds the parent and the request id to the sessions, which a parent\'s children share only once per request id', () => {
+  const db = openChatDatabase(join(dir, 'chat.db'));
+  const insert = db.$client.prepare('insert into sessions (id, agent, harness, folder, createdAt, lastActiveAt, parentSessionId, delegationRequestId) values (?, \'a\', \'claude\', \'/w\', 1, 1, ?, ?)');
+  insert.run('p', null, null);
+  insert.run('p2', null, null);
+  insert.run('c1', 'p', 'r1');
+  insert.run('c2', 'p', 'r2');
+  insert.run('c3', 'p', null); // no request id, as many as it likes
+  insert.run('c4', 'p', null);
+  insert.run('c5', 'p2', 'r1'); // another parent's request
+  expect(() => insert.run('c6', 'p', 'r1')).toThrow(/UNIQUE/);
+  expect(() => insert.run('c7', 'ghost', null)).toThrow(/FOREIGN KEY/);
   db.$client.close();
 });

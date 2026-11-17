@@ -20,6 +20,9 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   Its steps (`clone` or `fetch` through `projects.cloneRepo`, whose latest git progress line the `events` reply carries as `progress`, never stored) run in the background and are stored as `step` events.
   `retryPreparation` repeats a failed one from where it stopped (the worktree recorded on the session and a checkout done are reused).
   `cancelPreparation` aborts the running step, deletes the session like a delete does and answers the plan ([ADR 0018](../../docs/adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
+  A child session (`parentSessionId`, from `startChild` of the MCP's `delegate_start`, [ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)) is a session of its own agent in its parent's folder, recorded as a plain folder, with its agent's options lowered to the parent's level.
+  Its row is inserted first, so it holds one of the parent's four slots and its `delegationRequestId` while its conversation opens, and goes if the open fails; the check and that insert have no `await` between them.
+  The list of sessions leaves children out and a parent's summary lists them as `children`; the `delegationRequestId` is never in a summary.
 - `plan.ts`: the plan's request schema and the step types.
 - `runner.ts`: the chat runner port, with `fake.ts` its test double; `claude.ts` and `codex.ts` are the Claude and Codex adapters.
 - `folder.ts`: the check of a session's folder, never inside `<folder>/engine/` (and `checkProjectsFolder`, the same rule for the projects folder).
@@ -29,7 +32,8 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `mcp.ts`: the chat MCP ([ADR 0024](../../docs/adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)), a loopback HTTP server the host starts before `chat.sock`.
   `McpSessionRegistry`: a bearer token per live conversation, kept hashed in memory, revoked by `invocationId` when `sessions.ts` closes, loses or fails that conversation.
   `defineTool`: every tool declares its access level.
-  The toolkits are under `mcp/` (`capabilities`, `history` and `agents`); the adapters take the `mcp` argument of `ChatRunner.open`.
+  A tool is listed and callable only for a token with the capability its access level needs: `delegate_start` (`mcp/delegate.ts`, `actsAsSession`) needs `act`, which no session receives yet.
+  The toolkits are under `mcp/` (`capabilities`, `history`, `agents` and `delegate`); the adapters take the `mcp` argument of `ChatRunner.open`.
 - `handoff.ts`: `buildHandoff`, the pure builder of a switched session's handoff from its stored events, 16,000 UTF-8 bytes on the whole text ([ADR 0032](../../docs/adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md)); it travels as `ChatRunner.open`'s `instructions`, which Claude appends to its preset system prompt and Codex sends as `developerInstructions`.
 - `levels.ts`: the permission scale as pure data (`levelOf`, `childOptions`), for the options a child may have ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)).
 - `health.ts`: the `health` request (whether `git`, `gh` and each agent's CLI work and are signed in, as `ready`, `missing`, `signedOut` or `unknown`, only the verdicts; [spec](../../docs/specs/chat-host.md)).

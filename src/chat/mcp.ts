@@ -106,6 +106,8 @@ export type McpSessions = {
   storedEvent(sessionId: string, position: number, kinds: string[]): StoredEvent | undefined;
   /** How the tool calls of that session with those ids ended, by call id; a call still running or unknown is absent. */
   toolStatuses(sessionId: string, callIds: string[]): Record<string, 'ok' | 'err'>;
+  /** Starts a child session of `parentId` for a configured agent with the task as its first message, and answers its id once its conversation is open and the task sent; refuses with words ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). A `requestId` seen before returns the child it made. */
+  startChild(parentId: string, args: { agent: string; task: string; model?: string; requestId?: string }): Promise<{ childId: string }>;
 };
 
 export type StoredEvent = { position: number; kind: string; data: Record<string, unknown> };
@@ -159,14 +161,16 @@ export async function startMcpServer(deps: { registry: McpSessionRegistry; sessi
       req.on('error', () => resolve(undefined));
     });
 
+  /** What a token's session is let to use: a tool that reads as the session needs `read`, one that acts as it needs `act`, and one that just reads needs nothing. */
+  const allowed = (token: McpToken, tool: McpTool) => tool.access === 'reads' || token.capabilities.has(tool.access === 'actsAsSession' ? 'act' : 'read');
+
   const callTool = async (token: McpToken, params: unknown) => {
     const call = callParams.safeParse(params);
     if (!call.success) return { error: { code: -32602, message: 'Invalid params' } };
     const tool = tools.get(call.data.name);
     if (tool === undefined) return { error: { code: -32602, message: `Unknown tool ${call.data.name}` } };
 
-    const wanted = tool.access === 'actsAsSession' ? 'act' : 'read';
-    if (tool.access !== 'reads' && !token.capabilities.has(wanted)) return { result: toolResult('This session may not use this tool', true) };
+    if (!allowed(token, tool)) return { result: toolResult('This session may not use this tool', true) };
     if (tool.access === 'readsAsSession' && !deps.sessions.exists(token.sessionId)) return { result: toolResult('This session no longer exists', true) };
     if (tool.access === 'actsAsSession' && !deps.sessions.live(token.sessionId)) return { result: toolResult('This session is not live', true) };
 
@@ -216,7 +220,7 @@ export async function startMcpServer(deps: { registry: McpSessionRegistry; sessi
       case 'ping':
         return reply({});
       case 'tools/list':
-        return reply({ tools: [...tools.values()].map((t) => ({ name: t.name, description: t.description, inputSchema: z.toJSONSchema(t.input) })) });
+        return reply({ tools: [...tools.values()].filter((t) => allowed(token, t)).map((t) => ({ name: t.name, description: t.description, inputSchema: z.toJSONSchema(t.input) })) });
       case 'tools/call': {
         const called = await callTool(token, params);
         return called.error === undefined ? reply(called.result) : fail(called.error.code, called.error.message);

@@ -1,7 +1,7 @@
 import { accessSync, constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
 import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
@@ -12,6 +12,7 @@ import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
 import { realMachine, type Machine } from '../doctor/detect.ts';
 import { createHealth, realProbes, type HealthProbes } from './health.ts';
+import { childOptions, isScaleHarness, type Level, levelOf } from './levels.ts';
 import type { McpSessionRegistry } from './mcp.ts';
 import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
@@ -27,6 +28,8 @@ import { checkout, fetchFolder, inspectFolder } from './workspace.ts';
 const log = createScopedLogger('chat');
 
 export const IDLE_CLOSE_MS = 60_000;
+/** The children of one session that may work or wait for an approval at the same time ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). */
+const MAX_RUNNING_CHILDREN = 4;
 
 const DAY = 86_400_000;
 /** The lifecycle's ages (ADR 0019), as `chat.json` gives them. */
@@ -39,8 +42,13 @@ type State = (typeof sessions.$inferSelect)['state'];
 /** Where a session works: the folder it was opened in, or a worktree made for it from that base folder. */
 export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: string; from: string; base: string; path: string };
 
-export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath'> & {
+/** A child session as its parent's summary lists it; `level` is the permission level it runs at, and `needsPerson` says that it waits for an approval or a question. */
+export type ChildSummary = { id: string; agent: string; harness: Harness; state: State; level: Level | null; needsPerson: boolean };
+
+export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath' | 'delegationRequestId'> & {
   workspace: SessionWorkspace;
+  /** The sessions that this one started by delegating, oldest first. */
+  children: ChildSummary[];
   /** `running` while the host prepares the session, `failed` when a step failed and the plan is kept, null otherwise. */
   preparation: 'running' | 'failed' | null;
 };
@@ -127,8 +135,23 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (found === undefined) throw new ChatRefused('There is no such session');
     return found;
   };
-  const summary = ({ keptAt: _keptAt, options: _options, pid: _pid, pgid: _pgid, command: _command, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
+  /** The options a session has now: its live conversation's, else the ones stored. */
+  const optionsOf = (sessionId: string, stored: Record<string, string> | null) => {
+    const live = lives.get(sessionId);
+    return live === undefined ? (stored ?? {}) : Object.fromEntries(live.conversation.options.map((option) => [option.id, option.current]));
+  };
+  const childrenOf = (parentId: string): ChildSummary[] =>
+    db.select().from(sessions).where(eq(sessions.parentSessionId, parentId)).orderBy(asc(sessions.createdAt)).all().map((child) => ({
+      id: child.id,
+      agent: child.agent,
+      harness: child.harness,
+      state: child.state,
+      level: isScaleHarness(child.harness) ? (levelOf(child.harness, optionsOf(child.id, child.options)) ?? null) : null,
+      needsPerson: child.state === 'waiting_approval',
+    }));
+  const summary = ({ keptAt: _keptAt, options: _options, pid: _pid, pgid: _pgid, command: _command, delegationRequestId: _delegationRequestId, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
     ...rest,
+    children: childrenOf(rest.id),
     preparation: rest.state === 'preparing' ? 'running' : plan === null ? null : 'failed',
     workspace: workspaceKind === 'worktree' ? { kind: 'worktree', branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase!, path: worktreePath! } : { kind: 'folder' },
   });
@@ -310,6 +333,21 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     }
     return {};
   }
+
+  /** Records a message, starts its turn and hands it to the agent: the person's through `send`, and a child's first one, its task, from the host itself. */
+  const deliver = (sessionId: string, live: Live, shown: string, text: string, invoked?: ChatCommand) => {
+    live.turn = { startedAt: clock.now(), toolCalls: 0 };
+    store(sessionId, { kind: 'user', text: shown, ...(invoked !== undefined && { command: invoked.name }) });
+    touch(sessionId, live, 'working');
+    try {
+      live.conversation.send(text, invoked);
+    } catch (error) {
+      log.error('a message could not be sent to the agent', error);
+      live.turn = undefined;
+      touch(sessionId, live, 'idle');
+      throw new ChatRefused('The message could not be delivered to the agent');
+    }
+  };
 
   /** Makes a conversation the live one of a session. */
   const attach = (sessionId: string, conversation: ChatConversation, invocationId: string, state: State = 'idle') => {
@@ -521,6 +559,79 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     });
   };
 
+  /** Takes a child that never ran out: its events, its turns and its row. */
+  const discard = (sessionId: string) =>
+    db.transaction((tx) => {
+      tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
+      tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
+      tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
+    });
+
+  /**
+   * Starts a child session of `parentId` for a configured agent and sends it the task (ADR 0033). The child is a session of its own agent in the parent's folder,
+   * recorded as a plain folder, with the options of that agent lowered to the parent's level. Its row is inserted first, so it holds its slot and its request id
+   * while the conversation opens, and goes if the open fails. Everything between the last check and that insert is synchronous, so two calls cannot both take the last slot.
+   */
+  async function startChild(parentId: string, { agent, task, model, requestId }: { agent: string; task: string; model?: string; requestId?: string }) {
+    // a request id seen before is answered with its child, whatever else this call says, and before anything that could refuse it
+    const earlier = () => (requestId === undefined ? undefined : db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.parentSessionId, parentId), eq(sessions.delegationRequestId, requestId))).get());
+    const seen = earlier();
+    if (seen !== undefined) return { childId: seen.id };
+
+    const parent = row(parentId);
+    if (parent.parentSessionId !== null) throw new ChatRefused('A child session cannot start children of its own');
+    const chosen = listed().find((candidate) => candidate.name === agent);
+    if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
+    if (listAgents().find((candidate) => candidate.name === agent)?.found !== true) throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
+    const launch = launchOf(chosen);
+    const folder = checkFolder(parent.folder, carrierHome());
+    const verdict = (await health({})).agents.find((candidate) => candidate.name === agent)?.state;
+    if (verdict === 'signedOut') throw new ChatRefused(`The agent "${agent}" is signed out`);
+    if (verdict === 'missing') throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
+    if (model !== undefined) {
+      const listedModels = await offerOf({ agent }).then(
+        ({ options }) => options.find((option) => option.id === 'model')?.values.map((value) => value.id),
+        (error) => {
+          log.error(`listing the models of the agent ${agent} failed`, error);
+          throw new ChatRefused(`The models of the agent "${agent}" could not be listed, so "${model}" cannot be checked`);
+        },
+      );
+      if (listedModels?.includes(model) !== true) throw new ChatRefused(`"${model}" is not a model of the agent "${agent}"; it lists: ${listedModels?.join(', ') || 'none'}`);
+    }
+
+    // no await from here to the insert
+    const again = earlier();
+    if (again !== undefined) return { childId: again.id };
+    const current = row(parentId);
+    if (deleting.has(parentId)) throw new ChatRefused('This session is being deleted');
+    const parentLevel = isScaleHarness(current.harness) ? levelOf(current.harness, optionsOf(parentId, current.options)) : undefined;
+    if (parentLevel === undefined || !isScaleHarness(launch.harness)) throw new ChatRefused('This session\'s options are off the permission scale, so a child cannot be given a level');
+    const running = db.select({ n: count() }).from(sessions).where(and(eq(sessions.parentSessionId, parentId), inArray(sessions.state, ['working', 'waiting_approval']))).get()?.n ?? 0;
+    if (running >= MAX_RUNNING_CHILDREN) throw new ChatRefused(`This session already has ${MAX_RUNNING_CHILDREN} children working or waiting for an approval; start another when one of them has finished`);
+    const options = { ...childOptions(launch.harness, { ...(chosen.model && { model: chosen.model }), ...chosen.options }, parentLevel).options, ...(model !== undefined && { model }) };
+    const now = clock.now();
+    const childId = randomUUID();
+    db.insert(sessions).values({ id: childId, agent: chosen.name, harness: launch.harness, folder: current.folder, options, title: titleOf(task), state: 'working', createdAt: now, lastActiveAt: now, parentSessionId: parentId, delegationRequestId: requestId ?? null }).run();
+
+    const issued = issueMcp(childId);
+    let conversation: ChatConversation | undefined;
+    try {
+      conversation = await openConversation(launch, { folder, options, mcp: issued.args });
+      for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
+      if (!exists(parentId) || deleting.has(parentId)) throw new ChatRefused('The session that asked for this child no longer exists');
+      deliver(childId, attach(childId, conversation, issued.invocationId), task, task);
+    } catch (error) {
+      if (lives.has(childId)) await close({ sessionId: childId }); // attached, and the task could not be sent
+      else {
+        revoke(issued.invocationId);
+        await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
+      }
+      discard(childId);
+      throw error;
+    }
+    return { childId };
+  }
+
   return {
     liveCount: () => new Set([...lives.keys(), ...preparing.keys()]).size,
     clientJoined() {
@@ -543,11 +654,11 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       live: (sessionId: string) => lives.has(sessionId),
       snapshot: (sessionId: string) => {
         const { id, agent, harness, folder, options: stored } = row(sessionId);
-        const live = lives.get(sessionId);
-        const options = live === undefined ? (stored ?? {}) : Object.fromEntries(live.conversation.options.map((option) => [option.id, option.current]));
+        const options = optionsOf(sessionId, stored);
         return { id, agent, harness, folder, model: options.model ?? null, options };
       },
       agents: listAgents,
+      startChild,
       agentOptions: (name: string) => {
         const chosen = listed().find((candidate) => candidate.name === name);
         if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${name}"`);
@@ -571,7 +682,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     list: ({ archived = false }: { archived?: boolean }) => {
       const { archiveAfterDays, deleteAfterDays } = ages();
       return {
-        sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => {
+        sessions: db.select().from(sessions).where(and(eq(sessions.archived, archived), isNull(sessions.parentSessionId))).orderBy(desc(sessions.lastActiveAt)).all().map((found) => {
           const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? found.lastActiveAt + deleteAfterDays * DAY : null;
           const kept = found.keptAt !== null && dueAt !== null && clock.now() >= dueAt; // a session the clock no longer considers (ages raised or never) is not kept
           return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id) };
@@ -722,17 +833,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const shown = invoked === undefined ? text : `/${invoked.name}${text === '' ? '' : ` ${text}`}`;
       if (shown.length > chatCaps.message) throw new ChatRefused(`That message has ${shown.length} characters; the most a message can have is ${chatCaps.message}`);
       if (current.title === null) db.update(sessions).set({ title: titleOf(shown) }).where(eq(sessions.id, sessionId)).run();
-      live.turn = { startedAt: clock.now(), toolCalls: 0 };
-      store(sessionId, { kind: 'user', text: shown, ...(invoked !== undefined && { command: invoked.name }) });
-      touch(sessionId, live, 'working');
-      try {
-        live.conversation.send(text, invoked);
-      } catch (error) {
-        log.error('a message could not be sent to the agent', error);
-        live.turn = undefined;
-        touch(sessionId, live, 'idle');
-        throw new ChatRefused('The message could not be delivered to the agent');
-      }
+      deliver(sessionId, live, shown, text, invoked);
       return {};
     },
 

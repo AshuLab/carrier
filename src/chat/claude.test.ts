@@ -70,9 +70,9 @@ function replay(segments: Segment[], mcpServers?: { name: string; status: string
 }
 
 const deps = (query: typeof sdkQuery, over: Partial<ClaudeChatDeps> = {}): ClaudeChatDeps => ({ query, resolve: (command) => command ?? '/bin/claude', loggedIn: async () => true, ...over });
-const openWith = async (segments: Segment[], resume?: string) => {
+const openWith = async (segments: Segment[], resume?: string, child = false) => {
   const replayed = replay(segments);
-  const conversation = await claudeChatRunner(deps(replayed.query)).open({ folder: '/work', env: { A: 'b' }, ...(resume && { resume }) });
+  const conversation = await claudeChatRunner(deps(replayed.query)).open({ folder: '/work', env: { A: 'b' }, ...(resume && { resume }), ...(child && { child }) });
   const events: ChatEvent[] = [];
   conversation.onEvent((event) => events.push(event));
   return { conversation, events, ...replayed };
@@ -145,6 +145,18 @@ test('an approval is asked with the provider choices and an allow runs the tool'
   });
   expect(allowed.filter((e) => e.kind === 'approval_answered')).toEqual([{ kind: 'approval_answered', approvalId: expect.any(String), choiceId: 'allow' }]);
   expect(seen.permissions[0]).toMatchObject({ behavior: 'allow', updatedInput: { command: 'touch allowed.txt' } });
+});
+
+test('the approvals of a child offer Allow and Deny and none of the suggestions', async () => {
+  const { conversation, events, seen } = await openWith(main, undefined, true);
+  answering(conversation);
+  for (const segment of main.slice(0, 3)) await turn(conversation, events, segment.text);
+
+  const allowed = await turn(conversation, events, main[3]!.text);
+  expect(allowed.find((e) => e.kind === 'approval')).toMatchObject({ tool: 'Bash', arg: 'touch allowed.txt', choices: [{ id: 'allow', allow: true }, { id: 'deny', allow: false }] });
+  expect((allowed.find((e) => e.kind === 'approval') as { choices: unknown[] }).choices).toHaveLength(2);
+  expect(seen.permissions[0]).toMatchObject({ behavior: 'allow', updatedInput: { command: 'touch allowed.txt' } });
+  expect(seen.permissions[0]).not.toHaveProperty('updatedPermissions');
 });
 
 test('AskUserQuestion is asked as questions, the answers go back in the tool input, a skip is a deny, and bad input is a generic approval', async () => {

@@ -41,6 +41,7 @@
     "rename",
     "usage",
     "usageOverride",
-    "accountIdentity"
+    "accountIdentity",
+    "switchAgent"
   ]
 }

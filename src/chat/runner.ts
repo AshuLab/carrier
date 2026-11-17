@@ -40,7 +40,7 @@ export type ChatEvent =
   | { kind: 'option'; id: string; value: string }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
   | { kind: 'error'; text: string; /** Set when the provider says the account ran out, which a retried rate limit never is. */ reason?: 'usage_limit'; /** When it resets, in ms since the epoch, when the provider gives a timestamp. */ resetsAt?: number; /** When it resets, in the provider's own words, when it gives only those. Never set with `resetsAt`. */ resetText?: string }
-  | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string }; // said by the host, never by an adapter: a plain line, not a failure
+  | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string; /** Set when the notice is a switch of agent, naming the agents as the config does. */ switched?: { from: string; to: string } }; // said by the host, never by an adapter: a plain line, not a failure
 
 export interface ChatConversation {
   readonly options: ChatOption[];
@@ -70,7 +70,7 @@ export type ChatLaunch = Pick<Account, 'autoCompact' | 'idleCompaction' | 'launc
 
 export interface ChatRunner {
   /** Rejects with a `ChatRefused` when the provider is not installed, not logged in, or does not know the id to resume. */
-  open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv; /** The chat MCP of this one conversation, by the key it is registered under, its URL and its bearer token (never logged, never in `argv`); none for a probe. */ mcp?: { serverName: string; url: string; token: string }; /** What the conversation opens with as its instructions (the handoff of a switched session, ADR 0032): Claude's appended system prompt, Codex's developer instructions. Never in front of a message. */ instructions?: string }): Promise<ChatConversation>;
+  open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv; /** The chat MCP of this one conversation, by the key it is registered under, its URL and its bearer token (never logged, never in `argv`); none for a probe. */ mcp?: { serverName: string; url: string; token: string }; /** What the conversation opens with as its instructions (the handoff of a switched session, ADR 0032): Claude's appended system prompt, Codex's developer instructions. Never in front of a message. */ instructions?: string; /** Set for a child session (ADR 0033): its approvals offer Allow and Deny and none of the provider's suggestions, which would raise what it may do. */ child?: boolean }): Promise<ChatConversation>;
 }
 
 /** A failure whose message is for the person, in words: it travels to the client as it is. Any other error is logged and reaches the client as "internal error". */

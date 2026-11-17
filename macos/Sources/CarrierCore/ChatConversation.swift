@@ -72,12 +72,25 @@ public struct ChatEvent: Codable, Equatable {
     /// A `step` event of a session's preparation: which step, and (in `status`, `running`, `done` or `failed`) how it stands; `detail` is the reason a step failed.
     public var step: String?
     public var detail: String?
+    /// A `notice` that says the session changed agent: the agents as the host's config names them. Nil for any other event, and from a host that does not switch.
+    public var switched: Switched?
+
+    /// The agents of a switch, as `chat.json` names them.
+    public struct Switched: Codable, Equatable {
+        public let from: String
+        public let to: String
+
+        public init(from: String, to: String) {
+            self.from = from
+            self.to = to
+        }
+    }
 
     public init(
         id: Int, at: Int, kind: String, text: String? = nil, callId: String? = nil, tool: String? = nil, arg: String? = nil, output: [String]? = nil,
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
         model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, questions: [ChatQuestion]? = nil,
-        answers: [String: String]? = nil
+        answers: [String: String]? = nil, switched: Switched? = nil
     ) {
         self.id = id
         self.at = at
@@ -98,6 +111,7 @@ public struct ChatEvent: Codable, Equatable {
         self.usage = usage
         self.step = step
         self.detail = detail
+        self.switched = switched
     }
 }
 

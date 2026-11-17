@@ -291,6 +291,15 @@ test('agentOptions starts the agent, reads what it offers, ends it, and asks aga
   await expect(sessions.agentOptions({ agent: 'nope' })).rejects.toThrow('no chat agent named "nope"');
 });
 
+test('mcpView gives an agent\'s configured options and the options its probe lists, and refuses an agent that is not configured', async () => {
+  const { sessions, claude } = setup({ agents: { mine: { account: 'claude', options: { permissionMode: 'acceptEdits' } } } });
+  claude.setup = offering(['model', ['haiku', 'opus'], 'haiku']);
+  expect(sessions.mcpView.agentOptions('mine')).toEqual({ permissionMode: 'acceptEdits' });
+  expect(() => sessions.mcpView.agentOptions('nope')).toThrow('no chat agent named "nope"');
+  expect(await sessions.mcpView.offer('mine')).toMatchObject([{ id: 'model', values: [{ id: 'haiku' }, { id: 'opus' }] }]);
+  await expect(sessions.mcpView.offer('nope')).rejects.toThrow('no chat agent named "nope"');
+});
+
 test('a failure of agentOptions is not kept: the next ask tries again', async () => {
   const { sessions, claude } = setup();
   claude.refuseWith = 'claude is not logged in';

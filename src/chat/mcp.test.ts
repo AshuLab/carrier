@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test } from 'vitest';
 import { z } from 'zod';
 import { FakeClock } from '../orchestration/fake.ts';
 import { capabilities } from './mcp/capabilities.ts';
+import { agents } from './mcp/agents.ts';
 import { history } from './mcp/history.ts';
 import { defineTool, McpSessionRegistry, startMcpServer, type McpServer, type McpSessions, type StoredEvent } from './mcp.ts';
 import { ChatRefused } from './runner.ts';
@@ -69,7 +70,7 @@ beforeEach(async () => {
   existing = new Set(['s1']);
   liveOnes = new Set(['s1']);
   seen = [];
-  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}) } });
+  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}) } });
 });
 afterEach(() => server.close());
 
@@ -269,7 +270,7 @@ test('capabilities is a readsAsSession tool that takes no arguments and answers 
   const own = await startMcpServer({
     registry,
     tools: [capabilities],
-    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}) },
+    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}) },
   });
   try {
     const token = issue();
@@ -307,6 +308,8 @@ const store: McpSessions = {
   live: () => true,
   snapshot: () => { throw new Error('not used'); },
   agents: () => [],
+  agentOptions: () => ({}),
+  offer: async () => [],
   health: async () => ({ git: 'ready', gh: 'ready', agents: [] }),
   storedEvents: (id, { after, kinds, limit }) => stored.filter((e) => e.sessionId === id && e.position > after && kinds.includes(e.kind)).slice(0, limit),
   storedEvent: (id, position, kinds) => stored.find((e) => e.sessionId === id && e.position === position && kinds.includes(e.kind)),
@@ -422,4 +425,89 @@ test('history refuses a bad limit, position, offset or type, and another session
   } finally {
     await own.close();
   }
+});
+
+// ---- agents ----
+
+type Listed = { name: string; harness: string; account: string; found: boolean };
+const roster: Listed[] = [
+  { name: 'claude-edit', harness: 'claude', account: 'claude', found: true },
+  { name: 'claude-read', harness: 'claude', account: 'claude', found: true },
+  { name: 'codex', harness: 'codex', account: 'codex', found: true },
+  { name: 'gone', harness: 'claude', account: 'other', found: false },
+];
+const configured: Record<string, Record<string, string>> = { 'claude-edit': { permissionMode: 'acceptEdits' }, 'claude-read': { permissionMode: 'dontAsk' }, codex: {}, gone: {} };
+const offers: Record<string, { id: string; values: { id: string; label: string }[] }[]> = {
+  'claude-edit': [{ id: 'model', values: [{ id: 'opus', label: 'Opus' }, { id: 'haiku', label: 'Haiku' }] }, { id: 'effort', values: [{ id: 'low', label: 'low' }, { id: 'high', label: 'high' }] }, { id: 'permissionMode', values: [{ id: 'default', label: 'Ask' }] }],
+  'claude-read': [{ id: 'model', values: [{ id: 'sonnet', label: 'Sonnet' }] }],
+};
+let probed: string[];
+const askAgents = async (caller: { harness: string; options: Record<string, string> }, args?: unknown) => {
+  probed = [];
+  const own = await startMcpServer({
+    registry,
+    tools: [agents],
+    sessions: {
+      ...store,
+      snapshot: (id) => ({ id, agent: 'caller', harness: caller.harness, folder: '/work', model: null, options: caller.options }),
+      agents: () => roster,
+      agentOptions: (name) => configured[name] ?? {},
+      offer: async (name) => {
+        probed.push(name);
+        if (name === 'codex') throw new Error('the probe said secret things');
+        return offers[name] ?? [];
+      },
+      health: async () => ({ git: 'ready', gh: 'ready', agents: [{ name: 'claude-edit', harness: 'claude', state: 'ready' }, { name: 'codex', harness: 'codex', state: 'signedOut' }] }),
+    },
+  });
+  try {
+    const res = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${issue()}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'agents', ...(args !== undefined && { arguments: args }) } }) })).json()) as any;
+    return { isError: res.result.isError as boolean, text: res.result.content[0].text as string };
+  } finally {
+    await own.close();
+  }
+};
+
+test('agents lists each configured agent with its state and the level it would have as a child of the caller, with no models unless asked', async () => {
+  expect(agents).toMatchObject({ name: 'agents', access: 'readsAsSession' });
+  const level1 = await askAgents({ harness: 'claude', options: { permissionMode: 'default' } });
+  expect(level1.isError).toBe(false);
+  expect(JSON.parse(level1.text)).toEqual({
+    agents: [
+      { name: 'claude-edit', harness: 'claude', found: true, state: 'ready', childLevel: 1 }, // lowered from 2 by the caller
+      { name: 'claude-read', harness: 'claude', found: true, state: 'unknown', childLevel: 0 },
+      { name: 'codex', harness: 'codex', found: true, state: 'signedOut', childLevel: 1 }, // no options: the adapter's defaults
+      { name: 'gone', harness: 'claude', found: false, state: 'unknown', childLevel: 1 },
+    ],
+  });
+  expect(probed).toEqual([]);
+
+  const level2 = JSON.parse((await askAgents({ harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } }, { models: false })).text);
+  expect(level2.agents.map((agent: any) => [agent.name, agent.childLevel])).toEqual([['claude-edit', 2], ['claude-read', 0], ['codex', 1], ['gone', 1]]);
+  expect(probed).toEqual([]);
+  expect((await askAgents({ harness: 'claude', options: {} })).isError).toBe(false); // a caller with no options is at the adapter's default
+  expect((await askAgents({ harness: 'claude', options: {} }, { models: 'yes' })).isError).toBe(true);
+});
+
+test('agents answers notOffered with words and no childLevel when the caller is off the scale', async () => {
+  for (const caller of [{ harness: 'claude', options: { permissionMode: 'plan' } } as { harness: string; options: Record<string, string> }, { harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'never' } }]) {
+    const { agents: listed } = JSON.parse((await askAgents(caller)).text);
+    expect(listed).toHaveLength(4);
+    for (const agent of listed) {
+      expect(agent).not.toHaveProperty('childLevel');
+      expect(agent.notOffered).toMatch(/off the permission scale/);
+    }
+    expect(listed[0].notOffered).toContain(Object.values(caller.options).at(-1)!);
+  }
+});
+
+test('agents lists models and efforts from the probe only when asked, and says so for an agent whose probe fails or that is not found', async () => {
+  const { agents: listed } = JSON.parse((await askAgents({ harness: 'claude', options: { permissionMode: 'default' } }, { models: true })).text);
+  expect(probed.sort()).toEqual(['claude-edit', 'claude-read', 'codex']); // a probe for an agent that is not found would only fail
+  expect(listed[0]).toMatchObject({ name: 'claude-edit', models: [{ id: 'opus', label: 'Opus' }, { id: 'haiku', label: 'Haiku' }], efforts: ['low', 'high'] });
+  expect(listed[1]).toMatchObject({ name: 'claude-read', models: [{ id: 'sonnet', label: 'Sonnet' }], efforts: [] });
+  expect(listed[2]).toMatchObject({ name: 'codex', childLevel: 1, modelsUnavailable: 'The models of this agent could not be listed' });
+  expect(listed[2]).not.toHaveProperty('models');
+  expect(JSON.stringify(listed)).not.toContain('secret');
+  expect(listed[3]).toMatchObject({ name: 'gone', modelsUnavailable: expect.stringContaining('not found') });
 });

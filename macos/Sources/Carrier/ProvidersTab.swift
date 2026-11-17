@@ -121,10 +121,10 @@ struct ProvidersTabView: View {
                         ForEach(Array(tool.accounts.enumerated()), id: \.element.id) { index, account in
                             let edit = { store.dismissProblem(); adding = nil; editing = account.name }
                             SettingsTabRow(
-                                title: account.title, detail: account.usedBy, first: index == 0, note: tool.id == "agy" ? nil : account.configDir ?? "This Mac's login"
+                                title: account.title, detail: account.usedBy, first: index == 0, note: tool.id == "agy" ? nil : account.configDir ?? "This Mac's login",
+                                leading: AnyView(AccountTile(account: account.name, icon: tool.icon).help(account.title))
                             ) {
                                 HStack(spacing: 10) {
-                                    AccountMark(account: account.name, icon: tool.icon, size: 16).help(account.title)
                                     AccountStateLabel(state: account.state)
                                     if account.state == .signedOut {
                                         Button("Sign in") { open(.signIn, harness: tool.id, command: account.command, configDir: account.configDir) }
@@ -198,6 +198,18 @@ struct ProvidersTabView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+}
+
+/// An account's avatar: its mark (the tool's, or the icon and colour the person chose) large in a rounded square, at the left of its row.
+private struct AccountTile: View {
+    let account: String
+    let icon: String
+
+    var body: some View {
+        AccountMark(account: account, icon: icon, size: 22)
+            .frame(width: 38, height: 38).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.07)))
+            .accessibilityHidden(true)
+    }
 }
 
 /// An account's state as the list shows a tool's: a dot of its colour and the words, orange for what asks for an action.

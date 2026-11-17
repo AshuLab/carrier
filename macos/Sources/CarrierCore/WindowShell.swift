@@ -49,6 +49,8 @@ public enum ShortcutAction: Equatable {
 /// What a shortcut asks of the open conversation.
 public enum ConversationAction: Equatable {
     case focusBox, stopAgent, jumpToLatest, toggleToolFolds, copyLastAnswer
+    /// The Stop button in a subagent view's header: not a shortcut, the header is the window's and the conversation holds the host.
+    case stopSubagent
     /// The global shortcut: focus the message box and start or stop its dictation.
     case dictate
 }

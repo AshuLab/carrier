@@ -207,6 +207,7 @@ struct ConversationView: View {
         case .focusBox: boxFocused = true
         case .dictate: dictations += 1
         case .stopAgent: if model.busy { Task { await model.stop() } }
+        case .stopSubagent: Task { await model.stopOpenSubagent() }
         case .jumpToLatest: position.scrollTo(edge: .bottom)
         case .toggleToolFolds:
             flipped = togglingToolGroups(in: visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning), flipped: flipped)

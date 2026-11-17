@@ -437,6 +437,10 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var cancelled = 0
     var refusePreparation: ControlError?
     var cancelPlan = SessionPlan(agent: "claude", folder: "/x", text: "hello")
+    /// What the hello of the host lists; a host that predates `stopTask` leaves it out.
+    var capabilities: Set<ControlClient.Capability> = [.stopTask]
+    var stopped: [String] = []
+    var refusingStopTask: ControlError?
 
     func agents() async throws -> [ChatAgent] { [] }
     func open(plan: SessionPlan) async throws -> String { "" }
@@ -468,7 +472,11 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
-    func capabilities() async throws -> Set<ControlClient.Capability> { [] }
+    func capabilities() async throws -> Set<ControlClient.Capability> { capabilities }
+    func stopTask(_ id: String, task: String) async throws {
+        stopped.append("\(id) \(task)")
+        if let refusingStopTask { throw refusingStopTask }
+    }
     func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
     func createProject(_ name: String) async throws -> String { throw ControlError.closed }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
@@ -1331,7 +1339,7 @@ private func flow(_ work: SubagentWork?) -> [String] {
     events[1].arg = #"{"description":"Explore","prompt":"Find \"it\".\nReport paths.","subagent_type":"Explore"}"#
     let work = subagentWork(in: events, call: "c1")
     // the header says what the row said: its title and type, finished and how long it took
-    #expect(work?.header == SubagentHeader(title: "Explore", type: "Explore", state: .completed, startedAt: 110, durationMs: 600))
+    #expect(work?.header == SubagentHeader(title: "Explore", type: "Explore", state: .completed, startedAt: 110, durationMs: 600, taskId: "t1"))
     // the brief is the prompt it was launched with; then its thought and call as one run with the row of the subagent it launched (still going,
     // so the run is live: the line waits for it), and its message
     #expect(work?.brief == "Find \"it\".\nReport paths.")
@@ -1412,6 +1420,76 @@ private func flow(_ work: SubagentWork?) -> [String] {
     #expect(model.openSubagent?.header.state == .completed && flow(model.openSubagent).last == "message: Found it in a.ts")
     model.show(subagent: nil)
     #expect(model.openSubagent == nil && model.rows != before && texts(model.rows).first == "user: Look into it")
+}
+
+// MARK: stopping a subagent
+
+@Test func aRunningSubagentsHeaderOffersStopOnlyWhileItRunsAndOnlyAHostThatListsItAndATaskToStopIt() {
+    func header(_ state: SubagentStatus, task: String? = "t1", host: Bool = true, epic: String? = nil) -> SubagentHeader {
+        SubagentHeader(title: "T", type: "Explore", state: state, startedAt: 0, durationMs: nil, epic: epic, taskId: task, hostStops: host)
+    }
+    #expect(header(.running).canStop)
+    #expect(header(.running, epic: "Epic").canStop == false)
+    for ended in [SubagentStatus.completed, .failed, .stopped] { #expect(header(ended).canStop == false) }
+    #expect(header(.running, host: false).canStop == false && header(.running, task: nil).canStop == false)
+    #expect(subagentWork(in: subagentTurn, call: "c1")?.header.taskId == "t1")
+}
+
+@MainActor @Test func stopInTheSubagentsViewAsksTheHostForThatTaskAndTheViewShowsStoppedOnlyWhenTheEventArrives() async {
+    let host = ScriptedHost()
+    host.events = Array(subagentTurn[..<6])
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    model.show(subagent: "c1")
+    #expect(model.openSubagent?.header.canStop == true)
+    await model.stopOpenSubagent()
+    #expect(host.stopped == ["s t1"])
+    // the request is not the end: the header says Running until the host's `stopped` event
+    #expect(model.openSubagent?.header.state == .running)
+    await model.poll()
+    #expect(model.openSubagent?.header.state == .running && model.openSubagent?.header.canStop == true)
+    host.events.append(ChatEvent(id: 7, at: 500, kind: "task", callId: "c1", taskId: "t1", state: "stopped"))
+    await model.poll()
+    #expect(model.openSubagent?.header.state == .stopped && model.openSubagent?.header.canStop == false)
+    await model.stopOpenSubagent()
+    #expect(host.stopped == ["s t1"], "an ended subagent is not asked to stop again")
+}
+
+@MainActor @Test func aHostThatDoesNotListStopTaskGetsNoStopAndNoRequest() async {
+    let host = ScriptedHost()
+    host.capabilities = [.interrupt, .send, .events]
+    host.events = Array(subagentTurn[..<6])
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    model.show(subagent: "c1")
+    #expect(model.openSubagent?.header.state == .running && model.openSubagent?.header.canStop == false)
+    await model.stopOpenSubagent()
+    #expect(host.stopped.isEmpty)
+}
+
+@MainActor @Test func aRefusedStopLeavesTheViewAsItWasAndTheNextPollTellsHowItStands() async {
+    let host = ScriptedHost()
+    host.events = Array(subagentTurn[..<6])
+    host.refusingStopTask = .remote("That subagent is not running")
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    model.show(subagent: "c1")
+    await model.stopOpenSubagent()
+    #expect(host.stopped == ["s t1"] && model.openSubagent?.header.state == .running && model.refusal == nil)
+}
+
+@Test func theFixtureHostListsStopTaskAndStopsARunningSubagentOnlyOnce() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let id = "a7b8c9d0-6e5f-4a21-9c4d-5e6f7a8b9c07"
+    #expect(try await host.capabilities().contains(.stopTask))
+    await #expect(throws: ControlError.remote("That subagent is not running")) { try await host.stopTask(id, task: "t2") } // finished
+    await #expect(throws: ControlError.remote("That subagent is not running")) { try await host.stopTask(id, task: "nope") }
+    try await host.stopTask(id, task: "t3")
+    let after = try await host.events(id, after: 25, limit: 200).events
+    #expect(after.map(\.kind) == ["task"] && after[0].state == "stopped" && after[0].callId == "a3" && after[0].taskId == "t3")
+    await #expect(throws: ControlError.remote("That subagent is not running")) { try await host.stopTask(id, task: "t3") }
 }
 
 @Test func theFixtureHostServesTheSubagentViewWithItsBriefItsThoughtItsMessageAndItsNestedSubagent() async throws {

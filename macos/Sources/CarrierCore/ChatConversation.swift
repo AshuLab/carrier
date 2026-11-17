@@ -591,6 +591,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// The subagent view open over the conversation, rebuilt with the feed; nil with none open.
     public private(set) var openSubagent: SubagentWork?
     @ObservationIgnored private var openCall: String?
+    /// Whether the host lists `stopTask`, read from its hello once; false until then and for an older host.
+    @ObservationIgnored private var hostStops: Bool?
     /// Counts the sends, so a poll that began before one does not tell the model the agent is idle when it is not.
     @ObservationIgnored private var sends = 0
 
@@ -646,6 +648,10 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
                 changed = changed || reply.events.isEmpty == false
             } while reply.events.count >= Self.page
             let first = loaded == false
+            if hostStops == nil, let listed = try? await host.capabilities() {
+                hostStops = listed.contains(.stopTask)
+                changed = true
+            }
             if let session = try await host.list(archived: false).first(where: { $0.id == sessionId }) {
                 agent = session.agent
                 live = session.live
@@ -696,7 +702,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             let next = feed()
             if quotaErrorAppeared(from: rows, to: next) { onQuotaError?() }
             rows = next
-            openSubagent = openCall.flatMap { subagentWork(in: events, call: $0) }
+            openSubagent = openCall.flatMap(work)
             times = Dictionary(events.filter { $0.kind == "user" || $0.kind == "assistant" }.map { ("e\($0.id)", $0.at) }) { $1 }
             if followsOutput && atEnd { scrolls += 1 }
         }
@@ -806,7 +812,25 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// The subagent view the person opened (the call that launched it), nil for the conversation itself.
     public func show(subagent call: String?) {
         openCall = call
-        openSubagent = call.flatMap { subagentWork(in: events, call: $0) }
+        openSubagent = call.flatMap(work)
+    }
+
+    /// The subagent's view from the events, its header saying whether the host can stop it.
+    private func work(_ call: String) -> SubagentWork? {
+        var work = subagentWork(in: events, call: call)
+        work?.header.hostStops = hostStops == true
+        return work
+    }
+
+    /// Stop in the subagent's header: asks the host to stop the open subagent and nothing else. The view shows it stopped when the host's
+    /// `stopped` event arrives, not before; a refusal (it ended meanwhile) needs no word, the next poll says how it stands.
+    public func stopOpenSubagent() async {
+        guard let header = openSubagent?.header, header.canStop, let task = header.taskId else { return }
+        do {
+            try await host.stopTask(sessionId, task: task)
+        } catch {
+            _ = report(error, "stop the subagent")
+        }
     }
 
     /// Drops the queued message.

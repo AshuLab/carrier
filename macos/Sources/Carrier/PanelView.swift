@@ -387,6 +387,14 @@ struct PanelView: View {
                     .sharedBackgroundVisibility(.hidden)
                     ToolbarItem(placement: .primaryAction) { SubagentStatePill(header: open) }
                         .sharedBackgroundVisibility(.hidden)
+                    if open.canStop {
+                        ToolbarItem(placement: .primaryAction) {
+                            ToolbarPillButton(title: "Stop", icon: "stop.fill", iconTint: .red) { shell.perform(.conversation(.stopSubagent)) }
+                                .glassEffect(.regular, in: .capsule)
+                                .help("Stop this subagent; the main agent goes on")
+                        }
+                        .sharedBackgroundVisibility(.hidden)
+                    }
                 } else {
                     ToolbarItem(placement: .primaryAction) { SessionPlacePill(row: session) }
                         .sharedBackgroundVisibility(.hidden)

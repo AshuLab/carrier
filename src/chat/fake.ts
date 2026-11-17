@@ -42,6 +42,10 @@ export class FakeConversation implements ChatConversation {
     this.interrupts++;
     this.onInterrupt(this);
   }
+  stopped: string[] = [];
+  async stopTask(taskId: string) {
+    this.stopped.push(taskId);
+  }
   async setOption(id: string, value: string) {
     const option = this.options.find((o) => o.id === id);
     if (option) option.current = value;

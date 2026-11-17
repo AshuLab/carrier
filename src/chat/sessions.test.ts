@@ -651,6 +651,35 @@ test('two resumes of one closed session leave one live conversation', async () =
   expect(claude.conversations.map((c) => c.closed)).toEqual([true, false, true]); // the late one is closed
 });
 
+test('stopTask reaches the agent only for a task running in that session; an unknown session, a closed one, a task not running and an adapter without it are refused', async () => {
+  const { sessions, conversation, id, claude } = await openOne();
+  const started = (taskId: string, callId = `call-${taskId}`) => conversation.emit({ kind: 'task', callId, taskId, state: 'started', text: 'Explore' });
+  await expect(sessions.stopTask({ sessionId: '00000000-0000-4000-8000-000000000000', taskId: 'a' })).rejects.toThrow(ChatRefused);
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'a' })).rejects.toThrow('That subagent is not running');
+  started('a');
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'b' })).rejects.toThrow('That subagent is not running'); // another task's id
+  expect(conversation.stopped).toEqual([]);
+  expect(await sessions.stopTask({ sessionId: id, taskId: 'a' })).toEqual({});
+  expect(conversation.stopped).toEqual(['a']);
+
+  // a task that ended is not running; the SDK's own `stopped` ends it
+  conversation.emit({ kind: 'task', callId: 'call-a', taskId: 'a', state: 'stopped' });
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'a' })).rejects.toThrow('That subagent is not running');
+
+  // a task of one session is not running in another
+  await sessions.open({ agent: 'claude', folder: work });
+  const other = claude.conversations[1]!;
+  other.emit({ kind: 'task', callId: 'call-z', taskId: 'z', state: 'started' });
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'z' })).rejects.toThrow('That subagent is not running');
+
+  // an adapter with no stopTask (Codex) never has a task to stop
+  (conversation as { stopTask?: unknown }).stopTask = undefined;
+  started('c');
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'c' })).rejects.toThrow('This session cannot stop a subagent');
+  await sessions.close({ sessionId: id });
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'c' })).rejects.toThrow('This session is closed');
+});
+
 test('an interrupt ends the running turn as interrupted and the session takes the next message; with no turn it changes nothing', async () => {
   const { sessions, conversation, id, clock } = await openOne();
   expect(await sessions.interrupt({ sessionId: id })).toEqual({});

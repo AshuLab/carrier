@@ -76,6 +76,8 @@ export interface ChatConversation {
   send(text: string, command?: ChatCommand): void;
   answer(approvalId: string, choiceId: string, answers?: Record<string, string>): void;
   interrupt(): Promise<void>;
+  /** Ends one running subagent by the task id its `task` event carried; the end itself arrives as that task's `stopped` event. Absent when the provider has no subagents to stop. */
+  stopTask?(taskId: string): Promise<void>;
   setOption(id: string, value: string): Promise<void>;
   close(): Promise<void>;
   onEvent(listener: (event: ChatEvent) => void): void;

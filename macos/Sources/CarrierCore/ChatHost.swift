@@ -246,6 +246,9 @@ public protocol ChatHost {
     func send(_ id: String, _ text: String, command: String?) async throws
     /// Ends the turn that is in progress.
     func interrupt(_ id: String) async throws
+    /// Stops one running subagent, by the `taskId` of its `task` events, and not the turn; the subagent ends when its `stopped` event arrives,
+    /// not when this returns. The host refuses a task that is not running in that session. Only for a host whose hello lists `stopTask`.
+    func stopTask(_ id: String, task: String) async throws
     /// Passes the person's choice for a pending approval to the agent; the host refuses one that is not pending and a choice the provider did not list.
     func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws
 
@@ -269,6 +272,9 @@ extension ChatHost {
     public func answer(_ id: String, approval: String, choice: String) async throws {
         try await answer(id, approval: approval, choice: choice, answers: nil)
     }
+
+    /// A host that cannot stop a subagent refuses; the app only asks one that lists `stopTask`.
+    public func stopTask(_ id: String, task: String) async throws { throw ControlError.remote("the chat host does not support stopTask") }
 
     /// A host that cannot prepare a session from a plan has nothing to try again.
     public func retryPreparation(_ id: String) async throws { throw ControlError.remote("the chat host does not support retryPreparation") }
@@ -471,6 +477,12 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
         let _: AnyReply = try await Task.detached { try chatRequest(path, "interrupt", requires: .interrupt, fields: fields) }.value
+    }
+
+    public func stopTask(_ id: String, task: String) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"taskId\":" + jsonString(task)
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "stopTask", requires: .stopTask, fields: fields) }.value
     }
 
     /// Both ids go on the wire JSON-encoded, as they come from the provider.

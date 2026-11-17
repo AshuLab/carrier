@@ -114,8 +114,8 @@ class CodexConversation implements ChatConversation {
   private transport!: CodexTransport;
   private nextId = 1;
   private waiting = new Map<number, { resolve: (result: any) => void; reject: (error: Error) => void }>();
-  /** Approvals asked and not answered: the server's request id, and the decision each choice answers with. */
-  private pending = new Map<string, { requestId: number; decisions: Record<string, unknown> }>();
+  /** Approvals asked and not answered: the server's request id, the result each choice answers with, and the one that stops the call. */
+  private pending = new Map<string, { requestId: number; replies: Record<string, unknown>; cancel: unknown }>();
   /** The skills `skills/list` gave for the folder: what the person can invoke. */
   private skills: { name: string; description: string; shortDescription?: string; path: string }[] = [];
   private models: { model: string; displayName: string; defaultReasoningEffort?: string; supportedReasoningEfforts: { reasoningEffort: string }[] }[] = [];
@@ -135,6 +135,8 @@ class CodexConversation implements ChatConversation {
   private child: boolean;
   /** The key the chat MCP is registered under, when it was handed over: its elicitations are accepted for the person. */
   private mcpServerName: string | undefined;
+  /** The tools of the chat MCP that only read: they run without asking, and any other tool of it asks the person. */
+  private readTools: string[] = [];
   mcpProblem: string | undefined;
   appServerVersion: string | undefined;
   /** Called when the chat MCP reports that it started or failed, so `start` can stop waiting. */
@@ -153,8 +155,9 @@ class CodexConversation implements ChatConversation {
     this.sandbox = chosen.sandbox ?? 'workspace-write';
   }
 
-  async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp, instructions }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string } | undefined; instructions: string | undefined }) {
+  async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp, instructions }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string; readTools?: string[] } | undefined; instructions: string | undefined }) {
     this.mcpServerName = mcp?.serverName;
+    this.readTools = mcp?.readTools ?? [];
     this.limitWaitMs = deps.limitWaitMs ?? 2000;
     const settled = new Promise<void>((resolve) => (this.mcpSettled = resolve));
     this.transport = deps.spawn(this.binary, { cwd: folder, env, args: argsOf(launch) });
@@ -168,7 +171,8 @@ class CodexConversation implements ChatConversation {
     const params = { cwd: folder, approvalPolicy: this.approvalPolicy, sandbox: this.sandbox, ...(this.chosen.model && { model: this.chosen.model }),
       ...(instructions !== undefined && { developerInstructions: instructions }), // thread/start and thread/resume both take it
       // over the pipe, so that the token is in neither `argv` nor a config file
-      ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, default_tools_approval_mode: 'approve', http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
+      // `auto` leaves a tool that is not named under `tools` asking (and offering the session), the ones that read are approved
+      ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, default_tools_approval_mode: 'auto', ...(this.readTools.length > 0 && { tools: Object.fromEntries(this.readTools.map((name) => [name, { approval_mode: 'approve' }])) }), http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
     };
     const started = await this.request(resume === undefined ? 'thread/start' : 'thread/resume', resume === undefined ? params : { threadId: resume, ...params });
     this.nativeId = started.thread.id;
@@ -238,10 +242,10 @@ class CodexConversation implements ChatConversation {
   answer(approvalId: string, choiceId: string) {
     const ask = this.pending.get(approvalId);
     if (ask === undefined) throw new ChatRefused('That approval is not pending any more');
-    if (!(choiceId in ask.decisions)) throw new ChatRefused('That is not one of the choices');
+    if (!(choiceId in ask.replies)) throw new ChatRefused('That is not one of the choices');
     this.pending.delete(approvalId);
     this.emit({ kind: 'approval_answered', approvalId, choiceId });
-    this.respond(ask.requestId, { decision: ask.decisions[choiceId] });
+    this.respond(ask.requestId, ask.replies[choiceId]);
   }
 
   async interrupt() {
@@ -302,7 +306,7 @@ class CodexConversation implements ChatConversation {
   }
 
   private denyPending() {
-    for (const ask of this.pending.values()) this.respond(ask.requestId, { decision: 'cancel' });
+    for (const ask of this.pending.values()) this.respond(ask.requestId, ask.cancel);
     this.pending.clear();
   }
 
@@ -360,7 +364,7 @@ class CodexConversation implements ChatConversation {
 
   private serverRequest(requestId: number, method: string, params: any) {
     if (method === 'mcpServer/elicitation/request' && this.mcpServerName !== undefined && params?.serverName === this.mcpServerName) {
-      this.respond(requestId, { action: 'accept', content: {} }); // the person never answers for Carrier's own tools
+      this.elicitation(requestId, params);
       return;
     }
     if (method !== 'item/commandExecution/requestApproval') {
@@ -371,22 +375,51 @@ class CodexConversation implements ChatConversation {
     }
     const listed: unknown[] = Array.isArray(params?.availableDecisions) ? params.availableDecisions : [];
     const amendment = listed.find((d) => typeof d === 'object' && d !== null && 'acceptWithExecpolicyAmendment' in d);
-    const decisions: Record<string, unknown> = { accept: 'accept', decline: 'decline' }; // `decline` is not listed and works
+    const replies: Record<string, unknown> = { accept: { decision: 'accept' }, decline: { decision: 'decline' } }; // `decline` is not listed and works
     const choices: ChatChoice[] = [
       { id: 'accept', label: 'Allow', allow: true },
       { id: 'decline', label: 'Deny', allow: false },
     ];
     if (amendment !== undefined && !this.child) {
-      decisions.amend = amendment;
+      replies.amend = { decision: amendment };
       choices.push({ id: 'amend', label: `Always allow ${Array.isArray(params.proposedExecpolicyAmendment) ? params.proposedExecpolicyAmendment.join(' ') : 'this command'}`, allow: true });
     }
     if (listed.includes('cancel')) {
-      decisions.cancel = 'cancel';
+      replies.cancel = { decision: 'cancel' };
       choices.push({ id: 'cancel', label: 'Deny and stop the turn', allow: false });
     }
     const approvalId = String(requestId);
-    this.pending.set(approvalId, { requestId, decisions });
+    this.pending.set(approvalId, { requestId, replies, cancel: { decision: 'cancel' } });
     this.emit({ kind: 'approval', approvalId, tool: 'command', arg: typeof params?.command === 'string' ? params.command : undefined, choices });
+  }
+
+  /** A call of the chat MCP that is not approved up front: a tool that reads is accepted, any other asks the person, who may allow it for the session when Codex offers that. */
+  private elicitation(requestId: number, params: any) {
+    const tool = params?._meta?.tool_name;
+    if (typeof tool !== 'string') {
+      log.warn('codex asked about a tool of the chat MCP without naming it', { requestId });
+      this.respond(requestId, { action: 'decline' });
+      return;
+    }
+    if (this.readTools.includes(tool)) {
+      this.respond(requestId, { action: 'accept', content: {} });
+      return;
+    }
+    const input = params._meta.tool_params;
+    const hasInput = typeof input === 'object' && input !== null && !Array.isArray(input);
+    const replies: Record<string, unknown> = { accept: { action: 'accept', content: {} }, decline: { action: 'decline' } };
+    const choices: ChatChoice[] = [
+      { id: 'accept', label: 'Allow', allow: true },
+      { id: 'decline', label: 'Deny', allow: false },
+    ];
+    if (Array.isArray(params._meta.persist) && params._meta.persist.includes('session')) {
+      replies.session = { action: 'accept', content: {}, _meta: { persist: 'session' } };
+      choices.splice(1, 0, { id: 'session', label: 'Allow for this session', allow: true });
+    }
+    const approvalId = String(requestId);
+    this.pending.set(approvalId, { requestId, replies, cancel: { action: 'cancel' } });
+    // `tool` ends with the tool's name, which is what the host matches an approval by
+    this.emit({ kind: 'approval', approvalId, tool: `mcp__${this.mcpServerName}__${tool}`, ...(hasInput && { arg: JSON.stringify(input), input }), choices });
   }
 
   private translate(method: string, params: any): ChatEvent[] | Promise<ChatEvent[]> {

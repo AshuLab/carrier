@@ -92,7 +92,7 @@ function replay(lines: Line[]) {
 
 const deps = (transport: CodexTransport, over: Partial<CodexChatDeps> = {}): CodexChatDeps => ({ resolve: (command) => command ?? '/bin/codex', loggedIn: async () => true, spawn: () => transport, mcpWaitMs: 0, ...over });
 const mcp = { serverName: 'carrier-chat', url: 'http://127.0.0.1:1/mcp', token: 'secret-token' };
-const openWith = async (lines: Line[], args: { resume?: string; options?: Record<string, string>; mcp?: typeof mcp; instructions?: string; child?: boolean } = {}) => {
+const openWith = async (lines: Line[], args: { resume?: string; options?: Record<string, string>; mcp?: typeof mcp & { readTools?: string[] }; instructions?: string; child?: boolean } = {}) => {
   const { transport, seen } = replay(lines);
   const conversation = await codexChatRunner(deps(transport)).open({ folder: '/work', env: { A: 'b' }, ...args });
   const events: ChatEvent[] = [];
@@ -294,7 +294,7 @@ test('a line it does not know is ignored and never throws; a server request it d
 });
 
 test('the chat MCP rides in the config of thread/start and of thread/resume, and is left out when none was handed over', async () => {
-  const config = { 'mcp_servers.carrier-chat': { url: mcp.url, default_tools_approval_mode: 'approve', http_headers: { Authorization: 'Bearer secret-token' } } };
+  const config = { 'mcp_servers.carrier-chat': { url: mcp.url, default_tools_approval_mode: 'auto', http_headers: { Authorization: 'Bearer secret-token' } } };
   const started = await openWith(main, { mcp });
   expect(started.seen.written.find((m) => m.method === 'thread/start')!.params.config).toEqual(config);
   const again = await openWith(resumed, { resume: threadId, mcp });
@@ -315,10 +315,27 @@ test('instructions go as developerInstructions in thread/start and in thread/res
   expect(resumedWithout.seen.written.find((m) => m.method === 'thread/resume')!.params).not.toHaveProperty('developerInstructions');
 });
 
-test("the chat MCP's elicitations are accepted, id 0 included; another server's and every other unknown request get -32601", async () => {
-  const { seen, transport } = await openWith(main, { mcp });
+/** What the spike's scripted model made Codex ask: the elicitation for `ping_act` of the log, and the answers it was sent. */
+const spiked = (file: string) => readFileSync(join(import.meta.dirname, '../../docs/research/spike-switch-and-delegate/codex/logs', file), 'utf8').trimEnd().split('\n').map((line) => JSON.parse(line) as { kind: string; data: Line });
+const elicited = (file: string, tool: string): { ask: Line; answer: Line } => {
+  const lines = spiked(file);
+  const ask = lines.find((line) => line.kind === '<-' && line.data.params?._meta?.tool_name === tool)!.data;
+  const answer = lines.find((line) => line.kind === '->' && line.data.id === ask.id)!.data;
+  return { ask: { ...ask, id: 7 }, answer: answer.result };
+};
+
+test('the injected server asks by default and approves the tools that read by name, on thread/start and thread/resume', async () => {
+  const config = { 'mcp_servers.carrier-chat': { url: mcp.url, default_tools_approval_mode: 'auto', tools: { agents: { approval_mode: 'approve' }, history: { approval_mode: 'approve' } }, http_headers: { Authorization: 'Bearer secret-token' } } };
+  const withReads = { ...mcp, readTools: ['agents', 'history'] };
+  expect((await openWith(main, { mcp: withReads })).seen.written.find((m) => m.method === 'thread/start')!.params.config).toEqual(config);
+  expect((await openWith(resumed, { resume: threadId, mcp: withReads })).seen.written.find((m) => m.method === 'thread/resume')!.params.config).toEqual(config);
+});
+
+test("an elicitation for a tool that reads is accepted with no approval event; another server's and every other unknown request get -32601", async () => {
+  const { events, seen, transport } = await openWith(main, { mcp: { ...mcp, readTools: ['ping_read'] } });
   const before = seen.written.length;
-  transport.play({ id: 0, method: 'mcpServer/elicitation/request', params: { serverName: 'carrier-chat' } });
+  const read = elicited('b6-V3-persist-act-then-read.jsonl', 'ping_read');
+  transport.play({ ...read.ask, id: 0 });
   transport.play({ id: 5, method: 'mcpServer/elicitation/request', params: { serverName: 'other' } });
   transport.play({ id: 6, method: 'item/fileChange/requestApproval', params: { serverName: 'carrier-chat' } });
   expect(seen.written.slice(before)).toEqual([
@@ -326,6 +343,43 @@ test("the chat MCP's elicitations are accepted, id 0 included; another server's 
     { id: 5, error: { code: -32601, message: expect.any(String) } },
     { id: 6, error: { code: -32601, message: expect.any(String) } },
   ]);
+  expect(events.some((e) => e.kind === 'approval')).toBe(false);
+});
+
+test('an elicitation for another tool is an approval event with its input; each choice sends its response, the session one as the spike answered', async () => {
+  const withInput = (ask: Line) => ({ ...ask, params: { ...ask.params, _meta: { ...ask.params._meta, tool_name: 'delegate_start', tool_params: { agent: 'claude', task: 'Fix it' } } } });
+  const { ask, answer } = elicited('b6-V3-persist-act-then-read.jsonl', 'ping_act'); // offers persist: ['session', 'always']
+  const plain = { ...ask, params: { ...ask.params, _meta: { ...ask.params._meta, persist: undefined } } }; // an explicit `prompt` leaves the offer out
+  const choicesOf = async (play: Line) => {
+    const { conversation, events, seen, transport } = await openWith(main, { mcp: { ...mcp, readTools: ['ping_read'] } });
+    const before = seen.written.length;
+    transport.play(play);
+    const approval = events.find((e): e is Extract<ChatEvent, { kind: 'approval' }> => e.kind === 'approval')!;
+    return { approval, answerWith: (choice: string) => { conversation.answer(approval.approvalId, choice); return seen.written.slice(before); } };
+  };
+
+  const offered = await choicesOf(withInput(ask));
+  expect(offered.approval).toMatchObject({ tool: 'mcp__carrier-chat__delegate_start', input: { agent: 'claude', task: 'Fix it' }, choices: [{ id: 'accept', allow: true }, { id: 'session', allow: true }, { id: 'decline', allow: false }] });
+  expect(offered.approval.tool.endsWith('delegate_start')).toBe(true);
+  expect(offered.answerWith('session')).toEqual([{ id: 7, result: answer }]);
+  expect(answer).toEqual({ action: 'accept', content: {}, _meta: { persist: 'session' } });
+  expect((await choicesOf(withInput(ask))).answerWith('accept')).toEqual([{ id: 7, result: { action: 'accept', content: {} } }]);
+  expect((await choicesOf(withInput(ask))).answerWith('decline')).toEqual([{ id: 7, result: { action: 'decline' } }]);
+
+  const without = await choicesOf(withInput(plain));
+  expect(without.approval.choices.map((c) => c.id)).toEqual(['accept', 'decline']);
+  expect(() => without.answerWith('session')).toThrow('not one of the choices');
+  expect((await choicesOf(ask)).approval).toMatchObject({ tool: 'mcp__carrier-chat__ping_act', arg: '{}', input: {} }); // a recorded call of the spike
+});
+
+test('an elicitation that names no tool is declined, and one with no arguments carries no input', async () => {
+  const { events, seen, transport } = await openWith(main, { mcp });
+  const before = seen.written.length;
+  transport.play({ id: 3, method: 'mcpServer/elicitation/request', params: { serverName: 'carrier-chat' } });
+  transport.play({ id: 4, method: 'mcpServer/elicitation/request', params: { serverName: 'carrier-chat', _meta: { tool_name: 'delegate_start' } } });
+  expect(events.filter((e) => e.kind === 'approval')).toMatchObject([{ approvalId: '4', tool: 'mcp__carrier-chat__delegate_start' }]);
+  expect(events.find((e) => e.kind === 'approval')).not.toHaveProperty('input');
+  expect(seen.written.slice(before)).toEqual([{ id: 3, result: { action: 'decline' } }]);
 });
 
 test('an MCP call is a tool_start and a tool_end: arguments and output when there are, err when it failed', async () => {

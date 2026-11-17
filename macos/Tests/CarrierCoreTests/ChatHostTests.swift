@@ -30,6 +30,28 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(active.map(\.live) == [true, true, false, false])
     #expect(active.map { $0.workspace?.base } == [nil, nil, nil, "/Users/dev/work/web"])
     #expect(try await host.list(archived: true).map(\.archived) == [true, true])
+    // the parent carries its children and none of the other sessions has a parent or children
+    #expect(active.first?.children == [
+        ChatSession.Child(id: "0d1e2f3a-9b8c-4d54-8a7b-8b9c0d1e2f0b", agent: "codex", harness: "codex", state: .working, level: 1, needsPerson: false),
+        ChatSession.Child(id: "1e2f3a4b-0c9d-4e65-9b8c-9c0d1e2f3a0c", agent: "claude", harness: "claude", state: .waitingApproval, level: 0, needsPerson: true),
+    ])
+    #expect(active.compactMap(\.parentSessionId).isEmpty && active.dropFirst().allSatisfy { $0.children.isEmpty })
+}
+
+@Test func aSessionCarriesItsParentAndItsChildrenOrNone() throws {
+    func decode(_ extra: String) throws -> ChatSession {
+        let json = #"{"id":"a","agent":"claude","harness":"claude","folder":"/w","title":"t","state":"idle","createdAt":1,"lastActiveAt":2,"archived":false,"live":false\#(extra)}"#
+        return try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
+    }
+    let child = try decode(#","parentSessionId":"p1","children":[]"#)
+    #expect(child.parentSessionId == "p1" && child.children.isEmpty)
+    let parent = try decode(#","parentSessionId":null,"children":[{"id":"c1","agent":"codex","harness":"codex","state":"idle","level":2,"needsPerson":false}]"#)
+    #expect(parent.parentSessionId == nil && parent.children.map(\.id) == ["c1"] && parent.children.first?.level == 2)
+    // a host that says nothing of either
+    let older = try decode("")
+    #expect(older.parentSessionId == nil && older.children.isEmpty)
+    // a child whose level the host does not say
+    #expect(try decode(#","children":[{"id":"c1","agent":"a","harness":"claude","state":"working","needsPerson":false}]"#).children.first?.level == nil)
 }
 
 @Test func theHelloCarriesTheChatCapabilities() throws {

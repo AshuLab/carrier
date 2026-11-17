@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { FakeClock } from '../orchestration/fake.ts';
 import { capabilities } from './mcp/capabilities.ts';
 import { agents } from './mcp/agents.ts';
+import { delegateStart } from './mcp/delegate.ts';
 import { history } from './mcp/history.ts';
 import { defineTool, McpSessionRegistry, startMcpServer, type McpServer, type McpSessions, type StoredEvent } from './mcp.ts';
 import { ChatRefused } from './runner.ts';
@@ -16,6 +17,7 @@ let server: McpServer;
 let existing: Set<string>;
 let liveOnes: Set<string>;
 let seen: { args: unknown; ctx: unknown }[];
+let started: { parentId: string; args: unknown }[];
 
 const echo = defineTool({
   name: 'test_echo',
@@ -70,7 +72,8 @@ beforeEach(async () => {
   existing = new Set(['s1']);
   liveOnes = new Set(['s1']);
   seen = [];
-  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}) } });
+  started = [];
+  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), startChild: async (parentId, args) => (started.push({ parentId, args }), { childId: 'child-1' }) } });
 });
 afterEach(() => server.close());
 
@@ -196,10 +199,11 @@ test('notifications get 202 and no body, known or not', async () => {
   }
 });
 
-test('tools/list names every tool with its JSON schema', async () => {
+test('tools/list names the tools the token may use with their JSON schema, and leaves out the ones that act unless it has act', async () => {
   const token = issue();
   const { result } = await rpc(token, 'tools/list');
-  expect(result.tools.map((t: any) => t.name)).toEqual(tools.map((t) => t.name));
+  expect(result.tools.map((t: any) => t.name)).toEqual(tools.filter((t) => t.access !== 'actsAsSession').map((t) => t.name));
+  expect((await rpc(issue(['read', 'act']), 'tools/list')).result.tools.map((t: any) => t.name)).toEqual(tools.map((t) => t.name));
   expect(result.tools[0]).toMatchObject({ name: 'test_echo', description: 'Reads, for any token', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, additionalProperties: false } });
 });
 
@@ -270,7 +274,7 @@ test('capabilities is a readsAsSession tool that takes no arguments and answers 
   const own = await startMcpServer({
     registry,
     tools: [capabilities],
-    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}) },
+    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), startChild: async () => { throw new Error('not used'); } },
   });
   try {
     const token = issue();
@@ -313,6 +317,7 @@ const store: McpSessions = {
   health: async () => ({ git: 'ready', gh: 'ready', agents: [] }),
   storedEvents: (id, { after, kinds, limit }) => stored.filter((e) => e.sessionId === id && e.position > after && kinds.includes(e.kind)).slice(0, limit),
   storedEvent: (id, position, kinds) => stored.find((e) => e.sessionId === id && e.position === position && kinds.includes(e.kind)),
+  startChild: async () => { throw new Error('not used'); },
   toolStatuses: (_id, callIds) => Object.fromEntries(callIds.flatMap((c): [string, 'ok' | 'err'][] => (c === 'c1' ? [[c, 'ok']] : c === 'c3' ? [[c, 'err']] : []))),
 };
 
@@ -510,4 +515,41 @@ test('agents lists models and efforts from the probe only when asked, and says s
   expect(listed[2]).not.toHaveProperty('models');
   expect(JSON.stringify(listed)).not.toContain('secret');
   expect(listed[3]).toMatchObject({ name: 'gone', modelsUnavailable: expect.stringContaining('not found') });
+});
+
+test('delegate_start is an actsAsSession tool: a token without act can neither list nor call it, one with act starts a child for its own session and gets its id', async () => {
+  expect(delegateStart).toMatchObject({ name: 'delegate_start', access: 'actsAsSession' });
+  const withDelegate = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, startChild: async (parentId: string, args: unknown) => (started.push({ parentId, args }), { childId: 'child-1' }) } as any });
+  try {
+    const ask = async (token: string, method: string, params?: unknown) => (await (await fetch(withDelegate.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params !== undefined && { params }) }) })).json()) as any;
+    const delegate = (token: string, args: unknown) => ask(token, 'tools/call', { name: 'delegate_start', arguments: args });
+
+    expect((await ask(issue(['read']), 'tools/list')).result.tools).toEqual([]);
+    expect((await delegate(issue(['read']), { agent: 'codex', task: 'review' })).result).toMatchObject({ isError: true, content: [{ text: 'This session may not use this tool' }] });
+    expect(started).toEqual([]);
+
+    const token = issue(['read', 'act']);
+    const listed = (await ask(token, 'tools/list')).result.tools[0];
+    expect(listed).toMatchObject({ name: 'delegate_start', inputSchema: { required: ['agent', 'task'], additionalProperties: false } });
+    const answer = (await delegate(token, { agent: 'codex', task: 'review the diff', model: 'gpt-5', requestId: 'r1' })).result;
+    expect(answer).toEqual({ content: [{ type: 'text', text: '{"childId":"child-1"}' }], isError: false });
+    expect(started).toEqual([{ parentId: 's1', args: { agent: 'codex', task: 'review the diff', model: 'gpt-5', requestId: 'r1' } }]);
+
+    for (const args of [{ task: 'x' }, { agent: 'a' }, { agent: '', task: 'x' }, { agent: 'a', task: '' }, { agent: 'a'.repeat(101), task: 'x' }, { agent: 'a', task: 'x'.repeat(64_001) }, { agent: 'a', task: 'x', model: 'm'.repeat(101) }, { agent: 'a', task: 'x', requestId: '' }, { agent: 'a', task: 'x', requestId: 'r'.repeat(65) }, { agent: 'a', task: 'x', level: 2 }]) {
+      expect((await delegate(token, args)).result, JSON.stringify(args).slice(0, 60)).toMatchObject({ isError: true });
+    }
+    expect(started).toHaveLength(1);
+    expect((await delegate(token, { agent: 'a', task: 'x'.repeat(64_000), requestId: 'r'.repeat(64) })).result.isError).toBe(false);
+
+    // the words of a refusal reach the agent as they are
+    const refusing = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, startChild: async () => { throw new ChatRefused('This session already has 4 children'); } } as any });
+    try {
+      const refused = (await (await fetch(refusing.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'delegate_start', arguments: { agent: 'a', task: 'x' } } }) })).json()) as any;
+      expect(refused.result).toMatchObject({ isError: true, content: [{ text: 'This session already has 4 children' }] });
+    } finally {
+      await refusing.close();
+    }
+  } finally {
+    await withDelegate.close();
+  }
 });

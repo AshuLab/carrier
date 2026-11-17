@@ -96,7 +96,15 @@ export type McpSessions = {
   agents(): { name: string; harness: string; account: string; model?: string; found: boolean }[];
   /** The verdicts of the health check (kept thirty seconds); never starts an agent. */
   health(): Promise<Health>;
+  /** The stored events of a session of the given kinds with a position above `after`, oldest first, at most `limit`: the kind filters before the limit. A position is the event's id. */
+  storedEvents(sessionId: string, args: { after: number; kinds: string[]; limit: number }): StoredEvent[];
+  /** One stored event of that session and of one of those kinds, or none; an event of another session is none. */
+  storedEvent(sessionId: string, position: number, kinds: string[]): StoredEvent | undefined;
+  /** How the tool calls of that session with those ids ended, by call id; a call still running or unknown is absent. */
+  toolStatuses(sessionId: string, callIds: string[]): Record<string, 'ok' | 'err'>;
 };
+
+export type StoredEvent = { position: number; kind: string; data: Record<string, unknown> };
 
 export type McpServer = { url: string; close(): Promise<void> };
 

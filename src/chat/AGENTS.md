@@ -29,7 +29,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `mcp.ts`: the chat MCP ([ADR 0024](../../docs/adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)), a loopback HTTP server the host starts before `chat.sock`.
   `McpSessionRegistry`: a bearer token per live conversation, kept hashed in memory, revoked by `invocationId` when `sessions.ts` closes, loses or fails that conversation.
   `defineTool`: every tool declares its access level.
-  The toolkits are under `mcp/` (`capabilities` is the first); the adapters take the `mcp` argument of `ChatRunner.open`.
+  The toolkits are under `mcp/` (`capabilities` and `history`); the adapters take the `mcp` argument of `ChatRunner.open`.
 - `health.ts`: the `health` request (whether `git`, `gh` and each agent's CLI work and are signed in, as `ready`, `missing`, `signedOut` or `unknown`, only the verdicts; [spec](../../docs/specs/chat-host.md)).
 - `git.ts`: the port to the machine's git (`realGit` in production, `FakeGit` in `fake.ts`).
 - `workspace.ts`: what a folder is as a repository, and its fetch.

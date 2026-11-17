@@ -359,6 +359,18 @@ test('without the chat MCP (a probe, or a host that could not bind it) the SDK g
   expect(seen.options).not.toHaveProperty('allowedTools');
 });
 
+test('instructions are appended to the claude_code preset on a fresh open and on a resume, and without them the SDK gets no systemPrompt', async () => {
+  for (const resume of [undefined, sessionId]) {
+    const { query, seen } = replay([]);
+    await claudeChatRunner(deps(query)).open({ folder: '/work', env: {}, instructions: 'HANDOFF TEXT', ...(resume && { resume }) });
+    expect(seen.options.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code', append: 'HANDOFF TEXT' });
+    expect(seen.options.resume).toBe(resume);
+  }
+  const { query, seen } = replay([]);
+  await claudeChatRunner(deps(query)).open({ folder: '/work', env: {} });
+  expect(seen.options).not.toHaveProperty('systemPrompt');
+});
+
 test('a chat MCP the SDK reports as down is the conversation\'s mcpProblem, and open still succeeds; a connected or silent one is none', async () => {
   const open = async (servers?: { name: string; status: string; error?: string }[]) =>
     (await claudeChatRunner(deps(replay([], servers).query)).open({ folder: '/work', env: {}, mcp })).mcpProblem;

@@ -30,6 +30,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   `McpSessionRegistry`: a bearer token per live conversation, kept hashed in memory, revoked by `invocationId` when `sessions.ts` closes, loses or fails that conversation.
   `defineTool`: every tool declares its access level.
   The toolkits are under `mcp/` (`capabilities`, `history` and `agents`); the adapters take the `mcp` argument of `ChatRunner.open`.
+- `handoff.ts`: `buildHandoff`, the pure builder of a switched session's handoff from its stored events, 16,000 UTF-8 bytes on the whole text ([ADR 0032](../../docs/adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md)); it travels as `ChatRunner.open`'s `instructions`, which Claude appends to its preset system prompt and Codex sends as `developerInstructions`.
 - `levels.ts`: the permission scale as pure data (`levelOf`, `childOptions`), for the options a child may have ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)).
 - `health.ts`: the `health` request (whether `git`, `gh` and each agent's CLI work and are signed in, as `ready`, `missing`, `signedOut` or `unknown`, only the verdicts; [spec](../../docs/specs/chat-host.md)).
 - `git.ts`: the port to the machine's git (`realGit` in production, `FakeGit` in `fake.ts`).

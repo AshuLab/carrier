@@ -54,7 +54,7 @@ export const realClaudeDeps: ClaudeChatDeps = { query: sdkQuery, resolve: resolv
 
 export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, launch = {}, env, mcp }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env, mcp, instructions }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -66,7 +66,7 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
       const begin = async (from: string | undefined) => {
         const conversation = new ClaudeConversation(options, from);
         try {
-          await conversation.start(deps, { folder, binary, env, extraArgs, mcp });
+          await conversation.start(deps, { folder, binary, env, extraArgs, mcp, instructions });
         } catch (error) {
           await conversation.close();
           throw error;
@@ -132,7 +132,7 @@ class ClaudeConversation implements ChatConversation {
     this.effort = chosen.effort ?? '';
   }
 
-  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs, mcp }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null>; mcp?: { serverName: string; url: string; token: string } }) {
+  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs, mcp, instructions }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null>; mcp?: { serverName: string; url: string; token: string }; instructions?: string }) {
     const spawnOwn = deps.spawn && ((o: Parameters<NonNullable<ClaudeChatDeps['spawn']>>[0]) => {
       const child = deps.spawn!(o);
       this.pid = (child as { pid?: number }).pid;
@@ -154,6 +154,8 @@ class ClaudeConversation implements ChatConversation {
         ...(this.chosen.permissionMode && { permissionMode: this.chosen.permissionMode as never }),
         ...(this.chosen.effort && { effort: this.chosen.effort as never }),
         ...(this.nativeId && { resume: this.nativeId }),
+        // the system prompt stays Claude Code's own and the instructions are appended to it: a handoff in front of a command made the model run its skill itself
+        ...(instructions !== undefined && { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: instructions } }),
         // The SDK writes `mcpServers` into the `argv` of the claude process, where any user of the machine can read it, so the header names the token and the token itself rides in that process's environment (Claude Code expands `${VAR}` in these headers). Never in `extraArgs`, never in a config file; its tools run without asking, as the chat host's own.
         ...(mcp && {
           mcpServers: { [mcp.serverName]: { type: 'http' as const, url: mcp.url, headers: { Authorization: `Bearer \${${MCP_TOKEN_ENV}}` } } },

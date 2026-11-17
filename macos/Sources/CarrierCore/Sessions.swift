@@ -168,6 +168,11 @@ public struct SessionRow: Equatable {
     public var pullRequest: SessionPullRequest?
     /// What the agent waits for after its turn ended. The session is not idle while it has some: it is working, in the background.
     public var background: [BackgroundTask]
+    /// Where the lists place it while it works: the time its turn began, held still (`WorkingOrder`), and nil otherwise, when its last activity does.
+    public var orderedAt: Date?
+
+    /// What the lists order and bucket the session by.
+    public var sortedAt: Date { orderedAt ?? updatedAt }
 
     /// Whether the agent is busy: it works, or its turn ended and it waits for something it started. What shows as working, and what cannot be archived.
     public var isWorking: Bool { state == .working || (state != .waiting && background.isEmpty == false) }
@@ -185,7 +190,7 @@ public struct SessionRow: Equatable {
         id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil,
         folder: String = "", base: String? = nil, providers: [String] = [], titled: Bool = true, kept: Bool = false, deleteAt: Date? = nil,
         lastMessage: String? = nil, turns: Int = 0, model: String? = nil, reportsActivity: Bool = false, asleep: Bool = false, unread: Bool = false,
-        diff: SessionDiff? = nil, pullRequest: SessionPullRequest? = nil, background: [BackgroundTask] = []
+        diff: SessionDiff? = nil, pullRequest: SessionPullRequest? = nil, background: [BackgroundTask] = [], orderedAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -204,6 +209,31 @@ public struct SessionRow: Equatable {
         (self.lastMessage, self.turns, self.model, self.reportsActivity) = (lastMessage, turns, model, reportsActivity)
         (self.asleep, self.unread) = (asleep, unread)
         (self.diff, self.pullRequest, self.background) = (diff, pullRequest, background)
+        self.orderedAt = orderedAt
+    }
+}
+
+/// Holds still the place of the sessions that work. The host moves a session's last activity with every event of its agent, so two that work
+/// at once would swap places over and over in lists that put the newest first. While a session works (or waits for the person, or for what
+/// it started) its place is the time its turn began, as the app first saw it; when it stops it has its last activity again and takes its place
+/// once. The same start as `WorkingClock`'s.
+public struct WorkingOrder: Equatable {
+    private var began: [String: Date] = [:]
+
+    public init() {}
+
+    /// Sets `orderedAt` of the rows that work and forgets the sessions that stopped or went.
+    public mutating func apply(to rows: inout [SessionRow]) {
+        var next: [String: Date] = [:]
+        for index in rows.indices where rows[index].archived == false {
+            let id = rows[index].id
+            // a session that waits for the person keeps the place it had, and one that was never seen working has none to keep
+            guard rows[index].isWorking || (rows[index].state == .waiting && began[id] != nil) else { continue }
+            let start = began[id] ?? rows[index].updatedAt
+            next[id] = start
+            rows[index].orderedAt = start
+        }
+        began = next
     }
 }
 
@@ -275,7 +305,7 @@ func matching(_ rows: [SessionRow], _ query: String) -> [SessionRow] {
 }
 
 private func newestFirst(_ title: String, _ rows: [SessionRow]) -> SessionGroup? {
-    rows.isEmpty ? nil : SessionGroup(title: title, rows: rows.sorted { $0.updatedAt > $1.updatedAt })
+    rows.isEmpty ? nil : SessionGroup(title: title, rows: rows.sorted { $0.sortedAt > $1.sortedAt })
 }
 
 /// Today, Yesterday, Last 7 days and Older, counted from the start of today in `calendar`.
@@ -289,7 +319,7 @@ private func ageGroups(_ rows: [SessionRow], now: Date, calendar: Calendar) -> [
         ("Last 7 days", { $0 >= week && $0 < yesterday }),
         ("Older", { $0 < week }),
     ]
-    return buckets.compactMap { title, contains in newestFirst(title, rows.filter { contains($0.updatedAt) }) }
+    return buckets.compactMap { title, contains in newestFirst(title, rows.filter { contains($0.sortedAt) }) }
 }
 
 /// How many of the sessions are archived, for the Archive row of the sidebar.

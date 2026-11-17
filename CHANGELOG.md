@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The card that opens on a session's row says its state in the row's colours, its pull request and the lines it changed, and what the agent waits for in the background.
 - A session whose turn ended while the agent waits for a build, a monitor or a subagent shows as working (a cyan ring and its clock) and not as idle or "Done"; it can be stopped and cannot be archived until the tasks end. The turn the agent starts on its own when one of those tasks ends shows as working too, and not as idle.
 
+### Fixed
+
+- The sidebar no longer shuffles the sessions that work: with two of them at work their rows swapped places with every event of their agents. A session that works keeps the place it had when its turn began and takes its place once, when it stops.
+
 ### Changed
 
 - The rows of the sidebar have more room around their lines, and the branch is in monospace.

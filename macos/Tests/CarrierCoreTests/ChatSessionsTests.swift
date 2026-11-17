@@ -78,6 +78,64 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(waitingOnText([task("", kind: "monitor")]) == "Waiting on monitor")
 }
 
+@Test func twoSessionsThatWorkKeepTheirPlaceWhateverTheirAgentsDoAndTakeItOnceWhenTheyStop() {
+    let base = Date(timeIntervalSince1970: 1_000_000)
+    func row(_ id: String, _ state: SessionState, at seconds: Double, background: [BackgroundTask] = []) -> SessionRow {
+        SessionRow(id: id, title: id, workspace: "w", agent: "a", state: state, updatedAt: base.addingTimeInterval(seconds), background: background)
+    }
+    func order(_ rows: [SessionRow]) -> [String] { sessionGroups(rows).flatMap(\.rows).map(\.id) }
+    var keeper = WorkingOrder()
+
+    // A began first, B a minute later: B is on top
+    var rows = [row("a", .working, at: 0), row("b", .working, at: 60), row("c", .idle, at: -500)]
+    keeper.apply(to: &rows)
+    #expect(order(rows) == ["b", "a", "c"])
+    // their agents go on: A's last activity passes B's, and then B's passes A's, again and again. The lists do not move them
+    for tick in 1...4 {
+        var next = [row("a", .working, at: Double(100 + tick * 20 + (tick % 2 == 0 ? 10 : 0))), row("b", .working, at: Double(100 + tick * 20 + (tick % 2 == 0 ? 0 : 10))), row("c", .idle, at: -500)]
+        keeper.apply(to: &next)
+        #expect(order(next) == ["b", "a", "c"])
+    }
+    // A waits for the person: it keeps the place it had
+    var waiting = [row("a", .waiting, at: 400), row("b", .working, at: 380), row("c", .idle, at: -500)]
+    keeper.apply(to: &waiting)
+    #expect(order(waiting) == ["b", "a", "c"] && waiting[0].orderedAt == base)
+    // A finishes: it has its last activity again and takes its place once, on top
+    var done = [row("a", .idle, at: 420), row("b", .working, at: 410), row("c", .idle, at: -500)]
+    keeper.apply(to: &done)
+    #expect(order(done) == ["a", "b", "c"] && done[0].orderedAt == nil && done[1].orderedAt == base.addingTimeInterval(60))
+    // one that waits for what it started in the background works too, and a session first seen waiting has no place to keep
+    let task = [BackgroundTask(id: "t", kind: "local_bash", description: "pnpm build")]
+    var background = [row("a", .idle, at: 500, background: task), row("d", .waiting, at: 490)]
+    keeper.apply(to: &background)
+    #expect(background[0].orderedAt == base.addingTimeInterval(500) && background[1].orderedAt == nil)
+    // a session that went is forgotten: when it comes back working it begins again
+    var gone = [row("c", .idle, at: -500)]
+    keeper.apply(to: &gone)
+    var back = [row("a", .working, at: 900)]
+    keeper.apply(to: &back)
+    #expect(back[0].orderedAt == base.addingTimeInterval(900))
+}
+
+@Test func theListsOrderAndBucketASessionByItsPlaceWhileItWorks() {
+    let calendar = Calendar(identifier: .gregorian)
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let day: TimeInterval = 86_400
+    // it began ten days ago and its agent just spoke: by age it is not in Today, it is where it began, above the older one
+    var working = SessionRow(id: "w", title: "w", workspace: "a", agent: "a", state: .working, updatedAt: now, orderedAt: now.addingTimeInterval(-10 * day))
+    let idle = SessionRow(id: "i", title: "i", workspace: "b", agent: "a", state: .idle, updatedAt: now.addingTimeInterval(-12 * day))
+    let groups = sessionGroups([working, idle], by: .age, now: now, calendar: calendar)
+    #expect(groups.map(\.title) == ["Older"] && groups[0].rows.map(\.id) == ["w", "i"])
+    // without the place it has, its last activity puts it in Today
+    working.orderedAt = nil
+    #expect(sessionGroups([working, idle], by: .age, now: now, calendar: calendar).map(\.title) == ["Today", "Older"])
+    // and a search lists the active matches by the place too
+    working.orderedAt = now.addingTimeInterval(-100)
+    var other = idle
+    other.updatedAt = now.addingTimeInterval(-50)
+    #expect(sessionsPage([working, other], by: .age, query: "a", now: now).groups.first?.rows.map(\.id) == ["i", "w"])
+}
+
 @Test func aPullRequestSaysItsStateAndHowItsChecksWent() {
     func pr(_ state: PullRequestState, _ checks: PullRequestChecks? = nil) -> SessionPullRequest { SessionPullRequest(number: 412, url: "u", state: state, checks: checks) }
     #expect(pr(.draft).chipText == "#412 · draft" && pr(.draft).tone == .quiet)

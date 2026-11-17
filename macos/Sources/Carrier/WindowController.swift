@@ -36,6 +36,8 @@ import SwiftUI
     /// When the person last saw each session (`SessionSeen`), and the list as the host gave it, before `unread`.
     @ObservationIgnored private var seen = SessionSeen.stored()
     @ObservationIgnored private var hostRows: [SessionRow] = []
+    /// Holds the place of the sessions that work, so the lists do not move them with each event of their agents (`WorkingOrder`).
+    @ObservationIgnored private var workOrder = WorkingOrder()
 
     /// A new list from the host, on the main thread.
     func adopt(_ rows: [SessionRow]) {
@@ -56,6 +58,7 @@ import SwiftUI
         var viewing: String?
         if case .session(let id) = shell.selection { viewing = id }
         if seen.apply(to: &rows, viewing: viewing) { seen.store() }
+        workOrder.apply(to: &rows)
         // a session the person just archived is drawn archived before the host's list says so
         actions.settle(hostRows)
         let leaving = actions.archiving

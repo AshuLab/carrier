@@ -23,10 +23,8 @@ const recording = readFileSync(join(import.meta.dirname, '../../docs/research/ch
 const processes = recording.reduce<Line[][]>((all, line) => (line.host === 'recording' ? [...all, [line]] : (all.at(-1)!.push(line), all)), []);
 const models = processes[0]!.find((line) => line.host === 'initializationResult')!.models;
 // A turn ends at its `result`; what follows in the recording is the driver changing an option between turns.
-const segmentsOf = (lines: Line[]) =>
-  lines
-    .reduce<Segment[]>((all, line) => (line.host === 'sent' ? [...all, { text: line.text, lines: [] }] : (all.at(-1)?.lines.push(line), all)), [])
-    .map(({ text, lines }) => ({ text, lines: lines.slice(0, lines.findIndex((line) => line.type === 'result') + 1) }));
+const sentSegments = (lines: Line[]) => lines.reduce<Segment[]>((all, line) => (line.host === 'sent' ? [...all, { text: line.text, lines: [] }] : (all.at(-1)?.lines.push(line), all)), []);
+const segmentsOf = (lines: Line[]) => sentSegments(lines).map(({ text, lines }) => ({ text, lines: lines.slice(0, lines.findIndex((line) => line.type === 'result') + 1) }));
 const main = segmentsOf(processes[0]!);
 const resumed = segmentsOf(processes[1]!);
 const sessionId = recording.find((line) => line.host === 'sessionId')!.id as string;
@@ -429,4 +427,63 @@ test('the skills and commands the SDK lists are the conversation\'s commands, an
   const from = events.length;
   conversation.send('the diff', conversation.commands[0]);
   await vi.waitFor(() => expect(events.slice(from).some((e) => e.kind === 'turn_end')).toBe(true));
+});
+
+// The recording of a session with subagents (docs/research/chat-spike/claude-subagents.fixture.jsonl, read in docs/research/chat-subagents.md).
+// Unlike the conversation above, a segment here is whole: it runs to the next message sent, because a background subagent ends after the turn's
+// `result` and the SDK opens a turn of its own for it, with no message from the person.
+const subagentParts = readFileSync(join(import.meta.dirname, '../../docs/research/chat-spike/claude-subagents.fixture.jsonl'), 'utf8')
+  .trimEnd()
+  .split('\n')
+  .map((line) => JSON.parse(line) as Line)
+  .reduce<Line[][]>((all, line) => (line.host === 'recording' ? [...all, [line]] : (all.at(-1)!.push(line), all)), []);
+
+/** Plays each segment of a recording through the adapter, answering approvals as the recording did, and resolves with every event once `turns` turns have ended. */
+async function playWhole(segments: Segment[], turns: number) {
+  const { conversation, events } = await openWith(segments);
+  answering(conversation);
+  const ended = () => events.filter((e) => e.kind === 'turn_end').length;
+  let expected = 0;
+  for (const segment of segments) {
+    expected += segment.lines.filter((line) => line.type === 'result').length;
+    conversation.send(segment.text);
+    await vi.waitFor(() => expect(ended()).toBe(expected), { timeout: 5_000 });
+  }
+  expect(ended()).toBe(turns);
+  return events;
+}
+
+test('the recorded session with subagents loads: it has three subagents at once, a background one that ends after the turn, a nested one and a stopped one', async () => {
+  expect(subagentParts.map((part) => part[0]!.name)).toEqual(['subagents', 'forwardSubagentText']);
+  const whole = sentSegments(subagentParts[0]!);
+  expect(whole).toHaveLength(2);
+  const lines = subagentParts[0]!;
+  const started = lines.filter((line) => line.subtype === 'task_started' && line.task_type === 'local_agent');
+  expect(started.map((line) => [line.description, line.is_backgrounded, line.parent_task_id === undefined])).toEqual([
+    ['Count files', false, true],
+    ['Slow check', true, true],
+    ['Delegator', false, true],
+    ['Say hi', false, false],
+    ['Long wait', false, true],
+  ]);
+  // the background subagent's notification arrives after the first turn's `result`
+  expect(lines.findIndex((line) => line.type === 'result')).toBeLessThan(lines.findIndex((line) => line.subtype === 'task_notification' && line.task_id === started[1]!.task_id));
+
+  const events = await playWhole(whole, 3);
+  // as the adapter is today, a subagent's calls are the main thread's: every `Agent` call is a plain tool call and the stopped one ends with an error
+  const agentCalls = events.filter((e) => e.kind === 'tool_start' && e.tool === 'Agent');
+  expect(agentCalls).toHaveLength(5);
+  expect(new Set(agentCalls.map((e) => (e as { callId: string }).callId)).size).toBe(5);
+  expect(events.filter((e) => e.kind === 'tool_end' && e.tool === 'Agent' && e.status === 'err')).toEqual([
+    { kind: 'tool_end', callId: expect.any(String), tool: 'Agent', output: ['[Request interrupted by user for tool use]'], status: 'err' },
+  ]);
+  expect(events.filter((e) => e.kind === 'turn_end').map((e) => e.kind === 'turn_end' && e.outcome)).toEqual(['ok', 'ok', 'ok']);
+});
+
+test('the recorded session with subagent text forwarded loads: the subagents\' text reaches the adapter as the main agent\'s', async () => {
+  const lines = subagentParts[1]!;
+  expect(lines.filter((line) => line.type === 'assistant' && typeof line.parent_tool_use_id === 'string').length).toBeGreaterThan(0);
+  const events = await playWhole(sentSegments(lines), 1);
+  expect(events.filter((e) => e.kind === 'tool_start').map((e) => e.kind === 'tool_start' && e.tool)).toEqual(['Agent', 'Agent', 'Bash']);
+  expect(events.filter((e) => e.kind === 'assistant').length).toBeGreaterThan(1);
 });

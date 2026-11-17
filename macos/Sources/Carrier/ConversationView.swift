@@ -73,9 +73,14 @@ struct ConversationView: View {
                 }
             }
             .environment(\.openSubagent) { subagents.append($0) }
-            .onChange(of: subagents, initial: true) { _, stack in
+            .onChange(of: subagents, initial: true) { before, stack in
                 model.show(subagent: stack.last)
-                if stack.isEmpty == false { boxFocused = false }
+                if stack.isEmpty == false {
+                    boxFocused = false
+                } else if before.isEmpty == false {
+                    // back in the conversation the box is where the person goes on, as when the session opened (the box stays mounted under the subagent view, so its `onAppear` does not run again)
+                    boxFocused = true
+                }
             }
             .onChange(of: model.openSubagent?.header) { _, shown in header = shown }
     }

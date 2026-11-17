@@ -321,6 +321,11 @@ class ClaudeConversation implements ChatConversation {
     switch (m.type) {
       case 'system':
         if (m.subtype === 'init' && typeof m.permissionMode === 'string') this.mode = m.permissionMode;
+        // A `system/init` with no message sent is a turn the SDK opened itself (a background subagent ended): the adapter is in a turn until its `result`.
+        if (m.subtype === 'init' && !this.turning) {
+          this.turning = true;
+          return [{ kind: 'turn_start' }];
+        }
         if (m.subtype === 'init' && Array.isArray(m.terminal_slash_commands)) this.terminalOnly = new Set(m.terminal_slash_commands as string[]);
         if (m.subtype === 'status' && typeof m.permissionMode === 'string' && m.permissionMode !== this.mode) {
           this.mode = m.permissionMode;

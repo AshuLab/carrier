@@ -60,6 +60,7 @@ While the subagent runs, a Stop pill sits next to its state: it stops only that 
 The pill asks the host (`stopTask`) and the view says Stopped, as the row does, when the host's `stopped` event arrives and not before; it is not offered once the subagent ended or by a host that does not list `stopTask`.
 The message box's Stop, which shows while the session works, interrupts the turn and then asks the host to stop each subagent still running (a host that does not list `stopTask` gets only the interrupt); the rows say Stopped as the events arrive.
 Back leaves one level, and so does choosing another session or page.
+Back from the last level puts the cursor in the message box again, as when the session opened.
 The place of the message box holds "Subagent work is read-only." and a ‹ Back to chat button, so nothing can be typed to it.
 While it runs, its live line is the conversation's, for it; once it ended or its session stopped working, a call that never ended shows stopped.
 Once the run finishes, its summary counts MCP calls apart from other tools.

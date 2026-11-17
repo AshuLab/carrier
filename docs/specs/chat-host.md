@@ -18,7 +18,12 @@ A chat host: a process of its own with its own lock, its own control socket and 
 
 A client starts it on demand. `carrier chat` looks for a host on the socket and, finding none, starts `carrier chat-host` detached, the way `carrier start` starts the engine ([0010](../adr/0010-carrier-runs-in-the-background-as-a-detached-process.md)), and waits for the socket to answer. `chat-host` runs the host in the foreground and is also how it is debugged. The host starts with only the Carrier folder, `~/.carrier/` or `CARRIER_HOME`: no engine config is needed, and every key of `chat.json` has a default. Nothing starts a host but a client that wants a chat.
 
-A session is live while its agent process runs. With no client attached, an idle session is closed after one minute: its process ends, the session stays in the list and resumes by its id. A session that is working, or waiting for an approval, is kept live; one with a running subagent is working, even after its turn ended (the SDK runs subagents in the background), and is idle only when its turn is over and every subagent ended, so archive, delete and the idle close treat it as working. A session resumed after the host restarted has no running subagents. The host exits one minute after the last live session ended and the last client left, and `carrier chat --stop` closes every session and ends it at once. Each live session records its process id and its process group; the agent leads its own group, and when a host starts it sweeps the groups a dead host left behind, SIGTERM then SIGKILL, after checking the process is still the recorded command.
+A session is live while its agent process runs.
+With no client attached, an idle session is closed after one minute: its process ends, the session stays in the list and resumes by its id.
+A session that is working, or waiting for an approval, is kept live; one with a running subagent is working, even after its turn ended (the SDK runs subagents in the background), and is idle only when its turn is over and every subagent ended, so archive, delete and the idle close treat it as working.
+A session resumed after the host restarted has no running subagents.
+The host exits one minute after the last live session ended and the last client left, and `carrier chat --stop` closes every session and ends it at once.
+Each live session records its process id and its process group; the agent leads its own group, and when a host starts it sweeps the groups a dead host left behind, SIGTERM then SIGKILL, after checking the process is still the recorded command.
 
 ### The port and the adapters
 
@@ -124,6 +129,7 @@ type ChatEvent =
   | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; questions?: ChatQuestion[] }  // `questions` when the agent asks the person (Claude's AskUserQuestion): no `arg`, choices `allow` (send the answers) and `deny` (skip)
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }
+  | { kind: 'turn_start' }                                   // a turn the provider opened itself (a background subagent ended); the host's own, never stored
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
   | { kind: 'error'; text: string }
   | { kind: 'notice'; text: string; lostNativeId?: string };  // said by the host, never by an adapter: a plain line, not a failure

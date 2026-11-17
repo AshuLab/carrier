@@ -75,3 +75,14 @@ func aSliceCardsHeaderKeepsTheConversationHeadersHeightForEveryRoleAndState(widt
         }
     }
 }
+
+// A running lane whose start has not arrived (an agent id event before `task_started`) has no timer to show: not the time since 1970.
+@Test func aRunningSliceCardWithNoStartSaysRunningWithoutATimer() {
+    let lane = LaneSection(
+        id: "a", startId: 1, title: "Socket client", sliceTitle: "Socket client", state: .running, duration: nil, startedAt: nil, endedAt: nil,
+        resumes: 0, timeLabel: nil, counts: SessionCounts(calls: 1), items: [], slice: 653, laneNumber: 1, pullRequest: "no PR yet"
+    )
+    let header = SubagentHeader(lane: lane, role: "Builder", epic: "The epic")
+    #expect(header.startedAt == nil)
+    #expect(header.stateWords(now: 1_800_000_000_000) == "Running")
+}

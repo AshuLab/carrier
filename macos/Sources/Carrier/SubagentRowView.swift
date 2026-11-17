@@ -24,6 +24,9 @@ struct SubagentRowView: View {
         }
     }
 
+    /// "1 step", "3 steps": the row's words and the label that reads it aloud.
+    private var steps: String { "\(subagent.steps) \(subagent.steps == 1 ? "step" : "steps")" }
+
     private var line: some View {
         HStack(spacing: 9) {
             lead.frame(width: 16, height: 16)
@@ -32,7 +35,7 @@ struct SubagentRowView: View {
                 .layoutPriority(1)
             Text(subagent.words).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("\(subagent.steps) \(subagent.steps == 1 ? "step" : "steps")").font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+            Text(steps).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
             timer
             if open != nil { CardChevron(open: false, width: 9) }
         }
@@ -41,7 +44,7 @@ struct SubagentRowView: View {
         .frame(height: 30)
         .workCard()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(subagent.type) subagent, \(subagent.name), \(subagent.words), \(subagent.steps) steps")
+        .accessibilityLabel("\(subagent.type) subagent, \(subagent.name), \(subagent.words), \(steps)")
         .contentShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -70,7 +73,12 @@ struct SubagentRowView: View {
     }
 }
 
+private struct OpenSubagentKey: EnvironmentKey { static let defaultValue: ((String) -> Void)? = nil }
+
 extension EnvironmentValues {
     /// What tapping a subagent's row does, given the call that launched it; nil where a row is only shown.
-    @Entry var openSubagent: ((String) -> Void)?
+    var openSubagent: ((String) -> Void)? {
+        get { self[OpenSubagentKey.self] }
+        set { self[OpenSubagentKey.self] = newValue }
+    }
 }

@@ -56,6 +56,8 @@ export type ChatEvent =
   | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; /** Set when the approval is the agent asking questions: the person answers them with `answers`. */ questions?: ChatQuestion[] }
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; /** Question text to the answer; a multiple choice joins its picks with a comma. */ answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }
+  /** A turn the provider opened itself, with no message from the person (a background subagent ended and the SDK answers it). The host's own: never stored, never shown. */
+  | { kind: 'turn_start' }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
   | { kind: 'error'; text: string }
   | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string }; // said by the host, never by an adapter: a plain line, not a failure

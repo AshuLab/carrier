@@ -8,8 +8,8 @@ public struct SubagentHeader: Equatable {
     public let title: String
     public let type: String
     public let state: SubagentStatus
-    /// Milliseconds since the epoch.
-    public let startedAt: Int
+    /// Milliseconds since the epoch; nil for a slice card's lane whose start has not arrived.
+    public let startedAt: Int?
     /// How long it ran; nil while it runs.
     public let durationMs: Int?
     /// The epic's title when the subagent is a slice card's (its subtitle names the epic, and Stop is not offered); nil in a conversation.
@@ -19,14 +19,14 @@ public struct SubagentHeader: Equatable {
     /// Whether the host lists `stopTask`: set by the model, which knows the hello; an older host cannot stop a subagent.
     public var hostStops: Bool
 
-    public init(title: String, type: String, state: SubagentStatus, startedAt: Int, durationMs: Int?, epic: String? = nil, taskId: String? = nil, hostStops: Bool = false) {
+    public init(title: String, type: String, state: SubagentStatus, startedAt: Int?, durationMs: Int?, epic: String? = nil, taskId: String? = nil, hostStops: Bool = false) {
         (self.title, self.type, self.state, self.startedAt, self.durationMs, self.epic, self.taskId, self.hostStops) = (title, type, state, startedAt, durationMs, epic, taskId, hostStops)
     }
 
     /// A slice card's subagent: the slice's title, the role of the session it ran in (Builder, Reviewer) and the lane's own state.
     init(lane: LaneSection, role: String, epic: String) {
         let state: SubagentStatus = switch lane.state { case .running: .running; case .finished: .completed; case .failed: .failed }
-        self.init(title: lane.title, type: role, state: state, startedAt: lane.startedAt ?? 0, durationMs: state == .running ? nil : lane.duration, epic: epic)
+        self.init(title: lane.title, type: role, state: state, startedAt: lane.startedAt, durationMs: state == .running ? nil : lane.duration, epic: epic)
     }
 
     init(_ subagent: Subagent) {
@@ -42,10 +42,11 @@ public struct SubagentHeader: Equatable {
     /// The line under the title: "Explore · Subagent of Fix the login", or "Builder · <the epic's title>" for a slice card's.
     public func subtitle(of session: String) -> String { "\(type) · \(epic ?? "Subagent of \(session)")" }
 
-    /// The state pill: "Running 1m 11s" with the timer at `now`, "Finished · 42 s" with how long it took, "Failed" and "Stopped".
+    /// The state pill: "Running 1m 11s" with the timer at `now` ("Running" alone while its start is not known), "Finished · 42 s" with how long it
+    /// took, "Failed" and "Stopped".
     public func stateWords(now: Int) -> String {
         switch state {
-        case .running: "Running \(formatCallDuration(max(0, now - startedAt)))"
+        case .running: startedAt.map { "Running \(formatCallDuration(max(0, now - $0)))" } ?? "Running"
         case .completed: "Finished · \(formatCallDuration(durationMs ?? 0))"
         case .failed: "Failed"
         case .stopped: "Stopped"

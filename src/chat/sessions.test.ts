@@ -14,7 +14,7 @@ import { sessions as schemaSessions } from './schema.ts';
 import type { HealthProbes } from './health.ts';
 import { capabilities } from './mcp/capabilities.ts';
 import { McpSessionRegistry } from './mcp.ts';
-import { createSessions, type SessionAges } from './sessions.ts';
+import { createSessions, FOLLOW_UP_MS, type SessionAges } from './sessions.ts';
 
 let dir: string;
 let work: string;
@@ -692,7 +692,9 @@ test('a session works while a subagent runs, after its turn ended: idle only whe
   conversation.emit(task('a', 'completed'));
   expect(stateOf(s, id)).toBe('working'); // two tasks need both to end
   conversation.emit(task('b', 'failed'));
-  expect(stateOf(s, id)).toBe('idle');
+  expect(stateOf(s, id)).toBe('working'); // the SDK is about to open a turn of its own for it
+  await s.clock.advance(FOLLOW_UP_MS);
+  expect(stateOf(s, id)).toBe('idle'); // it opened none
 
   // a turn that ends with none is idle at once, and a task that ends inside its turn leaves the turn working
   conversation.reply = (_text, c) => c.emit(task('c', 'started'), task('c', 'stopped'), { kind: 'turn_end', outcome: 'ok' });
@@ -716,6 +718,7 @@ test('a task that outlives its interrupted turn keeps the session working until 
   expect(stateOf(s, id)).toBe('working');
   await s.sessions.stopTask({ sessionId: id, taskId: 'a' });
   conversation.emit(task('a', 'stopped'));
+  await s.clock.advance(FOLLOW_UP_MS);
   expect(stateOf(s, id)).toBe('idle');
 });
 
@@ -729,8 +732,44 @@ test('a session that works only because of a task is refused by archive and by d
   await s.clock.advance(10 * 60_000);
   expect(conversation.closed).toBe(false);
   conversation.emit(task('a', 'completed'));
-  await s.clock.advance(60_000); // idle now: the minute runs
+  await s.clock.advance(FOLLOW_UP_MS + 60_000); // idle after the wait for a follow-up turn: then the minute runs
   expect(conversation.closed).toBe(true);
+});
+
+// What the recording of docs/research/chat-spike/claude-subagents.fixture.jsonl does after the first turn's `result` (lines 222-275), as the adapter gives it.
+test('a background subagent that ends after the turn: the turn the SDK opens is recorded and the session works through it, without flickering idle', async () => {
+  const s = setup();
+  const { conversation, id } = await openOne(s);
+  s.clock.time = 1_000;
+  conversation.reply = (_text, c) => c.emit(task('slow', 'started'), { kind: 'turn_end', outcome: 'ok', usage: { input_tokens: 10 } });
+  s.sessions.send({ sessionId: id, text: 'launch it' });
+  expect(stateOf(s, id)).toBe('working');
+  expect(rows('chat_turns')).toHaveLength(1);
+
+  s.clock.time = 50_000;
+  conversation.emit(task('slow', 'completed'));
+  expect(stateOf(s, id)).toBe('working'); // `task_notification` (228) comes right before the SDK's own `system/init` (230)
+  conversation.emit({ kind: 'turn_start' });
+  expect(stateOf(s, id)).toBe('working');
+  await s.clock.advance(FOLLOW_UP_MS); // the wait for a follow-up turn is over, and this one is running
+  expect(stateOf(s, id)).toBe('working');
+  expect(() => s.sessions.send({ sessionId: id, text: 'meanwhile' })).toThrow('The agent is still answering');
+  conversation.emit({ kind: 'assistant', text: 'The slow check finished.' });
+  conversation.emit({ kind: 'turn_end', outcome: 'ok', usage: { input_tokens: 7 } }); // `result` (275)
+  expect(stateOf(s, id)).toBe('idle');
+  expect(rows('chat_turns')).toMatchObject([{ outcome: 'ok' }, { outcome: 'ok', usage: '{"input_tokens":7}' }]);
+  expect(rows('chat_turns')[1].startedAt).toBeGreaterThanOrEqual(50_000);
+  expect(s.sessions.events({ sessionId: id, limit: 20 }).events.map((e) => e.kind)).toEqual(['user', 'task', 'turn_end', 'task', 'assistant', 'turn_end']); // `turn_start` is the host's, not a line of the conversation
+});
+
+test('a turn the SDK opens by itself with no subagent running makes the session work until its end', async () => {
+  const s = setup();
+  const { conversation, id } = await openOne(s);
+  conversation.emit({ kind: 'turn_start' });
+  expect(stateOf(s, id)).toBe('working');
+  conversation.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(stateOf(s, id)).toBe('idle');
+  expect(rows('chat_turns')).toHaveLength(1);
 });
 
 test('a session resumed after the host restarted has no running tasks and is idle, whatever its stored events say', async () => {

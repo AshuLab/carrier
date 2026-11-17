@@ -27,6 +27,8 @@ import { checkout, fetchFolder, inspectFolder } from './workspace.ts';
 const log = createScopedLogger('chat');
 
 export const IDLE_CLOSE_MS = 60_000;
+/** How long a session whose last subagent just ended waits for the turn the SDK opens by itself (it follows at once) before it is idle. */
+export const FOLLOW_UP_MS = 3_000;
 
 const DAY = 86_400_000;
 /** The lifecycle's ages (ADR 0019), as `chat.json` gives them. */
@@ -61,6 +63,8 @@ type Live = {
   /** True while the `message` step of a preparation waits for the agent's first answer. */
   awaitingAnswer?: boolean;
   cancelIdle?: () => void;
+  /** Ends the wait for the turn the SDK opens after the last subagent ended (`FOLLOW_UP_MS`). */
+  cancelFollowUp?: () => void;
   /** The invocation its MCP token was issued for. */
   invocationId: string;
 };
@@ -206,6 +210,12 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       touch(sessionId, live, 'working');
     }
     if (event.kind === 'delta') return void (live.streaming += event.text);
+    if (event.kind === 'turn_start') {
+      // the SDK answers a subagent that ended after the turn did: no message opened this turn, so open it here, or its `turn_end` is dropped and the session shows idle while it runs
+      live.cancelFollowUp?.();
+      live.turn ??= { startedAt: clock.now(), toolCalls: 0 };
+      return touch(sessionId, live, 'working');
+    }
     if (event.kind === 'turn_end' && live.turn === undefined) return; // a turn already recorded (an interrupt, then the adapter's own end)
     if (event.kind === 'assistant' || event.kind === 'turn_end') live.streaming = '';
     store(sessionId, event);
@@ -217,7 +227,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       db.update(sessions).set({ options: { ...options, [event.id]: event.value } }).where(eq(sessions.id, sessionId)).run();
     }
     if (event.kind === 'task' && event.state === 'started') live.tasks.add(event.taskId);
-    if (event.kind === 'task' && ['completed', 'failed', 'stopped'].includes(event.state)) live.tasks.delete(event.taskId);
+    const lastEnded = event.kind === 'task' && ['completed', 'failed', 'stopped'].includes(event.state) && live.tasks.delete(event.taskId) && live.tasks.size === 0 && live.turn === undefined;
     if (event.kind === 'tool_start' && live.turn && event.parentCallId === undefined) live.turn.toolCalls++; // the turn's own calls, not its subagents'
     if (event.kind === 'turn_end') {
       const startedAt = live.turn?.startedAt ?? clock.now();
@@ -226,7 +236,15 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     }
     // The SDK runs subagents in the background, so a turn can end before them: the session is idle only when the turn is over and no task runs.
     const busy = live.turn !== undefined || live.tasks.size > 0;
-    const next = event.kind === 'turn_end' ? (busy ? 'working' : 'idle') : event.kind === 'task' ? (busy ? (live.state === 'idle' ? 'working' : live.state) : 'idle') : live.state;
+    // The last subagent ending after the turn did is followed by a turn the SDK opens itself (`turn_start`): the session stays working until that turn ends, and goes idle if the SDK opens none.
+    if (lastEnded) {
+      live.cancelFollowUp?.();
+      live.cancelFollowUp = clock.after(FOLLOW_UP_MS, async () => {
+        live.cancelFollowUp = undefined;
+        if (lives.get(sessionId) === live && live.turn === undefined && live.tasks.size === 0 && live.state === 'working') touch(sessionId, live, 'idle');
+      });
+    }
+    const next = event.kind === 'turn_end' ? (busy ? 'working' : 'idle') : event.kind === 'task' ? (busy || lastEnded ? (live.state === 'idle' ? 'working' : live.state) : 'idle') : live.state;
     touch(sessionId, live, event.kind === 'approval' ? 'waiting_approval' : event.kind === 'approval_answered' ? 'working' : next);
   };
 

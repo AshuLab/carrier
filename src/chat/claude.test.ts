@@ -560,6 +560,17 @@ test('the subagents of the recording are task events joined to their launching c
   expect(events.filter((e) => e.state === 'stopped')).toEqual([expect.objectContaining({ callId: 'toolu_01LfpGpsC55uPcp3MTLtLGwE', taskId: 'af0d8b127fea03930', state: 'stopped' })]);
 });
 
+test('a turn the SDK opens by itself after a background subagent ended starts with `turn_start` at its `system/init`; a turn a message opened gives none', async () => {
+  const events = await playWhole(sentSegments(subagentParts[0]!), 3);
+  const marks = events.filter((e) => e.kind === 'turn_start' || e.kind === 'turn_end').map((e) => e.kind);
+  // the first message's turn ends (222), then the SDK's own turn starts (230) and ends (275); the turns of the next messages (277, 356) are not announced
+  expect(marks.slice(0, 3)).toEqual(['turn_end', 'turn_start', 'turn_end']);
+  expect(marks.filter((kind) => kind === 'turn_start')).toHaveLength(1);
+  // it comes after the subagent's end (228) and before the reply of the turn it opens
+  const start = events.findIndex((e) => e.kind === 'turn_start');
+  expect(events[start - 1]).toMatchObject({ kind: 'task', state: 'completed' });
+});
+
 test('a field of the wrong type is left out of a task event and a shape the adapter does not know gives none and never throws', async () => {
   const end = main[0]!.lines.find((line) => line.type === 'result')!;
   const task = { type: 'system', session_id: 's', uuid: 'u' };

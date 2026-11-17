@@ -837,6 +837,8 @@ struct SidebarTabView: View {
     @AppStorage(SidebarStore.archiveSortKey) private var archiveSort = ArchiveSort.dateArchived
     @AppStorage(SidebarStore.showsIconKey) private var showsIcon = true
     @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
+    @AppStorage(SidebarStore.showsPullRequestKey) private var showsPullRequest = true
+    @AppStorage(SidebarStore.showsDiffKey) private var showsDiff = true
     @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
     @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
 
@@ -873,6 +875,12 @@ struct SidebarTabView: View {
                 }
                 SettingsTabRow(title: "Branch", detail: "Where the session works, the branch or the base folder") {
                     Toggle("Branch", isOn: $showsBranch).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Pull request", detail: "The pull request of the session's branch, with its state and how its checks went, on a third line") {
+                    Toggle("Pull request", isOn: $showsPullRequest).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Lines changed", detail: "How many lines the session added and removed, beside its pull request") {
+                    Toggle("Lines changed", isOn: $showsDiff).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(title: "Providers", detail: "The marks of the providers the session used") {
                     Toggle("Providers", isOn: $showsProviders).labelsHidden().toggleStyle(.switch)

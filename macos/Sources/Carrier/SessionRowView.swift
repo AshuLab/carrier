@@ -21,6 +21,8 @@ struct SessionRowView: View {
     @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
     @AppStorage(SidebarStore.showsIconKey) private var showsIcon = true
     @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
+    @AppStorage(SidebarStore.showsPullRequestKey) private var showsPullRequest = true
+    @AppStorage(SidebarStore.showsDiffKey) private var showsDiff = true
     @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
     @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
@@ -47,7 +49,7 @@ struct SessionRowView: View {
     private var content: SessionRowContent {
         SessionRowContent(
             row, showsWorkspace: showsWorkspace,
-            parts: SessionRowParts(icon: showsIcon, branch: showsBranch, providers: showsProviders, age: showsAge), now: Date()
+            parts: SessionRowParts(icon: showsIcon, branch: showsBranch, providers: showsProviders, age: showsAge, pullRequest: showsPullRequest, diff: showsDiff), now: Date()
         )
     }
 
@@ -129,7 +131,7 @@ struct SessionRowView: View {
     var body: some View {
         let content = content
         // the third line, with the pull request, only where the list has room for it and the session has one
-        let pullRequest = roomy ? row.pullRequest : nil
+        let pullRequest = roomy ? content.pullRequest : nil
         HStack(alignment: .top, spacing: SidebarMetrics.inset) {
             if content.showsIcon {
                 ProjectIcon(
@@ -153,8 +155,8 @@ struct SessionRowView: View {
                 .frame(height: Self.detailLine)
                 if let pullRequest {
                     HStack(spacing: 8) {
-                        SessionPullRequestChip(pr: pullRequest)
-                        if let diff = row.diff { DiffText(diff: diff) }
+                        if content.showsPullRequest { SessionPullRequestChip(pr: pullRequest) }
+                        if let diff = content.diff { DiffText(diff: diff) }
                         Spacer(minLength: 4)
                         ProviderMarks(names: content.providers)
                     }
@@ -202,7 +204,7 @@ struct SessionRowView: View {
         case nil: nil
         }
         let age = content.age == nil ? nil : spokenAge(row.updatedAt, now: Date())
-        let work: [String?] = roomy ? [row.pullRequest?.spoken, row.pullRequest == nil ? nil : row.diff.map { "\($0.added) lines added, \($0.removed) removed" }] : []
+        let work: [String?] = roomy && content.pullRequest != nil ? [content.showsPullRequest ? content.pullRequest?.spoken : nil, content.diff.map { "\($0.added) lines added, \($0.removed) removed" }] : []
         return ([row.title, state, row.workspace, place] + work + content.providers + [age]).compactMap { $0 }.joined(separator: ", ")
     }
 }

@@ -23,3 +23,27 @@ import Testing
     #expect(card.subtitle == "Waiting for you" && card.lastMessage == nil)
     #expect(card.facts == [.init(label: "Where", value: "Base folder")])
 }
+
+@Test func aPeekTintsTheStateAsTheRowDoesAndSaysItsPullRequestItsLinesAndWhatItWaitsFor() {
+    func peek(_ state: SessionState, unread: Bool = false, background: [BackgroundTask] = []) -> SessionPeek {
+        sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "claude", state: state, updatedAt: Date(), unread: unread, background: background), now: Date())
+    }
+    #expect(peek(.working).tone == .working && peek(.waiting).tone == .waiting && peek(.idle).tone == .quiet)
+    let done = peek(.idle, unread: true)
+    #expect(done.subtitle == "Done" && done.tone == .done)
+    let task = BackgroundTask(id: "b", kind: "local_bash", description: "pnpm build")
+    let waiting = peek(.idle, unread: true, background: [task])
+    #expect(waiting.subtitle == "Waiting on background work…" && waiting.tone == .background && waiting.background == [task])
+
+    var row = SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date(), branch: "fix/x", folder: "/srv/wt")
+    row.pullRequest = SessionPullRequest(number: 9, url: "https://github.com/o/r/pull/9", state: .draft)
+    row.diff = SessionDiff(added: 5, removed: 2)
+    let card = sessionPeek(row, now: Date())
+    #expect(card.pullRequest?.number == 9 && card.diff == SessionDiff(added: 5, removed: 2))
+    // a branch and a path are set in monospace
+    #expect(card.facts.map(\.monospaced) == [true, true])
+    // the card shows the lines changed even for a session with no pull request, which its row does not
+    row.pullRequest = nil
+    #expect(sessionPeek(row, now: Date()).diff != nil && sessionPeek(row, now: Date()).pullRequest == nil)
+    #expect(sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date()), now: Date()).facts.map(\.monospaced) == [false])
+}

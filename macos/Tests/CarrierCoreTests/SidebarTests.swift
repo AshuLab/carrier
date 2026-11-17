@@ -531,3 +531,26 @@ private func content(_ row: SessionRow = workRow, workspace: Bool = true, parts:
     #expect(store.open == .archive)
     #expect(defaults.object(forKey: AppPreferences.animatesKey) as? Bool == false)
 }
+
+@Test func theThirdLineIsForTheSessionsPullRequestAndFollowsItsTwoSwitches() {
+    var row = workRow
+    row.pullRequest = SessionPullRequest(number: 412, url: "https://github.com/AshuLab/carrier/pull/412", state: .open, checks: .passing)
+    row.diff = SessionDiff(added: 86, removed: 12)
+    let both = content(row)
+    #expect(both.pullRequest?.number == 412 && both.showsPullRequest && both.diff == SessionDiff(added: 86, removed: 12))
+    // the chip off: the line stays for the lines changed
+    let linesOnly = content(row, parts: SessionRowParts(pullRequest: false))
+    #expect(linesOnly.pullRequest != nil && linesOnly.showsPullRequest == false && linesOnly.diff != nil)
+    // the lines off: the line is the chip
+    let chipOnly = content(row, parts: SessionRowParts(diff: false))
+    #expect(chipOnly.pullRequest != nil && chipOnly.showsPullRequest && chipOnly.diff == nil)
+    // both off: two lines
+    #expect(content(row, parts: SessionRowParts(pullRequest: false, diff: false)).pullRequest == nil)
+    // only the lines on, and none read yet: nothing to say on a line of its own
+    row.diff = nil
+    #expect(content(row, parts: SessionRowParts(pullRequest: false)).pullRequest == nil)
+    // a session with no pull request has two lines, whatever the switches say
+    var bare = workRow
+    bare.diff = SessionDiff(added: 3, removed: 1)
+    #expect(content(bare).pullRequest == nil)
+}

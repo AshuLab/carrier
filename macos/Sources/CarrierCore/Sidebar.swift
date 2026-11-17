@@ -26,6 +26,8 @@ public struct SidebarStore {
     public static let showsBranchKey = "sidebar.row.branch"
     public static let showsProvidersKey = "sidebar.row.providers"
     public static let showsAgeKey = "sidebar.row.age"
+    public static let showsPullRequestKey = "sidebar.row.pullRequest"
+    public static let showsDiffKey = "sidebar.row.diff"
     private static let openKey = "sidebar.open"
     private static let slotsTotalKey = "sidebar.slotsTotal"
     public static let widthKey = "sidebar.width"
@@ -84,9 +86,12 @@ public struct SessionRowParts: Equatable {
     public var branch = true
     public var providers = true
     public var age = true
+    /// The third line: the pull request's chip, and the lines the session changed.
+    public var pullRequest = true
+    public var diff = true
 
-    public init(icon: Bool = true, branch: Bool = true, providers: Bool = true, age: Bool = true) {
-        (self.icon, self.branch, self.providers, self.age) = (icon, branch, providers, age)
+    public init(icon: Bool = true, branch: Bool = true, providers: Bool = true, age: Bool = true, pullRequest: Bool = true, diff: Bool = true) {
+        (self.icon, self.branch, self.providers, self.age, self.pullRequest, self.diff) = (icon, branch, providers, age, pullRequest, diff)
     }
 }
 
@@ -103,6 +108,11 @@ public struct SessionRowContent: Equatable {
     public var place: SessionPlace?
     public var age: String?
     public var providers: [String]
+    /// The pull request the third line is for: nil when the session has none or both of its parts are off, and then the row has two lines.
+    public var pullRequest: SessionPullRequest?
+    /// Whether the third line has the pull request's chip, and the lines changed it has (nil while switched off or not known).
+    public var showsPullRequest: Bool
+    public var diff: SessionDiff?
 
     public init(_ row: SessionRow, showsWorkspace: Bool, parts: SessionRowParts, now: Date) {
         showsIcon = parts.icon
@@ -110,6 +120,10 @@ public struct SessionRowContent: Equatable {
         place = parts.branch ? row.branch.map(SessionPlace.branch) ?? .baseFolder : nil
         age = parts.age ? timeText(row.updatedAt, now: now) : nil
         providers = parts.providers ? row.providers : []
+        // the lines changed go with a pull request, on the line that is its own: a session without one has two lines
+        pullRequest = parts.pullRequest || (parts.diff && row.diff != nil) ? row.pullRequest : nil
+        showsPullRequest = parts.pullRequest
+        diff = parts.diff ? row.diff : nil
     }
 }
 

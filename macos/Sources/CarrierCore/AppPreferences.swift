@@ -542,7 +542,7 @@ public struct AppPreferences {
         case .sidebar:
             [
                 SidebarStore.groupByKey, SidebarStore.sessionSortKey, SidebarStore.archiveSortKey, SidebarStore.archiveListSortKey, SidebarStore.showsIconKey,
-                SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey, SidebarStore.widthKey,
+                SidebarStore.showsBranchKey, SidebarStore.showsPullRequestKey, SidebarStore.showsDiffKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey, SidebarStore.widthKey,
             ]
         case .appearance:
             [

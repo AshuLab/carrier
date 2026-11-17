@@ -72,12 +72,26 @@ public struct ChatEvent: Codable, Equatable {
     /// A `step` event of a session's preparation: which step, and (in `status`, `running`, `done` or `failed`) how it stands; `detail` is the reason a step failed.
     public var step: String?
     public var detail: String?
+    /// The call that launched the subagent this event was made in; nil for the main agent's own. The main conversation does not draw an event that has one.
+    public var parentCallId: String?
+    /// A `task` event, the life of a subagent joined to its launching call by `callId`: `taskId` is what stopping it takes, `state` is
+    /// `started`, `progress`, `completed`, `failed` or `stopped`. Its title and step are in `text` and `lastTool`; `parentCallId` is the
+    /// call of the subagent that launched this one.
+    public var taskId: String?
+    public var state: String?
+    public var agentType: String?
+    public var lastTool: String?
+    public var tools: Int?
+    public var tokens: Int?
+    public var ms: Int?
+    public var background: Bool?
 
     public init(
         id: Int, at: Int, kind: String, text: String? = nil, callId: String? = nil, tool: String? = nil, arg: String? = nil, output: [String]? = nil,
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
         model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, questions: [ChatQuestion]? = nil,
-        answers: [String: String]? = nil
+        answers: [String: String]? = nil, parentCallId: String? = nil, taskId: String? = nil, state: String? = nil, agentType: String? = nil,
+        lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil
     ) {
         self.id = id
         self.at = at
@@ -98,6 +112,15 @@ public struct ChatEvent: Codable, Equatable {
         self.usage = usage
         self.step = step
         self.detail = detail
+        self.parentCallId = parentCallId
+        self.taskId = taskId
+        self.state = state
+        self.agentType = agentType
+        self.lastTool = lastTool
+        self.tools = tools
+        self.tokens = tokens
+        self.ms = ms
+        self.background = background
     }
 }
 
@@ -256,7 +279,8 @@ public struct ApprovalCard: Equatable {
 /// a line once answered, and a plain line when it is neither (the turn ended without it).
 /// A `reasoning` event is a thought of the run of calls it comes in (the host stores each block where the agent had it); one that comes
 /// before the first call of a run waits for it, and one with no call after it is a run of its own, before the message or the end of its
-/// turn: the agent's work is always above its answer. Anything else the host may add is not drawn.
+/// turn: the agent's work is always above its answer. An event made inside a subagent (`parentCallId`) is not drawn here, and neither is a `task`.
+/// Anything else the host may add is not drawn.
 public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set<String> = []) -> [FeedRow] {
     var rows: [FeedRow] = []
     // where each call still going is: its row and its place in it
@@ -271,6 +295,8 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
         held = []
     }
     for event in events {
+        // made inside a subagent: the main conversation does not draw it, and it is in no group's summary
+        if event.parentCallId != nil { continue }
         let id = "e\(event.id)"
         switch event.kind {
         case "reasoning":

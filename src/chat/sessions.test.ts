@@ -229,6 +229,22 @@ test('a conversation over several turns: events come in order after the cursor, 
   expect(sessions.list({}).sessions[0]).toMatchObject({ lastMessage: 'Hello there', turns: 1, model: 'haiku' });
 });
 
+test('what a subagent said is not the last words of the agent, and its calls are not the turn\'s', async () => {
+  const { sessions, conversation, id } = await openOne();
+  sessions.send({ sessionId: id, text: 'hi' });
+  conversation.emit(
+    { kind: 'assistant', text: 'Main words' },
+    { kind: 'tool_start', callId: 'c1', tool: 'Agent' },
+    { kind: 'tool_start', callId: 'c2', tool: 'Bash', parentCallId: 'c1' },
+    { kind: 'assistant', text: 'Subagent words', parentCallId: 'c1' },
+    { kind: 'turn_end', outcome: 'ok' },
+  );
+  expect(sessions.list({}).sessions[0]).toMatchObject({ lastMessage: 'Main words' });
+  const stored = sessions.events({ sessionId: id, limit: 50 }).events as Record<string, unknown>[];
+  expect(stored.filter((e) => e.kind === 'assistant').map((e) => [e.text, e.parentCallId])).toEqual([['Main words', undefined], ['Subagent words', 'c1']]);
+  expect(stored.find((e) => e.callId === 'c2')).toMatchObject({ parentCallId: 'c1' });
+});
+
 test('the list has the words of the agent on one line, cut, and nothing for a session it has not answered', async () => {
   const { sessions, conversation, id } = await openOne();
   expect(sessions.list({}).sessions[0]).toMatchObject({ lastMessage: null, turns: 0, model: null });

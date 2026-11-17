@@ -31,10 +31,28 @@ export type ChatUsage = Record<string, number>;
 
 export type ChatEvent =
   | { kind: 'user'; text: string; /** The name of the command invoked, when the message invoked one. */ command?: string }
-  | { kind: 'assistant'; text: string } // a finished message
-  | { kind: 'reasoning'; text: string } // one finished thinking block, before the answer of its turn; never streamed
+  // `parentCallId` is the call that launched the subagent the event was made in; absent for the main agent's own
+  | { kind: 'assistant'; text: string; parentCallId?: string } // a finished message
+  | { kind: 'reasoning'; text: string; parentCallId?: string } // one finished thinking block, before the answer of its turn; never streamed
   | { kind: 'delta'; text: string } // streaming, never stored
-  | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err' }
+  | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err'; parentCallId?: string }
+  // A subagent's life (a `local_agent` task of the provider), joined to its launching call by `callId`; `taskId` is what stopping it takes.
+  | {
+      kind: 'task';
+      callId: string;
+      taskId: string;
+      state: 'started' | 'progress' | 'completed' | 'failed' | 'stopped';
+      agentType?: string;
+      /** What the subagent was launched with (its title) or, in a progress event, what it is doing. */
+      text?: string;
+      lastTool?: string;
+      tools?: number;
+      tokens?: number;
+      ms?: number;
+      background?: boolean;
+      /** The call of the subagent that launched this one; absent for one the main agent launched. */
+      parentCallId?: string;
+    }
   | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; /** Set when the approval is the agent asking questions: the person answers them with `answers`. */ questions?: ChatQuestion[] }
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; /** Question text to the answer; a multiple choice joins its picks with a comma. */ answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }

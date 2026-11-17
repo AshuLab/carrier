@@ -1116,3 +1116,57 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
     let timer = thinking.liveTimer(now: 1_045_000, turnStart: 1_000_000)
     #expect(timer == LiveTimer(primaryMs: 45_000, turnMs: nil, slow: false))
 }
+
+// MARK: subagents
+
+/// A turn in which the main agent launches a subagent (its `Agent` call c1) that thinks, calls, answers and launches another (c3),
+/// while the main agent has a call of its own after it.
+private let subagentTurn: [ChatEvent] = [
+    ChatEvent(id: 1, at: 0, kind: "user", text: "Look into it"),
+    ChatEvent(id: 2, at: 100, kind: "tool_start", callId: "c1", tool: "Agent", arg: "{\"description\":\"Explore\"}"),
+    ChatEvent(id: 3, at: 110, kind: "task", text: "Explore", callId: "c1", taskId: "t1", state: "started", agentType: "Explore", background: false),
+    ChatEvent(id: 4, at: 200, kind: "reasoning", text: "Where is it?", parentCallId: "c1"),
+    ChatEvent(id: 5, at: 300, kind: "tool_start", callId: "s1", tool: "Read", arg: "a.ts", parentCallId: "c1"),
+    ChatEvent(id: 6, at: 400, kind: "tool_end", callId: "s1", tool: "Read", output: ["x"], status: "ok", parentCallId: "c1"),
+    ChatEvent(id: 7, at: 450, kind: "task", text: "Look inside", callId: "c3", parentCallId: "c1", taskId: "t2", state: "started", agentType: "general-purpose"),
+    ChatEvent(id: 8, at: 500, kind: "task", text: "Reading", callId: "c1", taskId: "t1", state: "progress", lastTool: "Read", tools: 1, tokens: 900, ms: 390),
+    ChatEvent(id: 9, at: 600, kind: "assistant", text: "Found it in a.ts", parentCallId: "c1"),
+    ChatEvent(id: 10, at: 700, kind: "task", callId: "c1", taskId: "t1", state: "completed", tools: 1, tokens: 1200, ms: 600),
+    ChatEvent(id: 11, at: 710, kind: "tool_end", callId: "c1", tool: "Agent", output: ["Found it"], status: "ok"),
+    ChatEvent(id: 12, at: 800, kind: "tool_start", callId: "m1", tool: "Bash", arg: "pnpm test"),
+    ChatEvent(id: 13, at: 900, kind: "tool_end", callId: "m1", tool: "Bash", output: ["ok"], status: "ok"),
+    ChatEvent(id: 14, at: 1000, kind: "assistant", text: "Done"),
+    ChatEvent(id: 15, at: 1100, kind: "turn_end", outcome: "ok", model: "claude-sonnet-5-5"),
+]
+
+@Test func theNewFieldsAreDecodedFromTheHostsEvents() throws {
+    let json = #"""
+    {"id":3,"at":1,"kind":"task","callId":"c1","taskId":"t1","state":"progress","agentType":"Explore","text":"Reading","lastTool":"Read","tools":2,"tokens":900,"ms":390,"background":true,"parentCallId":"c0"}
+    """#
+    let event = try JSONDecoder().decode(ChatEvent.self, from: Data(json.utf8))
+    #expect(event == ChatEvent(id: 3, at: 1, kind: "task", text: "Reading", callId: "c1", parentCallId: "c0", taskId: "t1", state: "progress", agentType: "Explore", lastTool: "Read", tools: 2, tokens: 900, ms: 390, background: true))
+    let call = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":4,"at":1,"kind":"tool_start","callId":"s1","tool":"Read","parentCallId":"c1"}"#.utf8))
+    #expect(call.parentCallId == "c1")
+    // an event of a host that predates it has none
+    #expect(try golden("tools").events.allSatisfy { $0.parentCallId == nil && $0.taskId == nil && $0.state == nil })
+}
+
+@Test func whatASubagentDidIsNotDrawnInTheMainConversationNorCountedInItsGroup() {
+    let rows = chatFeed(subagentTurn)
+    // the launching call is still drawn as today, with the main agent's own call in the same run
+    #expect(texts(rows) == ["user: Look into it", "tools: Worked | 1 command · 1 other tool", "agent: Done", "end: sonnet 5.5 · 1s"])
+    let run = group(rows)
+    #expect(run.calls.map(\.id) == ["c1", "m1"] && run.thoughts.isEmpty)
+}
+
+@Test func aPageThatStartsInsideASubagentDrawsNoOrphanForItsCallsAndTextNorItsEnds() {
+    let page = Array(subagentTurn[4...])
+    // the subagent's end of call and its text are not the main conversation's; what is the main agent's is drawn as it would be
+    #expect(texts(chatFeed(page)) == ["tools: Worked | 1 command · 1 other tool", "agent: Done", "end: sonnet 5.5"])
+}
+
+@Test func aFeedWithNoLinkEventsIsTheFeedItWasAndOneWithThemIsTheSameWithTheLinkedEventsRemoved() throws {
+    let before = chatFeed(try golden("tools").events)
+    #expect(before == chatFeed(try golden("tools").events.filter { $0.parentCallId == nil && $0.kind != "task" }))
+    #expect(chatFeed(subagentTurn) == chatFeed(subagentTurn.filter { $0.parentCallId == nil && $0.kind != "task" }))
+}

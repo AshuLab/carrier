@@ -470,7 +470,7 @@ test('the recorded session with subagents loads: it has three subagents at once,
   expect(lines.findIndex((line) => line.type === 'result')).toBeLessThan(lines.findIndex((line) => line.subtype === 'task_notification' && line.task_id === started[1]!.task_id));
 
   const events = await playWhole(whole, 3);
-  // as the adapter is today, a subagent's calls are the main thread's: every `Agent` call is a plain tool call and the stopped one ends with an error
+  // every `Agent` call is a call of the thread that made it; the stopped one ends with an error, and the main agent's call carries no parent
   const agentCalls = events.filter((e) => e.kind === 'tool_start' && e.tool === 'Agent');
   expect(agentCalls).toHaveLength(5);
   expect(new Set(agentCalls.map((e) => (e as { callId: string }).callId)).size).toBe(5);
@@ -480,10 +480,106 @@ test('the recorded session with subagents loads: it has three subagents at once,
   expect(events.filter((e) => e.kind === 'turn_end').map((e) => e.kind === 'turn_end' && e.outcome)).toEqual(['ok', 'ok', 'ok']);
 });
 
-test('the recorded session with subagent text forwarded loads: the subagents\' text reaches the adapter as the main agent\'s', async () => {
+/** What the recording says each message was made in, as the adapter's events should say it: [kind, call or text, the launching call or null]. */
+const madeIn = (lines: Line[]) =>
+  lines.flatMap((line): [string, string, string | null][] => {
+    const parent = typeof line.parent_tool_use_id === 'string' ? line.parent_tool_use_id : null;
+    const blocks = (line.type === 'assistant' || line.type === 'user') && Array.isArray(line.message?.content) ? (line.message.content as Line[]) : [];
+    return blocks.flatMap((block): [string, string, string | null][] => {
+      if (line.type === 'user') return block.type === 'tool_result' ? [['tool_end', block.tool_use_id, parent]] : [];
+      if (block.type === 'thinking') return block.thinking.trim() === '' ? [] : [['reasoning', block.thinking, parent]];
+      if (block.type === 'text') return block.text === '' ? [] : [['assistant', block.text, parent]];
+      return block.type === 'tool_use' ? [['tool_start', block.id, parent]] : [];
+    });
+  });
+const eventsMadeIn = (events: ChatEvent[]) =>
+  events.flatMap((e): [string, string, string | null][] =>
+    e.kind === 'assistant' || e.kind === 'reasoning' ? [[e.kind, e.text, e.parentCallId ?? null]] : e.kind === 'tool_start' || e.kind === 'tool_end' ? [[e.kind, e.callId, e.parentCallId ?? null]] : [],
+  );
+
+test('every message the recording made inside a subagent carries the call that launched it, and no main-agent message does', async () => {
+  for (const [part, turns] of [[0, 3], [1, 1]] as const) {
+    const lines = subagentParts[part]!;
+    const { conversation, events, seen } = await openWith(sentSegments(lines));
+    expect(seen.options).toMatchObject({ forwardSubagentText: true });
+    answering(conversation);
+    for (const segment of sentSegments(lines)) conversation.send(segment.text);
+    await vi.waitFor(() => expect(events.filter((e) => e.kind === 'turn_end')).toHaveLength(turns), { timeout: 5_000 });
+    const expected = madeIn(lines);
+    expect(eventsMadeIn(events)).toEqual(expected);
+    // the check is not vacuous: part 1 has main and subagent messages of every kind but thoughts, part 2 has all four kinds inside a subagent
+    const inside = (kind: string) => expected.some(([k, , parent]) => k === kind && parent !== null);
+    expect(['tool_start', 'tool_end', 'assistant'].every(inside)).toBe(true);
+    expect(expected.some(([, , parent]) => parent === null)).toBe(true);
+    if (part === 1) expect(inside('reasoning')).toBe(true);
+  }
+});
+
+test('a subagent\'s partial text gives no event, and the main message is the main agent\'s streamed text as before', async () => {
   const lines = subagentParts[1]!;
-  expect(lines.filter((line) => line.type === 'assistant' && typeof line.parent_tool_use_id === 'string').length).toBeGreaterThan(0);
-  const events = await playWhole(sentSegments(lines), 1);
-  expect(events.filter((e) => e.kind === 'tool_start').map((e) => e.kind === 'tool_start' && e.tool)).toEqual(['Agent', 'Agent', 'Bash']);
-  expect(events.filter((e) => e.kind === 'assistant').length).toBeGreaterThan(1);
+  const subagentWords = 'words only the subagent said';
+  const partial = (parent: string | null) => ({ type: 'stream_event', parent_tool_use_id: parent, session_id: 's', uuid: 'u', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: subagentWords } } });
+  const call = lines.find((line) => line.type === 'assistant' && line.parent_tool_use_id !== null && line.parent_tool_use_id !== undefined)!.parent_tool_use_id as string;
+  // the same recording with a subagent's partial before every message
+  const withPartials = lines.flatMap((line) => (line.type === 'assistant' ? [partial(call), line] : [line]));
+  const plain = await playWhole(sentSegments(lines), 1);
+  const injected = await playWhole(sentSegments(withPartials), 1);
+  const streamed = (events: ChatEvent[]) => events.filter((e) => e.kind === 'delta').map((e) => (e as { text: string }).text).join('');
+  expect(streamed(plain)).not.toBe('');
+  expect(streamed(injected)).toBe(streamed(plain));
+  expect(streamed(injected)).not.toContain(subagentWords);
+  expect(injected.filter((e) => e.kind === 'assistant' && e.parentCallId === undefined).some((e) => (e as { text: string }).text.includes(subagentWords))).toBe(false);
+  // a partial whose parent is empty or not a string is the main agent's own
+  const main = await playWhole(sentSegments(lines.flatMap((line) => (line.type === 'assistant' ? [partial(''), partial(7 as never), line] : [line]))), 1);
+  expect(streamed(main).split(subagentWords)).toHaveLength(2 * lines.filter((line) => line.type === 'assistant').length + 1);
+});
+
+test('the subagents of the recording are task events joined to their launching call, and a subagent\'s Bash command is not one', async () => {
+  const lines = subagentParts[0]!;
+  const events = (await playWhole(sentSegments(lines), 3)).filter((e) => e.kind === 'task');
+  const started = lines.filter((line) => line.subtype === 'task_started' && line.task_type === 'local_agent');
+  expect(events.filter((e) => e.state === 'started').map((e) => [e.text, e.callId, e.taskId, e.background, e.agentType])).toEqual(
+    started.map((line) => [line.description, line.tool_use_id, line.task_id, line.is_backgrounded, line.subagent_type]),
+  );
+  // every task event is of a subagent: the commands a subagent ran (`local_bash`) are not rows
+  const bash = lines.filter((line) => line.task_type === 'local_bash').map((line) => line.task_id);
+  expect(bash.length).toBeGreaterThan(0);
+  expect(events.some((e) => bash.includes(e.taskId))).toBe(false);
+  // a nested subagent is under the call of the one that launched it; the others have no parent
+  const delegator = started.find((line) => line.description === 'Delegator')!;
+  expect(events.filter((e) => e.state === 'started' && e.parentCallId !== undefined).map((e) => [e.text, e.parentCallId])).toEqual([['Say hi', delegator.tool_use_id]]);
+  // the step and the usage of a running one, from the recording's own `task_progress`
+  expect(events.find((e) => e.state === 'progress' && e.taskId === 'aea1aa9de8a2c258e')).toEqual({
+    kind: 'task', callId: 'toolu_019ekANdDSU9vdwH1qKqmNq1', taskId: 'aea1aa9de8a2c258e', state: 'progress', agentType: 'general-purpose', text: 'Running List entries in current working directory', lastTool: 'Bash', tools: 1, tokens: 15111, ms: 1239,
+  });
+  // the ends: three completed (one after the turn's result), one stopped
+  expect(events.filter((e) => e.state !== 'started' && e.state !== 'progress').map((e) => [e.taskId, e.state])).toEqual(
+    lines.filter((line) => line.subtype === 'task_notification' && started.some((s) => s.task_id === line.task_id)).map((line) => [line.task_id, line.status]),
+  );
+  expect(events.filter((e) => e.state === 'stopped')).toEqual([expect.objectContaining({ callId: 'toolu_01LfpGpsC55uPcp3MTLtLGwE', taskId: 'af0d8b127fea03930', state: 'stopped' })]);
+});
+
+test('a field of the wrong type is left out of a task event and a shape the adapter does not know gives none and never throws', async () => {
+  const end = main[0]!.lines.find((line) => line.type === 'result')!;
+  const task = { type: 'system', session_id: 's', uuid: 'u' };
+  const odd: Line[] = [
+    { ...task, subtype: 'task_started', task_id: 'a', tool_use_id: 'call-a', task_type: 'local_agent', description: 5, subagent_type: {}, is_backgrounded: 'yes', parent_task_id: 7, usage: 'lots' },
+    { ...task, subtype: 'task_progress', task_id: 'a', tool_use_id: 'call-a', description: 'step', last_tool_name: 4, usage: { total_tokens: '9', tool_uses: 2, duration_ms: null } },
+    { ...task, subtype: 'task_started', task_type: 'local_agent', tool_use_id: 'call-b', description: 'no task id' },
+    { ...task, subtype: 'task_started', task_id: 'c', task_type: 'local_agent', description: 'no call' },
+    { ...task, subtype: 'task_started', task_id: 'd', tool_use_id: 'call-d', description: 'no type' },
+    { ...task, subtype: 'task_progress', task_id: 'unknown', tool_use_id: 'call-u', description: 'never started' },
+    { ...task, subtype: 'task_notification', task_id: 'a', tool_use_id: 'call-a', status: 'exploded' },
+    { ...task, subtype: 'task_notification', task_id: 'a', tool_use_id: 'call-a', status: 'failed', usage: null },
+    { ...task, subtype: 'task_updated', task_id: 'a' },
+    { type: 'system', subtype: 'task_started' },
+    end,
+  ];
+  const { conversation, events } = await openWith([{ text: 'go', lines: odd }]);
+  const shown = await turn(conversation, events, 'go');
+  expect(shown.filter((e) => e.kind !== 'turn_end')).toEqual([
+    { kind: 'task', callId: 'call-a', taskId: 'a', state: 'started' },
+    { kind: 'task', callId: 'call-a', taskId: 'a', state: 'progress', text: 'step', tools: 2 },
+    { kind: 'task', callId: 'call-a', taskId: 'a', state: 'failed' },
+  ]);
 });

@@ -116,9 +116,10 @@ type ChatQuestion = { question: string; header: string; options: { label: string
 
 type ChatEvent =
   | { kind: 'user'; text: string }
-  | { kind: 'assistant'; text: string }                       // a finished message
+  | { kind: 'assistant' | 'reasoning'; text: string; parentCallId?: string }  // a finished message or thinking block; `parentCallId` is the call that launched the subagent it was made in, absent for the main agent's
   | { kind: 'delta'; text: string }                           // streaming, never stored
-  | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err' }
+  | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err'; parentCallId?: string }
+  | { kind: 'task'; callId: string; taskId: string; state: 'started' | 'progress' | 'completed' | 'failed' | 'stopped'; agentType?: string; text?: string; lastTool?: string; tools?: number; tokens?: number; ms?: number; background?: boolean; parentCallId?: string }  // a subagent's life, joined to its launching call by `callId`
   | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; questions?: ChatQuestion[] }  // `questions` when the agent asks the person (Claude's AskUserQuestion): no `arg`, choices `allow` (send the answers) and `deny` (skip)
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }

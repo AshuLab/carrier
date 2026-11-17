@@ -70,9 +70,9 @@ function replay(segments: Segment[], mcpServers?: { name: string; status: string
 }
 
 const deps = (query: typeof sdkQuery, over: Partial<ClaudeChatDeps> = {}): ClaudeChatDeps => ({ query, resolve: (command) => command ?? '/bin/claude', loggedIn: async () => true, ...over });
-const openWith = async (segments: Segment[], resume?: string, child = false) => {
+const openWith = async (segments: Segment[], resume?: string, child = false, mcp = false) => {
   const replayed = replay(segments);
-  const conversation = await claudeChatRunner(deps(replayed.query)).open({ folder: '/work', env: { A: 'b' }, ...(resume && { resume }), ...(child && { child }) });
+  const conversation = await claudeChatRunner(deps(replayed.query)).open({ folder: '/work', env: { A: 'b' }, ...(resume && { resume }), ...(child && { child }), ...(mcp && { mcp: { serverName: 'carrier-chat', url: 'http://127.0.0.1:1/mcp', token: 'token' } }) });
   const events: ChatEvent[] = [];
   conversation.onEvent((event) => events.push(event));
   return { conversation, events, ...replayed };
@@ -165,7 +165,7 @@ test('the approval of delegate_start carries its input and offers Allow, Deny an
   const cli = [{ type: 'addRules', behavior: 'allow', rules: [{ toolName: tool }], destination: 'localSettings' }];
   const asking = (suggestions: unknown): Segment => ({ ...main[0]!, lines: [{ host: 'canUseTool', toolName: tool, input, toolUseID: 'toolu_d', suggestions } as Line, ...main[0]!.lines] });
   const run = async (choice: string, child = false) => {
-    const { conversation, events, seen } = await openWith([asking(cli)], undefined, child);
+    const { conversation, events, seen } = await openWith([asking(cli)], undefined, child, true);
     conversation.onEvent((e) => e.kind === 'approval' && queueMicrotask(() => conversation.answer(e.approvalId, choice)));
     const played = await turn(conversation, events, main[0]!.text);
     return { approval: played.find((e) => e.kind === 'approval'), permission: seen.permissions[0] };

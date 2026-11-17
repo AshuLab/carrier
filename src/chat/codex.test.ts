@@ -537,12 +537,13 @@ const realText = realLimit[0]!.params.error.message as string;
 const window = (usedPercent: number, resetsAt: number | null) => ({ usedPercent, windowDurationMins: 300, resetsAt });
 
 /** A server that answers the handshake, and each turn with `notifications`; `limits` is what `account/rateLimits/read` does (`null`: it never answers). */
-async function limitTurn(notifications: Line[], limits: { result: Line } | { error: string } | null) {
+async function limitTurn(notifications: Line[], limits: { result: Line } | { error: string } | null, dieAfterMs?: number) {
   let listener: (line: string) => void = () => {};
+  let exited: () => void = () => {};
   const play = (message: Line) => listener(JSON.stringify(message));
   const transport: CodexTransport = {
     onLine: (l) => void (listener = l),
-    onExit: () => {},
+    onExit: (l) => void (exited = l),
     write(text) {
       const m = JSON.parse(text) as Line;
       if (m.id === undefined) return;
@@ -558,13 +559,16 @@ async function limitTurn(notifications: Line[], limits: { result: Line } | { err
         return;
       }
       play({ id: m.id, result: results[m.method] });
-      if (m.method === 'turn/start') queueMicrotask(() => notifications.forEach(play));
+      if (m.method === 'turn/start') {
+        queueMicrotask(() => notifications.forEach(play));
+        if (dieAfterMs !== undefined) setTimeout(() => exited(), dieAfterMs); // the process ends while the limits are being read
+      }
     },
   };
   const conversation = await codexChatRunner(deps(transport, { limitWaitMs: 50 })).open({ folder: '/work', env: {} });
   const events: ChatEvent[] = [];
   conversation.onEvent((event) => events.push(event));
-  return { events: (await turn(conversation, events, 'hi')).filter((e) => e.kind !== 'option'), conversation };
+  return { events: (await turn(conversation, events, 'hi')).filter((e) => e.kind !== 'option'), conversation, all: events };
 }
 
 test('the real usage limit is one error with its reason and the reset of the limits read, before the end of the turn', async () => {
@@ -595,6 +599,13 @@ test('a usage limit whose reset cannot be read says it with the error\'s own wor
       { kind: 'turn_end', outcome: 'error', model: 'gpt-fake', usage: {} },
     ]);
   }
+});
+
+test('a process that ends while the limits are being read ends the turn once: no late usage limit and no second end of turn', async () => {
+  const { events, all } = await limitTurn(realLimit, null, 10);
+  expect(events).toEqual([{ kind: 'error', text: 'The Codex process ended' }, { kind: 'turn_end', outcome: 'error', model: 'gpt-fake' }]);
+  await new Promise((resolve) => setTimeout(resolve, 120)); // past the wait for the limits
+  expect(all.filter((e) => e.kind === 'error' || e.kind === 'turn_end')).toHaveLength(2);
 });
 
 test('a rate limit Codex retries is no usage limit, and the failed turn that ran out of retries is not one either', async () => {

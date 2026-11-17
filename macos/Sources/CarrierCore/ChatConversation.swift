@@ -74,6 +74,12 @@ public struct ChatEvent: Codable, Equatable {
     public var detail: String?
     /// A `notice` that says the session changed agent: the agents as the host's config names them. Nil for any other event, and from a host that does not switch.
     public var switched: Switched?
+    /// An `error` the provider says is an account out of usage: `usage_limit`. Nil for any other error, and from a host that does not say.
+    public var reason: String?
+    /// When that limit resets, in milliseconds since the epoch, when the provider gives a timestamp; never set with `resetText`.
+    public var resetsAt: Int?
+    /// When that limit resets, in the provider's own words, when it gives only those.
+    public var resetText: String?
 
     /// The agents of a switch, as `chat.json` names them.
     public struct Switched: Codable, Equatable {
@@ -90,7 +96,7 @@ public struct ChatEvent: Codable, Equatable {
         id: Int, at: Int, kind: String, text: String? = nil, callId: String? = nil, tool: String? = nil, arg: String? = nil, output: [String]? = nil,
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
         model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, questions: [ChatQuestion]? = nil,
-        answers: [String: String]? = nil, switched: Switched? = nil
+        answers: [String: String]? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil
     ) {
         self.id = id
         self.at = at
@@ -112,6 +118,9 @@ public struct ChatEvent: Codable, Equatable {
         self.step = step
         self.detail = detail
         self.switched = switched
+        self.reason = reason
+        self.resetsAt = resetsAt
+        self.resetText = resetText
     }
 }
 

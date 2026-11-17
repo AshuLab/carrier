@@ -116,6 +116,8 @@ class ClaudeConversation implements ChatConversation {
   private input = inputQueue();
   private pending = new Map<string, { input: Record<string, unknown>; suggestions: PermissionUpdate[]; asking: boolean; resolve: (result: PermissionResult) => void }>();
   private tools = new Map<string, string>();
+  /** The name the chat MCP was injected under, so `delegate_start` is recognised as that server's tool and no other's. */
+  private mcpServerName: string | undefined;
   private turning = false;
   private interrupting = false;
   /** Turns that Carrier started itself (an `/effort` change) and the person must not see. */
@@ -174,6 +176,7 @@ class ClaudeConversation implements ChatConversation {
     const ready = await this.query.initializationResult();
     this.models = ready.models;
     this.slash = ready.commands ?? [];
+    this.mcpServerName = mcp?.serverName;
     // The reply of `initializationResult` carries no MCP verdict; `mcpServerStatus` does, and at once for a server that is down (checked against the real Claude Code). A status that cannot be read is no verdict: a broken MCP never blocks a chat.
     if (mcp) {
       try {
@@ -281,7 +284,7 @@ class ClaudeConversation implements ChatConversation {
 
   private ask(approvalId: string, tool: string, input: Record<string, unknown>, suggestions: PermissionUpdate[], title?: string): Promise<PermissionResult> {
     const questions = tool === 'AskUserQuestion' ? questionsOf(input) : undefined;
-    const delegation = tool.endsWith('delegate_start');
+    const delegation = this.mcpServerName !== undefined && tool === `mcp__${this.mcpServerName}__delegate_start`;
     // a child's approvals never change its mode, folders or rules: nothing raises it from inside
     if (this.child) suggestions = [];
     // the CLI's own suggestion for the tool writes an allow rule to the project's settings, which outlives the session: offer one for the session only

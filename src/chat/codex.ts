@@ -474,6 +474,7 @@ class CodexConversation implements ChatConversation {
         const announced = this.limit;
         return announced.then(() => {
           this.limit = undefined;
+          if (!this.turning) return []; // the process ended during the wait, and `ended` already closed the turn
           return this.turnEnd(params?.turn, true);
         });
       }
@@ -486,6 +487,7 @@ class CodexConversation implements ChatConversation {
   private async announceLimit(message: unknown) {
     const text = typeof message === 'string' && message !== '' ? message : 'The usage limit was reached';
     const resetsAt = await this.limitResetsAt();
+    if (!this.turning) return; // the process ended during the wait, and `ended` already closed the turn
     const resetText = resetsAt === undefined ? /\btry again at\b.*$/i.exec(text)?.[0].replace(/\.$/, '') : undefined;
     this.emit({ kind: 'error', text, reason: 'usage_limit', ...(resetsAt !== undefined && { resetsAt }), ...(resetText !== undefined && { resetText }) });
   }

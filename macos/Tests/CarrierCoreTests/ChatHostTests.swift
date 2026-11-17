@@ -409,6 +409,15 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(asked == false)
 }
 
+@Test func anErrorThatIsAUsageLimitCarriesItsReasonAndWhenItResetsAndAnyOtherErrorNone() throws {
+    let stamped = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":11,"at":1,"kind":"error","text":"You've hit your usage limit.","reason":"usage_limit","resetsAt":1795216260000}"#.utf8))
+    #expect(stamped.reason == "usage_limit" && stamped.resetsAt == 1_795_216_260_000 && stamped.resetText == nil)
+    let worded = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":12,"at":2,"kind":"error","text":"You've hit your usage limit.","reason":"usage_limit","resetText":"try again at Nov 20th, 2026 7:11 PM"}"#.utf8))
+    #expect(worded.reason == "usage_limit" && worded.resetsAt == nil && worded.resetText == "try again at Nov 20th, 2026 7:11 PM")
+    let plain = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":13,"at":3,"kind":"error","text":"The turn failed"}"#.utf8))
+    #expect(plain.reason == nil && plain.resetsAt == nil && plain.resetText == nil)
+}
+
 @Test func aNoticeThatSaysTheAgentChangedCarriesBothAgentsAndAnyOtherNoticeNone() throws {
     let switched = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":9,"at":1,"kind":"notice","text":"The agent changed from claude to codex.","switched":{"from":"claude","to":"codex"}}"#.utf8))
     #expect(switched.switched == ChatEvent.Switched(from: "claude", to: "codex"))

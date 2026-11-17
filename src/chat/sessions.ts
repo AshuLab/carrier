@@ -137,6 +137,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const deleting = new Set<string>();
   // Sessions switching agent: a marker of its own, so nothing that touches the session runs while the new conversation opens and the old one ends.
   const switching = new Set<string>();
+  // Children whose row exists and whose conversation is still opening, until each is attached or discarded: what a repeated call waits on, and what archive and delete refuse over.
+  const opening = new Map<string, Promise<void>>();
   const notSwitching = (sessionId: string) => {
     if (switching.has(sessionId)) throw new ChatRefused('This session is switching to another agent; try again in a moment');
   };
@@ -160,7 +162,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   /** A session aged with its children as one (ADR 0033): the latest activity of the family, live when any member is. */
   const familyClock = (found: { id: string; lastActiveAt: number }) => {
     const kids = db.select({ id: sessions.id, lastActiveAt: sessions.lastActiveAt }).from(sessions).where(eq(sessions.parentSessionId, found.id)).all();
-    return { lastActiveAt: Math.max(found.lastActiveAt, ...kids.map((kid) => kid.lastActiveAt)), live: [found, ...kids].some((member) => lives.has(member.id)) };
+    return { lastActiveAt: Math.max(found.lastActiveAt, ...kids.map((kid) => kid.lastActiveAt)), live: [found, ...kids].some((member) => lives.has(member.id) || opening.has(member.id)) };
   };
   const childrenOf = (parentId: string): ChildSummary[] =>
     db.select().from(sessions).where(eq(sessions.parentSessionId, parentId)).orderBy(asc(sessions.createdAt)).all().map((child) => ({
@@ -237,7 +239,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   }
 
   const onEvent = (sessionId: string, live: Live, event: ChatEvent) => {
-    if (event.kind === 'approval' && event.input !== undefined && event.tool.endsWith('delegate_start')) event = delegationApproval(sessionId, live, event);
+    if (event.kind === 'approval' && event.input !== undefined && event.tool === `mcp__${MCP_SERVER_NAME}__delegate_start`) event = delegationApproval(sessionId, live, event);
     // The first thing the agent does after the first message ends the `message` step: an answer, or an error that fails it.
     if (live.awaitingAnswer === true && event.kind !== 'option') {
       live.awaitingAnswer = false;
@@ -319,6 +321,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     notSwitching(sessionId);
     if (row(sessionId).state === 'preparing') throw new ChatRefused(`This session is being prepared; wait for it to finish, then ${verb} it`);
     const family = [sessionId, ...kidsOf(sessionId)];
+    if (family.some((id) => opening.has(id))) throw new ChatRefused(`A child of this session is starting; try again in a moment, then ${verb} it`);
     for (const id of family) {
       const state = lives.get(id)?.state;
       if (state !== undefined && state !== 'idle') throw new ChatRefused(`${id === sessionId ? 'This session' : 'A child of this session'} is ${state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} ${id === sessionId ? 'it' : 'the session'}`);
@@ -669,8 +672,13 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   async function startChild(parentId: string, { agent, task, model, requestId }: { agent: string; task: string; model?: string; requestId?: string }) {
     // a request id seen before is answered with its child, whatever else this call says, and before anything that could refuse it
     const earlier = () => (requestId === undefined ? undefined : db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.parentSessionId, parentId), eq(sessions.delegationRequestId, requestId))).get());
+    // a child still opening is answered once it has opened, or fails the same way the call that opens it does
+    const answer = async (childId: string) => {
+      await opening.get(childId);
+      return { childId };
+    };
     const seen = earlier();
-    if (seen !== undefined) return { childId: seen.id };
+    if (seen !== undefined) return answer(seen.id);
 
     const parent = row(parentId);
     const refused = delegationRefusalOf(parentId);
@@ -687,7 +695,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     // no await from here to the insert
     const again = earlier();
-    if (again !== undefined) return { childId: again.id };
+    if (again !== undefined) return answer(again.id);
     const current = row(parentId);
     if (deleting.has(parentId)) throw new ChatRefused('This session is being deleted');
     // the mode may have changed while the awaits above ran
@@ -707,21 +715,27 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     db.insert(sessions).values({ id: childId, agent: chosen.name, harness: launch.harness, folder: current.folder, options, title: titleOf(task), state: 'working', createdAt: now, lastActiveAt: now, parentSessionId: parentId, delegationRequestId: requestId ?? null }).run();
 
     const issued = issueMcp(childId, true);
-    let conversation: ChatConversation | undefined;
-    try {
-      conversation = await openConversation(launch, { folder, options, child: true, mcp: issued.args });
-      for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
-      if (!exists(parentId) || deleting.has(parentId)) throw new ChatRefused('The session that asked for this child no longer exists');
-      deliver(childId, attach(childId, conversation, issued.invocationId), task, task);
-    } catch (error) {
-      if (lives.has(childId)) await close({ sessionId: childId }); // attached, and the task could not be sent
-      else {
-        revoke(issued.invocationId);
-        await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
+    const open = (async () => {
+      let conversation: ChatConversation | undefined;
+      try {
+        conversation = await openConversation(launch, { folder, options, child: true, mcp: issued.args });
+        for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
+        if (!exists(parentId) || deleting.has(parentId) || row(parentId).archived) throw new ChatRefused('The session that asked for this child no longer exists');
+        deliver(childId, attach(childId, conversation, issued.invocationId), task, task);
+      } catch (error) {
+        if (lives.has(childId)) await close({ sessionId: childId }); // attached, and the task could not be sent
+        else {
+          revoke(issued.invocationId);
+          await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
+        }
+        discard(childId);
+        throw error;
+      } finally {
+        opening.delete(childId);
       }
-      discard(childId);
-      throw error;
-    }
+    })();
+    opening.set(childId, open); // still before any await: the open above has only run up to its first
+    await open;
     return { childId };
   }
 
@@ -821,6 +835,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
         if (mcp !== undefined && (mcp.url() === undefined || conversation.mcpProblem !== undefined)) throw new ChatRefused(`The agent "${agent}" could not get Carrier's own tools, so the session keeps "${current.agent}"`);
         if (!exists(sessionId) || deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
+        if (row(sessionId).archived) throw new ChatRefused('This session was archived meanwhile; restore it first, then switch its agent');
       } catch (error) {
         revoke(issued.invocationId);
         await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
@@ -1171,6 +1186,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     async applyClock({ archiveAfterDays, deleteAfterDays }: SessionAges) {
       const now = clock.now();
       for (const found of db.select().from(sessions).where(and(eq(sessions.archived, false), isNull(sessions.parentSessionId))).all()) {
+        if (switching.has(found.id)) continue; // a switch is opening its new conversation; the next pass looks again
         const { lastActiveAt, live } = familyClock(found);
         if (idleFor({ state: found.state, lastActiveAt }, live, now, archiveAfterDays)) db.update(sessions).set({ archived: true }).where(eq(sessions.id, found.id)).run();
       }

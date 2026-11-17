@@ -2159,6 +2159,70 @@ test('a parent that no longer exists once the child\'s conversation has opened g
   expect(s.claude.conversations.at(-1)!.closed).toBe(true);
 });
 
+/** A child's conversation that opens only when released. */
+function gatedOpen(s: ReturnType<typeof delegation>) {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = s.claude.open.bind(s.claude);
+  s.claude.open = async (args) => {
+    const conversation = await open(args);
+    if (args.child === true) await gate; // the probe of the models opens one too, and is not held
+    return conversation;
+  };
+  return release;
+}
+
+test('a repeated requestId that arrives while the child opens waits for it, and is answered with its id only once it is attached', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const release = gatedOpen(s);
+  const first = s.start(parent.id, 'edit', 'x', { requestId: 'r1' });
+  await vi.waitFor(() => expect(s.children()).toHaveLength(1));
+  let answered = false;
+  const second = s.start(parent.id, 'edit', 'x', { requestId: 'r1' }).then((answer) => ((answered = true), answer));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(answered).toBe(false); // the row exists, the conversation does not
+  release();
+  const [a, b] = await Promise.all([first, second]);
+  expect(a).toEqual(b);
+  expect(s.sessions.mcpView.live(a.childId)).toBe(true);
+});
+
+test('a repeated requestId that arrives while the child opens fails with it when the open fails, and never answers an id that was discarded', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  s.claude.refuseWith = 'claude is not logged in';
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = s.claude.open.bind(s.claude);
+  s.claude.open = async (args) => {
+    await gate;
+    return open(args);
+  };
+  const first = s.start(parent.id, 'edit', 'x', { requestId: 'r1' });
+  await vi.waitFor(() => expect(s.children()).toHaveLength(1));
+  const second = s.start(parent.id, 'edit', 'x', { requestId: 'r1' });
+  release();
+  await expect(first).rejects.toThrow('claude is not logged in');
+  await expect(second).rejects.toThrow('claude is not logged in');
+  expect(s.children()).toEqual([]);
+});
+
+test('a parent is not archived or deleted while a child is still opening, and the clock counts that child as live', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const release = gatedOpen(s);
+  const pending = s.start(parent.id, 'edit', 'x');
+  await vi.waitFor(() => expect(s.children()).toHaveLength(1));
+  await expect(s.sessions.archive({ sessionId: parent.id, archived: true })).rejects.toThrow(/A child of this session is starting.*archive it/);
+  await expect(s.sessions.delete({ sessionId: parent.id })).rejects.toThrow(/A child of this session is starting.*delete it/);
+  release();
+  const { childId } = await pending;
+  expect(rows('sessions').find((found) => found.id === parent.id)!.archived).toBe(0);
+  expect(s.sessions.mcpView.live(childId)).toBe(true);
+  await expect(s.sessions.archive({ sessionId: parent.id, archived: true })).rejects.toThrow(/A child of this session is working/); // once opened, the usual refusal
+});
+
 test('each refusal of delegate_start answers with words and leaves nothing behind', async () => {
   const s = delegation();
   const parent = await s.parent();

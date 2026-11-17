@@ -133,7 +133,7 @@ describe.skipIf(!enabled)('the Claude chat adapter against the real Claude', () 
     const token = registry.issue({ sessionId: 's1', invocationId: 'i1' });
     const argvs: string[] = [];
     const runner = claudeChatRunner({ ...realClaudeDeps, spawn: (o) => (argvs.push(o.args.join(' ')), realClaudeDeps.spawn!(o)) });
-    const own = await runner.open({ folder, command: process.env.CARRIER_IT_CLAUDE_COMMAND, options: { model: 'haiku', permissionMode: 'default' }, env: process.env, mcp: { serverName: 'carrier-chat', url: server.url, token } });
+    const own = await runner.open({ folder, command: process.env.CARRIER_IT_CLAUDE_COMMAND, options: { model: 'haiku', permissionMode: 'default' }, env: process.env, mcp: { serverName: 'carrier-chat', url: server.url, token, readTools: ['capabilities'] } });
     const events: ChatEvent[] = [];
     own.onEvent((event) => events.push(event));
     try {

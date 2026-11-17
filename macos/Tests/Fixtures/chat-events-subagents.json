@@ -1,0 +1,28 @@
+{
+  "sessionId": "a7b8c9d0-6e5f-4a21-9c4d-5e6f7a8b9c07",
+  "events": [
+    { "id": 1, "at": 1791960000000, "kind": "user", "text": "Look into how the chat shows tool calls, in three places at once." },
+    { "id": 2, "at": 1791960001000, "kind": "reasoning", "text": "Three independent questions: the adapter, the app and the models. I will launch one subagent for each." },
+    { "id": 3, "at": 1791960002000, "kind": "tool_start", "callId": "a1", "tool": "Agent", "arg": "{\"description\":\"Find subagent code in chat host\",\"subagent_type\":\"Explore\"}" },
+    { "id": 4, "at": 1791960002100, "kind": "task", "callId": "a1", "taskId": "t1", "state": "started", "agentType": "Explore", "text": "Find subagent code in chat host", "background": true },
+    { "id": 5, "at": 1791960002200, "kind": "tool_start", "callId": "a2", "tool": "Agent", "arg": "{\"description\":\"Map macOS tool rendering\",\"subagent_type\":\"general-purpose\"}" },
+    { "id": 6, "at": 1791960002300, "kind": "task", "callId": "a2", "taskId": "t2", "state": "started", "agentType": "general-purpose", "text": "Map macOS tool rendering", "background": true },
+    { "id": 7, "at": 1791960002400, "kind": "tool_start", "callId": "a3", "tool": "Agent", "arg": "{\"description\":\"Check the Swift model and a very long title that the row has to cut instead of wrapping it onto a second line\",\"subagent_type\":\"Explore\"}" },
+    { "id": 8, "at": 1791960002500, "kind": "task", "callId": "a3", "taskId": "t3", "state": "started", "agentType": "Explore", "text": "Check the Swift model and a very long title that the row has to cut instead of wrapping it onto a second line", "background": true },
+    { "id": 9, "at": 1791960002600, "kind": "tool_end", "callId": "a1", "tool": "Agent", "status": "ok", "output": ["Async agent launched successfully."] },
+    { "id": 10, "at": 1791960002700, "kind": "tool_end", "callId": "a2", "tool": "Agent", "status": "ok", "output": ["Async agent launched successfully."] },
+    { "id": 11, "at": 1791960002800, "kind": "tool_end", "callId": "a3", "tool": "Agent", "status": "ok", "output": ["Async agent launched successfully."] },
+    { "id": 12, "at": 1791960003000, "kind": "tool_start", "callId": "s1", "tool": "Grep", "arg": "parent_tool_use_id", "parentCallId": "a1" },
+    { "id": 13, "at": 1791960003500, "kind": "tool_end", "callId": "s1", "tool": "Grep", "status": "ok", "output": ["src/chat/claude.ts:212"], "parentCallId": "a1" },
+    { "id": 14, "at": 1791960003600, "kind": "tool_start", "callId": "s2", "tool": "Read", "arg": "ChatToolGroups.swift", "parentCallId": "a2" },
+    { "id": 15, "at": 1791960004000, "kind": "tool_end", "callId": "s2", "tool": "Read", "status": "ok", "output": ["import Foundation"], "parentCallId": "a2" },
+    { "id": 16, "at": 1791960004100, "kind": "task", "callId": "a2", "taskId": "t2", "state": "progress", "text": "Reading ChatToolGroups.swift", "lastTool": "Read", "tools": 1, "tokens": 800, "ms": 2000 },
+    { "id": 17, "at": 1791960004500, "kind": "task", "callId": "a2", "taskId": "t2", "state": "completed", "tools": 1, "tokens": 1200, "ms": 4700 },
+    { "id": 18, "at": 1791960005000, "kind": "assistant", "text": "Three subagents are looking. I will wait for them." },
+    { "id": 19, "at": 1791960006000, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": {} },
+    { "id": 20, "at": 1791960008000, "kind": "assistant", "text": "translate() never reads parent_tool_use_id.", "parentCallId": "a1" },
+    { "id": 21, "at": 1791960009000, "kind": "task", "callId": "a1", "taskId": "t1", "state": "completed", "tools": 1, "tokens": 2100, "ms": 7000 }
+  ],
+  "cursor": 21,
+  "streaming": ""
+}

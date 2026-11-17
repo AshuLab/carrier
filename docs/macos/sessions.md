@@ -50,6 +50,10 @@ The launching `Agent` call is drawn as any other call until the subagent rows re
 While a run is live, its line starts with a **Kind chip** saying what the agent is waiting on (Thinking, Read, Search, Edit, Shell, the MCP server's name, or Needs you while an approval waits), and an MCP call reads as its server and tool name (with its arguments inside the opened step).
 The timer of a live line is the running call's own time, with the turn's beside it, quieter, while it is longer (the turn's alone while the agent thinks); a Shell or MCP call running for more than 30 seconds turns its timer amber until it ends.
 The Agent output tab's live line does the same, since it draws with the same view.
+Each subagent the agent launches is a **Subagent row** under the run that launched it: its type as a chip, its title (the description it was launched with), the step it is on, its steps and its timer, with a spinner while it runs, a tick when it finished, a red mark when it failed and a square when it was stopped.
+Several launched together each have a row, in the order they started, and the launching `Agent` call is not drawn as another tool.
+While any of a run's subagents runs, the run's line reads "N subagents · Waiting for them…", N being those running, and the finished run's summary counts "1 subagent" or "N subagents" apart from "other tools"; both keep following the subagents' events after the turn that launched them has ended, and a subagent that started and never ended keeps showing as running.
+The row is not tappable yet, and a session stored before the host linked subagents to their calls shows no rows.
 Once the run finishes, its summary counts MCP calls apart from other tools.
 A poll that fails shows its reason under the feed and is logged once; polling goes on.
 

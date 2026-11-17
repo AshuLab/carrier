@@ -324,7 +324,11 @@ struct FeedRowView: View {
         case .turnEnd(_, let summary):
             Text(summary.text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
         case .tools(let id, let group):
-            ChatToolGroupView(id: id, group: group, live: work.live, waiting: work.waiting, since: work.since, flipped: $flipped)
+            // a subagent keeps the line live while it runs, after the turn that launched it ended too
+            VStack(alignment: .leading, spacing: 6) {
+                ChatToolGroupView(id: id, group: group, live: work.live || group.runningSubagents > 0, waiting: work.waiting, since: work.since, flipped: $flipped)
+                ForEach(group.subagents) { SubagentRowView(subagent: $0) }
+            }
         case .approval:
             EmptyView() // drawn over the message box, never in the feed (`visibleFeed`)
         case .decided(_, let text, let allow):

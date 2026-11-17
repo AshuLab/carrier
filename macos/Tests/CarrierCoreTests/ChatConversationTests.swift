@@ -1075,6 +1075,7 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
         (.mcp(server: "linear"), "linear", .mcp, "powerplug"),
         (.subagents(1), "1 subagent", .subagents, "person.2"),
         (.subagents(3), "3 subagents", .subagents, "person.2"),
+        (.subagent(type: "Explore"), "Explore", .subagents, "person.2"),
         (.needsYou, "Needs you", .attention, nil),
     ]
     for (chip, label, tint, icon) in cases {
@@ -1151,22 +1152,161 @@ private let subagentTurn: [ChatEvent] = [
     #expect(try golden("tools").events.allSatisfy { $0.parentCallId == nil && $0.taskId == nil && $0.state == nil })
 }
 
-@Test func whatASubagentDidIsNotDrawnInTheMainConversationNorCountedInItsGroup() {
+private func subagents(_ rows: [FeedRow]) -> [Subagent] {
+    rows.flatMap { row -> [Subagent] in if case .tools(_, let group) = row { group.subagents } else { [] } }
+}
+
+@Test func whatASubagentDidIsNotDrawnInTheMainConversationButItsLaunchingCallIsNotACallOfTheRunEither() {
     let rows = chatFeed(subagentTurn)
-    // the launching call is still drawn as today, with the main agent's own call in the same run
-    #expect(texts(rows) == ["user: Look into it", "tools: Worked | 1 command · 1 other tool", "agent: Done", "end: sonnet 5.5 · 1s"])
+    // the subagent is a row of the run, the main agent's own call is its call, and the launching `Agent` call is neither an "other tool" nor drawn
+    #expect(texts(rows) == ["user: Look into it", "tools: Worked | 1 command · 1 subagent", "agent: Done", "end: sonnet 5.5 · 1s"])
     let run = group(rows)
-    #expect(run.calls.map(\.id) == ["c1", "m1"] && run.thoughts.isEmpty)
+    #expect(run.calls.map(\.id) == ["m1"] && run.thoughts.isEmpty && run.subagents.map(\.id) == ["c1"])
 }
 
 @Test func aPageThatStartsInsideASubagentDrawsNoOrphanForItsCallsAndTextNorItsEnds() {
     let page = Array(subagentTurn[4...])
-    // the subagent's end of call and its text are not the main conversation's; what is the main agent's is drawn as it would be
-    #expect(texts(chatFeed(page)) == ["tools: Worked | 1 command · 1 other tool", "agent: Done", "end: sonnet 5.5"])
+    // what the subagent did before the page is not here; its progress and end still make its row, and the main agent's own work is drawn as it would be
+    #expect(texts(chatFeed(page)) == ["tools: Worked | 1 command · 1 subagent", "agent: Done", "end: sonnet 5.5"])
+    let only = subagents(chatFeed(page))
+    #expect(only.map(\.status) == [.completed] && only[0].type == "Agent" && only[0].name == "Agent")
 }
 
 @Test func aFeedWithNoLinkEventsIsTheFeedItWasAndOneWithThemIsTheSameWithTheLinkedEventsRemoved() throws {
     let before = chatFeed(try golden("tools").events)
     #expect(before == chatFeed(try golden("tools").events.filter { $0.parentCallId == nil && $0.kind != "task" }))
-    #expect(chatFeed(subagentTurn) == chatFeed(subagentTurn.filter { $0.parentCallId == nil && $0.kind != "task" }))
+    #expect(subagents(before).isEmpty)
+    // with the link events gone the launching call is drawn as the other tool it was, with no row
+    let without = chatFeed(subagentTurn.filter { $0.parentCallId == nil && $0.kind != "task" })
+    #expect(texts(without) == ["user: Look into it", "tools: Worked | 1 command · 1 other tool", "agent: Done", "end: sonnet 5.5 · 1s"])
+}
+
+// MARK: a subagent's row
+
+private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: String? = nil, type: String? = nil, lastTool: String? = nil, tools: Int? = nil, ms: Int? = nil) -> ChatEvent {
+    ChatEvent(id: id, at: at, kind: "task", text: text, callId: call, taskId: "t-\(call)", state: state, agentType: type, lastTool: lastTool, tools: tools, ms: ms)
+}
+
+@Test func aSubagentRowHasItsTypeTitleStepStepsTimerAndStateFromEvents() {
+    // running: from its start, its step is its last event, its count is its calls
+    var events = [
+        ChatEvent(id: 1, at: 1_000, kind: "tool_start", callId: "a1", tool: "Agent", arg: "{}"),
+        task(2, 1_100, "a1", "started", text: "Find the adapter", type: "Explore"),
+    ]
+    var row = subagents(chatFeed(events))[0]
+    #expect(row.type == "Explore" && row.name == "Find the adapter" && row.status == .running)
+    #expect(row.step == nil && row.words == "Starting" && row.steps == 0)
+    #expect(row.elapsedMs(now: 6_100) == 5_000)
+    events.append(ChatEvent(id: 3, at: 1_200, kind: "tool_start", callId: "s1", tool: "Read", arg: "src/a.ts", parentCallId: "a1"))
+    events.append(ChatEvent(id: 4, at: 1_300, kind: "tool_end", callId: "s1", tool: "Read", output: ["x"], status: "ok", parentCallId: "a1"))
+    events.append(ChatEvent(id: 5, at: 1_400, kind: "tool_start", callId: "s2", tool: "Grep", arg: "KindChip", parentCallId: "a1"))
+    row = subagents(chatFeed(events))[0]
+    #expect(row.words == "Searching KindChip" && row.steps == 2)
+    // a thought and its text are its last event too
+    events.append(ChatEvent(id: 6, at: 1_500, kind: "reasoning", text: "Hm", parentCallId: "a1"))
+    #expect(subagents(chatFeed(events))[0].words == "Thinking")
+    // with no event of its own the step is the last tool of its latest progress, and the count is the provider's
+    let progress = [task(1, 1_000, "a1", "started", text: "T", type: "Explore"), task(2, 2_000, "a1", "progress", lastTool: "Read", tools: 3), task(3, 3_000, "a1", "progress", lastTool: "Grep", tools: 4)]
+    row = subagents(chatFeed(progress))[0]
+    #expect(row.words == "Using Grep" && row.steps == 4)
+    // the end states, each with its mark and its own duration
+    let ends: [(String, SubagentStatus, String)] = [("completed", .completed, "Finished"), ("failed", .failed, "Failed"), ("stopped", .stopped, "Stopped")]
+    for (state, status, words) in ends {
+        row = subagents(chatFeed(progress + [task(4, 9_000, "a1", state, tools: 4, ms: 7_500)]))[0]
+        #expect(row.status == status && row.words == words && row.steps == 4)
+        // an ended subagent's timer stops: the provider's duration, whatever the time is now
+        #expect(row.elapsedMs(now: 99_000) == 7_500)
+        row = subagents(chatFeed(progress + [task(4, 9_000, "a1", state)]))[0]
+        #expect(row.elapsedMs(now: 99_000) == 8_000)
+    }
+}
+
+@Test func severalSubagentsLaunchedTogetherEachHaveARowInTheOrderTheyStarted() {
+    let events = [
+        ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
+        ChatEvent(id: 2, at: 10, kind: "tool_start", callId: "a1", tool: "Agent"), task(3, 11, "a1", "started", text: "One", type: "Explore"),
+        ChatEvent(id: 4, at: 12, kind: "tool_start", callId: "a2", tool: "Agent"), task(5, 13, "a2", "started", text: "Two", type: "general-purpose"),
+        ChatEvent(id: 6, at: 14, kind: "tool_start", callId: "a3", tool: "Agent"), task(7, 15, "a3", "started", text: "Three", type: "Explore"),
+        task(8, 20, "a2", "completed"),
+    ]
+    let rows = chatFeed(events)
+    #expect(texts(rows) == ["user: go", "tools: Working | 3 subagents"])
+    let run = group(rows)
+    #expect(run.subagents.map(\.name) == ["One", "Two", "Three"] && run.calls.isEmpty)
+    #expect(run.subagents.map(\.status) == [.running, .completed, .running])
+    // the line waits for the two that run; the chip counts them, and when none runs the line is the run's own
+    #expect(run.runningSubagents == 2 && run.chip(waiting: false) == .subagents(2) && run.doing == "Waiting for them")
+    #expect(run.chip(waiting: false)?.label == "2 subagents" && run.chip(waiting: true) == .needsYou)
+    #expect(run.liveTimer(now: 100, turnStart: 0) == LiveTimer(primaryMs: 89, turnMs: 100, slow: false))
+    let done = group(chatFeed(events + [task(9, 30, "a1", "failed"), task(10, 31, "a3", "stopped")]))
+    #expect(done.runningSubagents == 0 && done.isWorking == false && done.doing == nil && done.chip(waiting: false) == .thinking)
+    #expect(done.title == "Worked" && done.summary == "3 subagents")
+}
+
+@Test func theSummaryCountsSubagentsApartFromOtherToolsAndCallsAnAloneRunIsStillWorked() {
+    var events = subagentTurn
+    events.insert(ChatEvent(id: 16, at: 850, kind: "tool_start", callId: "w1", tool: "WebFetch", arg: "https://example.test"), at: 11)
+    let run = group(chatFeed(events))
+    #expect(run.summary == "1 command · 1 subagent · 1 other tool")
+    #expect(ToolGroup(calls: []).title == "Thought")
+}
+
+@Test func aSubagentGoesOnFromEventsThatArriveAfterTheTurnThatLaunchedItEnded() {
+    let launch: [ChatEvent] = [
+        ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
+        ChatEvent(id: 2, at: 10, kind: "tool_start", callId: "a1", tool: "Agent"), task(3, 11, "a1", "started", text: "Slow", type: "Explore"),
+        ChatEvent(id: 4, at: 12, kind: "tool_end", callId: "a1", tool: "Agent", output: ["Async agent launched"], status: "ok"),
+        ChatEvent(id: 5, at: 20, kind: "assistant", text: "I will wait."),
+        ChatEvent(id: 6, at: 30, kind: "turn_end", outcome: "ok"),
+    ]
+    // the turn ended and the subagent still runs: the end of the turn does not stop it, as it stops a call
+    let ended = subagents(chatFeed(launch))
+    #expect(ended.map(\.status) == [.running])
+    // what comes after the turn's end updates the row it had, and the run that launched it is not another
+    let after = chatFeed(launch + [
+        ChatEvent(id: 7, at: 40, kind: "tool_start", callId: "s1", tool: "Read", arg: "late.ts", parentCallId: "a1"),
+        task(8, 50, "a1", "progress", lastTool: "Read", tools: 1),
+        task(9, 60, "a1", "completed", tools: 1, ms: 50),
+    ])
+    #expect(texts(after) == ["user: go", "tools: Worked | 1 subagent", "agent: I will wait.", "end: 0s"])
+    let row = subagents(after)[0]
+    #expect(row.status == .completed && row.steps == 1 && row.words == "Finished" && row.endedAt == 60)
+}
+
+@Test func aSubagentWithAStartAndNoEndKeepsRunningAndOneThatIsNotLaunchedHereIsNoRow() {
+    let events = [
+        ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
+        ChatEvent(id: 2, at: 10, kind: "tool_start", callId: "a1", tool: "Agent"), task(3, 11, "a1", "started", text: "Never ends", type: "Explore"),
+        ChatEvent(id: 4, at: 30, kind: "turn_end", outcome: "ok"),
+        // a nested subagent is its parent's, not the conversation's
+        ChatEvent(id: 5, at: 40, kind: "task", text: "Nested", callId: "n1", parentCallId: "a1", taskId: "t-n1", state: "started", agentType: "Explore"),
+    ]
+    let found = subagents(chatFeed(events))
+    #expect(found.map(\.status) == [.running] && found[0].name == "Never ends")
+    #expect(group(chatFeed(events)).isWorking)
+}
+
+@Test func theFixtureHostServesThreeParallelSubagentsOneEndingAfterTheTurnAndOneThatNeverEnds() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let session = "a7b8c9d0-6e5f-4a21-9c4d-5e6f7a8b9c07"
+    let reply = try await host.events(session, after: 0, limit: 200)
+    let rows = chatFeed(reply.events)
+    // the three launching calls are not calls of the run, and the thought before them is
+    let run = group(rows)
+    #expect(run.calls.isEmpty && run.thoughts.count == 1 && run.subagents.count == 3)
+    #expect(run.subagents.map(\.type) == ["Explore", "general-purpose", "Explore"])
+    #expect(run.subagents.map(\.id) == ["a1", "a2", "a3"])
+    // one finished before the turn ended, one after it, and the third has a start and no end (so it is the only one the line waits for)
+    #expect(run.subagents.map(\.status) == [.completed, .completed, .running])
+    #expect(run.subagents[1].endedAt == 1_791_960_004_500 && run.subagents[0].endedAt == 1_791_960_009_000)
+    #expect(run.subagents[0].steps == 1 && run.subagents[1].words == "Finished" && run.subagents[2].words == "Starting")
+    // while the turn went on the line waited for three; the second ended before it did, and the first after it
+    #expect(group(chatFeed(reply.events.filter { $0.id < 17 })).chip(waiting: false) == .subagents(3))
+    #expect(group(chatFeed(reply.events.filter { $0.id < 20 })).chip(waiting: false) == .subagents(2))
+    #expect(group(chatFeed(reply.events.filter { $0.id < 21 })).runningSubagents == 2)
+    #expect(run.runningSubagents == 1 && run.chip(waiting: false) == .subagents(1) && run.liveTimer(now: 1_791_960_100_000).primaryMs == 97_500)
+    // what the subagents said and did is not in the main conversation
+    #expect(texts(rows).filter { $0.hasPrefix("agent") } == ["agent: Three subagents are look"])
 }

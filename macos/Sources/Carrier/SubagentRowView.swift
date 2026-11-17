@@ -1,0 +1,54 @@
+import CarrierCore
+import SwiftUI
+
+/// A subagent as a row of the conversation, under the run that launched it (docs/research/macos-app-design/explorations/subagent-view.html): its
+/// state, its type as a chip, its title, the step it is on, its steps and its timer, on one line as high as a "Worked" card's. What does not fit
+/// is cut, never wrapped, so the row is one height at any width. It is not tappable yet.
+struct SubagentRowView: View {
+    let subagent: Subagent
+    /// The time the timer reads instead of the clock; a test sets it.
+    var clock: Date?
+
+    var body: some View {
+        HStack(spacing: 9) {
+            lead.frame(width: 16, height: 16)
+            KindChipView(chip: .subagent(type: subagent.type))
+            Text(subagent.name).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.primary).lineLimit(1).truncationMode(.tail)
+                .layoutPriority(1)
+            Text(subagent.words).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("\(subagent.steps) \(subagent.steps == 1 ? "step" : "steps")").font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+            timer
+        }
+        .font(.scaled(12, weight: .medium)).monospacedDigit()
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .workCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(subagent.type) subagent, \(subagent.name), \(subagent.words), \(subagent.steps) steps")
+    }
+
+    @ViewBuilder private var lead: some View {
+        switch subagent.status {
+        case .running: SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor)
+        case .completed: Image(systemName: "checkmark.circle.fill").font(.scaled(12)).foregroundStyle(.green)
+        case .failed: StateMark(shape: .problem, size: 12).foregroundStyle(.red)
+        case .stopped: Image(systemName: "stop.fill").font(.scaled(8)).foregroundStyle(.secondary)
+        }
+    }
+
+    /// Ticking while it runs, its own duration once it ended.
+    @ViewBuilder private var timer: some View {
+        if subagent.status == .running {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                time(Int((clock ?? context.date).timeIntervalSince1970 * 1000))
+            }
+        } else {
+            time(0)
+        }
+    }
+
+    private func time(_ now: Int) -> some View {
+        Text(formatCallDuration(subagent.elapsedMs(now: now))).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+    }
+}

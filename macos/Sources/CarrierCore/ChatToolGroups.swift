@@ -146,6 +146,8 @@ public enum KindChip: Equatable {
     case thinking, read, search, edit, shell
     case mcp(server: String)
     case subagents(Int)
+    /// A subagent's own type (`Explore`), the chip of its row.
+    case subagent(type: String)
     case needsYou
 
     /// The server's own name for an MCP call.
@@ -158,6 +160,7 @@ public enum KindChip: Equatable {
         case .shell: "Shell"
         case .mcp(let server): server
         case .subagents(let count): "\(count) \(count == 1 ? "subagent" : "subagents")"
+        case .subagent(let type): type
         case .needsYou: "Needs you"
         }
     }
@@ -168,7 +171,7 @@ public enum KindChip: Equatable {
         case .read, .search, .edit: .files
         case .shell: .shell
         case .mcp: .mcp
-        case .subagents: .subagents
+        case .subagents, .subagent: .subagents
         case .needsYou: .attention
         }
     }
@@ -182,13 +185,98 @@ public enum KindChip: Equatable {
         case .edit: "pencil"
         case .shell: "terminal"
         case .mcp: "powerplug"
-        case .subagents: "person.2"
+        case .subagents, .subagent: "person.2"
         }
     }
 }
 
 /// The colour role of a chip; the view maps it to a colour.
 public enum ChipTint: Equatable { case thought, files, shell, mcp, subagents, attention }
+
+/// How a subagent stands: it runs from its start until an end arrives, and a start with no end keeps running.
+public enum SubagentStatus: Equatable { case running, completed, failed, stopped }
+
+/// One subagent the main agent launched, built from the `task` events that share its launching call's id and the events made inside it
+/// (`parentCallId` is that call). It is a row under the run that launched it; the launching `Agent` call is not a call of the run.
+public struct Subagent: Equatable, Identifiable {
+    /// The launching call's id.
+    public let id: String
+    /// What stopping it takes; nil until a `task` event says it.
+    public internal(set) var taskId: String?
+    /// `Explore`, `general-purpose`: the type it was launched with, `Agent` when the events do not say.
+    public internal(set) var type: String
+    /// The description it was launched with.
+    public internal(set) var title: String
+    public internal(set) var status = SubagentStatus.running
+    /// What it is doing now, nil until it does anything: its last event, or the last tool of its latest `progress` while it has no event of its own.
+    public internal(set) var step: String?
+    /// How many calls it made: the larger of what its own events show and what the provider reported.
+    public var steps: Int { max(ownCalls, reported) }
+    /// Milliseconds since the epoch.
+    public let startedAt: Int
+    public internal(set) var endedAt: Int?
+    /// The time the provider reported for its whole life, once it ended.
+    private var reportedMs: Int?
+    private var ownCalls = 0
+    private var reported = 0
+
+    init(task event: ChatEvent) {
+        id = event.callId ?? "e\(event.id)"
+        taskId = event.taskId
+        type = event.agentType ?? "Agent"
+        title = event.state == "started" ? (event.text ?? "") : ""
+        startedAt = event.at
+        apply(task: event)
+    }
+
+    /// A `task` event of this subagent: its start gives the title and type, a progress its last tool and counts, an end its state.
+    mutating func apply(task event: ChatEvent) {
+        taskId = taskId ?? event.taskId
+        if let type = event.agentType { self.type = type }
+        if event.state == "started", let text = event.text, text.isEmpty == false { title = text }
+        if let tools = event.tools { reported = max(reported, tools) }
+        switch event.state {
+        case "progress":
+            if ownCalls == 0, let tool = event.lastTool { step = "Using \(tool)" }
+        case "completed", "failed", "stopped":
+            status = event.state == "completed" ? .completed : event.state == "failed" ? .failed : .stopped
+            endedAt = event.at
+            reportedMs = event.ms
+        default: break
+        }
+    }
+
+    /// An event made inside the subagent: a call it starts, a thought or its text is what it is doing now.
+    mutating func apply(inside event: ChatEvent) {
+        switch event.kind {
+        case "tool_start":
+            ownCalls += 1
+            step = ToolCall(start: event).doing
+        case "reasoning": step = "Thinking"
+        case "assistant": step = "Answering"
+        default: break
+        }
+    }
+
+    /// The row's name for it: the title, or the type while the events give none.
+    public var name: String { title.isEmpty ? type : title }
+
+    /// What the row says after the title: the step while it runs ("Starting" before the first), the way it ended otherwise.
+    public var words: String {
+        switch status {
+        case .running: step ?? "Starting"
+        case .completed: "Finished"
+        case .failed: "Failed"
+        case .stopped: "Stopped"
+        }
+    }
+
+    /// How long it has run at `now`, or how long it ran: the provider's own count when it gave one.
+    public func elapsedMs(now: Int) -> Int {
+        if let endedAt { return max(0, reportedMs ?? endedAt - startedAt) }
+        return max(0, now - startedAt)
+    }
+}
 
 /// One block of the agent's reasoning, placed among the calls of its run.
 public struct Thought: Equatable, Identifiable {
@@ -217,14 +305,16 @@ public enum WorkStep: Equatable, Identifiable {
 public struct ToolGroup: Equatable {
     public internal(set) var calls: [ToolCall]
     public internal(set) var thoughts: [Thought] = []
+    /// The subagents the run launched, in the order they started.
+    public internal(set) var subagents: [Subagent] = []
     /// Whether the turn ended in an error while this was its last run: the work did not finish by itself, the provider failed.
     public internal(set) var erred = false
     /// Where a run of thoughts with no call counts its time from: the start of the turn. ponytail: a thought-only run late in a turn counts from the
     /// turn's start too; track the end of the previous piece if that ever reads wrong.
     var since: Int?
 
-    public init(calls: [ToolCall], thoughts: [Thought] = [], since: Int? = nil) {
-        (self.calls, self.thoughts, self.since) = (calls, thoughts, since)
+    public init(calls: [ToolCall], thoughts: [Thought] = [], subagents: [Subagent] = [], since: Int? = nil) {
+        (self.calls, self.thoughts, self.subagents, self.since) = (calls, thoughts, subagents, since)
     }
 
     /// The thoughts and the calls as one list, in the order they happened.
@@ -247,12 +337,12 @@ public struct ToolGroup: Equatable {
     public var title: String {
         if isWorking { return "Working" }
         if erred { return "Failed" }
-        if calls.isEmpty { return "Thought" }
+        if calls.isEmpty { return subagents.isEmpty ? "Thought" : "Worked" }
         if calls.contains(where: { $0.kind == .edit }) { return "Changed" }
         return calls.allSatisfy({ $0.kind == .read || $0.kind == .search }) ? "Explored" : "Worked"
     }
 
-    /// The non-zero counts as "3 thoughts · 2 files read · 1 search · 2 files changed · 1 command · 1 MCP call · 1 other tool", in that order; files changed counts distinct paths.
+    /// The non-zero counts as "3 thoughts · 2 files read · 1 search · 2 files changed · 1 command · 1 MCP call · 2 subagents · 1 other tool", in that order; files changed counts distinct paths.
     public var summary: String {
         func count(_ kind: ToolKind) -> Int { calls.filter { $0.kind == kind }.count }
         func part(_ n: Int, _ one: String, _ many: String) -> String? { n == 0 ? nil : "\(n) \(n == 1 ? one : many)" }
@@ -262,15 +352,16 @@ public struct ToolGroup: Equatable {
             part(thoughts.count, "thought", "thoughts"),
             part(count(.read), "file read", "files read"), part(count(.search), "search", "searches"),
             part(changed, "file changed", "files changed"), part(count(.shell), "command", "commands"),
-            part(mcpCalls, "MCP call", "MCP calls"),
+            part(mcpCalls, "MCP call", "MCP calls"), part(subagents.count, "subagent", "subagents"),
             part(count(.other), "other tool", "other tools"),
         ].compactMap { $0 }.joined(separator: " · ")
     }
 
-    /// The chip of the live line: Needs you while an approval waits, else the kind of the call going on, Thinking when none is.
+    /// The chip of the live line: Needs you while an approval waits, N subagents while any runs, else the kind of the call going on, Thinking when none is.
     /// Nil for a call with no kind of its own (a web fetch, a todo list): the line then says only its words.
     public func chip(waiting: Bool) -> KindChip? {
         if waiting { return .needsYou }
+        if runningSubagents > 0 { return .subagents(runningSubagents) }
         guard let call = calls.last(where: { $0.status == .running }) else { return .thinking }
         switch call.kind {
         case .read: return .read
@@ -283,9 +374,14 @@ public struct ToolGroup: Equatable {
     }
 
     /// The timers of the live line at `now`: the running call's own time with the turn's beside it while that is longer, or the turn's alone
-    /// while the agent is thinking. The turn counts from `turnStart`, from the run's start when the feed gives none.
+    /// while the agent is thinking. The turn counts from `turnStart`, from the run's start when the feed gives none. While subagents run the
+    /// own time is the longest-running one's: that is what the line waits on.
     public func liveTimer(now: Int, turnStart: Int? = nil) -> LiveTimer {
         let turn = max(0, now - (turnStart ?? startedAt))
+        if let first = subagents.filter({ $0.status == .running }).map(\.startedAt).min() {
+            let own = max(0, now - first)
+            return LiveTimer(primaryMs: own, turnMs: turn > own ? turn : nil, slow: false)
+        }
         guard let call = calls.last(where: { $0.status == .running }) else { return LiveTimer(primaryMs: turn, turnMs: nil, slow: false) }
         let own = call.elapsedMs(now: now)
         return LiveTimer(primaryMs: own, turnMs: turn > own ? turn : nil, slow: call.isSlow(now: now))
@@ -294,17 +390,19 @@ public struct ToolGroup: Equatable {
     public var failed: Int { calls.filter { $0.status == .failed }.count }
     public var added: Int { calls.reduce(0) { $0 + $1.added } }
     public var removed: Int { calls.reduce(0) { $0 + $1.removed } }
-    public var isWorking: Bool { calls.contains { $0.status == .running } }
+    /// How many subagents of the run are running.
+    public var runningSubagents: Int { subagents.filter { $0.status == .running }.count }
+    public var isWorking: Bool { calls.contains { $0.status == .running } || runningSubagents > 0 }
     /// Whether the turn was stopped before a call ended.
     public var isStopped: Bool { calls.contains { $0.status == .stopped } }
     /// What the agent is doing now: the call that started last of those still going.
-    public var doing: String? { calls.last { $0.status == .running }?.doing }
+    public var doing: String? { runningSubagents > 0 ? "Waiting for them" : calls.last { $0.status == .running }?.doing }
 
     /// When the first step started, in milliseconds since the epoch.
-    public var startedAt: Int { since ?? [calls.first?.startedAt, thoughts.first?.at].compactMap { $0 }.min() ?? 0 }
+    public var startedAt: Int { since ?? [calls.first?.startedAt, thoughts.first?.at, subagents.first?.startedAt].compactMap { $0 }.min() ?? 0 }
     /// How long the run took; nil while it goes on, and for a lone thought that has no span.
     public var durationMs: Int? {
-        guard isWorking == false, let end = (calls.compactMap(\.endedAt) + thoughts.map(\.at)).max() else { return nil }
+        guard isWorking == false, let end = (calls.compactMap(\.endedAt) + thoughts.map(\.at) + subagents.compactMap(\.endedAt)).max() else { return nil }
         let ms = end - startedAt
         return calls.isEmpty && ms <= 0 ? nil : ms
     }
@@ -323,7 +421,7 @@ public func visibleFeed(_ rows: [FeedRow], mode: ToolOutputMode, showsReasoning:
         case .tools(let id, var group):
             if mode == .hidden { group.calls = [] }
             if showsReasoning == false { group.thoughts = [] }
-            return group.calls.isEmpty && group.thoughts.isEmpty ? nil : .tools(id: id, group)
+            return group.calls.isEmpty && group.thoughts.isEmpty && group.subagents.isEmpty ? nil : .tools(id: id, group)
         // a pending approval is not in the feed: it is the card over the message box (`pendingApprovals`); once answered it is a line
         case .approval: return nil
         default: return row

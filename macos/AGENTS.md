@@ -84,6 +84,7 @@ The logic is `CarrierCore/WorktreeChoice.swift` (pure values over the `workspace
 What the person sees: [sessions](../docs/macos/sessions.md#conversation).
 
 The words are tested; the Finder and pasteboard calls not.
+A subagent's row is `Subagent` (`CarrierCore/ChatToolGroups.swift`), joined by `chatFeed` from the `task` events of a launching call and the events whose `parentCallId` is that call (`ChatConversationTests`, with `chat-events-subagents.json` served by the fixture host); the row's layout is `SubagentRowTests`.
 
 ## Usage
 

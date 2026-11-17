@@ -36,6 +36,26 @@ public struct DictationTake: Equatable, Sendable {
     public var clip: AudioClip? = nil
 }
 
+/// Where the time of one dictation went, in milliseconds and with no text: from the press to the capture running, to the first audio, to the model
+/// ready and to the first word shown, and from the stop to the final text. A moment that did not happen is nil.
+public struct DictationTimings: Equatable, Sendable {
+    public var capture: Int?
+    public var firstAudio: Int?
+    public var modelReady: Int?
+    public var firstWord: Int?
+    public var finalText: Int?
+
+    public init(capture: Int? = nil, firstAudio: Int? = nil, modelReady: Int? = nil, firstWord: Int? = nil, finalText: Int? = nil) {
+        self.capture = capture
+        self.firstAudio = firstAudio
+        self.modelReady = modelReady
+        self.firstWord = firstWord
+        self.finalText = finalText
+    }
+
+    var isEmpty: Bool { self == DictationTimings() }
+}
+
 /// What a box asks of the Cleanup (docs/adr/0030): the text the dictation added goes in, the cleaned text comes out, or it throws (a `CleanupFailure`
 /// says its cause in words).
 public typealias DictationCleanup = @Sendable (String) async throws -> String
@@ -60,6 +80,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
     @ObservationIgnored private let announce: (String) -> Void
     @ObservationIgnored private let log: (DictationFailure) -> Void
+    @ObservationIgnored private let timed: (DictationTimings) -> Void
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let keepAudio: () -> Bool
     /// Told, with the owner of the box it was, each time a dictation ends: the widget of the global dictation hears its own end here.
@@ -93,19 +114,22 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private var partial = ""
     @ObservationIgnored private var began = Date.distantPast
     @ObservationIgnored private var stoppedAt: Date?
+    @ObservationIgnored private var timings = DictationTimings()
     @ObservationIgnored private var cleaned: String?
     @ObservationIgnored private var cleanupSeconds: Double?
     /// A dictation asked for while another one stops: it starts when that one is idle.
     @ObservationIgnored private var queued: (recognizer: any Recognizer, model: SpeechModel, field: DictationField, cleanup: DictationCleanup?)?
 
     /// `announce` is told what VoiceOver should say (`dictationAnnouncement`): the start, the stop and a failure, never partial text; `log` hears
-    /// every failure, with its cause only. `keepAudio` is asked as each dictation starts: when it says yes the take carries the audio.
+    /// every failure, with its cause only; `timed` hears where the time of each dictation went when it ends. `keepAudio` is asked as each dictation
+    /// starts: when it says yes the take carries the audio.
     public init(
         capture: AudioCapture, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in }, now: @escaping () -> Date = Date.init,
-        keepAudio: @escaping () -> Bool = { false }
+        announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in },
+        timed: @escaping (DictationTimings) -> Void = { _ in }, now: @escaping () -> Date = Date.init, keepAudio: @escaping () -> Bool = { false }
     ) {
         self.keepAudio = keepAudio
+        self.timed = timed
         self.capture = capture
         self.sleep = sleep
         self.announce = announce
@@ -142,6 +166,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         partial = ""
         began = now()
         stoppedAt = nil
+        timings = DictationTimings()
         cleaned = nil
         cleanupSeconds = nil
         self.field = field
@@ -218,11 +243,13 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             return
         }
         guard generation == mine else { return }
+        timings.modelReady = milliseconds(since: began)
         let audio: AsyncStream<AudioBuffer>
         do { audio = try capture.start() } catch {
             fail(error)
             return
         }
+        timings.capture = milliseconds(since: began)
         state = .listening
         announce(dictationAnnouncement(.listening))
         onListening?()
@@ -230,6 +257,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         let counted = AsyncStream<AudioBuffer> { continuation in
             let relay = Task { @MainActor in
                 for await buffer in audio {
+                    if timings.firstAudio == nil { timings.firstAudio = milliseconds(since: began) }
                     captured += .seconds(Double(buffer.samples.count) / buffer.sampleRate)
                     if recording {
                         samples += buffer.samples
@@ -250,9 +278,11 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             if let field, let edit = tentative.apply(event, to: field.text(), caret: field.caret()) {
                 switch event {
                 case .partial(let heard):
+                    noteFirstWord(heard)
                     partialWords = wordCount(heard)
                     partial = heard
                 case .final(let heard):
+                    noteFirstWord(heard)
                     words += wordCount(heard)
                     partialWords = 0
                     partial = ""
@@ -263,6 +293,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             }
         }
         guard generation == mine else { return }
+        if let stoppedAt { timings.finalText = milliseconds(since: stoppedAt) }
         await clean(mine)
         // a cleanup that failed has told its cause, which is not a stop
         if generation == mine { end(announcing: failure == nil) }
@@ -319,6 +350,12 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         field.put(field.text(), field.caret(), nil)
     }
 
+    private func noteFirstWord(_ heard: String) {
+        if timings.firstWord == nil, wordCount(heard) > 0 { timings.firstWord = milliseconds(since: began) }
+    }
+
+    private func milliseconds(since start: Date) -> Int { Int((now().timeIntervalSince(start) * 1000).rounded()) }
+
     private func wordCount(_ heard: String) -> Int { heard.split(whereSeparator: \.isWhitespace).count }
 
     private func fail(_ error: Error) {
@@ -340,6 +377,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         field = nil
         model = nil
         cleanup = nil
+        if timings.isEmpty == false { timed(timings) }
         let finished = owner
         owner = nil
         generation += 1

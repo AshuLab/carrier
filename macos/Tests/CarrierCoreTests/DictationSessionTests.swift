@@ -662,3 +662,44 @@ private func aCleanupThatFailsLeavesTheRawTextTellsTheCauseAndLogsItAlone(failur
     await rig.reaches(.idle)
     #expect(rig.text == "uno Hola.")
 }
+
+@MainActor private final class TimedClock { var seconds = 0.0 }
+
+@MainActor @Test func aDictationHandsTheTimesItTookToTheLogAndNoText() async throws {
+    let clock = TimedClock(), capture = ScriptedCapture()
+    var timings: [DictationTimings] = []
+    let session = DictationSession(capture: capture, timed: { timings.append($0) }, now: { Date(timeIntervalSince1970: 1_000 + clock.seconds) })
+    var text = ""
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("hola mundo")])
+    recognizer.holdPrepare()
+    session.start(
+        recognizer: recognizer, model: recognizer.models[0],
+        into: DictationField(owner: "box", text: { text }, caret: { text.count }, put: { text = $0; _ = ($1, $2) })
+    )
+    clock.seconds = 2.5
+    recognizer.releasePrepare()
+    for _ in 0..<3000 where session.state != .listening { try await Task.sleep(for: .milliseconds(1)) }
+    clock.seconds = 2.7
+    capture.feed(AudioBuffer(samples: [0.1, 0.2], sampleRate: 16_000))
+    try await Task.sleep(for: .milliseconds(30))
+    clock.seconds = 3.1
+    recognizer.say(.partial("hola"))
+    for _ in 0..<3000 where text != "hola" { try await Task.sleep(for: .milliseconds(1)) }
+    clock.seconds = 6
+    session.stop()
+    clock.seconds = 6.25
+    for _ in 0..<3000 where session.state != .idle { try await Task.sleep(for: .milliseconds(1)) }
+    #expect(timings == [DictationTimings(capture: 2500, firstAudio: 2700, modelReady: 2500, firstWord: 3100, finalText: 250)])
+}
+
+@MainActor @Test func aDictationDroppedBeforeTheModelIsReadyHandsOverNoTimes() async throws {
+    var timings: [DictationTimings] = []
+    let session = DictationSession(capture: ScriptedCapture(), timed: { timings.append($0) })
+    let recognizer = ScriptedRecognizer()
+    recognizer.holdPrepare()
+    session.start(recognizer: recognizer, model: recognizer.models[0], into: DictationField(owner: "box", text: { "" }, caret: { 0 }, put: { _, _, _ in }))
+    session.cancel()
+    recognizer.releasePrepare()
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(timings.isEmpty)
+}

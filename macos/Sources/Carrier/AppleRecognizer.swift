@@ -46,9 +46,15 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
         let transcriber = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
         // the system fetches the assets of the language when it has not: this is what "Getting the model ready…" waits for
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) { try await request.downloadAndInstall() }
-        let analyzer = SpeechAnalyzer(modules: [transcriber])
+        // the system keeps the model loaded while it is ready, and `release` lets it go
+        let analyzer = SpeechAnalyzer(modules: [transcriber], options: SpeechAnalyzer.Options(priority: .userInitiated, modelRetention: .processLifetime))
         try await analyzer.prepareToAnalyze(in: await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]))
         lock.withLock { prepared = (transcriber, analyzer) }
+    }
+
+    func release() async {
+        lock.withLock { prepared = nil }
+        await SpeechModels.endRetention()
     }
 
     func recognize(_ audio: AsyncStream<CarrierCore.AudioBuffer>) -> AsyncStream<DictationEvent> {

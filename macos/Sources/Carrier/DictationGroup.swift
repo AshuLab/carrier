@@ -1,12 +1,14 @@
 import CarrierCore
 import SwiftUI
 
-/// The Dictation group of the page: the switch, the speech model, the language and the microphone's state. With the switch off the rows under it are drawn at 40%.
+/// The Dictation group of the page: the switch, the speech model, the language, when the model is kept in memory and the microphone's state. With the switch off the rows under it are drawn at 40%.
 struct DictationGroup: View {
     var dictation = DictationController.shared
     // the choices are the controller's to read and write; these make the group redraw when they change, Reset included
     @AppStorage(AppPreferences.dictationModelKey) private var savedModel: String?
     @AppStorage(AppPreferences.dictationLanguageKey) private var savedLanguage: String?
+    @AppStorage(AppPreferences.dictationKeepReadyKey) private var savedKeepReady = AppPreferences.defaultDictationKeepReady
+    @AppStorage(AppPreferences.dictationReleaseAfterKey) private var savedReleaseAfter = AppPreferences.defaultDictationReleaseAfter
 
     var body: some View {
         let enabled = dictation.enabled
@@ -19,6 +21,18 @@ struct DictationGroup: View {
             .live(.enabledSwitch, enabled: enabled)
             speechModelRow.live(.speechModel, enabled: enabled)
             languageRow.live(.language, enabled: enabled)
+            SettingsTabRow(title: "Keep the speech model ready", detail: "Loads it when Carrier opens, so the first dictation does not wait for it") {
+                Toggle("Keep the speech model ready", isOn: Binding(get: { AppPreferences().dictationKeepReady }, set: { dictation.setKeepReady($0) }))
+                    .labelsHidden().toggleStyle(.switch)
+            }
+            .live(.keepReady, enabled: enabled)
+            SettingsTabRow(title: "Release the model after", detail: "Without dictating, to give its memory back; the next dictation loads it again") {
+                ChoicePopUp(
+                    label: "Release the model after", options: dictationReleaseChoices.map { (value: $0.minutes, title: $0.title) },
+                    selection: Binding(get: { AppPreferences().dictationReleaseAfter }, set: { dictation.setReleaseAfter($0) }), width: 110
+                )
+            }
+            .live(.releaseAfter, enabled: enabled)
             microphoneRow.live(.microphone, enabled: enabled)
         }
     }

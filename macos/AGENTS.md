@@ -95,6 +95,8 @@ What the person sees: [dictation](../docs/macos/dictation.md).
 
 The logic is `CarrierCore/Dictation.swift` (boundary and registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the recognizer and capture of `ScriptedDictation.swift`.
 `DictationController` holds the switch both boxes read.
+The model ready before the press ([dictation](../docs/macos/dictation.md#the-model-ready-before-the-press)): the rule is the pure `speechModelStep` and the slot a recognizer keeps its loaded model in is `ModelSlot` (`CarrierCore/SpeechModelReadiness.swift`, `SpeechModelReadinessTests`), `Recognizer.release()` drops it (`ScriptedRecognizer` counts `prepare` and `release`), and `DictationController` (`warmUp`, `setKeepReady`, `setReleaseAfter`, the timer on its injected `sleep` and `now`; `DictationReadinessTests`) runs them from the launch in `AppDelegate`; the two keys are in `AppPreferences` (`AppPreferencesTests`), their rows in `DictationGroup` (dimming: `DictationSettingsTests`).
+The line of times of each dictation is `DictationTimings`, handed by `DictationSession` to `DictationLog.append` (`DictationSessionTests`, `DictationLogTests`).
 The page is `Carrier/DictationTab.swift`, one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`, one per line; the views are untested (rules: `SettingsPageTests`, `DictationSettingsTests`).
 
 ### Global dictation

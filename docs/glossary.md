@@ -83,7 +83,7 @@ _Avoid_: agent event (the epic executions' events), message, log line.
 **Lane** - One of the up to three parallel worktrees inside a `ship` execution (`<epic worktree>--lane-N`). A lane is a place, not a worker: it is reused, so lane 1 builds one slice and then another, and the subagent that builds a slice runs in a lane. Solve decides the lanes; the engine does not know them, and a lane has no session of its own, so it cannot be resumed apart from the ship session.
 _Avoid_: slot (that counts epics), thread, worker, subagent (a lane holds one at a time).
 
-**Subagent** - A Claude agent launched from inside an execution, with an exact `agentId` in the stream and no session of its own. A builder subagent builds one slice, in a lane. A reviewer subagent runs one pass of a review (Spec, Standards, Risk, Experience) and has no slice and no lane. The slice and the lane of a builder are inferred from the model's wording and the worktree path; the subagent, its times and its end status are exact ([research](research/claude-subagent-attribution.md)).
+**Subagent** - A Claude agent launched from inside an execution, with an exact `agentId` in the stream and no session of its own. A builder subagent builds one slice, in a lane. A reviewer subagent runs one pass of a review (Spec, Standards, Risk, Experience) and has no slice and no lane. The slice and the lane of a builder are inferred from the model's wording and the worktree path; the subagent, its times and its end status are exact ([research](research/claude-subagent-attribution.md)). A chat session's agent launches them the same way, and the stream tags every message of one with the call that launched it.
 _Avoid_: lane (that is where a builder runs), worker, child agent.
 
 **Call group** - A run of the agent's tool calls (and thoughts, when the events carry them) with nothing between them but other calls, drawn in the Agent output tab and in a session's conversation as the same one glass card: "Ran 4 commands" (or Explored, Changed, Worked), what it counted, "N failed", and a timer and shimmer while the agent works in it. It folds until opened and then lists its steps. A message, a note, an error, a skill or a slice ends the run; a lone call is a group of one.
@@ -91,6 +91,15 @@ _Avoid_: batch (that is slices started together), step, turn.
 
 **Slice card** - The card of the Agent output tab that stands for one subagent building one slice: its state, its slice and title, its counts and pull request, placed in the log where the slice was taken and opening in place on the subagent's own calls. One card per subagent; a resumed one is still one card.
 _Avoid_: lane (the place it runs in), lane card, task.
+
+**Subagent row** - The line a subagent has in a conversation: its type as a chip, its title, the step it is on now, its steps, its timer and its state, with the height of a call group's line. One row per subagent, under the line of the run that launched it, and tapping it opens the subagent view. In the Agent output tab the slice card plays this part.
+_Avoid_: subagent card (that is the slice card of the epic), task, child.
+
+**Subagent view** - What replaces the conversation when a subagent row is opened: the window's header with a ‹ Back button, the subagent's title, its state and Stop, and the subagent's own brief, call groups, thoughts and messages drawn as the main agent's are. It is read only: a subagent cannot be written to from the host.
+_Avoid_: subagent tab, subagent panel, subagent session (it has none of its own).
+
+**Kind chip** - The small label at the start of a live line that says what the agent is waiting on: Thinking, Read, Search, Edit, Shell, the server of an MCP call, "N subagents" or "Needs you". The timer beside it is the running call's.
+_Avoid_: badge, tag, status.
 
 **Slot** - One of the places the engine has for running epics at once (`maxConcurrentEpics`). It is a counter with no identity, so the app shows how many are in use and which epics occupy them, never "slot 2".
 _Avoid_: lane (that is inside one epic), thread, concurrency.

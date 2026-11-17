@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Visibilidad de lo que hace el agente (chat)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* v- = esta página */
+h2.v-h{font-size:15px;margin:34px 0 4px;font-weight:650}
+.v-sec{max-width:1420px}
+.v-why{color:var(--dim);max-width:860px;margin:0 0 14px;line-height:1.5}
+.v-why b,.v-note b{color:var(--text)}
+.v-note{color:var(--dim);font-size:12px;line-height:1.5;margin-top:10px;max-width:860px}
+.v-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 18px}
+.v-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.v-col.now h3 b{color:var(--orange)}
+.v-flag{font-size:11px;color:var(--orange);margin:4px 0 0;line-height:1.4}
+.v-tag{font-size:10.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--orange);background:rgba(236,153,56,.14);padding:1px 7px;border-radius:99px}
+.v-col h3{font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
+.v-col h3 b{color:var(--text);letter-spacing:0}
+.v-stage{border-radius:22px;background:var(--win);box-shadow:var(--shadow);padding:18px 22px 22px;min-width:0}
+.v-lab{font-size:11px;color:var(--faint);margin:10px 0 3px;display:flex;gap:6px;align-items:center}
+.v-lab b{color:var(--dim);font-weight:600}
+
+/* ---- card (mismo lenguaje que la work card actual) ---- */
+.v-card{position:relative;border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:3px 12px}
+.v-card.live{box-shadow:0 0 0 .5px rgba(201,160,255,.4) inset,0 0 18px rgba(201,160,255,.07)}
+.v-card.wait{box-shadow:0 0 0 .5px rgba(236,153,56,.55) inset}
+.v-card.slow{box-shadow:0 0 0 .5px rgba(236,153,56,.4) inset}
+.v-bar{display:flex;gap:9px;align-items:center;min-height:30px;font-size:12.5px;color:var(--dim);cursor:pointer;user-select:none;white-space:nowrap}
+.v-bar .w{font-weight:600;color:var(--dim);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.v-bar .w.sh{background:linear-gradient(90deg,var(--dim) 30%,#fff 50%,var(--dim) 70%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:v-sh 2.2s linear infinite}
+body.light .v-bar .w.sh{background-image:linear-gradient(90deg,var(--dim) 30%,#000 50%,var(--dim) 70%)}
+@keyframes v-sh{from{background-position:200% 0}to{background-position:-200% 0}}
+.v-bar code,.v-code{font:11.5px var(--mono);color:var(--text);background:rgba(0,0,0,.25);padding:1px 6px;border-radius:5px;overflow:hidden;text-overflow:ellipsis;min-width:0}
+body.light .v-bar code,body.light .v-code{background:rgba(0,0,0,.07)}
+.v-bar .r{margin-left:auto;display:flex;gap:10px;align-items:center;flex:none;font-variant-numeric:tabular-nums;color:var(--faint);font-size:12px}
+.v-bar .r .amber{color:var(--orange)}
+.v-bar .step{color:var(--faint);font-size:12px;flex:none}
+.v-lead{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.v-spin{width:13px;height:13px;border-radius:50%;border:1.8px solid var(--line);border-top-color:var(--text);animation:v-r .8s linear infinite}
+@keyframes v-r{to{transform:rotate(360deg)}}
+.v-spark{color:#c9a0ff;animation:v-tw 2.4s ease-in-out infinite;width:14px;height:14px}
+@keyframes v-tw{0%,100%{opacity:1;transform:scale(1) rotate(0)}50%{opacity:.5;transform:scale(.82) rotate(18deg)}}
+.v-owl{width:9px;height:9px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 3px rgba(236,153,56,.22);animation:v-p 1.4s ease-in-out infinite}
+@keyframes v-p{50%{opacity:.35;transform:scale(.86)}}
+.v-chev{width:9px;height:9px;flex:none;transition:transform .18s;opacity:.8}
+.v-card.open>.v-bar .v-chev,.v-sub.open>.v-bar .v-chev{transform:rotate(90deg)}
+
+/* chips de tipo */
+.v-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:1px 8px 1px 6px;border-radius:99px;flex:none;line-height:17px}
+.v-chip svg{width:10px;height:10px}
+.k-think{background:rgba(201,160,255,.16);color:#c9a0ff}
+.k-read{background:rgba(10,132,255,.16);color:#6ab4ff}
+.k-shell{background:rgba(48,209,88,.14);color:#4fd873}
+.k-mcp{background:rgba(255,159,10,.16);color:#ffb340}
+.k-agent{background:rgba(191,90,242,.18);color:#d58bff}
+.k-wait{background:rgba(236,153,56,.2);color:var(--orange)}
+body.light .k-think{color:#7a4bc0}body.light .k-read{color:#0a64c8}body.light .k-shell{color:#1c8a3c}body.light .k-mcp{color:#a86400}body.light .k-agent{color:#8a2fc0}
+.v-prog{height:2px;border-radius:2px;background:var(--card2);margin:0 0 5px;overflow:hidden}
+.v-prog i{display:block;height:100%;width:35%;background:linear-gradient(90deg,transparent,var(--orange),transparent);animation:v-ind 1.6s ease-in-out infinite}
+@keyframes v-ind{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+
+/* despliegue */
+.v-fold{display:grid;grid-template-rows:0fr;transition:grid-template-rows .22s ease}
+.open>.v-fold{grid-template-rows:1fr}
+.v-fold>div{overflow:hidden;min-height:0}
+.v-tl{margin:2px 0 8px 3px;display:flex;flex-direction:column;font-size:12.5px;color:var(--dim)}
+.v-ev{display:grid;grid-template-columns:16px 1fr auto;gap:9px;padding:4px 0;align-items:start}
+.v-ev i{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;background:var(--card2);margin-top:1px;font-style:normal}
+.v-ev i svg{width:9px;height:9px}
+.v-ev.th i{background:rgba(201,160,255,.2);color:#c9a0ff}
+.v-ev.err i{background:rgba(255,69,58,.18);color:var(--red)}
+.v-ev .st{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+.v-ev.live .st{color:var(--orange)}
+
+/* subagente anidado dentro de un timeline */
+.v-sub{margin:3px 0;border-radius:12px;background:rgba(191,90,242,.07);box-shadow:0 0 0 .5px rgba(191,90,242,.3) inset;padding:2px 10px}
+.v-sub.live{box-shadow:0 0 0 .5px rgba(191,90,242,.55) inset,0 0 16px rgba(191,90,242,.08)}
+.v-sub .v-bar{min-height:28px}
+.v-said{margin:3px 0 6px 0;padding:7px 10px;border-radius:10px;background:var(--card);color:var(--text);font-size:12.5px;line-height:1.5;box-shadow:0 0 0 .5px var(--line) inset}
+.v-said small{display:block;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:2px;font-weight:600}
+.v-brief{margin:3px 0 6px;font-size:12px;color:var(--faint);line-height:1.45;border-left:2px solid var(--line);padding-left:9px}
+.v-brief b{color:var(--dim);font-weight:600}
+.v-indent{margin-left:12px;padding-left:10px;border-left:1.5px solid rgba(191,90,242,.35)}
+
+/* chat mock */
+.v-feed{display:flex;flex-direction:column;gap:10px;font-size:13.5px;line-height:1.5}
+.v-user{align-self:flex-end;max-width:85%;padding:7px 12px;border-radius:16px;background:rgba(10,132,255,.14);box-shadow:0 0 0 .5px rgba(10,132,255,.35) inset}
+.v-par{margin:0 0 8px}
+.v-seg{display:inline-flex;gap:0;background:var(--card2);border-radius:99px;padding:3px}
+.v-seg button{border:0;background:none;color:var(--dim);font:inherit;padding:4px 12px;border-radius:99px;cursor:pointer}
+.v-seg button.on{background:var(--blue);color:#fff}
+.v-hide{display:none}
+.v-sumline{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 0 25px;padding-bottom:6px}
+.v-pill{font-size:11px;padding:1px 8px;border-radius:99px;background:var(--card2);color:var(--dim);display:inline-flex;gap:5px;align-items:center}
+.v-pill i{width:6px;height:6px;border-radius:50%;background:#d58bff;animation:v-p 1.4s infinite}
+.v-pill.done i{background:var(--green);animation:none}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="i-spark" viewBox="0 0 16 16"><path fill="currentColor" d="M6.5 1.5l1.2 3.3 3.3 1.2-3.3 1.2-1.2 3.3-1.2-3.3L2 6l3.3-1.2zM12 9l.7 1.8 1.8.7-1.8.7L12 14l-.7-1.8-1.8-.7 1.8-.7z"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 10 10"><path d="M3 1.5L6.8 5 3 8.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-term" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 4.5l4 3.5-4 3.5M8.5 12h4.5"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M4 1.8h5l3 3V14H4z M9 1.8v3h3"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" d="M6 2v4M10 2v4M4.5 6h7v2.5a3.5 3.5 0 01-7 0zM8 12v2.5"/></symbol>
+  <symbol id="i-agent" viewBox="0 0 16 16"><circle cx="8" cy="5.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M3 13.5c.6-2.6 2.5-3.8 5-3.8s4.4 1.2 5 3.8"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3.5 8.5l3 3 6-7"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M8 2.5v6M8 11.5v.5"/></symbol>
+</defs></svg>
+
+<h1>Visibilidad de lo que hace el agente en el chat: hoy vs después</h1>
+<p class="sub">Exploración descartable. La columna <b>Hoy</b> es lo que la app muestra con el código actual (leído de <code>ChatToolGroupView.swift</code>, <code>ChatToolGroups.swift</code> y <code>src/chat/claude.ts</code>); las otras son las propuestas. Texto de la UI en inglés, como lo muestra la app. Los timers corren en vivo; las tarjetas se abren con click. Todo se apoya en la <b>work card actual</b> (una línea, shimmer, glow, timer, paso): no la reemplaza, le agrega información.</p>
+
+<div class="bar">
+  <button class="tab" id="v-theme">Light / dark</button>
+  <span class="sp"></span>
+</div>
+
+<!-- ================= 1 ================= -->
+<div class="v-sec">
+<h2 class="v-h">1 · ¿Qué está esperando la persona ahora mismo?</h2>
+<p class="v-why">Lo que ya funciona: la línea dice qué hace el agente, con el paso, el glow, y "Waiting for your answer". Lo que falla: el timer cuenta <b>desde que empezó el turno</b>, no la llamada; un shell de 3 minutos se ve igual que uno de 2 segundos; una MCP sale como <code>mcp__servidor__tool</code> seguida del JSON crudo de sus argumentos; y con subagentes en paralelo solo se ve el último que arrancó. Dos formas de resolverlo:</p>
+<div class="v-stage">
+<div class="v-grid">
+  <div class="v-col now"><h3><b>HOY</b> · lo que ya existe</h3>
+    <div class="v-lab"><b>Pensando</b></div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><svg class="v-spark"><use href="#i-spark"/></svg></span><span class="w sh">Thinking…</span><span class="step">· step 3</span><span class="r"><span class="tm" data-s="4">0:04</span></span></div></div>
+
+    <div class="v-lab"><b>Tool rápida</b> · lee un archivo</div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="w sh">Reading src/chat/claude.ts…</span><span class="step">· step 3</span><span class="r"><span class="tm" data-s="1">0:01</span></span></div></div>
+
+    <div class="v-lab"><b>Shell largo</b> · mismo aspecto a los 2 s que a los 2 min</div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="w sh">Running pnpm test --run…</span><span class="step">· step 7</span><span class="r"><span class="tm" data-s="190">3:10</span></span></div></div>
+
+    <div class="v-lab"><b>MCP</b> · nombre interno + el JSON de los argumentos</div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="w sh">Using mcp__linear__create_issue {"title":"Subagent UI in chat","team":"ENG","description":"…</span><span class="step">· step 5</span><span class="r"><span class="tm" data-s="8">0:08</span></span></div></div>
+
+    <div class="v-lab"><b>Esperando tu respuesta</b></div>
+    <div class="v-card wait"><div class="v-bar"><span class="v-lead"><span class="v-owl"></span></span><span class="w">Waiting for your answer</span><span class="r"><span class="amber tm" data-s="21">0:21</span></span></div></div>
+
+    <div class="v-lab"><b>Subagentes</b> · 3 en paralelo: solo se ve el último que arrancó</div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="w sh">Using Agent {"description":"Map macOS tool rendering","prompt":"Repo: /Users/…</span><span class="step">· step 6</span><span class="r"><span class="tm" data-s="47">0:47</span></span></div></div>
+  </div>
+
+  <div class="v-col"><h3><b>A</b> · Chip de tipo + timer de la llamada</h3>
+    <div class="v-lab"><b>Pensando</b></div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><svg class="v-spark"><use href="#i-spark"/></svg></span><span class="v-chip k-think">Thinking</span><span class="w sh">Working out the next step…</span><span class="r"><span class="tm" data-s="4">0:04</span></span></div></div>
+
+    <div class="v-lab"><b>Tool rápida</b> · lee un archivo</div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="v-chip k-read"><svg><use href="#i-doc"/></svg>Read</span><code>src/chat/claude.ts</code><span class="step">· step 3</span><span class="r"><span class="tm" data-s="1">0:01</span></span></div></div>
+
+    <div class="v-lab"><b>Shell largo</b> · pasa a ámbar después de 30 s</div>
+    <div class="v-card live slow"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="v-chip k-shell"><svg><use href="#i-term"/></svg>Shell</span><code>pnpm test --run</code><span class="step">· step 7</span><span class="r"><span class="amber tm" data-s="102">1:42</span><span>turn <span class="tm" data-s="190">3:10</span></span></span></div></div>
+
+    <div class="v-lab"><b>MCP</b> · servidor + tool, separados</div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="v-chip k-mcp"><svg><use href="#i-plug"/></svg>Linear</span><span class="w sh">create_issue</span><span class="step">· step 5</span><span class="r"><span class="tm" data-s="8">0:08</span></span></div></div>
+
+    <div class="v-lab"><b>Esperando tu respuesta</b></div>
+    <div class="v-card wait"><div class="v-bar"><span class="v-lead"><span class="v-owl"></span></span><span class="v-chip k-wait">Needs you</span><span class="w">Approve <code>git push origin main</code></span><span class="r"><span class="amber tm" data-s="21">0:21</span></span></div></div>
+
+    <div class="v-lab"><b>Subagentes</b> · 3 corriendo en paralelo</div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="v-chip k-agent"><svg><use href="#i-agent"/></svg>3 subagents</span><span class="w sh">Explore · Explore · general-purpose</span><span class="r"><span class="tm" data-s="47">0:47</span></span></div></div>
+  </div>
+
+  <div class="v-col"><h3><b>B</b> · Frase con el verbo + barra indeterminada</h3>
+    <div class="v-lab"><b>Pensando</b></div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><svg class="v-spark"><use href="#i-spark"/></svg></span><span class="w sh">Thinking…</span><span class="step">· step 3</span><span class="r"><span class="tm" data-s="4">0:04</span></span></div></div>
+
+    <div class="v-lab"><b>Tool rápida</b></div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="w sh">Reading <code style="-webkit-text-fill-color:var(--text)">src/chat/claude.ts</code>…</span><span class="step">· step 3</span><span class="r"><span class="tm" data-s="1">0:01</span></span></div></div>
+
+    <div class="v-lab"><b>Shell largo</b> · después de 30 s agrega "still running" y la barra</div>
+    <div class="v-card live slow"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="w sh">Running <code style="-webkit-text-fill-color:var(--text)">pnpm test --run</code></span><span style="color:var(--orange);font-size:12px">still running</span><span class="r"><span class="amber tm" data-s="102">1:42</span><span class="tm" data-s="190">3:10</span></span></div><div class="v-prog"><i></i></div></div>
+
+    <div class="v-lab"><b>MCP</b> · "Calling Linear → create_issue"</div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="w sh">Calling Linear · create_issue…</span><span class="step">· step 5</span><span class="r"><span class="tm" data-s="8">0:08</span></span></div></div>
+
+    <div class="v-lab"><b>Esperando tu respuesta</b></div>
+    <div class="v-card wait"><div class="v-bar"><span class="v-lead"><span class="v-owl"></span></span><span class="w">Waiting for your answer</span><span class="r"><span class="amber tm" data-s="21">0:21</span></span></div></div>
+
+    <div class="v-lab"><b>Subagentes</b></div>
+    <div class="v-card live"><div class="v-bar"><span class="v-lead"><span class="v-spin"></span></span><span class="w sh">3 subagents working…</span><span class="r"><span class="tm" data-s="47">0:47</span></span></div></div>
+  </div>
+</div>
+</div>
+<p class="v-note"><b>A</b> responde "¿qué tipo de cosa es?" de un vistazo (color + ícono), útil con muchos chips en el feed. <b>B</b> cambia menos la línea actual: solo mejora la frase y avisa cuando algo tarda. Se pueden combinar (chip de A + "still running" de B). Umbral de "lento" propuesto: 30 s, solo para Shell y MCP. El timer de la derecha pasa a ser el de <b>la llamada</b>; el del turno queda como secundario cuando difieren.</p>
+</div>
+
+<!-- ================= 2 ================= -->
+<div class="v-sec">
+<h2 class="v-h">2 · Subagentes: qué dijeron y qué pasos dieron</h2>
+<p class="v-why">Hoy una llamada a un subagente es una fila más ("Using Agent"), y lo que hace por dentro se mezcla con el hilo principal. Dos formas de mostrarlo: <b>X</b> anidado dentro de la work card del padre, o <b>Y</b> una tarjeta propia por subagente en el feed (como la slice card de las epics).</p>
+<div class="v-grid2">
+<div class="v-col now"><h3><b>HOY</b> · lo que ve la persona</h3>
+<p class="v-flag" style="margin:0 0 0">Los pasos internos del subagente aparecen mezclados con los del padre: es lo que el código implica (el adapter no mira <code>parent_tool_use_id</code>), pero no lo verifiqué con una sesión real.</p>
+<div class="v-stage" style="margin-top:12px"><div class="v-feed">
+  <div class="v-user">Find where we show tool calls in the chat and tell me how subagents would fit.</div>
+  <div>I'll look at the adapter and the app in parallel.</div>
+  <div class="v-card live open">
+    <div class="v-bar" onclick="tg(this.parentNode)"><span class="v-lead"><span class="v-spin"></span></span><span class="w sh">Reading src/chat/transcript.ts…</span><span class="step">· step 9</span><span class="r"><span class="tm" data-s="73">1:13</span><svg class="v-chev"><use href="#i-chev"/></svg></span></div>
+    <div class="v-fold"><div><div class="v-tl">
+      <div class="v-ev th"><i><svg><use href="#i-spark"/></svg></i><span>Two independent areas: split them.</span><span class="st"></span></div>
+      <div class="v-ev"><i><span class="v-spin" style="width:10px;height:10px"></span></i><span><b style="color:var(--text)">Agent</b> <code class="v-code">{"description":"Find subagent code in chat host","prompt":"Repo: /Users/…</code></span><span class="st"></span></div>
+      <div class="v-ev"><i><span class="v-spin" style="width:10px;height:10px"></span></i><span><b style="color:var(--text)">Agent</b> <code class="v-code">{"description":"Map macOS tool rendering","prompt":"Repo: /Us…</code></span><span class="st"></span></div>
+      <div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span><b style="color:var(--text)">Grep</b> <code class="v-code">parent_tool_use_id</code></span><span class="st">done</span></div>
+      <div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span><b style="color:var(--text)">Grep</b> <code class="v-code">ToolKind</code></span><span class="st">2 matches</span></div>
+      <div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span><b style="color:var(--text)">Read</b> <code class="v-code">src/chat/claude.ts</code></span><span class="st">412 lines</span></div>
+      <div class="v-ev th"><i><svg><use href="#i-spark"/></svg></i><span>translate() drops sidechain info; checking the types next.</span><span class="st"></span></div>
+      <div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span><b style="color:var(--text)">Read</b> <code class="v-code">ChatToolGroupView.swift</code></span><span class="st">430 lines</span></div>
+      <div class="v-ev"><i><span class="v-spin" style="width:10px;height:10px"></span></i><span><b style="color:var(--text)">Read</b> <code class="v-code">src/chat/transcript.ts</code></span><span class="st"></span></div>
+    </div></div></div>
+  </div>
+</div></div>
+</div>
+
+<div class="v-col"><h3><b>DESPUÉS</b> · propuesta</h3>
+<div class="v-seg" id="v-seg"><button class="on" data-v="x">X · Anidado en la work card</button><button data-v="y">Y · Tarjeta propia en el feed</button></div>
+
+<div class="v-stage" style="margin-top:12px">
+<div class="v-feed">
+  <div class="v-user">Find where we show tool calls in the chat and tell me how subagents would fit.</div>
+  <div>I'll look at the adapter and the app in parallel.</div>
+
+  <!-- X -->
+  <div id="v-x">
+    <div class="v-card live open">
+      <div class="v-bar" onclick="tg(this.parentNode)"><span class="v-lead"><span class="v-spin"></span></span><span class="v-chip k-agent"><svg><use href="#i-agent"/></svg>2 subagents</span><span class="w sh">Explore · general-purpose</span><span class="step">· step 4</span><span class="r"><span class="tm" data-s="73">1:13</span><svg class="v-chev"><use href="#i-chev"/></svg></span></div>
+      <div class="v-fold"><div><div class="v-tl">
+        <div class="v-ev th"><i><svg><use href="#i-spark"/></svg></i><span>Two independent areas: split them.</span><span class="st">0:02</span></div>
+
+        <div class="v-sub live open">
+          <div class="v-bar" onclick="tg(this.parentNode)"><span class="v-lead"><span class="v-spin"></span></span><span class="v-chip k-agent">Explore</span><span class="w">Find subagent code in chat host</span><span class="r"><span>5 steps</span><span class="tm" data-s="71">1:11</span><svg class="v-chev"><use href="#i-chev"/></svg></span></div>
+          <div class="v-fold"><div>
+            <div class="v-brief"><b>Brief</b> · Read the chat adapter and say whether parent_tool_use_id is kept…</div>
+            <div class="v-tl">
+              <div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span><code class="v-code">Grep</code> parent_tool_use_id</span><span class="st">0.4s</span></div>
+              <div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span><code class="v-code">Read</code> src/chat/claude.ts</span><span class="st">0.2s</span></div>
+              <div class="v-ev th"><i><svg><use href="#i-spark"/></svg></i><span>translate() drops sidechain info; checking the types next.</span><span class="st"></span></div>
+              <div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span><code class="v-code">Read</code> src/chat/runner.ts</span><span class="st">0.2s</span></div>
+              <div class="v-ev live"><i><span class="v-spin" style="width:10px;height:10px"></span></i><span><code class="v-code">Read</code> src/chat/transcript.ts</span><span class="st tm" data-s="2">0:02</span></div>
+            </div>
+          </div></div>
+        </div>
+
+        <div class="v-sub live">
+          <div class="v-bar" onclick="tg(this.parentNode)"><span class="v-lead"><span class="v-spin"></span></span><span class="v-chip k-agent">general-purpose</span><span class="w">Map macOS tool rendering</span><span class="r"><span>3 steps</span><span class="tm" data-s="70">1:10</span><svg class="v-chev"><use href="#i-chev"/></svg></span></div>
+          <div class="v-fold"><div><div class="v-tl">
+            <div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span><code class="v-code">Grep</code> ToolKind</span><span class="st">0.3s</span></div>
+            <div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span><code class="v-code">Read</code> ChatToolGroupView.swift</span><span class="st">0.2s</span></div>
+            <div class="v-ev live"><i><span class="v-spin" style="width:10px;height:10px"></span></i><span><code class="v-code">Read</code> ChatToolGroups.swift</span><span class="st tm" data-s="1">0:01</span></div>
+          </div></div></div>
+        </div>
+      </div></div></div>
+    </div>
+  </div>
+
+  <!-- Y -->
+  <div id="v-y" class="v-hide">
+    <div class="v-card live v-par"><div class="v-bar"><span class="v-lead"><svg class="v-spark"><use href="#i-spark"/></svg></span><span class="w sh">Waiting for 2 subagents…</span><span class="step">· step 4</span><span class="r"><span class="tm" data-s="73">1:13</span></span></div></div>
+
+    <div class="v-sub live open" style="padding:4px 12px;margin-bottom:8px">
+      <div class="v-bar" onclick="tg(this.parentNode)"><span class="v-lead"><span class="v-spin"></span></span><span class="v-chip k-agent"><svg><use href="#i-agent"/></svg>Explore</span><span class="w" style="color:var(--text)">Find subagent code in chat host</span><span class="r"><span class="v-pill">5 steps</span><span class="tm" data-s="71">1:11</span><svg class="v-chev"><use href="#i-chev"/></svg></span></div>
+      <div class="v-fold"><div>
+        <div class="v-brief"><b>Brief</b> · Read the chat adapter and say whether parent_tool_use_id is kept…</div>
+        <div class="v-tl">
+          <div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span><code class="v-code">Grep</code> parent_tool_use_id</span><span class="st">0.4s</span></div>
+          <div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span><code class="v-code">Read</code> src/chat/claude.ts</span><span class="st">0.2s</span></div>
+          <div class="v-ev live"><i><span class="v-spin" style="width:10px;height:10px"></span></i><span><code class="v-code">Read</code> src/chat/runner.ts</span><span class="st tm" data-s="2">0:02</span></div>
+        </div>
+        <div class="v-said"><small>Says</small>translate() never reads parent_tool_use_id, so sidechain text lands in the main thread…</div>
+      </div></div>
+    </div>
+
+    <div class="v-sub live" style="padding:4px 12px;margin-bottom:8px">
+      <div class="v-bar" onclick="tg(this.parentNode)"><span class="v-lead"><span class="v-spin"></span></span><span class="v-chip k-agent"><svg><use href="#i-agent"/></svg>general-purpose</span><span class="w" style="color:var(--text)">Map macOS tool rendering</span><span class="r"><span class="v-pill">3 steps</span><span class="tm" data-s="70">1:10</span><svg class="v-chev"><use href="#i-chev"/></svg></span></div>
+      <div class="v-fold"><div><div class="v-tl"><div class="v-ev live"><i><span class="v-spin" style="width:10px;height:10px"></span></i><span><code class="v-code">Read</code> ChatToolGroups.swift</span><span class="st tm" data-s="1">0:01</span></div></div></div></div>
+    </div>
+
+    <div class="v-sub" style="padding:4px 12px">
+      <div class="v-bar" onclick="tg(this.parentNode)"><span class="v-lead" style="color:var(--green)"><svg style="width:12px;height:12px"><use href="#i-ok"/></svg></span><span class="v-chip k-agent"><svg><use href="#i-agent"/></svg>Explore</span><span class="w" style="color:var(--text)">Check Swift model (finished)</span><span class="r"><span class="v-pill done">8 steps</span><span>42s</span><svg class="v-chev"><use href="#i-chev"/></svg></span></div>
+      <div class="v-fold"><div>
+        <div class="v-tl"><div class="v-ev"><i><svg><use href="#i-ok"/></svg></i><span>8 steps · Read ×5, Grep ×3</span><span class="st"></span></div></div>
+        <div class="v-said"><small>Result</small>ChatEvent has no parent field; chatFeed folds tool_start/end into one row…</div>
+      </div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div></div>
+<p class="v-note"><b>X</b>: un solo bloque, el feed no crece; el subagente es un paso más del padre, con su propia mini-línea de tiempo (indentada). Mejor si hay pocos subagentes o terminan rápido. <b>Y</b>: cada subagente es visible a primer vista, con su estado y su resultado; mejor si son largos o paralelos, y deja el chat más largo. Ambos muestran: descripción y tipo, estado en vivo, cantidad de pasos, duración, sus pasos y <b>lo que dijo</b> (resultado final). Lo que dijo en medio de su trabajo aparece como "pensamiento" violeta, igual que en la work card actual.</p>
+</div>
+
+<div class="v-sec">
+<h2 class="v-h">3 · Cuando termina: el resumen de la línea</h2>
+<p class="v-why">Una vez cerrado el turno, la tarjeta queda plegada con un resumen. Hoy todo lo que no es lectura, búsqueda, edición o shell cae en "other tools", incluidas las MCP y los subagentes.</p>
+<div class="v-grid2"><div class="v-col now"><h3><b>HOY</b></h3><div class="v-stage">
+  <div class="v-card"><div class="v-bar"><span class="v-lead"></span><b style="color:var(--text)">Worked</b><span class="w" style="font-weight:400">2 thoughts · 6 files read · 2 searches · 1 command · 3 other tools</span><span class="r"><span>1m 12s</span><svg class="v-chev"><use href="#i-chev"/></svg></span></div></div>
+  <p class="v-note">No se sabe que hubo subagentes ni una MCP, ni cuánto tardó cada uno.</p>
+</div></div>
+<div class="v-col"><h3><b>DESPUÉS</b></h3><div class="v-stage">
+  <div class="v-card"><div class="v-bar"><span class="v-lead"></span><b style="color:var(--text)">Worked</b><span class="w" style="font-weight:400">2 thoughts · 6 files read · 2 searches · 1 command · 1 MCP call · 2 subagents</span><span class="r"><span>1m 12s</span><svg class="v-chev"><use href="#i-chev"/></svg></span></div></div>
+  <p class="v-note">MCP y subagentes se cuentan aparte. Al abrir, cada subagente es una fila (X) o una tarjeta (Y) como en la sección 2, con su resultado.</p>
+</div></div></div>
+</div>
+
+<script>
+function tg(el){el.classList.toggle('open')}
+document.querySelectorAll('#v-seg button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#v-seg button').forEach(x=>x.classList.toggle('on',x===b));
+  document.getElementById('v-x').classList.toggle('v-hide',b.dataset.v!=='x');
+  document.getElementById('v-y').classList.toggle('v-hide',b.dataset.v!=='y');
+});
+document.getElementById('v-theme').onclick=()=>document.body.classList.toggle('light');
+const f=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+const t0=Date.now();
+setInterval(()=>{const d=Math.floor((Date.now()-t0)/1000);
+  document.querySelectorAll('.tm').forEach(e=>e.textContent=f(+e.dataset.s+d));},1000);
+</script>
+</body></html>

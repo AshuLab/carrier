@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- Usage: each account of Claude Code, Codex and Antigravity wears its icon and color before its name, as it does everywhere else in the app.
+- Usage: where an account has a header of its own (several accounts of a tool, or one that needs a look), it wears its icon and color before its name, as it does everywhere else in the app.
 - The banner of a turn that failed or was refused ("Lu couldn't continue") names the account by its label or display name, and wears its icon and color when it has them, so two accounts of one tool are told apart there too.
 - An account with no label is called by its display name, and not by its key, in the provider tabs of the message box and in the sidebar's tooltip.
 - Settings › Providers: each account shows its mark large, as an avatar at the left of its row, and saving, removing or adding an account closes its editor at once instead of waiting for Carrier to confirm; if Carrier refuses what was saved, the page says so afterwards.

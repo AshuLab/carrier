@@ -475,6 +475,62 @@ private var work: AccountDraft {
     #expect(store.editProblem?.hasSuffix("bad") == true)
 }
 
+/// The engine's answers in turn, handed out from the queue the reload runs on.
+private final class LockedAnswers: @unchecked Sendable {
+    private let lock = NSLock()
+    private var outcomes: [ReloadOutcome]
+    init(_ outcomes: [ReloadOutcome]) { self.outcomes = outcomes }
+    func next() -> ReloadOutcome {
+        lock.lock()
+        defer { lock.unlock() }
+        return outcomes.isEmpty ? .applied : outcomes.removeFirst()
+    }
+}
+
+@MainActor @Test func aWriteThatWasRefusedBeforeWritingDoesNotSilenceTheAnswerOfAnEarlierOne() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    try file.write(Data(#"{"providers":{"claude":{"harness":"claude"},"codex":{"harness":"codex"}}}"#.utf8))
+    let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
+    let gate = DispatchSemaphore(value: 0)
+    var logged: [String] = []
+    let store = ProvidersStore(
+        host: host, file: { file }, uses: { ["codex": [.role(.author)]] }, log: { logged.append($0) }, reload: { gate.wait(); return .refused("bad") }
+    )
+
+    // Save is written and the engine is still thinking; Remove is refused before it writes anything
+    #expect(await store.save(name: "claude", draft: work))
+    #expect(await store.remove(name: "codex") == false)
+    #expect(store.editProblem?.contains("so it stays") == true)
+    gate.signal()
+    await store.settled()
+    // the refusal of the Save that was written is the one that is still to come, so it is shown
+    #expect(store.editProblem?.hasSuffix("bad") == true && logged.isEmpty)
+}
+
+@MainActor @Test func theRefusalOfAWriteThatANewerOneReplacedIsLoggedAndNotShown() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    try file.write(Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8))
+    let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
+    let gate = DispatchSemaphore(value: 0)
+    let answers = LockedAnswers([.refused("bad"), .applied])
+    var logged: [String] = []
+    let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { logged.append($0) }, reload: { gate.wait(); return answers.next() })
+
+    #expect(await store.save(name: "claude", draft: work))
+    var again = work
+    again.displayName = "Work 2"
+    #expect(await store.save(name: "claude", draft: again))
+    gate.signal()
+    gate.signal()
+    await store.settled()
+    // the first answer (a refusal) is the older one: logged. The newer one applied, so nothing is shown
+    #expect(store.editProblem == nil && logged.count == 1 && logged[0].contains("bad"))
+}
+
 @MainActor @Test func anOlderEngineThatDoesNotReloadSaysNothingAndARefusalIsAProblem() async throws {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }

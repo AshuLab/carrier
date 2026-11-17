@@ -308,8 +308,12 @@ public enum ProvidersOutcome: Equatable {
         do {
             let current = try file().read()
             try file().write(applyingAccounts([(name: harness, harness: harness)], to: current))
+            // a write of its own, so an answer to an earlier one is not said after it (`change` counts the same way)
+            changes += 1
+            let mine = changes
             // the row leaves "Found, not added" once the host is asked again, so the engine's words go where the accounts show them
-            engineSaid(await status.answer(reload))
+            let outcome = await status.answer(reload)
+            if mine == changes { engineSaid(outcome) }
         } catch ProvidersFileError.notAnObject {
             addProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
         } catch ProvidersFileError.taken(let name) {
@@ -360,8 +364,6 @@ public enum ProvidersOutcome: Equatable {
     /// at once: the engine is asked, and the host looked at again, in the background, and a `problem` it answers is what the page shows (`settled`).
     private func change(_ what: String, _ make: (Data?) throws -> Data) async -> Bool {
         dismissProblem()
-        changes += 1
-        let mine = changes
         do {
             let file = file()
             try file.write(make(try file.read()))
@@ -385,11 +387,20 @@ public enum ProvidersOutcome: Equatable {
             editProblem = "providers.json could not be written; the file stays as it was."
             return false
         }
+        // counted once the file is written: a change that wrote nothing has no answer coming and must not silence the one of an earlier write
+        changes += 1
+        let mine = changes
+        // the older answer is still asked for (the engine reads the file anyway), but its look at the host would land after the newer one's
+        follow?.cancel()
         follow = Task {
             let outcome = await status.answer(reload)
-            // a newer change dismissed this one's words, and has its own answer coming
-            if mine == changes { engineSaid(outcome) }
-            await load()
+            if mine == changes {
+                engineSaid(outcome)
+            } else if let words = reloadWords(outcome), outcome.isProblem {
+                // a newer write has its own answer coming, so this one's words are not shown; the log keeps them
+                log("providers: the engine did not apply \(what), which a newer write replaced: \(words)")
+            }
+            if Task.isCancelled == false { await load() }
         }
         return true
     }

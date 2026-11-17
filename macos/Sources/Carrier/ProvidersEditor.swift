@@ -101,14 +101,13 @@ struct AccountEditor: View {
                     Button(role: .destructive) {
                         Task { if await store.remove(name: account.name) { ProviderIdentityStore.shared.reload(); close() } }
                     } label: { Label("Remove", systemImage: "trash") }
-                    .disabled(store.busy)
                     .help("Removes \(account.name) from providers.json; refused while a role or a chat names it")
                     Spacer()
-                    Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }.disabled(store.busy)
+                    Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }
                     Button {
                         Task { if await store.save(name: account.name, draft: draft) { ProviderIdentityStore.shared.reload(); close() } }
                     } label: { Label("Save", systemImage: "checkmark") }
-                    .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(problems.isEmpty == false || draft == saved || store.busy)
+                    .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(problems.isEmpty == false || draft == saved)
                 }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
                 .padding(.top, 10)
@@ -231,11 +230,11 @@ struct AddAccountForm: View {
             }
             HStack(spacing: 10) {
                 Spacer()
-                Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }.disabled(store.busy)
+                Button { store.dismissProblem(); close() } label: { Label("Cancel", systemImage: "xmark") }
                 Button {
                     Task { if await store.addAccount(name: name, harness: harness, configDir: folder) { close() } }
                 } label: { Label("Add", systemImage: "plus") }
-                .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(name.isEmpty || problem != nil || store.busy)
+                .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(name.isEmpty || problem != nil)
             }
             .buttonStyle(SecondaryCapsuleButtonStyle())
             .padding(.top, 10)

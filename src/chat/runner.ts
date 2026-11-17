@@ -35,7 +35,7 @@ export type ChatEvent =
   | { kind: 'reasoning'; text: string } // one finished thinking block, before the answer of its turn; never streamed
   | { kind: 'delta'; text: string } // streaming, never stored
   | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err' }
-  | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; /** Set when the approval is the agent asking questions: the person answers them with `answers`. */ questions?: ChatQuestion[] }
+  | { kind: 'approval'; approvalId: string; tool: string; arg?: string; /** What the adapter hands the host to word the approval from (a delegation's agent, model and task); never stored. */ input?: Record<string, unknown>; choices: ChatChoice[]; /** Set when the approval is the agent asking questions: the person answers them with `answers`. */ questions?: ChatQuestion[] }
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; /** Question text to the answer; a multiple choice joins its picks with a comma. */ answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
@@ -52,6 +52,8 @@ export interface ChatConversation {
   readonly startedOver?: boolean;
   /** Set when the chat MCP was handed over and the provider could not start or reach it: the conversation works without it, and the host says so. */
   readonly mcpProblem?: string;
+  /** The version of the Codex app-server behind this conversation, as `1.2.3`; none for another provider or when it did not say. */
+  readonly appServerVersion?: string;
   /** The agent's process, when it leads a group of its own: what the next host needs to sweep it if this one dies. `command` is what it was started with. */
   readonly process?: { pid: number; pgid: number; command: string };
   /** `text` is the message, or what follows the command's name when one is invoked (the provider's own way of invoking it is the adapter's). */
@@ -70,7 +72,7 @@ export type ChatLaunch = Pick<Account, 'autoCompact' | 'idleCompaction' | 'launc
 
 export interface ChatRunner {
   /** Rejects with a `ChatRefused` when the provider is not installed, not logged in, or does not know the id to resume. */
-  open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv; /** The chat MCP of this one conversation, by the key it is registered under, its URL and its bearer token (never logged, never in `argv`); none for a probe. */ mcp?: { serverName: string; url: string; token: string }; /** What the conversation opens with as its instructions (the handoff of a switched session, ADR 0032): Claude's appended system prompt, Codex's developer instructions. Never in front of a message. */ instructions?: string; /** Set for a child session (ADR 0033): its approvals offer Allow and Deny and none of the provider's suggestions, which would raise what it may do. */ child?: boolean }): Promise<ChatConversation>;
+  open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv; /** The chat MCP of this one conversation, by the key it is registered under, its URL and its bearer token (never logged, never in `argv`); none for a probe. */ mcp?: { serverName: string; url: string; token: string; /** The tools of the chat MCP that only read, by name: the adapter lets them run without asking. */ readTools?: string[] }; /** What the conversation opens with as its instructions (the handoff of a switched session, ADR 0032): Claude's appended system prompt, Codex's developer instructions. Never in front of a message. */ instructions?: string; /** Set for a child session (ADR 0033): its approvals offer Allow and Deny and none of the provider's suggestions, which would raise what it may do. */ child?: boolean }): Promise<ChatConversation>;
 }
 
 /** A failure whose message is for the person, in words: it travels to the client as it is. Any other error is logged and reaches the client as "internal error". */

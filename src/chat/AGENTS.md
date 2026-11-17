@@ -38,7 +38,9 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `mcp.ts`: the chat MCP ([ADR 0024](../../docs/adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)), a loopback HTTP server the host starts before `chat.sock`.
   `McpSessionRegistry`: a bearer token per live conversation, kept hashed in memory, revoked by `invocationId` when `sessions.ts` closes, loses or fails that conversation.
   `defineTool`: every tool declares its access level.
-  A tool is listed and callable only for a token with the capability its access level needs: `delegate_start` (`mcp/delegate.ts`, `actsAsSession`) needs `act`, which no session receives yet.
+  A tool is listed and callable only for a token with the capability its access level needs: `delegate_start` (`mcp/delegate.ts`, `actsAsSession`) needs `act`, which a session with no parent gets.
+  A tool marked `delegation` is also listed only while `sessions.delegationRefusal` (`levels.ts`: a mode that asks, on the scale, Codex app-server 0.122.0 or later) finds none, and that check runs again on the call; `agents` says the same words as `notOffered`.
+  The approval of `delegate_start` carries `input` (never stored, dropped by `boundEvent`), from which `sessions.ts` words the approval and holds the call to the level shown.
   `delegate_wait` (`readsAsSession`) waits for the caller's children through `waitChildren` of `sessions.ts` (live state, else how the child's one turn ended, a turn that never ended being `interrupted`), and `history` also reads a child or the parent (`related`).
   The toolkits are under `mcp/` (`capabilities`, `history`, `agents` and `delegate`); the adapters take the `mcp` argument of `ChatRunner.open`.
 - `handoff.ts`: `buildHandoff`, the pure builder of a switched session's handoff from its stored events, 16,000 UTF-8 bytes on the whole text ([ADR 0032](../../docs/adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md)); it travels as `ChatRunner.open`'s `instructions`, which Claude appends to its preset system prompt and Codex sends as `developerInstructions`.

@@ -28,3 +28,12 @@ describe('the stored form of an error', () => {
     expect((stored.resetText as string).length).toBeLessThanOrEqual(chatCaps.error);
   });
 });
+
+describe('the stored form of an approval', () => {
+  it('drops the input the adapter handed the host and keeps the whole text up to the length of a message', () => {
+    const choices = [{ id: 'allow', label: 'Allow', allow: true }];
+    const stored = boundEvent({ kind: 'approval', approvalId: 'a1', tool: 'delegate_start', arg: 'x'.repeat(chatCaps.message + 10), input: { task: 'secret' }, choices })!;
+    expect(stored).not.toHaveProperty('input');
+    expect((stored.arg as string).length).toBe(chatCaps.message);
+  });
+});

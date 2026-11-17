@@ -14,6 +14,8 @@ export class FakeConversation implements ChatConversation {
   nativeId: string | undefined;
   startedOver = false;
   mcpProblem: string | undefined;
+  /** What the fake says its Codex app-server is; a test sets it with `setup`. */
+  appServerVersion: string | undefined;
   process: ChatConversation['process'];
   sent: string[] = [];
   answers: { approvalId: string; choiceId: string; answers?: Record<string, string> }[] = [];

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { childOptions, isScaleHarness, levelOf, scaleOptions } from '../levels.ts';
+import { childOptions, isScaleHarness, levelOf } from '../levels.ts';
 import { defineTool } from '../mcp.ts';
 import { createScopedLogger } from '@ashulab/universal-logger';
 
@@ -10,17 +10,14 @@ export const agents = defineTool({
   name: 'agents',
   description:
     'Lists the configured chat agents: each one\'s name, harness, whether it is found, its state, and childLevel, the permission level (0 reads only, 1 changes and asks before each change, 2 edits without asking) it would run at as a child of this session. ' +
-    'When this session\'s own options are off the permission scale, notOffered says why and there is no childLevel. ' +
+    'When this session may not delegate (its mode does not ask the person, it is off the permission scale, or its harness is too old), notOffered says why and there is no childLevel. ' +
     'Pass models: true to also get each agent\'s models and reasoning efforts; it starts each agent briefly, so it is slower.',
   access: 'readsAsSession',
   input: z.strictObject({ models: z.boolean().optional() }),
   handler: async ({ models = false }, { sessionId, sessions }) => {
     const caller = sessions.snapshot(sessionId);
-    const callerLevel = isScaleHarness(caller.harness) ? levelOf(caller.harness, caller.options) : undefined;
-    const notOffered =
-      callerLevel === undefined
-        ? `This session's options (${Object.entries(isScaleHarness(caller.harness) ? scaleOptions(caller.harness, caller.options) : caller.options).map(([id, value]) => `${id} ${value}`).join(', ')}) are off the permission scale, so a child cannot be given a level`
-        : undefined;
+    const notOffered = sessions.delegationRefusal(sessionId);
+    const callerLevel = notOffered === undefined && isScaleHarness(caller.harness) ? levelOf(caller.harness, caller.options) : undefined;
     const health = await sessions.health();
     return {
       agents: await Promise.all(

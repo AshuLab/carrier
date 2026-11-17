@@ -40,6 +40,7 @@ Work the agent did (calls, thoughts, messages, an error) is drawn with the chat'
 - **A row that opens or links is one click target as a whole**: a 4 % fill under the pointer, and no lone small icon as the only way in.
   A `Button` or a `Link`, never only `.onTapGesture`: a tap gesture is not reachable with the keyboard.
 - **An arrow that says "this opens GitHub" shows under the pointer**, not all the time.
+- **A notice about an account wears its mark before the title** (`NoticeCard(account:)`, the failed turn's banner), only when the account has an icon, a color or a label; one with none shows the title alone, as the footer of an answer does.
 - **Say a kind in a word, not in a dot** (`BLOCKER`, `SUGGESTION`): a colour alone is not read by everyone.
 - **Open and fold a card with `flipCard`**: smooth, and none with Reduce Motion.
 - **One thing, one card**: what a card's rows were checked by is its foot (a line under a divider), not a second card under it.

@@ -159,6 +159,12 @@ The runner's `open` rejects when the provider is not installed or not logged in,
 
 The chat socket's request union is its own and strict, in the style of the engine's, with the same hello (`protocol: 1`). The cursor polling choice is a reversible default, which is why it has no ADR.
 
+A session's pull request is looked for once, by its branch, with the person's own `gh` login ([ADR 0015](../adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)), and stored on the session (`prRepo`, `prNumber`, `prUrl`, `prState`, `prChecks`, `prCheckedAt`).
+After that only its state is asked again, by number and in one GraphQL request for all the open ones, at most once a minute.
+A merged or closed one is final, and gives way only to a newer open one on the same branch.
+The lines changed come from `git diff --numstat`, read-only and with the repository's own diff and text filters off.
+Without `gh`, a network or an origin on GitHub, a row simply has no pull request.
+
 Testing seams, by story:
 
 - Stories 2, 3, 5, 6, 7, 9, 10, 11, 13: the host through the same interface its socket uses, a request in and a reply out, with a fake chat runner (it plays scripted events, holds approvals and ends on cue) and a temporary SQLite, and an injected clock for the minute rules. This is the broadest seam and carries most of the behaviour. The socket gets its own test in the style of the engine's server test: strict objects, an unknown command, the line cap, the 0600 mode.

@@ -217,7 +217,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (event.kind === 'tool_start' && live.turn) live.turn.toolCalls++;
     if (event.kind === 'turn_end') {
       const startedAt = live.turn?.startedAt ?? clock.now();
-      db.insert(chatTurns).values({ sessionId, startedAt, model: event.model ?? null, outcome: event.outcome, durationMs: clock.now() - startedAt, toolCalls: live.turn?.toolCalls ?? 0, usage: event.usage ?? null }).run();
+      const { harness, agent } = row(sessionId);
+      db.insert(chatTurns).values({ sessionId, startedAt, harness, agent, nativeId: live.conversation.nativeId ?? null, model: event.model ?? null, outcome: event.outcome, durationMs: clock.now() - startedAt, toolCalls: live.turn?.toolCalls ?? 0, usage: event.usage ?? null }).run();
       live.turn = undefined;
     }
     touch(sessionId, live, event.kind === 'approval' ? 'waiting_approval' : event.kind === 'turn_end' ? 'idle' : event.kind === 'approval_answered' ? 'working' : live.state);

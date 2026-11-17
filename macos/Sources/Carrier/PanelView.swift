@@ -249,7 +249,7 @@ struct PanelView: View {
                         } else if let emptyPage {
                             EmptyStateView(state: emptyPage)
                         } else if case .session(let id) = shell.selection {
-                            ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest) { plan in
+                            ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest, subagents: $shell.subagents, header: $shell.subagentHeader) { plan in
                                 model.newSession.restore(plan)
                                 shell.selection = .newSession
                             }.id(id)
@@ -319,6 +319,8 @@ struct PanelView: View {
             .themedWindowBackground()
             .navigationTitle(title)
             .navigationSubtitle(subtitle)
+            // the subagent's own title is in the toolbar, as one item with the line that says whose it is
+            .toolbar(removing: shell.subagentHeader == nil ? nil : .title)
             .onChange(of: model.shell.selection) { _, _ in
                 if let target = activeDrawerTarget,
                    target.isSessionDrawer == false,
@@ -357,8 +359,23 @@ struct PanelView: View {
             }
             if let session = openSession {
                 let drawerOpen = shell.isTerminalDrawerOpen(for: .session(session.id))
-                ToolbarItem(placement: .primaryAction) { SessionPlacePill(row: session) }
+                if let open = shell.subagentHeader {
+                    // a subagent view wears the window's header: Back next to the sidebar's button, its title, and its state where the worktree pill is
+                    ToolbarItem(placement: .navigation) {
+                        Button { shell.leaveSubagent() } label: { Label("Back", systemImage: "chevron.left") }
+                            .help(shell.subagents.count > 1 ? "Back to the subagent that launched this one" : "Back to the conversation")
+                    }
+                    ToolbarItem(placement: .navigation) {
+                        SubagentTitle(title: open.title, subtitle: open.subtitle(of: conversationTitle(session)))
+                            .frame(maxWidth: windowSize.width * 0.35, alignment: .leading)
+                    }
                     .sharedBackgroundVisibility(.hidden)
+                    ToolbarItem(placement: .primaryAction) { SubagentStatePill(header: open) }
+                        .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .primaryAction) { SessionPlacePill(row: session) }
+                        .sharedBackgroundVisibility(.hidden)
+                }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
                     ToolbarGlassIconButton(icon: drawerOpen ? "terminal.fill" : "terminal", name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {

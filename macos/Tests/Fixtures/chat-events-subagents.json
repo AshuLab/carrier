@@ -3,7 +3,7 @@
   "events": [
     { "id": 1, "at": 1791960000000, "kind": "user", "text": "Look into how the chat shows tool calls, in three places at once." },
     { "id": 2, "at": 1791960001000, "kind": "reasoning", "text": "Three independent questions: the adapter, the app and the models. I will launch one subagent for each." },
-    { "id": 3, "at": 1791960002000, "kind": "tool_start", "callId": "a1", "tool": "Agent", "arg": "{\"description\":\"Find subagent code in chat host\",\"subagent_type\":\"Explore\"}" },
+    { "id": 3, "at": 1791960002000, "kind": "tool_start", "callId": "a1", "tool": "Agent", "arg": "{\"description\":\"Find subagent code in chat host\",\"prompt\":\"Read the chat adapter in src/chat/claude.ts and say whether parent_tool_use_id and the task_* events are kept or dropped.\\nReport file paths and line numbers.\",\"subagent_type\":\"Explore\"}" },
     { "id": 4, "at": 1791960002100, "kind": "task", "callId": "a1", "taskId": "t1", "state": "started", "agentType": "Explore", "text": "Find subagent code in chat host", "background": true },
     { "id": 5, "at": 1791960002200, "kind": "tool_start", "callId": "a2", "tool": "Agent", "arg": "{\"description\":\"Map macOS tool rendering\",\"subagent_type\":\"general-purpose\"}" },
     { "id": 6, "at": 1791960002300, "kind": "task", "callId": "a2", "taskId": "t2", "state": "started", "agentType": "general-purpose", "text": "Map macOS tool rendering", "background": true },
@@ -21,8 +21,12 @@
     { "id": 18, "at": 1791960005000, "kind": "assistant", "text": "Three subagents are looking. I will wait for them." },
     { "id": 19, "at": 1791960006000, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": {} },
     { "id": 20, "at": 1791960008000, "kind": "assistant", "text": "translate() never reads parent_tool_use_id.", "parentCallId": "a1" },
-    { "id": 21, "at": 1791960009000, "kind": "task", "callId": "a1", "taskId": "t1", "state": "completed", "tools": 1, "tokens": 2100, "ms": 7000 }
+    { "id": 21, "at": 1791960009000, "kind": "task", "callId": "a1", "taskId": "t1", "state": "completed", "tools": 1, "tokens": 2100, "ms": 7000 },
+    { "id": 22, "at": 1791960009100, "kind": "reasoning", "text": "translate() drops sidechain info; checking the types next.", "parentCallId": "a1" },
+    { "id": 23, "at": 1791960009200, "kind": "task", "callId": "n1", "taskId": "t4", "state": "started", "agentType": "Explore", "text": "Check the runner types", "parentCallId": "a1" },
+    { "id": 24, "at": 1791960009300, "kind": "tool_start", "callId": "s3", "tool": "Read", "arg": "src/chat/runner.ts", "parentCallId": "n1" },
+    { "id": 25, "at": 1791960009900, "kind": "task", "callId": "n1", "taskId": "t4", "state": "completed", "tools": 1, "tokens": 900, "ms": 3700, "parentCallId": "a1" }
   ],
-  "cursor": 21,
+  "cursor": 25,
   "streaming": ""
 }

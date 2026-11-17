@@ -36,6 +36,8 @@ func aSubagentRowKeepsOneHeightInEveryStateAndWidth(width: CGFloat) throws {
             let view = SubagentRowView(subagent: subagent, clock: Date(timeIntervalSince1970: 31))
             #expect(try height(view, width: width) == worked)
             #expect(try height(view.environment(\.colorScheme, .dark), width: width) == worked)
+            // where a tap opens it, the chevron is there and the row is no taller
+            #expect(try height(view.environment(\.openSubagent) { _ in }, width: width) == worked)
         }
     }
     #expect(Set(seen) == [.running, .completed, .failed, .stopped])

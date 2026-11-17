@@ -12,17 +12,24 @@ public struct SubagentHeader: Equatable {
     public let startedAt: Int
     /// How long it ran; nil while it runs.
     public let durationMs: Int?
+    /// What stopping it takes, from its `task` events; nil until one names it.
+    public let taskId: String?
+    /// Whether the host lists `stopTask`: set by the model, which knows the hello; an older host cannot stop a subagent.
+    public var hostStops: Bool
 
-    public init(title: String, type: String, state: SubagentStatus, startedAt: Int, durationMs: Int?) {
-        (self.title, self.type, self.state, self.startedAt, self.durationMs) = (title, type, state, startedAt, durationMs)
+    public init(title: String, type: String, state: SubagentStatus, startedAt: Int, durationMs: Int?, taskId: String? = nil, hostStops: Bool = false) {
+        (self.title, self.type, self.state, self.startedAt, self.durationMs, self.taskId, self.hostStops) = (title, type, state, startedAt, durationMs, taskId, hostStops)
     }
 
     init(_ subagent: Subagent) {
         self.init(
             title: subagent.name, type: subagent.type, state: subagent.status, startedAt: subagent.startedAt,
-            durationMs: subagent.status == .running ? nil : subagent.elapsedMs(now: 0)
+            durationMs: subagent.status == .running ? nil : subagent.elapsedMs(now: 0), taskId: subagent.taskId
         )
     }
+
+    /// Whether the header offers Stop: only while it runs, only to a host that can, and only when its task is known.
+    public var canStop: Bool { state == .running && hostStops && taskId != nil }
 
     /// The line under the title: "Explore · Subagent of Fix the login".
     public func subtitle(of session: String) -> String { "\(type) · Subagent of \(session)" }
@@ -40,7 +47,7 @@ public struct SubagentHeader: Equatable {
 
 /// A subagent as its view draws it: the header's description, the brief it was given (nil when the events do not carry it) and its own work.
 public struct SubagentWork: Equatable {
-    public let header: SubagentHeader
+    public internal(set) var header: SubagentHeader
     public let brief: String?
     public let items: [FlowItem]
 }

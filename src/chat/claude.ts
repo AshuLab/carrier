@@ -228,6 +228,10 @@ class ClaudeConversation implements ChatConversation {
     for (let waited = 0; this.turning && waited < 5_000; waited += 50) await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
+  async stopTask(taskId: string) {
+    await this.query.stopTask(taskId);
+  }
+
   async setOption(id: string, value: string) {
     const option = this.options.find((o) => o.id === id);
     if (option === undefined) throw new ChatRefused(`There is no option "${id}"`);

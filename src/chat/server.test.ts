@@ -39,6 +39,7 @@ const controls = (): ChatControls => ({
   },
   answer: ({ approvalId, choiceId }) => ({ approvalId, choiceId }),
   interrupt: async () => ({}),
+  stopTask: async ({ sessionId, taskId }) => ({ sessionId, taskId }),
   setOption: async ({ option, value }) => ({ option, value }),
   agentOptions: async ({ agent }) => ({ agent }),
   events: ({ after = 0, reasoning }) => ({ after, ...(reasoning !== undefined && { reasoning }) }),
@@ -101,7 +102,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'stopTask'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -131,6 +132,11 @@ test.each([
   ['a custom price with a rate that is not a number', '{"id":31,"cmd":"usageOverride","model":"m","action":"custom","inputPerMillionUsd":"1","outputPerMillionUsd":1}', 31],
   ['an override with an extra field', '{"id":32,"cmd":"usageOverride","model":"m","action":"local","mode":"zero"}', 32],
   ['an override with an empty model', '{"id":33,"cmd":"usageOverride","model":"  ","action":"local"}', 33],
+  ['a stopTask with no task id', `{"id":40,"cmd":"stopTask","sessionId":"${uuid}"}`, 40],
+  ['a stopTask with an empty task id', `{"id":41,"cmd":"stopTask","sessionId":"${uuid}","taskId":""}`, 41],
+  ['a stopTask with a task id that is not a string', `{"id":42,"cmd":"stopTask","sessionId":"${uuid}","taskId":7}`, 42],
+  ['a stopTask with a session id that is not one', '{"id":43,"cmd":"stopTask","sessionId":"../x","taskId":"a"}', 43],
+  ['a stopTask with an extra field', `{"id":44,"cmd":"stopTask","sessionId":"${uuid}","taskId":"a","force":true}`, 44],
   ['a missing id', '{"cmd":"list"}', null],
   ['a bad id', '{"id":-1,"cmd":"list"}', null],
 ])('%s is "invalid request", with the id only when it is valid', async (_name, line, id) => {
@@ -163,6 +169,12 @@ test('usage passes its filters on, and an override reaches the controls with the
   expect(await c.ask('{"id":4,"cmd":"usageOverride","model":"qwen","action":"alias","aliasTo":"gpt-5"}')).toMatchObject({ ok: true, data: { args: { aliasTo: 'gpt-5' } } });
   expect(await c.ask('{"id":5,"cmd":"usageOverride","model":"qwen","action":"custom","inputPerMillionUsd":0,"outputPerMillionUsd":2.5,"cacheWritePerMillionUsd":1}')).toMatchObject({ ok: true, data: { args: { inputPerMillionUsd: 0, outputPerMillionUsd: 2.5, cacheWritePerMillionUsd: 1 } } });
   expect(await c.ask('{"id":6,"cmd":"usageOverride","model":"refused","action":"clear"}')).toEqual({ id: 6, ok: false, error: 'That price cannot be saved' });
+});
+
+test('stopTask passes the session and the task on', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"stopTask","sessionId":"${uuid}","taskId":"af0d8b127fea03930"}`)).toEqual({ id: 1, ok: true, data: { sessionId: uuid, taskId: 'af0d8b127fea03930' } });
 });
 
 test('answer is a strict request with a session, an approval and a choice', async () => {

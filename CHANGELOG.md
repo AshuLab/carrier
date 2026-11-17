@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Stop a running subagent from its own view: a Stop button next to its state in the window's header ends only that subagent, not the main agent, and the row and the view show Stopped once it has; a chat host from before this change does not offer it.
 - Tap a subagent's row in a conversation to open its own view: its brief from the main agent, then its calls, thoughts and messages as the main agent's are drawn, with ‹ Back in the window's header (title, "Explore · Subagent of <session>" and its state in place of the worktree pill) and a read-only note where the message box is.
 
 ## [0.9.0] - 2026-11-16

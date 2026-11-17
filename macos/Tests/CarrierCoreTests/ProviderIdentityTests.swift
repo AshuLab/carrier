@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import CarrierCore
@@ -23,8 +24,11 @@ private let file = Data(#"""
 }
 
 @Test func everyColorAndIconOfTheSchemaIsKnownAndOnlyLetterHasNoSymbol() {
-    #expect(AccountColor.allCases.map(\.rawValue) == ["red", "orange", "yellow", "green", "teal", "blue", "purple", "pink"])
-    #expect(AccountIcon.allCases.map(\.rawValue) == ["bolt", "star", "briefcase", "person", "people", "code", "flask", "leaf", "moon", "heart", "cube", "letter"])
+    #expect(AccountColor.allCases.map(\.rawValue) == ["red", "orange", "yellow", "green", "teal", "blue", "purple", "pink", "mint", "cyan", "indigo", "brown", "gray"])
+    #expect(AccountIcon.allCases.map(\.rawValue) == [
+        "bolt", "star", "briefcase", "person", "people", "code", "flask", "leaf", "moon", "heart", "cube", "letter",
+        "flame", "sparkles", "paperplane", "globe", "shield", "key", "house", "book", "hammer", "cloud", "bell",
+    ])
     #expect(AccountIcon.allCases.filter { $0.symbol == nil } == [.letter])
 }
 
@@ -57,4 +61,16 @@ private let file = Data(#"""
     #expect(draftProblems(draft, harness: "claude")["label"] != nil)
     draft.label = "a\nb"
     #expect(draftProblems(draft, harness: "claude")["label"] != nil)
+}
+
+@Test func theLaterIconsAndColorsAreOfferedOnlyToAHostThatKnowsThem() {
+    #expect(AccountIcon.offered(palette: false) == [.bolt, .star, .briefcase, .person, .people, .code, .flask, .leaf, .moon, .heart, .cube, .letter])
+    #expect(AccountColor.offered(palette: false) == [.red, .orange, .yellow, .green, .teal, .blue, .purple, .pink])
+    #expect(AccountIcon.offered(palette: true) == AccountIcon.allCases && AccountColor.offered(palette: true) == AccountColor.allCases)
+    // every glyph is a symbol this system has; only the letter has none
+    #expect(AccountIcon.allCases.filter { $0.symbol == nil } == [.letter])
+    #expect(AccountIcon.allCases.compactMap(\.symbol).allSatisfy { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil })
+    // a later value in the file is read, so a session drawn from it shows it
+    let identity = providerIdentities(providersJSON: Data(#"{"providers":{"a":{"harness":"claude","icon":"flame","color":"indigo"}}}"#.utf8))
+    #expect(identity["a"] == ProviderIdentity(icon: .flame, color: .indigo))
 }

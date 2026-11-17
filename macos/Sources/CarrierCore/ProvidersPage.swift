@@ -252,6 +252,8 @@ public enum ProvidersOutcome: Equatable {
     /// Whether the host knows the `label`, `icon` and `color` of an account (its hello lists `accountIdentity`). An older `carrier` refuses a
     /// `providers.json` that has them, accounts and all, so the editor does not offer them and writes none until it does.
     public private(set) var identityEditable = false
+    /// Whether the host also knows the later icons and colors (`accountPalette`); an `accountIdentity` host refuses a file with one.
+    public private(set) var paletteEditable = false
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let file: () -> ProvidersFile
@@ -399,10 +401,12 @@ public enum ProvidersOutcome: Equatable {
         let capabilities: Set<ControlClient.Capability>
         do { capabilities = try await host.capabilities() } catch {
             identityEditable = false
+            paletteEditable = false
             outcome = .noHost
             return
         }
         identityEditable = capabilities.contains(.accountIdentity)
+        paletteEditable = capabilities.contains(.accountPalette)
         guard capabilities.contains(.providers) else {
             outcome = .tooOld
             return

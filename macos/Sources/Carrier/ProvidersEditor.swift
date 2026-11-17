@@ -27,6 +27,11 @@ struct AccountEditor: View {
         _saved = State(initialValue: draft)
     }
 
+    /// One width for every control of the form, so the fields, the pop-ups, the box and the two pickers end on the same line: eight 30 pt
+    /// tiles with 8 pt between them, which is what the icon and the color pickers are made of.
+    private static let tile: CGFloat = 30, gap: CGFloat = 8, columns = 8
+    static let controlWidth = CGFloat(columns) * tile + CGFloat(columns - 1) * gap
+
     private var problems: [String: String] { draftProblems(draft, harness: harness) }
 
     var body: some View {
@@ -38,11 +43,11 @@ struct AccountEditor: View {
             } else {
                 SettingsGroup(title: "Edit \(account.title)") {
                     field("Display name", "displayName", "What the app shows instead of \(account.name)", first: true) {
-                        TextField(account.name, text: $draft.displayName).settingsField(width: 240)
+                        TextField(account.name, text: $draft.displayName).settingsField(width: Self.controlWidth)
                     }
                     if store.identityEditable {
                         field("Label", "label", "Short, for tabs, chips and the message box. Empty uses the name") {
-                            TextField(account.name, text: $draft.label).settingsField(width: 140)
+                            TextField(account.name, text: $draft.label).settingsField(width: Self.controlWidth)
                         }
                         field("Icon", "icon", "The tool's mark by default") { iconPicker }
                         field("Color", "color", "Tints the mark wherever it shows") { colorPicker }
@@ -53,11 +58,11 @@ struct AccountEditor: View {
                         }
                     }
                     field("Binary path", "command", "Empty runs \(harness) from the PATH") {
-                        TextField("/opt/homebrew/bin/\(harness)", text: $draft.command).settingsField(width: 240)
+                        TextField("/opt/homebrew/bin/\(harness)", text: $draft.command).settingsField(width: Self.controlWidth)
                     }
                     if harness != "agy" {
                         field("Config folder", "configDir", harness == "claude" ? "CLAUDE_CONFIG_DIR; empty is this Mac's login" : "CODEX_HOME; empty is this Mac's login", hint: "Any path; one that does not start with / or ~/ is taken from your home folder") {
-                            TextField("~/.\(harness)-work", text: $draft.configDir).settingsField(width: 240)
+                            TextField("~/.\(harness)-work", text: $draft.configDir).settingsField(width: Self.controlWidth)
                         }
                         field("Auto-compact after", "autoCompact", "Tokens in the conversation before the CLI compacts it. Use default is the CLI's own") {
                             // the steps are ours; a value already in the file that is not one of them stays in the list, so opening the editor never changes it
@@ -67,14 +72,14 @@ struct AccountEditor: View {
                                 items: values.map { $0.isEmpty ? "Use default" : Int($0).map { $0.formatted() } ?? $0 },
                                 selection: Binding(get: { values.firstIndex(of: draft.autoCompact) ?? 0 }, set: { draft.autoCompact = values[$0] })
                             )
-                            .accessibilityLabel("Auto-compact after").frame(width: 160)
+                            .accessibilityLabel("Auto-compact after").frame(width: Self.controlWidth)
                         }
                         field("Launch arguments", "launchArgs", "One per line, added to the ones Carrier passes") {
                             TextEditor(text: $draft.launchArgs).font(.scaled(11.5, design: .monospaced))
                                 .scrollContentBackground(.hidden).padding(4)
                                 .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.12)))
                                 // the size goes last, around the padding, so the row grows with the box and the box does not spill over its neighbours
-                                .frame(width: 240, height: 70)
+                                .frame(width: Self.controlWidth, height: 70)
                         }
                     }
                     if harness == "claude" {
@@ -84,7 +89,7 @@ struct AccountEditor: View {
                                 items: cases.map(\.title),
                                 selection: Binding(get: { cases.firstIndex(of: draft.idle) ?? 0 }, set: { draft.idle = cases[$0] })
                             )
-                            .accessibilityLabel("Compact idle threads").frame(width: 160)
+                            .accessibilityLabel("Compact idle threads").frame(width: Self.controlWidth)
                         }
                     }
                 }
@@ -113,15 +118,17 @@ struct AccountEditor: View {
         .writingToolsBehavior(.disabled)
     }
 
+    private var grid: [GridItem] { Array(repeating: GridItem(.fixed(Self.tile), spacing: Self.gap), count: Self.columns) }
+
     /// The tool's own mark, then each glyph and the first letter, in the color chosen below so the choice is seen as it will look.
     private var iconPicker: some View {
-        let choices: [AccountIcon?] = [nil] + AccountIcon.allCases
+        let choices: [AccountIcon?] = [nil] + AccountIcon.offered(palette: store.paletteEditable) + stored(draft.icon, in: AccountIcon.offered(palette: store.paletteEditable))
         let tint = draft.color?.color ?? Color.primary
-        return LazyVGrid(columns: Array(repeating: GridItem(.fixed(32), spacing: 6), count: 7), alignment: .leading, spacing: 6) {
+        return LazyVGrid(columns: grid, alignment: .leading, spacing: Self.gap) {
             ForEach(choices, id: \.self) { choice in
                 let on = draft.icon == choice
                 Button { draft.icon = choice } label: {
-                    iconGlyph(choice).foregroundStyle(tint).frame(width: 32, height: 32)
+                    iconGlyph(choice).foregroundStyle(tint).frame(width: Self.tile, height: Self.tile)
                         .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.12)))
                         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.accentColor, lineWidth: on ? 2 : 0))
                         .contentShape(Rectangle())
@@ -129,7 +136,13 @@ struct AccountEditor: View {
                 .buttonStyle(.plain).help(iconName(choice)).accessibilityLabel(iconName(choice)).accessibilityAddTraits(on ? .isSelected : [])
             }
         }
-        .frame(width: 7 * 32 + 6 * 6, alignment: .leading)
+        .frame(width: Self.controlWidth, alignment: .leading)
+    }
+
+    /// A value already in the file that this host does not offer (a later icon with an older host) stays on the list, so opening the editor never changes it.
+    private func stored<Value: Equatable>(_ value: Value?, in offered: [Value]) -> [Value?] {
+        guard let value, offered.contains(value) == false else { return [] }
+        return [value]
     }
 
     @ViewBuilder private func iconGlyph(_ choice: AccountIcon?) -> some View {
@@ -151,10 +164,11 @@ struct AccountEditor: View {
     }
 
     private var colorPicker: some View {
-        HStack(spacing: 8) {
-            swatch(nil)
-            ForEach(AccountColor.allCases, id: \.self) { swatch($0) }
+        let choices: [AccountColor?] = [nil] + AccountColor.offered(palette: store.paletteEditable) + stored(draft.color, in: AccountColor.offered(palette: store.paletteEditable))
+        return LazyVGrid(columns: grid, alignment: .leading, spacing: Self.gap) {
+            ForEach(choices, id: \.self) { swatch($0) }
         }
+        .frame(width: Self.controlWidth, alignment: .leading)
     }
 
     private func swatch(_ choice: AccountColor?) -> some View {
@@ -168,8 +182,9 @@ struct AccountEditor: View {
                     Circle().strokeBorder(Color.secondary, lineWidth: 1.5).overlay(Image(systemName: "slash.circle").font(.scaled(9)).foregroundStyle(.secondary))
                 }
             }
-            .frame(width: 20, height: 20).padding(3)
+            .frame(width: 20, height: 20).padding(5)
             .overlay(Circle().strokeBorder(Color.primary, lineWidth: 2).opacity(on ? 1 : 0))
+            .frame(width: Self.tile, height: Self.tile)
         }
         .buttonStyle(.plain).help(name).accessibilityLabel(name).accessibilityAddTraits(on ? .isSelected : [])
     }
@@ -201,13 +216,13 @@ struct AddAccountForm: View {
         VStack(alignment: .leading, spacing: 8) {
             SettingsGroup(title: "Add account") {
                 SettingsTabRow(title: "Name", detail: "Lowercase letters, digits and hyphens", first: true) {
-                    TextField("\(harness)-work", text: $name).settingsField(width: 240)
+                    TextField("\(harness)-work", text: $name).settingsField(width: AccountEditor.controlWidth)
                 }
                 SettingsTabRow(
                     title: "Config folder",
                     detail: (harness == "claude" ? "CLAUDE_CONFIG_DIR of this login" : "CODEX_HOME of this login") + ". Any path; one that does not start with / or ~/ is taken from your home folder"
                 ) {
-                    TextField("~/.\(harness)-work", text: $folder).settingsField(width: 240)
+                    TextField("~/.\(harness)-work", text: $folder).settingsField(width: AccountEditor.controlWidth)
                 }
             }
             if let message = problem ?? store.editProblem { ProblemLine(text: message) }

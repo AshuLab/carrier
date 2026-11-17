@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Settings › Providers: each account shows its mark large, as an avatar at the left of its row, and saving, removing or adding an account closes its editor at once instead of waiting for Carrier to confirm; if Carrier refuses what was saved, the page says so afterwards.
+- Settings › Providers › Edit an account: every field, pop-up and picker is one width, so the form reads as a column; the icon and the color pickers are the same grid, and there are 11 more icons and 5 more colors to tell accounts apart. The new ones need an up-to-date `carrier`; with an older one the editor keeps offering the earlier set.
 
 ## [0.9.0] - 2026-11-16
 

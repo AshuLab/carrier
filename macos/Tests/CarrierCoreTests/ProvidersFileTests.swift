@@ -508,10 +508,14 @@ private var work: AccountDraft {
     #expect(store.identityEditable == false)
     host.capabilitiesAnswer = [.providers, .accountIdentity]
     await store.load()
-    #expect(store.identityEditable)
+    #expect(store.identityEditable && store.paletteEditable == false)
+    // the later icons and colors need their own word, or the older host would refuse the whole file
+    host.capabilitiesAnswer = [.providers, .accountIdentity, .accountPalette]
+    await store.load()
+    #expect(store.identityEditable && store.paletteEditable)
     host.capabilitiesAnswer = []
     await store.load()
-    #expect(store.identityEditable == false)
+    #expect(store.identityEditable == false && store.paletteEditable == false)
 }
 
 @Test func aFolderAnotherAccountOfTheSameToolHasIsNamedAndNothingElseIs() {

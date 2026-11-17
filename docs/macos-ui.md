@@ -100,6 +100,7 @@ A row that opens an editor or a form shows **a chevron `chevron.right` at its ri
 - A text of several lines (an instruction, a prompt) takes the width of the card: `SettingsStackedRow` puts the title and the detail on top and the control under them, and the box is a `TextEditor` in `settingsField()`. Turn the system's writing tools off on it (`.writingToolsBehavior(.disabled)`), or its "Write with Siri" button sits on the box.
 - A box of several lines in a row (`TextEditor`, "Launch arguments"): `scrollContentBackground(.hidden)`, 4 pt padding, the same fill, and **the size goes last, around the padding**, so the row grows with it.
 - Turn off the system's writing tools on a form of paths and arguments: `.writingToolsBehavior(.disabled)`.
+- **A form's controls are one width**, whatever they are (a field, a pop-up, a box, a grid of choices): they end on the same line down the card, so the form reads as a column. The account editor's is `AccountEditor.controlWidth`; its icon and color pickers are made of the same eight 30 pt tiles per row, so that width is their own. Do not give each field the width of its value.
 
 ## Lists and menus
 

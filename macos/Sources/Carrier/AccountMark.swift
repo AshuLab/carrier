@@ -39,6 +39,11 @@ extension AccountColor {
         case .blue: .blue
         case .purple: .purple
         case .pink: .pink
+        case .mint: .mint
+        case .cyan: .cyan
+        case .indigo: .indigo
+        case .brown: .brown
+        case .gray: .gray
         }
     }
 }

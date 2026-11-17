@@ -3,14 +3,28 @@ import Foundation
 // What tells one account from another where the app names it: an icon, a color and a label, each optional, kept on the account in
 // `providers.json` next to its `displayName` (the engine's schema, `src/config/providers.ts`, is the source of the allowed values).
 
-/// The eight colors an account can have. Names, not hex: the app tints for light and dark, and a name the engine does not know reads as none.
+/// The colors an account can have. Names, not hex: the app tints for light and dark, and a name the engine does not know reads as none.
+/// The first eight are the ones every host with `accountIdentity` knows; the rest need `accountPalette` (`offered(palette:)`).
 public enum AccountColor: String, CaseIterable {
     case red, orange, yellow, green, teal, blue, purple, pink
+    case mint, cyan, indigo, brown, gray
+
+    private static let earlier = 8
+
+    /// What the editor offers: all of them when the host knows the later ones, else the first eight, which an older host takes.
+    public static func offered(palette: Bool) -> [AccountColor] { palette ? allCases : Array(allCases.prefix(earlier)) }
 }
 
 /// The icons an account can have besides its tool's own mark (which is no icon at all): a glyph, or the account's first letter.
+/// The first twelve are the ones every host with `accountIdentity` knows; the rest need `accountPalette` (`offered(palette:)`).
 public enum AccountIcon: String, CaseIterable {
     case bolt, star, briefcase, person, people, code, flask, leaf, moon, heart, cube, letter
+    case flame, sparkles, paperplane, globe, shield, key, house, book, hammer, cloud, bell
+
+    private static let earlier = 12
+
+    /// What the editor offers: all of them when the host knows the later ones, else the first twelve, which an older host takes.
+    public static func offered(palette: Bool) -> [AccountIcon] { palette ? allCases : Array(allCases.prefix(earlier)) }
 
     /// The SF Symbol of a glyph; nil for `letter`.
     public var symbol: String? {
@@ -27,6 +41,17 @@ public enum AccountIcon: String, CaseIterable {
         case .heart: "heart"
         case .cube: "cube"
         case .letter: nil
+        case .flame: "flame"
+        case .sparkles: "sparkles"
+        case .paperplane: "paperplane"
+        case .globe: "globe"
+        case .shield: "shield"
+        case .key: "key"
+        case .house: "house"
+        case .book: "book"
+        case .hammer: "hammer"
+        case .cloud: "cloud"
+        case .bell: "bell"
         }
     }
 }
@@ -52,6 +77,19 @@ public struct ProviderIdentity: Equatable {
         icon = (account["icon"] as? String).flatMap(AccountIcon.init(rawValue:))
         color = (account["color"] as? String).flatMap(AccountColor.init(rawValue:))
         label = (account["label"] as? String).map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty || $0.count > Self.labelLimit ? nil : $0 }
+    }
+}
+
+/// The display name of each account of `providers.json` that has one, by account name: what the app calls the account where there is room,
+/// and where there is little the short name falls back to it when the account has no label.
+public func providerDisplayNames(providersJSON: Data?) -> [String: String] {
+    guard let providersJSON, let file = (try? JSONSerialization.jsonObject(with: providersJSON)) as? [String: Any],
+          let declared = file["providers"] as? [String: Any]
+    else { return [:] }
+    return declared.reduce(into: [:]) { names, entry in
+        guard let account = entry.value as? [String: Any], let name = (account["displayName"] as? String)?.trimmingCharacters(in: .whitespaces), name.isEmpty == false
+        else { return }
+        names[entry.key] = name
     }
 }
 

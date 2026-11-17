@@ -118,7 +118,7 @@ private struct ProviderBlock: View {
             if open {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(provider.accounts) { account in
-                        AccountBlock(account: account, alone: provider.accounts.count == 1, checkAgain: checkAgain, signIn: { signIn(account.id) })
+                        AccountBlock(account: account, harness: provider.id, alone: provider.accounts.count == 1, checkAgain: checkAgain, signIn: { signIn(account.id) })
                     }
                 }
                 .padding(.leading, 34).padding(.bottom, 8)
@@ -140,6 +140,8 @@ private func usageMark(_ mark: UsageMark, _ label: String) -> StatusMark {
 /// not: several accounts, a status that is not ok, or an action. Under it, the rows in a panel per heading.
 private struct AccountBlock: View {
     let account: UsageAccountRow
+    /// The provider's name (`claude`, `codex`, `agy` or `local`): the mark an account has no icon of its own for.
+    let harness: String
     let alone: Bool
     let checkAgain: () -> Void
     let signIn: () -> Void
@@ -150,6 +152,8 @@ private struct AccountBlock: View {
         VStack(alignment: .leading, spacing: 14) {
             if showsHeader {
                 HStack(spacing: 8) {
+                    // a local server's pool is not an account of providers.json: it has no icon or color to wear
+                    if harness != "local" { AccountMark(account: account.id, icon: harness, size: 14).help(account.title).accessibilityHidden(true) }
                     Text(account.title).font(.scaled(12, weight: .semibold))
                     Text(account.status).font(.scaled(11)).foregroundStyle(.secondary)
                     if account.stale { StatusChip(text: "Stale", tint: .orange) }

@@ -8,6 +8,7 @@ import SwiftUI
     static let shared = ProviderIdentityStore()
 
     private(set) var accounts: [String: ProviderIdentity] = [:]
+    private(set) var displayNames: [String: String] = [:]
     private init() {
         reload()
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
@@ -19,12 +20,14 @@ import SwiftUI
         let json = (try? ProvidersFile.current().read()).flatMap { $0 }
         let read = providerIdentities(providersJSON: json)
         if read != accounts { accounts = read }
+        let names = providerDisplayNames(providersJSON: json)
+        if names != displayNames { displayNames = names }
     }
 
     func identity(of agent: String) -> ProviderIdentity { accounts[AgentAccounts.account(of: agent)] ?? .none }
 
-    /// The short name of an account where there is little room: its label, else the name it has always had.
-    func shortName(of agent: String) -> String { identity(of: agent).label ?? agent }
+    /// The short name of an account where there is little room: its label, else its display name, else the name it has always had.
+    func shortName(of agent: String) -> String { identity(of: agent).label ?? displayNames[AgentAccounts.account(of: agent)] ?? agent }
 }
 
 extension AccountColor {
@@ -39,6 +42,11 @@ extension AccountColor {
         case .blue: .blue
         case .purple: .purple
         case .pink: .pink
+        case .mint: .mint
+        case .cyan: .cyan
+        case .indigo: .indigo
+        case .brown: .brown
+        case .gray: .gray
         }
     }
 }

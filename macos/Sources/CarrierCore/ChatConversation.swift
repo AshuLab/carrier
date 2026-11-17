@@ -236,7 +236,11 @@ public struct FailureBanner: Equatable {
     public let hint: String?
 }
 
-private func capitalized(_ agent: String) -> String { agent.isEmpty ? "The agent" : agent.prefix(1).uppercased() + agent.dropFirst() }
+/// A key like `claude` starts a sentence as `Claude`; a name that already has a capital in it (a label like `iOS`) is the person's own and stays.
+private func capitalized(_ agent: String) -> String {
+    if agent.isEmpty { return "The agent" }
+    return agent.contains(where: \.isUppercase) ? agent : agent.prefix(1).uppercased() + agent.dropFirst()
+}
 
 /// The banner of a turn that failed: "<Agent> couldn't continue" and the error's text.
 public func failedTurnBanner(agent: String, error: String) -> FailureBanner {

@@ -18,10 +18,13 @@ struct SettingsTabRow<Control: View>: View {
     /// What is wrong with the value, in words: it takes the place of the detail, in orange and with a warning mark, the title keeps its colour, and
     /// every `settingsField` and `NumberField` inside the row draws itself as invalid (`\.settingsInvalid`). One argument; nothing else to pass.
     var problem: String?
+    /// A tile at the row's left, before the title (an account's avatar); the text keeps its place after it.
+    var leading: AnyView?
     @ViewBuilder var control: Control
 
     var body: some View {
         HStack(spacing: 12) {
+            if let leading { leading }
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).fontWeight(.medium)
                 if detail.isEmpty == false || problem != nil {

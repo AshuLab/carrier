@@ -320,6 +320,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
 
     // add: written, and the host asked again
     #expect(await store.addAccount(name: "claude-work", harness: "claude", configDir: "/h/.cw"))
+    await store.settled()
     #expect(try providers(file).keys.sorted() == ["agy", "claude", "claude-work", "codex"])
     #expect(host.asked == 1 && store.editProblem == nil)
     // a taken or invalid name is refused before writing
@@ -335,6 +336,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     var draft = try #require(accountDraft(named: "claude-work", in: file.read()))
     draft.autoCompact = "250000"
     #expect(await store.save(name: "claude-work", draft: draft))
+    await store.settled()
     #expect(try providers(file)["claude-work"]?["autoCompact"] as? Int == 250_000)
     draft.autoCompact = "10"
     let saved = try text(file)
@@ -347,10 +349,12 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     #expect(store.editProblem == "claude is used by Author, Chat agent claude, so it stays. Point those at another account first.")
     #expect(try providers(file).keys.contains("claude"))
     #expect(await store.remove(name: "claude-work"))
+    await store.settled()
     #expect(try providers(file).keys.sorted() == ["agy", "claude", "codex"])
     #expect(store.editProblem == nil)
     uses = [:]
     #expect(await store.remove(name: "claude"))
+    await store.settled()
     #expect(try providers(file).keys.sorted() == ["agy", "codex"])
 }
 
@@ -365,6 +369,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     var draft = AccountDraft()
     draft.displayName = "Mine"
     #expect(await store.save(name: "codex", draft: draft))
+    await store.settled()
     #expect(try providers(file)["codex"]?["displayName"] as? String == "Mine")
     #expect(store.outcome.note?.contains("providers.codex.model") == true && store.outcome.note?.contains("Invalid input") == true)
 }
@@ -407,9 +412,15 @@ private var work: AccountDraft {
 
     await store.add(harness: "agy")
     #expect(engine.calls == 2 && engine.seen[1] == engine.now && store.addProblem == nil)
-    #expect(await store.addAccount(name: "claude-work", harness: "claude", configDir: "/h/.cw") && engine.calls == 3)
-    #expect(await store.save(name: "claude-work", draft: work) && engine.calls == 4)
-    #expect(await store.remove(name: "claude-work") && engine.calls == 5 && store.editProblem == nil)
+    #expect(await store.addAccount(name: "claude-work", harness: "claude", configDir: "/h/.cw"))
+    await store.settled()
+    #expect(engine.calls == 3)
+    #expect(await store.save(name: "claude-work", draft: work))
+    await store.settled()
+    #expect(engine.calls == 4)
+    #expect(await store.remove(name: "claude-work"))
+    await store.settled()
+    #expect(engine.calls == 5 && store.editProblem == nil)
     // an account that is taken, one that is missing: nothing was written
     #expect(await store.addAccount(name: "agy", harness: "claude", configDir: "") == false)
     #expect(await store.remove(name: "ghost") == false)
@@ -437,11 +448,87 @@ private var work: AccountDraft {
     #expect(try providers(file).keys.sorted() == ["agy", "claude"])
     // the editor closes on a save that was written; its words are left for the page
     #expect(await store.addAccount(name: "claude-work", harness: "claude", configDir: ""))
+    await store.settled()
     #expect(store.editProblem == "Saved, but Carrier kept its settings: agents.author.provider: bad")
     // a later save the engine applied clears it
     engine.problem = nil
     #expect(await store.save(name: "claude-work", draft: work))
+    await store.settled()
     #expect(store.editProblem == nil)
+}
+
+@MainActor @Test func aSaveGivesBackOnceTheFileIsWrittenWithoutWaitingForTheEngine() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    try file.write(Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8))
+    let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
+    let gate = DispatchSemaphore(value: 0)
+    let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { _ in }, reload: { gate.wait(); return .refused("bad") })
+
+    // the engine is still thinking: the editor can close, and the words come later
+    #expect(await store.save(name: "claude", draft: work))
+    #expect(try providers(file)["claude"]?["displayName"] as? String == "Work")
+    #expect(store.busy == false && store.editProblem == nil)
+    gate.signal()
+    await store.settled()
+    #expect(store.editProblem?.hasSuffix("bad") == true)
+}
+
+/// The engine's answers in turn, handed out from the queue the reload runs on.
+private final class LockedAnswers: @unchecked Sendable {
+    private let lock = NSLock()
+    private var outcomes: [ReloadOutcome]
+    init(_ outcomes: [ReloadOutcome]) { self.outcomes = outcomes }
+    func next() -> ReloadOutcome {
+        lock.lock()
+        defer { lock.unlock() }
+        return outcomes.isEmpty ? .applied : outcomes.removeFirst()
+    }
+}
+
+@MainActor @Test func aWriteThatWasRefusedBeforeWritingDoesNotSilenceTheAnswerOfAnEarlierOne() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    try file.write(Data(#"{"providers":{"claude":{"harness":"claude"},"codex":{"harness":"codex"}}}"#.utf8))
+    let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
+    let gate = DispatchSemaphore(value: 0)
+    var logged: [String] = []
+    let store = ProvidersStore(
+        host: host, file: { file }, uses: { ["codex": [.role(.author)]] }, log: { logged.append($0) }, reload: { gate.wait(); return .refused("bad") }
+    )
+
+    // Save is written and the engine is still thinking; Remove is refused before it writes anything
+    #expect(await store.save(name: "claude", draft: work))
+    #expect(await store.remove(name: "codex") == false)
+    #expect(store.editProblem?.contains("so it stays") == true)
+    gate.signal()
+    await store.settled()
+    // the refusal of the Save that was written is the one that is still to come, so it is shown
+    #expect(store.editProblem?.hasSuffix("bad") == true && logged.isEmpty)
+}
+
+@MainActor @Test func theRefusalOfAWriteThatANewerOneReplacedIsLoggedAndNotShown() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    try file.write(Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8))
+    let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
+    let gate = DispatchSemaphore(value: 0)
+    let answers = LockedAnswers([.refused("bad"), .applied])
+    var logged: [String] = []
+    let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { logged.append($0) }, reload: { gate.wait(); return answers.next() })
+
+    #expect(await store.save(name: "claude", draft: work))
+    var again = work
+    again.displayName = "Work 2"
+    #expect(await store.save(name: "claude", draft: again))
+    gate.signal()
+    gate.signal()
+    await store.settled()
+    // the first answer (a refusal) is the older one: logged. The newer one applied, so nothing is shown
+    #expect(store.editProblem == nil && logged.count == 1 && logged[0].contains("bad"))
 }
 
 @MainActor @Test func anOlderEngineThatDoesNotReloadSaysNothingAndARefusalIsAProblem() async throws {
@@ -454,14 +541,17 @@ private var work: AccountDraft {
     let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { _ in }, reload: { answer })
 
     #expect(await store.addAccount(name: "claude-work", harness: "claude", configDir: ""))
+    await store.settled()
     // an older engine is told to nobody: nothing to show, problem or note
     #expect(store.editProblem == nil && store.editNote == nil)
     // a refusal is a problem, and the next save the engine applied clears both
     answer = .refused("agents.author.provider: bad")
     #expect(await store.save(name: "claude-work", draft: work))
+    await store.settled()
     #expect(store.editProblem?.hasSuffix("agents.author.provider: bad") == true && store.editNote == nil)
     answer = .applied
     _ = await store.save(name: "claude-work", draft: work)
+    await store.settled()
     #expect(store.editProblem == nil && store.editNote == nil)
 }
 
@@ -474,10 +564,14 @@ private var work: AccountDraft {
     #expect(store.identityEditable == false)
     host.capabilitiesAnswer = [.providers, .accountIdentity]
     await store.load()
-    #expect(store.identityEditable)
+    #expect(store.identityEditable && store.paletteEditable == false)
+    // the later icons and colors need their own word, or the older host would refuse the whole file
+    host.capabilitiesAnswer = [.providers, .accountIdentity, .accountPalette]
+    await store.load()
+    #expect(store.identityEditable && store.paletteEditable)
     host.capabilitiesAnswer = []
     await store.load()
-    #expect(store.identityEditable == false)
+    #expect(store.identityEditable == false && store.paletteEditable == false)
 }
 
 @Test func aFolderAnotherAccountOfTheSameToolHasIsNamedAndNothingElseIs() {

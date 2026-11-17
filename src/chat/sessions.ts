@@ -220,6 +220,13 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       db.update(sessions).set({ plan: null }).where(eq(sessions.id, sessionId)).run();
       touch(sessionId, live, 'working');
     }
+    // The agent can begin a turn nobody asked for: the SDK wakes it when something it ran in the background ends. It is working from its first word,
+    // and the `turn_end` the adapter says when it finishes closes it as any other. Only a live conversation does: a word that comes late from one
+    // the host already closed is not a turn.
+    if (live.turn === undefined && live.state === 'idle' && lives.get(sessionId) === live && ['delta', 'assistant', 'reasoning', 'tool_start', 'approval'].includes(event.kind)) {
+      live.turn = { startedAt: clock.now(), toolCalls: 0 };
+      touch(sessionId, live, 'working');
+    }
     if (event.kind === 'delta') return void (live.streaming += event.text);
     if (event.kind === 'turn_end' && live.turn === undefined) return; // a turn already recorded (an interrupt, then the adapter's own end)
     if (event.kind === 'assistant' || event.kind === 'turn_end') live.streaming = '';

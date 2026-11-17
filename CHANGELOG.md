@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A session in the sidebar that has a pull request shows it on a third line: its number and how it stands (draft, open with its checks, merged, closed), the lines the session changed and the providers. A click on the chip opens it on GitHub. The pull request is found once by the session's branch with your own `gh` login and then only its state is asked again.
 - Settings › Sidebar › Session rows has switches for the pull request and for the lines changed, both on.
 - The card that opens on a session's row says its state in the row's colours, its pull request and the lines it changed, and what the agent waits for in the background.
-- A session whose turn ended while the agent waits for a build, a monitor or a subagent shows as working (a cyan ring and its clock) and not as idle or "Done"; it can be stopped and cannot be archived until the tasks end.
+- A session whose turn ended while the agent waits for a build, a monitor or a subagent shows as working (a cyan ring and its clock) and not as idle or "Done"; it can be stopped and cannot be archived until the tasks end. The turn the agent starts on its own when one of those tasks ends shows as working too, and not as idle.
 
 ### Changed
 

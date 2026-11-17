@@ -8,7 +8,7 @@ import type { ChatAgent } from './config.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { openChatDatabase } from './db.ts';
 import { FakeChatRunner, FakeGit, fakeProjects, type FakeConversation, type FakeRepo } from './fake.ts';
-import { ChatRefused } from './runner.ts';
+import { ChatRefused, type ChatEvent } from './runner.ts';
 import { chatCaps } from './transcript.ts';
 import { sessions as schemaSessions } from './schema.ts';
 import type { HealthProbes } from './health.ts';
@@ -504,6 +504,56 @@ test('a session that waits for background work is not archived or deleted until 
   expect(one.conversation.backgroundStops).toBe(1);
   await s.sessions.archive({ sessionId: one.id, archived: true });
   expect(s.sessions.list({ archived: true }).sessions.map((row) => row.id)).toEqual([one.id]);
+});
+
+const stateOf = (s: { sessions: ReturnType<typeof createSessions> }, id: string) => s.sessions.list({}).sessions.find((row) => row.id === id)!.state;
+
+test('a turn the agent begins on its own is working from its first word and ends at its turn_end, which is recorded', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  expect(stateOf(s, one.id)).toBe('idle');
+  // the SDK woke the agent because a task it ran in the background ended: no message of the person's started this turn
+  one.conversation.emit({ kind: 'assistant', text: 'The build finished.' });
+  expect(stateOf(s, one.id)).toBe('working');
+  one.conversation.emit({ kind: 'tool_start', callId: 'c1', tool: 'Read', arg: 'a.ts' }, { kind: 'tool_end', callId: 'c1', tool: 'Read', status: 'ok' });
+  expect(stateOf(s, one.id)).toBe('working');
+  expect(rows('chat_turns')).toEqual([]);
+  one.conversation.emit({ kind: 'turn_end', outcome: 'ok', model: 'sonnet' });
+  expect(stateOf(s, one.id)).toBe('idle');
+  expect(rows('chat_turns')).toMatchObject([{ sessionId: one.id, outcome: 'ok', model: 'sonnet', toolCalls: 1 }]);
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ lastMessage: 'The build finished.', turns: 1 });
+});
+
+test('each kind of first word begins the turn: streaming, thinking, a tool and an approval, and the approval waits for the person', async () => {
+  const cases: [string, ChatEvent, string][] = [
+    ['a delta', { kind: 'delta', text: 'Wo' }, 'working'],
+    ['a thought', { kind: 'reasoning', text: 'hm' }, 'working'],
+    ['a tool', { kind: 'tool_start', callId: 'c', tool: 'Bash', arg: 'ls' }, 'working'],
+    ['an approval', { kind: 'approval', approvalId: 'a1', tool: 'Bash', arg: 'ls', choices: [{ id: 'allow', label: 'Allow', allow: true }] }, 'waiting_approval'],
+  ];
+  for (const [kind, event, expected] of cases) {
+    const s = setup();
+    const one = await openOne(s);
+    one.conversation.emit(event);
+    expect(stateOf(s, one.id), kind).toBe(expected);
+    rmSync(join(dir, 'chat.db'));
+  }
+});
+
+test('a word that comes late from a conversation the host closed is not a turn, and a session that is not idle keeps its own state', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  await s.sessions.close({ sessionId: one.id });
+  one.conversation.emit({ kind: 'assistant', text: 'too late' });
+  expect(stateOf(s, one.id)).toBe('idle');
+  expect(s.sessions.liveCount()).toBe(0);
+  // a turn that the person started is not started twice
+  const two = await openOne(setup());
+  two.sessions.send({ sessionId: two.id, text: 'go' });
+  two.conversation.emit({ kind: 'assistant', text: 'ok' });
+  expect(stateOf(two, two.id)).toBe('working');
+  two.conversation.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(stateOf(two, two.id)).toBe('idle');
 });
 
 test('with a client attached nothing is closed; the minute counts from the client leaving', async () => {

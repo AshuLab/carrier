@@ -111,8 +111,8 @@ The file has one key, `providers`, and no other.
 | `harness` | yes | The agent CLI that runs it: `claude` (Claude Code), `codex` or `agy` (Antigravity). |
 | `displayName` | no | What an app shows instead of the key: one line, trimmed, 1 to 60 characters. |
 | `label` | no | A short tag an app shows beside the account: one line, trimmed, 1 to 12 characters. |
-| `icon` | no | The icon an app draws for the account: `bolt`, `star`, `briefcase`, `person`, `people`, `code`, `flask`, `leaf`, `moon`, `heart`, `cube` or `letter`. Without it, the tool's own mark. |
-| `color` | no | The color an app gives the account: `red`, `orange`, `yellow`, `green`, `teal`, `blue`, `purple` or `pink`. Without it, none. |
+| `icon` | no | The icon an app draws for the account: `bolt`, `star`, `briefcase`, `person`, `people`, `code`, `flask`, `leaf`, `moon`, `heart`, `cube`, `letter`, `flame`, `sparkles`, `paperplane`, `globe`, `shield`, `key`, `house`, `book`, `hammer`, `cloud` or `bell`. Without it, the tool's own mark. |
+| `color` | no | The color an app gives the account: `red`, `orange`, `yellow`, `green`, `teal`, `blue`, `purple`, `pink`, `mint`, `cyan`, `indigo`, `brown` or `gray`. Without it, none. |
 | `model` | no | Optional default model for this provider connection, used when a failover step names this provider without a model or when inherited by a role. |
 | `provider` | no | Who serves the model: `lmstudio` or `ollama` for a local server; without it, the harness's own cloud. See [Local models](#local-models). Not for `agy`. |
 | `configDir` | no | The harness's config folder, which holds its login: `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. It must be an absolute path once a leading `~` is expanded. Without it the agent inherits the environment of the process that started Carrier. Not for `agy`. |

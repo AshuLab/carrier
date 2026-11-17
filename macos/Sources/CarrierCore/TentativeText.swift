@@ -14,6 +14,8 @@ public struct TentativeText: Equatable, Sendable {
 
     public private(set) var start: Int
     public private(set) var length = 0
+    /// How much of the range, from its start, is firm: the rest is tentative.
+    private var firm = 0
     /// Where the text this dictation wrote begins, nil until it wrote any.
     public private(set) var first: Int?
     /// The text as this left it (or as it was at the start), to find what the person changed since.
@@ -27,8 +29,11 @@ public struct TentativeText: Equatable, Sendable {
         known = text
     }
 
-    /// Where the partial text is, nil when there is none.
+    /// Where the partial text is, nil when there is none. The next partial replaces all of it.
     public var range: Range<Int>? { length > 0 ? start..<start + length : nil }
+
+    /// The tail of the range that is still tentative, the only part drawn as partial; nil when there is none.
+    public var tentativeRange: Range<Int>? { length > firm ? start + firm..<start + length : nil }
 
     /// All the text this dictation wrote, as final text: nil while a partial text is on the screen, when nothing was written or when the person edited inside it.
     public var written: Range<Int>? {
@@ -39,10 +44,10 @@ public struct TentativeText: Equatable, Sendable {
     /// What `event` does to `text`, with the caret where it is now; nil for an event that writes nothing. The caret stays where the person
     /// put it, and goes after the written text only when it was at or inside the range.
     public mutating func apply(_ event: DictationEvent, to text: String, caret: Int) -> Edit? {
-        let heard: String, closes: Bool
+        let heard: String, closes: Bool, settled: Int
         switch event {
-        case .partial(let words): (heard, closes) = (words, false)
-        case .final(let words): (heard, closes) = (words, true)
+        case .partial(let firm, let tentative): (heard, closes, settled) = (firm + tentative, false, (firm as NSString).length)
+        case .final(let words): (heard, closes, settled) = (words, true, 0)
         case .failed: return nil
         }
         follow(text)
@@ -56,6 +61,7 @@ public struct TentativeText: Equatable, Sendable {
         if first == nil, heard.isEmpty == false { first = from + lead.utf16.count }
         start = closes ? end : from + lead.utf16.count
         length = closes ? 0 : end - start
+        firm = settled
         let written = ns.replacingCharacters(in: replaced, with: lead + heard)
         known = written
         return Edit(text: written, caret: caret < NSMaxRange(replaced) ? (caret > from ? end : caret) : caret + end - NSMaxRange(replaced))
@@ -72,6 +78,7 @@ public struct TentativeText: Equatable, Sendable {
     public mutating func close() {
         start += length
         length = 0
+        firm = 0
     }
 
     /// Finds what the person changed in `text` since this wrote it, as the part between the common beginning and the common end.
@@ -89,6 +96,7 @@ public struct TentativeText: Equatable, Sendable {
         } else if before < start + length {
             lost = true
             length = 0
+            firm = 0
         }
         known = text
     }

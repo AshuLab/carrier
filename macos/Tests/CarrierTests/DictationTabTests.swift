@@ -33,7 +33,7 @@ private final class Asked: @unchecked Sendable { var times = 0 }
     let rig = Rig()
     rig.dictation.toggle(into: rig.field)
     await rig.until { rig.dictation.session.state == .listening && rig.dictation.session.modelReady }
-    rig.recognizer.say(.partial("hola"))
+    rig.recognizer.say(.partial(firm: "", tentative: "hola"))
     await rig.until { rig.text == "hola" }
     rig.dictation.setEnabled(false)
     rig.recognizer.finish()

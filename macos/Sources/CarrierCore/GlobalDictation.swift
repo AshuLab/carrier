@@ -26,8 +26,17 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
     public private(set) var state = State.idle
     /// What was heard so far, and when the shortcut started it.
     public private(set) var text = ""
+    /// Where the words still forming are in `text` (UTF-16 units), nil when all of it is firm.
+    public private(set) var tentative: Range<Int>?
     public private(set) var startedAt: Date?
     public let session: DictationSession
+
+    /// `text` apart where the tentative words begin: the widget draws only the second part as partial text.
+    public var split: (firm: String, tentative: String) {
+        let whole = text as NSString
+        guard let tentative, tentative.upperBound <= whole.length else { return (text, "") }
+        return (whole.substring(to: tentative.lowerBound), whole.substring(with: NSRange(location: tentative.lowerBound, length: tentative.count)))
+    }
     /// How the last dictation ended when the widget shows it for a moment, `pasted` or `cancelled`, until the next one begins.
     public private(set) var farewell: DictationWidgetState?
     /// Why the text of this dictation was not cleaned when Cleanup was on and failed, which the widget says next to the raw text it pasted or copied.
@@ -127,6 +136,7 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         farewell = nil
         notCleaned = nil
         text = ""
+        tentative = nil
         startedAt = now()
         perform(.show)
         guard microphone() != .denied else { return fail(DictationFailure("macOS has the microphone blocked for Carrier. Allow it in System Settings, then dictate again.")) }
@@ -135,7 +145,7 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         session.start(
             recognizer: recognizer, model: model,
             into: DictationField(
-                owner: Self.owner, text: { self.text }, caret: { self.text.utf16.count }, put: { text, _, _ in self.text = text }
+                owner: Self.owner, text: { self.text }, caret: { self.text.utf16.count }, put: { text, _, range in (self.text, self.tentative) = (text, range) }
             ),
             cleanup: cleanup()
         )

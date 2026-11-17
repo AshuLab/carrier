@@ -98,6 +98,19 @@ private func hear(
     return seen
 }
 
+/// The models whose text only grows give every word but the last as firm, since the last may still grow by a piece of a word.
+@Test(arguments: [
+    ("", "", ""),
+    ("hola", "", "hola"),
+    ("hola mundo", "hola ", "mundo"),
+    ("Hola, cómo estás.", "Hola, cómo ", "estás."),
+    ("a a a", "a a ", "a"),
+    ("hola mundo ", "hola ", "mundo "),
+])
+func aStreamingModelsPartialTextIsFirmButItsLastWord(text: String, firm: String, tentative: String) {
+    #expect(DictationEvent.growing(text) == .partial(firm: firm, tentative: tentative))
+}
+
 /// The Spanish clip, or an English one made with `say` where the model only understands English.
 @Test(dictationGate, arguments: FluidAudioRecognizer.entries.map(\.model))
 func eachModelLoadsAndGivesTextForTheClip(model: SpeechModel) async throws {

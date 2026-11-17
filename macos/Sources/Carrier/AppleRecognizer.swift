@@ -85,7 +85,7 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
                         for try await result in transcriber.results {
                             let words = String(result.text.characters)
                             if result.isFinal { settled += words }
-                            out.yield(.partial((settled + (result.isFinal ? "" : words)).trimmingCharacters(in: .whitespaces)))
+                            out.yield(Self.partial(settled: settled, volatile: result.isFinal ? "" : words))
                         }
                     } catch is CancellationError {}  // what cancelAndFinishNow ends the results with
                     return settled.trimmingCharacters(in: .whitespaces)
@@ -107,6 +107,14 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
             out.finish()
         }
         return events
+    }
+
+    /// The words so far: the final results are firm and the volatile ones tentative. The whitespace between them ends the firm part, so the
+    /// tentative words begin with a word, and the text has none at either end.
+    static func partial(settled: String, volatile: String) -> DictationEvent {
+        let firm = String(settled.drop(while: \.isWhitespace)), words = volatile.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard words.isEmpty == false else { return .partial(firm: firm.trimmingCharacters(in: .whitespacesAndNewlines), tentative: "") }
+        return .partial(firm: firm + String(volatile.prefix(while: \.isWhitespace)), tentative: words)
     }
 
     /// The capture's buffers in the analyzer's format; whether any was fed. A conversion that drops `droppedLimit` buffers in a row is a failure.

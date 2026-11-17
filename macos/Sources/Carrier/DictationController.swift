@@ -265,7 +265,8 @@ import SwiftUI
     func presentation(for owner: String) -> DictationPresentation? {
         guard enabled else { return nil }
         return dictationPresentation(
-            session.owner == owner ? session.state : .idle, registered: registry.recognizers.isEmpty == false, microphone: microphone, modelReady: session.modelReady
+            session.owner == owner ? session.state : .idle, registered: registry.recognizers.isEmpty == false, microphone: microphone, modelReady: session.modelReady,
+            answerIsSlow: session.answerIsSlow
         )
     }
 

@@ -549,3 +549,8 @@ test('a rate limit Codex retries is no usage limit, and the failed turn that ran
     { kind: 'turn_end', outcome: 'error', model: 'gpt-fake', usage: {} },
   ]);
 });
+
+test('the conversation exposes the version of its app-server', async () => {
+  const { conversation } = await limitTurn([{ method: 'turn/completed', params: { turn: { id: 'turn-1', status: 'completed' } } }], null);
+  expect(conversation.appServerVersion).toBe('0.153.4');
+});

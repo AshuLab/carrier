@@ -6,6 +6,7 @@ import { capabilities } from './mcp/capabilities.ts';
 import { agents } from './mcp/agents.ts';
 import { delegateStart } from './mcp/delegate.ts';
 import { history } from './mcp/history.ts';
+import { delegationRefusal } from './levels.ts';
 import { defineTool, McpSessionRegistry, startMcpServer, type McpServer, type McpSessions, type StoredEvent } from './mcp.ts';
 import { ChatRefused } from './runner.ts';
 
@@ -73,7 +74,7 @@ beforeEach(async () => {
   liveOnes = new Set(['s1']);
   seen = [];
   started = [];
-  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), startChild: async (parentId, args) => (started.push({ parentId, args }), { childId: 'child-1' }) } });
+  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async (parentId, args) => (started.push({ parentId, args }), { childId: 'child-1' }) } });
 });
 afterEach(() => server.close());
 
@@ -274,7 +275,7 @@ test('capabilities is a readsAsSession tool that takes no arguments and answers 
   const own = await startMcpServer({
     registry,
     tools: [capabilities],
-    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), startChild: async () => { throw new Error('not used'); } },
+    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async () => { throw new Error('not used'); } },
   });
   try {
     const token = issue();
@@ -317,6 +318,7 @@ const store: McpSessions = {
   health: async () => ({ git: 'ready', gh: 'ready', agents: [] }),
   storedEvents: (id, { after, kinds, limit }) => stored.filter((e) => e.sessionId === id && e.position > after && kinds.includes(e.kind)).slice(0, limit),
   storedEvent: (id, position, kinds) => stored.find((e) => e.sessionId === id && e.position === position && kinds.includes(e.kind)),
+  delegationRefusal: () => undefined,
   startChild: async () => { throw new Error('not used'); },
   toolStatuses: (_id, callIds) => Object.fromEntries(callIds.flatMap((c): [string, 'ok' | 'err'][] => (c === 'c1' ? [[c, 'ok']] : c === 'c3' ? [[c, 'err']] : []))),
 };
@@ -456,6 +458,7 @@ const askAgents = async (caller: { harness: string; options: Record<string, stri
       ...store,
       snapshot: (id) => ({ id, agent: 'caller', harness: caller.harness, folder: '/work', model: null, options: caller.options }),
       agents: () => roster,
+      delegationRefusal: () => delegationRefusal(caller.harness, caller.options, '0.122.0'),
       agentOptions: (name) => configured[name] ?? {},
       offer: async (name) => {
         probed.push(name);
@@ -494,16 +497,25 @@ test('agents lists each configured agent with its state and the level it would h
   expect((await askAgents({ harness: 'claude', options: {} }, { models: 'yes' })).isError).toBe(true);
 });
 
-test('agents answers notOffered with words and no childLevel when the caller is off the scale', async () => {
-  for (const caller of [{ harness: 'claude', options: { permissionMode: 'plan' } } as { harness: string; options: Record<string, string> }, { harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'never' } }]) {
+test('agents answers notOffered with the words of the refusal and no childLevel when the caller may not delegate', async () => {
+  const off: { harness: string; options: Record<string, string> }[] = [
+    { harness: 'claude', options: { permissionMode: 'plan' } },
+    { harness: 'claude', options: { permissionMode: 'dontAsk' } },
+    { harness: 'claude', options: { permissionMode: 'auto' } },
+    { harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'never' } },
+    { harness: 'codex', options: { sandbox: 'danger-full-access', approvalPolicy: 'on-request' } },
+  ];
+  for (const caller of off) {
     const { agents: listed } = JSON.parse((await askAgents(caller)).text);
     expect(listed).toHaveLength(4);
     for (const agent of listed) {
       expect(agent).not.toHaveProperty('childLevel');
-      expect(agent.notOffered).toMatch(/off the permission scale/);
+      expect(agent.notOffered).toBe(delegationRefusal(caller.harness, caller.options, '0.122.0'));
     }
     expect(listed[0].notOffered).toContain(Object.values(caller.options).at(-1)!);
   }
+  expect(delegationRefusal('claude', { permissionMode: 'plan' })).toMatch(/does not ask the person/);
+  expect(delegationRefusal('codex', { sandbox: 'danger-full-access', approvalPolicy: 'on-request' })).toMatch(/off the permission scale/);
 });
 
 test('agents lists models and efforts from the probe only when asked, and says so for an agent whose probe fails or that is not found', async () => {
@@ -519,7 +531,7 @@ test('agents lists models and efforts from the probe only when asked, and says s
 
 test('delegate_start is an actsAsSession tool: a token without act can neither list nor call it, one with act starts a child for its own session and gets its id', async () => {
   expect(delegateStart).toMatchObject({ name: 'delegate_start', access: 'actsAsSession' });
-  const withDelegate = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, startChild: async (parentId: string, args: unknown) => (started.push({ parentId, args }), { childId: 'child-1' }) } as any });
+  const withDelegate = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, delegationRefusal: () => undefined, startChild: async (parentId: string, args: unknown) => (started.push({ parentId, args }), { childId: 'child-1' }) } as any });
   try {
     const ask = async (token: string, method: string, params?: unknown) => (await (await fetch(withDelegate.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params !== undefined && { params }) }) })).json()) as any;
     const delegate = (token: string, args: unknown) => ask(token, 'tools/call', { name: 'delegate_start', arguments: args });
@@ -542,7 +554,7 @@ test('delegate_start is an actsAsSession tool: a token without act can neither l
     expect((await delegate(token, { agent: 'a', task: 'x'.repeat(64_000), requestId: 'r'.repeat(64) })).result.isError).toBe(false);
 
     // the words of a refusal reach the agent as they are
-    const refusing = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, startChild: async () => { throw new ChatRefused('This session already has 4 children'); } } as any });
+    const refusing = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, delegationRefusal: () => undefined, startChild: async () => { throw new ChatRefused('This session already has 4 children'); } } as any });
     try {
       const refused = (await (await fetch(refusing.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'delegate_start', arguments: { agent: 'a', task: 'x' } } }) })).json()) as any;
       expect(refused.result).toMatchObject({ isError: true, content: [{ text: 'This session already has 4 children' }] });
@@ -551,5 +563,35 @@ test('delegate_start is an actsAsSession tool: a token without act can neither l
     }
   } finally {
     await withDelegate.close();
+  }
+});
+
+test('a delegation tool is listed and callable only while the session may delegate, and the call re-checks what the listing saw', async () => {
+  expect(delegateStart.delegation).toBe(true);
+  let refusal: string | undefined;
+  const own = await startMcpServer({ registry, tools: [delegateStart, whoami], sessions: { exists: () => true, live: () => true, delegationRefusal: () => refusal, startChild: async (parentId: string, args: unknown) => (started.push({ parentId, args }), { childId: 'child-1' }) } as any });
+  try {
+    const ask = async (method: string, params?: unknown) => (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params !== undefined && { params }) }) })).json()) as any;
+    const token = issue(['read', 'act']);
+    const names = async () => (await ask('tools/list')).result.tools.map((tool: { name: string }) => tool.name);
+    const start = async () => (await ask('tools/call', { name: 'delegate_start', arguments: { agent: 'codex', task: 'review' } })).result;
+
+    expect(await names()).toEqual(['delegate_start', 'test_whoami']);
+    refusal = 'This session\'s permissionMode is auto, which does not ask the person before a change, so it cannot delegate';
+    expect(await names()).toEqual(['test_whoami']); // what reads stays
+    expect(await start()).toMatchObject({ isError: true, content: [{ text: refusal }] });
+    expect(started).toEqual([]);
+
+    // the agent listed the tools while the mode asked, and the person changed it after: the call is the check that holds
+    refusal = undefined;
+    expect(await names()).toContain('delegate_start');
+    refusal = 'now it does not ask';
+    expect(await start()).toMatchObject({ isError: true, content: [{ text: 'now it does not ask' }] });
+    expect(started).toEqual([]);
+    refusal = undefined;
+    expect((await start()).isError).toBe(false);
+    expect(started).toHaveLength(1);
+  } finally {
+    await own.close();
   }
 });

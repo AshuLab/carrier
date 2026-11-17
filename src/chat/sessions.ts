@@ -13,7 +13,7 @@ import { checkFolder } from './folder.ts';
 import { buildHandoff } from './handoff.ts';
 import { realMachine, type Machine } from '../doctor/detect.ts';
 import { createHealth, realProbes, type HealthProbes } from './health.ts';
-import { childOptions, isScaleHarness, type Level, levelOf } from './levels.ts';
+import { childOptions, delegationRefusal, isScaleHarness, type Level, levelOf } from './levels.ts';
 import type { McpSessionRegistry } from './mcp.ts';
 import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
@@ -31,6 +31,7 @@ const log = createScopedLogger('chat');
 export const IDLE_CLOSE_MS = 60_000;
 /** The children of one session that may work or wait for an approval at the same time ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). */
 const MAX_RUNNING_CHILDREN = 4;
+const LEVEL_WORDS = ['reads only', 'changes, asking before each change', 'edits without asking'];
 
 const DAY = 86_400_000;
 /** The lifecycle's ages (ADR 0019), as `chat.json` gives them. */
@@ -64,6 +65,8 @@ type Live = {
   streaming: string;
   /** The approvals asked and not yet answered, as they are stored (redacted and bounded). */
   approvals: Map<string, PendingApproval>;
+  /** The delegations the person was asked about in this turn, by approval: what each said, the level it showed and whether the person allowed it. `startChild` checks a call against them. */
+  delegations: Map<string, { agent: string; model: string | undefined; task: string; level: Level | undefined; /** The choices that allow it. */ allowing: string[]; allowed: boolean }>;
   turn?: { startedAt: number; toolCalls: number };
   /** True while the `message` step of a preparation waits for the agent's first answer. */
   awaitingAnswer?: boolean;
@@ -97,7 +100,7 @@ export type ChatSessionsDeps = {
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
   /** The chat MCP: the registry that issues each conversation's token and the URL of the endpoint, which is undefined when the host could not start it. Without this a host has no MCP and says nothing of it. */
-  mcp?: { registry: McpSessionRegistry; url: () => string | undefined };
+  mcp?: { registry: McpSessionRegistry; url: () => string | undefined; /** The tools of the chat MCP that only read, by name, which the adapters are told when a conversation opens. */ readTools: string[] };
 };
 
 /** The key the chat MCP is registered under in each harness, so it cannot collide with a server the person configured. */
@@ -219,6 +222,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   }
 
   const onEvent = (sessionId: string, live: Live, event: ChatEvent) => {
+    if (event.kind === 'approval' && event.input !== undefined && event.tool.endsWith('delegate_start')) event = delegationApproval(sessionId, live, event);
     // The first thing the agent does after the first message ends the `message` step: an answer, or an error that fails it.
     if (live.awaitingAnswer === true && event.kind !== 'option') {
       live.awaitingAnswer = false;
@@ -239,8 +243,15 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (event.kind === 'assistant' || event.kind === 'turn_end') live.streaming = '';
     store(sessionId, event);
     if (event.kind === 'approval') live.approvals.set(event.approvalId, boundEvent(event) as PendingApproval);
-    if (event.kind === 'approval_answered') live.approvals.delete(event.approvalId);
-    if (event.kind === 'turn_end') live.approvals.clear(); // an interrupted turn drops what it was waiting for
+    if (event.kind === 'approval_answered') {
+      const delegation = live.delegations.get(event.approvalId);
+      if (delegation !== undefined) delegation.allowed = delegation.allowing.includes(event.choiceId);
+      live.approvals.delete(event.approvalId);
+    }
+    if (event.kind === 'turn_end') {
+      live.approvals.clear(); // an interrupted turn drops what it was waiting for
+      live.delegations.clear();
+    }
     if (event.kind === 'option') {
       const { options } = row(sessionId);
       db.update(sessions).set({ options: { ...options, [event.id]: event.value } }).where(eq(sessions.id, sessionId)).run();
@@ -305,15 +316,15 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   type Launch = ReturnType<typeof launchOf>;
 
   /** A fresh invocation for one conversation of a real session, with the MCP to hand its runner: none when the host has no endpoint. */
-  const issueMcp = (sessionId: string) => {
+  const issueMcp = (sessionId: string, child = false) => {
     const invocationId = randomUUID();
     const url = mcp?.url();
     if (mcp === undefined || url === undefined) return { invocationId, args: undefined };
-    return { invocationId, args: { serverName: MCP_SERVER_NAME, url, token: mcp.registry.issue({ sessionId, invocationId, capabilities: ['read'] }) } };
+    return { invocationId, args: { serverName: MCP_SERVER_NAME, url, readTools: mcp.readTools, token: mcp.registry.issue({ sessionId, invocationId, capabilities: child ? ['read'] : ['read', 'act'] }) } };
   };
   const revoke = (invocationId: string) => mcp?.registry.revokeByInvocation(invocationId);
 
-  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string; mcp?: { serverName: string; url: string; token: string }; instructions?: string }) {
+  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string; mcp?: { serverName: string; url: string; token: string; readTools?: string[] }; instructions?: string }) {
     try {
       return await runner.open({ ...args, command, launch, env });
     } catch (error) {
@@ -364,7 +375,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     db.update(sessions).set({ pid, pgid, command }).where(eq(sessions.id, sessionId)).run();
   };
   const attach = (sessionId: string, conversation: ChatConversation, invocationId: string, state: State = 'idle', { record = true }: { record?: boolean } = {}) => {
-    const live: Live = { conversation, state, streaming: '', approvals: new Map(), invocationId };
+    const live: Live = { conversation, state, streaming: '', approvals: new Map(), delegations: new Map(), invocationId };
     lives.set(sessionId, live);
     if (record) recordProcess(sessionId, conversation);
     conversation.onEvent((event) => {
@@ -592,6 +603,39 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
     });
 
+  /** The options and level a child of `chosen` would have under `parentId` now, undefined when the parent is off the scale. */
+  const childPlan = (parentId: string, chosen: ChatAgent, harness: string) => {
+    const parent = row(parentId);
+    const parentLevel = isScaleHarness(parent.harness) ? levelOf(parent.harness, optionsOf(parentId, parent.options)) : undefined;
+    return parentLevel === undefined || !isScaleHarness(harness) ? undefined : childOptions(harness, { ...(chosen.model && { model: chosen.model }), ...chosen.options }, parentLevel);
+  };
+
+  /** Why a session may not delegate now, in words (its options as they are now, so a change of mode counts). */
+  const delegationRefusalOf = (sessionId: string) => {
+    if (!exists(sessionId)) return 'This session no longer exists';
+    const found = row(sessionId);
+    if (found.parentSessionId !== null) return 'A child session cannot start children of its own';
+    return delegationRefusal(found.harness, optionsOf(sessionId, found.options), lives.get(sessionId)?.conversation.appServerVersion);
+  };
+
+  /** The approval of a `delegate_start` with the text the person reads: the agent, the model, the level of this moment, that the child can read the conversation and the whole task. The call is held to that level. */
+  function delegationApproval(sessionId: string, live: Live, event: Extract<ChatEvent, { kind: 'approval' }>) {
+    const input = event.input ?? {};
+    const agent = String(input.agent);
+    const model = typeof input.model === 'string' ? input.model : undefined;
+    const task = String(input.task);
+    const chosen = listed().find((candidate) => candidate.name === agent);
+    let plan: ReturnType<typeof childPlan>;
+    try {
+      plan = chosen === undefined ? undefined : childPlan(sessionId, chosen, launchOf(chosen).harness);
+    } catch (error) {
+      log.warn('the level of a delegation could not be worked out', { error: String(error) });
+    }
+    live.delegations.set(event.approvalId, { agent, model, task, level: plan?.level, allowing: event.choices.filter((choice) => choice.allow).map((choice) => choice.id), allowed: false });
+    const level = plan === undefined ? 'not known' : `${plan.level} (${LEVEL_WORDS[plan.level]})${plan.lowered ? ', lowered to match this session' : ''}`;
+    return { ...event, arg: `Start ${agent} as a child session\nModel: ${model ?? chosen?.model ?? "the agent's own"}\nLevel: ${level}\nThe child can read this conversation.\nTask:\n${task}` };
+  }
+
   /**
    * Starts a child session of `parentId` for a configured agent and sends it the task (ADR 0033). The child is a session of its own agent in the parent's folder,
    * recorded as a plain folder, with the options of that agent lowered to the parent's level. Its row is inserted first, so it holds its slot and its request id
@@ -604,7 +648,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (seen !== undefined) return { childId: seen.id };
 
     const parent = row(parentId);
-    if (parent.parentSessionId !== null) throw new ChatRefused('A child session cannot start children of its own');
+    const refused = delegationRefusalOf(parentId);
+    if (refused !== undefined) throw new ChatRefused(refused);
     const chosen = listed().find((candidate) => candidate.name === agent);
     if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
     if (listAgents().find((candidate) => candidate.name === agent)?.found !== true) throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
@@ -620,16 +665,23 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (again !== undefined) return { childId: again.id };
     const current = row(parentId);
     if (deleting.has(parentId)) throw new ChatRefused('This session is being deleted');
-    const parentLevel = isScaleHarness(current.harness) ? levelOf(current.harness, optionsOf(parentId, current.options)) : undefined;
-    if (parentLevel === undefined || !isScaleHarness(launch.harness)) throw new ChatRefused('This session\'s options are off the permission scale, so a child cannot be given a level');
+    // the mode may have changed while the awaits above ran
+    const plan = delegationRefusalOf(parentId) === undefined ? childPlan(parentId, chosen, launch.harness) : undefined;
+    if (plan === undefined) throw new ChatRefused(delegationRefusalOf(parentId) ?? 'This session\'s options are off the permission scale, so a child cannot be given a level');
+    // a call is held to the level its approval showed; one that finds another starts nothing, and a new approval is needed
+    const delegations = lives.get(parentId)?.delegations ?? new Map();
+    const approved = [...delegations].filter(([, delegation]) => delegation.allowed && delegation.agent === agent && delegation.model === model && delegation.task === task);
+    const matching = approved.find(([, delegation]) => delegation.level === plan.level);
+    if (matching !== undefined) delegations.delete(matching[0]);
+    else if (approved.length > 0) throw new ChatRefused(`The approval was for level ${approved[0]![1].level ?? 'unknown'}, and a child would now run at level ${plan.level}, so none was started; ask again`);
     const running = db.select({ n: count() }).from(sessions).where(and(eq(sessions.parentSessionId, parentId), inArray(sessions.state, ['working', 'waiting_approval']))).get()?.n ?? 0;
     if (running >= MAX_RUNNING_CHILDREN) throw new ChatRefused(`This session already has ${MAX_RUNNING_CHILDREN} children working or waiting for an approval; start another when one of them has finished`);
-    const options = { ...childOptions(launch.harness, { ...(chosen.model && { model: chosen.model }), ...chosen.options }, parentLevel).options, ...(model !== undefined && { model }) };
+    const options = { ...plan.options, ...(model !== undefined && { model }) };
     const now = clock.now();
     const childId = randomUUID();
     db.insert(sessions).values({ id: childId, agent: chosen.name, harness: launch.harness, folder: current.folder, options, title: titleOf(task), state: 'working', createdAt: now, lastActiveAt: now, parentSessionId: parentId, delegationRequestId: requestId ?? null }).run();
 
-    const issued = issueMcp(childId);
+    const issued = issueMcp(childId, true);
     let conversation: ChatConversation | undefined;
     try {
       conversation = await openConversation(launch, { folder, options, mcp: issued.args });
@@ -750,6 +802,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         return { id, agent, harness, folder, model: options.model ?? null, options };
       },
       agents: listAgents,
+      delegationRefusal: delegationRefusalOf,
       startChild,
       agentOptions: (name: string) => {
         const chosen = listed().find((candidate) => candidate.name === name);

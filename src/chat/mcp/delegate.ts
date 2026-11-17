@@ -12,6 +12,7 @@ export const delegateStart = defineTool({
     'The child runs one task and takes no message after it, and never has more permission than this session. ' +
     'Pass requestId (up to 64 characters) so that a retry after a lost reply returns the same child. At most four children of a session can be working or waiting for an approval at once.',
   access: 'actsAsSession',
+  delegation: true,
   input: z.strictObject({ agent: name, task: z.string().min(1).max(chatCaps.message), model: name.optional(), requestId: z.string().min(1).max(64).optional() }),
   handler: (args, { sessionId, sessions }) => sessions.startChild(sessionId, args),
 });

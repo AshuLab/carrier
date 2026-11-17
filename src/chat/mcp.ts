@@ -73,6 +73,8 @@ export type McpTool<Input extends z.ZodType = z.ZodType> = {
   description: string;
   access: McpAccessLevel;
   input: Input;
+  /** Set on a tool of the delegation: it is listed and callable only while the session may delegate. */
+  delegation?: true;
   handler: (args: z.infer<Input>, ctx: McpInvocationContext) => Promise<unknown> | unknown;
 };
 
@@ -92,6 +94,8 @@ export type McpSessions = {
   live(sessionId: string): boolean;
   /** What the session is, from its row and its live options: nothing that says where a binary or a login is on this machine. */
   snapshot(sessionId: string): { id: string; agent: string; harness: string; folder: string; model: string | null; options: Record<string, string> };
+  /** Why the session may not delegate now, in words, or undefined when it may: its current options, the harness and whether it is a child. */
+  delegationRefusal(sessionId: string): string | undefined;
   /** The configured chat agents. */
   agents(): { name: string; harness: string; account: string; model?: string; found: boolean }[];
   /** The options the agent is configured with (its model apart), by the harness's own ids; refuses an agent that is not configured. */
@@ -173,6 +177,9 @@ export async function startMcpServer(deps: { registry: McpSessionRegistry; sessi
     if (!allowed(token, tool)) return { result: toolResult('This session may not use this tool', true) };
     if (tool.access === 'readsAsSession' && !deps.sessions.exists(token.sessionId)) return { result: toolResult('This session no longer exists', true) };
     if (tool.access === 'actsAsSession' && !deps.sessions.live(token.sessionId)) return { result: toolResult('This session is not live', true) };
+    // the mode can change after the agent listed its tools, so this check, and not the listing, is the one that holds
+    const refusal = tool.delegation === true ? deps.sessions.delegationRefusal(token.sessionId) : undefined;
+    if (refusal !== undefined) return { result: toolResult(refusal, true) };
 
     // an omitted `arguments` is `{}`; null, arrays, primitives and (for a strict schema) unknown keys are for the schema to refuse
     const args = tool.input.safeParse(call.data.arguments === undefined ? {} : call.data.arguments);
@@ -220,7 +227,7 @@ export async function startMcpServer(deps: { registry: McpSessionRegistry; sessi
       case 'ping':
         return reply({});
       case 'tools/list':
-        return reply({ tools: [...tools.values()].filter((t) => allowed(token, t)).map((t) => ({ name: t.name, description: t.description, inputSchema: z.toJSONSchema(t.input) })) });
+        return reply({ tools: [...tools.values()].filter((t) => allowed(token, t) && (t.delegation !== true || deps.sessions.delegationRefusal(token.sessionId) === undefined)).map((t) => ({ name: t.name, description: t.description, inputSchema: z.toJSONSchema(t.input) })) });
       case 'tools/call': {
         const called = await callTool(token, params);
         return called.error === undefined ? reply(called.result) : fail(called.error.code, called.error.message);

@@ -32,6 +32,9 @@ public struct SessionSeen: Equatable {
         return seen != before
     }
 
+    /// Forgets what was seen of these sessions, so each is unread while its activity is later than the epoch: for a fixture's list.
+    public mutating func markUnread(_ ids: [String]) { for id in ids { seen[id] = 0 } }
+
     /// Takes the session as seen at the activity the app last read, as when the person leaves it.
     public mutating func markSeen(_ id: String, in rows: [SessionRow]) {
         guard let row = rows.first(where: { $0.id == id }) else { return }

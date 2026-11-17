@@ -58,6 +58,9 @@ public func doctorFixtureOutput(home: String) -> String? { try? String(contentsO
 
 public final class FixtureServer {
     public let home: String
+    /// The sessions the list marks `fixtureUnread` and `fixturePinned`: the app, which keeps what the person has seen and pinned, starts with them so.
+    public let unreadSessionIds: [String]
+    public let pinnedSessionIds: [String]
     public var socketPath: String { home + "/engine/state/control.sock" }
     public var chatSocketPath: String { home + "/chat/state/chat.sock" }
 
@@ -136,7 +139,10 @@ public final class FixtureServer {
             chatAgents = try JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-agents.json"))), options: .sortedKeys)
             let list = try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-list.json"))) as? [String: Any]
             guard let sessions = list?["sessions"] as? [[String: Any]] else { throw FixtureError.unreadable("\(fixtures)/chat-list.json") }
-            chatSessions = sessions
+            let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+            chatSessions = sessions.map { Self.relativeTimes($0, nowMs: nowMs) }
+            unreadSessionIds = sessions.filter { $0["fixtureUnread"] as? Bool == true }.compactMap { $0["id"] as? String }
+            pinnedSessionIds = sessions.filter { $0["fixturePinned"] as? Bool == true }.compactMap { $0["id"] as? String }
         } catch { throw FixtureError.unreadable("\(fixtures)/chat-agents.json or chat-list.json") }
         func golden<Value>(_ file: String, as _: Value.Type) throws -> Value {
             guard let value = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/" + file)))) as? Value else {
@@ -161,7 +167,13 @@ public final class FixtureServer {
             guard let golden = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/" + file)))) as? [String: Any],
                 let session = golden["sessionId"] as? String, let events = golden["events"] as? [[String: Any]]
             else { throw FixtureError.unreadable("\(fixtures)/\(file)") }
-            chatConversations[session] = (events, golden["streaming"] as? String ?? "")
+            // an event with `ago` (milliseconds) happened that long before the launch, so a call still going has run for that long
+            let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+            chatConversations[session] = (events.map { event in
+                var event = event
+                if let ago = event.removeValue(forKey: "ago") as? Int { event["at"] = nowMs - ago }
+                return event
+            }, golden["streaming"] as? String ?? "")
             chatOptions[session] = golden["options"] as? [[String: Any]] ?? []
         }
         if longTranscript {
@@ -295,7 +307,12 @@ public final class FixtureServer {
             let reply: [String: Any] = [
                 "events": page, "cursor": page.last?["id"] as? Int ?? after, "streaming": conversation.1,
                 "approvals": Self.pending(conversation.0), "options": chatOptions[session] ?? [],
-                "session": ["state": locked { chatSessions.first { $0["id"] as? String == session }?["state"] as? String } ?? "idle"],
+                "session": locked {
+                    let listed = chatSessions.first { $0["id"] as? String == session }
+                    var summary: [String: Any] = ["state": listed?["state"] as? String ?? "idle"]
+                    if let preparation = listed?["preparation"] as? String { summary["preparation"] = preparation }
+                    return summary
+                },
             ]
             guard let body = try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys) else { break }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
@@ -542,5 +559,23 @@ public final class FixtureServer {
             if n > 0 { sent += n } else if n < 0 && errno == EINTR { continue } else { return false }
         }
         return true
+    }
+}
+
+extension FixtureServer {
+    /// A time that is "N ms ago" in the golden list is made relative to the launch, so ages ("now", "5m", "3h") and the working clock look
+    /// as they do live: `lastActiveAgo` sets `lastActiveAt`, `createdAgo` `createdAt`, and `startedAgo` the `startedAt` of a background task.
+    static func relativeTimes(_ session: [String: Any], nowMs: Int) -> [String: Any] {
+        var session = session
+        for (ago, field) in [("lastActiveAgo", "lastActiveAt"), ("createdAgo", "createdAt")] {
+            if let ms = session.removeValue(forKey: ago) as? Int { session[field] = nowMs - ms }
+        }
+        session["background"] = (session["background"] as? [[String: Any]])?.map { task in
+            var task = task
+            if let ms = task.removeValue(forKey: "startedAgo") as? Int { task["startedAt"] = nowMs - ms }
+            return task
+        }
+        if session["background"] == nil { session.removeValue(forKey: "background") }
+        return session
     }
 }

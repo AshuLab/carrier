@@ -1080,3 +1080,15 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
     #expect(table.tsv == "Plan\tPrice\nFree\t$0\nTeam\ta | b")
     #expect(table.markdown == "| Plan | Price |\n| --- | ---: |\n| Free | $0 |\n| Team | a \\| b |")
 }
+
+@Test func theEverythingGoldenHasEveryKindOfRowAndTheQuestionGoldenAsksTwoQuestions() throws {
+    let all = try golden("everything")
+    let rows = chatFeed(all.events, pending: all.pending)
+    let kinds = Set(texts(rows).map { String($0.prefix { $0 != ":" }) })
+    // a user bubble, the agent's markdown, a run of work, a permission allowed and one declined, a card no longer waiting, an error, the turn lines and a stop
+    #expect(kinds.isSuperset(of: ["user", "agent", "tools", "allowed", "declined", "line", "error", "end", "stopped"]))
+    #expect(rows.contains { if case .tools(_, let group) = $0 { group.thoughts.isEmpty == false } else { false } })
+    let asked = try golden("question")
+    let cards = chatFeed(asked.events, pending: ["q1"]).compactMap { row -> ApprovalCard? in if case .approval(_, let card) = row { card } else { nil } }
+    #expect(cards.count == 1 && cards[0].questions.map(\.multiSelect) == [false, true])
+}

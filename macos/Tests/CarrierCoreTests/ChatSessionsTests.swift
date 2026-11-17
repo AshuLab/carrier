@@ -201,7 +201,7 @@ private let fixtures = URL(fileURLWithPath: #filePath)
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     let rows = sessionRows(try await host.list(archived: false) + (try await host.list(archived: true)))
-    #expect(sessionGroups(rows).map(\.title) == ["carrier", "dev/web", "work/web"])
+    #expect(sessionGroups(rows).map(\.title) == ["agent-forge", "carrier", "dev/web", "work/web"])
     #expect(archivedCount(rows) == 2)
 }
 
@@ -770,7 +770,7 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     let working = "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01"
     try await host.archive(idle, true)
     #expect(try await host.list(archived: true).count == 3)
-    #expect(try await host.list(archived: false).count == 4)
+    #expect(try await host.list(archived: false).count == 15)
     try await host.archive(idle, false)
     #expect(try await host.list(archived: true).count == 2)
     await #expect(throws: ControlError.remote("This session is working; interrupt or close it first, then archive it")) { try await host.archive(working, true) }

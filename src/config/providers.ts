@@ -8,10 +8,13 @@ import { refusedLaunchArg } from './launch-args.ts';
 /** The key of an account: stored and shown as is. */
 export const optionNamePattern = /^[a-z][a-z0-9-]{0,39}$/;
 
-/** The icons an app may draw for an account; absent means the tool's own mark. */
-export const accountIcons = ['bolt', 'star', 'briefcase', 'person', 'people', 'code', 'flask', 'leaf', 'moon', 'heart', 'cube', 'letter'] as const;
-/** The colors an app may give an account; absent means none. */
-export const accountColors = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink'] as const;
+/** The icons an app may draw for an account; absent means the tool's own mark. The hello's `accountPalette` says a host knows all of them: the first twelve are the ones `accountIdentity` hosts know. */
+export const accountIcons = [
+  'bolt', 'star', 'briefcase', 'person', 'people', 'code', 'flask', 'leaf', 'moon', 'heart', 'cube', 'letter',
+  'flame', 'sparkles', 'paperplane', 'globe', 'shield', 'key', 'house', 'book', 'hammer', 'cloud', 'bell',
+] as const;
+/** The colors an app may give an account; absent means none. The first eight are the ones `accountIdentity` hosts know. */
+export const accountColors = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'mint', 'cyan', 'indigo', 'brown', 'gray'] as const;
 
 /** An account: one login of an agent CLI, or a local server through one. */
 export const account = z.strictObject({

@@ -297,3 +297,18 @@ _Avoid_: terminal session (session already refers to an agent conversation).
 
 **Terminal pane** - One live shell surface and PTY inside a terminal tab, preserving its terminal state, scrollback, working directory, and running-process status while being split, resized, focused, moved across split edges or tabs, or closed.
 _Avoid_: surface, panel, split (when naming the leaf terminal itself).
+
+**Agent switch** - A person changing the agent of a user session between turns: the session keeps its transcript, folder and worktree and goes on in a new native conversation with another configured agent, of another harness or another account of the same one ([0032](adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md)). Changing only the model of the same agent is an option change and not a switch.
+_Avoid_: failover (Carrier moving an epic's role by itself when credits run out), provider switch, migration.
+
+**Handoff** - What the new agent of a switched session receives with its first message: a bounded selection of the stored transcript (the person's first message and the newest ones, up to 16,000 bytes), the ids of what was left out and the pointer to the chat MCP's `history` tool that reads them. Carrier chooses it and no agent writes it, and it carries no reasoning, tool state or attachments.
+_Avoid_: summary, compaction, context transfer.
+
+**Child session** - A user session started by a delegation from another session, its parent: a real session with its own agent and transcript, working in the parent's folder, kept out of the list of sessions and listed in its parent's summary. It runs one task and takes no message from the person, who can still read it and answer its approvals ([0033](adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)).
+_Avoid_: subagent (a Claude agent inside an execution, with no session of its own), sub-session, worker, thread.
+
+**Delegation** - The person asking, in a session, for work to go to other agents, which the agent carries out with the chat MCP's `delegate_start`, each call approved by the person. It starts child sessions and moves nothing out of the parent.
+_Avoid_: failover, subagent call, handover (the parent keeps the session).
+
+**Permission level** - Carrier's scale of three steps for what a chat session may do without asking the person, from reading only to editing without asking, on which the options of each harness sit (Claude's permission modes, Codex's sandbox and approval policy). It exists to keep a child session from having more privilege than its parent ([0033](adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)).
+_Avoid_: permission mode (Claude's own option), sandbox (Codex's own option), access level (what a chat MCP tool declares, [0024](adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)).

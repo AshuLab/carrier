@@ -73,6 +73,8 @@ export type McpTool<Input extends z.ZodType = z.ZodType> = {
   description: string;
   access: McpAccessLevel;
   input: Input;
+  /** Set on a tool of the delegation: it is listed and callable only while the session may delegate. */
+  delegation?: true;
   handler: (args: z.infer<Input>, ctx: McpInvocationContext) => Promise<unknown> | unknown;
 };
 
@@ -92,11 +94,34 @@ export type McpSessions = {
   live(sessionId: string): boolean;
   /** What the session is, from its row and its live options: nothing that says where a binary or a login is on this machine. */
   snapshot(sessionId: string): { id: string; agent: string; harness: string; folder: string; model: string | null; options: Record<string, string> };
+  /** Why the session may not delegate now, in words, or undefined when it may: its current options, the harness and whether it is a child. */
+  delegationRefusal(sessionId: string): string | undefined;
   /** The configured chat agents. */
   agents(): { name: string; harness: string; account: string; model?: string; found: boolean }[];
+  /** The options the agent is configured with (its model apart), by the harness's own ids; refuses an agent that is not configured. */
+  agentOptions(name: string): Record<string, string>;
+  /** The options the agent's harness lists, with their values: it starts the agent briefly, never with the MCP (kept ten minutes); rejects when it cannot. */
+  offer(name: string): Promise<{ id: string; values: { id: string; label: string }[] }[]>;
   /** The verdicts of the health check (kept thirty seconds); never starts an agent. */
   health(): Promise<Health>;
+  /** The stored events of a session of the given kinds with a position above `after`, oldest first, at most `limit`: the kind filters before the limit. A position is the event's id. */
+  storedEvents(sessionId: string, args: { after: number; kinds: string[]; limit: number }): StoredEvent[];
+  /** One stored event of that session and of one of those kinds, or none; an event of another session is none. */
+  storedEvent(sessionId: string, position: number, kinds: string[]): StoredEvent | undefined;
+  /** How the tool calls of that session with those ids ended, by call id; a call still running or unknown is absent. */
+  toolStatuses(sessionId: string, callIds: string[]): Record<string, 'ok' | 'err'>;
+  /** Starts a child session of `parentId` for a configured agent with the task as its first message, and answers its id once its conversation is open and the task sent; refuses with words ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). A `requestId` seen before returns the child it made. */
+  startChild(parentId: string, args: { agent: string; task: string; model?: string; requestId?: string }): Promise<{ childId: string }>;
+  /** Whether `otherId` is a child of `sessionId` or its parent: the only sessions besides its own that a session may read. */
+  related(sessionId: string, otherId: string): boolean;
+  /** Waits until none of the children of `parentId` is working (one that waits for an approval counts as stopped) or `timeoutMs` passes, and answers the state of each, with the last assistant message of one that is done; refuses with words an id that is not a child of `parentId`. */
+  waitChildren(parentId: string, childIds: string[], timeoutMs: number): Promise<ChildReport[]>;
 };
+
+export type ChildState = 'working' | 'needs_approval' | 'done' | 'error' | 'usage_limit' | 'interrupted';
+export type ChildReport = { childId: string; agent: string; state: ChildState; message?: string };
+
+export type StoredEvent = { position: number; kind: string; data: Record<string, unknown> };
 
 export type McpServer = { url: string; close(): Promise<void> };
 
@@ -147,16 +172,21 @@ export async function startMcpServer(deps: { registry: McpSessionRegistry; sessi
       req.on('error', () => resolve(undefined));
     });
 
+  /** What a token's session is let to use: a tool that reads as the session needs `read`, one that acts as it needs `act`, and one that just reads needs nothing. */
+  const allowed = (token: McpToken, tool: McpTool) => tool.access === 'reads' || token.capabilities.has(tool.access === 'actsAsSession' ? 'act' : 'read');
+
   const callTool = async (token: McpToken, params: unknown) => {
     const call = callParams.safeParse(params);
     if (!call.success) return { error: { code: -32602, message: 'Invalid params' } };
     const tool = tools.get(call.data.name);
     if (tool === undefined) return { error: { code: -32602, message: `Unknown tool ${call.data.name}` } };
 
-    const wanted = tool.access === 'actsAsSession' ? 'act' : 'read';
-    if (tool.access !== 'reads' && !token.capabilities.has(wanted)) return { result: toolResult('This session may not use this tool', true) };
+    if (!allowed(token, tool)) return { result: toolResult('This session may not use this tool', true) };
     if (tool.access === 'readsAsSession' && !deps.sessions.exists(token.sessionId)) return { result: toolResult('This session no longer exists', true) };
     if (tool.access === 'actsAsSession' && !deps.sessions.live(token.sessionId)) return { result: toolResult('This session is not live', true) };
+    // the mode can change after the agent listed its tools, so this check, and not the listing, is the one that holds
+    const refusal = tool.delegation === true ? deps.sessions.delegationRefusal(token.sessionId) : undefined;
+    if (refusal !== undefined) return { result: toolResult(refusal, true) };
 
     // an omitted `arguments` is `{}`; null, arrays, primitives and (for a strict schema) unknown keys are for the schema to refuse
     const args = tool.input.safeParse(call.data.arguments === undefined ? {} : call.data.arguments);
@@ -204,7 +234,7 @@ export async function startMcpServer(deps: { registry: McpSessionRegistry; sessi
       case 'ping':
         return reply({});
       case 'tools/list':
-        return reply({ tools: [...tools.values()].map((t) => ({ name: t.name, description: t.description, inputSchema: z.toJSONSchema(t.input) })) });
+        return reply({ tools: [...tools.values()].filter((t) => allowed(token, t) && (t.delegation !== true || deps.sessions.delegationRefusal(token.sessionId) === undefined)).map((t) => ({ name: t.name, description: t.description, inputSchema: z.toJSONSchema(t.input) })) });
       case 'tools/call': {
         const called = await callTool(token, params);
         return called.error === undefined ? reply(called.result) : fail(called.error.code, called.error.message);

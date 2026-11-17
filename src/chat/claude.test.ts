@@ -69,9 +69,9 @@ function replay(segments: Segment[], mcpServers?: { name: string; status: string
 }
 
 const deps = (query: typeof sdkQuery, over: Partial<ClaudeChatDeps> = {}): ClaudeChatDeps => ({ query, resolve: (command) => command ?? '/bin/claude', loggedIn: async () => true, ...over });
-const openWith = async (segments: Segment[], resume?: string) => {
+const openWith = async (segments: Segment[], resume?: string, child = false, mcp = false) => {
   const replayed = replay(segments);
-  const conversation = await claudeChatRunner(deps(replayed.query)).open({ folder: '/work', env: { A: 'b' }, ...(resume && { resume }) });
+  const conversation = await claudeChatRunner(deps(replayed.query)).open({ folder: '/work', env: { A: 'b' }, ...(resume && { resume }), ...(child && { child }), ...(mcp && { mcp: { serverName: 'carrier-chat', url: 'http://127.0.0.1:1/mcp', token: 'token' } }) });
   const events: ChatEvent[] = [];
   conversation.onEvent((event) => events.push(event));
   return { conversation, events, ...replayed };
@@ -144,6 +144,37 @@ test('an approval is asked with the provider choices and an allow runs the tool'
   });
   expect(allowed.filter((e) => e.kind === 'approval_answered')).toEqual([{ kind: 'approval_answered', approvalId: expect.any(String), choiceId: 'allow' }]);
   expect(seen.permissions[0]).toMatchObject({ behavior: 'allow', updatedInput: { command: 'touch allowed.txt' } });
+});
+
+test('the approvals of a child offer Allow and Deny and none of the suggestions', async () => {
+  const { conversation, events, seen } = await openWith(main, undefined, true);
+  answering(conversation);
+  for (const segment of main.slice(0, 3)) await turn(conversation, events, segment.text);
+
+  const allowed = await turn(conversation, events, main[3]!.text);
+  expect(allowed.find((e) => e.kind === 'approval')).toMatchObject({ tool: 'Bash', arg: 'touch allowed.txt', choices: [{ id: 'allow', allow: true }, { id: 'deny', allow: false }] });
+  expect((allowed.find((e) => e.kind === 'approval') as { choices: unknown[] }).choices).toHaveLength(2);
+  expect(seen.permissions[0]).toMatchObject({ behavior: 'allow', updatedInput: { command: 'touch allowed.txt' } });
+  expect(seen.permissions[0]).not.toHaveProperty('updatedPermissions');
+});
+
+test('the approval of delegate_start carries its input and offers Allow, Deny and one allowance for the session, none of the CLI\'s own suggestions; a child gets no allowance', async () => {
+  const tool = 'mcp__carrier-chat__delegate_start';
+  const input = { agent: 'codex', task: 'review the diff' };
+  const cli = [{ type: 'addRules', behavior: 'allow', rules: [{ toolName: tool }], destination: 'localSettings' }];
+  const asking = (suggestions: unknown): Segment => ({ ...main[0]!, lines: [{ host: 'canUseTool', toolName: tool, input, toolUseID: 'toolu_d', suggestions } as Line, ...main[0]!.lines] });
+  const run = async (choice: string, child = false) => {
+    const { conversation, events, seen } = await openWith([asking(cli)], undefined, child, true);
+    conversation.onEvent((e) => e.kind === 'approval' && queueMicrotask(() => conversation.answer(e.approvalId, choice)));
+    const played = await turn(conversation, events, main[0]!.text);
+    return { approval: played.find((e) => e.kind === 'approval'), permission: seen.permissions[0] };
+  };
+
+  const allowed = await run('suggestion:0');
+  expect(allowed.approval).toEqual({ kind: 'approval', approvalId: 'toolu_d', tool, arg: expect.any(String), input, choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }, { id: 'suggestion:0', label: 'Allow for the rest of the session', allow: true }] });
+  expect(allowed.permission).toEqual({ behavior: 'allow', updatedInput: input, updatedPermissions: [{ type: 'addRules', behavior: 'allow', rules: [{ toolName: tool }], destination: 'session' }] });
+  expect((await run('deny')).permission).toMatchObject({ behavior: 'deny' });
+  expect(((await run('allow', true)).approval as { choices: unknown[] }).choices).toHaveLength(2);
 });
 
 test('AskUserQuestion is asked as questions, the answers go back in the tool input, a skip is a deny, and bad input is a generic approval', async () => {
@@ -250,16 +281,54 @@ test('a line it does not know is ignored and never throws', async () => {
   expect(await turn(conversation, events, 'hi')).toEqual([{ kind: 'turn_end', outcome: 'ok', model: undefined, usage: {} }]);
 });
 
-test('a usage limit says why: the CLI\'s own words, and the synthetic message is not the model', async () => {
-  const lines: Line[] = [
-    { type: 'assistant', message: { model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'working' }] } },
-    { type: 'assistant', message: { model: '<synthetic>', content: [{ type: 'text', text: "You've hit your weekly limit · resets Mon 9am" }] } },
-    { type: 'result', subtype: 'success', is_error: true, api_error_status: 429, api_error: 'usage_limit_reached', result: "You've hit your weekly limit · resets Mon 9am", usage: {} },
-  ];
+const limitText = "You've hit your session limit · resets 12:40pm (America/Montevideo)";
+// The CLI's own message about a limit, as its stream-json wraps it (`api_error*` are internal to the CLI and not in the SDK's types)
+const synthetic = (extra: Line = {}): Line => ({ type: 'assistant', error: 'rate_limit', message: { model: '<synthetic>', content: [{ type: 'text', text: limitText }] }, ...extra });
+// The real failed result the engine's fixture holds
+const limitResult = JSON.parse(readFileSync(join(import.meta.dirname, '../harnesses/claude-usage-limit.fixture.jsonl'), 'utf8')) as Line;
+const replayLimit = async (lines: Line[]) => {
   const { conversation, events } = await openWith([{ text: 'hi', lines }]);
-  const got = await turn(conversation, events, 'hi');
-  expect(got.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: "You've hit your weekly limit · resets Mon 9am" });
-  expect(got.find((e) => e.kind === 'turn_end')).toMatchObject({ outcome: 'error', model: 'claude-sonnet-5-5' });
+  return turn(conversation, events, 'hi');
+};
+
+test('a usage limit comes out as one error that says so and carries its reset: the timestamp of the CLI\'s own message, else its words', async () => {
+  const working: Line = { type: 'assistant', message: { model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'working' }] } };
+  const info = { rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour', resetsAt: 1_800_000_000 } };
+  const stamped = await replayLimit([working, synthetic({ api_error: 'usage_limit_reached', api_error_params: info }), limitResult]);
+  expect(stamped).toEqual([
+    { kind: 'assistant', text: 'working' },
+    { kind: 'error', text: limitText, reason: 'usage_limit', resetsAt: 1_800_000_000_000 },
+    { kind: 'turn_end', outcome: 'error', model: 'claude-sonnet-5-5', usage: expect.any(Object) },
+  ]);
+  // the real result alone: the reset is the words of the result, and no `assistant` carries the limit's text
+  const worded = await replayLimit([synthetic({ api_error: 'usage_limit_reached' }), limitResult]);
+  expect(worded.filter((e) => e.kind === 'assistant')).toEqual([]);
+  expect(worded.filter((e) => e.kind === 'error')).toEqual([{ kind: 'error', text: limitText, reason: 'usage_limit', resetText: 'resets 12:40pm (America/Montevideo)' }]);
+  expect(worded.find((e) => e.kind === 'turn_end')).toMatchObject({ outcome: 'error', model: 'claude-sonnet-5-5' });
+  // a limit with no reset says only that it is one
+  const bare = await replayLimit([{ ...limitResult, result: "You're out of usage credits" }]);
+  expect(bare.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: "You're out of usage credits", reason: 'usage_limit' });
+});
+
+test('the limit is told by its prefix when the result has no api_error, and a stamp of one turn does not leak into the next', async () => {
+  const { conversation, events } = await openWith([
+    { text: 'one', lines: [synthetic({ api_error: 'usage_limit_reached', api_error_params: { rate_limit_info: { resetsAt: 1_800_000_000 } } }), limitResult] },
+    { text: 'two', lines: [{ type: 'result', subtype: 'success', is_error: true, result: "You've reached your weekly limit · resets Mon 9am", usage: {} }] },
+  ]);
+  expect((await turn(conversation, events, 'one')).find((e) => e.kind === 'error')).toMatchObject({ reason: 'usage_limit', resetsAt: 1_800_000_000_000 });
+  expect((await turn(conversation, events, 'two')).find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: "You've reached your weekly limit · resets Mon 9am", reason: 'usage_limit', resetText: 'resets Mon 9am' });
+});
+
+test('a rate limit that Claude retries is no usage limit, and a failed result of another kind is an error without a reason', async () => {
+  const ok: Line = { type: 'result', subtype: 'success', is_error: false, result: 'done', usage: {} };
+  const retried = await replayLimit([{ type: 'system', subtype: 'api_retry', attempt: 1, max_retries: 3, retry_delay_ms: 1000, error_status: 429, error: 'rate_limit' }, { type: 'rate_limit_event', rate_limit_info: { status: 'rejected', resetsAt: 1_800_000_000 } }, ok]);
+  expect(retried.map((e) => e.kind)).toEqual(['turn_end']);
+  const throttled = await replayLimit([synthetic({ message: { model: '<synthetic>', content: [{ type: 'text', text: 'API Error: Rate limited. Retry shortly.' }] } }), { type: 'result', subtype: 'success', is_error: true, api_error_status: 429, result: 'API Error: Rate limited. Retry shortly.', usage: {} }]);
+  expect(throttled.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: 'API Error: Rate limited. Retry shortly.' });
+  const invalidModel = await replayLimit([{ type: 'result', subtype: 'success', is_error: true, api_error_status: 404, api_error: 'model_not_found', result: 'There\'s an issue with the selected model (nope).', usage: {} }]);
+  expect(invalidModel.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: "There's an issue with the selected model (nope)." });
+  const keyLimit = await replayLimit([{ type: 'result', subtype: 'success', is_error: true, api_error_status: 429, result: 'API Error: 429 rate limit on this API key', usage: {} }]);
+  expect(keyLimit.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: 'API Error: 429 rate limit on this API key' });
 });
 
 test('an effort change is a turn of its own that the person does not see', async () => {
@@ -337,25 +406,37 @@ test('an account\'s compaction and launch arguments reach the SDK as extraArgs, 
 
 const mcp = { serverName: 'carrier-chat', url: 'http://127.0.0.1:4000/mcp', token: 'tok-secret' };
 
-test('the chat MCP is handed to the SDK with its tools pre-approved, on a fresh open and on a resume; the token rides in the process environment, and neither extraArgs nor the mcpServers the SDK turns into argv hold it', async () => {
+test('the chat MCP is handed to the SDK with only its tools that read pre-approved by name, on a fresh open and on a resume; the token rides in the process environment, and neither extraArgs nor the mcpServers the SDK turns into argv hold it', async () => {
   for (const resume of [undefined, sessionId]) {
     const { query, seen } = replay([]);
-    const conversation = await claudeChatRunner(deps(query)).open({ folder: '/work', env: { PATH: '/bin' }, mcp, ...(resume && { resume }) });
+    const conversation = await claudeChatRunner(deps(query)).open({ folder: '/work', env: { PATH: '/bin' }, mcp: { ...mcp, readTools: ['capabilities', 'history'] }, ...(resume && { resume }) });
     expect(seen.options.mcpServers).toEqual({ 'carrier-chat': { type: 'http', url: mcp.url, headers: { Authorization: 'Bearer ${CARRIER_MCP_TOKEN}' } } });
     expect(seen.options.env).toEqual({ PATH: '/bin', CARRIER_MCP_TOKEN: 'tok-secret' });
-    expect(seen.options.allowedTools).toEqual(['mcp__carrier-chat__*']);
+    expect(seen.options.allowedTools).toEqual(['mcp__carrier-chat__capabilities', 'mcp__carrier-chat__history']);
     expect(seen.options.resume).toBe(resume);
     expect(JSON.stringify(seen.options.extraArgs)).not.toContain('tok-secret');
     expect(conversation.mcpProblem).toBeUndefined();
   }
 });
 
-test('without the chat MCP (a probe, or a host that could not bind it) the SDK gets no mcpServers and no wildcard', async () => {
+test('without the chat MCP (a probe, or a host that could not bind it) the SDK gets no mcpServers and no allowedTools', async () => {
   const { query, seen } = replay([]);
   await claudeChatRunner(deps(query)).open({ folder: '/work', env: {} });
   expect(seen.options).not.toHaveProperty('mcpServers');
   expect(seen.options.env).not.toHaveProperty('CARRIER_MCP_TOKEN');
   expect(seen.options).not.toHaveProperty('allowedTools');
+});
+
+test('instructions are appended to the claude_code preset on a fresh open and on a resume, and without them the SDK gets no systemPrompt', async () => {
+  for (const resume of [undefined, sessionId]) {
+    const { query, seen } = replay([]);
+    await claudeChatRunner(deps(query)).open({ folder: '/work', env: {}, instructions: 'HANDOFF TEXT', ...(resume && { resume }) });
+    expect(seen.options.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code', append: 'HANDOFF TEXT' });
+    expect(seen.options.resume).toBe(resume);
+  }
+  const { query, seen } = replay([]);
+  await claudeChatRunner(deps(query)).open({ folder: '/work', env: {} });
+  expect(seen.options).not.toHaveProperty('systemPrompt');
 });
 
 test('a chat MCP the SDK reports as down is the conversation\'s mcpProblem, and open still succeeds; a connected or silent one is none', async () => {

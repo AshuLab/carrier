@@ -1,0 +1,76 @@
+{
+  "plan-allow-read-in-callback": {
+    "outcome": "success",
+    "tools": [
+      "ToolSearch",
+      "mcp__carrier-chat__ping_read"
+    ],
+    "asked": [
+      {
+        "tool": "mcp__carrier-chat__ping_read",
+        "input": {}
+      }
+    ],
+    "results": [
+      "ok  ",
+      "ok \"ping_read says PONG\""
+    ],
+    "said": "`ping_read` returned \"ping_read says PONG\".\n\nI didn't call `ping_act`. Plan mode is on, so I can only run read-only tools. `ping_read` is read-only, but `ping_act` is described as an \"act\" tool, and I can't confirm it's safe here. Its description says it only returns a fixed string, so it's probably",
+    "serverLog": [
+      "ping_read executed"
+    ]
+  },
+  "plan-wildcard-deny-all": {
+    "outcome": "success",
+    "tools": [
+      "ToolSearch",
+      "mcp__carrier-chat__ping_read"
+    ],
+    "asked": [
+      {
+        "tool": "mcp__carrier-chat__ping_read",
+        "input": {}
+      }
+    ],
+    "results": [
+      "ok  ",
+      "ERR Denied by the spike probe."
+    ],
+    "said": "Solo una de las dos llamadas funcionó a medias:\n\n- **`ping_read`**: denegada con \"Denied by the spike probe.\" No devolvió nada.\n- **`ping_act`**: no la llamé. Plan mode está activo y prohíbe acciones que no sean de solo lectura, y por el nombre `ping_act` es una acción. No intenté esquivar la denega",
+    "serverLog": []
+  },
+  "plan-fresh-probes": {
+    "write_outside": {
+      "outcome": "success",
+      "tools": [
+        "Write"
+      ],
+      "asked": [
+        {
+          "tool": "Write",
+          "reason": "Claude requested permissions to edit /Users/<user>/.claude-ashu-lab/plans/create-a-file-named-crispy-cat.md which is a sensitive file. /Users/<user>/.claude-ashu-lab/plans/create-a-file-named-crispy-cat.md resolves through a symlink to /Users/<user>/.claude/plans/create-a-file-named-crispy-cat.md, which is outside the allowed working directories.",
+          "input": {
+            "file_path": "/Users/<user>/.claude-ashu-lab/plans/create-a-file-named-crispy-cat.md",
+            "content": "# Plan: create b.txt\n\n## Context\nUser wants a file `b.txt` containing `hi` in `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a4o-RIwjFA`. Nothing else. If refused, don't try another way.\n\n## Steps\n1. Write `b.txt` with content `hi` in that folder (single Write call).\n2. Stop. No other actions, no workaround if the write is refused.\n\n## Verification\nWrite tool reports success. No extra checks.\n"
+          }
+        }
+      ],
+      "results": [
+        "ERR Denied by the spike probe."
+      ],
+      "said": "Ya que se denegó la escritura, no creé `b.txt`. Tampoco probé otra forma, como me pediste.\n\nAdemás, la sesión está en plan mode, que bloquea las ediciones. El permiso también denegó mi intento de guardar el plan.\n\nSi quieres que lo cree, sal de plan mode y dime. Haría una sola escritura de `b.txt` c",
+      "fileExists": false
+    },
+    "curl": {
+      "outcome": "success",
+      "tools": [
+        "Bash"
+      ],
+      "asked": [],
+      "results": [
+        "ok HTTP/2 200"
+      ],
+      "said": "`HTTP/2 200`\n"
+    }
+  }
+}

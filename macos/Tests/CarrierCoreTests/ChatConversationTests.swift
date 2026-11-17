@@ -63,6 +63,8 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
 @Test func theBannersSayWhoCouldNotContinueAndWhatTheHostSaid() {
     #expect(failedTurnBanner(agent: "claude", error: "Usage limit reached") == FailureBanner(title: "Claude couldn't continue", detail: "Usage limit reached", hint: nil))
     #expect(failedTurnBanner(agent: "", error: "x").title == "The agent couldn't continue")
+    // a label or display name the person wrote keeps its capitals
+    #expect(failedTurnBanner(agent: "iOS", error: "x").title == "iOS couldn't continue" && failedTurnBanner(agent: "Claude Pro", error: "x").title == "Claude Pro couldn't continue")
     let refused = refusalBanner(agent: "codex", reason: "The agent is still answering")
     #expect(refused == FailureBanner(title: "Codex couldn't continue", detail: "The agent is still answering", hint: nil))
     let signedOut = refusalBanner(agent: "claude", reason: "Claude is not logged in; run \"claude\" once to log in")

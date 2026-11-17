@@ -1,0 +1,43 @@
+{
+ "receiver": "claude",
+ "seedFile": "seed-quillfinch-claude.json",
+ "control": true,
+ "receiverModel": "haiku",
+ "said": "1. Not found: the working directory is empty and no Quillfinch files are reachable from here.\n2. Not found: no database decision record in this session.\n3. Not found: no export job definition available.\n4. Not found: no TG-440 calibration data available.\n5. Not found: no release tags available.\n6. Not found: no drift/alert threshold available.\n\nNothing I can read contains Quillfinch. Point me to the repo or docs (or paste them) and I'll answer all six. Your earlier home-directory search was declined, so I didn't run it again.",
+ "tools": [
+  "Bash",
+  "Bash"
+ ],
+ "perQuestion": [
+  {
+   "key": "A",
+   "where": "included",
+   "right": false
+  },
+  {
+   "key": "B",
+   "where": "omitted",
+   "right": false
+  },
+  {
+   "key": "F",
+   "where": "included",
+   "right": false
+  },
+  {
+   "key": "C",
+   "where": "omitted",
+   "right": false
+  },
+  {
+   "key": "G",
+   "where": "included",
+   "right": false
+  },
+  {
+   "key": "D",
+   "where": "omitted",
+   "right": false
+  }
+ ]
+}

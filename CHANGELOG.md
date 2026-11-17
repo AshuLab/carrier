@@ -6,8 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The cards that open when the pointer rests on a session or an epic in the sidebar are tidier: a long folder or branch is one line cut in the middle (the whole of it in its tooltip) instead of breaking over several lines, the branch has its own line, the agent shows its account's mark and name, and a session's state has the color of its row and says Done, as the row does, for a turn you have not opened.
+- Usage: where an account has a header of its own (several accounts of a tool, or one that needs a look), it wears its icon and color before its name, as it does everywhere else in the app.
+- The banner of a turn that failed or was refused ("Lu couldn't continue") names the account by its label or display name, and wears its icon and color when it has them, so two accounts of one tool are told apart there too.
+- An account with no label is called by its display name, and not by its key, in the provider tabs of the message box and in the sidebar's tooltip.
+- Settings › Providers: each account shows its mark large, as an avatar at the left of its row, and saving, removing or adding an account closes its editor at once instead of waiting for Carrier to confirm; if Carrier refuses what was saved, the page says so afterwards.
+- Settings › Providers › Edit an account: every field, pop-up and picker is one width, so the form reads as a column; the icon and the color pickers are the same grid, and there are 11 more icons and 5 more colors to tell accounts apart. The new ones need an up-to-date `carrier`; with an older one the editor keeps offering the earlier set.
+
 ### Added
 
+- In `carrier chat`, `/agent <name>` switches an idle session to another configured agent: the new agent starts a fresh conversation and can read the old one through the `history` tool, so you go on where you were when a quota runs out or you want a second opinion.
+- When Claude or Codex hits a usage limit, the chat host reports it as its own error that names the agent and its reset time, so a client can offer another agent.
+- A session's agent can start child sessions on other agents or models with `delegate_start`, wait for them with `delegate_wait` and read their results, and each delegation asks you first, saying what will be sent; a child takes no messages, and a parent and its children are archived, deleted and aged as one.
 - The live line of a conversation says what the agent is waiting on with a chip (Thinking, Read, Search, Edit, Shell, the MCP server's name, N subagents, Needs you), its timer counts the running call and not the whole turn, and a Shell or MCP call that runs past 30 seconds turns it amber; an MCP call reads as its tool and server, not as raw JSON, and a finished run counts MCP calls and subagents apart.
 - Each subagent a session starts is a row of the conversation (its type, title, current step, count of steps and timer, with a tick, a red mark or a square when it ends), and its calls, thoughts and messages no longer land in the main agent's message.
 - In an epic's Agent output tab, a slice card shows the step its subagent is on now.

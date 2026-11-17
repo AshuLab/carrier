@@ -1,0 +1,32 @@
+{"at":"2026-11-16T18:55:54.649Z","harness":"codex","label":"seed codex brambleglass t1","bytes":219}
+{"at":"2026-11-16T18:55:55.143Z","harness":"claude","label":"seed claude quillfinch t1","bytes":216}
+{"at":"2026-11-16T18:55:56.955Z","harness":"claude","label":"seed claude quillfinch t2","bytes":213}
+{"at":"2026-11-16T18:55:57.960Z","harness":"claude","label":"seed claude quillfinch t3","bytes":9610}
+{"at":"2026-11-16T18:55:58.966Z","harness":"claude","label":"seed claude quillfinch t4","bytes":9996}
+{"at":"2026-11-16T18:55:59.971Z","harness":"claude","label":"seed claude quillfinch t5","bytes":9785}
+{"at":"2026-11-16T18:56:00.976Z","harness":"claude","label":"seed claude quillfinch t6","bytes":9912}
+{"at":"2026-11-16T18:56:01.981Z","harness":"claude","label":"seed claude quillfinch t7","bytes":93}
+{"at":"2026-11-16T18:56:02.987Z","harness":"claude","label":"seed claude quillfinch t8","bytes":86}
+{"at":"2026-11-16T18:58:04.707Z","harness":"claude","label":"recv claude first","bytes":16932}
+{"at":"2026-11-16T18:58:12.545Z","harness":"claude","label":"recv claude A","bytes":69}
+{"at":"2026-11-16T18:58:13.550Z","harness":"claude","label":"recv claude B","bytes":75}
+{"at":"2026-11-16T18:58:14.757Z","harness":"claude","label":"recv claude F","bytes":73}
+{"at":"2026-11-16T18:58:16.564Z","harness":"claude","label":"recv claude C","bytes":86}
+{"at":"2026-11-16T18:58:21.186Z","harness":"claude","label":"recv claude G","bytes":67}
+{"at":"2026-11-16T18:58:22.191Z","harness":"claude","label":"recv claude D","bytes":72}
+{"at":"2026-11-16T18:58:42.081Z","harness":"claude","label":"recv claude first","bytes":16880}
+{"at":"2026-11-16T18:58:43.488Z","harness":"claude","label":"recv claude C","bytes":86}
+{"at":"2026-11-16T18:58:53.739Z","harness":"claude","label":"recv claude D","bytes":72}
+{"at":"2026-11-16T18:58:54.746Z","harness":"claude","label":"recv claude B","bytes":75}
+{"at":"2026-11-16T18:58:55.951Z","harness":"claude","label":"recv claude A","bytes":69}
+{"at":"2026-11-16T18:58:56.957Z","harness":"claude","label":"recv claude F","bytes":73}
+{"at":"2026-11-16T18:58:58.364Z","harness":"claude","label":"recv claude G","bytes":67}
+{"at":"2026-11-16T18:59:08.165Z","harness":"claude","label":"control claude quillfinch","bytes":352}
+{"at":"2026-11-16T19:00:05.313Z","harness":"claude","label":"c2 claude base","bytes":5}
+{"at":"2026-11-16T19:00:08.408Z","harness":"claude","label":"c2 claude a","bytes":1352}
+{"at":"2026-11-16T19:00:11.033Z","harness":"claude","label":"c2 claude a recall","bytes":55}
+{"at":"2026-11-16T19:00:13.722Z","harness":"claude","label":"c2 claude b carry","bytes":1382}
+{"at":"2026-11-16T19:00:15.130Z","harness":"claude","label":"c2 claude b cmd","bytes":4}
+{"at":"2026-11-16T19:00:15.935Z","harness":"claude","label":"c2 claude b recall","bytes":55}
+{"at":"2026-11-16T19:00:18.621Z","harness":"claude","label":"c2 claude c cmd","bytes":5}
+{"at":"2026-11-16T19:00:20.837Z","harness":"claude","label":"c2 claude c recall","bytes":55}

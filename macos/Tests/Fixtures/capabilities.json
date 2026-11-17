@@ -42,6 +42,8 @@
     "usage",
     "usageOverride",
     "accountIdentity",
+    "accountPalette",
+    "switchAgent",
     "stopTask"
   ]
 }

@@ -85,13 +85,32 @@ public struct ChatEvent: Codable, Equatable {
     public var tokens: Int?
     public var ms: Int?
     public var background: Bool?
+    /// A `notice` that says the session changed agent: the agents as the host's config names them. Nil for any other event, and from a host that does not switch.
+    public var switched: Switched?
+    /// An `error` the provider says is an account out of usage: `usage_limit`. Nil for any other error, and from a host that does not say.
+    public var reason: String?
+    /// When that limit resets, in milliseconds since the epoch, when the provider gives a timestamp; never set with `resetText`.
+    public var resetsAt: Int?
+    /// When that limit resets, in the provider's own words, when it gives only those.
+    public var resetText: String?
+
+    /// The agents of a switch, as `chat.json` names them.
+    public struct Switched: Codable, Equatable {
+        public let from: String
+        public let to: String
+
+        public init(from: String, to: String) {
+            self.from = from
+            self.to = to
+        }
+    }
 
     public init(
         id: Int, at: Int, kind: String, text: String? = nil, callId: String? = nil, tool: String? = nil, arg: String? = nil, output: [String]? = nil,
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
         model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, questions: [ChatQuestion]? = nil,
         answers: [String: String]? = nil, parentCallId: String? = nil, taskId: String? = nil, state: String? = nil, agentType: String? = nil,
-        lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil
+        lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil
     ) {
         self.id = id
         self.at = at
@@ -121,6 +140,10 @@ public struct ChatEvent: Codable, Equatable {
         self.tokens = tokens
         self.ms = ms
         self.background = background
+        self.switched = switched
+        self.reason = reason
+        self.resetsAt = resetsAt
+        self.resetText = resetText
     }
 }
 
@@ -236,7 +259,11 @@ public struct FailureBanner: Equatable {
     public let hint: String?
 }
 
-private func capitalized(_ agent: String) -> String { agent.isEmpty ? "The agent" : agent.prefix(1).uppercased() + agent.dropFirst() }
+/// A key like `claude` starts a sentence as `Claude`; a name that already has a capital in it (a label like `iOS`) is the person's own and stays.
+private func capitalized(_ agent: String) -> String {
+    if agent.isEmpty { return "The agent" }
+    return agent.contains(where: \.isUppercase) ? agent : agent.prefix(1).uppercased() + agent.dropFirst()
+}
 
 /// The banner of a turn that failed: "<Agent> couldn't continue" and the error's text.
 public func failedTurnBanner(agent: String, error: String) -> FailureBanner {

@@ -283,9 +283,10 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
 
   function chatSide(since: number, accounts: Providers, agents: ChatAgent[]): { turns: Turn[]; keys: Set<string> } {
     const accountOf = new Map(agents.map((a) => [a.name, a.account]));
-    const keys = new Set(deps.chat.select({ nativeId: sessions.nativeId, harness: sessions.harness }).from(sessions).where(isNotNull(sessions.nativeId)).all().map((s) => `${s.harness}:${s.nativeId}`));
+    // The pairs come from the turns, not from the session's current native id: a session that changed agent has more than one.
+    const keys = new Set(deps.chat.select({ nativeId: chatTurns.nativeId, harness: chatTurns.harness }).from(chatTurns).where(isNotNull(chatTurns.nativeId)).all().map((t) => `${t.harness}:${t.nativeId}`));
     const rows = deps.chat
-      .select({ nativeId: sessions.nativeId, harness: sessions.harness, agent: sessions.agent, folder: sessions.folder, at: chatTurns.startedAt, model: chatTurns.model, usage: chatTurns.usage })
+      .select({ nativeId: chatTurns.nativeId, harness: chatTurns.harness, agent: chatTurns.agent, folder: sessions.folder, at: chatTurns.startedAt, model: chatTurns.model, usage: chatTurns.usage })
       .from(chatTurns)
       .innerJoin(sessions, eq(chatTurns.sessionId, sessions.id))
       .where(gte(chatTurns.startedAt, since))
@@ -293,8 +294,9 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
     // ponytail: a Claude result's total_cost_usd may run across the whole session, so a chat turn is priced from the table and not from it.
     // A session stores its agent's name; the agent names its account, and the account says whether it runs on a local server.
     const turns = rows.map((r): Turn => {
-      const account = accountOf.get(r.agent);
-      return { key: r.nativeId === null ? undefined : `${r.harness}:${r.nativeId}`, at: r.at, source: 'chat', harness: r.harness, model: r.model ?? 'unknown', workspace: r.folder, ...(account !== undefined && { account }), isLocal: account !== undefined && accounts[account]?.provider !== undefined, tokens: chatTokens(r.harness, r.usage ?? {}), reportedCostUsd: null };
+      const account = r.agent === null ? undefined : accountOf.get(r.agent);
+      const harness = r.harness!; // the migration fills it for the turns that predate it
+      return { key: r.nativeId === null ? undefined : `${harness}:${r.nativeId}`, at: r.at, source: 'chat', harness, model: r.model ?? 'unknown', workspace: r.folder, ...(account !== undefined && { account }), isLocal: account !== undefined && accounts[account]?.provider !== undefined, tokens: chatTokens(harness, r.usage ?? {}), reportedCostUsd: null };
     });
     return { turns: turns.filter((t) => spent(t.tokens) > 0), keys };
   }

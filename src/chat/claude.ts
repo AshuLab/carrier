@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { query as sdkQuery, type ModelInfo, type PermissionResult, type PermissionUpdate, type Query, type SDKMessage, type SDKUserMessage, type SlashCommand } from '@anthropic-ai/claude-agent-sdk';
+import { query as sdkQuery, USAGE_LIMIT_ERROR_PREFIXES, type ModelInfo, type PermissionResult, type PermissionUpdate, type Query, type SDKMessage, type SDKUserMessage, type SlashCommand } from '@anthropic-ai/claude-agent-sdk';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { endGroup, resolveAgentBinary } from './group.ts';
@@ -21,6 +21,9 @@ const PERMISSION_MODES = [
 
 /** The variable of the claude process that holds the chat MCP's token; the header of the injected server names it. */
 const MCP_TOKEN_ENV = 'CARRIER_MCP_TOKEN';
+
+/** Whether the real CLI keeps an allow rule with the destination `session` for the rest of the session (the gated integration test records it). */
+export const HONOURS_SESSION_ALLOWANCE = true;
 
 /** The statuses of an MCP server that cannot be used (`pending` is still connecting, and is not a failure). */
 const MCP_DOWN = ['failed', 'needs-auth', 'disabled', 'disconnected'];
@@ -54,7 +57,7 @@ export const realClaudeDeps: ClaudeChatDeps = { query: sdkQuery, resolve: resolv
 
 export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, launch = {}, env, mcp }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env, mcp, instructions, child = false }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -64,9 +67,9 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
       if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('Claude is not logged in; run "claude" once to log in');
       const extraArgs = extraArgsOf(launch); // before anything starts, so a refusal reaches the person in its own words
       const begin = async (from: string | undefined) => {
-        const conversation = new ClaudeConversation(options, from);
+        const conversation = new ClaudeConversation(options, from, child);
         try {
-          await conversation.start(deps, { folder, binary, env, extraArgs, mcp });
+          await conversation.start(deps, { folder, binary, env, extraArgs, mcp, instructions });
         } catch (error) {
           await conversation.close();
           throw error;
@@ -115,26 +118,33 @@ class ClaudeConversation implements ChatConversation {
   private tools = new Map<string, string>();
   /** The subagents seen start, by task id, to the call that launched each: a progress or an end of any other task is not a subagent's, and a nested subagent finds its launcher's call here. */
   private agents = new Map<string, string>();
+  /** The name the chat MCP was injected under, so `delegate_start` is recognised as that server's tool and no other's. */
+  private mcpServerName: string | undefined;
   private turning = false;
   private interrupting = false;
   /** Turns that Carrier started itself (an `/effort` change) and the person must not see. */
   private hidden = 0;
   private lastModel: string | undefined;
+  /** The reset the CLI's own message about a usage limit gave, held until the turn's result says whether it was one (epoch ms). */
+  private limitResetsAt: number | undefined;
   private closing = false;
   private pid: number | undefined;
   private command: string | undefined;
   private chosen: Record<string, string>;
+  /** A child session: its approvals carry none of the CLI's suggestions. */
+  private child: boolean;
   mcpProblem: string | undefined;
 
-  constructor(chosen: Record<string, string>, resume: string | undefined) {
+  constructor(chosen: Record<string, string>, resume: string | undefined, child: boolean) {
     this.chosen = chosen;
+    this.child = child;
     this.nativeId = resume;
     this.mode = chosen.permissionMode ?? 'default';
     this.model = chosen.model ?? 'default';
     this.effort = chosen.effort ?? '';
   }
 
-  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs, mcp }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null>; mcp?: { serverName: string; url: string; token: string } }) {
+  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs, mcp, instructions }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null>; mcp?: { serverName: string; url: string; token: string; readTools?: string[] }; instructions?: string }) {
     const spawnOwn = deps.spawn && ((o: Parameters<NonNullable<ClaudeChatDeps['spawn']>>[0]) => {
       const child = deps.spawn!(o);
       this.pid = (child as { pid?: number }).pid;
@@ -158,16 +168,19 @@ class ClaudeConversation implements ChatConversation {
         ...(this.chosen.permissionMode && { permissionMode: this.chosen.permissionMode as never }),
         ...(this.chosen.effort && { effort: this.chosen.effort as never }),
         ...(this.nativeId && { resume: this.nativeId }),
-        // The SDK writes `mcpServers` into the `argv` of the claude process, where any user of the machine can read it, so the header names the token and the token itself rides in that process's environment (Claude Code expands `${VAR}` in these headers). Never in `extraArgs`, never in a config file; its tools run without asking, as the chat host's own.
+        // the system prompt stays Claude Code's own and the instructions are appended to it: a handoff in front of a command made the model run its skill itself
+        ...(instructions !== undefined && { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: instructions } }),
+        // The SDK writes `mcpServers` into the `argv` of the claude process, where any user of the machine can read it, so the header names the token and the token itself rides in that process's environment (Claude Code expands `${VAR}` in these headers). Never in `extraArgs`, never in a config file; only its tools that read run without asking, each named: `delegate_start` is left out, so it reaches the approval.
         ...(mcp && {
           mcpServers: { [mcp.serverName]: { type: 'http' as const, url: mcp.url, headers: { Authorization: `Bearer \${${MCP_TOKEN_ENV}}` } } },
-          allowedTools: [`mcp__${mcp.serverName}__*`],
+          allowedTools: (mcp.readTools ?? []).map((tool) => `mcp__${mcp.serverName}__${tool}`),
         }),
       },
     });
     const ready = await this.query.initializationResult();
     this.models = ready.models;
     this.slash = ready.commands ?? [];
+    this.mcpServerName = mcp?.serverName;
     // The reply of `initializationResult` carries no MCP verdict; `mcpServerStatus` does, and at once for a server that is down (checked against the real Claude Code). A status that cannot be read is no verdict: a broken MCP never blocks a chat.
     if (mcp) {
       try {
@@ -279,16 +292,21 @@ class ClaudeConversation implements ChatConversation {
 
   private ask(approvalId: string, tool: string, input: Record<string, unknown>, suggestions: PermissionUpdate[], title?: string): Promise<PermissionResult> {
     const questions = tool === 'AskUserQuestion' ? questionsOf(input) : undefined;
+    const delegation = this.mcpServerName !== undefined && tool === `mcp__${this.mcpServerName}__delegate_start`;
+    // a child's approvals never change its mode, folders or rules: nothing raises it from inside
+    if (this.child) suggestions = [];
+    // the CLI's own suggestion for the tool writes an allow rule to the project's settings, which outlives the session: offer one for the session only
+    else if (delegation) suggestions = HONOURS_SESSION_ALLOWANCE ? [{ type: 'addRules', behavior: 'allow', rules: [{ toolName: tool }], destination: 'session' }] : [];
     const choices: ChatChoice[] = questions
       ? [{ id: 'allow', label: 'Send answers', allow: true }, { id: 'deny', label: 'Skip', allow: false }]
       : [
           { id: 'allow', label: 'Allow', allow: true },
           { id: 'deny', label: 'Deny', allow: false },
-          ...suggestions.map((s, i) => ({ id: `suggestion:${i}`, label: labelOf(s), allow: true })),
+          ...suggestions.map((s, i) => ({ id: `suggestion:${i}`, label: delegation ? 'Allow for the rest of the session' : labelOf(s), allow: true })),
         ];
     return new Promise((resolve) => {
       this.pending.set(approvalId, { input, suggestions, asking: questions !== undefined, resolve });
-      this.emit(questions ? { kind: 'approval', approvalId, tool, choices, questions } : { kind: 'approval', approvalId, tool, arg: argOf(input) ?? title, choices });
+      this.emit(questions ? { kind: 'approval', approvalId, tool, choices, questions } : { kind: 'approval', approvalId, tool, arg: argOf(input) ?? title, ...(delegation && { input }), choices });
     });
   }
 
@@ -344,6 +362,12 @@ class ClaudeConversation implements ChatConversation {
         // "<synthetic>" is the CLI's own message (a usage limit, an API error), not a model the person ran; a subagent's model is not the turn's
         if (parentCallId === undefined && typeof m.message?.model === 'string' && m.message.model !== '<synthetic>') this.lastModel = m.message.model;
         const events: ChatEvent[] = [];
+        // A usage limit comes out once, as the `error` of the result: its words are not an answer
+        if (m.message?.model === '<synthetic>' && isUsageLimit(m.api_error, textOf(m.message.content))) {
+          const resets = m.api_error_params?.rate_limit_info?.resetsAt;
+          if (typeof resets === 'number') this.limitResetsAt = resets * 1000; // seconds in the CLI's record
+          return events;
+        }
         for (const block of Array.isArray(m.message?.content) ? m.message.content : []) {
           if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim() !== '') events.push({ kind: 'reasoning', text: block.thinking, ...own });
           if (block?.type === 'text' && typeof block.text === 'string' && block.text !== '') events.push({ kind: 'assistant', text: block.text, ...own });
@@ -394,7 +418,9 @@ class ClaudeConversation implements ChatConversation {
     return [{ kind: 'task', callId: m.tool_use_id, taskId: m.task_id, state, ...Object.fromEntries(present) }];
   }
 
-  private turnEnd(m: { subtype?: string; is_error?: boolean; errors?: unknown; result?: unknown; usage?: unknown; total_cost_usd?: unknown; modelUsage?: unknown }): ChatEvent[] {
+  private turnEnd(m: { subtype?: string; is_error?: boolean; errors?: unknown; result?: unknown; api_error?: unknown; usage?: unknown; total_cost_usd?: unknown; modelUsage?: unknown }): ChatEvent[] {
+    const resetsAt = this.limitResetsAt;
+    this.limitResetsAt = undefined;
     if (this.hidden > 0) {
       this.hidden--;
       return [];
@@ -403,7 +429,13 @@ class ClaudeConversation implements ChatConversation {
     this.turning = false;
     this.interrupting = false;
     const events: ChatEvent[] = [];
-    if (m.is_error && !interrupted) events.push({ kind: 'error', text: failureText(m) });
+    if (m.is_error && !interrupted) {
+      const text = failureText(m);
+      if (isUsageLimit(m.api_error, typeof m.result === 'string' ? m.result : text)) {
+        const resetText = resetsAt === undefined ? /\bresets\b.*$/i.exec(text)?.[0].trim() : undefined;
+        events.push({ kind: 'error', text, reason: 'usage_limit', ...(resetsAt !== undefined && { resetsAt }), ...(resetText !== undefined && { resetText }) });
+      } else events.push({ kind: 'error', text });
+    }
     const usage: ChatUsage = {};
     for (const [key, value] of Object.entries((m.usage ?? {}) as Record<string, unknown>)) if (typeof value === 'number') usage[key] = value;
     if (typeof m.total_cost_usd === 'number') usage.total_cost_usd = m.total_cost_usd;
@@ -415,6 +447,12 @@ class ClaudeConversation implements ChatConversation {
 
 /** The call that launched the subagent a message was made in: the SDK's `parent_tool_use_id` when it is a non-empty string, else none (the main agent's own). */
 const parentOf = (m: Record<string, unknown>): string | undefined => (typeof m.parent_tool_use_id === 'string' && m.parent_tool_use_id !== '' ? m.parent_tool_use_id : undefined);
+
+/**
+ * Whether a failure is the account's usage limit and not a rate limit that Claude retries. The CLI's own `api_error` says so and is the key (internal to the CLI, so not in the SDK's types);
+ * the SDK's prefixes of the limit's words are the fallback. `rate_limit` on an assistant message and a retried 429 are no signal: limits and throttles share them.
+ */
+const isUsageLimit = (apiError: unknown, text: string): boolean => apiError === 'usage_limit_reached' || USAGE_LIMIT_ERROR_PREFIXES.some((prefix) => text.trimStart().startsWith(prefix));
 
 /** Why a turn failed: its errors, else the CLI's own words in `result` (a session or weekly limit says when it resets there), else a plain line. */
 function failureText(m: { errors?: unknown; result?: unknown }): string {

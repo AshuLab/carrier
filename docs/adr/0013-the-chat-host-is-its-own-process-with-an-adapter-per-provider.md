@@ -1,6 +1,6 @@
 # 0013 - The chat host is its own process, with transcripts in SQLite and one adapter per provider
 
-- Status: accepted
+- Status: accepted; a session may change its agent under [0032](0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md); a child session never has more privilege than its parent under [0033](0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)
 - Date: 2026-10-27
 
 ## Context

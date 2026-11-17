@@ -51,6 +51,8 @@ public final class ScriptedRecognizer: Recognizer, @unchecked Sendable {
     private var held: AsyncStream<Void>?
     private let prepareError: DictationFailure?
     private let closing: [DictationEvent]?
+    private var releases = 0
+    private var prepares = 0
 
     public init(id: RecognizerID = .apple, partial: PartialText = .native, prepareError: DictationFailure? = nil, atAudioEnd: [DictationEvent]? = nil) {
         self.id = id
@@ -81,6 +83,7 @@ public final class ScriptedRecognizer: Recognizer, @unchecked Sendable {
     public func finish() { lock.withLock { continuation }?.finish() }
 
     public func prepare(_ model: SpeechModel) async throws {
+        lock.withLock { prepares += 1 }
         let waiting = lock.withLock { () -> AsyncStream<Void>? in
             defer { held = nil }
             return held
@@ -88,6 +91,12 @@ public final class ScriptedRecognizer: Recognizer, @unchecked Sendable {
         if let waiting { for await _ in waiting {} }
         if let prepareError { throw prepareError }
     }
+
+    /// How many times `prepare` and `release` were called.
+    public var prepareCount: Int { lock.withLock { prepares } }
+    public var releaseCount: Int { lock.withLock { releases } }
+
+    public func release() async { lock.withLock { releases += 1 } }
 
     public func recognize(_ audio: AsyncStream<AudioBuffer>) -> AsyncStream<DictationEvent> {
         let (events, continuation) = AsyncStream<DictationEvent>.makeStream()

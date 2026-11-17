@@ -47,6 +47,10 @@ public struct AppPreferences {
     public static let dictationCleanupModelKey = "dictation.cleanup.model"
     public static let dictationCleanupPromptKey = "dictation.cleanup.prompt"
     public static let dictationModelKey = "dictation.model"
+    /// Load the chosen model when Carrier opens with Dictation on, and when Dictation is turned on or the model or language changes.
+    public static let dictationKeepReadyKey = "dictation.model.keepReady"
+    /// Minutes without dictating after which the model is released; 0 is Never.
+    public static let dictationReleaseAfterKey = "dictation.model.releaseAfter"
     public static let dictationLanguageKey = "dictation.language"
     public static let dictationGlobalKey = "dictation.global"
     public static let dictationKeepTextKey = "dictation.history.keepText"
@@ -109,6 +113,8 @@ public struct AppPreferences {
     public static let defaultShowsReasoning = true
     public static let defaultDictationEnabled = true
     public static let defaultDictationGlobal = true
+    public static let defaultDictationKeepReady = true
+    public static let defaultDictationReleaseAfter = 15
     public static let defaultDictationKeepText = true
     public static let defaultDictationKeepAudio = false
     public static let defaultDictationDeleteAudioAfter = 30
@@ -374,6 +380,21 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationLanguageKey) }
     }
 
+    /// Whether the chosen speech model is loaded before the first dictation: on until the person turns it off.
+    public var dictationKeepReady: Bool {
+        get { defaults.object(forKey: Self.dictationKeepReadyKey) as? Bool ?? Self.defaultDictationKeepReady }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationKeepReadyKey) }
+    }
+
+    /// The minutes without dictating after which the model is released (a choice of `dictationReleaseChoices`, 0 is never); a saved value that is not on offer reads as 15.
+    public var dictationReleaseAfter: Int {
+        get {
+            let saved = defaults.object(forKey: Self.dictationReleaseAfterKey) as? Int
+            return saved.flatMap { minutes in dictationReleaseChoices.contains { $0.minutes == minutes } ? minutes : nil } ?? Self.defaultDictationReleaseAfter
+        }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationReleaseAfterKey) }
+    }
+
     /// Whether the history keeps the text of each dictation: on until the person turns it off. The entries that exist stay when it is off, and Reset never deletes them.
     public var dictationKeepText: Bool {
         get { defaults.object(forKey: Self.dictationKeepTextKey) as? Bool ?? Self.defaultDictationKeepText }
@@ -571,6 +592,8 @@ public struct AppPreferences {
                 dictationCleanupPromptKey,
                 dictationModelKey,
                 dictationLanguageKey,
+                dictationKeepReadyKey,
+                dictationReleaseAfterKey,
                 dictationGlobalKey,
                 dictationKeepTextKey,
                 dictationKeepAudioKey,

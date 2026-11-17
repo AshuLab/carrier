@@ -50,3 +50,15 @@ private struct NoInput: Error, LocalizedError { var errorDescription: String? { 
     #expect(text.contains("failure number 9"))
     #expect(FileManager.default.fileExists(atPath: log.path + ".2") == false)
 }
+
+@Test func aDictationsTimesAreOneLineOfMillisecondsWithNoTextAndASkippedMomentIsLeftOut() throws {
+    let folder = NSTemporaryDirectory() + "carrier-dictation-log-\(UUID().uuidString)"
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let log = DictationLog(carrierFolder: folder)
+    log.append(DictationTimings(capture: 2500, firstAudio: 2700, modelReady: 2500, firstWord: 3100, finalText: 250))
+    log.append(DictationTimings(capture: 40, firstAudio: 60, modelReady: 12))
+    let lines = try String(contentsOfFile: log.path, encoding: .utf8).split(separator: "\n")
+    #expect(lines.count == 2)
+    #expect(lines[0].hasSuffix(" timing capture=2500 first-audio=2700 model-ready=2500 first-word=3100 final=250"))
+    #expect(lines[1].hasSuffix(" timing capture=40 first-audio=60 model-ready=12"))
+}

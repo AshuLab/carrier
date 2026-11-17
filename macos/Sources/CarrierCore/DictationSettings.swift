@@ -44,6 +44,8 @@ public enum DictationRow: Equatable, Sendable {
     case enabledSwitch
     case speechModel
     case language
+    case keepReady
+    case releaseAfter
     case microphone
     case modelsTable
     case storage

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { FakeClock } from '../orchestration/fake.ts';
 import { capabilities } from './mcp/capabilities.ts';
 import { agents } from './mcp/agents.ts';
-import { delegateStart } from './mcp/delegate.ts';
+import { delegateStart, delegateWait } from './mcp/delegate.ts';
 import { history } from './mcp/history.ts';
 import { delegationRefusal } from './levels.ts';
 import { defineTool, McpSessionRegistry, startMcpServer, type McpServer, type McpSessions, type StoredEvent } from './mcp.ts';
@@ -74,7 +74,7 @@ beforeEach(async () => {
   liveOnes = new Set(['s1']);
   seen = [];
   started = [];
-  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async (parentId, args) => (started.push({ parentId, args }), { childId: 'child-1' }) } });
+  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async (parentId, args) => (started.push({ parentId, args }), { childId: 'child-1' }), related: () => false, waitChildren: async () => [] } });
 });
 afterEach(() => server.close());
 
@@ -275,7 +275,7 @@ test('capabilities is a readsAsSession tool that takes no arguments and answers 
   const own = await startMcpServer({
     registry,
     tools: [capabilities],
-    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async () => { throw new Error('not used'); } },
+    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async () => { throw new Error('not used'); }, related: () => false, waitChildren: async () => [] },
   });
   try {
     const token = issue();
@@ -320,6 +320,8 @@ const store: McpSessions = {
   storedEvent: (id, position, kinds) => stored.find((e) => e.sessionId === id && e.position === position && kinds.includes(e.kind)),
   delegationRefusal: () => undefined,
   startChild: async () => { throw new Error('not used'); },
+  related: () => false,
+  waitChildren: async () => [],
   toolStatuses: (_id, callIds) => Object.fromEntries(callIds.flatMap((c): [string, 'ok' | 'err'][] => (c === 'c1' ? [[c, 'ok']] : c === 'c3' ? [[c, 'err']] : []))),
 };
 
@@ -591,6 +593,50 @@ test('a delegation tool is listed and callable only while the session may delega
     refusal = undefined;
     expect((await start()).isError).toBe(false);
     expect(started).toHaveLength(1);
+  } finally {
+    await own.close();
+  }
+});
+
+test('history reads a child for its parent and a parent for its child, and refuses any other session with the words of one that does not exist', async () => {
+  const family = (id: string, other: string) => (id === 's1' && other === 's2') || (id === 's2' && other === 's1'); // s1 is the parent of s2, s3 is a stranger
+  const own = await startMcpServer({ registry, tools: [history], sessions: { ...store, exists: () => true, related: family } });
+  try {
+    const ask = async (token: string, args: unknown) => (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'history', arguments: args } }) })).json()) as any;
+    const parent = issue(['read'], 's1');
+    const child = issue(['read'], 's2', 'i2');
+    expect((await ask(parent, { sessionId: 's2' })).result.content[0].text).toContain('not yours');
+    expect((await ask(parent, { sessionId: 's2', itemId: '10' })).result).toMatchObject({ isError: false });
+    expect((await ask(child, { sessionId: 's1' })).result.content[0].text).toContain('hello');
+    const nowhere = (await ask(parent, { sessionId: 'nope' })).result;
+    for (const refused of [nowhere, (await ask(issue(['read'], 's3', 'i3'), { sessionId: 's2' })).result, (await ask(issue(['read'], 's1', 'i4'), { sessionId: 's3' })).result]) {
+      expect(refused).toEqual({ content: [{ type: 'text', text: 'There is no such session' }], isError: true });
+    }
+  } finally {
+    await own.close();
+  }
+});
+
+test('delegate_wait is a readsAsSession tool that takes one to four ids and a timeout of 1 to 45 seconds, and answers what the host reports for its own session', async () => {
+  const waited: unknown[] = [];
+  const reports = [{ childId: 'c1', agent: 'a', state: 'done', message: 'ok' }];
+  const own = await startMcpServer({ registry, tools: [delegateWait], sessions: { exists: () => true, live: () => true, waitChildren: async (...args: unknown[]) => (waited.push(args), reports) } as any });
+  try {
+    expect(delegateWait).toMatchObject({ name: 'delegate_wait', access: 'readsAsSession' });
+    const token = issue(['read']);
+    const wait = async (args: unknown) => (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'delegate_wait', arguments: args } }) })).json()) as any;
+    const listed = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) })).json()) as any;
+    expect(listed.result.tools.map((t: any) => t.name)).toEqual(['delegate_wait']); // a token that only reads sees it
+
+    expect((await wait({ childIds: ['c1'] })).result).toEqual({ content: [{ type: 'text', text: JSON.stringify({ children: reports }) }], isError: false });
+    expect((await wait({ childIds: ['c1', 'c2', 'c3', 'c4'], timeoutMs: 45000 })).result.isError).toBe(false);
+    expect((await wait({ childIds: ['c1'], timeoutMs: 1000 })).result.isError).toBe(false);
+    expect(waited).toEqual([['s1', ['c1'], 30000], ['s1', ['c1', 'c2', 'c3', 'c4'], 45000], ['s1', ['c1'], 1000]]);
+
+    for (const args of [{ childIds: [] }, { childIds: ['1', '2', '3', '4', '5'] }, {}, { childIds: ['c1'], timeoutMs: 999 }, { childIds: ['c1'], timeoutMs: 45001 }, { childIds: ['c1'], timeoutMs: 1500.5 }, { childIds: [1] }, { childIds: ['c1'], more: true }]) {
+      expect((await wait(args)).result, JSON.stringify(args)).toMatchObject({ isError: true });
+    }
+    expect(waited).toHaveLength(3);
   } finally {
     await own.close();
   }

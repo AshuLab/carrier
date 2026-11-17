@@ -14,7 +14,7 @@ import { buildHandoff } from './handoff.ts';
 import { realMachine, type Machine } from '../doctor/detect.ts';
 import { createHealth, realProbes, type HealthProbes } from './health.ts';
 import { childOptions, delegationRefusal, isScaleHarness, type Level, levelOf } from './levels.ts';
-import type { McpSessionRegistry } from './mcp.ts';
+import type { ChildReport, McpSessionRegistry } from './mcp.ts';
 import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
 import type { Plan, Step, StepEvent } from './plan.ts';
@@ -32,6 +32,8 @@ export const IDLE_CLOSE_MS = 60_000;
 /** The children of one session that may work or wait for an approval at the same time ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). */
 const MAX_RUNNING_CHILDREN = 4;
 const LEVEL_WORDS = ['reads only', 'changes, asking before each change', 'edits without asking'];
+/** How much of a done child's last message `delegate_wait` answers. */
+const CHILD_MESSAGE = 4000;
 
 const DAY = 86_400_000;
 /** The lifecycle's ages (ADR 0019), as `chat.json` gives them. */
@@ -146,6 +148,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (found === undefined) throw new ChatRefused('There is no such session');
     return found;
   };
+  /** Refuses, in words, a request that treats a child as a conversation of the person's: it belongs to its parent session (ADR 0033). An unknown session is refused as `row` does. */
+  const refuseChild = (sessionId: string, verb: string) => {
+    if (row(sessionId).parentSessionId !== null) throw new ChatRefused(`This session belongs to its parent session and cannot be ${verb}`);
+  };
   /** The options a session has now: its live conversation's, else the ones stored. */
   const optionsOf = (sessionId: string, stored: Record<string, string> | null) => {
     const live = lives.get(sessionId);
@@ -189,10 +195,14 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     live.cancelIdle?.();
     live.cancelIdle = live.state === 'idle' && clients === 0 && !switching.has(sessionId) ? clock.after(IDLE_CLOSE_MS, async () => void (await close({ sessionId }))) : undefined;
   };
+  /** What `delegate_wait` is waiting on: called whenever a session changes state. */
+  const waiters = new Set<() => void>();
+  const notifyWaiters = () => [...waiters].forEach((wake) => wake());
   const touch = (sessionId: string, live: Live, state: State = live.state) => {
     live.state = state;
     db.update(sessions).set({ state, lastActiveAt: clock.now(), ...(live.conversation.nativeId !== undefined && { nativeId: live.conversation.nativeId }) }).where(eq(sessions.id, sessionId)).run();
     armIdle(sessionId, live);
+    notifyWaiters();
   };
   const store = (sessionId: string, event: ChatEvent | StepEvent) => {
     const data = boundEvent(event);
@@ -278,6 +288,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     revoke(live.invocationId);
     live.cancelIdle?.();
     db.update(sessions).set({ state: 'idle', pid: null, pgid: null, command: null }).where(eq(sessions.id, sessionId)).run();
+    notifyWaiters();
     const failed = (error: unknown) => log.error('closing a conversation failed', error);
     if (wait) {
       try {
@@ -324,7 +335,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   };
   const revoke = (invocationId: string) => mcp?.registry.revokeByInvocation(invocationId);
 
-  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string; mcp?: { serverName: string; url: string; token: string; readTools?: string[] }; instructions?: string }) {
+  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string; child?: boolean; mcp?: { serverName: string; url: string; token: string; readTools?: string[] }; instructions?: string }) {
     try {
       return await runner.open({ ...args, command, launch, env });
     } catch (error) {
@@ -684,7 +695,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const issued = issueMcp(childId, true);
     let conversation: ChatConversation | undefined;
     try {
-      conversation = await openConversation(launch, { folder, options, mcp: issued.args });
+      conversation = await openConversation(launch, { folder, options, child: true, mcp: issued.args });
       for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
       if (!exists(parentId) || deleting.has(parentId)) throw new ChatRefused('The session that asked for this child no longer exists');
       deliver(childId, attach(childId, conversation, issued.invocationId), task, task);
@@ -698,6 +709,54 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       throw error;
     }
     return { childId };
+  }
+
+  /** How a child of `parentId` stands, from its live state and, once it is not working, from how its one turn (after its last user message) ended; refuses an id that is not that parent's child like one that does not exist. */
+  function childReport(parentId: string, childId: string): ChildReport {
+    const child = db.select().from(sessions).where(and(eq(sessions.id, childId), eq(sessions.parentSessionId, parentId))).get();
+    if (child === undefined) throw new ChatRefused('There is no such session');
+    const report = { childId, agent: child.agent };
+    const live = lives.get(childId);
+    if (live?.state === 'working') return { ...report, state: 'working' };
+    if (live?.state === 'waiting_approval') return { ...report, state: 'needs_approval' };
+    const since = db.select({ id: chatEvents.id }).from(chatEvents).where(and(eq(chatEvents.sessionId, childId), eq(chatEvents.kind, 'user'))).orderBy(desc(chatEvents.id)).limit(1).get()?.id ?? 0;
+    const turn = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, childId), gt(chatEvents.id, since), inArray(chatEvents.kind, ['assistant', 'error', 'turn_end']))).orderBy(asc(chatEvents.id)).all();
+    const end = turn.find((event) => event.kind === 'turn_end');
+    const error = turn.findLast((event) => event.kind === 'error');
+    // a turn that never ended (closed, or its process died) and said no error was cut off
+    if (end?.data.outcome === 'interrupted' || (end === undefined && error === undefined)) return { ...report, state: 'interrupted' };
+    if (error?.data.reason === 'usage_limit') return { ...report, state: 'usage_limit' };
+    if (error !== undefined || end?.data.outcome === 'error') return { ...report, state: 'error' };
+    const text = turn.findLast((event) => event.kind === 'assistant')?.data.text;
+    return { ...report, state: 'done', ...(typeof text === 'string' && text !== '' && { message: text.slice(0, CHILD_MESSAGE) }) };
+  }
+
+  /** Answers when no child is working or the time is up, whichever comes first. */
+  function waitChildren(parentId: string, childIds: string[], timeoutMs: number): Promise<ChildReport[]> {
+    const reports = () => childIds.map((childId) => childReport(parentId, childId));
+    return new Promise((resolve, reject) => {
+      const finish = () => {
+        cancel();
+        waiters.delete(check);
+        try {
+          resolve(reports());
+        } catch (error) {
+          reject(error);
+        }
+      };
+      const check = () => {
+        try {
+          if (reports().every((report) => report.state !== 'working')) finish();
+        } catch (error) {
+          cancel();
+          waiters.delete(check);
+          reject(error);
+        }
+      };
+      const cancel = clock.after(timeoutMs, async () => finish());
+      waiters.add(check);
+      check();
+    });
   }
 
   /** The handoff of a session: its messages stored before `before`, as the conversation after a switch opens with them (ADR 0032). Undefined when it holds no message. */
@@ -719,7 +778,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     notSwitching(sessionId);
     const current = row(sessionId);
     if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
-    if (current.parentSessionId !== null) throw new ChatRefused('This session belongs to its parent, so its agent cannot be switched');
+    refuseChild(sessionId, 'switched to another agent');
     if (current.archived) throw new ChatRefused('This session is archived; restore it first, then switch its agent');
     if (current.plan !== null) throw new ChatRefused('This session did not finish preparing');
     const busy = lives.get(sessionId)?.state ?? current.state;
@@ -804,6 +863,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       agents: listAgents,
       delegationRefusal: delegationRefusalOf,
       startChild,
+      waitChildren,
+      related: (sessionId: string, otherId: string) => row(sessionId).parentSessionId === otherId || db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.id, otherId), eq(sessions.parentSessionId, sessionId))).get() !== undefined,
       agentOptions: (name: string) => {
         const chosen = listed().find((candidate) => candidate.name === name);
         if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${name}"`);
@@ -926,6 +987,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     /** Opens a closed session again from its stored native id, folder and options; a live one is just attached to. */
     async resume({ sessionId }: { sessionId: string }) {
+      refuseChild(sessionId, 'resumed');
       notSwitching(sessionId);
       const current = row(sessionId);
       if (current.plan !== null) throw new ChatRefused('This session did not finish preparing');
@@ -969,6 +1031,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     },
 
     send({ sessionId, text, command }: { sessionId: string; text: string; command?: string }) {
+      refuseChild(sessionId, 'sent a message');
       if (text.length > chatCaps.message) throw new ChatRefused(`That message has ${text.length} characters; the most a message can have is ${chatCaps.message}`);
       notSwitching(sessionId);
       const current = row(sessionId);
@@ -1029,8 +1092,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     },
 
     async setOption({ sessionId, option, value }: { sessionId: string; option: string; value: string }) {
+      refuseChild(sessionId, 'given other options');
       notSwitching(sessionId);
-      row(sessionId);
       const live = lives.get(sessionId);
       if (live === undefined) throw new ChatRefused('This session is closed');
       checkOption(live.conversation.options, option, value);
@@ -1071,6 +1134,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     /** Sets or clears the archived mark. A live idle session is closed first; a working or waiting one is refused. */
     async archive({ sessionId, archived }: { sessionId: string; archived: boolean }) {
+      refuseChild(sessionId, archived ? 'archived' : 'restored');
       if (archived) await settle(sessionId, 'archive');
       else row(sessionId);
       db.update(sessions).set({ archived, ...(archived === false && { lastActiveAt: clock.now(), keptAt: null }) }).where(eq(sessions.id, sessionId)).run();
@@ -1079,7 +1143,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     /** Sets the title (first line, cut like an automatic one); fine while the session works. The first message only names an untitled session, so it never replaces this. */
     rename({ sessionId, title }: { sessionId: string; title: string }) {
-      row(sessionId);
+      refuseChild(sessionId, 'renamed');
       const named = titleOf(title);
       if (named === '') throw new ChatRefused('A title cannot be empty');
       db.update(sessions).set({ title: named }).where(eq(sessions.id, sessionId)).run();
@@ -1124,7 +1188,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     },
 
     /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
-    delete: deleteSession,
+    async delete(args: { sessionId: string }) {
+      refuseChild(args.sessionId, 'deleted');
+      return deleteSession(args);
+    },
 
     /** What deleting these sessions would discard: for each one in a worktree, its uncommitted files and the commits that exist nowhere else. An unknown id refuses the whole request. */
     async deletePreview({ sessionIds }: { sessionIds: string[] }) {

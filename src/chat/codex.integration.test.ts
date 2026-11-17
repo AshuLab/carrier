@@ -93,7 +93,7 @@ describe.skipIf(!enabled)('the Codex chat adapter against the real Codex', () =>
     const server = await startMcpServer({
       registry,
       tools: [capabilities],
-      sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ id, agent: 'it', harness: 'codex', folder, model: null, options: {} }), agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async () => { throw new Error('not used'); } },
+      sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ id, agent: 'it', harness: 'codex', folder, model: null, options: {} }), agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async () => { throw new Error('not used'); }, related: () => false, waitChildren: async () => [] },
     });
     const token = registry.issue({ sessionId: 's1', invocationId: 'i1' });
     const conversation = await codexChatRunner().open({ folder, command: process.env.CARRIER_IT_CODEX_COMMAND, options: { effort: 'low', approvalPolicy: 'never' }, env: process.env, mcp: { serverName: 'carrier-chat', url: server.url, token } });

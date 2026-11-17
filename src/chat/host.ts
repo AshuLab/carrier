@@ -14,7 +14,7 @@ import { openChatDatabase } from './db.ts';
 import { idleExit } from './idle.ts';
 import { capabilities } from './mcp/capabilities.ts';
 import { agents } from './mcp/agents.ts';
-import { delegateStart } from './mcp/delegate.ts';
+import { delegateStart, delegateWait } from './mcp/delegate.ts';
 import { history } from './mcp/history.ts';
 import { McpSessionRegistry, startMcpServer, type McpServer } from './mcp.ts';
 import { startChatServer } from './server.ts';
@@ -88,7 +88,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   const db = openChatDatabase(join(stateDir, 'chat.db'));
   await sweepDeadHost(db, deps.processes); // the lock is ours, so any recorded process belongs to a host that died
   let closeServer = () => {};
-  const mcpTools = [capabilities, history, agents, delegateStart];
+  const mcpTools = [capabilities, history, agents, delegateStart, delegateWait];
   let mcpServer: McpServer | undefined;
   const mcpRegistry = new McpSessionRegistry(deps.clock);
   let idle: ReturnType<typeof idleExit> | undefined;

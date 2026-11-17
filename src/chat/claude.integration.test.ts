@@ -126,7 +126,7 @@ describe.skipIf(!enabled)('the Claude chat adapter against the real Claude', () 
     const server = await startMcpServer({
       registry,
       tools: [capabilities],
-      sessions: { exists: () => true, live: () => true, snapshot: () => view, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async () => { throw new Error('not used'); } },
+      sessions: { exists: () => true, live: () => true, snapshot: () => view, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async () => { throw new Error('not used'); }, related: () => false, waitChildren: async () => [] },
     });
     const token = registry.issue({ sessionId: 's1', invocationId: 'i1' });
     const argvs: string[] = [];

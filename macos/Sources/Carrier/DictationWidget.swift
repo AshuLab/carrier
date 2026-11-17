@@ -258,7 +258,7 @@ private struct DictationWidgetView: View {
 
     /// What the box says before the words come, and the cause when it cannot go on, over what was heard.
     @ViewBuilder private var shown: some View {
-        let caption = dictationPresentation(dictation.session.state, registered: true)?.caption
+        let caption = dictationPresentation(dictation.session.state, registered: true, modelReady: dictation.session.modelReady)?.caption
         VStack(alignment: .leading, spacing: 4) {
             if case .failed(let cause) = dictation.state { Text(cause).foregroundStyle(.red) }
             if dictation.text.isEmpty == false {

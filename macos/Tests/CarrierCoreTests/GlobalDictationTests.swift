@@ -42,10 +42,12 @@ import Testing
         Issue.record("never happened: \(what)")
     }
 
-    /// Presses the shortcut and waits until it listens.
+    /// Presses the shortcut and waits until it listens: the first audio has arrived and the model is ready.
     func listen() async {
         machine.handle(.down)
         await until { session.state == .listening }
+        capture.feed(AudioBuffer(samples: [0.1], sampleRate: 16000))
+        await until { session.modelReady && moments.isEmpty == false }
     }
 }
 
@@ -287,7 +289,9 @@ func aTextThatCannotBePastedIsCopiedAndStaysInTheWidgetWithItsReason(reason: Pas
     widget.machine.handle(.down)
     #expect(widget.moments.isEmpty)
     await widget.until { widget.session.state == .listening }
-    #expect(widget.moments == [.listening])
+    #expect(widget.moments.isEmpty)
+    widget.capture.feed(AudioBuffer(samples: [0.1], sampleRate: 16000))
+    await widget.until { widget.moments == [.listening] }
     widget.machine.handle(.down)
     widget.machine.handle(.down)
     await widget.until { widget.machine.state == .idle }

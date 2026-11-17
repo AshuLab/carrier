@@ -14,7 +14,7 @@ import Testing
     registry.register(recognizer)
     let field = DictationField(owner: "box", text: { "" }, caret: { 0 }, put: { _, _, _ in })
     func reach(_ wanted: DictationSession.State) async {
-        for _ in 0..<2000 where controller.session.state != wanted { try? await Task.sleep(for: .milliseconds(1)) }
+        for _ in 0..<2000 where controller.session.state != wanted || (wanted == .listening && controller.session.modelReady == false) { try? await Task.sleep(for: .milliseconds(1)) }
     }
     if state == .idle && failing == false { return controller }
     if state == .gettingReady { recognizer.holdPrepare() }
@@ -113,7 +113,7 @@ private let boxField = DictationField(owner: "box", text: { "" }, caret: { 0 }, 
     let dictation = microphone(.notAsked) { asked += 1 }
     #expect(dictation.presentation(for: "box")?.icon == .mic)
     #expect(dictation.toggle(into: boxField) == .start)
-    for _ in 0..<2000 where dictation.session.state != .listening { try? await Task.sleep(for: .milliseconds(1)) }
+    for _ in 0..<2000 where dictation.session.state != .listening || dictation.session.modelReady == false { try? await Task.sleep(for: .milliseconds(1)) }
     #expect(asked == 1 && dictation.session.state == .listening && dictation.microphone == .allowed)
 }
 
@@ -158,7 +158,7 @@ private let boxField = DictationField(owner: "box", text: { "" }, caret: { 0 }, 
     dictation.toggle(into: boxField)
     try? await Task.sleep(for: .milliseconds(20))
     prompt.open.finish()
-    for _ in 0..<2000 where dictation.session.state != .listening { try? await Task.sleep(for: .milliseconds(1)) }
+    for _ in 0..<2000 where dictation.session.state != .listening || dictation.session.modelReady == false { try? await Task.sleep(for: .milliseconds(1)) }
     #expect(prompt.asked == 1 && dictation.session.state == .listening && capture.startCount == 1)
 }
 
@@ -191,7 +191,7 @@ private let boxField = DictationField(owner: "box", text: { "" }, caret: { 0 }, 
     let dictation = DictationController(registry: registry, capture: capture)
     func field(_ owner: String) -> DictationField { DictationField(owner: owner, text: { "" }, caret: { 0 }, put: { _, _, _ in }) }
     dictation.toggle(into: field("a"))
-    for _ in 0..<2000 where dictation.session.state != .listening { try? await Task.sleep(for: .milliseconds(1)) }
+    for _ in 0..<2000 where dictation.session.state != .listening || dictation.session.modelReady == false { try? await Task.sleep(for: .milliseconds(1)) }
     dictation.toggle(into: field("b"))
     dictation.stop(ownedBy: "b")
     dictation.stop(ownedBy: "a")
@@ -275,7 +275,7 @@ private struct CleaningClient: TextModelClient {
     let field = DictationField(owner: "box", text: { text }, caret: { text.utf16.count }, put: { written, _, _ in text = written })
     func until(_ condition: () -> Bool) async { for _ in 0..<2000 where condition() == false { try? await Task.sleep(for: .milliseconds(1)) } }
     dictation.toggle(into: field)
-    await until { dictation.session.state == .listening }
+    await until { dictation.session.state == .listening && dictation.session.modelReady }
     dictation.toggle(into: field)
     await until { dictation.session.state == .idle }
     return text

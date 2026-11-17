@@ -264,7 +264,9 @@ import SwiftUI
     /// What `owner`'s box draws: nothing when Dictation is off or no recognizer is registered, and the state of the session only while that box is the one dictating.
     func presentation(for owner: String) -> DictationPresentation? {
         guard enabled else { return nil }
-        return dictationPresentation(session.owner == owner ? session.state : .idle, registered: registry.recognizers.isEmpty == false, microphone: microphone)
+        return dictationPresentation(
+            session.owner == owner ? session.state : .idle, registered: registry.recognizers.isEmpty == false, microphone: microphone, modelReady: session.modelReady
+        )
     }
 
     /// A click on the microphone of a box: stops the dictation that box runs, or starts one into its field (stopping another box's first).

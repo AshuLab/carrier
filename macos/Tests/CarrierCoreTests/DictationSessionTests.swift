@@ -62,7 +62,8 @@ private final class Said: @unchecked Sendable { var lines: [String] = []; var lo
         Issue.record("never happened: \(what)")
     }
 
-    func reaches(_ state: DictationSession.State) async { await until("\(state)") { session.state == state } }
+    /// `.listening` is reached once the recognizer reads the audio too, so what it says is heard; the wait for a model that is not ready uses `until`.
+    func reaches(_ state: DictationSession.State) async { await until("\(state)") { session.state == state && (state != .listening || session.modelReady) } }
 }
 
 @MainActor @Test func aWholeDictationGoesFromIdleThroughGettingReadyAndListeningBackToIdle() async {
@@ -143,7 +144,7 @@ private func aFailureAtAnyPointReturnsToIdleWithItsCauseAndKeepsWhatWasHeard(poi
     #expect(rig.session.failure(for: "box") == DictationFailure("the disk is full"))
 }
 
-@MainActor @Test func stoppingWhileGettingReadyGoesBackToIdleWithoutListening() async {
+@MainActor @Test func stoppingBeforeTheCaptureStartsGoesBackToIdleWithoutListening() async {
     let rig = Rig()
     let recognizer = ScriptedRecognizer()
     recognizer.holdPrepare()
@@ -153,6 +154,145 @@ private func aFailureAtAnyPointReturnsToIdleWithItsCauseAndKeepsWhatWasHeard(poi
     await rig.reaches(.idle)
     try? await Task.sleep(for: .milliseconds(20))
     #expect(rig.session.state == .idle && rig.capture.startCount == 0 && rig.text == "")
+}
+
+private func buffer(_ value: Float) -> AudioBuffer { AudioBuffer(samples: [value, value], sampleRate: 16_000) }
+
+/// A dictation whose model is still loading, with the capture running and a first buffer given.
+@MainActor private func gettingReady(_ recognizer: ScriptedRecognizer = ScriptedRecognizer(atAudioEnd: [.final("hola mundo")]), clipped: Bool = true) async -> Rig {
+    let rig = Rig()
+    recognizer.holdPrepare()
+    rig.dictate(with: recognizer)
+    await rig.until { rig.session.state == .listening }
+    if clipped {
+        // the first audio arrives
+        var arrived = false
+        rig.session.onListening = { arrived = true }
+        rig.capture.feed(buffer(0.1))
+        await rig.until { arrived }
+    }
+    return rig
+}
+
+@MainActor @Test func theCaptureRunsFromThePressAndTheSessionListensWhileTheModelGetsReady() async {
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("hola mundo")])
+    let rig = await gettingReady(recognizer)
+    #expect(rig.session.state == .listening && rig.session.modelReady == false && rig.capture.startCount == 1)
+    #expect(rig.said.lines == ["Getting the model ready", "Listening"])
+    recognizer.releasePrepare()
+    await rig.until { rig.session.modelReady }
+    #expect(rig.session.state == .listening)
+}
+
+@MainActor @Test func theAudioCapturedBeforeTheModelIsReadyIsTheFirstTheRecognizerReadsInOrderAndNoneIsLost() async {
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("hola mundo")])
+    let rig = await gettingReady(recognizer)
+    rig.capture.feed(buffer(0.2))
+    rig.capture.feed(buffer(0.3))
+    recognizer.releasePrepare()
+    await rig.until { rig.session.modelReady }
+    rig.capture.feed(buffer(0.4))
+    rig.session.stop()
+    await rig.reaches(.idle)
+    #expect(recognizer.heard.map { $0.samples[0] } == [0.1, 0.2, 0.3, 0.4])
+    #expect(rig.text == "hola mundo")
+}
+
+@MainActor @Test func theStartSoundIsToldWhenTheFirstAudioArrivesNotWhenTheCaptureStarts() async {
+    let rig = Rig()
+    var told = 0
+    rig.session.onListening = { told += 1 }
+    let recognizer = ScriptedRecognizer()
+    recognizer.holdPrepare()
+    rig.dictate(with: recognizer)
+    await rig.until { rig.session.state == .listening }
+    #expect(told == 0)
+    rig.capture.feed(buffer(0.1))
+    await rig.until { told == 1 }
+    rig.capture.feed(buffer(0.2))
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(told == 1)
+    rig.session.cancel()
+}
+
+@MainActor @Test func aStopWhileTheModelGetsReadyEndsTheCaptureAndTheTextOfWhatWasCapturedIsWrittenOnceItIsReady() async {
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("hola mundo")])
+    let rig = await gettingReady(recognizer)
+    rig.session.stop()
+    // the capture is over and the model is still loading
+    #expect(rig.session.state == .gettingReady && rig.capture.isRunning == false)
+    // a second stop is no second end
+    rig.session.stop()
+    #expect(rig.session.state == .gettingReady && rig.text == "")
+    recognizer.releasePrepare()
+    await rig.reaches(.idle)
+    #expect(recognizer.heard.count == 1 && rig.text == "hola mundo" && rig.session.failure(for: "box") == nil)
+    #expect(rig.said.lines.last == "Dictation stopped, 2 words added")
+}
+
+@MainActor @Test func aModelThatGivesItsTextAtTheEndTranscribesOnceItIsReadyAfterAStopWhileItLoaded() async {
+    let recognizer = ScriptedRecognizer(partial: .atTheEnd)
+    let rig = await gettingReady(recognizer)
+    rig.session.stop()
+    recognizer.releasePrepare()
+    await rig.reaches(.transcribing)
+    recognizer.say(.final("hola"))
+    recognizer.finish()
+    await rig.reaches(.idle)
+    #expect(rig.text == "hola")
+}
+
+@MainActor @Test func aStopWhileTheModelGetsReadyWithNothingCapturedWritesNothingAndEnds() async {
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("hola")])
+    let rig = await gettingReady(recognizer, clipped: false)
+    rig.session.stop()
+    #expect(rig.session.state == .idle && rig.capture.isRunning == false)
+    recognizer.releasePrepare()
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(rig.text == "" && rig.session.state == .idle)
+}
+
+@MainActor @Test func escWhileTheModelGetsReadyStopsTheCaptureAndWritesNothing() async {
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("hola mundo")])
+    let rig = await gettingReady(recognizer)
+    #expect(rig.session.cancel())
+    #expect(rig.session.state == .idle && rig.capture.isRunning == false)
+    recognizer.releasePrepare()
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(rig.text == "" && rig.session.state == .idle && recognizer.heard.isEmpty)
+}
+
+@MainActor @Test func aModelNotReadyWhenTheFloorEndsFailsAsADictationThatCouldNotStartAndDropsWhatWasHeard() async {
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("hola mundo")])
+    let rig = await gettingReady(recognizer)
+    #expect(rig.clock.requested == [DictationSession.answerFloor])
+    rig.clock.advance()
+    await rig.reaches(.idle)
+    let cause = DictationFailure("The speech model did not get ready in time.")
+    #expect(rig.session.failure(for: "box") == cause && rig.said.logged == [cause.cause])
+    #expect(rig.said.lines.last == "Dictation failed: \(cause.cause)")
+    #expect(rig.text == "" && rig.capture.isRunning == false)
+}
+
+@MainActor @Test func aModelThatIsReadyInTimeIsNotFailedWhenTheFloorEnds() async {
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("hola")])
+    let rig = await gettingReady(recognizer)
+    recognizer.releasePrepare()
+    await rig.until { rig.session.modelReady }
+    rig.clock.advance()
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(rig.session.state == .listening && rig.session.failure(for: "box") == nil)
+    rig.session.stop()
+    await rig.reaches(.idle)
+}
+
+@MainActor @Test func aModelThatFailsToLoadWithTheCaptureRunningFailsWithItsCauseAndStopsTheCapture() async {
+    let cause = DictationFailure("The model could not be loaded")
+    let recognizer = ScriptedRecognizer(prepareError: cause)
+    let rig = await gettingReady(recognizer)
+    recognizer.releasePrepare()
+    await rig.reaches(.idle)
+    #expect(rig.session.failure(for: "box") == cause && rig.capture.isRunning == false)
 }
 
 @MainActor @Test func aRecognizerThatNeverAnswersAfterTheStopEndsInAFailureThatKeepsTheText() async {
@@ -422,8 +562,9 @@ func theAnnouncementsOfADictation(notice: DictationNotice, says: String) {
     rig.capture.feed(AudioBuffer(samples: Array(repeating: 0, count: 16000 * 120), sampleRate: 16000))
     try? await Task.sleep(for: .milliseconds(100))
     rig.session.stop()
-    await rig.until { rig.clock.requested.isEmpty == false }
-    #expect(rig.clock.requested == [DictationSession.answerFloor + .seconds(120)])
+    // the first sleep is the model's time to get ready, which ended with it
+    await rig.until { rig.clock.requested.count == 2 }
+    #expect(rig.clock.requested.last == DictationSession.answerFloor + .seconds(120))
 }
 
 @MainActor @Test func aDictationWithNoAudioGivesTheRecognizerTheFloorOnly() async {
@@ -431,8 +572,8 @@ func theAnnouncementsOfADictation(notice: DictationNotice, says: String) {
     rig.dictate(with: ScriptedRecognizer())
     await rig.reaches(.listening)
     rig.session.stop()
-    await rig.until { rig.clock.requested.isEmpty == false }
-    #expect(rig.clock.requested == [DictationSession.answerFloor])
+    await rig.until { rig.clock.requested.count == 2 }
+    #expect(rig.clock.requested.last == DictationSession.answerFloor)
 }
 
 @MainActor @Test func aFailureToStartIsTold() {
@@ -676,9 +817,11 @@ private func aCleanupThatFailsLeavesTheRawTextTellsTheCauseAndLogsItAlone(failur
         recognizer: recognizer, model: recognizer.models[0],
         into: DictationField(owner: "box", text: { text }, caret: { text.count }, put: { text = $0; _ = ($1, $2) })
     )
+    // the capture runs from the press, the model is ready 2.5 s later
+    for _ in 0..<3000 where session.state != .listening { try await Task.sleep(for: .milliseconds(1)) }
     clock.seconds = 2.5
     recognizer.releasePrepare()
-    for _ in 0..<3000 where session.state != .listening { try await Task.sleep(for: .milliseconds(1)) }
+    for _ in 0..<3000 where session.modelReady == false { try await Task.sleep(for: .milliseconds(1)) }
     clock.seconds = 2.7
     capture.feed(AudioBuffer(samples: [0.1, 0.2], sampleRate: 16_000))
     try await Task.sleep(for: .milliseconds(30))
@@ -689,7 +832,7 @@ private func aCleanupThatFailsLeavesTheRawTextTellsTheCauseAndLogsItAlone(failur
     session.stop()
     clock.seconds = 6.25
     for _ in 0..<3000 where session.state != .idle { try await Task.sleep(for: .milliseconds(1)) }
-    #expect(timings == [DictationTimings(capture: 2500, firstAudio: 2700, modelReady: 2500, firstWord: 3100, finalText: 250)])
+    #expect(timings == [DictationTimings(capture: 0, firstAudio: 2700, modelReady: 2500, firstWord: 3100, finalText: 250)])
 }
 
 @MainActor @Test func aDictationDroppedBeforeTheModelIsReadyHandsOverNoTimes() async throws {

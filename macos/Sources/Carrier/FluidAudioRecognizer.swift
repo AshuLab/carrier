@@ -117,7 +117,11 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
     private static func load(_ engine: Engine, from files: URL) async throws -> Loaded {
         switch engine {
         case .batch(let version, _):
-            return .batch(AsrManager(models: try AsrModels.loadLocal(from: files, version: version)))
+            let manager = AsrManager(models: try AsrModels.loadLocal(from: files, version: version))
+            // one second of silence, discarded: the first inference is slow, so a dictation does not pay it
+            var state = try TdtDecoderState(decoderLayers: await manager.decoderLayerCount)
+            _ = try await manager.transcribe([Float](repeating: 0, count: 16_000), decoderState: &state)
+            return .batch(manager)
         case .eou:
             let manager = StreamingEouAsrManager(chunkSize: .ms320)
             try await manager.loadModels(from: files)

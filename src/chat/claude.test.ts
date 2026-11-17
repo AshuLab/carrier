@@ -159,6 +159,25 @@ test('the approvals of a child offer Allow and Deny and none of the suggestions'
   expect(seen.permissions[0]).not.toHaveProperty('updatedPermissions');
 });
 
+test('the approval of delegate_start carries its input and offers Allow, Deny and one allowance for the session, none of the CLI\'s own suggestions; a child gets no allowance', async () => {
+  const tool = 'mcp__carrier-chat__delegate_start';
+  const input = { agent: 'codex', task: 'review the diff' };
+  const cli = [{ type: 'addRules', behavior: 'allow', rules: [{ toolName: tool }], destination: 'localSettings' }];
+  const asking = (suggestions: unknown): Segment => ({ ...main[0]!, lines: [{ host: 'canUseTool', toolName: tool, input, toolUseID: 'toolu_d', suggestions } as Line, ...main[0]!.lines] });
+  const run = async (choice: string, child = false) => {
+    const { conversation, events, seen } = await openWith([asking(cli)], undefined, child);
+    conversation.onEvent((e) => e.kind === 'approval' && queueMicrotask(() => conversation.answer(e.approvalId, choice)));
+    const played = await turn(conversation, events, main[0]!.text);
+    return { approval: played.find((e) => e.kind === 'approval'), permission: seen.permissions[0] };
+  };
+
+  const allowed = await run('suggestion:0');
+  expect(allowed.approval).toEqual({ kind: 'approval', approvalId: 'toolu_d', tool, arg: expect.any(String), input, choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }, { id: 'suggestion:0', label: 'Allow for the rest of the session', allow: true }] });
+  expect(allowed.permission).toEqual({ behavior: 'allow', updatedInput: input, updatedPermissions: [{ type: 'addRules', behavior: 'allow', rules: [{ toolName: tool }], destination: 'session' }] });
+  expect((await run('deny')).permission).toMatchObject({ behavior: 'deny' });
+  expect(((await run('allow', true)).approval as { choices: unknown[] }).choices).toHaveLength(2);
+});
+
 test('AskUserQuestion is asked as questions, the answers go back in the tool input, a skip is a deny, and bad input is a generic approval', async () => {
   const question = { question: 'Which one?', header: 'Pick', options: [{ label: 'A', description: 'a' }, { label: 'B', description: 'b' }], multiSelect: false };
   const asking = (input: unknown): Segment => ({ ...main[0]!, lines: [{ host: 'canUseTool', toolName: 'AskUserQuestion', input, toolUseID: 'toolu_q', suggestions: [{ type: 'setMode', mode: 'plan', destination: 'session' }] } as Line, ...main[0]!.lines] });
@@ -388,20 +407,20 @@ test('an account\'s compaction and launch arguments reach the SDK as extraArgs, 
 
 const mcp = { serverName: 'carrier-chat', url: 'http://127.0.0.1:4000/mcp', token: 'tok-secret' };
 
-test('the chat MCP is handed to the SDK with its tools pre-approved, on a fresh open and on a resume; the token rides in the process environment, and neither extraArgs nor the mcpServers the SDK turns into argv hold it', async () => {
+test('the chat MCP is handed to the SDK with only its tools that read pre-approved by name, on a fresh open and on a resume; the token rides in the process environment, and neither extraArgs nor the mcpServers the SDK turns into argv hold it', async () => {
   for (const resume of [undefined, sessionId]) {
     const { query, seen } = replay([]);
-    const conversation = await claudeChatRunner(deps(query)).open({ folder: '/work', env: { PATH: '/bin' }, mcp, ...(resume && { resume }) });
+    const conversation = await claudeChatRunner(deps(query)).open({ folder: '/work', env: { PATH: '/bin' }, mcp: { ...mcp, readTools: ['capabilities', 'history'] }, ...(resume && { resume }) });
     expect(seen.options.mcpServers).toEqual({ 'carrier-chat': { type: 'http', url: mcp.url, headers: { Authorization: 'Bearer ${CARRIER_MCP_TOKEN}' } } });
     expect(seen.options.env).toEqual({ PATH: '/bin', CARRIER_MCP_TOKEN: 'tok-secret' });
-    expect(seen.options.allowedTools).toEqual(['mcp__carrier-chat__*']);
+    expect(seen.options.allowedTools).toEqual(['mcp__carrier-chat__capabilities', 'mcp__carrier-chat__history']);
     expect(seen.options.resume).toBe(resume);
     expect(JSON.stringify(seen.options.extraArgs)).not.toContain('tok-secret');
     expect(conversation.mcpProblem).toBeUndefined();
   }
 });
 
-test('without the chat MCP (a probe, or a host that could not bind it) the SDK gets no mcpServers and no wildcard', async () => {
+test('without the chat MCP (a probe, or a host that could not bind it) the SDK gets no mcpServers and no allowedTools', async () => {
   const { query, seen } = replay([]);
   await claudeChatRunner(deps(query)).open({ folder: '/work', env: {} });
   expect(seen.options).not.toHaveProperty('mcpServers');

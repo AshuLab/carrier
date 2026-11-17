@@ -145,7 +145,10 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         session.start(
             recognizer: recognizer, model: model,
             into: DictationField(
-                owner: Self.owner, text: { self.text }, caret: { self.text.utf16.count }, put: { text, _, range in (self.text, self.tentative) = (text, range) }
+                owner: Self.owner, text: { self.text }, caret: { self.text.utf16.count }, put: { text, _, range in
+                    self.text = text
+                    self.tentative = range
+                }
             ),
             cleanup: cleanup()
         )

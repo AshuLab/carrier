@@ -47,6 +47,11 @@ export class FakeConversation implements ChatConversation {
     if (option) option.current = value;
     this.emit({ kind: 'option', id, value });
   }
+  /** How many times the tasks the agent waits for in the background were stopped. */
+  backgroundStops = 0;
+  async stopBackground() {
+    this.backgroundStops++;
+  }
   async close() {
     this.closed = true;
   }

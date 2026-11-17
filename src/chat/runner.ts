@@ -29,6 +29,9 @@ export type ChatQuestion = { question: string; header: string; options: { label:
 /** As the provider reports it. */
 export type ChatUsage = Record<string, number>;
 
+/** One thing the agent started and is waiting on after its turn ended. */
+export type BackgroundTask = { id: string; kind: string; description: string };
+
 export type ChatEvent =
   | { kind: 'user'; text: string; /** The name of the command invoked, when the message invoked one. */ command?: string }
   | { kind: 'assistant'; text: string } // a finished message
@@ -39,6 +42,7 @@ export type ChatEvent =
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; /** Question text to the answer; a multiple choice joins its picks with a comma. */ answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
+  | { kind: 'background'; /** Every task the agent has running in the background (a command, a monitor, a subagent) after the change; the whole set each time, never stored. */ tasks: BackgroundTask[] }
   | { kind: 'error'; text: string }
   | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string }; // said by the host, never by an adapter: a plain line, not a failure
 
@@ -58,6 +62,8 @@ export interface ChatConversation {
   send(text: string, command?: ChatCommand): void;
   answer(approvalId: string, choiceId: string, answers?: Record<string, string>): void;
   interrupt(): Promise<void>;
+  /** Stops the tasks the agent has running in the background; a provider that has none does not offer it. */
+  stopBackground?(): Promise<void>;
   setOption(id: string, value: string): Promise<void>;
   close(): Promise<void>;
   onEvent(listener: (event: ChatEvent) => void): void;

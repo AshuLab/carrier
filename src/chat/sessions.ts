@@ -16,7 +16,8 @@ import type { McpSessionRegistry } from './mcp.ts';
 import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
 import type { Plan, Step, StepEvent } from './plan.ts';
-import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
+import { ChatRefused, type BackgroundTask, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
+import { clean } from '../execution/events.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, previewOf, titleOf } from './transcript.ts';
 import { checkName, suggestName } from './names.ts';
@@ -63,6 +64,8 @@ type Live = {
   /** True while the `message` step of a preparation waits for the agent's first answer. */
   awaitingAnswer?: boolean;
   cancelIdle?: () => void;
+  /** What the agent has running in the background after its turn ended; kept in memory, as the agent says it, and gone with the conversation. */
+  background: BackgroundTask[];
   /** The invocation its MCP token was issued for. */
   invocationId: string;
 };
@@ -157,10 +160,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     return run;
   };
 
-  // An idle session with no client attached is closed after a minute; working or waiting ones are kept.
+  // An idle session with no client attached is closed after a minute; working or waiting ones are kept, and so is one that waits for something it started in the background.
   const armIdle = (sessionId: string, live: Live) => {
     live.cancelIdle?.();
-    live.cancelIdle = live.state === 'idle' && clients === 0 ? clock.after(IDLE_CLOSE_MS, async () => void (await close({ sessionId }))) : undefined;
+    live.cancelIdle = live.state === 'idle' && live.background.length === 0 && clients === 0 ? clock.after(IDLE_CLOSE_MS, async () => void (await close({ sessionId }))) : undefined;
   };
   const touch = (sessionId: string, live: Live, state: State = live.state) => {
     live.state = state;
@@ -195,6 +198,13 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   }
 
   const onEvent = (sessionId: string, live: Live, event: ChatEvent) => {
+    // What the agent waits for in the background is the state of the session, not something said in it: it is kept as it is and never stored.
+    if (event.kind === 'background') {
+      live.background = event.tasks.map((task) => ({ id: task.id, kind: task.kind, description: clean(task.description, chatCaps.arg) }));
+      armIdle(sessionId, live);
+      onLiveChange();
+      return;
+    }
     // The first thing the agent does after the first message ends the `message` step: an answer, or an error that fails it.
     if (live.awaitingAnswer === true && event.kind !== 'option') {
       live.awaitingAnswer = false;
@@ -265,6 +275,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (row(sessionId).state === 'preparing') throw new ChatRefused(`This session is being prepared; wait for it to finish, then ${verb} it`);
     const live = lives.get(sessionId);
     if (live === undefined) return;
+    if (live.background.length > 0) throw new ChatRefused(`This session is waiting for ${live.background.length === 1 ? 'a background task' : 'background tasks'}; stop ${live.background.length === 1 ? 'it' : 'them'} first, then ${verb} it`);
     if (live.state !== 'idle') throw new ChatRefused(`This session is ${live.state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} it`);
     await close({ sessionId }, { wait: verb === 'delete' });
     if (lives.has(sessionId)) throw new ChatRefused('This session was resumed meanwhile; close it first'); // a resume that finished during the close
@@ -320,7 +331,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
   /** Makes a conversation the live one of a session. */
   const attach = (sessionId: string, conversation: ChatConversation, invocationId: string, state: State = 'idle') => {
-    const live: Live = { conversation, state, streaming: '', approvals: new Map(), invocationId };
+    const live: Live = { conversation, state, streaming: '', approvals: new Map(), background: [], invocationId };
     lives.set(sessionId, live);
     const { pid = null, pgid = null, command = null } = conversation.process ?? {};
     db.update(sessions).set({ pid, pgid, command }).where(eq(sessions.id, sessionId)).run();
@@ -531,7 +542,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       health: () => health({}),
     },
 
-    /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `diff` (lines added and removed, null when none or not yet read) and `pr` (its pull request: `repo`, `number`, `url`, `state` and `checks`; null while none is known; see `session-data.ts`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
+    /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `diff` (lines added and removed, null when none or not yet read) and `background` (what the agent waits for after its turn ended: `{ id, kind, description }` each; empty when nothing) and `pr` (its pull request: `repo`, `number`, `url`, `state` and `checks`; null while none is known; see `session-data.ts`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
     list: ({ archived = false }: { archived?: boolean }) => {
       const { archiveAfterDays, deleteAfterDays } = ages();
       const found = db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all();
@@ -540,7 +551,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         sessions: found.map((found) => {
           const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? found.lastActiveAt + deleteAfterDays * DAY : null;
           const kept = found.keptAt !== null && dueAt !== null && clock.now() >= dueAt; // a session the clock no longer considers (ages raised or never) is not kept
-          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id), ...data.view(found) };
+          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id), ...data.view(found), background: lives.get(found.id)?.background ?? [] };
         }),
       };
     },
@@ -753,11 +764,15 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       return {};
     },
 
-    /** Ends the turn that is running, if any, and leaves the session idle for the next message. With no turn running it changes nothing. */
+    /** Ends the turn that is running, if any, and leaves the session idle for the next message. With no turn running it stops what the agent waits for in the background, or changes nothing. */
     async interrupt({ sessionId }: { sessionId: string }) {
       row(sessionId);
       const live = lives.get(sessionId);
-      if (live?.turn === undefined) return {};
+      if (live?.turn === undefined) {
+        // no turn to end, but what the agent waits for in the background can be stopped: that is what the person sees as the session working
+        if (live !== undefined && live.background.length > 0) await live.conversation.stopBackground?.().catch((error) => log.error('stopping the background tasks failed', error));
+        return {};
+      }
       try {
         await live.conversation.interrupt();
       } catch (error) {

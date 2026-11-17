@@ -460,6 +460,52 @@ test('a live session that is idle with no client is closed after a minute: the r
   expect(s.claude.conversations[1]!.closed).toBe(true);
 });
 
+const bg = (...ids: string[]) => ({ kind: 'background' as const, tasks: ids.map((id) => ({ id, kind: 'local_bash', description: `run ${id}` })) });
+const background = (s: { sessions: ReturnType<typeof createSessions> }, id: string) => (s.sessions.list({}).sessions.find((row) => row.id === id) as { background: unknown[] }).background;
+
+test('what the agent waits for in the background is in its row, as it says it, redacted, and never stored', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  expect(background(s, one.id)).toEqual([]);
+  one.conversation.emit({ kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: `deploy with ${token}` }, { id: 'b', kind: 'local_agent', description: 'review' }] });
+  expect(background(s, one.id)).toEqual([{ id: 'a', kind: 'local_bash', description: 'deploy with [redacted]' }, { id: 'b', kind: 'local_agent', description: 'review' }]);
+  one.conversation.emit(bg('b'));
+  expect(background(s, one.id)).toHaveLength(1);
+  one.conversation.emit(bg());
+  expect(background(s, one.id)).toEqual([]);
+  expect(rows('chat_events').filter((event) => event.kind === 'background')).toEqual([]);
+});
+
+test('a session that waits for background work is not closed for being idle, and is again once it has none', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  one.conversation.emit(bg('a'));
+  await s.clock.advance(10 * 60_000);
+  expect(one.conversation.closed).toBe(false);
+  one.conversation.emit(bg());
+  await s.clock.advance(59_999);
+  expect(one.conversation.closed).toBe(false);
+  await s.clock.advance(1);
+  expect(one.conversation.closed).toBe(true);
+});
+
+test('a session that waits for background work is not archived or deleted until it stops, and a stop with no turn running stops those tasks', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  one.conversation.emit(bg('a'));
+  await expect(s.sessions.archive({ sessionId: one.id, archived: true })).rejects.toThrow('waiting for a background task; stop it first, then archive it');
+  await expect(s.sessions.delete({ sessionId: one.id })).rejects.toThrow('stop it first, then delete it');
+  one.conversation.emit(bg('a', 'b'));
+  await expect(s.sessions.archive({ sessionId: one.id, archived: true })).rejects.toThrow('waiting for background tasks; stop them first');
+  await s.sessions.interrupt({ sessionId: one.id });
+  expect(one.conversation.backgroundStops).toBe(1);
+  one.conversation.emit(bg());
+  await s.sessions.interrupt({ sessionId: one.id }); // nothing to stop now
+  expect(one.conversation.backgroundStops).toBe(1);
+  await s.sessions.archive({ sessionId: one.id, archived: true });
+  expect(s.sessions.list({ archived: true }).sessions.map((row) => row.id)).toEqual([one.id]);
+});
+
 test('with a client attached nothing is closed; the minute counts from the client leaving', async () => {
   const { sessions, conversation, clock } = await openOne();
   sessions.clientJoined();

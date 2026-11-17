@@ -251,6 +251,24 @@ test('a line it does not know is ignored and never throws', async () => {
   expect(await turn(conversation, events, 'hi')).toEqual([{ kind: 'turn_end', outcome: 'ok', model: undefined, usage: {} }]);
 });
 
+test('the background tasks the SDK reports are the whole set each time, without the watchers, and a task that goes leaves the set', async () => {
+  const task = (id: string, extra: Line = {}): Line => ({ task_id: id, task_type: 'local_bash', description: `run ${id}`, ...extra });
+  const lines: Line[] = [
+    { type: 'system', subtype: 'background_tasks_changed', tasks: [task('a'), task('w', { ambient: true }), task('b', { task_type: 'local_agent', description: 'review the diff' })] },
+    { type: 'system', subtype: 'background_tasks_changed', tasks: [task('b')] },
+    { type: 'system', subtype: 'background_tasks_changed', tasks: [] },
+    { type: 'system', subtype: 'background_tasks_changed', tasks: 'not a list' },
+    { type: 'result', subtype: 'success', is_error: false, usage: {} },
+  ];
+  const { conversation, events } = await openWith([{ text: 'hi', lines }]);
+  const got = (await turn(conversation, events, 'hi')).filter((e) => e.kind === 'background');
+  expect(got).toEqual([
+    { kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: 'run a' }, { id: 'b', kind: 'local_agent', description: 'review the diff' }] },
+    { kind: 'background', tasks: [{ id: 'b', kind: 'local_bash', description: 'run b' }] },
+    { kind: 'background', tasks: [] },
+  ]);
+});
+
 test('a usage limit says why: the CLI\'s own words, and the synthetic message is not the model', async () => {
   const lines: Line[] = [
     { type: 'assistant', message: { model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'working' }] } },

@@ -117,6 +117,8 @@ class ClaudeConversation implements ChatConversation {
   private interrupting = false;
   /** Turns that Carrier started itself (an `/effort` change) and the person must not see. */
   private hidden = 0;
+  /** The ids of the tasks the agent has running in the background, as the SDK last said. */
+  private background: string[] = [];
   private lastModel: string | undefined;
   private closing = false;
   private pid: number | undefined;
@@ -224,6 +226,16 @@ class ClaudeConversation implements ChatConversation {
     for (let waited = 0; this.turning && waited < 5_000; waited += 50) await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
+  async stopBackground() {
+    for (const id of [...this.background]) {
+      try {
+        await this.query.stopTask(id);
+      } catch (error) {
+        log.error('stopping a background task failed', error);
+      }
+    }
+  }
+
   async setOption(id: string, value: string) {
     const option = this.options.find((o) => o.id === id);
     if (option === undefined) throw new ChatRefused(`There is no option "${id}"`);
@@ -309,6 +321,12 @@ class ClaudeConversation implements ChatConversation {
     const m = message as { type: string; subtype?: string; session_id?: string; [key: string]: any };
     if (typeof m.session_id === 'string') this.nativeId = m.session_id;
     if (m.type === 'result') return this.turnEnd(m);
+    // the whole set of live background tasks each time (the SDK's level signal); the ones that are not activity (watchers) are left out
+    if (m.type === 'system' && m.subtype === 'background_tasks_changed' && Array.isArray(m.tasks)) {
+      const tasks = (m.tasks as { task_id?: unknown; task_type?: unknown; description?: unknown; ambient?: unknown }[]).filter((task) => task.ambient !== true && typeof task.task_id === 'string');
+      this.background = tasks.map((task) => String(task.task_id));
+      return [{ kind: 'background', tasks: tasks.map((task) => ({ id: String(task.task_id), kind: String(task.task_type ?? 'task'), description: String(task.description ?? '') })) }];
+    }
     if (this.hidden > 0) return [];
     switch (m.type) {
       case 'system':

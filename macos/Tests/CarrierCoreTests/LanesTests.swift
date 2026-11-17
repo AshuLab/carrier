@@ -325,3 +325,24 @@ private func say(_ id: Int) -> ExecEvent { event(id, "say", text: "m") }
     result.apply(EventsReply(events: [say(4)], next: 4, running: true, structured: true))
     #expect(result.work == before + 1)
 }
+
+@Test func aRunningSubagentShowsTheStepItIsOnAndNothingExtraOnceItEnded() {
+    func progress(_ id: Int, _ tool: String, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil) -> ExecEvent {
+        ExecEvent(id: id, at: at1402 + id * 1000, kind: "task", agentId: "a", tool: tool, durationMs: ms, tools: tools, tokens: tokens)
+    }
+    let start = run(1, 0)
+    #expect(lane([start]).lastStep == nil)
+    let first = lane([start, progress(2, "Read", tools: 2, tokens: 900, ms: 4000)])
+    #expect(first.lastStep == "Read" && first.state == .running && first.resumes == 0 && first.timeLabel == "since 14:02")
+    let second = lane([start, progress(2, "Read"), progress(3, "Bash", tools: 3, tokens: 1500, ms: 6500)])
+    #expect(second.lastStep == "Bash" && second.state == .running && second.resumes == 0)
+    // once it ended (ok, failed or session stopped) no current step stays
+    #expect(lane([start, progress(2, "Read"), progress(3, "Bash"), run(4, 60, "ok")]).lastStep == nil)
+    #expect(lane([start, progress(2, "Read"), run(4, 60, "err")]).lastStep == nil)
+    #expect(lane([start, progress(2, "Read")], running: false).lastStep == nil)
+    // a resumed subagent starts with no step from its earlier run and tracks the new run's step
+    let resumed = [start, progress(2, "Read"), run(3, 60, "ok"), run(4, 300)]
+    #expect(lane(resumed).lastStep == nil && lane(resumed).resumes == 1)
+    #expect(lane(resumed + [progress(5, "Edit")]).lastStep == "Edit" && lane(resumed + [progress(5, "Edit")]).resumes == 1)
+    #expect(lane(resumed + [progress(5, "Edit"), run(6, 360, "ok")]).lastStep == nil)
+}

@@ -31,7 +31,7 @@ public enum SlicePRState: Equatable {
 
 /// One part of a row's quiet line.
 public struct SliceQuiet: Equatable {
-    public enum Kind: Equatable { case plain, error, lane }
+    public enum Kind: Equatable { case plain, error, lane, step }
 
     public var text: String
     public var kind: Kind
@@ -44,7 +44,7 @@ public struct SliceCardRow: Equatable, Identifiable {
     public var number: Int?
     public var title: String
     public var mark: SliceMark
-    /// Calls, edits, test runs, errors, the lane when slices run in parallel and the time range, in this order, those that are known.
+    /// The step it is on while working, then calls, edits, test runs, errors, the lane when slices run in parallel and the time range, those that are known.
     public var quiet: [SliceQuiet]
     public var prNumber: Int?
     public var prState: SlicePRState
@@ -70,9 +70,10 @@ private func mark(_ state: SubagentState) -> SliceMark {
 public func sliceCard(lane: LaneSection) -> SliceCardRow {
     let mark = mark(lane.state)
     var quiet: [SliceQuiet] = []
-    if lane.isStarting {
+    if lane.isStarting, lane.lastStep == nil {
         quiet.append(SliceQuiet(text: "starting…", kind: .plain))
     } else {
+        if mark == .working, let step = lane.lastStep { quiet.append(SliceQuiet(text: step, kind: .step)) }
         if lane.counts.calls > 0 { quiet.append(SliceQuiet(text: plural(lane.counts.calls, "call") + (mark == .working ? " so far" : ""), kind: .plain)) }
         if lane.counts.edits > 0 { quiet.append(SliceQuiet(text: plural(lane.counts.edits, "edit"), kind: .plain)) }
         if lane.counts.tests > 0 { quiet.append(SliceQuiet(text: plural(lane.counts.tests, "test run"), kind: .plain)) }

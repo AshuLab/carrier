@@ -151,6 +151,7 @@ private struct SliceCardRowView<Opened: View>: View {
                 if index > 0 { Text("·").foregroundStyle(.tertiary) }
                 switch part.kind {
                 case .plain: Text(part.text)
+                case .step: Text(part.text).foregroundStyle(.primary).fontWeight(.medium).lineLimit(1)
                 case .error: Text(part.text).foregroundStyle(.red)
                 case .lane:
                     Text(part.text).font(.scaled(10.5, weight: .semibold)).padding(.horizontal, 7)

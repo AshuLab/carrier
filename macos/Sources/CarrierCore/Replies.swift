@@ -81,6 +81,8 @@ public struct ExecEvent: Codable, Equatable {
     public var durationMs: Int?
     public var output: [String]?
     public var diff: [DiffLine]?
+    public var tools: Int?
+    public var tokens: Int?
 }
 
 public struct EventsReply: Codable, Equatable {

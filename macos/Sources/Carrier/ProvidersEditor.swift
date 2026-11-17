@@ -46,7 +46,7 @@ struct AccountEditor: View {
                         TextField(account.name, text: $draft.displayName).settingsField(width: Self.controlWidth)
                     }
                     if store.identityEditable {
-                        field("Label", "label", "Short, for tabs, chips and the message box. Empty uses the name") {
+                        field("Label", "label", "Short, for tabs, chips and the message box. Empty uses the display name") {
                             TextField(account.name, text: $draft.label).settingsField(width: Self.controlWidth)
                         }
                         field("Icon", "icon", "The tool's mark by default") { iconPicker }

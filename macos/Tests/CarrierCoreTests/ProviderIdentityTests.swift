@@ -63,6 +63,12 @@ private let file = Data(#"""
     #expect(draftProblems(draft, harness: "claude")["label"] != nil)
 }
 
+@Test func theDisplayNameOfAnAccountIsReadTrimmedAndAnEmptyOneIsNone() {
+    let json = Data(#"{"providers":{"pro":{"harness":"claude","displayName":" Claude Pro "},"blank":{"harness":"claude","displayName":"  "},"bare":{"harness":"codex"}}}"#.utf8)
+    #expect(providerDisplayNames(providersJSON: json) == ["pro": "Claude Pro"])
+    #expect(providerDisplayNames(providersJSON: nil).isEmpty && providerDisplayNames(providersJSON: Data("nope".utf8)).isEmpty)
+}
+
 @Test func theLaterIconsAndColorsAreOfferedOnlyToAHostThatKnowsThem() {
     #expect(AccountIcon.offered(palette: false) == [.bolt, .star, .briefcase, .person, .people, .code, .flask, .leaf, .moon, .heart, .cube, .letter])
     #expect(AccountColor.offered(palette: false) == [.red, .orange, .yellow, .green, .teal, .blue, .purple, .pink])

@@ -80,6 +80,19 @@ public struct ProviderIdentity: Equatable {
     }
 }
 
+/// The display name of each account of `providers.json` that has one, by account name: what the app calls the account where there is room,
+/// and where there is little the short name falls back to it when the account has no label.
+public func providerDisplayNames(providersJSON: Data?) -> [String: String] {
+    guard let providersJSON, let file = (try? JSONSerialization.jsonObject(with: providersJSON)) as? [String: Any],
+          let declared = file["providers"] as? [String: Any]
+    else { return [:] }
+    return declared.reduce(into: [:]) { names, entry in
+        guard let account = entry.value as? [String: Any], let name = (account["displayName"] as? String)?.trimmingCharacters(in: .whitespaces), name.isEmpty == false
+        else { return }
+        names[entry.key] = name
+    }
+}
+
 /// The identity of each account of `providers.json`, by account name; an account with none is not in the result.
 public func providerIdentities(providersJSON: Data?) -> [String: ProviderIdentity] {
     guard let providersJSON, let file = (try? JSONSerialization.jsonObject(with: providersJSON)) as? [String: Any],

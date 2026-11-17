@@ -108,11 +108,12 @@ public struct SessionRowContent: Equatable {
     public var place: SessionPlace?
     public var age: String?
     public var providers: [String]
-    /// The pull request the third line is for: nil when the session has none or both of its parts are off, and then the row has two lines.
+    /// The pull request's chip, and the lines changed, that the third line has (nil while switched off, or when the session has none or the host
+    /// has not read them). The row has a third line when it has either; with neither it has two.
     public var pullRequest: SessionPullRequest?
-    /// Whether the third line has the pull request's chip, and the lines changed it has (nil while switched off or not known).
-    public var showsPullRequest: Bool
     public var diff: SessionDiff?
+
+    public var hasThirdLine: Bool { pullRequest != nil || diff != nil }
 
     public init(_ row: SessionRow, showsWorkspace: Bool, parts: SessionRowParts, now: Date) {
         showsIcon = parts.icon
@@ -120,9 +121,7 @@ public struct SessionRowContent: Equatable {
         place = parts.branch ? row.branch.map(SessionPlace.branch) ?? .baseFolder : nil
         age = parts.age ? timeText(row.updatedAt, now: now) : nil
         providers = parts.providers ? row.providers : []
-        // the lines changed go with a pull request, on the line that is its own: a session without one has two lines
-        pullRequest = parts.pullRequest || (parts.diff && row.diff != nil) ? row.pullRequest : nil
-        showsPullRequest = parts.pullRequest
+        pullRequest = parts.pullRequest ? row.pullRequest : nil
         diff = parts.diff ? row.diff : nil
     }
 }

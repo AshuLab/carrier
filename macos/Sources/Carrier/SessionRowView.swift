@@ -117,8 +117,8 @@ struct SessionRowView: View {
 
     var body: some View {
         let content = content
-        // the third line, with the pull request, only where the list has room for it and the session has one
-        let pullRequest = roomy ? content.pullRequest : nil
+        // the third line, with the pull request and the lines changed, only where the list has room for it and the session has either
+        let third = roomy && content.hasThirdLine
         HStack(alignment: .top, spacing: SidebarMetrics.inset) {
             if content.showsIcon {
                 ProjectIcon(
@@ -136,13 +136,13 @@ struct SessionRowView: View {
                 HStack(spacing: 4) {
                     detail(content).font(SidebarMetrics.detail).lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: 4)
-                    // without a pull request the providers sit here; with one they go down to the third line
-                    if pullRequest == nil { ProviderMarks(names: content.providers) }
+                    // with no third line the providers sit here; with one they go down to it
+                    if third == false { ProviderMarks(names: content.providers) }
                 }
                 .frame(height: Self.detailLine)
-                if let pullRequest {
+                if third {
                     HStack(spacing: 8) {
-                        if content.showsPullRequest { SessionPullRequestChip(pr: pullRequest) }
+                        if let pullRequest = content.pullRequest { SessionPullRequestChip(pr: pullRequest) }
                         if let diff = content.diff { DiffText(diff: diff) }
                         Spacer(minLength: 4)
                         ProviderMarks(names: content.providers)
@@ -191,7 +191,7 @@ struct SessionRowView: View {
         case nil: nil
         }
         let age = content.age == nil ? nil : spokenAge(row.updatedAt, now: Date())
-        let work: [String?] = roomy && content.pullRequest != nil ? [content.showsPullRequest ? content.pullRequest?.spoken : nil, content.diff.map { "\($0.added) lines added, \($0.removed) removed" }] : []
+        let work: [String?] = roomy ? [content.pullRequest?.spoken, content.diff.map { "\($0.added) lines added, \($0.removed) removed" }] : []
         return ([row.title, state, row.workspace, place] + work + content.providers + [age]).compactMap { $0 }.joined(separator: ", ")
     }
 }

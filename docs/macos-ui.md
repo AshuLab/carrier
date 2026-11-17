@@ -40,6 +40,11 @@ Work the agent did (calls, thoughts, messages, an error) is drawn with the chat'
   Thinking uses the thought tint; Read, Search and Edit share the files tint; Shell, MCP, subagents and Needs you each take their own colour, and a long server name is cut on one line so the line stays 30 pt.
 - **Two timers on the live line, and the slow call**: the timer at the right is the running call's own (`ToolGroup.liveTimer`), and the turn's time stands beside it in `quaternary` while it is longer; while no call runs (the agent is thinking) it is the turn's alone.
   A Shell or MCP call that has run for more than 30 seconds (`slowCallMs`; exactly 30 is not slow) draws its timer in amber (`Color.slowCall`) until it ends, and a Read, Search or Edit never does; nothing else of the line changes, and both timers are fixed-size so the line stays 30 pt at every width.
+- **Subagent row (`SubagentRowView`)**: one subagent of a run, a card of its own under the run's line (6 pt below it, one per subagent in the order they started), built on `.workCard()` and so on `chatSurface` (flat when Settings > Chat > Surfaces says so).
+  It is one line as high as the card's line (30 pt) at any width: a 16 pt lead (a turning ring while it runs, a green tick, a red mark, a square when stopped), the type as a `KindChipView`, the title (12.5 pt, semibold; it is the one that gives way last), the step it is on (`tertiary`; Finished, Failed or Stopped once it ended), "N steps" and its timer, those two never cut.
+  A long title or step is cut, never wrapped, so the row does not change height.
+  It is not a button yet, so it has no chevron.
+  While a subagent of a run is running the run's line reads "N subagents · Waiting for them…" (the chip is the count of those running) whether or not the turn has ended.
 - **Rows hang under the line** behind a `SettingsDivider`, edge to edge.
 - **A row that opens or links is one click target as a whole**: a 4 % fill under the pointer, and no lone small icon as the only way in.
   A `Button` or a `Link`, never only `.onTapGesture`: a tap gesture is not reachable with the keyboard.

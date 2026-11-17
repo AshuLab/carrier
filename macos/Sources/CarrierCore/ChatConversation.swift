@@ -279,7 +279,9 @@ public struct ApprovalCard: Equatable {
 /// a line once answered, and a plain line when it is neither (the turn ended without it).
 /// A `reasoning` event is a thought of the run of calls it comes in (the host stores each block where the agent had it); one that comes
 /// before the first call of a run waits for it, and one with no call after it is a run of its own, before the message or the end of its
-/// turn: the agent's work is always above its answer. An event made inside a subagent (`parentCallId`) is not drawn here, and neither is a `task`.
+/// turn: the agent's work is always above its answer. A subagent is a row of the run that launched it, built from the `task` events that share its
+/// launching call's id and the events made inside it (`parentCallId`); the launching call is not one of the run's calls, and a subagent goes on
+/// from events that come after the turn ended. What a nested subagent does is not drawn here.
 /// Anything else the host may add is not drawn.
 public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set<String> = []) -> [FeedRow] {
     var rows: [FeedRow] = []
@@ -288,6 +290,9 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
     var asked: [String: (row: Int, event: ChatEvent)] = [:]
     var turnStart: Int?
     var held: [Thought] = []
+    // the calls that launched a subagent of the main agent (a `task` event names its call), and where each subagent is: its row and its place in it
+    let launching = Set(events.compactMap { $0.kind == "task" && $0.parentCallId == nil ? $0.callId : nil })
+    var subagents: [String: (row: Int, index: Int)] = [:]
     // thoughts no call came to take: a run of their own, where the piece that ends them begins
     func release() {
         guard let first = held.first else { return }
@@ -295,10 +300,26 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
         held = []
     }
     for event in events {
-        // made inside a subagent: the main conversation does not draw it, and it is in no group's summary
-        if event.parentCallId != nil { continue }
+        // made inside a subagent: the main conversation does not draw it, it is what its row says it is doing
+        if let parent = event.parentCallId {
+            if let spot = subagents[parent], case .tools(let group, var run) = rows[spot.row] {
+                run.subagents[spot.index].apply(inside: event)
+                rows[spot.row] = .tools(id: group, run)
+            }
+            continue
+        }
         let id = "e\(event.id)"
         switch event.kind {
+        case "task":
+            guard let call = event.callId, launching.contains(call) else { continue }
+            if let spot = subagents[call], case .tools(let group, var run) = rows[spot.row] {
+                run.subagents[spot.index].apply(task: event)
+                rows[spot.row] = .tools(id: group, run)
+            } else {
+                subagents[call] = place(Subagent(task: event), in: &rows, id: id, held: &held)
+            }
+        case "tool_start" where event.callId.map(launching.contains) == true, "tool_end" where event.callId.map(launching.contains) == true:
+            continue
         case "reasoning":
             // trimmed: the provider's blocks start and end with blank lines, and the card shows two lines of a thought
             guard let text = event.text?.trimmingCharacters(in: .whitespacesAndNewlines), text.isEmpty == false else { continue }
@@ -386,6 +407,18 @@ private func place(_ call: ToolCall, in rows: inout [FeedRow], id: String, held:
         return (rows.count - 1, run.calls.count - 1)
     }
     rows.append(.tools(id: held.first?.id ?? id, ToolGroup(calls: [call], thoughts: held)))
+    held = []
+    return (rows.count - 1, 0)
+}
+
+/// Puts a subagent at the end of the run the last row is, or opens a row for it, as `place` does for a call.
+private func place(_ subagent: Subagent, in rows: inout [FeedRow], id: String, held: inout [Thought]) -> (row: Int, index: Int) {
+    if case .tools(let group, var run)? = rows.last {
+        run.subagents.append(subagent)
+        rows[rows.count - 1] = .tools(id: group, run)
+        return (rows.count - 1, run.subagents.count - 1)
+    }
+    rows.append(.tools(id: held.first?.id ?? id, ToolGroup(calls: [], thoughts: held, subagents: [subagent])))
     held = []
     return (rows.count - 1, 0)
 }

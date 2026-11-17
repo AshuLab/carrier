@@ -117,7 +117,8 @@ final class WhisperKitRecognizer: Recognizer, @unchecked Sendable {
         let (kit, language, partial) = (held?.model.kit, lock.withLock { chosenLanguage }, Self.entries.first { $0.model.id == held?.id }?.model.partial)
         Task {
             if let kit {
-                let batch = ChunkedRecognizer(WhisperTranscriber(kit: kit, language: language), partials: partial == .chunked)
+                let chunked = partial == .chunked
+                let batch = ChunkedRecognizer(WhisperTranscriber(kit: kit, language: language, timed: chunked), partials: chunked)
                 for await event in batch.recognize(audio) { out.yield(event) }
             } else {
                 out.yield(.failed(DictationFailure("The speech model was not prepared.")))
@@ -129,15 +130,23 @@ final class WhisperKitRecognizer: Recognizer, @unchecked Sendable {
 }
 
 /// One pass of Whisper over the audio so far, as the words the core's chunking works with.
+/// `timed` is for the by-chunks partial text, which needs where each word sits; a model that gives its text at the end decodes without word
+/// timestamps (the words come from its text) and lets WhisperKit cut a long recording at its pauses and decode the pieces in parallel.
 private struct WhisperTranscriber: BatchTranscriber, @unchecked Sendable {
     let kit: WhisperKit
     let language: String
+    let timed: Bool
 
     func transcribe(_ samples: [Float], sampleRate: Double) async throws -> [TimedWord] {
         let heard = try AudioConverter().resample(samples, from: sampleRate)
         let automatic = language == automaticLanguage
-        let options = DecodingOptions(language: automatic ? nil : language, detectLanguage: automatic, wordTimestamps: true)
+        let options = DecodingOptions(
+            language: automatic ? nil : language, detectLanguage: automatic, wordTimestamps: timed, chunkingStrategy: timed ? nil : .vad
+        )
         let results = try await kit.transcribe(audioArray: heard, decodeOptions: options)
+        if timed == false {
+            return results.map(\.text).joined(separator: " ").split(whereSeparator: \.isWhitespace).map { TimedWord(String($0), start: 0, end: 0) }
+        }
         return results.flatMap(\.allWords).compactMap { word in
             let text = word.word.trimmingCharacters(in: .whitespacesAndNewlines)
             return text.isEmpty ? nil : TimedWord(text, start: Double(word.start), end: Double(word.end))

@@ -43,7 +43,10 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
             locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: language))
         }
         guard let locale else { throw DictationFailure("Apple's speech recognition does not support any language of this Mac.") }
-        let transcriber = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
+        // the progressive preset without `fastResults`, which trades accuracy for speed
+        var preset = SpeechTranscriber.Preset.progressiveTranscription
+        preset.reportingOptions.remove(.fastResults)
+        let transcriber = SpeechTranscriber(locale: locale, preset: preset)
         // the system fetches the assets of the language when it has not: this is what "Getting the model ready…" waits for
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) { try await request.downloadAndInstall() }
         // the system keeps the model loaded while it is ready, and `release` lets it go

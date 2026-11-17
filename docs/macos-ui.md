@@ -19,7 +19,7 @@ A Settings page is a header and groups of rows (`SettingsSheet.swift`, `Settings
 | `StatusChip(text:tint:)` | A capsule with a word in it, its colour at 16 % under the same colour; the word carries the state, never the colour alone (Dictation's microphone: Allowed, Not allowed, Not asked yet; Usage's Stale). |
 | `Badge(text:icon:tint:)` | `StatusChip` with a symbol before the word (`SheetParts.swift`). As the label of a plain `Button` it is a small action that is also a state: Usage's `Unpriced · Map` (orange) and `Custom` (secondary) open the price sheet; give the button an `accessibilityLabel` that says what it does. |
 | `SettingsTabCard` | The card: 14 pt side padding, rounded 14, `secondary` at 7 %. |
-| `SettingsTabRow` | A row of a card: title, detail (and `note`, a quiet monospaced third line, cut in the middle to one line, with its whole text as a tooltip and selectable to copy), the control at the right. `first: true` on the first row (no line above it). `roomy: true` for a form with many stacked fields (14 pt above and below instead of 10). |
+| `SettingsTabRow` | A row of a card: title, detail (and `note`, a quiet monospaced third line, cut in the middle to one line, with its whole text as a tooltip and selectable to copy), the control at the right. `leading:` is a tile at the left of the title (Providers' `AccountTile`: the account's mark, 22 pt, in a 38 pt rounded square at `primary` 7 %, so it reads as an avatar); the rest of the row keeps its place. `first: true` on the first row (no line above it). `roomy: true` for a form with many stacked fields (14 pt above and below instead of 10). |
 | `.settingsCard()` | The card's background as a modifier (rounded 14, `secondary` at 7 %), for a list, a note or a card that is not a group of rows. Never write the fill out again. |
 | `.sectionLabel()` | The type and colour of the small uppercase title (`caption2`, semibold, `secondary`, upper case by `textCase`), for a title that cannot be a `SettingsGroup` (a list's label, the owners of a picker). The caller adds the padding its place needs; write the text as a normal sentence, not in capitals. |
 | `SettingsDivider` | The line between two rows: 1 pt, `primary` at 7 %. `SettingsDivider(vertical: true)` is the line between two columns (Usage's four figures); give their `HStack` `.fixedSize(horizontal: false, vertical: true)` so the line takes the height of the tallest. |
@@ -40,6 +40,7 @@ Work the agent did (calls, thoughts, messages, an error) is drawn with the chat'
 - **A row that opens or links is one click target as a whole**: a 4 % fill under the pointer, and no lone small icon as the only way in.
   A `Button` or a `Link`, never only `.onTapGesture`: a tap gesture is not reachable with the keyboard.
 - **An arrow that says "this opens GitHub" shows under the pointer**, not all the time.
+- **A notice about an account wears its mark before the title** (`NoticeCard(account:)`, the failed turn's banner), only when the account has an icon, a color or a label; one with none shows the title alone, as the footer of an answer does.
 - **Say a kind in a word, not in a dot** (`BLOCKER`, `SUGGESTION`): a colour alone is not read by everyone.
 - **Open and fold a card with `flipCard`**: smooth, and none with Reduce Motion.
 - **One thing, one card**: what a card's rows were checked by is its foot (a line under a divider), not a second card under it.
@@ -100,6 +101,7 @@ A row that opens an editor or a form shows **a chevron `chevron.right` at its ri
 - A text of several lines (an instruction, a prompt) takes the width of the card: `SettingsStackedRow` puts the title and the detail on top and the control under them, and the box is a `TextEditor` in `settingsField()`. Turn the system's writing tools off on it (`.writingToolsBehavior(.disabled)`), or its "Write with Siri" button sits on the box.
 - A box of several lines in a row (`TextEditor`, "Launch arguments"): `scrollContentBackground(.hidden)`, 4 pt padding, the same fill, and **the size goes last, around the padding**, so the row grows with it.
 - Turn off the system's writing tools on a form of paths and arguments: `.writingToolsBehavior(.disabled)`.
+- **A form's controls are one width**, whatever they are (a field, a pop-up, a box, a grid of choices): they end on the same line down the card, so the form reads as a column. The account editor's is `AccountEditor.controlWidth`; its icon and color pickers are made of the same eight 30 pt tiles per row, so that width is their own. Do not give each field the width of its value.
 
 ## Lists and menus
 

@@ -59,7 +59,12 @@ const codexLog = (session: string, snapshots: { input: number; cached: number; o
 
 function insertChat(chat: ReturnType<typeof openChatDatabase>, o: { id: string; nativeId?: string | null; agent?: string; harness?: 'claude' | 'codex'; at?: number; model?: string | null; usage: Record<string, number> }) {
   chat.insert(sessions).values({ id: o.id, agent: o.agent ?? 'claude', harness: o.harness ?? 'claude', folder: `/work/${o.id}`, nativeId: o.nativeId ?? null, createdAt: 1, lastActiveAt: 1 }).run();
-  chat.insert(chatTurns).values({ sessionId: o.id, startedAt: o.at ?? NOW - HOUR, model: o.model === undefined ? 'claude-sonnet-4-5' : o.model, outcome: 'ok', durationMs: 1, toolCalls: 0, usage: o.usage }).run();
+  insertTurn(chat, { ...o, agent: o.agent ?? 'claude', harness: o.harness ?? 'claude', nativeId: o.nativeId ?? null });
+}
+
+/** A turn on a session that exists, with the harness, agent and conversation that ran it. */
+function insertTurn(chat: ReturnType<typeof openChatDatabase>, o: { id: string; nativeId: string | null; agent: string; harness: 'claude' | 'codex'; at?: number; model?: string | null; usage: Record<string, number> }) {
+  chat.insert(chatTurns).values({ sessionId: o.id, harness: o.harness, agent: o.agent, nativeId: o.nativeId, startedAt: o.at ?? NOW - HOUR, model: o.model === undefined ? 'claude-sonnet-4-5' : o.model, outcome: 'ok', durationMs: 1, toolCalls: 0, usage: o.usage }).run();
 }
 
 function insertEpicRun(file: string, o: { executionId: string; sessionId: string | null; harness?: string; provider?: string | null; option?: string | null; model?: string; usage: ExecutionUsage | null; repo?: string }) {
@@ -239,6 +244,18 @@ test('a session in several sources counts once, in the first of epic, chat, exte
   expect(result.totals.tokens.input).toBe(1000 + 30 + 6 + 70000);
   const turns = (source: string) => result.byWorkspace.filter((w) => w.source === source).reduce((sum, w) => sum + w.turns, 0);
   expect([turns('epic'), turns('chat'), turns('external')]).toEqual([1, 1, 2]);
+});
+
+test('a session that changed agent is counted turn by turn on each turn\'s harness, and its first conversation is not counted again as external', async () => {
+  const { chat, run } = setup();
+  // the session is on Codex now, with its second conversation; its first turn ran on Claude
+  insertChat(chat, { id: 's1', harness: 'codex', agent: 'codex', nativeId: 'CX-2', model: 'gpt-5-codex', usage: { inputTokens: 1000, cachedInputTokens: 900, outputTokens: 20 } });
+  insertTurn(chat, { id: 's1', harness: 'claude', agent: 'claude', nativeId: 'CL-1', at: NOW - 2 * HOUR, usage: { input_tokens: 10, cache_read_input_tokens: 100, output_tokens: 5 } });
+  write(join(dir, 'claude', 'p', 'a.jsonl'), [claudeLine({ id: 'm1', session: 'CL-1', input: 4000 })]);
+  write(join(dir, 'codex', 'r.jsonl'), codexLog('CX-2', [{ input: 70000, cached: 0, output: 1 }]));
+  const result = await run();
+  expect(result.totals).toMatchObject({ turns: 2, tokens: { input: 110, cachedInput: 1000, output: 25 } });
+  expect(result.byWorkspace.map((w) => [w.source, w.turns])).toEqual([['chat', 2]]);
 });
 
 // ---- Cost

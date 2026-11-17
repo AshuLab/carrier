@@ -16,7 +16,7 @@ public enum FixtureError: Error, Equatable {
 /// `owner/repo`; one not listed is refused as the host does for a repository it cannot see), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see), `chat-providers.json` (`providers`), `chat-usage.json` (`usage`, the same sample for any filter; `usageOverride` is accepted and changes nothing), `chat-names.json` (`suggestName`,
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
-/// and `send` adds the message to its events; anything else is an error.
+/// and `send` adds the message to its events; `switchAgent` gives an idle session another listed agent and a notice that says so; anything else is an error.
 /// It owns a temporary home (`home`) holding a `config.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 /// The `config.json` of the fixture home: the repos of the fixture snapshot, the profiles and the three global roles, and one repo that
@@ -89,7 +89,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"interrupt\",\"stopTask\"]}\n".utf8)
+    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\"]}\n".utf8)
     private let data: [String: Data]
     let hello: Data
     private var stopped = false
@@ -362,6 +362,9 @@ public final class FixtureServer {
                 return true
             }
             return found ? Self.answer(id, [String: Any]()) : Self.refused(id, "unknown session")
+        case "switchAgent":
+            guard let session = request?["sessionId"] as? String, let agent = request?["agent"] as? String else { break }
+            return switchAgent(id, session, to: agent)
         case "send":
             guard let session = request?["sessionId"] as? String, let text = request?["text"] as? String else { break }
             let found = locked { () -> Bool in
@@ -397,16 +400,25 @@ public final class FixtureServer {
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         case "stopTask":
             guard let session = request?["sessionId"] as? String, let task = request?["taskId"] as? String else { break }
-            // as the host does: the task is gone from the session's row, and one that is not running is refused
-            let stopped: Bool = locked {
-                guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }), var tasks = chatSessions[at]["background"] as? [[String: Any]],
-                    let found = tasks.firstIndex(where: { $0["id"] as? String == task })
-                else { return false }
+            lock.lock()
+            defer { lock.unlock() }
+            // a task the session waits for in the background: as the host does, it is gone from the session's row
+            if let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }), var tasks = chatSessions[at]["background"] as? [[String: Any]],
+                let found = tasks.firstIndex(where: { $0["id"] as? String == task }) {
                 tasks.remove(at: found)
                 chatSessions[at]["background"] = tasks
-                return true
+                return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
             }
-            return Self.line(stopped ? "{\"id\":\(id),\"ok\":true,\"data\":{}}" : "{\"id\":\(id),\"ok\":false,\"error\":\"That task is not running\"}")
+            // else a running subagent: the host answers at once and the agent says the task stopped, here the event comes with the answer
+            var events = chatConversations[session]?.events ?? []
+            let own = events.filter { $0["kind"] as? String == "task" && $0["taskId"] as? String == task }
+            let ended = own.contains { ["completed", "failed", "stopped"].contains($0["state"] as? String ?? "") }
+            guard let started = own.first(where: { $0["state"] as? String == "started" }), ended == false else {
+                return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"That task is not running\"}")
+            }
+            events.append(["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "task", "callId": started["callId"] as Any, "taskId": task, "state": "stopped"])
+            chatConversations[session]?.events = events
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         case "interrupt":
             guard let session = request?["sessionId"] as? String else { break }
             // with no turn running it stops what the session waits for in the background
@@ -464,6 +476,30 @@ public final class FixtureServer {
             } + [["id": 3, "at": now, "kind": "user", "text": text]]
         }
         return opened
+    }
+
+    /// As the host does: an idle session takes another listed agent and gets the notice of the switch; a working or waiting one, the agent it has and one that is not listed are refused.
+    private func switchAgent(_ id: Int, _ session: String, to agent: String) -> Data {
+        guard let chosen = ((try? JSONSerialization.jsonObject(with: chatAgents)) as? [[String: Any]])?.first(where: { $0["name"] as? String == agent }) else {
+            return Self.refused(id, "There is no chat agent named \"\(agent)\"")
+        }
+        return locked {
+            guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return Self.refused(id, "There is no such session") }
+            let from = chatSessions[at]["agent"] as? String ?? ""
+            let state = chatSessions[at]["state"] as? String
+            if state != "idle" { return Self.refused(id, "This session is \(state == "working" ? "working" : "waiting for an approval"); interrupt it or wait, then switch its agent") }
+            if from == agent { return Self.refused(id, "This session already has the agent \"\(agent)\"") }
+            if chosen["found"] as? Bool == false { return Self.refused(id, "The agent \"\(agent)\" is not found on this machine") }
+            chatSessions[at]["agent"] = agent
+            chatSessions[at]["harness"] = chosen["harness"] as? String ?? agent
+            chatSessions[at]["live"] = true
+            let events = chatConversations[session]?.events ?? []
+            let notice: [String: Any] = ["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "notice", "text": "The agent changed from \(from) to \(agent).", "switched": ["from": from, "to": agent]]
+            chatConversations[session, default: ([], "")].events = events + [notice]
+            var summary = chatSessions[at]
+            for key in ["live", "kept", "deleteAt", "lastMessage", "turns", "model"] { summary[key] = nil }
+            return Self.answer(id, ["session": summary, "options": [Any]()])
+        }
     }
 
     private func open(_ id: Int, _ request: [String: Any]) -> Data {

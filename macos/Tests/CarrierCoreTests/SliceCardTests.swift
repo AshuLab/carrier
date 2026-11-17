@@ -18,15 +18,15 @@ private func lane(
 
 @Test func aMergedSliceIsATickedRowWithItsNumbersAndPullRequest() {
     let row = sliceCard(lane: lane("a", slice: 730, to: 300, pr: 736, prState: "merged"))
-    #expect(row.mark == .done && row.openByDefault == false)
+    #expect(row.mark == .done)
     #expect(row.quiet.map(\.text) == ["38 calls", "11 edits", "7 test runs", "1 error", "14:02–14:07"])
     #expect(row.quiet[3].kind == .error)
     #expect(row.prNumber == 736 && row.prState == .merged)
 }
 
-@Test func aWorkingSliceOpensByItselfAndItsCallsAreSoFar() {
+@Test func aWorkingSliceHasItsCallsSoFar() {
     let row = sliceCard(lane: lane("a", slice: 730, .running, to: nil, lane: 1, counts: SessionCounts(calls: 12), pr: 736, prState: "draft"))
-    #expect(row.mark == .working && row.openByDefault)
+    #expect(row.mark == .working)
     // a working slice has no time range, its calls are so far, and the lane is a tag
     #expect(row.quiet == [SliceQuiet(text: "12 calls so far", kind: .plain), SliceQuiet(text: "Lane 1", kind: .lane)])
     #expect(row.prState == .draft)
@@ -34,7 +34,7 @@ private func lane(
 
 @Test func aFailedSliceSaysItDidNotComplete() {
     let row = sliceCard(lane: lane("b", slice: 2, .failed, from: 10, to: nil, counts: SessionCounts(calls: 4)))
-    #expect(row.mark == .failed && row.openByDefault == false)
+    #expect(row.mark == .failed)
     #expect(row.quiet == [SliceQuiet(text: "4 calls", kind: .plain), SliceQuiet(text: "did not complete", kind: .error)])
 }
 
@@ -54,4 +54,25 @@ private func lane(
 @Test func theRowIsSpokenWithItsStateAndPullRequest() {
     let row = sliceCard(lane: lane("a", slice: 730, pr: 736, prState: "merged"))
     #expect(row.spoken == "Slice 730, Title a, finished, 38 calls, 11 edits, 7 test runs, 1 error, 14:02–14:07, pull request 736 merged")
+}
+
+@Test func aWorkingSliceShowsTheStepItIsOnAndDropsItOnceItEnded() {
+    var working = lane("a", slice: 730, .running, to: nil, lane: 1, counts: SessionCounts(calls: 12), pr: 736, prState: "draft")
+    working.lastStep = "Bash"
+    let row = sliceCard(lane: working)
+    #expect(row.quiet == [
+        SliceQuiet(text: "Bash", kind: .step),
+        SliceQuiet(text: "12 calls so far", kind: .plain),
+        SliceQuiet(text: "Lane 1", kind: .lane),
+    ])
+    #expect(row.spoken.contains("Bash"))
+
+    var early = lane("a", slice: 730, .running, to: nil, counts: SessionCounts())
+    early.items = []
+    early.lastStep = "Read"
+    #expect(sliceCard(lane: early).quiet == [SliceQuiet(text: "Read", kind: .step)])
+
+    var ended = lane("a", slice: 730, .finished, to: 300, counts: SessionCounts(calls: 12))
+    ended.lastStep = "Bash"
+    #expect(sliceCard(lane: ended).quiet == [SliceQuiet(text: "12 calls", kind: .plain), SliceQuiet(text: "14:02–14:07", kind: .plain)])
 }

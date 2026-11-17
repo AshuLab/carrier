@@ -79,13 +79,28 @@ public struct ChatSession: Decodable, Equatable {
     public let pullRequest: SessionPullRequest?
     /// What the agent waits for after its turn ended; empty from a host that does not say.
     public let background: [BackgroundTask]
+    /// The session that started this one by delegating, for a child session; nil for any other, and from a host that does not say.
+    public let parentSessionId: String?
+    /// The child sessions this one started, oldest first; empty from a host that does not say. The list of sessions leaves the children themselves out.
+    public let children: [Child]
+
+    /// A child session as its parent lists it. `level` is the permission level it runs at (0 reads only, 1 asks before each change, 2 edits without asking), nil when the host does not say.
+    public struct Child: Decodable, Equatable {
+        public let id: String
+        public let agent: String
+        public let harness: String
+        public let state: State
+        public let level: Int?
+        /// True while the child waits for an approval or a question.
+        public let needsPerson: Bool
+    }
 
     public struct Workspace: Decodable, Equatable {
         public let base: String
         public let branch: String?
     }
 
-    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt, lastMessage, turns, model, diff, pr, background }
+    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt, lastMessage, turns, model, parentSessionId, children, diff, pr, background }
     private struct Kind: Decodable {
         let kind: String
         let base: String?
@@ -116,6 +131,8 @@ public struct ChatSession: Decodable, Equatable {
         diff = (try? values.decodeIfPresent(SessionDiff.self, forKey: .diff)) ?? nil
         pullRequest = (try? values.decodeIfPresent(SessionPullRequest.self, forKey: .pr)) ?? nil
         background = (try? values.decodeIfPresent([BackgroundTask].self, forKey: .background)) ?? []
+        parentSessionId = try values.decodeIfPresent(String.self, forKey: .parentSessionId)
+        children = try values.decodeIfPresent([Child].self, forKey: .children) ?? []
         let placed = try values.decodeIfPresent(Kind.self, forKey: .workspace)
         guard let placed, placed.kind == "worktree" else { workspace = nil; return }
         guard let base = placed.base else { throw DecodingError.keyNotFound(CodingKeys.workspace, .init(codingPath: decoder.codingPath, debugDescription: "a worktree without its base folder")) }
@@ -248,6 +265,11 @@ public protocol ChatHost {
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
     /// Opens a closed session's agent again; the host refuses a `send` to one that is not live.
     func resume(_ id: String) async throws
+    /// Switches an idle session to another configured agent: it keeps its transcript and folder, and its new agent goes on with a handoff of what was said.
+    /// Refused in words, with the session as it was, for a session that is working, waiting for an approval, preparing, archived or a child, for the agent it
+    /// already has, an agent that is not configured, not found or signed out, a model the harness does not list, and a conversation that cannot open.
+    /// Only for a host whose hello lists `switchAgent`; no screen asks for it yet.
+    func switchAgent(_ id: String, to agent: String) async throws -> AgentSwitch
     /// The host refuses it while the agent is answering ("The agent is still answering") and when it is over its character limit.
     func send(_ id: String, _ text: String) async throws
     /// `send` that invokes a command the session listed: `text` is what follows its name (nothing is allowed), and the host shows it as the
@@ -255,8 +277,9 @@ public protocol ChatHost {
     func send(_ id: String, _ text: String, command: String?) async throws
     /// Ends the turn that is in progress; with none running, it stops what the agent waits for in the background.
     func interrupt(_ id: String) async throws
-    /// Stops one of the tasks the agent waits for in the background (`BackgroundTask.id`); the host refuses one that is not running. A host that
-    /// does not list `stopTask` among its capabilities cannot: `capabilities()` says it.
+    /// Stops one running subagent, by the `taskId` of its `task` events, or one of the tasks the agent waits for in the background (`BackgroundTask.id`), and not the turn;
+    /// the subagent ends when its `stopped` event arrives, not when this returns. The host refuses a task that is not running in that session.
+    /// Only for a host whose hello lists `stopTask`: `capabilities()` says it.
     func stopTask(_ id: String, task: String) async throws
     /// Passes the person's choice for a pending approval to the agent; the host refuses one that is not pending and a choice the provider did not list.
     func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws
@@ -282,6 +305,9 @@ extension ChatHost {
         try await answer(id, approval: approval, choice: choice, answers: nil)
     }
 
+    /// A host that cannot stop a subagent refuses; the app only asks one that lists `stopTask`.
+    public func stopTask(_ id: String, task: String) async throws { throw ControlError.remote("the chat host does not support stopTask") }
+
     /// A host that cannot prepare a session from a plan has nothing to try again.
     public func retryPreparation(_ id: String) async throws { throw ControlError.remote("the chat host does not support retryPreparation") }
 
@@ -305,6 +331,9 @@ extension ChatHost {
 
     /// A host that cannot price refuses; the app only asks one that lists `usageOverride`.
     public func usageOverride(_ override: UsageOverride) async throws { throw ControlError.remote(usageNeedsNewerHost) }
+
+    /// A host that cannot switch agents refuses; the app only asks one that lists `switchAgent`.
+    public func switchAgent(_ id: String, to agent: String) async throws -> AgentSwitch { throw ControlError.remote("the chat host does not support switchAgent") }
 
     /// A host that cannot rename refuses; the app only asks one that lists `rename`.
     public func rename(_ id: String, _ title: String) async throws { throw ControlError.remote("the chat host does not support rename") }
@@ -468,6 +497,13 @@ public struct SocketChatHost: ChatHost {
         let path = socketPath()
         // resuming starts the agent again and reads its whole history: a long session takes far more than the 5 seconds of a request that only asks
         let _: AnyReply = try await Task.detached { try chatRequest(path, "resume", requires: .resume, fields: fields, timeout: 60) }.value
+    }
+
+    public func switchAgent(_ id: String, to agent: String) async throws -> AgentSwitch {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"agent\":" + jsonString(agent)
+        let path = socketPath()
+        // the host checks the agent's sign-in and models and opens its conversation before it closes the old one: far more than the 5 seconds of a request that only asks
+        return try await Task.detached { try chatRequest(path, "switchAgent", requires: .switchAgent, fields: fields, timeout: 60) }.value
     }
 
     /// The text goes on the wire JSON-encoded, so quotes, newlines and anything else in it stay inside the string.
@@ -642,6 +678,19 @@ public struct AgentOffer: Codable, Equatable {
     }
 }
 
+/// The reply of `switchAgent`: the session as it is now (it has no `live` or the activity of a listed one, so it is not a `ChatSession`) and the new agent's options.
+public struct AgentSwitch: Decodable, Equatable {
+    public struct Session: Decodable, Equatable {
+        public let id: String
+        public let agent: String
+        public let harness: String
+        public let state: ChatSession.State
+    }
+
+    public let session: Session
+    public let options: [ChatOption]
+}
+
 /// The reply of `open`: only the new session's id is read.
 private struct OpenedReply: Decodable {
     struct Session: Decodable { let id: String }
@@ -747,8 +796,3 @@ fileprivate func usageRequest<Reply: Decodable>(_ path: String, _ command: Strin
 }
 
 public let hostNotRunning = "The chat host is not running"
-
-extension ChatHost {
-    /// A host that has no tasks to stop has nothing to do.
-    public func stopTask(_ id: String, task: String) async throws {}
-}

@@ -83,14 +83,32 @@ _Avoid_: agent event (the epic executions' events), message, log line.
 **Lane** - One of the up to three parallel worktrees inside a `ship` execution (`<epic worktree>--lane-N`). A lane is a place, not a worker: it is reused, so lane 1 builds one slice and then another, and the subagent that builds a slice runs in a lane. Solve decides the lanes; the engine does not know them, and a lane has no session of its own, so it cannot be resumed apart from the ship session.
 _Avoid_: slot (that counts epics), thread, worker, subagent (a lane holds one at a time).
 
-**Subagent** - A Claude agent launched from inside an execution, with an exact `agentId` in the stream and no session of its own. A builder subagent builds one slice, in a lane. A reviewer subagent runs one pass of a review (Spec, Standards, Risk, Experience) and has no slice and no lane. The slice and the lane of a builder are inferred from the model's wording and the worktree path; the subagent, its times and its end status are exact ([research](research/claude-subagent-attribution.md)).
+**Subagent** - A Claude agent launched from inside an execution, with an exact `agentId` in the stream and no session of its own.
+A builder subagent builds one slice, in a lane.
+A reviewer subagent runs one pass of a review (Spec, Standards, Risk, Experience) and has no slice and no lane.
+The slice and the lane of a builder are inferred from the model's wording and the worktree path; the subagent, its times and its end status are exact ([research](research/claude-subagent-attribution.md)).
+A chat session's agent launches them the same way, and the stream tags every message of one with the call that launched it.
 _Avoid_: lane (that is where a builder runs), worker, child agent.
 
 **Call group** - A run of the agent's tool calls (and thoughts, when the events carry them) with nothing between them but other calls, drawn in the Agent output tab and in a session's conversation as the same one glass card: "Ran 4 commands" (or Explored, Changed, Worked), what it counted, "N failed", and a timer and shimmer while the agent works in it. It folds until opened and then lists its steps. A message, a note, an error, a skill or a slice ends the run; a lone call is a group of one.
 _Avoid_: batch (that is slices started together), step, turn.
 
-**Slice card** - The card of the Agent output tab that stands for one subagent building one slice: its state, its slice and title, its counts and pull request, placed in the log where the slice was taken and opening in place on the subagent's own calls. One card per subagent; a resumed one is still one card.
+**Slice card** - The card of the Agent output tab that stands for one subagent building one slice: its state, its slice and title, its counts and pull request, placed in the log where the slice was taken and opening the subagent's view on its own calls.
+One card per subagent; a resumed one is still one card.
 _Avoid_: lane (the place it runs in), lane card, task.
+
+**Subagent row** - The line a subagent has in a conversation: its type as a chip, its title, the step it is on now, its steps, its timer and its state, with the height of a call group's line.
+One row per subagent, under the line of the run that launched it, and tapping it opens the subagent view.
+In the Agent output tab the slice card plays this part.
+_Avoid_: subagent card (that is the slice card of the epic), task, child.
+
+**Subagent view** - What replaces the conversation when a subagent row is opened: the window's header with a ‹ Back button, the subagent's title, its state and Stop, and the subagent's own brief, call groups, thoughts and messages drawn as the main agent's are.
+It is read only: a subagent cannot be written to from the host.
+_Avoid_: subagent tab, subagent panel, subagent session (it has none of its own).
+
+**Kind chip** - The small label at the start of a live line that says what the agent is waiting on: Thinking, Read, Search, Edit, Shell, the server of an MCP call, "N subagents" or "Needs you".
+The timer beside it is the running call's.
+_Avoid_: badge, tag, status.
 
 **Slot** - One of the places the engine has for running epics at once (`maxConcurrentEpics`). It is a counter with no identity, so the app shows how many are in use and which epics occupy them, never "slot 2".
 _Avoid_: lane (that is inside one epic), thread, concurrency.
@@ -279,3 +297,18 @@ _Avoid_: terminal session (session already refers to an agent conversation).
 
 **Terminal pane** - One live shell surface and PTY inside a terminal tab, preserving its terminal state, scrollback, working directory, and running-process status while being split, resized, focused, moved across split edges or tabs, or closed.
 _Avoid_: surface, panel, split (when naming the leaf terminal itself).
+
+**Agent switch** - A person changing the agent of a user session between turns: the session keeps its transcript, folder and worktree and goes on in a new native conversation with another configured agent, of another harness or another account of the same one ([0032](adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md)). Changing only the model of the same agent is an option change and not a switch.
+_Avoid_: failover (Carrier moving an epic's role by itself when credits run out), provider switch, migration.
+
+**Handoff** - What the new agent of a switched session receives with its first message: a bounded selection of the stored transcript (the person's first message and the newest ones, up to 16,000 bytes), the ids of what was left out and the pointer to the chat MCP's `history` tool that reads them. Carrier chooses it and no agent writes it, and it carries no reasoning, tool state or attachments.
+_Avoid_: summary, compaction, context transfer.
+
+**Child session** - A user session started by a delegation from another session, its parent: a real session with its own agent and transcript, working in the parent's folder, kept out of the list of sessions and listed in its parent's summary. It runs one task and takes no message from the person, who can still read it and answer its approvals ([0033](adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)).
+_Avoid_: subagent (a Claude agent inside an execution, with no session of its own), sub-session, worker, thread.
+
+**Delegation** - The person asking, in a session, for work to go to other agents, which the agent carries out with the chat MCP's `delegate_start`, each call approved by the person. It starts child sessions and moves nothing out of the parent.
+_Avoid_: failover, subagent call, handover (the parent keeps the session).
+
+**Permission level** - Carrier's scale of three steps for what a chat session may do without asking the person, from reading only to editing without asking, on which the options of each harness sit (Claude's permission modes, Codex's sandbox and approval policy). It exists to keep a child session from having more privilege than its parent ([0033](adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)).
+_Avoid_: permission mode (Claude's own option), sandbox (Codex's own option), access level (what a chat MCP tool declares, [0024](adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)).

@@ -87,21 +87,8 @@ public func visibleFlow(_ flow: [FlowItem], mode: ToolOutputMode, showsReasoning
         case .tools(let id, var group, let live):
             if mode == .hidden { group.calls = [] }
             if showsReasoning == false { group.thoughts = [] }
-            return group.calls.isEmpty && group.thoughts.isEmpty ? nil : .tools(id: id, group, live: live)
+            return group.calls.isEmpty && group.thoughts.isEmpty && group.subagents.isEmpty ? nil : .tools(id: id, group, live: live)
         default: return item
         }
-    }
-}
-
-/// Which slice rows the user opened, by the subagent's id; a row nobody touched is closed, whatever its state.
-public struct SliceFolds: Equatable {
-    private var open: Set<String> = []
-
-    public init() {}
-
-    public func isOpen(_ id: String) -> Bool { open.contains(id) }
-
-    public mutating func toggle(_ id: String) {
-        if open.insert(id).inserted == false { open.remove(id) }
     }
 }

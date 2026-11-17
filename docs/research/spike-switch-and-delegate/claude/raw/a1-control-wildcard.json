@@ -1,0 +1,104 @@
+{
+  "run": "control-wildcard",
+  "allowedTools": [
+    "mcp__carrier-chat__*"
+  ],
+  "init": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "default",
+    "claude_code_version": "2.1.326",
+    "mcp_servers": [
+      {
+        "name": "carrier-chat",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "tools": [
+      "Task",
+      "AskUserQuestion",
+      "Bash",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "DesignSync",
+      "Edit",
+      "EnterPlanMode",
+      "EnterWorktree",
+      "ExitPlanMode",
+      "ExitWorktree",
+      "ListAgents",
+      "Monitor",
+      "NotebookEdit",
+      "PublishPlugin",
+      "PushNotification",
+      "Read",
+      "RemoteTrigger",
+      "ReportFindings",
+      "ScheduleWakeup",
+      "SendMessage",
+      "ShareOnboardingGuide",
+      "Skill",
+      "TaskStop",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Workflow",
+      "Write",
+      "mcp__carrier-chat__ping_act",
+      "mcp__carrier-chat__ping_read"
+    ]
+  },
+  "readyMs": 466,
+  "turn": {
+    "prompt": "Call ping_read, then call ping_act, then say what happened",
+    "ms": 3778,
+    "asked": [],
+    "tools": [
+      {
+        "name": "ToolSearch",
+        "input": {
+          "query": "select:mcp__carrier-chat__ping_read,mcp__carrier-chat__ping_act",
+          "max_results": 2
+        }
+      },
+      {
+        "name": "mcp__carrier-chat__ping_read",
+        "input": {}
+      },
+      {
+        "name": "mcp__carrier-chat__ping_act",
+        "input": {}
+      }
+    ],
+    "results": [
+      {
+        "tool": "toolu_019S2bELdc4bfTGSR13zkDg3",
+        "error": false,
+        "text": " "
+      },
+      {
+        "tool": "toolu_014UUghbBonUFHHKRQGBvcrp",
+        "error": false,
+        "text": "\"ping_read says PONG\""
+      },
+      {
+        "tool": "toolu_01FXoK4mvPNuyPKfDLBbaHgr",
+        "error": false,
+        "text": "\"ping_act says PONG\""
+      }
+    ],
+    "said": "I called `ping_read` and then `ping_act`. Both returned successfully: `ping_read` returned \"ping_read says PONG\" and `ping_act` returned \"ping_act says PONG.\"\n",
+    "outcome": "success",
+    "resultText": "I called `ping_read` and then `ping_act`. Both returned successfully: `ping_read` returned \"ping_read says PONG\" and `ping_act` returned \"ping_act says PONG.\"",
+    "denials": []
+  },
+  "serverLog": [
+    "ping_read executed",
+    "ping_act executed"
+  ],
+  "askedRead": false,
+  "askedAct": false,
+  "actExecuted": true,
+  "readExecuted": true
+}

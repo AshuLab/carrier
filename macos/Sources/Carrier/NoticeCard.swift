@@ -13,6 +13,9 @@ struct NoticeCard<Actions: View, Below: View>: View {
     var tag: String?
     /// How many lines the detail may take; all of it when nil.
     var detailLines: Int?
+    var edge = false
+    /// The account the notice is about: its mark (icon and color, as the footer of an answer wears them) stands before the title.
+    var account: String?
     /// When set, the text is a button (the queued message puts itself back in the box).
     var onTap: (() -> Void)?
     @ViewBuilder var actions: () -> Actions
@@ -20,10 +23,11 @@ struct NoticeCard<Actions: View, Below: View>: View {
     @ViewBuilder var below: () -> Below
     init(
         symbol: String, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
-        onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions, @ViewBuilder below: @escaping () -> Below
+        edge: Bool = false, account: String? = nil, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions,
+        @ViewBuilder below: @escaping () -> Below
     ) {
         (self.symbol, self.tint, self.title, self.detail, self.hint, self.tag) = (symbol, tint, title, detail, hint, tag)
-        (self.detailLines, self.onTap, self.actions, self.below) = (detailLines, onTap, actions, below)
+        (self.detailLines, self.edge, self.account, self.onTap, self.actions, self.below) = (detailLines, edge, account, onTap, actions, below)
     }
 
     var body: some View {
@@ -44,7 +48,10 @@ struct NoticeCard<Actions: View, Below: View>: View {
 
     private var text: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title).font(.scaled(13.5, weight: .semibold)).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                if let account { AccountMark(account: account, size: 13).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 } }
+                Text(title).font(.scaled(13.5, weight: .semibold)).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+            }
             if tag != nil || detail != nil {
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
                     if let tag {
@@ -69,11 +76,11 @@ struct NoticeCard<Actions: View, Below: View>: View {
 extension NoticeCard where Below == EmptyView {
     init(
         symbol: String, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
-        onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions
+        edge: Bool = false, account: String? = nil, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions
     ) {
         self.init(
-            symbol: symbol, tint: tint, title: title, detail: detail, hint: hint, tag: tag, detailLines: detailLines, onTap: onTap,
-            actions: actions, below: { EmptyView() }
+            symbol: symbol, tint: tint, title: title, detail: detail, hint: hint, tag: tag, detailLines: detailLines, edge: edge, account: account,
+            onTap: onTap, actions: actions, below: { EmptyView() }
         )
     }
 }

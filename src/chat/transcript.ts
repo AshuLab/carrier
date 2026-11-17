@@ -14,16 +14,20 @@ export function boundEvent(event: ChatEvent | StepEvent): Record<string, unknown
       return { text: clean(event.text, chatCaps.message), ...(event.command !== undefined && { command: event.command }) };
     case 'assistant':
     case 'reasoning':
-      return { text: clean(event.text, chatCaps.message) };
+      return { text: clean(event.text, chatCaps.message), ...(event.parentCallId !== undefined && { parentCallId: event.parentCallId }) };
+    case 'task': {
+      const { kind: _kind, text, agentType, lastTool, ...rest } = event;
+      return { ...rest, ...(text !== undefined && { text: clean(text, chatCaps.arg) }), ...(agentType !== undefined && { agentType: clean(agentType, chatCaps.title) }), ...(lastTool !== undefined && { lastTool: clean(lastTool, chatCaps.title) }) };
+    }
     case 'error':
-      return { text: clean(event.text, chatCaps.error) };
+      return { text: clean(event.text, chatCaps.error), ...(event.reason !== undefined && { reason: event.reason }), ...(event.resetsAt !== undefined && { resetsAt: event.resetsAt }), ...(event.resetText !== undefined && { resetText: clean(event.resetText, chatCaps.error) }) };
     case 'tool_start':
     case 'tool_end': {
       const { kind: _kind, arg, output, ...rest } = event;
       return { ...rest, ...(arg !== undefined && { arg: clean(arg, chatCaps.arg) }), ...(output !== undefined && { output: boundOutput(output.join('\n')) }) };
     }
     case 'approval': {
-      const { kind: _kind, arg, questions, ...rest } = event;
+      const { kind: _kind, arg, input: _input, questions, ...rest } = event; // `input` is for wording the approval and is never stored
       // ponytail: an answer is matched to its question by the stored text, so a question the redaction changed is answered under the changed text
       const bound = questions?.map((q) => ({
         question: clean(q.question, chatCaps.arg),
@@ -31,7 +35,7 @@ export function boundEvent(event: ChatEvent | StepEvent): Record<string, unknown
         multiSelect: q.multiSelect,
         options: q.options.map((o) => ({ label: clean(o.label, chatCaps.arg), description: clean(o.description, chatCaps.arg), ...(o.preview !== undefined && { preview: clean(o.preview, chatCaps.message) }) })),
       }));
-      return { ...rest, ...(arg !== undefined && { arg: clean(arg, chatCaps.arg) }), ...(bound !== undefined && { questions: bound }) };
+      return { ...rest, ...(arg !== undefined && { arg: clean(arg, chatCaps.message) }), ...(bound !== undefined && { questions: bound }) };
     }
     case 'approval_answered': {
       const { kind: _kind, answers, ...rest } = event;

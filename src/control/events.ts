@@ -25,6 +25,8 @@ const wire = (row: Row): ExecEvent => ({
   ...(row.payload?.description !== undefined && { description: row.payload.description }),
   ...(row.payload?.output !== undefined && { output: row.payload.output }),
   ...(row.payload?.diff !== undefined && { diff: row.payload.diff }),
+  ...(row.payload?.tools !== undefined && { tools: row.payload.tools }),
+  ...(row.payload?.tokens !== undefined && { tokens: row.payload.tokens }),
 });
 
 // The harnesses that have an events parser.
@@ -46,7 +48,7 @@ export function eventsOf(db: Db, executionId: string, after: number, limit: numb
 // A line of the Overview: what the agent is doing now, in the words of its newest event.
 const describe = (row: Row) => {
   const call = [row.tool, row.arg].filter((part) => part !== null).join(' ');
-  return (row.kind === 'tool_start' ? call : row.kind === 'tool_end' ? [row.tool, row.summary].filter((part) => part !== null).join(' ') : (row.payload?.text ?? '')).slice(0, 200);
+  return (row.kind === 'tool_start' ? call : row.kind === 'tool_end' ? [row.tool, row.summary].filter((part) => part !== null).join(' ') : (row.payload?.text ?? row.tool ?? '')).slice(0, 200);
 };
 
 /** The newest event of an execution for the snapshot; null while it has none. */

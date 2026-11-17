@@ -1,0 +1,20 @@
+{
+ "which": "a",
+ "handoffBytes": 1340,
+ "first": {
+  "label": "a: handoff in front of the command message (plain send)",
+  "said": "PONG:ALPHA",
+  "tools": [
+   "Skill"
+  ],
+  "outcome": "ok",
+  "errors": []
+ },
+ "recall": {
+  "label": "a: recall",
+  "said": "Odalys Prewitt.",
+  "tools": [],
+  "outcome": "ok",
+  "errors": []
+ }
+}

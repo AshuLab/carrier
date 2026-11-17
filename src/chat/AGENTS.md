@@ -21,15 +21,24 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   `retryPreparation` repeats a failed one from where it stopped (the worktree recorded on the session and a checkout done are reused).
   `cancelPreparation` aborts the running step, deletes the session like a delete does and answers the plan ([ADR 0018](../../docs/adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
   The agent can begin a turn nobody asked for (the SDK wakes it when a task it ran in the background ends): the first word of one, with no turn running and the session idle and live, starts a turn of the host's own, so the session is working until the adapter's `turn_end`, which is then recorded like any other.
-  A `background` event (the Claude adapter's reading of the SDK's `background_tasks_changed`) sets `live.background`, which `list` shows as the row's `background`: a session with some is not closed for being idle, is refused an archive or a delete, and an `interrupt` with no turn running stops those tasks (`stopBackground`), while `stopTask` stops just one of them by its id.
+  A `background` event (the Claude adapter's reading of the SDK's `background_tasks_changed`) sets `live.background`, which `list` shows as the row's `background`: a session with some is not closed for being idle, is refused an archive or a delete, and an `interrupt` with no turn running stops those tasks, and `stopTask` stops just one of them (or a subagent) by its id, through the adapter's `stopTask`.
 - `session-data.ts` and `pull-requests.ts`: what a row of `list` says besides the conversation, `diff` and `pr`.
   The lines a session changed come from `git diff --numstat` (read-only, with the repository's own diff and text filters off), counted from where its worktree was cut or where its folder left the default branch.
   Its pull request is looked for once, by the branch, with the person's own `gh` login (ADR 0015) and stored on the session (`prRepo`, `prNumber`, `prUrl`, `prState`, `prChecks`, `prCheckedAt`): after that only its state is asked again, by number and one GraphQL request for all the open ones, every minute while a list is asked for.
   A merged or closed one is final, and gives way only to a newer open one on the same branch.
   A `list` never waits for either: it answers with what is known and starts a sweep (at most every 15 seconds) that fills in the next; a turn ending reads that session's at once.
   Without `gh`, a network or an origin on GitHub a row simply has no pull request.
+  A child session (`parentSessionId`, from `startChild` of the MCP's `delegate_start`, [ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)) is a session of its own agent in its parent's folder, recorded as a plain folder, with its agent's options lowered to the parent's level.
+  Its row is inserted first, so it holds one of the parent's four slots and its `delegationRequestId` while its conversation opens, and goes if the open fails; the check and that insert have no `await` between them.
+  The list leaves children out, a parent's summary lists them as `children`, and `delegationRequestId` is never in a summary.
+  A child belongs to its parent: `send`, `resume`, `archive`, `delete`, `rename` and `setOption` (and a switch of agent) are refused through `refuseChild`, while `interrupt`, `close`, `answer` and `events` work as on any session.
+  It opens with `child: true`, so its adapter's approvals offer Allow and Deny and none of the suggestions that would raise it, and its MCP token never gets `act`.
+  `switchAgent` ([ADR 0032](../../docs/adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md)) moves an idle session to another configured agent: a new conversation opens with the handoff as its `instructions`, and the old one is closed only after the new one opened with the chat MCP, so any refusal (a busy, archived or child session, an agent that is unknown, missing, signed out or the same, a model the probe does not list, a conversation that does not open or has no MCP) leaves the session as it was.
+  The session is in `switching`, a marker of its own and not the delete's, that every request on the session and a second switch check; the old conversation is detached (its events are no longer recorded) and stays the session's recorded process until it ends.
+  The notice it stores has `switched: { from, to }`, and every later open or resume of that conversation passes the handoff again, built from the events before that notice (none for a session with no message).
 - `plan.ts`: the plan's request schema and the step types.
 - `runner.ts`: the chat runner port, with `fake.ts` its test double; `claude.ts` and `codex.ts` are the Claude and Codex adapters.
+  Codex's usage limit (`codexErrorInfo` `usageLimitExceeded`, not retried) is an `error` with `reason: 'usage_limit'`: its `resetsAt` is read from `account/rateLimits/read` (the full window that resets last, waiting 2 s at most) and `resetText` is the error's own `try again at ...` when that gives none; the error is emitted before the turn's `turn_end`.
 - `folder.ts`: the check of a session's folder, never inside `<folder>/engine/` (and `checkProjectsFolder`, the same rule for the projects folder).
 - `projects.ts`: what the chat brings onto the Mac with the person's own `gh` login, under the projects folder ([ADR 0015](../../docs/adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)).
   `cloneRepo` (waiters share one clone, which stops when nobody waits; only git's progress lines pass on, one a second), `createProject`, the `githubRepos` listing and `repoBranches`.
@@ -37,7 +46,14 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `mcp.ts`: the chat MCP ([ADR 0024](../../docs/adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)), a loopback HTTP server the host starts before `chat.sock`.
   `McpSessionRegistry`: a bearer token per live conversation, kept hashed in memory, revoked by `invocationId` when `sessions.ts` closes, loses or fails that conversation.
   `defineTool`: every tool declares its access level.
-  The toolkits are under `mcp/` (`capabilities` is the first); the adapters take the `mcp` argument of `ChatRunner.open`.
+  A tool is listed and callable only for a token with the capability its access level needs: `delegate_start` (`mcp/delegate.ts`, `actsAsSession`) needs `act`, which a session with no parent gets.
+  A tool marked `delegation` is also listed only while `sessions.delegationRefusal` (`levels.ts`: a mode that asks, on the scale, Codex app-server 0.122.0 or later) finds none, and that check runs again on the call; `agents` says the same words as `notOffered`.
+  The approval of `delegate_start` carries `input` (never stored, dropped by `boundEvent`), from which `sessions.ts` words the approval and holds the call to the level shown.
+  Claude names the tools that read in `allowedTools`, no wildcard, so `delegate_start` asks, with Allow, Deny and an allowance with the destination `session` (`HONOURS_SESSION_ALLOWANCE`).
+  `delegate_wait` (`readsAsSession`) waits for the caller's children through `waitChildren` of `sessions.ts` (live state, else how the child's one turn ended), and `history` also reads a child or the parent (`related`).
+  The toolkits are under `mcp/`; the adapters take the `mcp` argument of `ChatRunner.open`.
+- `handoff.ts`: `buildHandoff`, the pure builder of a switched session's handoff from its stored events, 16,000 UTF-8 bytes on the whole text (ADR 0032, linked above); it travels as `ChatRunner.open`'s `instructions`, which Claude appends to its preset system prompt and Codex sends as `developerInstructions`.
+- `levels.ts`: the permission scale as pure data (`levelOf`, `childOptions`), for the options a child may have (ADR 0033, linked above).
 - `health.ts`: the `health` request (whether `git`, `gh` and each agent's CLI work and are signed in, as `ready`, `missing`, `signedOut` or `unknown`, only the verdicts; [spec](../../docs/specs/chat-host.md)).
 - `git.ts`: the port to the machine's git (`realGit` in production, `FakeGit` in `fake.ts`).
 - `workspace.ts`: what a folder is as a repository, and its fetch.
@@ -50,5 +66,6 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 
 `terminal/cli/commands/chat.ts` is its client and starts it detached (`detached.ts`, shared with `start`).
 Its hello lists `accountIdentity` when `providers.json` may carry `label`, `icon` and `color` on an account (the strict schema of an older host refuses them): the app writes those keys only while it is there, and `agents` carries each agent's `account` so the app finds them.
+It lists `accountPalette` when the schema also takes the later icons and colors (`accountIcons`, `accountColors` in `src/config/providers.ts`; the earlier ones come first): the app offers the later ones only while it is there, since an `accountIdentity` host refuses a file with one.
 It also answers `usage` (live quotas and the history, filtered by days, provider, source, search and account) and `usageOverride` (a model's price, kept in the `usage_price_overrides` table of `chat.db`) through [`src/usage`](../usage/AGENTS.md).
 `terminal/cli/commands/usage.ts` is `carrier usage`, which checks the hello lists `usage` and waits 45 s for it.

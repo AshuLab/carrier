@@ -1,0 +1,151 @@
+{
+ "receiver": "claude",
+ "seedFile": "seed-quillfinch-claude.json",
+ "control": false,
+ "receiverModel": "haiku",
+ "mcpProblem": null,
+ "handoff": {
+  "textBytes": 16860,
+  "messageBytes": 16000,
+  "included": [
+   "m0",
+   "m13",
+   "m14",
+   "m16",
+   "m17",
+   "m19",
+   "m20",
+   "m22",
+   "m23"
+  ],
+  "cut": "m13",
+  "omitted": [
+   "m2",
+   "m4",
+   "m5",
+   "m7",
+   "m8",
+   "m10",
+   "m11"
+  ]
+ },
+ "transcript": {
+  "jsonBytes": 43180,
+  "textBytes": 40353,
+  "items": 25
+ },
+ "first": {
+  "q": "first",
+  "serverArgs": [],
+  "said": "OK",
+  "historyCalls": 0,
+  "tools": [],
+  "outcome": "ok",
+  "errors": []
+ },
+ "rows": [
+  {
+   "key": "C",
+   "where": "omitted",
+   "source": "pasted spec of turn 3",
+   "right": true,
+   "historyToolStarts": 5,
+   "serverCalls": 5,
+   "serverArgs": [
+    {
+     "afterPosition": -1,
+     "limit": 40
+    },
+    {
+     "itemId": "m7"
+    },
+    {
+     "itemId": "m10"
+    },
+    {
+     "itemId": "m13"
+    },
+    {
+     "itemId": "m16"
+    }
+   ],
+   "said": "The calibration interval for TG-440 is 19 days, per spec item 3.15, and it cannot be set per harbour.",
+   "outcome": "ok",
+   "errors": [],
+   "otherTools": [
+    "ToolSearch"
+   ]
+  },
+  {
+   "key": "D",
+   "where": "omitted",
+   "source": "pasted spec of turn 4",
+   "right": true,
+   "historyToolStarts": 0,
+   "serverCalls": 0,
+   "serverArgs": [],
+   "said": "An alert is raised when a gauge's drift passes 7.3 mm over a single interval (spec item 4.14).",
+   "outcome": "ok",
+   "errors": [],
+   "otherTools": []
+  },
+  {
+   "key": "B",
+   "where": "omitted",
+   "source": "turn 2 (decision and rejected option)",
+   "right": true,
+   "historyToolStarts": 0,
+   "serverCalls": 0,
+   "serverArgs": [],
+   "said": "Postgres was rejected because the technicians' pier laptops have no network, so the project stores everything in one SQLite file instead.",
+   "outcome": "ok",
+   "errors": [],
+   "otherTools": []
+  },
+  {
+   "key": "A",
+   "where": "included",
+   "source": "first message",
+   "right": true,
+   "historyToolStarts": 0,
+   "serverCalls": 0,
+   "serverArgs": [],
+   "said": "Odalys Prewitt is the project owner of Quillfinch.",
+   "outcome": "ok",
+   "errors": [],
+   "otherTools": []
+  },
+  {
+   "key": "F",
+   "where": "included",
+   "source": "newest pasted spec (turn 6)",
+   "right": true,
+   "historyToolStarts": 0,
+   "serverCalls": 0,
+   "serverArgs": [],
+   "said": "The nightly export job is named kelp-sync-0415 (spec item 6.13).",
+   "outcome": "ok",
+   "errors": [],
+   "otherTools": []
+  },
+  {
+   "key": "G",
+   "where": "included",
+   "source": "last message",
+   "right": true,
+   "historyToolStarts": 0,
+   "serverCalls": 0,
+   "serverArgs": [],
+   "said": "The first release is tagged v0.3.7-tern.",
+   "outcome": "ok",
+   "errors": [],
+   "otherTools": []
+  }
+ ],
+ "totalServerCalls": 5,
+ "score": {
+  "included": 3,
+  "omitted": 3
+ },
+ "itemsAfter": 37
+}

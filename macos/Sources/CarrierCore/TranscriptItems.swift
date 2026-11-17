@@ -21,8 +21,17 @@ public enum ToolStatus: Equatable {
 
 public enum ToolKind: Hashable {
     case read, search, edit, shell, other
+    /// A call to a tool of an MCP server, named `mcp__<server>__<tool>`.
+    case mcp(server: String, tool: String)
 
     public init(tool: String?) {
+        if let tool, tool.hasPrefix("mcp__") {
+            let rest = tool.dropFirst("mcp__".count)
+            if let split = rest.range(of: "__"), split.lowerBound > rest.startIndex, split.upperBound < rest.endIndex {
+                self = .mcp(server: String(rest[..<split.lowerBound]), tool: String(rest[split.upperBound...]))
+                return
+            }
+        }
         switch tool {
         case "Read": self = .read
         case "Grep", "Glob": self = .search
@@ -41,6 +50,7 @@ public enum ToolKind: Hashable {
         case .edit: "pencil"
         case .shell: "terminal"
         case .other: "wrench.and.screwdriver"
+        case .mcp: "powerplug"
         }
     }
 }

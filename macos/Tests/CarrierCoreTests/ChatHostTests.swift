@@ -26,14 +26,36 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(agents.first?.model == "claude-sonnet-5-5")
 
     let active = try await host.list(archived: false)
-    // the fifth is a session whose turn ended while a build runs; the eleven after it fill the sidebar's other states (unread, a single task, plain, pinned, a worktree preparing, a long title...)
-    #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle, .idle, .idle, .idle, .working, .idle, .working, .idle, .preparing, .idle, .waitingApproval, .working, .idle])
-    #expect(active.map(\.live) == [true, true, false, false, true, true, true, true, true, true, true, true, false, true, true, true])
+    // the fifth is a session whose turn ended while a build runs; the eleven after it fill the sidebar's other states (unread, a single task, plain, pinned, a worktree preparing, a long title...), and the last is the one with three subagents
+    #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle, .idle, .idle, .idle, .working, .idle, .working, .idle, .preparing, .idle, .waitingApproval, .working, .idle, .idle])
+    #expect(active.map(\.live) == [true, true, false, false, true, true, true, true, true, true, true, true, false, true, true, true, false])
     let worktree = "/Users/dev/work/web"
-    #expect(active.map { $0.workspace?.base } == [nil, nil, nil, worktree, nil, nil, nil, nil, nil, worktree, worktree, worktree, nil, nil, nil, nil])
-    #expect(active.map(\.background.count) == [0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    #expect(active.map { $0.workspace?.base } == [nil, nil, nil, worktree, nil, nil, nil, nil, nil, worktree, worktree, worktree, nil, nil, nil, nil, nil])
+    #expect(active.map(\.background.count) == [0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     #expect(active.compactMap(\.pullRequest).map(\.number) == [983, 979, 412, 88, 1051, 1060, 431, 398, 77] && active.compactMap(\.diff).count == 10)
     #expect(try await host.list(archived: true).map(\.archived) == [true, true])
+    // the parent carries its children and none of the other sessions has a parent or children
+    #expect(active.first?.children == [
+        ChatSession.Child(id: "0d1e2f3a-9b8c-4d54-8a7b-8b9c0d1e2f0b", agent: "codex", harness: "codex", state: .working, level: 1, needsPerson: false),
+        ChatSession.Child(id: "1e2f3a4b-0c9d-4e65-9b8c-9c0d1e2f3a0c", agent: "claude", harness: "claude", state: .waitingApproval, level: 0, needsPerson: true),
+    ])
+    #expect(active.compactMap(\.parentSessionId).isEmpty && active.dropFirst().allSatisfy { $0.children.isEmpty })
+}
+
+@Test func aSessionCarriesItsParentAndItsChildrenOrNone() throws {
+    func decode(_ extra: String) throws -> ChatSession {
+        let json = #"{"id":"a","agent":"claude","harness":"claude","folder":"/w","title":"t","state":"idle","createdAt":1,"lastActiveAt":2,"archived":false,"live":false\#(extra)}"#
+        return try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
+    }
+    let child = try decode(#","parentSessionId":"p1","children":[]"#)
+    #expect(child.parentSessionId == "p1" && child.children.isEmpty)
+    let parent = try decode(#","parentSessionId":null,"children":[{"id":"c1","agent":"codex","harness":"codex","state":"idle","level":2,"needsPerson":false}]"#)
+    #expect(parent.parentSessionId == nil && parent.children.map(\.id) == ["c1"] && parent.children.first?.level == 2)
+    // a host that says nothing of either
+    let older = try decode("")
+    #expect(older.parentSessionId == nil && older.children.isEmpty)
+    // a child whose level the host does not say
+    #expect(try decode(#","children":[{"id":"c1","agent":"a","harness":"claude","state":"working","needsPerson":false}]"#).children.first?.level == nil)
 }
 
 @Test func theFixtureListIsRelativeToTheLaunchAndMarksWhatTheAppSeedsAsUnreadAndPinned() async throws {
@@ -52,7 +74,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .interrupt, .stopTask])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .interrupt, .stopTask])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -370,4 +392,53 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     defer { older.stop() }
     await #expect(throws: ControlError.remote("the chat host does not support repoBranches")) { _ = try await SocketChatHost(socketPath: { older.path }).repoBranches("AshuLab/carrier") }
     #expect(asked == false)
+}
+
+@Test func switchAgentSendsTheSessionAndTheAgentInsideJSONStringsAndDecodesTheGoldenReply() async throws {
+    var line = ""
+    let reply = try String(contentsOf: URL(fileURLWithPath: fixtures + "/chat-switch.json"), encoding: .utf8)
+        .split(whereSeparator: \.isNewline).joined()
+    let server = TestServer { connection in
+        connection.send(hello("\"switchAgent\""))
+        guard let read = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(read.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        line = read
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(reply)}\n")
+    }
+    defer { server.stop() }
+    let session = "c3d4e5f6-2a1b-4c8d-9e0f-1a2b3c4d5e03"
+    let switched = try await SocketChatHost(socketPath: { server.path }).switchAgent(session, to: "co\"dex")
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "switchAgent" && sent["sessionId"] as? String == session && sent["agent"] as? String == "co\"dex")
+    // the session as the host summarizes it has no `live`, and everything it says beyond what is read is ignored
+    #expect(switched.session == AgentSwitch.Session(id: session, agent: "codex", harness: "codex", state: .idle))
+    #expect(switched.options.map(\.id) == ["model", "sandbox"] && switched.options.map(\.current) == ["gpt-5", "read-only"])
+}
+
+@Test func switchAgentIsNotSentToAHostThatDoesNotListIt() async {
+    var asked = false
+    let server = TestServer { connection in
+        connection.send(hello("\"agents\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { server.stop() }
+    await #expect(throws: ControlError.self) { try await SocketChatHost(socketPath: { server.path }).switchAgent("c3d4e5f6-2a1b-4c8d-9e0f-1a2b3c4d5e03", to: "codex") }
+    #expect(asked == false)
+}
+
+@Test func anErrorThatIsAUsageLimitCarriesItsReasonAndWhenItResetsAndAnyOtherErrorNone() throws {
+    let stamped = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":11,"at":1,"kind":"error","text":"You've hit your usage limit.","reason":"usage_limit","resetsAt":1795216260000}"#.utf8))
+    #expect(stamped.reason == "usage_limit" && stamped.resetsAt == 1_795_216_260_000 && stamped.resetText == nil)
+    let worded = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":12,"at":2,"kind":"error","text":"You've hit your usage limit.","reason":"usage_limit","resetText":"try again at Nov 20th, 2026 7:11 PM"}"#.utf8))
+    #expect(worded.reason == "usage_limit" && worded.resetsAt == nil && worded.resetText == "try again at Nov 20th, 2026 7:11 PM")
+    let plain = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":13,"at":3,"kind":"error","text":"The turn failed"}"#.utf8))
+    #expect(plain.reason == nil && plain.resetsAt == nil && plain.resetText == nil)
+}
+
+@Test func aNoticeThatSaysTheAgentChangedCarriesBothAgentsAndAnyOtherNoticeNone() throws {
+    let switched = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":9,"at":1,"kind":"notice","text":"The agent changed from claude to codex.","switched":{"from":"claude","to":"codex"}}"#.utf8))
+    #expect(switched.switched == ChatEvent.Switched(from: "claude", to: "codex"))
+    let lost = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":10,"at":2,"kind":"notice","text":"new conversation","lostNativeId":"x"}"#.utf8))
+    #expect(lost.switched == nil)
+    // the feed shows it as the plain line it is
+    #expect(chatFeed([switched]) == [.line(id: "e9", text: "The agent changed from claude to codex.")])
 }

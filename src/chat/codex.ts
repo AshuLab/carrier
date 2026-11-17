@@ -7,11 +7,11 @@ import { ChatRefused, type ChatLaunch, type ChatChoice, type ChatCommand, type C
 // The Codex adapter of the chat runner: the user's own `codex app-server`, JSON-RPC over stdio, one JSON object per
 // line (docs/research/chat-spike.md). No npm dependency: the adapter spawns the binary and speaks the protocol itself.
 //
-// Written against codex-cli / app-server 0.153.4, which Codex marks as experimental: the protocol changes with the
+// Written against codex-cli / app-server 0.153.4 and pinned to 0.169.0, whose handshake, thread and model messages were checked without a turn (docs/research/switch-and-delegate-spike.md), which Codex marks as experimental: the protocol changes with the
 // version. The messages below are the ones the spike recorded; a notification this adapter does not know gives no
 // event, and a server request it does not know is answered with an error so that it never holds a turn. A version other
 // than this one is logged when the server says hello.
-export const CODEX_APP_SERVER_VERSION = '0.153.4';
+export const CODEX_APP_SERVER_VERSION = '0.169.0';
 
 const log = createScopedLogger('chat');
 
@@ -49,6 +49,8 @@ export type CodexChatDeps = {
   spawn: (binary: string, options: { cwd: string; env: NodeJS.ProcessEnv; args: string[] }) => CodexTransport;
   /** How long `open` waits for the chat MCP to say whether it started; the real Codex answers in milliseconds. Default 5000. */
   mcpWaitMs?: number;
+  /** How long a usage limit waits for `account/rateLimits/read` before its error goes out with the error's own text. Default 2000. */
+  limitWaitMs?: number;
 };
 
 const codexLoggedIn = (binary: string, env: NodeJS.ProcessEnv) =>
@@ -78,7 +80,7 @@ export const realCodexDeps: CodexChatDeps = { resolve: (command, env) => resolve
 
 export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, launch = {}, env, mcp }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env, mcp, instructions, child = false }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -86,9 +88,9 @@ export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner
         throw new ChatRefused(`Codex is not installed: ${command === undefined ? 'there is no "codex" on the path' : `"${command}" cannot be run`}`);
       }
       if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('Codex is not logged in; run "codex login" once to log in');
-      const conversation = new CodexConversation(options, binary);
+      const conversation = new CodexConversation(options, binary, child);
       try {
-        await conversation.start(deps, { folder, env, resume, launch, mcp });
+        await conversation.start(deps, { folder, env, resume, launch, mcp, instructions });
       } catch (error) {
         log.error('codex could not be started', error);
         await conversation.close();
@@ -112,8 +114,8 @@ class CodexConversation implements ChatConversation {
   private transport!: CodexTransport;
   private nextId = 1;
   private waiting = new Map<number, { resolve: (result: any) => void; reject: (error: Error) => void }>();
-  /** Approvals asked and not answered: the server's request id, and the decision each choice answers with. */
-  private pending = new Map<string, { requestId: number; decisions: Record<string, unknown> }>();
+  /** Approvals asked and not answered: the server's request id, the result each choice answers with, and the one that stops the call. */
+  private pending = new Map<string, { requestId: number; replies: Record<string, unknown>; cancel: unknown }>();
   /** The skills `skills/list` gave for the folder: what the person can invoke. */
   private skills: { name: string; description: string; shortDescription?: string; path: string }[] = [];
   private models: { model: string; displayName: string; defaultReasoningEffort?: string; supportedReasoningEfforts: { reasoningEffort: string }[] }[] = [];
@@ -129,14 +131,23 @@ class CodexConversation implements ChatConversation {
   private closing = false;
   private chosen: Record<string, string>;
   private binary: string;
+  /** A child session: its approvals offer no always-allow of a command. */
+  private child: boolean;
   /** The key the chat MCP is registered under, when it was handed over: its elicitations are accepted for the person. */
   private mcpServerName: string | undefined;
+  /** The tools of the chat MCP that only read: they run without asking, and any other tool of it asks the person. */
+  private readTools: string[] = [];
   mcpProblem: string | undefined;
+  appServerVersion: string | undefined;
   /** Called when the chat MCP reports that it started or failed, so `start` can stop waiting. */
   private mcpSettled = () => {};
+  private limitWaitMs = 2000;
+  /** The error of a usage limit seen in this turn, until it is emitted: the end of the turn waits for it. */
+  private limit: Promise<void> | undefined;
 
-  constructor(chosen: Record<string, string>, binary: string) {
+  constructor(chosen: Record<string, string>, binary: string, child: boolean) {
     this.chosen = chosen;
+    this.child = child;
     this.binary = binary;
     this.model = chosen.model ?? '';
     this.effort = chosen.effort ?? '';
@@ -144,19 +155,24 @@ class CodexConversation implements ChatConversation {
     this.sandbox = chosen.sandbox ?? 'workspace-write';
   }
 
-  async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string } | undefined }) {
+  async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp, instructions }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string; readTools?: string[] } | undefined; instructions: string | undefined }) {
     this.mcpServerName = mcp?.serverName;
+    this.readTools = mcp?.readTools ?? [];
+    this.limitWaitMs = deps.limitWaitMs ?? 2000;
     const settled = new Promise<void>((resolve) => (this.mcpSettled = resolve));
     this.transport = deps.spawn(this.binary, { cwd: folder, env, args: argsOf(launch) });
     this.transport.onLine((line) => this.receive(line));
     this.transport.onExit(() => this.ended());
     const hello = await this.request('initialize', { clientInfo: { name: 'carrier', title: 'Carrier', version: '0.0.0' } });
     const version = /\/(\d+\.\d+\.\d+)/.exec(String(hello?.userAgent))?.[1];
+    this.appServerVersion = version;
     if (version !== CODEX_APP_SERVER_VERSION) log.warn('codex app-server is not the version this adapter was written against', { found: version, expected: CODEX_APP_SERVER_VERSION });
     this.notify('initialized');
     const params = { cwd: folder, approvalPolicy: this.approvalPolicy, sandbox: this.sandbox, ...(this.chosen.model && { model: this.chosen.model }),
+      ...(instructions !== undefined && { developerInstructions: instructions }), // thread/start and thread/resume both take it
       // over the pipe, so that the token is in neither `argv` nor a config file
-      ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, default_tools_approval_mode: 'approve', http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
+      // `auto` leaves a tool that is not named under `tools` asking (and offering the session), the ones that read are approved
+      ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, default_tools_approval_mode: 'auto', ...(this.readTools.length > 0 && { tools: Object.fromEntries(this.readTools.map((name) => [name, { approval_mode: 'approve' }])) }), http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
     };
     const started = await this.request(resume === undefined ? 'thread/start' : 'thread/resume', resume === undefined ? params : { threadId: resume, ...params });
     this.nativeId = started.thread.id;
@@ -226,10 +242,10 @@ class CodexConversation implements ChatConversation {
   answer(approvalId: string, choiceId: string) {
     const ask = this.pending.get(approvalId);
     if (ask === undefined) throw new ChatRefused('That approval is not pending any more');
-    if (!(choiceId in ask.decisions)) throw new ChatRefused('That is not one of the choices');
+    if (!(choiceId in ask.replies)) throw new ChatRefused('That is not one of the choices');
     this.pending.delete(approvalId);
     this.emit({ kind: 'approval_answered', approvalId, choiceId });
-    this.respond(ask.requestId, { decision: ask.decisions[choiceId] });
+    this.respond(ask.requestId, ask.replies[choiceId]);
   }
 
   async interrupt() {
@@ -290,7 +306,7 @@ class CodexConversation implements ChatConversation {
   }
 
   private denyPending() {
-    for (const ask of this.pending.values()) this.respond(ask.requestId, { decision: 'cancel' });
+    for (const ask of this.pending.values()) this.respond(ask.requestId, ask.cancel);
     this.pending.clear();
   }
 
@@ -330,7 +346,11 @@ class CodexConversation implements ChatConversation {
     try {
       const m = JSON.parse(line) as { id?: number; method?: unknown; params?: any; result?: unknown; error?: { message?: unknown } };
       if (typeof m.method === 'string' && m.id !== undefined) this.serverRequest(m.id, m.method, m.params);
-      else if (typeof m.method === 'string') this.emit(...this.translate(m.method, m.params));
+      else if (typeof m.method === 'string') {
+        const events = this.translate(m.method, m.params);
+        if (Array.isArray(events)) this.emit(...events);
+        else events.then((late) => this.emit(...late), (error) => log.error('a codex message could not be handled', error));
+      }
       else if (m.id !== undefined) {
         const call = this.waiting.get(m.id);
         this.waiting.delete(m.id);
@@ -344,7 +364,7 @@ class CodexConversation implements ChatConversation {
 
   private serverRequest(requestId: number, method: string, params: any) {
     if (method === 'mcpServer/elicitation/request' && this.mcpServerName !== undefined && params?.serverName === this.mcpServerName) {
-      this.respond(requestId, { action: 'accept', content: {} }); // the person never answers for Carrier's own tools
+      this.elicitation(requestId, params);
       return;
     }
     if (method !== 'item/commandExecution/requestApproval') {
@@ -355,26 +375,59 @@ class CodexConversation implements ChatConversation {
     }
     const listed: unknown[] = Array.isArray(params?.availableDecisions) ? params.availableDecisions : [];
     const amendment = listed.find((d) => typeof d === 'object' && d !== null && 'acceptWithExecpolicyAmendment' in d);
-    const decisions: Record<string, unknown> = { accept: 'accept', decline: 'decline' }; // `decline` is not listed and works
+    const replies: Record<string, unknown> = { accept: { decision: 'accept' }, decline: { decision: 'decline' } }; // `decline` is not listed and works
     const choices: ChatChoice[] = [
       { id: 'accept', label: 'Allow', allow: true },
       { id: 'decline', label: 'Deny', allow: false },
     ];
-    if (amendment !== undefined) {
-      decisions.amend = amendment;
+    if (amendment !== undefined && !this.child) {
+      replies.amend = { decision: amendment };
       choices.push({ id: 'amend', label: `Always allow ${Array.isArray(params.proposedExecpolicyAmendment) ? params.proposedExecpolicyAmendment.join(' ') : 'this command'}`, allow: true });
     }
     if (listed.includes('cancel')) {
-      decisions.cancel = 'cancel';
+      replies.cancel = { decision: 'cancel' };
       choices.push({ id: 'cancel', label: 'Deny and stop the turn', allow: false });
     }
     const approvalId = String(requestId);
-    this.pending.set(approvalId, { requestId, decisions });
+    this.pending.set(approvalId, { requestId, replies, cancel: { decision: 'cancel' } });
     this.emit({ kind: 'approval', approvalId, tool: 'command', arg: typeof params?.command === 'string' ? params.command : undefined, choices });
   }
 
-  private translate(method: string, params: any): ChatEvent[] {
+  /** A call of the chat MCP that is not approved up front: a tool that reads is accepted, any other asks the person, who may allow it for the session when Codex offers that. */
+  private elicitation(requestId: number, params: any) {
+    const tool = params?._meta?.tool_name;
+    if (typeof tool !== 'string') {
+      log.warn('codex asked about a tool of the chat MCP without naming it', { requestId });
+      this.respond(requestId, { action: 'decline' });
+      return;
+    }
+    if (this.readTools.includes(tool)) {
+      this.respond(requestId, { action: 'accept', content: {} });
+      return;
+    }
+    const input = params._meta.tool_params;
+    const hasInput = typeof input === 'object' && input !== null && !Array.isArray(input);
+    const replies: Record<string, unknown> = { accept: { action: 'accept', content: {} }, decline: { action: 'decline' } };
+    const choices: ChatChoice[] = [
+      { id: 'accept', label: 'Allow', allow: true },
+      { id: 'decline', label: 'Deny', allow: false },
+    ];
+    if (Array.isArray(params._meta.persist) && params._meta.persist.includes('session')) {
+      replies.session = { action: 'accept', content: {}, _meta: { persist: 'session' } };
+      choices.splice(1, 0, { id: 'session', label: 'Allow for this session', allow: true });
+    }
+    const approvalId = String(requestId);
+    this.pending.set(approvalId, { requestId, replies, cancel: { action: 'cancel' } });
+    // `tool` ends with the tool's name, which is what the host matches an approval by
+    this.emit({ kind: 'approval', approvalId, tool: `mcp__${this.mcpServerName}__${tool}`, ...(hasInput && { arg: JSON.stringify(input), input }), choices });
+  }
+
+  private translate(method: string, params: any): ChatEvent[] | Promise<ChatEvent[]> {
     switch (method) {
+      case 'error':
+        // A limit Codex does not retry: its reset has to be asked for, so the error goes out when that answers.
+        if (params?.willRetry === false && isUsageLimit(params?.error)) this.limit ??= this.announceLimit(params.error.message);
+        return [];
       case 'turn/started':
         if (typeof params?.turn?.id === 'string') this.turnId = params.turn.id;
         return [];
@@ -415,22 +468,60 @@ class CodexConversation implements ChatConversation {
         // One update per model call: the turn's usage is what its calls added up to.
         for (const [key, value] of Object.entries((params?.tokenUsage?.last ?? {}) as Record<string, unknown>)) if (typeof value === 'number') this.usage[key] = (this.usage[key] ?? 0) + value;
         return [];
-      case 'turn/completed':
-        return this.turnEnd(params?.turn);
+      case 'turn/completed': {
+        if (this.limit === undefined && isUsageLimit(params?.turn?.error)) this.limit = this.announceLimit(params.turn.error.message);
+        if (this.limit === undefined) return this.turnEnd(params?.turn);
+        const announced = this.limit;
+        return announced.then(() => {
+          this.limit = undefined;
+          if (!this.turning) return []; // the process ended during the wait, and `ended` already closed the turn
+          return this.turnEnd(params?.turn, true);
+        });
+      }
       default:
         return [];
     }
   }
 
-  private turnEnd(turn: { status?: unknown; error?: { message?: unknown } } | undefined): ChatEvent[] {
+  /** The `error` of a usage limit, with the reset of the window that is full and resets last, else the error's own words for it. */
+  private async announceLimit(message: unknown) {
+    const text = typeof message === 'string' && message !== '' ? message : 'The usage limit was reached';
+    const resetsAt = await this.limitResetsAt();
+    if (!this.turning) return; // the process ended during the wait, and `ended` already closed the turn
+    const resetText = resetsAt === undefined ? /\btry again at\b.*$/i.exec(text)?.[0].replace(/\.$/, '') : undefined;
+    this.emit({ kind: 'error', text, reason: 'usage_limit', ...(resetsAt !== undefined && { resetsAt }), ...(resetText !== undefined && { resetText }) });
+  }
+
+  /** Milliseconds since the epoch, from `account/rateLimits/read`; nothing when no window is full, the read fails or it takes longer than `limitWaitMs`. */
+  private async limitResetsAt(): Promise<number | undefined> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const read = await Promise.race([this.request('account/rateLimits/read', undefined), new Promise<void>((resolve) => (timer = setTimeout(resolve, this.limitWaitMs)))]);
+      const snapshots = [read?.rateLimits, ...Object.values((read?.rateLimitsByLimitId ?? {}) as Record<string, unknown>)] as ({ primary?: Window | null; secondary?: Window | null } | null | undefined)[];
+      const resets = snapshots.flatMap((snapshot) => [snapshot?.primary, snapshot?.secondary]).flatMap((w) => (typeof w?.usedPercent === 'number' && w.usedPercent >= 100 && typeof w.resetsAt === 'number' ? [w.resetsAt] : []));
+      return resets.length === 0 ? undefined : Math.max(...resets) * 1000; // the account is limited until the last full window resets
+    } catch (error) {
+      log.warn('codex did not give its rate limits', { error: String(error) });
+      return undefined;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private turnEnd(turn: { status?: unknown; error?: { message?: unknown } } | undefined, limitAnnounced = false): ChatEvent[] {
     const outcome = turn?.status === 'completed' ? 'ok' : turn?.status === 'interrupted' ? 'interrupted' : 'error';
     const usage = this.usage;
     this.turning = false;
     this.turnId = undefined;
     this.usage = {};
     const events: ChatEvent[] = [];
-    if (outcome === 'error') events.push({ kind: 'error', text: typeof turn?.error?.message === 'string' ? turn.error.message : 'The turn failed' });
+    if (outcome === 'error' && !limitAnnounced) events.push({ kind: 'error', text: typeof turn?.error?.message === 'string' ? turn.error.message : 'The turn failed' });
     events.push({ kind: 'turn_end', outcome, model: this.model, usage });
     return events;
   }
 }
+
+type Window = { usedPercent?: unknown; resetsAt?: unknown };
+
+/** The `codexErrorInfo` of an account that ran out. A rate limit Codex retries is `rateLimitExceeded`, or a 429 in `responseTooManyFailedAttempts`: neither is this. */
+const isUsageLimit = (error: { codexErrorInfo?: unknown } | null | undefined) => error?.codexErrorInfo === 'usageLimitExceeded';

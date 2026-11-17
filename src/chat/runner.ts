@@ -34,17 +34,37 @@ export type BackgroundTask = { id: string; kind: string; description: string };
 
 export type ChatEvent =
   | { kind: 'user'; text: string; /** The name of the command invoked, when the message invoked one. */ command?: string }
-  | { kind: 'assistant'; text: string } // a finished message
-  | { kind: 'reasoning'; text: string } // one finished thinking block, before the answer of its turn; never streamed
+  // `parentCallId` is the call that launched the subagent the event was made in; absent for the main agent's own
+  | { kind: 'assistant'; text: string; parentCallId?: string } // a finished message
+  | { kind: 'reasoning'; text: string; parentCallId?: string } // one finished thinking block, before the answer of its turn; never streamed
   | { kind: 'delta'; text: string } // streaming, never stored
-  | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err' }
-  | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; /** Set when the approval is the agent asking questions: the person answers them with `answers`. */ questions?: ChatQuestion[] }
+  | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err'; parentCallId?: string }
+  // A subagent's life (a `local_agent` task of the provider), joined to its launching call by `callId`; `taskId` is what stopping it takes.
+  | {
+      kind: 'task';
+      callId: string;
+      taskId: string;
+      state: 'started' | 'progress' | 'completed' | 'failed' | 'stopped';
+      agentType?: string;
+      /** What the subagent was launched with (its title) or, in a progress event, what it is doing. */
+      text?: string;
+      lastTool?: string;
+      tools?: number;
+      tokens?: number;
+      ms?: number;
+      background?: boolean;
+      /** The call of the subagent that launched this one; absent for one the main agent launched. */
+      parentCallId?: string;
+    }
+  | { kind: 'approval'; approvalId: string; tool: string; arg?: string; /** What the adapter hands the host to word the approval from (a delegation's agent, model and task); never stored. */ input?: Record<string, unknown>; choices: ChatChoice[]; /** Set when the approval is the agent asking questions: the person answers them with `answers`. */ questions?: ChatQuestion[] }
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; /** Question text to the answer; a multiple choice joins its picks with a comma. */ answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }
+  /** A turn the provider opened itself, with no message from the person (a background subagent ended and the SDK answers it). The host's own: never stored, never shown. */
+  | { kind: 'turn_start' }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
   | { kind: 'background'; /** Every task the agent has running in the background (a command, a monitor, a subagent) after the change; the whole set each time, never stored. */ tasks: BackgroundTask[] }
-  | { kind: 'error'; text: string }
-  | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string }; // said by the host, never by an adapter: a plain line, not a failure
+  | { kind: 'error'; text: string; /** Set when the provider says the account ran out, which a retried rate limit never is. */ reason?: 'usage_limit'; /** When it resets, in ms since the epoch, when the provider gives a timestamp. */ resetsAt?: number; /** When it resets, in the provider's own words, when it gives only those. Never set with `resetsAt`. */ resetText?: string }
+  | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string; /** Set when the notice is a switch of agent, naming the agents as the config does. */ switched?: { from: string; to: string } }; // said by the host, never by an adapter: a plain line, not a failure
 
 export interface ChatConversation {
   readonly options: ChatOption[];
@@ -56,14 +76,16 @@ export interface ChatConversation {
   readonly startedOver?: boolean;
   /** Set when the chat MCP was handed over and the provider could not start or reach it: the conversation works without it, and the host says so. */
   readonly mcpProblem?: string;
+  /** The version of the Codex app-server behind this conversation, as `1.2.3`; none for another provider or when it did not say. */
+  readonly appServerVersion?: string;
   /** The agent's process, when it leads a group of its own: what the next host needs to sweep it if this one dies. `command` is what it was started with. */
   readonly process?: { pid: number; pgid: number; command: string };
   /** `text` is the message, or what follows the command's name when one is invoked (the provider's own way of invoking it is the adapter's). */
   send(text: string, command?: ChatCommand): void;
   answer(approvalId: string, choiceId: string, answers?: Record<string, string>): void;
   interrupt(): Promise<void>;
-  /** Stops the tasks the agent has running in the background, or just the one with this id; a provider that has none does not offer it. */
-  stopBackground?(taskId?: string): Promise<void>;
+  /** Ends one running subagent by the task id its `task` event carried; the end itself arrives as that task's `stopped` event. Absent when the provider has no subagents to stop. */
+  stopTask?(taskId: string): Promise<void>;
   setOption(id: string, value: string): Promise<void>;
   close(): Promise<void>;
   onEvent(listener: (event: ChatEvent) => void): void;
@@ -76,7 +98,7 @@ export type ChatLaunch = Pick<Account, 'autoCompact' | 'idleCompaction' | 'launc
 
 export interface ChatRunner {
   /** Rejects with a `ChatRefused` when the provider is not installed, not logged in, or does not know the id to resume. */
-  open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv; /** The chat MCP of this one conversation, by the key it is registered under, its URL and its bearer token (never logged, never in `argv`); none for a probe. */ mcp?: { serverName: string; url: string; token: string } }): Promise<ChatConversation>;
+  open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv; /** The chat MCP of this one conversation, by the key it is registered under, its URL and its bearer token (never logged, never in `argv`); none for a probe. */ mcp?: { serverName: string; url: string; token: string; /** The tools of the chat MCP that only read, by name: the adapter lets them run without asking. */ readTools?: string[] }; /** What the conversation opens with as its instructions (the handoff of a switched session, ADR 0032): Claude's appended system prompt, Codex's developer instructions. Never in front of a message. */ instructions?: string; /** Set for a child session (ADR 0033): its approvals offer Allow and Deny and none of the provider's suggestions, which would raise what it may do. */ child?: boolean }): Promise<ChatConversation>;
 }
 
 /** A failure whose message is for the person, in words: it travels to the client as it is. Any other error is logged and reaches the client as "internal error". */

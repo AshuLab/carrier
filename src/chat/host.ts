@@ -14,6 +14,9 @@ import { ghPullRequests, type PullRequests } from './pull-requests.ts';
 import { openChatDatabase } from './db.ts';
 import { idleExit } from './idle.ts';
 import { capabilities } from './mcp/capabilities.ts';
+import { agents } from './mcp/agents.ts';
+import { delegateStart, delegateWait } from './mcp/delegate.ts';
+import { history } from './mcp/history.ts';
 import { McpSessionRegistry, startMcpServer, type McpServer } from './mcp.ts';
 import { startChatServer } from './server.ts';
 import { realMachine, type Machine } from '../doctor/detect.ts';
@@ -88,6 +91,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   const db = openChatDatabase(join(stateDir, 'chat.db'));
   await sweepDeadHost(db, deps.processes); // the lock is ours, so any recorded process belongs to a host that died
   let closeServer = () => {};
+  const mcpTools = [capabilities, history, agents, delegateStart, delegateWait];
   let mcpServer: McpServer | undefined;
   const mcpRegistry = new McpSessionRegistry(deps.clock);
   let idle: ReturnType<typeof idleExit> | undefined;
@@ -100,7 +104,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   };
   const usage = createUsage({ ports: { ...deps.usage.ports, clock: deps.clock }, history: deps.usage.history, db, folder: carrierHome(), agents: () => chatAgentsOf(settings.agents), env: deps.env });
   const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock });
-  const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, pulls: deps.pulls, onLiveChange: () => idle?.recheck(), mcp: { registry: mcpRegistry, url: () => mcpServer?.url } });
+  const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, pulls: deps.pulls, onLiveChange: () => idle?.recheck(), mcp: { registry: mcpRegistry, url: () => mcpServer?.url, readTools: mcpTools.filter((tool) => tool.access !== 'actsAsSession').map((tool) => tool.name) } });
   // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
   let cancelPass = () => {};
   let stopped = false;
@@ -143,7 +147,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   idle = idleExit({ clock: deps.clock, afterMs: deps.idleMs, live: sessions.liveCount, exit: stop });
   // The MCP is up before the socket answers; one that cannot bind leaves the host without it, and each session says so.
   try {
-    mcpServer = await deps.startMcp({ registry: mcpRegistry, sessions: sessions.mcpView, tools: [capabilities] });
+    mcpServer = await deps.startMcp({ registry: mcpRegistry, sessions: sessions.mcpView, tools: mcpTools });
   } catch (error) {
     log.error('the chat MCP could not start; sessions open without it', error);
   }

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4d11c126-a048-45c3-9555-a20218a1e50a",
+  "id": "e6fec177-9f7a-42db-bb96-bf1f3b8e9a9a",
   "prevId": "3ba9faac-f302-4acb-9c73-9dbeecafa93e",
   "tables": {
     "chat_events": {
@@ -94,6 +94,27 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "harness": {
+          "name": "harness",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "agent": {
+          "name": "agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "nativeId": {
+          "name": "nativeId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "model": {
@@ -308,48 +329,6 @@
         },
         "keptAt": {
           "name": "keptAt",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "prRepo": {
-          "name": "prRepo",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "prNumber": {
-          "name": "prNumber",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "prUrl": {
-          "name": "prUrl",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "prState": {
-          "name": "prState",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "prChecks": {
-          "name": "prChecks",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "prCheckedAt": {
-          "name": "prCheckedAt",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,

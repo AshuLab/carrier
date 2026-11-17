@@ -35,10 +35,19 @@ struct ConversationView: View {
     private let cancelled: (SessionPlan) -> Void
     /// The last shortcut that asked something of the conversation (focus the box, the latest message, fold the tools, copy the answer).
     private let request: ConversationRequest?
+    /// The subagent views open over the conversation, the window's (`WindowShell.subagents`): the last one is shown. The header says of it
+    /// what `header` is told, which is the window's too.
+    @Binding private var subagents: [String]
+    @Binding private var header: SubagentHeader?
 
-    init(sessionId: String, draft: NewSessionModel? = nil, request: ConversationRequest? = nil, cancelled: @escaping (SessionPlan) -> Void = { _ in }) {
+    init(
+        sessionId: String, draft: NewSessionModel? = nil, request: ConversationRequest? = nil, subagents: Binding<[String]> = .constant([]),
+        header: Binding<SubagentHeader?> = .constant(nil), cancelled: @escaping (SessionPlan) -> Void = { _ in }
+    ) {
         self.draft = draft
         self.request = request
+        _subagents = subagents
+        _header = header
         self.cancelled = cancelled
         let model = ConversationModel(host: SocketChatHost(), sessionId: sessionId, memory: .userDefaults)
         model.onQuotaError = { AppUsage.refresher.limitHit() }
@@ -46,6 +55,37 @@ struct ConversationView: View {
     }
 
     var body: some View {
+        conversation
+            // the conversation stays under the subagent view, so Back finds its feed and its place as they were; nothing under it takes keys or taps
+            .disabled(subagents.isEmpty == false)
+            .accessibilityHidden(subagents.isEmpty == false)
+            .overlay {
+                if subagents.isEmpty == false {
+                    Group {
+                        if let work = model.openSubagent {
+                            SubagentView(work: work, backToChat: { subagents = [] })
+                        } else {
+                            LoadingRow()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.themeWindow)
+                }
+            }
+            .environment(\.openSubagent) { subagents.append($0) }
+            .onChange(of: subagents, initial: true) { before, stack in
+                model.show(subagent: stack.last)
+                if stack.isEmpty == false {
+                    boxFocused = false
+                } else if before.isEmpty == false {
+                    // back in the conversation the box is where the person goes on, as when the session opened (the box stays mounted under the subagent view, so its `onAppear` does not run again)
+                    boxFocused = true
+                }
+            }
+            .onChange(of: model.openSubagent?.header) { _, shown in header = shown }
+    }
+
+    private var conversation: some View {
         // derived once per evaluation: the feed the tools' mode and the reasoning setting leave, with the closing lines folded into their messages
         let shown = foldingClosingLines(visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning))
         return ScrollView {
@@ -172,6 +212,7 @@ struct ConversationView: View {
         case .focusBox: boxFocused = true
         case .dictate: dictations += 1
         case .stopAgent: if model.busy { Task { await model.stop() } }
+        case .stopSubagent: Task { await model.stopOpenSubagent() }
         case .jumpToLatest: position.scrollTo(edge: .bottom)
         case .toggleToolFolds:
             flipped = togglingToolGroups(in: visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning), flipped: flipped)
@@ -252,7 +293,7 @@ private struct ConversationBox: View {
                 if model.refusedText == nil {
                     Text(refusal).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled)
                 } else {
-                    BannerView(banner: refusalBanner(agent: model.agent, reason: refusal), copyDetails: false, retry: { Task { await model.retry() } })
+                    BannerView(banner: refusalBanner(agent: ProviderIdentityStore.shared.shortName(of: model.agent), reason: refusal), agent: model.agent, copyDetails: false, retry: { Task { await model.retry() } })
                 }
             }
         }
@@ -327,7 +368,11 @@ struct FeedRowView: View {
         case .turnEnd(_, let summary):
             Text(summary.text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
         case .tools(let id, let group):
-            ChatToolGroupView(id: id, group: group, live: work.live, waiting: work.waiting, since: work.since, flipped: $flipped)
+            // a subagent keeps the line live while it runs, after the turn that launched it ended too
+            VStack(alignment: .leading, spacing: 6) {
+                ChatToolGroupView(id: id, group: group, live: work.live || group.runningSubagents > 0, waiting: work.waiting, since: work.since, flipped: $flipped)
+                ForEach(group.subagents) { SubagentRowView(subagent: $0) }
+            }
         case .approval:
             EmptyView() // drawn over the message box, never in the feed (`visibleFeed`)
         case .decided(_, let text, let allow):
@@ -335,7 +380,7 @@ struct FeedRowView: View {
         case .line(_, let text):
             Text(text).codeFont(12).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         case .error(_, let text):
-            BannerView(banner: failedTurnBanner(agent: agent, error: text), copyDetails: true, retry: offersWayOut ? retry : nil)
+            BannerView(banner: failedTurnBanner(agent: ProviderIdentityStore.shared.shortName(of: agent), error: text), agent: agent, copyDetails: true, retry: offersWayOut ? retry : nil)
         case .stopped:
             HStack(spacing: 6) {
                 Text("\u{25A0} You stopped this turn").foregroundStyle(.secondary)
@@ -462,6 +507,8 @@ struct MessageTimeLabel: View {
 /// the way out as text that lights a pill under the pointer.
 struct BannerView: View {
     let banner: FailureBanner
+    /// The agent that failed or was refused: when its account has an icon, a color or a label, its mark stands before the title.
+    var agent: String?
     /// Copy details puts the provider's text on the pasteboard; a failed turn has it, a refusal says its reason in full already.
     let copyDetails: Bool
     /// Nil when the turn is no longer the last thing: the banner is then only a record.
@@ -470,8 +517,14 @@ struct BannerView: View {
 
     private var tint: Color { banner.hint == nil ? .red : .orange }
 
+    /// An account with none of the three shows the title alone, as it always did.
+    private var markedAccount: String? {
+        guard let agent, ProviderIdentityStore.shared.identity(of: agent) != .none else { return nil }
+        return agent
+    }
+
     var body: some View {
-        NoticeCard(symbol: "exclamationmark", tint: tint, title: banner.title, detail: banner.detail, hint: banner.hint) {
+        NoticeCard(symbol: "exclamationmark", tint: tint, title: banner.title, detail: banner.detail, hint: banner.hint, edge: true, account: markedAccount) {
             if copyDetails {
                 Button {
                     NSPasteboard.general.clearContents()

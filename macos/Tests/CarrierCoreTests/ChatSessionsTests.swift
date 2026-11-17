@@ -171,6 +171,22 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(rows.map(\.state) == [.idle, .idle])
 }
 
+/// The host says `working` for a turn and for a session held by running subagents after its turn ended in the same words, so the app
+/// draws both alike: the row, the clock and the menu say working, and Archive is off with the reason.
+@MainActor @Test func aSessionTheHostReportsWorkingAfterItsTurnEndedIsDrawnWorkingWithArchiveOff() throws {
+    let rows = sessionRows([try session("turn", state: "working"), try session("subagents", state: "working")])
+    #expect(rows.map(\.state) == [.working, .working])
+    let row = rows[1]
+    #expect(WorkingClock().since(row) == row.updatedAt)
+    #expect(archiveBlock(row) == "Stop the session to archive it")
+    let menu = sessionMenu(row).flatMap { $0 }
+    #expect(menu.first { $0.title == "Archive" }?.disabledReason == "Stop the session to archive it")
+    #expect(menu.first { $0.title == "Stop" }?.disabledReason == nil)
+    // the same session once the last subagent ended: idle, Archive on
+    let idle = sessionRows([try session("subagents", state: "idle")])[0]
+    #expect(idle.state == .idle && archiveBlock(idle) == nil)
+}
+
 @Test func aSessionThatIsPreparingShowsAtOnceAsWorkingWhetherOrNotItsAgentHasStarted() throws {
     let rows = sessionRows([try session("p", state: "preparing", live: false), try session("q", state: "preparing", live: true)])
     #expect(rows.map(\.state) == [.working, .working])
@@ -770,7 +786,7 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     let working = "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01"
     try await host.archive(idle, true)
     #expect(try await host.list(archived: true).count == 3)
-    #expect(try await host.list(archived: false).count == 15)
+    #expect(try await host.list(archived: false).count == 16)
     try await host.archive(idle, false)
     #expect(try await host.list(archived: true).count == 2)
     await #expect(throws: ControlError.remote("This session is working; interrupt or close it first, then archive it")) { try await host.archive(working, true) }

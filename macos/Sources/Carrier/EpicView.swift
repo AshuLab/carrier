@@ -10,6 +10,10 @@ struct EpicView: View {
     let filesChanged: Int
     let sessions: SessionList
     @Binding var folds: SessionFolds
+    /// The subagent views open over the tab, the window's (`WindowShell.subagents`; a slice card opens the one of its lane), and what the
+    /// window's header says of it.
+    @Binding var subagents: [String]
+    @Binding var subagentHeader: SubagentHeader?
     /// The `files` reply, once the window asks for it.
     var files: FilesReply?
     /// What a queued epic will do; nil for any other.
@@ -26,6 +30,7 @@ struct EpicView: View {
     @State private var atEnd = true
 
     var body: some View {
+        let work = subagents.last.flatMap { subagentWork(lane: $0, in: sessions, epic: epicHeader(subject, reply: reply).title) }
         ScrollViewReader { page in
             scroll
                 // the sessions run oldest to newest: the page opens on the newest, and follows a new one while it sits at the end
@@ -37,6 +42,22 @@ struct EpicView: View {
                 .onChange(of: sessions.sections.last?.id) {
                     if atEnd, tab == .agentOutput { withAnimation { page.scrollTo(SessionSectionsView.endID, anchor: .bottom) } }
                 }
+        }
+        // the tab stays under the subagent view, so Back finds it as it was; nothing under it takes keys or taps
+        .disabled(subagents.isEmpty == false)
+        .accessibilityHidden(subagents.isEmpty == false)
+        .overlay {
+            if let work {
+                SubagentView(work: work, backToChat: { subagents = [] }, backTitle: "Back to Agent output")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.themeWindow)
+            }
+        }
+        .environment(\.openSubagent) { subagents = [$0] }
+        // a card whose lane is gone leaves no view open
+        .onChange(of: work?.header, initial: true) { _, shown in
+            subagentHeader = shown
+            if shown == nil { subagents = [] }
         }
     }
 

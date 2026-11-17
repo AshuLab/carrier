@@ -202,3 +202,14 @@ test('a session with no pull request is looked for again after three minutes and
   await settle();
   expect(s.pulls.finds).toHaveLength(2);
 });
+
+test('a list with no sessions does not use up the window of the sweep: the first one that has some starts it', async () => {
+  const s = setup({ [ORIGIN]: 'git@github.com:AshuLab/carrier.git', 'rev-parse --abbrev-ref HEAD': 'feat/x\n', [DEFAULT]: 'origin/main' });
+  s.pulls.found['AshuLab/carrier:feat/x'] = pr(7, 'open');
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 5));
+  s.data.kick([]);
+  s.clock.time = 1_000; // still inside the window the empty list would have taken
+  s.data.kick([s.row()]);
+  await settle();
+  expect(s.data.view(s.row()).pr?.number).toBe(7);
+});

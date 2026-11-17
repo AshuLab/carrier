@@ -139,7 +139,8 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
     /** A list was asked for: the sweep that fills the rows in starts, unless one ran a moment ago or is running. */
     kick(rows: Found[]) {
       const now = clock.now();
-      if (sweeping || now - sweptAt < SWEEP_EVERY_MS) return;
+      // a list with no sessions has nothing to read, and must not use up the window of the first one that has some
+      if (rows.length === 0 || sweeping || now - sweptAt < SWEEP_EVERY_MS) return;
       sweptAt = now;
       sweeping = true;
       void sweep(rows.slice(0, MAX_SESSIONS))

@@ -21,10 +21,14 @@ import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, previewOf, titleOf } from './transcript.ts';
 import { checkName, suggestName } from './names.ts';
 import { createProject, projectFolder, type createProjects } from './projects.ts';
+import type { PullRequests } from './pull-requests.ts';
+import { createSessionData } from './session-data.ts';
 import { createWorktree, deleteWorktree, previewWorktree, removeWorktree } from './worktree.ts';
 import { checkout, fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
+
+const noPullRequests: PullRequests = { find: async () => null, states: async () => new Map() };
 
 export const IDLE_CLOSE_MS = 60_000;
 
@@ -39,7 +43,7 @@ type State = (typeof sessions.$inferSelect)['state'];
 /** Where a session works: the folder it was opened in, or a worktree made for it from that base folder. */
 export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: string; from: string; base: string; path: string };
 
-export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath'> & {
+export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'prRepo' | 'prNumber' | 'prUrl' | 'prState' | 'prChecks' | 'prCheckedAt' | 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath'> & {
   workspace: SessionWorkspace;
   /** `running` while the host prepares the session, `failed` when a step failed and the plan is kept, null otherwise. */
   preparation: 'running' | 'failed' | null;
@@ -81,6 +85,8 @@ export type ChatSessionsDeps = {
   probes?: HealthProbes;
   /** What the `providers` request asks of the machine; the real one unless a test replaces it. */
   machine?: Machine;
+  /** Where a session's pull request is read from; without it a row has none unless it was found before. */
+  pulls?: PullRequests;
   /** The lifecycle's ages now: `list` says from them when the clock will delete each archived session. */
   ages: () => SessionAges;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
@@ -110,7 +116,8 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, onLiveChange, mcp }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, onLiveChange, mcp, pulls = noPullRequests }: ChatSessionsDeps) {
+  const data = createSessionData({ db, git, pulls, clock });
   const listed = () => (typeof agents === 'function' ? agents() : agents);
   const health = createHealth({ agents, clock, binaryFound, probes });
   const providers = createProviders({ clock, machine, binaryFound });
@@ -127,7 +134,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (found === undefined) throw new ChatRefused('There is no such session');
     return found;
   };
-  const summary = ({ keptAt: _keptAt, options: _options, pid: _pid, pgid: _pgid, command: _command, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
+  const summary = ({ keptAt: _keptAt, prRepo: _prRepo, prNumber: _prNumber, prUrl: _prUrl, prState: _prState, prChecks: _prChecks, prCheckedAt: _prCheckedAt, options: _options, pid: _pid, pgid: _pgid, command: _command, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
     ...rest,
     preparation: rest.state === 'preparing' ? 'running' : plan === null ? null : 'failed',
     workspace: workspaceKind === 'worktree' ? { kind: 'worktree', branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase!, path: worktreePath! } : { kind: 'folder' },
@@ -219,6 +226,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const startedAt = live.turn?.startedAt ?? clock.now();
       db.insert(chatTurns).values({ sessionId, startedAt, model: event.model ?? null, outcome: event.outcome, durationMs: clock.now() - startedAt, toolCalls: live.turn?.toolCalls ?? 0, usage: event.usage ?? null }).run();
       live.turn = undefined;
+      void data.afterTurn(sessionId);
     }
     touch(sessionId, live, event.kind === 'approval' ? 'waiting_approval' : event.kind === 'turn_end' ? 'idle' : event.kind === 'approval_answered' ? 'working' : live.state);
   };
@@ -523,14 +531,16 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       health: () => health({}),
     },
 
-    /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
+    /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `diff` (lines added and removed, null when none or not yet read) and `pr` (its pull request: `repo`, `number`, `url`, `state` and `checks`; null while none is known; see `session-data.ts`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
     list: ({ archived = false }: { archived?: boolean }) => {
       const { archiveAfterDays, deleteAfterDays } = ages();
+      const found = db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all();
+      if (archived === false) data.kick(found);
       return {
-        sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => {
+        sessions: found.map((found) => {
           const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? found.lastActiveAt + deleteAfterDays * DAY : null;
           const kept = found.keptAt !== null && dueAt !== null && clock.now() >= dueAt; // a session the clock no longer considers (ages raised or never) is not kept
-          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id) };
+          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id), ...data.view(found) };
         }),
       };
     },

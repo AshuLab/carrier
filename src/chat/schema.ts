@@ -26,6 +26,12 @@ export const sessions = sqliteTable('sessions', {
   lastActiveAt: integer().notNull(),
   archived: integer({ mode: 'boolean' }).notNull().default(false),
   keptAt: integer(), // ms since epoch: when the clock's delete spared this archived session for unsaved work; null otherwise
+  prRepo: text(), // `owner/name` of the pull request the session is linked to; the five below are null until one is found, and stay once it is
+  prNumber: integer(),
+  prUrl: text(),
+  prState: text({ enum: ['open', 'draft', 'merged', 'closed'] }),
+  prChecks: text({ enum: ['passing', 'failing', 'pending'] }),
+  prCheckedAt: integer(), // ms since epoch: when GitHub last said how it is; a merged or closed one is not asked again
 });
 
 /**

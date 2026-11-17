@@ -368,7 +368,8 @@ test('open with a worktree makes it under Carrier home on carrier/<name> from a 
   expect(base).toMatchObject({ head: 'feat/x', status: [' M a.ts'] });
   const verbs = new Set(git.calls.map((call) => call.args.find((arg) => arg !== '--no-optional-locks')));
   expect([...verbs].filter((verb) => ['checkout', 'switch', 'stash', 'commit', 'reset', 'merge', 'clean'].includes(verb!))).toEqual([]);
-  expect(git.calls.every((call) => call.folder === repo)).toBe(true);
+  // what is made and changed is made in the base; counting the session's lines (`diff`, `merge-base`) reads its worktree
+  expect(git.calls.filter((call) => !['diff', 'merge-base'].includes(call.args[0]!)).every((call) => call.folder === repo)).toBe(true);
 
   // a repository without a GitHub origin goes under local/<folder name>
   mkdirSync(join(root, 'solo'));

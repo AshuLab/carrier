@@ -20,6 +20,12 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   Its steps (`clone` or `fetch` through `projects.cloneRepo`, whose latest git progress line the `events` reply carries as `progress`, never stored) run in the background and are stored as `step` events.
   `retryPreparation` repeats a failed one from where it stopped (the worktree recorded on the session and a checkout done are reused).
   `cancelPreparation` aborts the running step, deletes the session like a delete does and answers the plan ([ADR 0018](../../docs/adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
+- `session-data.ts` and `pull-requests.ts`: what a row of `list` says besides the conversation, `diff` and `pr`.
+  The lines a session changed come from `git diff --numstat` (read-only, with the repository's own diff and text filters off), counted from where its worktree was cut or where its folder left the default branch.
+  Its pull request is looked for once, by the branch, with the person's own `gh` login (ADR 0015) and stored on the session (`prRepo`, `prNumber`, `prUrl`, `prState`, `prChecks`, `prCheckedAt`): after that only its state is asked again, by number and one GraphQL request for all the open ones, every minute while a list is asked for.
+  A merged or closed one is final, and gives way only to a newer open one on the same branch.
+  A `list` never waits for either: it answers with what is known and starts a sweep (at most every 15 seconds) that fills in the next; a turn ending reads that session's at once.
+  Without `gh`, a network or an origin on GitHub a row simply has no pull request.
 - `plan.ts`: the plan's request schema and the step types.
 - `runner.ts`: the chat runner port, with `fake.ts` its test double; `claude.ts` and `codex.ts` are the Claude and Codex adapters.
 - `folder.ts`: the check of a session's folder, never inside `<folder>/engine/` (and `checkProjectsFolder`, the same rule for the projects folder).

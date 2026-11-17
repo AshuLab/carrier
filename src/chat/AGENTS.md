@@ -34,6 +34,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   `defineTool`: every tool declares its access level.
   A tool is listed and callable only for a token with the capability its access level needs: `delegate_start` (`mcp/delegate.ts`, `actsAsSession`) needs `act`, which no session receives yet.
   The toolkits are under `mcp/` (`capabilities`, `history`, `agents` and `delegate`); the adapters take the `mcp` argument of `ChatRunner.open`.
+- `handoff.ts`: `buildHandoff`, the pure builder of a switched session's handoff from its stored events, 16,000 UTF-8 bytes on the whole text ([ADR 0032](../../docs/adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md)); it travels as `ChatRunner.open`'s `instructions`, which Claude appends to its preset system prompt and Codex sends as `developerInstructions`.
 - `levels.ts`: the permission scale as pure data (`levelOf`, `childOptions`), for the options a child may have ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)).
 - `health.ts`: the `health` request (whether `git`, `gh` and each agent's CLI work and are signed in, as `ready`, `missing`, `signedOut` or `unknown`, only the verdicts; [spec](../../docs/specs/chat-host.md)).
 - `git.ts`: the port to the machine's git (`realGit` in production, `FakeGit` in `fake.ts`).

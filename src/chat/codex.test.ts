@@ -92,7 +92,7 @@ function replay(lines: Line[]) {
 
 const deps = (transport: CodexTransport, over: Partial<CodexChatDeps> = {}): CodexChatDeps => ({ resolve: (command) => command ?? '/bin/codex', loggedIn: async () => true, spawn: () => transport, mcpWaitMs: 0, ...over });
 const mcp = { serverName: 'carrier-chat', url: 'http://127.0.0.1:1/mcp', token: 'secret-token' };
-const openWith = async (lines: Line[], args: { resume?: string; options?: Record<string, string>; mcp?: typeof mcp } = {}) => {
+const openWith = async (lines: Line[], args: { resume?: string; options?: Record<string, string>; mcp?: typeof mcp; instructions?: string } = {}) => {
   const { transport, seen } = replay(lines);
   const conversation = await codexChatRunner(deps(transport)).open({ folder: '/work', env: { A: 'b' }, ...args });
   const events: ChatEvent[] = [];
@@ -291,6 +291,17 @@ test('the chat MCP rides in the config of thread/start and of thread/resume, and
   const without = await openWith(main);
   expect(without.seen.written.find((m) => m.method === 'thread/start')!.params).not.toHaveProperty('config');
   expect(without.conversation.mcpProblem).toBeUndefined();
+});
+
+test('instructions go as developerInstructions in thread/start and in thread/resume, and are left out when none were given', async () => {
+  const started = await openWith(main, { instructions: 'HANDOFF TEXT' });
+  expect(started.seen.written.find((m) => m.method === 'thread/start')!.params.developerInstructions).toBe('HANDOFF TEXT');
+  const again = await openWith(resumed, { resume: threadId, instructions: 'HANDOFF TEXT' });
+  expect(again.seen.written.find((m) => m.method === 'thread/resume')!.params.developerInstructions).toBe('HANDOFF TEXT');
+  const without = await openWith(main);
+  expect(without.seen.written.find((m) => m.method === 'thread/start')!.params).not.toHaveProperty('developerInstructions');
+  const resumedWithout = await openWith(resumed, { resume: threadId });
+  expect(resumedWithout.seen.written.find((m) => m.method === 'thread/resume')!.params).not.toHaveProperty('developerInstructions');
 });
 
 test("the chat MCP's elicitations are accepted, id 0 included; another server's and every other unknown request get -32601", async () => {

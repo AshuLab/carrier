@@ -192,6 +192,19 @@ test('reasoning is stored redacted and bounded, and served only to a client that
   expect(plain.cursor).toBe(4);
 });
 
+test('the error of a usage limit is stored with its reason and its reset, and the words are cut like other text', async () => {
+  const { sessions, conversation, id } = await openOne();
+  sessions.send({ sessionId: id, text: 'hi' });
+  conversation.emit({ kind: 'error', text: 'limit', reason: 'usage_limit', resetsAt: 1_800_000_000_000 }, { kind: 'turn_end', outcome: 'error' });
+  sessions.send({ sessionId: id, text: 'again' });
+  conversation.emit({ kind: 'error', text: 'limit', reason: 'usage_limit', resetText: `resets 12:40pm ${'x'.repeat(5000)}` }, { kind: 'turn_end', outcome: 'error' });
+  const errors = sessions.events({ sessionId: id, limit: 50 }).events.filter((e) => e.kind === 'error');
+  expect(errors[0]).toMatchObject({ text: 'limit', reason: 'usage_limit', resetsAt: 1_800_000_000_000 });
+  expect((errors[0] as any).resetText).toBeUndefined();
+  expect((errors[1] as any).resetText.length).toBeLessThanOrEqual(4096);
+  expect((errors[1] as any).resetText.startsWith('resets 12:40pm')).toBe(true);
+});
+
 test('the stored events through mcpView: filtered by kind before the limit, one event of that session only, and how a tool call ended', async () => {
   const { sessions, conversation, id } = await openOne();
   sessions.send({ sessionId: id, text: 'hi' });

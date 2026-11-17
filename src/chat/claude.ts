@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { query as sdkQuery, type ModelInfo, type PermissionResult, type PermissionUpdate, type Query, type SDKMessage, type SDKUserMessage, type SlashCommand } from '@anthropic-ai/claude-agent-sdk';
+import { query as sdkQuery, USAGE_LIMIT_ERROR_PREFIXES, type ModelInfo, type PermissionResult, type PermissionUpdate, type Query, type SDKMessage, type SDKUserMessage, type SlashCommand } from '@anthropic-ai/claude-agent-sdk';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { endGroup, resolveAgentBinary } from './group.ts';
@@ -54,7 +54,7 @@ export const realClaudeDeps: ClaudeChatDeps = { query: sdkQuery, resolve: resolv
 
 export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, launch = {}, env, mcp }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env, mcp, instructions }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -66,7 +66,7 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
       const begin = async (from: string | undefined) => {
         const conversation = new ClaudeConversation(options, from);
         try {
-          await conversation.start(deps, { folder, binary, env, extraArgs, mcp });
+          await conversation.start(deps, { folder, binary, env, extraArgs, mcp, instructions });
         } catch (error) {
           await conversation.close();
           throw error;
@@ -118,6 +118,8 @@ class ClaudeConversation implements ChatConversation {
   /** Turns that Carrier started itself (an `/effort` change) and the person must not see. */
   private hidden = 0;
   private lastModel: string | undefined;
+  /** The reset the CLI's own message about a usage limit gave, held until the turn's result says whether it was one (epoch ms). */
+  private limitResetsAt: number | undefined;
   private closing = false;
   private pid: number | undefined;
   private command: string | undefined;
@@ -132,7 +134,7 @@ class ClaudeConversation implements ChatConversation {
     this.effort = chosen.effort ?? '';
   }
 
-  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs, mcp }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null>; mcp?: { serverName: string; url: string; token: string } }) {
+  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs, mcp, instructions }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null>; mcp?: { serverName: string; url: string; token: string }; instructions?: string }) {
     const spawnOwn = deps.spawn && ((o: Parameters<NonNullable<ClaudeChatDeps['spawn']>>[0]) => {
       const child = deps.spawn!(o);
       this.pid = (child as { pid?: number }).pid;
@@ -154,6 +156,8 @@ class ClaudeConversation implements ChatConversation {
         ...(this.chosen.permissionMode && { permissionMode: this.chosen.permissionMode as never }),
         ...(this.chosen.effort && { effort: this.chosen.effort as never }),
         ...(this.nativeId && { resume: this.nativeId }),
+        // the system prompt stays Claude Code's own and the instructions are appended to it: a handoff in front of a command made the model run its skill itself
+        ...(instructions !== undefined && { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: instructions } }),
         // The SDK writes `mcpServers` into the `argv` of the claude process, where any user of the machine can read it, so the header names the token and the token itself rides in that process's environment (Claude Code expands `${VAR}` in these headers). Never in `extraArgs`, never in a config file; its tools run without asking, as the chat host's own.
         ...(mcp && {
           mcpServers: { [mcp.serverName]: { type: 'http' as const, url: mcp.url, headers: { Authorization: `Bearer \${${MCP_TOKEN_ENV}}` } } },
@@ -327,6 +331,12 @@ class ClaudeConversation implements ChatConversation {
         // "<synthetic>" is the CLI's own message (a usage limit, an API error), not a model the person ran
         if (typeof m.message?.model === 'string' && m.message.model !== '<synthetic>') this.lastModel = m.message.model;
         const events: ChatEvent[] = [];
+        // A usage limit comes out once, as the `error` of the result: its words are not an answer
+        if (m.message?.model === '<synthetic>' && isUsageLimit(m.api_error, textOf(m.message.content))) {
+          const resets = m.api_error_params?.rate_limit_info?.resetsAt;
+          if (typeof resets === 'number') this.limitResetsAt = resets * 1000; // seconds in the CLI's record
+          return events;
+        }
         for (const block of Array.isArray(m.message?.content) ? m.message.content : []) {
           if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim() !== '') events.push({ kind: 'reasoning', text: block.thinking });
           if (block?.type === 'text' && typeof block.text === 'string' && block.text !== '') events.push({ kind: 'assistant', text: block.text });
@@ -350,7 +360,9 @@ class ClaudeConversation implements ChatConversation {
     }
   }
 
-  private turnEnd(m: { subtype?: string; is_error?: boolean; errors?: unknown; result?: unknown; usage?: unknown; total_cost_usd?: unknown; modelUsage?: unknown }): ChatEvent[] {
+  private turnEnd(m: { subtype?: string; is_error?: boolean; errors?: unknown; result?: unknown; api_error?: unknown; usage?: unknown; total_cost_usd?: unknown; modelUsage?: unknown }): ChatEvent[] {
+    const resetsAt = this.limitResetsAt;
+    this.limitResetsAt = undefined;
     if (this.hidden > 0) {
       this.hidden--;
       return [];
@@ -359,7 +371,13 @@ class ClaudeConversation implements ChatConversation {
     this.turning = false;
     this.interrupting = false;
     const events: ChatEvent[] = [];
-    if (m.is_error && !interrupted) events.push({ kind: 'error', text: failureText(m) });
+    if (m.is_error && !interrupted) {
+      const text = failureText(m);
+      if (isUsageLimit(m.api_error, typeof m.result === 'string' ? m.result : text)) {
+        const resetText = resetsAt === undefined ? /\bresets\b.*$/i.exec(text)?.[0].trim() : undefined;
+        events.push({ kind: 'error', text, reason: 'usage_limit', ...(resetsAt !== undefined && { resetsAt }), ...(resetText !== undefined && { resetText }) });
+      } else events.push({ kind: 'error', text });
+    }
     const usage: ChatUsage = {};
     for (const [key, value] of Object.entries((m.usage ?? {}) as Record<string, unknown>)) if (typeof value === 'number') usage[key] = value;
     if (typeof m.total_cost_usd === 'number') usage.total_cost_usd = m.total_cost_usd;
@@ -368,6 +386,12 @@ class ClaudeConversation implements ChatConversation {
     return events;
   }
 }
+
+/**
+ * Whether a failure is the account's usage limit and not a rate limit that Claude retries. The CLI's own `api_error` says so and is the key (internal to the CLI, so not in the SDK's types);
+ * the SDK's prefixes of the limit's words are the fallback. `rate_limit` on an assistant message and a retried 429 are no signal: limits and throttles share them.
+ */
+const isUsageLimit = (apiError: unknown, text: string): boolean => apiError === 'usage_limit_reached' || USAGE_LIMIT_ERROR_PREFIXES.some((prefix) => text.trimStart().startsWith(prefix));
 
 /** Why a turn failed: its errors, else the CLI's own words in `result` (a session or weekly limit says when it resets there), else a plain line. */
 function failureText(m: { errors?: unknown; result?: unknown }): string {

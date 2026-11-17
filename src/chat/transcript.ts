@@ -16,7 +16,7 @@ export function boundEvent(event: ChatEvent | StepEvent): Record<string, unknown
     case 'reasoning':
       return { text: clean(event.text, chatCaps.message) };
     case 'error':
-      return { text: clean(event.text, chatCaps.error) };
+      return { text: clean(event.text, chatCaps.error), ...(event.reason !== undefined && { reason: event.reason }), ...(event.resetsAt !== undefined && { resetsAt: event.resetsAt }), ...(event.resetText !== undefined && { resetText: clean(event.resetText, chatCaps.error) }) };
     case 'tool_start':
     case 'tool_end': {
       const { kind: _kind, arg, output, ...rest } = event;

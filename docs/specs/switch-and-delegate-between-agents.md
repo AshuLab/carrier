@@ -253,4 +253,4 @@ The host leaves the data for them, and they are another brief.
 
 Does a real Codex model keep a conversation going from a handoff, in both directions between Claude and Codex?
 Codex's account is at its usage limit until 2026-11-20 at 7:11 PM, so no real Codex turn ran in the spike: whether a Codex model reads `developerInstructions`, whether it calls `history`, and how it reacts to a refused tool are not known, and the Claude to Claude case is the only one measured.
-Story 17 is where it is answered, and its result tunes the size of the handoff or how Codex gets it, and does not change the shape of the rest.
+Story 17 is where it is answered (slice #1044: the adapter is pinned to Codex 0.169.0 and its no-turn messages were checked, but the account was still at its limit, so the real-model checks moved to [#1083](https://github.com/AshuLab/carrier/issues/1083), which runs when a Codex login with quota exists and does not hold this epic), and its result tunes the size of the handoff or how Codex gets it, and does not change the shape of the rest.

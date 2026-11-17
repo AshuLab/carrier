@@ -7,11 +7,11 @@ import { ChatRefused, type ChatLaunch, type ChatChoice, type ChatCommand, type C
 // The Codex adapter of the chat runner: the user's own `codex app-server`, JSON-RPC over stdio, one JSON object per
 // line (docs/research/chat-spike.md). No npm dependency: the adapter spawns the binary and speaks the protocol itself.
 //
-// Written against codex-cli / app-server 0.153.4, which Codex marks as experimental: the protocol changes with the
+// Written against codex-cli / app-server 0.153.4 and pinned to 0.169.0, whose handshake, thread and model messages were checked without a turn (docs/research/switch-and-delegate-spike.md), which Codex marks as experimental: the protocol changes with the
 // version. The messages below are the ones the spike recorded; a notification this adapter does not know gives no
 // event, and a server request it does not know is answered with an error so that it never holds a turn. A version other
 // than this one is logged when the server says hello.
-export const CODEX_APP_SERVER_VERSION = '0.153.4';
+export const CODEX_APP_SERVER_VERSION = '0.169.0';
 
 const log = createScopedLogger('chat');
 

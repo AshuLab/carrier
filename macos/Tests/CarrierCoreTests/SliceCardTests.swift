@@ -18,15 +18,15 @@ private func lane(
 
 @Test func aMergedSliceIsATickedRowWithItsNumbersAndPullRequest() {
     let row = sliceCard(lane: lane("a", slice: 730, to: 300, pr: 736, prState: "merged"))
-    #expect(row.mark == .done && row.openByDefault == false)
+    #expect(row.mark == .done)
     #expect(row.quiet.map(\.text) == ["38 calls", "11 edits", "7 test runs", "1 error", "14:02–14:07"])
     #expect(row.quiet[3].kind == .error)
     #expect(row.prNumber == 736 && row.prState == .merged)
 }
 
-@Test func aWorkingSliceOpensByItselfAndItsCallsAreSoFar() {
+@Test func aWorkingSliceHasItsCallsSoFar() {
     let row = sliceCard(lane: lane("a", slice: 730, .running, to: nil, lane: 1, counts: SessionCounts(calls: 12), pr: 736, prState: "draft"))
-    #expect(row.mark == .working && row.openByDefault)
+    #expect(row.mark == .working)
     // a working slice has no time range, its calls are so far, and the lane is a tag
     #expect(row.quiet == [SliceQuiet(text: "12 calls so far", kind: .plain), SliceQuiet(text: "Lane 1", kind: .lane)])
     #expect(row.prState == .draft)
@@ -34,7 +34,7 @@ private func lane(
 
 @Test func aFailedSliceSaysItDidNotComplete() {
     let row = sliceCard(lane: lane("b", slice: 2, .failed, from: 10, to: nil, counts: SessionCounts(calls: 4)))
-    #expect(row.mark == .failed && row.openByDefault == false)
+    #expect(row.mark == .failed)
     #expect(row.quiet == [SliceQuiet(text: "4 calls", kind: .plain), SliceQuiet(text: "did not complete", kind: .error)])
 }
 

@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Tap a subagent's row in a conversation to open its own view: its brief from the main agent, then its calls, thoughts and messages as the main agent's are drawn, with ‹ Back in the window's header (title, "Explore · Subagent of <session>" and its state in place of the worktree pill) and a read-only note where the message box is.
+- In an epic's Agent output tab, tapping a slice card opens the same subagent view (its calls, thoughts and messages, all its runs in one view) with ‹ Back in the window's header, the slice's title, "Builder · <epic>" and its state, instead of unfolding the card in place.
 
 ## [0.9.0] - 2026-11-16
 

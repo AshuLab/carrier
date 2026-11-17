@@ -346,3 +346,38 @@ private func say(_ id: Int) -> ExecEvent { event(id, "say", text: "m") }
     #expect(lane(resumed + [progress(5, "Edit")]).lastStep == "Edit" && lane(resumed + [progress(5, "Edit")]).resumes == 1)
     #expect(lane(resumed + [progress(5, "Edit"), run(6, 360, "ok")]).lastStep == nil)
 }
+
+// A slice card opens the subagent's view: the header says the slice, the role of the session it sits in and the epic, and the items are the
+// lane's own, every run of a resumed subagent in one view.
+@Test func aSliceCardsViewIsTheLanesOwnItemsWithTheSlicesHeader() {
+    func session(_ id: String, _ stage: String, _ status: String) -> SessionsReply.Session {
+        SessionsReply.Session(
+            executionId: id, stage: stage, role: stage == "review" ? "reviewer" : "author", round: nil,
+            agent: .init(harness: "claude", model: "m", provider: nil), status: status, startedAt: 0, finishedAt: status == "running" ? nil : 9, resume: nil)
+    }
+    let built = [
+        event(1, "task", agent: "a", text: "Build slice #5"), event(2, "say", agent: "a", text: "first run"),
+        end(3, "ok"), ExecEvent(id: 4, at: 4_000, kind: "task", text: "Build slice #5", agentId: "a"), event(5, "say", agent: "a", text: "second run"), end(6, "ok"),
+        event(10, "task", agent: "f", text: "Tidy the docs"),
+        ExecEvent(id: 11, at: 11_000, kind: "task", text: "Tidy the docs", agentId: "f", status: "err"),
+    ]
+    let review = [event(1, "task", agent: "r", text: "Review slice #5"), event(2, "say", agent: "r", text: "looking")]
+    let list = sessionList(
+        SessionsReply(sessions: [session("x", "ship", "finished"), session("y", "review", "running")]),
+        transcripts: ["x": transcript(built), "y": transcript(review)], slices: [slice(5, "Socket client")], now: 20_000
+    )
+    // a builder's slice, finished, with both runs in one view
+    let done = subagentWork(lane: "a", in: list, epic: "Rotate the keys")
+    #expect(done?.header.title == "Socket client" && done?.header.type == "Builder" && done?.header.state == .completed)
+    #expect(done?.header.subtitle(of: "ignored") == "Builder · Rotate the keys")
+    #expect(done?.header.epic == "Rotate the keys")
+    #expect(done?.items.compactMap { if case .message(_, let text) = $0 { text } else { nil } } == ["first run", "second run"])
+    // not in the epic's list: the subagent's own description; failed
+    let failed = subagentWork(lane: "f", in: list, epic: "Rotate the keys")
+    #expect(failed?.header.title == "Tidy the docs" && failed?.header.state == .failed)
+    // a reviewer's, running: no duration yet, a timer from its start
+    let running = subagentWork(lane: "r", in: list, epic: "Rotate the keys")
+    #expect(running?.header.type == "Reviewer" && running?.header.state == .running && running?.header.durationMs == nil)
+    #expect(running?.header.subtitle(of: "") == "Reviewer · Rotate the keys")
+    #expect(subagentWork(lane: "nope", in: list, epic: "E") == nil)
+}

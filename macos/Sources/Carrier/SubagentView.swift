@@ -7,10 +7,10 @@ import SwiftUI
 /// Nothing can be typed to a subagent: the place of the message box holds `SubagentNote`.
 struct SubagentView: View {
     let work: SubagentWork
-    /// The window's header says the rest of `work.header`; the note's Back button leaves for the conversation.
+    /// The window's header says the rest of `work.header`; the note's Back button leaves for the conversation, or the Agent output tab.
     let backToChat: () -> Void
+    var backTitle = "Back to chat"
     @State private var flipped: Set<String> = []
-    @State private var slices = SliceFolds()
     @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
@@ -20,7 +20,7 @@ struct SubagentView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: density.messageGap) {
                 if let brief = work.brief { BriefBubble(text: brief) }
-                ForEach(visibleFlow(work.items, mode: mode, showsReasoning: showsReasoning)) { FlowItemView(flow: $0, flipped: $flipped, slices: $slices) }
+                ForEach(visibleFlow(work.items, mode: mode, showsReasoning: showsReasoning)) { FlowItemView(flow: $0, flipped: $flipped) }
             }
             .padding(.horizontal, 40).padding(.vertical, 16)
             .frame(maxWidth: messageWidth.points, alignment: .leading)
@@ -28,7 +28,7 @@ struct SubagentView: View {
         }
         .defaultScrollAnchor(.top)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            SubagentNote(backToChat: backToChat)
+            SubagentNote(backToChat: backToChat, backTitle: backTitle)
                 .padding(.horizontal, 40).padding(.vertical, 12)
                 .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
         }
@@ -57,6 +57,7 @@ private struct BriefBubble: View {
 /// The message box's place in a subagent view: the read-only note and the way back to the conversation.
 private struct SubagentNote: View {
     let backToChat: () -> Void
+    let backTitle: String
 
     var body: some View {
         HStack(spacing: 10) {
@@ -64,7 +65,7 @@ private struct SubagentNote: View {
             Text("Subagent work is read-only.").font(.scaled(12.5)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 8)
             Button(action: backToChat) {
-                Label("Back to chat", systemImage: "chevron.left").font(.scaled(12, weight: .medium)).labelStyle(.titleAndIcon)
+                Label(backTitle, systemImage: "chevron.left").font(.scaled(12, weight: .medium)).labelStyle(.titleAndIcon)
                     .padding(.horizontal, 12).frame(height: ToolbarPillButton.height)
                     .chatSurface(.regular.interactive(), in: Capsule())
                     .contentShape(Capsule())

@@ -6,7 +6,7 @@ import Testing
 @MainActor private func rowHeight(percent: Int?) throws -> Int {
     if let percent { UserDefaults.standard.set(percent, forKey: TypeScale.percentKey) } else { UserDefaults.standard.removeObject(forKey: TypeScale.percentKey) }
     defer { UserDefaults.standard.removeObject(forKey: TypeScale.percentKey) }
-    let row = FlowItemView(flow: .note(id: 1, text: "Reading the sources of the slice"), flipped: .constant([]), slices: .constant(SliceFolds()))
+    let row = FlowItemView(flow: .note(id: 1, text: "Reading the sources of the slice"), flipped: .constant([]))
     let renderer = ImageRenderer(content: row.frame(width: 400))
     renderer.scale = 2
     return try #require(renderer.cgImage).height

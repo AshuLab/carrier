@@ -19,7 +19,6 @@ struct SessionSectionsView: View {
     @Binding var folds: SessionFolds
     var onContinueInTerminal: (SessionSection, ValidResume) -> Void = { _, _ in }
     @State private var flipped: Set<String> = []
-    @State private var slices = SliceFolds()
     @State private var earlierOpen = false
     /// Read once when the tab appears; a profile changed in Settings shows when the epic is opened again.
     @State private var roles = RoleIdentities.none
@@ -42,7 +41,7 @@ struct SessionSectionsView: View {
                         .accessibilityHint(open ? "Folds this session" : "Opens this session")
                     if open {
                         Color.clear.frame(height: SessionMetrics.toContent)
-                        TranscriptRows(content: section.body, flipped: $flipped, slices: $slices)
+                        TranscriptRows(content: section.body, flipped: $flipped)
                         // the reviewer's verification is the foot of its findings card; a stop keeps its own row
                         // round numbers restart after a requeue: only the newest session of a round shows what the round found
                         let latestOfRound = list.sections.last { $0.stage == section.stage && $0.round == section.round }?.id == section.id

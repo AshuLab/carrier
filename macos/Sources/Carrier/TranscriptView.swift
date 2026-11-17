@@ -9,7 +9,6 @@ import SwiftUI
 struct TranscriptRows: View {
     let content: TranscriptBody
     @Binding var flipped: Set<String>
-    @Binding var slices: SliceFolds
     @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
 
@@ -20,7 +19,7 @@ struct TranscriptRows: View {
         case .items(let items) where items.isEmpty:
             EmptyStateView(state: .noActivity).frame(minHeight: 170).sessionRow()
         case .items(let items):
-            ForEach(visibleFlow(items, mode: mode, showsReasoning: showsReasoning)) { FlowItemView(flow: $0, flipped: $flipped, slices: $slices).sessionRow() }
+            ForEach(visibleFlow(items, mode: mode, showsReasoning: showsReasoning)) { FlowItemView(flow: $0, flipped: $flipped).sessionRow() }
         case .tail(let lines):
             MonoLines(lines: lines.isEmpty ? ["No output yet"] : lines)
                 .codeFont(12).foregroundStyle(.secondary)
@@ -43,11 +42,10 @@ struct LoadingRow: View {
 }
 
 /// One entry of the log with its margins: the agent's message, a note, an error, a skill, a run of calls as the chat's work card or a slice
-/// row. A slice's own rows are drawn with it too.
+/// row (a subagent's own steps are in its view).
 struct FlowItemView: View {
     let flow: FlowItem
     @Binding var flipped: Set<String>
-    @Binding var slices: SliceFolds
     @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
 
@@ -78,7 +76,7 @@ struct FlowItemView: View {
             }
             .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
         case .slice(let lane):
-            SliceCardView(lane: lane, flipped: $flipped, slices: $slices)
+            SliceCardView(lane: lane)
                 .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
         }
     }

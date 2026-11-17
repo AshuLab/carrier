@@ -51,3 +51,27 @@ func theSubagentHeaderKeepsTheConversationHeadersHeightInEveryStateAndWidth(widt
     #expect(running == 48)
     for state in [SubagentStatus.completed, .failed, .stopped] { #expect(try height(state) == running) }
 }
+
+// A slice card's header (the epic's title in the subtitle) is as high as the conversation's for Builder and Reviewer, running, finished and
+// failed, at every width, with a short slice title or a long one.
+@MainActor @Test(arguments: [CGFloat(480), 560, 900])
+func aSliceCardsHeaderKeepsTheConversationHeadersHeightForEveryRoleAndState(width: CGFloat) throws {
+    func lane(_ state: SubagentState, title: String) -> LaneSection {
+        LaneSection(
+            id: "a", startId: 1, title: title, sliceTitle: title, state: state, duration: 180_000, startedAt: 0, endedAt: state == .running ? nil : 180_000,
+            resumes: 0, timeLabel: nil, counts: SessionCounts(calls: 4), items: [], slice: 653, laneNumber: 1, pullRequest: "no PR yet"
+        )
+    }
+    let epic = String(repeating: "Rotate the keys of every environment and say so ", count: 3)
+    for role in ["Builder", "Reviewer"] {
+        for state in [SubagentState.running, .finished, .failed] {
+            for title in ["Socket client", String(repeating: "a slice title that is far too long ", count: 4)] {
+                let header = SubagentHeader(lane: lane(state, title: title), role: role, epic: epic)
+                #expect(header.subtitle(of: "unused").hasPrefix("\(role) · Rotate"))
+                let drawn = try size(header, width: width)
+                #expect(drawn.width == width * 2)
+                #expect(drawn.height == SubagentTitle.height * 2)
+            }
+        }
+    }
+}

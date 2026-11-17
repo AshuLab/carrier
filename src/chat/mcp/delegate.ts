@@ -15,3 +15,14 @@ export const delegateStart = defineTool({
   input: z.strictObject({ agent: name, task: z.string().min(1).max(chatCaps.message), model: name.optional(), requestId: z.string().min(1).max(64).optional() }),
   handler: (args, { sessionId, sessions }) => sessions.startChild(sessionId, args),
 });
+
+/** Waits for the caller's children and reads how each stands. The longest wait is under every MCP timeout found for Claude and Codex ([spec](../../../docs/specs/switch-and-delegate-between-agents.md)). */
+export const delegateWait = defineTool({
+  name: 'delegate_wait',
+  description:
+    'Waits for children started with delegate_start, up to timeoutMs (1000 to 45000, default 30000), and answers as soon as none of them is working; a child that waits for the person to approve something counts as stopped. ' +
+    'Each child answers with its state: working, needs_approval, done (with message, its last assistant text up to 4000 characters), error, usage_limit or interrupted. Call again while a child is working.',
+  access: 'readsAsSession',
+  input: z.strictObject({ childIds: z.array(z.string()).min(1).max(4), timeoutMs: z.int().min(1000).max(45000).optional() }),
+  handler: async ({ childIds, timeoutMs = 30_000 }, { sessionId, sessions }) => ({ children: await sessions.waitChildren(sessionId, childIds, timeoutMs) }),
+});

@@ -14,7 +14,7 @@ import { buildHandoff } from './handoff.ts';
 import { realMachine, type Machine } from '../doctor/detect.ts';
 import { createHealth, realProbes, type HealthProbes } from './health.ts';
 import { childOptions, isScaleHarness, type Level, levelOf } from './levels.ts';
-import type { McpSessionRegistry } from './mcp.ts';
+import type { ChildReport, McpSessionRegistry } from './mcp.ts';
 import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
 import type { Plan, Step, StepEvent } from './plan.ts';
@@ -31,6 +31,8 @@ const log = createScopedLogger('chat');
 export const IDLE_CLOSE_MS = 60_000;
 /** The children of one session that may work or wait for an approval at the same time ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). */
 const MAX_RUNNING_CHILDREN = 4;
+/** How much of a done child's last message `delegate_wait` answers. */
+const CHILD_MESSAGE = 4000;
 
 const DAY = 86_400_000;
 /** The lifecycle's ages (ADR 0019), as `chat.json` gives them. */
@@ -190,10 +192,14 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     live.cancelIdle?.();
     live.cancelIdle = live.state === 'idle' && clients === 0 && !switching.has(sessionId) ? clock.after(IDLE_CLOSE_MS, async () => void (await close({ sessionId }))) : undefined;
   };
+  /** What `delegate_wait` is waiting on: called whenever a session changes state. */
+  const waiters = new Set<() => void>();
+  const notifyWaiters = () => [...waiters].forEach((wake) => wake());
   const touch = (sessionId: string, live: Live, state: State = live.state) => {
     live.state = state;
     db.update(sessions).set({ state, lastActiveAt: clock.now(), ...(live.conversation.nativeId !== undefined && { nativeId: live.conversation.nativeId }) }).where(eq(sessions.id, sessionId)).run();
     armIdle(sessionId, live);
+    notifyWaiters();
   };
   const store = (sessionId: string, event: ChatEvent | StepEvent) => {
     const data = boundEvent(event);
@@ -271,6 +277,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     revoke(live.invocationId);
     live.cancelIdle?.();
     db.update(sessions).set({ state: 'idle', pid: null, pgid: null, command: null }).where(eq(sessions.id, sessionId)).run();
+    notifyWaiters();
     const failed = (error: unknown) => log.error('closing a conversation failed', error);
     if (wait) {
       try {
@@ -652,6 +659,54 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     return { childId };
   }
 
+  /** How a child of `parentId` stands, from its live state and, once it is not working, from how its one turn (after its last user message) ended; refuses an id that is not that parent's child like one that does not exist. */
+  function childReport(parentId: string, childId: string): ChildReport {
+    const child = db.select().from(sessions).where(and(eq(sessions.id, childId), eq(sessions.parentSessionId, parentId))).get();
+    if (child === undefined) throw new ChatRefused('There is no such session');
+    const report = { childId, agent: child.agent };
+    const live = lives.get(childId);
+    if (live?.state === 'working') return { ...report, state: 'working' };
+    if (live?.state === 'waiting_approval') return { ...report, state: 'needs_approval' };
+    const since = db.select({ id: chatEvents.id }).from(chatEvents).where(and(eq(chatEvents.sessionId, childId), eq(chatEvents.kind, 'user'))).orderBy(desc(chatEvents.id)).limit(1).get()?.id ?? 0;
+    const turn = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, childId), gt(chatEvents.id, since), inArray(chatEvents.kind, ['assistant', 'error', 'turn_end']))).orderBy(asc(chatEvents.id)).all();
+    const end = turn.find((event) => event.kind === 'turn_end');
+    const error = turn.findLast((event) => event.kind === 'error');
+    // a turn that never ended (closed, or its process died) and said no error was cut off
+    if (end?.data.outcome === 'interrupted' || (end === undefined && error === undefined)) return { ...report, state: 'interrupted' };
+    if (error?.data.reason === 'usage_limit') return { ...report, state: 'usage_limit' };
+    if (error !== undefined || end?.data.outcome === 'error') return { ...report, state: 'error' };
+    const text = turn.findLast((event) => event.kind === 'assistant')?.data.text;
+    return { ...report, state: 'done', ...(typeof text === 'string' && text !== '' && { message: text.slice(0, CHILD_MESSAGE) }) };
+  }
+
+  /** Answers when no child is working or the time is up, whichever comes first. */
+  function waitChildren(parentId: string, childIds: string[], timeoutMs: number): Promise<ChildReport[]> {
+    const reports = () => childIds.map((childId) => childReport(parentId, childId));
+    return new Promise((resolve, reject) => {
+      const finish = () => {
+        cancel();
+        waiters.delete(check);
+        try {
+          resolve(reports());
+        } catch (error) {
+          reject(error);
+        }
+      };
+      const check = () => {
+        try {
+          if (reports().every((report) => report.state !== 'working')) finish();
+        } catch (error) {
+          cancel();
+          waiters.delete(check);
+          reject(error);
+        }
+      };
+      const cancel = clock.after(timeoutMs, async () => finish());
+      waiters.add(check);
+      check();
+    });
+  }
+
   /** The handoff of a session: its messages stored before `before`, as the conversation after a switch opens with them (ADR 0032). Undefined when it holds no message. */
   const handoffOf = (sessionId: string, before = Number.MAX_SAFE_INTEGER) =>
     buildHandoff(db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), lt(chatEvents.id, before), inArray(chatEvents.kind, ['user', 'assistant']))).orderBy(asc(chatEvents.id)).all().map(({ id, kind, data }) => ({ position: id, kind, data })));
@@ -755,6 +810,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       },
       agents: listAgents,
       startChild,
+      waitChildren,
+      related: (sessionId: string, otherId: string) => row(sessionId).parentSessionId === otherId || db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.id, otherId), eq(sessions.parentSessionId, sessionId))).get() !== undefined,
       agentOptions: (name: string) => {
         const chosen = listed().find((candidate) => candidate.name === name);
         if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${name}"`);

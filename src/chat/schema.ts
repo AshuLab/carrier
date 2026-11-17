@@ -51,6 +51,9 @@ export const chatTurns = sqliteTable(
     id: integer().primaryKey({ autoIncrement: true }),
     sessionId: text().notNull().references(() => sessions.id),
     startedAt: integer().notNull(),
+    harness: text({ enum: ['claude', 'codex'] }), // who ran it, as the session had them when it ended, so a later switch of agent leaves them
+    agent: text(),
+    nativeId: text(), // the provider's conversation that ran it
     model: text(),
     outcome: text({ enum: ['ok', 'interrupted', 'error'] }).notNull(),
     durationMs: integer().notNull(),

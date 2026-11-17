@@ -192,6 +192,21 @@ test('reasoning is stored redacted and bounded, and served only to a client that
   expect(plain.cursor).toBe(4);
 });
 
+test('the stored events through mcpView: filtered by kind before the limit, one event of that session only, and how a tool call ended', async () => {
+  const { sessions, conversation, id } = await openOne();
+  sessions.send({ sessionId: id, text: 'hi' });
+  conversation.emit({ kind: 'reasoning', text: 'secret thoughts' }, { kind: 'tool_start', callId: 'c1', tool: 'Bash', arg: 'ls' }, { kind: 'tool_start', callId: 'c2', tool: 'Read' }, { kind: 'tool_end', callId: 'c1', tool: 'Bash', output: ['a'], status: 'ok' }, { kind: 'tool_end', callId: 'c2', tool: 'Read', status: 'err' }, { kind: 'assistant', text: 'done' });
+  const view = sessions.mcpView;
+  expect(view.storedEvents(id, { after: -1, kinds: ['user', 'assistant'], limit: 1 }).map((e) => [e.position, e.kind])).toEqual([[1, 'user']]);
+  expect(view.storedEvents(id, { after: 1, kinds: ['user', 'assistant'], limit: 5 }).map((e) => [e.position, e.kind])).toEqual([[7, 'assistant']]);
+  expect(view.storedEvent(id, 2, ['user', 'assistant'])).toBeUndefined(); // reasoning is in no view
+  expect(view.storedEvent(id, 7, ['assistant'])).toMatchObject({ position: 7, data: { text: 'done' } });
+  const other = await sessions.open({ agent: 'claude', folder: work });
+  expect(view.storedEvent(other.session.id, 7, ['assistant'])).toBeUndefined(); // another session's event is not found
+  expect(view.toolStatuses(id, ['c1', 'c2', 'c3'])).toEqual({ c1: 'ok', c2: 'err' });
+  expect(view.toolStatuses(id, [])).toEqual({});
+});
+
 test('a conversation over several turns: events come in order after the cursor, with state, title and the streaming text', async () => {
   const { sessions, conversation, id, clock } = await openOne();
   conversation.reply = (text, c) => {
@@ -376,12 +391,13 @@ test('a title is cut at 80 characters', async () => {
 test('each finished turn stores its model, outcome, duration, tool calls and the usage as given', async () => {
   const { sessions, conversation, id, clock } = await openOne();
   clock.time = 100;
+  conversation.nativeId = 'native-1';
   sessions.send({ sessionId: id, text: 'go' });
   clock.time = 1600;
   conversation.emit({ kind: 'tool_start', callId: '1', tool: 'Read' }, { kind: 'tool_end', callId: '1', tool: 'Read' }, { kind: 'tool_start', callId: '2', tool: 'Bash' });
   conversation.emit({ kind: 'turn_end', outcome: 'interrupted', model: 'sonnet', usage: { inputTokens: 5, cacheReadInputTokens: 7 } });
   expect(rows('chat_turns')).toEqual([
-    { id: 1, sessionId: id, startedAt: 100, model: 'sonnet', outcome: 'interrupted', durationMs: 1500, toolCalls: 2, usage: '{"inputTokens":5,"cacheReadInputTokens":7}' },
+    { id: 1, sessionId: id, startedAt: 100, harness: 'claude', agent: 'claude', nativeId: 'native-1', model: 'sonnet', outcome: 'interrupted', durationMs: 1500, toolCalls: 2, usage: '{"inputTokens":5,"cacheReadInputTokens":7}' },
   ]);
   sessions.send({ sessionId: id, text: 'next' });
   conversation.emit({ kind: 'turn_end', outcome: 'ok' });

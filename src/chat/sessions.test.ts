@@ -376,12 +376,13 @@ test('a title is cut at 80 characters', async () => {
 test('each finished turn stores its model, outcome, duration, tool calls and the usage as given', async () => {
   const { sessions, conversation, id, clock } = await openOne();
   clock.time = 100;
+  conversation.nativeId = 'native-1';
   sessions.send({ sessionId: id, text: 'go' });
   clock.time = 1600;
   conversation.emit({ kind: 'tool_start', callId: '1', tool: 'Read' }, { kind: 'tool_end', callId: '1', tool: 'Read' }, { kind: 'tool_start', callId: '2', tool: 'Bash' });
   conversation.emit({ kind: 'turn_end', outcome: 'interrupted', model: 'sonnet', usage: { inputTokens: 5, cacheReadInputTokens: 7 } });
   expect(rows('chat_turns')).toEqual([
-    { id: 1, sessionId: id, startedAt: 100, model: 'sonnet', outcome: 'interrupted', durationMs: 1500, toolCalls: 2, usage: '{"inputTokens":5,"cacheReadInputTokens":7}' },
+    { id: 1, sessionId: id, startedAt: 100, harness: 'claude', agent: 'claude', nativeId: 'native-1', model: 'sonnet', outcome: 'interrupted', durationMs: 1500, toolCalls: 2, usage: '{"inputTokens":5,"cacheReadInputTokens":7}' },
   ]);
   sessions.send({ sessionId: id, text: 'next' });
   conversation.emit({ kind: 'turn_end', outcome: 'ok' });

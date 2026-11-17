@@ -6,6 +6,7 @@ The quotas and the history of what was used ([ADR 0025](../../docs/adr/0025-usag
 - `probes.ts`: one probe per provider (Claude's OAuth endpoint with the login from `.credentials.json` or, on a Mac, its Keychain item (read only, never refreshed, never logged; [ADR 0026](../../docs/adr/0026-claude-usage-reads-the-login-from-the-keychain-and-never-refreshes-it.md)); `codex app-server`; `agy -p /usage`; the local servers).
 - `quotas.ts`: one probe per account at a time, kept a minute, the last good one marked stale on a rate limit.
 - `history.ts`: the rollup of epic runs (`carrier.db`, read-only), chat turns (`chat.db`) and the CLIs' own logs (incremental, cached between calls), a session counted once in epic, chat, external.
+  Each chat turn carries its own harness, agent and native conversation, and the history reads those and not the session's current ones, so a session that changed agent keeps its earlier turns on their harness and its old conversation counted once.
 - `agy.ts`: the protobuf reader of Antigravity's conversation databases.
 - `pricing.ts`: the price table (LiteLLM's, copied into `prices.generated.ts`; `pnpm prices:update` refreshes it, see THIRD-PARTY-NOTICES.md), model names and the overrides.
 - `service.ts`: what `usage` and `usageOverride` answer from `providers.json`.

@@ -195,6 +195,9 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
 @Test func theClassificationIsATableByTheProvidersToolName() {
     let kinds = ["Read", "Grep", "Glob", "Edit", "Write", "MultiEdit", "apply_patch", "Bash", "shell", "command", "WebFetch", "read", ""].map { ToolKind(tool: $0) }
     #expect(kinds == [.read, .search, .search, .edit, .edit, .edit, .edit, .shell, .shell, .shell, .other, .other, .other])
+    #expect(ToolKind(tool: "mcp__linear__create_issue") == .mcp(server: "linear", tool: "create_issue"))
+    #expect(ToolKind(tool: "mcp__claude_ai_Notion__notion-fetch") == .mcp(server: "claude_ai_Notion", tool: "notion-fetch"))
+    #expect(["mcp__only", "mcp____x", "mcp__a__"].map { ToolKind(tool: $0) } == [.other, .other, .other])
 }
 
 @Test func aGoldenRunOfCallsIsOneRowWithItsSummaryTitleAndTotals() throws {
@@ -233,9 +236,10 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     // distinct paths: the same file edited, written and patched is one file changed
     #expect(summary([call(1, "Edit", "a.ts"), call(2, "Write", "a.ts"), call(3, "apply_patch", "a.ts")]) == "1 file changed")
     #expect(summary([call(1, "Edit", "a.ts"), call(2, "MultiEdit", "b.ts")]) == "2 files changed")
-    // all five, in the order reads, searches, changes, commands, other
-    #expect(summary([call(1, "Bash", "x"), call(2, "WebFetch", "u"), call(3, "Edit", "a"), call(4, "Edit", "b"), call(5, "Grep", "q"), call(6, "Read", "a"), call(7, "Read", "b")])
-        == "2 files read · 1 search · 2 files changed · 1 command · 1 other tool")
+    // all six, in the order reads, searches, changes, commands, MCP calls, other
+    #expect(summary([call(1, "Bash", "x"), call(2, "WebFetch", "u"), call(3, "Edit", "a"), call(4, "Edit", "b"), call(5, "Grep", "q"), call(6, "Read", "a"), call(7, "Read", "b"), call(8, "mcp__linear__create_issue")])
+        == "2 files read · 1 search · 2 files changed · 1 command · 1 MCP call · 1 other tool")
+    #expect(summary([call(1, "mcp__linear__create_issue"), call(2, "mcp__notion__fetch")]) == "2 MCP calls")
 }
 
 @Test func theTitleIsExploredForReadsAndSearchesChangedForAChangeAndWorkedOtherwise() {
@@ -1029,4 +1033,51 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
     guard case .table(let table) = markdownBlocks("| Plan | Price |\n|:--|--:|\n| **Free** | $0 |\n| Team | a \\| b |")[0] else { Issue.record("expected a table"); return }
     #expect(table.tsv == "Plan\tPrice\nFree\t$0\nTeam\ta | b")
     #expect(table.markdown == "| Plan | Price |\n| --- | ---: |\n| Free | $0 |\n| Team | a \\| b |")
+}
+
+// MARK: live line kind chips and MCP calls
+
+@Test func theLiveLinesChipFollowsWhatTheAgentWaitsOn() {
+    func runningChip(_ tool: String, arg: String = "x", waiting: Bool = false) -> KindChip? {
+        group(chatFeed([ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "c", tool: tool, arg: arg)])).chip(waiting: waiting)
+    }
+    let thinking = group(chatFeed([ChatEvent(id: 1, at: 0, kind: "user", text: "go"), ChatEvent(id: 2, at: 1, kind: "reasoning", text: "Hm.")]))
+    #expect(thinking.chip(waiting: false) == .thinking)
+    #expect(thinking.chip(waiting: true) == .needsYou)
+    #expect(runningChip("Read", arg: "a.ts") == .read)
+    #expect(runningChip("Grep", arg: "q") == .search)
+    #expect(runningChip("Glob", arg: "*.swift") == .search)
+    #expect(runningChip("Edit", arg: "a.ts") == .edit)
+    #expect(runningChip("Bash", arg: "pnpm test") == .shell)
+    #expect(runningChip("mcp__linear__create_issue", arg: #"{"title":"x"}"#) == .mcp(server: "linear"))
+    #expect(runningChip("Bash", arg: "git push", waiting: true) == .needsYou)
+    #expect(runningChip("WebFetch", arg: "https://example.test") == nil)
+}
+
+@Test func anMcpCallReadsAsItsServerAndToolWithoutTheInternalNameOrArgumentsJson() {
+    let args = #"{"title":"Subagent UI in chat","team":"ENG"}"#
+    let start = ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "m1", tool: "mcp__linear__create_issue", arg: args)
+    let live = group(chatFeed([start]))
+    #expect(live.chip(waiting: false) == .mcp(server: "linear"))
+    #expect(live.doing == "create_issue")
+    #expect(live.doing?.contains("mcp__") == false && live.doing?.contains("{") == false)
+    let step = live.calls[0]
+    #expect(step.label == "create_issue" && step.subject == "linear" && step.arg == args)
+}
+
+@Test func everyKindChipHasItsLabelTintAndIcon() {
+    let cases: [(KindChip, String, ChipTint, String?)] = [
+        (.thinking, "Thinking", .thought, nil),
+        (.read, "Read", .files, "doc.text"),
+        (.search, "Search", .files, "magnifyingglass"),
+        (.edit, "Edit", .files, "pencil"),
+        (.shell, "Shell", .shell, "terminal"),
+        (.mcp(server: "linear"), "linear", .mcp, "powerplug"),
+        (.subagents(1), "1 subagent", .subagents, "person.2"),
+        (.subagents(3), "3 subagents", .subagents, "person.2"),
+        (.needsYou, "Needs you", .attention, nil),
+    ]
+    for (chip, label, tint, icon) in cases {
+        #expect(chip.label == label && chip.tint == tint && chip.icon == icon)
+    }
 }

@@ -537,7 +537,7 @@ extension ToolKind {
     var color: Color {
         switch self {
         case .edit: .blue
-        case .read, .search, .shell, .other: Color(white: 0.43)
+        case .read, .search, .shell, .other, .mcp: Color(white: 0.43)
         }
     }
 }

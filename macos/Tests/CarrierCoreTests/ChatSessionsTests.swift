@@ -69,6 +69,15 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(waiting.status == .needsYou && waiting.isWorking == false)
 }
 
+@Test func aSessionSaysWhatItWaitsForInOneLineAndANilWhenItWaitsForNothing() {
+    func task(_ description: String, kind: String = "local_bash") -> BackgroundTask { BackgroundTask(id: description, kind: kind, description: description) }
+    #expect(waitingOnText([]) == nil)
+    #expect(waitingOnText([task("pnpm build")]) == "Waiting on pnpm build")
+    #expect(waitingOnText([task("pnpm build"), task("pnpm test"), task("review", kind: "local_agent")]) == "Waiting on pnpm build and 2 more")
+    // a task with no description is named by its kind
+    #expect(waitingOnText([task("", kind: "monitor")]) == "Waiting on monitor")
+}
+
 @Test func aPullRequestSaysItsStateAndHowItsChecksWent() {
     func pr(_ state: PullRequestState, _ checks: PullRequestChecks? = nil) -> SessionPullRequest { SessionPullRequest(number: 412, url: "u", state: state, checks: checks) }
     #expect(pr(.draft).chipText == "#412 · draft" && pr(.draft).tone == .quiet)

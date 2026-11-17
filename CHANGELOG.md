@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - The rows of the sidebar have more room around their lines, and the branch is in monospace.
+- The rows of the Sessions list say what the sidebar's do: the state at the right (Needs you, the clock, Done), a cyan ring while the agent waits for something it started, what it waits for, the branch in monospace, and the pull request with the lines changed.
 
 ## [0.9.0] - 2026-11-16
 

@@ -226,10 +226,11 @@ extension SessionSort {
     }
 }
 
-/// A wide row of the Sessions home: the project's icon (the session's state is on it, as in the sidebar), the title with the workspace as a tag
-/// outside the workspace order, what the agent last wrote under it (or what the session waits for), and a line of where it works, how many turns
-/// it took and the model. On the right the age and the providers; under the pointer they give way to Pin and Archive. A session that waits for
-/// the person is orange; an archived match is dimmed and tagged.
+/// A wide row of the Sessions home: the project's icon (the session's state is on it, as in the sidebar: violet while it works, cyan while it waits
+/// for something it started), the title with the workspace as a tag outside the workspace order, what the agent last wrote under it (or what the
+/// session waits for), and a line of where it works, how many turns it took, the model and its pull request with the lines it changed. On the
+/// right what the sidebar's row has in the place of the time (`SessionTimeLabel`) over the providers; under the pointer they give way to Pin and
+/// Archive. An archived match is dimmed and tagged.
 private struct SessionHomeRow: View {
     private let timeChanges = TimeFormatChanges()
     let row: SessionRow
@@ -246,7 +247,7 @@ private struct SessionHomeRow: View {
     var body: some View {
         let active = hovered || highlighted
         HStack(alignment: .top, spacing: 12) {
-            ProjectIcon(name: row.workspace, colorKey: projectColorKey(row.base), working: row.state == .working)
+            ProjectIcon(name: row.workspace, colorKey: projectColorKey(row.base), working: row.isWorking, background: row.isWorking && row.state != .working)
                 .environment(\.rowActive, active)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -260,8 +261,7 @@ private struct SessionHomeRow: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 6) {
-                Text(timeText(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    .accessibilityLabel(spokenAge(row.updatedAt, now: Date()))
+                SessionTimeLabel(row: row, age: timeText(row.updatedAt, now: Date())).font(.scaled(12).monospacedDigit()).lineLimit(1)
                 ProviderMarks(names: row.providers)
             }
             .opacity(active ? 0 : 1)
@@ -284,28 +284,39 @@ private struct SessionHomeRow: View {
 
     /// What the session is doing, or the last thing the agent said.
     @ViewBuilder private var status: some View {
-        switch row.state {
-        case .waiting: Text("Waiting for you").fontWeight(.medium).foregroundStyle(SessionRowView.attention).font(.callout)
-        case .working: Text("Working…").foregroundStyle(.secondary).font(.callout)
-        case .idle, .done where row.background.isEmpty == false: Text("Waiting on background work…").foregroundStyle(.secondary).font(.callout)
-        case .idle, .done:
-            if let message = row.lastMessage {
-                Text(message).foregroundStyle(.secondary).font(.callout).lineLimit(1).truncationMode(.tail)
-            } else if row.reportsActivity {
-                Text("No reply yet").foregroundStyle(.tertiary).font(.callout)
+        if let waiting = waitingOnText(row.background), row.state != .waiting {
+            Text(waiting).foregroundStyle(SessionRowView.backgroundWork).font(.callout).lineLimit(1).truncationMode(.tail)
+        } else {
+            switch row.state {
+            case .waiting: Text("Waiting for you").fontWeight(.medium).foregroundStyle(SessionRowView.attention).font(.callout)
+            case .working: Text("Working…").foregroundStyle(Color.thought).font(.callout)
+            case .idle, .done:
+                if let message = row.lastMessage {
+                    Text(message).foregroundStyle(.secondary).font(.callout).lineLimit(1).truncationMode(.tail)
+                } else if row.reportsActivity {
+                    Text("No reply yet").foregroundStyle(.tertiary).font(.callout)
+                }
             }
         }
     }
 
-    /// Where it works, how many turns it took and the model of the last.
+    /// Where it works (a branch in monospace), how many turns it took, the model of the last, and its pull request with the lines it changed.
     private var meta: some View {
         HStack(spacing: 6) {
-            Label(row.branch ?? "Base folder", systemImage: row.branch == nil ? "folder" : "arrow.triangle.branch")
-                .labelStyle(.titleAndIcon).lineLimit(1).truncationMode(.middle)
-            if row.turns > 0 { Text("·"); Text(row.turns == 1 ? "1 turn" : "\(row.turns) turns") }
-            if let model = TurnSummary(model: row.model).shortModel { Text("·"); Text(model) }
+            Group {
+                if let branch = row.branch {
+                    Text("\(Image(systemName: "arrow.triangle.branch")) \(Text(branch).font(.scaled(11, design: .monospaced)))").lineLimit(1).truncationMode(.middle)
+                } else {
+                    Label("Base folder", systemImage: "folder").labelStyle(.titleAndIcon).lineLimit(1)
+                }
+                if row.turns > 0 { Text("·"); Text(row.turns == 1 ? "1 turn" : "\(row.turns) turns") }
+                if let model = TurnSummary(model: row.model).shortModel { Text("·"); Text(model) }
+            }
+            .font(.caption).foregroundStyle(.tertiary)
+            if let pullRequest = row.pullRequest { SessionPullRequestChip(pr: pullRequest).padding(.leading, 4) }
+            if let diff = row.diff { DiffText(diff: diff) }
         }
-        .font(.caption).foregroundStyle(.tertiary).lineLimit(1)
+        .lineLimit(1)
     }
 
     private var actionButtons: some View {

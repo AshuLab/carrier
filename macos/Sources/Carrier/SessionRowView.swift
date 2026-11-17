@@ -72,7 +72,7 @@ struct SessionRowView: View {
         }
     }
 
-    /// While the session waits for the person, the word takes the place of the time at the top right (`ageOrStopwatch`); with the time
+    /// While the session waits for the person, the word takes the place of the time at the top right (`SessionTimeLabel`); with the time
     /// switched off it is the second line's, where it has always been.
     private func waitsAtTop(_ content: SessionRowContent) -> Bool { row.state == .waiting && content.age != nil }
 
@@ -94,21 +94,8 @@ struct SessionRowView: View {
         }
     }
 
-    /// The time at the top right: the age of the last activity, "Needs you" while the session waits for a permission or an answer, or how
-    /// long the turn has run while the session works (a stopwatch that ticks each second, in the colour of the ring).
-    @ViewBuilder private func ageOrStopwatch(_ content: SessionRowContent) -> some View {
-        if waitsAtTop(content) {
-            Text("Needs you").fontWeight(.medium).foregroundStyle(Self.attention)
-        } else if doneAtTop(content) {
-            Text("Done").fontWeight(.medium).foregroundStyle(Self.done)
-        } else if content.age != nil, let since = WorkingClock.shared.since(row) {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                Text(workingElapsed(Int(context.date.timeIntervalSince(since)))).foregroundStyle(row.state == .working ? Color.thought : Self.backgroundWork)
-            }
-        } else {
-            Text(content.age ?? "").foregroundStyle(.tertiary)
-        }
-    }
+    /// The time at the top right (`SessionTimeLabel`).
+    private func ageOrStopwatch(_ content: SessionRowContent) -> some View { SessionTimeLabel(row: row, age: content.age) }
 
     /// The age, or the two buttons while the pointer is on the row. The age stays in the layout, hidden, so the column does not change its width as they come in.
     private func ageSlot(_ content: SessionRowContent) -> some View {
@@ -206,6 +193,28 @@ struct SessionRowView: View {
         let age = content.age == nil ? nil : spokenAge(row.updatedAt, now: Date())
         let work: [String?] = roomy && content.pullRequest != nil ? [content.showsPullRequest ? content.pullRequest?.spoken : nil, content.diff.map { "\($0.added) lines added, \($0.removed) removed" }] : []
         return ([row.title, state, row.workspace, place] + work + content.providers + [age]).compactMap { $0 }.joined(separator: ", ")
+    }
+}
+
+/// What a session's row says at the top right, in the place of its time: "Needs you" while it waits for a permission or an answer, "Done" once
+/// its turn ended and it was not opened since, how long the turn has run while it works or waits for what it started (a stopwatch that ticks
+/// each second, in the colour of the ring), or else the age of its last activity. `age` is nil while the time is switched off: then none of it shows.
+struct SessionTimeLabel: View {
+    let row: SessionRow
+    let age: String?
+
+    var body: some View {
+        if row.state == .waiting && age != nil {
+            Text("Needs you").fontWeight(.medium).foregroundStyle(SessionRowView.attention)
+        } else if row.status == .unread && age != nil {
+            Text("Done").fontWeight(.medium).foregroundStyle(SessionRowView.done)
+        } else if age != nil, let since = WorkingClock.shared.since(row) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(workingElapsed(Int(context.date.timeIntervalSince(since)))).foregroundStyle(row.state == .working ? Color.thought : SessionRowView.backgroundWork)
+            }
+        } else {
+            Text(age ?? "").foregroundStyle(.tertiary)
+        }
     }
 }
 

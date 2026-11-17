@@ -97,6 +97,13 @@ public struct BackgroundTask: Equatable, Decodable {
     public init(id: String, kind: String, description: String) { (self.id, self.kind, self.description) = (id, kind, description) }
 }
 
+/// What a session whose turn ended waits for, in a line: "Waiting on pnpm build", "Waiting on pnpm build and 2 more"; nil when it waits for nothing.
+public func waitingOnText(_ tasks: [BackgroundTask]) -> String? {
+    guard let first = tasks.first else { return nil }
+    let name = first.description.isEmpty ? first.kind : first.description
+    return tasks.count == 1 ? "Waiting on \(name)" : "Waiting on \(name) and \(tasks.count - 1) more"
+}
+
 public struct SessionRow: Equatable {
     public var id: String
     public var title: String

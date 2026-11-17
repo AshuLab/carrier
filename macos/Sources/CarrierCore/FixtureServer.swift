@@ -86,7 +86,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\"]}\n".utf8)
+    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"interrupt\",\"stopTask\"]}\n".utf8)
     private let data: [String: Data]
     let hello: Data
     private var stopped = false
@@ -377,6 +377,23 @@ public final class FixtureServer {
             let listed = (chatOptions[session]?[at]["values"] as? [[String: Any]])?.contains { $0["id"] as? String == value } ?? false
             guard listed else { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"The agent does not offer that value for \(option)\"}") }
             chatOptions[session]?[at]["current"] = value
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
+        case "stopTask":
+            guard let session = request?["sessionId"] as? String, let task = request?["taskId"] as? String else { break }
+            // as the host does: the task is gone from the session's row, and one that is not running is refused
+            let stopped: Bool = locked {
+                guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }), var tasks = chatSessions[at]["background"] as? [[String: Any]],
+                    let found = tasks.firstIndex(where: { $0["id"] as? String == task })
+                else { return false }
+                tasks.remove(at: found)
+                chatSessions[at]["background"] = tasks
+                return true
+            }
+            return Self.line(stopped ? "{\"id\":\(id),\"ok\":true,\"data\":{}}" : "{\"id\":\(id),\"ok\":false,\"error\":\"That task is not running\"}")
+        case "interrupt":
+            guard let session = request?["sessionId"] as? String else { break }
+            // with no turn running it stops what the session waits for in the background
+            locked { if let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) { chatSessions[at]["background"] = [] as [[String: Any]] } }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         case "archive", "delete":
             let verb = request?["cmd"] as? String ?? ""

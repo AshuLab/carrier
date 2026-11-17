@@ -226,8 +226,8 @@ class ClaudeConversation implements ChatConversation {
     for (let waited = 0; this.turning && waited < 5_000; waited += 50) await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
-  async stopBackground() {
-    for (const id of [...this.background]) {
+  async stopBackground(taskId?: string) {
+    for (const id of taskId === undefined ? [...this.background] : this.background.filter((known) => known === taskId)) {
       try {
         await this.query.stopTask(id);
       } catch (error) {

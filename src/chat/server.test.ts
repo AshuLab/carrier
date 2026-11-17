@@ -39,6 +39,7 @@ const controls = (): ChatControls => ({
   },
   answer: ({ approvalId, choiceId }) => ({ approvalId, choiceId }),
   interrupt: async () => ({}),
+  stopTask: async ({ taskId }) => ({ taskId }),
   setOption: async ({ option, value }) => ({ option, value }),
   agentOptions: async ({ agent }) => ({ agent }),
   events: ({ after = 0, reasoning }) => ({ after, ...(reasoning !== undefined && { reasoning }) }),
@@ -101,7 +102,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'stopTask'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -206,6 +207,15 @@ test('setOption is a strict request with a session, an option and a value', asyn
   const c = await client();
   expect(await c.ask(`{"id":1,"cmd":"setOption","sessionId":"${uuid}","option":"model","value":"haiku"}`)).toEqual({ id: 1, ok: true, data: { option: 'model', value: 'haiku' } });
   expect(await c.ask(`{"id":2,"cmd":"setOption","sessionId":"${uuid}","option":"model"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
+});
+
+test('stopTask is a strict request with a session and a task', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"stopTask","sessionId":"${uuid}","taskId":"b1"}`)).toEqual({ id: 1, ok: true, data: { taskId: 'b1' } });
+  expect(await c.ask(`{"id":2,"cmd":"stopTask","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":3,"cmd":"stopTask","sessionId":"${uuid}","taskId":""}`)).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":4,"cmd":"stopTask","sessionId":"${uuid}","taskId":"b1","all":true}`)).toEqual({ id: 4, ok: false, error: 'invalid request' });
 });
 
 test('archive takes a session and a boolean, delete a session, both strict', async () => {

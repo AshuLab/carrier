@@ -445,6 +445,27 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     #expect(backgroundCount(tasks) == "· 3 tasks")
 }
 
+@MainActor @Test func aTaskCanBeStoppedByItselfAndAnInterruptWithNoTurnStopsThemAll() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let session = "9b8c7d6e-5f4a-4b3c-8d2e-1f0a9b8c7d07"
+    #expect(try await host.capabilities().contains(.stopTask))
+    let model = ConversationModel(host: host, sessionId: session)
+    await model.poll()
+    #expect(model.canStopTask && model.background.count == 3)
+    await model.stopTask("b2")
+    await model.poll()
+    #expect(model.background.map(\.id) == ["b1", "b3"] && model.refusal == nil)
+    // one that has already ended is refused in the host's words
+    await model.stopTask("b2")
+    #expect(model.refusal != nil)
+    // the line's Stop stops what is left: the host's interrupt, which with no turn running does that
+    await model.stop()
+    await model.poll()
+    #expect(model.background.isEmpty)
+}
+
 // MARK: the model
 
 private final class ScriptedHost: ChatHost, @unchecked Sendable {

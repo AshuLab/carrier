@@ -39,7 +39,7 @@ A session whose turn ended while the agent waits for something it started (a bui
 
 In the conversation, while the host lists background tasks for the session (`ConversationModel.background`, from the same list the sidebar reads), a card sits over the message box, with the notices that are there (`BackgroundWorkCard`, in `ChatToolGroupView.swift` with the pieces it shares with the agent's runs): one line of the glass a run has, in cyan, with a turning ring, a glow round the edge and a shimmer over the words.
 Shut, its line names one task at a time ("Waiting on pnpm build…") and rolls to the next every three seconds, with "· 3 tasks" after it, the time since the oldest began at the right (`startedAt`, which the host stamps when it first sees each task) and Stop, which stops them all.
-Open (the chevron), it lists the tasks, each with its kind and how long it has run.
+Open (the chevron), it lists the tasks, each with its kind and how long it has run; with more than one, and a host that lists `stopTask` among its capabilities (`ConversationModel.canStopTask`), each has its own Stop (the host's `stopTask`, by the task's id) and the line's says "Stop all".
 It is gone with the last task.
 
 Archiving is felt at once: the row is drawn archived as soon as it is asked (`SessionActions.archiving`, put on the list by `refreshUnread`), the host answers without waiting for the agent to end, and the lists are read again right away (`PollNap`) and not at the next tick.

@@ -49,8 +49,11 @@ export class FakeConversation implements ChatConversation {
   }
   /** How many times the tasks the agent waits for in the background were stopped. */
   backgroundStops = 0;
-  async stopBackground() {
+  /** The ids it was asked to stop, one per call: undefined for all of them. */
+  stoppedTasks: (string | undefined)[] = [];
+  async stopBackground(taskId?: string) {
     this.backgroundStops++;
+    this.stoppedTasks.push(taskId);
   }
   async close() {
     this.closed = true;

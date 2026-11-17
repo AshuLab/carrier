@@ -49,6 +49,7 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 { cmd: 'send'; sessionId: string; text: string; command?: string }   // `command` is the id of one the session lists; `text` is then what follows its name and may be empty
 { cmd: 'answer'; sessionId: string; approvalId: string; choiceId: string; answers?: Record<string, string> }   // `answers` (question text to answer, a multiple choice's picks joined with a comma, an own answer as typed; at most four) is required to `allow` an approval that has `questions`, and refused on any other approval
 { cmd: 'interrupt'; sessionId: string }                        // ends the turn that is running; with none running it stops what the agent waits for in the background (a command, a monitor, a subagent), if anything
+{ cmd: 'stopTask'; sessionId: string; taskId: string }       // stops one of the tasks the agent waits for in the background (`background[].id` of the session's row); refused in words when it is not running
 { cmd: 'setOption'; sessionId: string; option: string; value: string }
 { cmd: 'agentOptions'; agent: string }   // what an agent offers before a session exists: it is started in a folder of nobody's, read and ended; kept ten minutes
 { cmd: 'close'; sessionId: string }

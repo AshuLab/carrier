@@ -497,6 +497,9 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var archived = false
     /// What the agent waits for after its turn ended, from the host's list: the card over the box says it.
     public private(set) var background: [BackgroundTask] = []
+    /// Whether the host can stop one of those tasks by itself (it lists `stopTask`): read once, the first time there is a task to stop.
+    public private(set) var canStopTask = false
+    private var stopTaskKnown = false
     /// The message whose send or resume the host refused, for the banner's Try again; nil with no refusal or when it was not a send.
     public private(set) var refusedText: String?
     /// Why the last send, resume, stop or answer was refused, said under the box; nil when it worked.
@@ -593,6 +596,10 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
                 known = true
                 preparingSession = session.state == .preparing
                 background = session.background
+                if background.isEmpty == false, stopTaskKnown == false {
+                    stopTaskKnown = true
+                    canStopTask = (try? await host.capabilities().contains(.stopTask)) ?? false
+                }
             } else if let session = try await host.list(archived: true).first(where: { $0.id == sessionId }) {
                 agent = session.agent
                 live = false
@@ -763,6 +770,17 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     }
 
     /// The Stop button: ends the turn; the queued message, if any, goes when the poll sees the agent idle.
+    /// Stops one of the tasks the agent waits for in the background; the host refuses one that has already ended.
+    public func stopTask(_ taskId: String) async {
+        do {
+            try await host.stopTask(sessionId, task: taskId)
+            clearRefusal()
+        } catch {
+            refusedText = nil
+            refusal = report(error, "stop the task")
+        }
+    }
+
     public func stop() async {
         do {
             try await host.interrupt(sessionId)

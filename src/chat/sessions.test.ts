@@ -560,6 +560,23 @@ test('a word that comes late from a conversation the host closed is not a turn, 
   expect(stateOf(two, two.id)).toBe('idle');
 });
 
+test('a task can be stopped by itself: only the one named, refused in words when it is not running or the session is closed', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  one.conversation.emit(bg('a', 'b'));
+  await s.sessions.stopTask({ sessionId: one.id, taskId: 'b' });
+  expect(one.conversation.stoppedTasks).toEqual(['b']);
+  // one that is not there, or that the agent already finished
+  await expect(s.sessions.stopTask({ sessionId: one.id, taskId: 'nope' })).rejects.toThrow('That task is not running');
+  // the whole of them is still what an interrupt with no turn running does
+  await s.sessions.interrupt({ sessionId: one.id });
+  expect(one.conversation.stoppedTasks).toEqual(['b', undefined]);
+  // a session whose agent is not running has none to stop
+  await s.sessions.close({ sessionId: one.id });
+  await expect(s.sessions.stopTask({ sessionId: one.id, taskId: 'a' })).rejects.toThrow('That task is not running');
+  await expect(s.sessions.stopTask({ sessionId: 'unknown', taskId: 'a' })).rejects.toThrow();
+});
+
 test('with a client attached nothing is closed; the minute counts from the client leaving', async () => {
   const { sessions, conversation, clock } = await openOne();
   sessions.clientJoined();

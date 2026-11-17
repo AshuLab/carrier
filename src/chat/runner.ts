@@ -62,8 +62,8 @@ export interface ChatConversation {
   send(text: string, command?: ChatCommand): void;
   answer(approvalId: string, choiceId: string, answers?: Record<string, string>): void;
   interrupt(): Promise<void>;
-  /** Stops the tasks the agent has running in the background; a provider that has none does not offer it. */
-  stopBackground?(): Promise<void>;
+  /** Stops the tasks the agent has running in the background, or just the one with this id; a provider that has none does not offer it. */
+  stopBackground?(taskId?: string): Promise<void>;
   setOption(id: string, value: string): Promise<void>;
   close(): Promise<void>;
   onEvent(listener: (event: ChatEvent) => void): void;

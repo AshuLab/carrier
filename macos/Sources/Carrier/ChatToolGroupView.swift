@@ -174,10 +174,14 @@ struct ChatToolGroupView: View {
 /// line names one task at a time and rolls to the next every few seconds, as the line of a run rolls from step to step. Cyan, the colour of the
 /// ring of a session that waits for something it started: a ring that turns, a glow that runs round the edge and a shimmer over the words (all
 /// of them still with Reduce Motion), the time since the oldest began, and Stop, which stops them all (the host's `interrupt`, which with no turn
-/// running stops the background tasks). It is there while the host lists a task and gone with the last.
+/// running stops the background tasks). It is there while the host lists a task and gone with the last. With more than one task and a host that can stop
+/// one by itself, each has its own Stop in the list and the one of the line says "Stop all".
 struct BackgroundWorkCard: View {
     let tasks: [CarrierCore.BackgroundTask]
+    /// Stops them all.
     let stop: () -> Void
+    /// Stops one of them; nil when the host cannot, and then the card has only the one Stop.
+    var stopTask: ((String) -> Void)?
     @State private var open = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -190,7 +194,7 @@ struct BackgroundWorkCard: View {
             HStack(spacing: 6) {
                 Button { toggle() } label: { header }.buttonStyle(.plain)
                     .accessibilityLabel(spoken).accessibilityHint(open ? "Hides the tasks" : "Shows the tasks")
-                Button("Stop", action: stop).buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).help("Stop what the agent waits for")
+                Button(stopsEach ? "Stop all" : "Stop", action: stop).buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).help("Stop what the agent waits for")
                     .accessibilityLabel("Stop the background tasks")
             }
             .frame(height: 30)
@@ -203,6 +207,9 @@ struct BackgroundWorkCard: View {
         .animation(.smooth(duration: 0.3), value: tasks.map(\.id))
         .accessibilityElement(children: .contain)
     }
+
+    /// With more than one task and a host that can, each task has its own Stop, and the one of the line says it is for all.
+    private var stopsEach: Bool { stopTask != nil && tasks.count > 1 }
 
     private var spoken: String {
         let names = tasks.map(\.name).joined(separator: ", ")
@@ -272,9 +279,13 @@ struct BackgroundWorkCard: View {
                             Text(workingElapsed(Int(context.date.timeIntervalSince(started)))).font(.scaled(11.5)).monospacedDigit().foregroundStyle(.tertiary)
                         }
                     }
+                    if stopsEach, let stopTask {
+                        Button("Stop") { stopTask(task.id) }.buttonStyle(HoverTextButtonStyle(tint: nil)).help("Stop \(task.name)")
+                            .accessibilityLabel("Stop \(task.name)")
+                    }
                 }
-                .frame(height: 26).padding(.leading, 4).padding(.trailing, 26)
-                .accessibilityElement(children: .combine)
+                .frame(height: 26).padding(.leading, 4).padding(.trailing, stopsEach ? 8 : 26)
+                .accessibilityElement(children: .contain)
             }
         }
         .padding(.bottom, 8)

@@ -253,8 +253,11 @@ public protocol ChatHost {
     /// `send` that invokes a command the session listed: `text` is what follows its name (nothing is allowed), and the host shows it as the
     /// slash and the name and tells the provider in the provider's own way.
     func send(_ id: String, _ text: String, command: String?) async throws
-    /// Ends the turn that is in progress.
+    /// Ends the turn that is in progress; with none running, it stops what the agent waits for in the background.
     func interrupt(_ id: String) async throws
+    /// Stops one of the tasks the agent waits for in the background (`BackgroundTask.id`); the host refuses one that is not running. A host that
+    /// does not list `stopTask` among its capabilities cannot: `capabilities()` says it.
+    func stopTask(_ id: String, task: String) async throws
     /// Passes the person's choice for a pending approval to the agent; the host refuses one that is not pending and a choice the provider did not list.
     func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws
 
@@ -480,6 +483,12 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
         let _: AnyReply = try await Task.detached { try chatRequest(path, "interrupt", requires: .interrupt, fields: fields) }.value
+    }
+
+    public func stopTask(_ id: String, task: String) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"taskId\":" + jsonString(task)
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "stopTask", requires: .stopTask, fields: fields) }.value
     }
 
     /// Both ids go on the wire JSON-encoded, as they come from the provider.
@@ -738,3 +747,8 @@ fileprivate func usageRequest<Reply: Decodable>(_ path: String, _ command: Strin
 }
 
 public let hostNotRunning = "The chat host is not running"
+
+extension ChatHost {
+    /// A host that has no tasks to stop has nothing to do.
+    public func stopTask(_ id: String, task: String) async throws {}
+}

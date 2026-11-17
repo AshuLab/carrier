@@ -791,6 +791,21 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       return {};
     },
 
+    /** Stops one of the tasks the agent waits for in the background. */
+    async stopTask({ sessionId, taskId }: { sessionId: string; taskId: string }) {
+      row(sessionId);
+      const live = lives.get(sessionId);
+      if (live === undefined || live.background.some((task) => task.id === taskId) === false) throw new ChatRefused('That task is not running');
+      if (live.conversation.stopBackground === undefined) throw new ChatRefused('This agent cannot stop a single task');
+      try {
+        await live.conversation.stopBackground(taskId);
+      } catch (error) {
+        log.error('stopping a background task failed', error);
+        throw new ChatRefused('The task could not be stopped');
+      }
+      return {};
+    },
+
     async setOption({ sessionId, option, value }: { sessionId: string; option: string; value: string }) {
       row(sessionId);
       const live = lives.get(sessionId);

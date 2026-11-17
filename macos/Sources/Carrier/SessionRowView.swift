@@ -196,8 +196,8 @@ struct SessionRowView: View {
     }
 }
 
-/// What a session's row says at the top right, in the place of its time: "Needs you" while it waits for a permission or an answer, "Done" once
-/// its turn ended and it was not opened since, how long the turn has run while it works or waits for what it started (a stopwatch that ticks
+/// What a session's row says at the top right, in the place of its time: "Needs you" while it waits for a permission or an answer, "Done" and
+/// beside it how long ago, once its turn ended and it was not opened since, how long the turn has run while it works or waits for what it started (a stopwatch that ticks
 /// each second, in the colour of the ring), or else the age of its last activity. `age` is nil while the time is switched off: then none of it shows.
 struct SessionTimeLabel: View {
     let row: SessionRow
@@ -206,8 +206,12 @@ struct SessionTimeLabel: View {
     var body: some View {
         if row.state == .waiting && age != nil {
             Text("Needs you").fontWeight(.medium).foregroundStyle(SessionRowView.attention)
-        } else if row.status == .unread && age != nil {
-            Text("Done").fontWeight(.medium).foregroundStyle(SessionRowView.done)
+        } else if row.status == .unread, let age {
+            // the word, and beside it how long ago it ended: the time it would have shown
+            HStack(spacing: 4) {
+                Text("Done").fontWeight(.medium).foregroundStyle(SessionRowView.done)
+                Text(age).foregroundStyle(.tertiary)
+            }
         } else if age != nil, let since = WorkingClock.shared.since(row) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text(workingElapsed(Int(context.date.timeIntervalSince(since)))).foregroundStyle(row.state == .working ? Color.thought : SessionRowView.backgroundWork)

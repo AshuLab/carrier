@@ -24,7 +24,7 @@ On a row of the sidebar's list the pointer brings Pin (Unpin) and Archive in pla
 The Archive section and Settings' preview draw the row without them. Settings > Sidebar's preview shows three rows (idle, Done, Needs you); Reset of that page also clears the remembered width (`SidebarStore.widthKey`), which the window reads at launch.
 A "Base folder" session says it with a folder mark, as a worktree's branch has its own.
 
-A session whose turn ended and that the person has not opened since (`SessionRow.unread`, `SessionStatus.unread`) says "Done" in green in the place of the time (on the second line when the time is switched off), as "Needs you" does in orange; opening it brings the time back.
+A session whose turn ended and that the person has not opened since (`SessionRow.unread`, `SessionStatus.unread`) says "Done" in green, with how long ago it ended beside it in the colour of a time, in the place of the time (on the second line, as the word alone, when the time is switched off), as "Needs you" does in orange; opening it brings the time back.
 "Needs you" is for a permission or a question the agent is blocked on, "Done" for a turn that simply ended.
 When the turn ends while the row is on screen, the icon's glow turns green and goes once round, fast, from where the arc was (`WorkingRing`, `finished`); with Reduce Motion the lap is skipped and the word still appears.
 

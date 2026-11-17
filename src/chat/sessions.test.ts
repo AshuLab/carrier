@@ -10,7 +10,7 @@ import { openChatDatabase } from './db.ts';
 import { FakeChatRunner, FakeGit, fakeProjects, type FakeConversation, type FakeRepo } from './fake.ts';
 import { ChatRefused } from './runner.ts';
 import { chatCaps } from './transcript.ts';
-import { sessions as schemaSessions } from './schema.ts';
+import { chatEvents, chatTurns, sessions as schemaSessions } from './schema.ts';
 import type { HealthProbes } from './health.ts';
 import { capabilities } from './mcp/capabilities.ts';
 import { McpSessionRegistry } from './mcp.ts';
@@ -192,6 +192,34 @@ test('reasoning is stored redacted and bounded, and served only to a client that
   expect(plain.cursor).toBe(4);
 });
 
+test('the error of a usage limit is stored with its reason and its reset, and the words are cut like other text', async () => {
+  const { sessions, conversation, id } = await openOne();
+  sessions.send({ sessionId: id, text: 'hi' });
+  conversation.emit({ kind: 'error', text: 'limit', reason: 'usage_limit', resetsAt: 1_800_000_000_000 }, { kind: 'turn_end', outcome: 'error' });
+  sessions.send({ sessionId: id, text: 'again' });
+  conversation.emit({ kind: 'error', text: 'limit', reason: 'usage_limit', resetText: `resets 12:40pm ${'x'.repeat(5000)}` }, { kind: 'turn_end', outcome: 'error' });
+  const errors = sessions.events({ sessionId: id, limit: 50 }).events.filter((e) => e.kind === 'error');
+  expect(errors[0]).toMatchObject({ text: 'limit', reason: 'usage_limit', resetsAt: 1_800_000_000_000 });
+  expect((errors[0] as any).resetText).toBeUndefined();
+  expect((errors[1] as any).resetText.length).toBeLessThanOrEqual(4096);
+  expect((errors[1] as any).resetText.startsWith('resets 12:40pm')).toBe(true);
+});
+
+test('the stored events through mcpView: filtered by kind before the limit, one event of that session only, and how a tool call ended', async () => {
+  const { sessions, conversation, id } = await openOne();
+  sessions.send({ sessionId: id, text: 'hi' });
+  conversation.emit({ kind: 'reasoning', text: 'secret thoughts' }, { kind: 'tool_start', callId: 'c1', tool: 'Bash', arg: 'ls' }, { kind: 'tool_start', callId: 'c2', tool: 'Read' }, { kind: 'tool_end', callId: 'c1', tool: 'Bash', output: ['a'], status: 'ok' }, { kind: 'tool_end', callId: 'c2', tool: 'Read', status: 'err' }, { kind: 'assistant', text: 'done' });
+  const view = sessions.mcpView;
+  expect(view.storedEvents(id, { after: -1, kinds: ['user', 'assistant'], limit: 1 }).map((e) => [e.position, e.kind])).toEqual([[1, 'user']]);
+  expect(view.storedEvents(id, { after: 1, kinds: ['user', 'assistant'], limit: 5 }).map((e) => [e.position, e.kind])).toEqual([[7, 'assistant']]);
+  expect(view.storedEvent(id, 2, ['user', 'assistant'])).toBeUndefined(); // reasoning is in no view
+  expect(view.storedEvent(id, 7, ['assistant'])).toMatchObject({ position: 7, data: { text: 'done' } });
+  const other = await sessions.open({ agent: 'claude', folder: work });
+  expect(view.storedEvent(other.session.id, 7, ['assistant'])).toBeUndefined(); // another session's event is not found
+  expect(view.toolStatuses(id, ['c1', 'c2', 'c3'])).toEqual({ c1: 'ok', c2: 'err' });
+  expect(view.toolStatuses(id, [])).toEqual({});
+});
+
 test('a conversation over several turns: events come in order after the cursor, with state, title and the streaming text', async () => {
   const { sessions, conversation, id, clock } = await openOne();
   conversation.reply = (text, c) => {
@@ -274,6 +302,15 @@ test('agentOptions starts the agent, reads what it offers, ends it, and asks aga
   await sessions.agentOptions({ agent: 'claude' });
   expect(claude.opened.length).toBe(2);
   await expect(sessions.agentOptions({ agent: 'nope' })).rejects.toThrow('no chat agent named "nope"');
+});
+
+test('mcpView gives an agent\'s configured options and the options its probe lists, and refuses an agent that is not configured', async () => {
+  const { sessions, claude } = setup({ agents: { mine: { account: 'claude', options: { permissionMode: 'acceptEdits' } } } });
+  claude.setup = offering(['model', ['haiku', 'opus'], 'haiku']);
+  expect(sessions.mcpView.agentOptions('mine')).toEqual({ permissionMode: 'acceptEdits' });
+  expect(() => sessions.mcpView.agentOptions('nope')).toThrow('no chat agent named "nope"');
+  expect(await sessions.mcpView.offer('mine')).toMatchObject([{ id: 'model', values: [{ id: 'haiku' }, { id: 'opus' }] }]);
+  await expect(sessions.mcpView.offer('nope')).rejects.toThrow('no chat agent named "nope"');
 });
 
 test('a failure of agentOptions is not kept: the next ask tries again', async () => {
@@ -376,12 +413,13 @@ test('a title is cut at 80 characters', async () => {
 test('each finished turn stores its model, outcome, duration, tool calls and the usage as given', async () => {
   const { sessions, conversation, id, clock } = await openOne();
   clock.time = 100;
+  conversation.nativeId = 'native-1';
   sessions.send({ sessionId: id, text: 'go' });
   clock.time = 1600;
   conversation.emit({ kind: 'tool_start', callId: '1', tool: 'Read' }, { kind: 'tool_end', callId: '1', tool: 'Read' }, { kind: 'tool_start', callId: '2', tool: 'Bash' });
   conversation.emit({ kind: 'turn_end', outcome: 'interrupted', model: 'sonnet', usage: { inputTokens: 5, cacheReadInputTokens: 7 } });
   expect(rows('chat_turns')).toEqual([
-    { id: 1, sessionId: id, startedAt: 100, model: 'sonnet', outcome: 'interrupted', durationMs: 1500, toolCalls: 2, usage: '{"inputTokens":5,"cacheReadInputTokens":7}' },
+    { id: 1, sessionId: id, startedAt: 100, harness: 'claude', agent: 'claude', nativeId: 'native-1', model: 'sonnet', outcome: 'interrupted', durationMs: 1500, toolCalls: 2, usage: '{"inputTokens":5,"cacheReadInputTokens":7}' },
   ]);
   sessions.send({ sessionId: id, text: 'next' });
   conversation.emit({ kind: 'turn_end', outcome: 'ok' });
@@ -1721,17 +1759,17 @@ test.each([
 const ENDPOINT = 'http://127.0.0.1:4242/mcp';
 const withMcp = (down = false) => {
   const registry = new McpSessionRegistry(new FakeClock());
-  return { registry, extra: { mcp: { registry, url: () => (down ? undefined : ENDPOINT) } } };
+  return { registry, extra: { mcp: { registry, url: () => (down ? undefined : ENDPOINT), readTools: ['agents'] } } };
 };
 const tokensLive = (registry: McpSessionRegistry) => (registry as any).records.size as number;
 const noticesOf = (s: ReturnType<typeof setup>, id: string) => (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((e) => e.kind === 'notice').map((e) => e.text as string);
 
-test('open hands the runner a fresh read-only token for the session it is about to create, and close revokes it', async () => {
+test('open hands the runner a fresh token for the session it is about to create, with the names of the tools that read, and close revokes it', async () => {
   const { registry, extra } = withMcp();
   const s = await openOne(setup(undefined, extra));
   const { mcp } = s.claude.opened[0]!;
-  expect(mcp).toMatchObject({ serverName: 'carrier-chat', url: ENDPOINT });
-  expect(registry.lookup(mcp!.token)).toMatchObject({ sessionId: s.id, capabilities: new Set(['read']) });
+  expect(mcp).toMatchObject({ serverName: 'carrier-chat', url: ENDPOINT, readTools: ['agents'] });
+  expect(registry.lookup(mcp!.token)).toMatchObject({ sessionId: s.id, capabilities: new Set(['read', 'act']) }); // no parent: it may act
   expect(noticesOf(s, s.id)).toEqual([]);
   await s.sessions.close({ sessionId: s.id });
   expect(registry.lookup(mcp!.token)).toBeUndefined();
@@ -1892,4 +1930,1017 @@ test('capabilities answers the session, the agents and the verdicts, with no loc
   expect(s.sessions.mcpView.snapshot(session.id)).toMatchObject({ id: session.id, model: null, options: {} });
   expect(s.sessions.mcpView.exists(session.id)).toBe(true);
   expect(s.sessions.mcpView.exists('ghost')).toBe(false);
+});
+
+// Delegation: `delegate_start` through mcpView, which is what the MCP tool calls.
+// A fake conversation lists the options it was asked to open with, so a child's level reads from what it really runs at.
+const listing = (runner: FakeChatRunner) => (conversation: FakeConversation) => {
+  const asked = runner.opened.at(-1)!.options ?? {};
+  const values = (...ids: string[]) => ids.map((id) => ({ id, label: id }));
+  conversation.nativeId = `native-${runner.opened.length}`;
+  if (runner === codexRunnerOf.current) conversation.appServerVersion = '0.122.0';
+  conversation.options = runner === codexRunnerOf.current
+    ? [
+        { id: 'sandbox', label: 'Sandbox', values: values('read-only', 'workspace-write'), current: asked.sandbox ?? 'workspace-write' },
+        { id: 'approvalPolicy', label: 'Approvals', values: values('untrusted', 'on-request', 'never'), current: asked.approvalPolicy ?? 'untrusted' },
+        { id: 'model', label: 'Model', values: values('gpt-5', 'gpt-5-mini'), current: asked.model ?? 'gpt-5' },
+      ]
+    : [
+        { id: 'permissionMode', label: 'Permission mode', values: values('dontAsk', 'default', 'acceptEdits', 'plan', 'auto'), current: asked.permissionMode ?? 'default' },
+        { id: 'model', label: 'Model', values: values('haiku', 'opus', 'sonnet'), current: asked.model ?? 'haiku' },
+      ];
+};
+const codexRunnerOf: { current?: FakeChatRunner } = {};
+
+function delegation(extra: Partial<Parameters<typeof createSessions>[0]> = {}) {
+  const [claude, codex] = [new FakeChatRunner(), new FakeChatRunner()];
+  codexRunnerOf.current = codex;
+  claude.setup = listing(claude);
+  codex.setup = listing(codex);
+  const agents = {
+    main: { account: 'claude', options: { permissionMode: 'acceptEdits' } },
+    careful: { account: 'claude', options: { permissionMode: 'default' } },
+    reader: { account: 'claude', options: { permissionMode: 'dontAsk' } },
+    planner: { account: 'claude', options: { permissionMode: 'plan' } },
+    edit: { account: 'claude', options: { permissionMode: 'acceptEdits' }, model: 'haiku' },
+    plain: { account: 'claude' },
+    cx: { account: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } },
+    cxcareful: { account: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' } },
+    cxread: { account: 'codex', options: { sandbox: 'read-only', approvalPolicy: 'untrusted' } },
+  };
+  const mcp = withMcp();
+  const s = setup({ agents }, { runners: { claude, codex }, probes: probesOf(), binaryFound: () => true, ...mcp.extra, ...extra });
+  const parent = async (agent = 'main', folder = work) => (await s.sessions.open({ agent, folder })).session;
+  const start = (parentId: string, agent: string, task = 'do the thing', more: { model?: string; requestId?: string } = {}) => s.sessions.mcpView.startChild(parentId, { agent, task, ...more });
+  const children = () => s.db.select().from(schemaSessions).all().filter((found) => found.parentSessionId !== null);
+  return { ...s, claude, codex, registry: mcp.registry, parent, start, children };
+}
+
+test('delegate_start makes a child session of its own agent in the parent\'s folder, plain even when the parent\'s is a worktree, with the task as its title and first message', async () => {
+  const git = new FakeGit();
+  const s = delegation({ git, projects: fakeProjects(git, new FakeClock()) });
+  git.repos.set(realpathSync(work), { head: 'main', branches: ['main'], remoteBranches: ['main'], origin: 'git@github.com:acme/app.git' });
+  const { session: parent } = await s.sessions.open({ agent: 'main', folder: work, worktree: { from: 'main', name: 'w1' } });
+  const worktree = parent.workspace as { path: string };
+
+  const { childId } = await s.start(parent.id, 'edit', 'Review the diff\nand say what is wrong');
+  const child = s.db.select().from(schemaSessions).where(eq(schemaSessions.id, childId)).get()!;
+  expect(child).toMatchObject({ parentSessionId: parent.id, agent: 'edit', harness: 'claude', folder: worktree.path, workspaceKind: 'folder', worktreePath: null, worktreeBranch: null, title: 'Review the diff', state: 'working', delegationRequestId: null, archived: false, plan: null, options: { model: 'haiku', permissionMode: 'acceptEdits' } });
+  expect(s.claude.opened.at(-1)).toMatchObject({ folder: realpathSync(worktree.path), options: { model: 'haiku', permissionMode: 'acceptEdits' }, mcp: { serverName: 'carrier-chat' } });
+  expect(s.claude.conversations.at(-1)!.sent).toEqual(['Review the diff\nand say what is wrong']);
+  expect(storedUserMessages(s, childId)).toEqual(['Review the diff\nand say what is wrong']);
+  expect(git.calls.filter((call) => call.args[0] === 'worktree' && call.args[1] === 'add')).toHaveLength(1); // the parent's, none for the child
+
+  // a child holds a token that only reads, and none for the parent's own
+  expect(s.registry.lookup(s.claude.opened.at(-1)!.mcp!.token)).toMatchObject({ sessionId: childId, capabilities: new Set(['read']) });
+});
+const storedUserMessages = (s: { sessions: ReturnType<typeof setup>['sessions'] }, id: string) => (s.sessions.events({ sessionId: id, limit: 100 }).events as any[]).filter((event) => event.kind === 'user').map((event) => event.text as string);
+
+test('a child is out of the list of sessions and its parent\'s summary lists it with its agent, harness, state and level, and says when it waits for the person', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'cx');
+  expect(s.sessions.list({}).sessions.map((found) => found.id)).toEqual([parent.id]);
+  expect(s.sessions.list({ archived: true }).sessions).toEqual([]);
+  expect(s.sessions.list({}).sessions[0]!.children).toEqual([{ id: childId, agent: 'cx', harness: 'codex', state: 'working', level: 2, needsPerson: false }]);
+  expect(JSON.stringify(s.sessions.list({}))).not.toContain('delegationRequestId');
+  const childEvents = s.sessions.events({ sessionId: childId, limit: 10 });
+  expect(childEvents.session).toMatchObject({ id: childId, parentSessionId: parent.id, children: [] });
+  expect(childEvents.session).not.toHaveProperty('delegationRequestId');
+  expect(s.sessions.events({ sessionId: parent.id, limit: 10 }).session).toMatchObject({ parentSessionId: null });
+
+  s.codex.conversations[0]!.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }] });
+  expect(s.sessions.list({}).sessions[0]!.children).toEqual([expect.objectContaining({ state: 'waiting_approval', needsPerson: true })]);
+  s.sessions.answer({ sessionId: childId, approvalId: 'a1', choiceId: 'allow' });
+  s.codex.conversations[0]!.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(s.sessions.list({}).sessions[0]!.children).toEqual([expect.objectContaining({ state: 'idle', needsPerson: false })]);
+});
+
+test('the turns of a child record its own harness, agent and conversation, not its parent\'s', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'cx');
+  s.codex.conversations[0]!.emit({ kind: 'turn_end', outcome: 'ok', model: 'gpt-5' });
+  s.sessions.send({ sessionId: parent.id, text: 'hello' });
+  s.claude.conversations[0]!.emit({ kind: 'turn_end', outcome: 'ok' });
+  const turns = rows('chat_turns');
+  expect(turns.find((turn) => turn.sessionId === childId)).toMatchObject({ harness: 'codex', agent: 'cx', nativeId: 'native-1', model: 'gpt-5' });
+  expect(turns.find((turn) => turn.sessionId === parent.id)).toMatchObject({ harness: 'claude', agent: 'main', nativeId: 'native-1' });
+});
+
+test('a child opens at the lower of its agent\'s level and its parent\'s, across both harnesses, and never above its own agent\'s', async () => {
+  const s = delegation();
+  const levelOfChild = async (parentAgent: string, childAgent: string) => {
+    const parent = await s.parent(parentAgent);
+    const { childId } = await s.start(parent.id, childAgent);
+    const summary = s.sessions.list({}).sessions.find((found) => found.id === parent.id)!.children.find((child) => child.id === childId)!;
+    return { level: summary.level, options: s.db.select().from(schemaSessions).where(eq(schemaSessions.id, childId)).get()!.options };
+  };
+  expect(await levelOfChild('main', 'edit')).toMatchObject({ level: 2, options: { permissionMode: 'acceptEdits' } });
+  expect(await levelOfChild('main', 'reader')).toMatchObject({ level: 0, options: { permissionMode: 'dontAsk' } }); // an agent that reads stays reading
+  expect(await levelOfChild('careful', 'edit')).toMatchObject({ level: 1, options: { permissionMode: 'default' } }); // lowered
+  expect(await levelOfChild('cxread', 'edit')).toMatchObject({ level: 0, options: { permissionMode: 'dontAsk', model: 'haiku' } });
+  expect(await levelOfChild('main', 'plain')).toMatchObject({ level: 1, options: { permissionMode: 'default' } }); // none set: the adapter's default
+  expect(await levelOfChild('main', 'planner')).toMatchObject({ level: 2, options: { permissionMode: 'acceptEdits' } }); // off the scale: given the parent's level
+  expect(await levelOfChild('main', 'cx')).toMatchObject({ level: 2, options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } });
+  expect(await levelOfChild('careful', 'cx')).toMatchObject({ level: 1, options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' } });
+  expect(await levelOfChild('cxread', 'cx')).toMatchObject({ level: 0, options: { sandbox: 'read-only', approvalPolicy: 'untrusted' } });
+  expect(await levelOfChild('main', 'cxcareful')).toMatchObject({ level: 1 });
+  expect(s.codex.opened.at(-1)).toMatchObject({ options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' } });
+});
+
+test('the parent\'s level is read from its options as they are at the call, and a parent that is not offered cannot start a child', async () => {
+  const s = delegation();
+  const parent = await s.parent('main');
+  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'default' });
+  const { childId } = await s.start(parent.id, 'edit');
+  expect(s.children().find((child) => child.id === childId)!.options).toMatchObject({ permissionMode: 'default' });
+  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'plan' });
+  await expect(s.start(parent.id, 'edit')).rejects.toThrow(/does not ask the person/);
+  const off = await s.parent('planner');
+  await expect(s.start(off.id, 'edit')).rejects.toThrow(ChatRefused);
+  expect(s.children()).toHaveLength(1);
+});
+
+test('a repeated requestId returns the same child whatever the other arguments are, even with four running, and a new one is refused there', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const first = await s.start(parent.id, 'edit', 'one', { requestId: 'r1' });
+  expect(await s.start(parent.id, 'cx', 'another task', { requestId: 'r1' })).toEqual(first);
+  expect(await s.start(parent.id, 'ghost', 'x', { requestId: 'r1', model: 'nope' })).toEqual(first);
+  expect(s.children()).toHaveLength(1);
+  expect(s.claude.opened).toHaveLength(2); // the parent and the child
+  for (const task of ['two', 'three', 'four']) await s.start(parent.id, 'edit', task);
+  expect(s.children()).toHaveLength(4);
+  expect(await s.start(parent.id, 'edit', 'again', { requestId: 'r1' })).toEqual(first); // before the cap
+  await expect(s.start(parent.id, 'edit', 'five', { requestId: 'r2' })).rejects.toThrow(/already has 4 children/);
+  expect(s.children()).toHaveLength(4);
+  // the same request id under another parent is another request
+  const other = await s.parent();
+  expect((await s.start(other.id, 'edit', 'x', { requestId: 'r1' })).childId).not.toBe(first.childId);
+});
+
+test('two calls that arrive together with three children running start one child and refuse the other, and two with the same requestId start one', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  for (const task of ['one', 'two', 'three']) await s.start(parent.id, 'edit', task);
+  const settled = await Promise.allSettled([s.start(parent.id, 'edit', 'four'), s.start(parent.id, 'cx', 'five')]);
+  expect(settled.map((result) => result.status).sort()).toEqual(['fulfilled', 'rejected']);
+  expect((settled.find((result) => result.status === 'rejected') as PromiseRejectedResult).reason).toBeInstanceOf(ChatRefused);
+  expect(s.children()).toHaveLength(4);
+});
+
+test('two calls with the same requestId that arrive together start one child', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const [a, b] = await Promise.all([s.start(parent.id, 'edit', 'x', { requestId: 'same' }), s.start(parent.id, 'cx', 'y', { requestId: 'same' })]);
+  expect(a).toEqual(b);
+  expect(s.children()).toHaveLength(1);
+});
+
+test('only a child that works or waits counts toward the four: one that finished frees its slot', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  for (const task of ['one', 'two', 'three', 'four']) await s.start(parent.id, 'edit', task);
+  await expect(s.start(parent.id, 'edit', 'five')).rejects.toThrow(/4 children/);
+  s.claude.conversations[1]!.emit({ kind: 'turn_end', outcome: 'ok' });
+  s.claude.conversations[2]!.emit({ kind: 'approval', approvalId: 'a', tool: 'Bash', choices: [{ id: 'deny', label: 'Deny', allow: false }] }); // waiting still counts
+  await s.start(parent.id, 'edit', 'five');
+  await expect(s.start(parent.id, 'edit', 'six')).rejects.toThrow(/4 children/);
+});
+
+test('a failing open leaves no row, no token and no event, frees the requestId, and a task that cannot be sent does the same', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  s.claude.refuseWith = 'claude is not logged in';
+  await expect(s.start(parent.id, 'edit', 'x', { requestId: 'r1' })).rejects.toThrow('claude is not logged in');
+  expect(s.children()).toEqual([]);
+  expect(tokensLive(s.registry)).toBe(1); // the parent's
+  s.claude.refuseWith = undefined;
+
+  const options = s.claude.setup;
+  s.claude.setup = (conversation) => {
+    options(conversation);
+    conversation.send = () => {
+      throw new Error('closed pipe');
+    };
+  };
+  await expect(s.start(parent.id, 'edit', 'x', { requestId: 'r1' })).rejects.toThrow('could not be delivered');
+  expect(s.children()).toEqual([]);
+  expect(rows('chat_events').filter((event) => event.sessionId !== parent.id)).toEqual([]);
+  expect(s.claude.conversations.at(-1)!.closed).toBe(true);
+  expect(tokensLive(s.registry)).toBe(1);
+  expect(s.sessions.mcpView.live(parent.id)).toBe(true);
+  expect(s.sessions.liveCount()).toBe(1);
+
+  s.claude.setup = options;
+  const { childId } = await s.start(parent.id, 'edit', 'x', { requestId: 'r1' }); // the request id was freed
+  expect(s.children().map((child) => child.id)).toEqual([childId]);
+});
+
+test('a parent that no longer exists once the child\'s conversation has opened gets no child: the conversation is closed and the row goes', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = s.claude.open.bind(s.claude);
+  s.claude.open = async (args) => {
+    const conversation = await open(args);
+    await gate;
+    return conversation;
+  };
+  const pending = s.start(parent.id, 'edit', 'x');
+  await vi.waitFor(() => expect(s.children()).toHaveLength(1)); // the slot is held while it opens
+  s.db.$client.pragma('foreign_keys = OFF');
+  s.db.delete(schemaSessions).where(eq(schemaSessions.id, parent.id)).run(); // the parent goes
+  release();
+  await expect(pending).rejects.toThrow(/no longer exists/);
+  expect(rows('sessions').filter((found) => found.parentSessionId !== null)).toEqual([]);
+  expect(s.claude.conversations.at(-1)!.closed).toBe(true);
+});
+
+/** A child's conversation that opens only when released. */
+function gatedOpen(s: ReturnType<typeof delegation>) {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = s.claude.open.bind(s.claude);
+  s.claude.open = async (args) => {
+    const conversation = await open(args);
+    if (args.child === true) await gate; // the probe of the models opens one too, and is not held
+    return conversation;
+  };
+  return release;
+}
+
+test('a repeated requestId that arrives while the child opens waits for it, and is answered with its id only once it is attached', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const release = gatedOpen(s);
+  const first = s.start(parent.id, 'edit', 'x', { requestId: 'r1' });
+  await vi.waitFor(() => expect(s.children()).toHaveLength(1));
+  let answered = false;
+  const second = s.start(parent.id, 'edit', 'x', { requestId: 'r1' }).then((answer) => ((answered = true), answer));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(answered).toBe(false); // the row exists, the conversation does not
+  release();
+  const [a, b] = await Promise.all([first, second]);
+  expect(a).toEqual(b);
+  expect(s.sessions.mcpView.live(a.childId)).toBe(true);
+});
+
+test('a repeated requestId that arrives while the child opens fails with it when the open fails, and never answers an id that was discarded', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  s.claude.refuseWith = 'claude is not logged in';
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = s.claude.open.bind(s.claude);
+  s.claude.open = async (args) => {
+    await gate;
+    return open(args);
+  };
+  const first = s.start(parent.id, 'edit', 'x', { requestId: 'r1' });
+  await vi.waitFor(() => expect(s.children()).toHaveLength(1));
+  const second = s.start(parent.id, 'edit', 'x', { requestId: 'r1' });
+  release();
+  await expect(first).rejects.toThrow('claude is not logged in');
+  await expect(second).rejects.toThrow('claude is not logged in');
+  expect(s.children()).toEqual([]);
+});
+
+test('a parent is not archived or deleted while a child is still opening, and the clock counts that child as live', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const release = gatedOpen(s);
+  const pending = s.start(parent.id, 'edit', 'x');
+  await vi.waitFor(() => expect(s.children()).toHaveLength(1));
+  await expect(s.sessions.archive({ sessionId: parent.id, archived: true })).rejects.toThrow(/A child of this session is starting.*archive it/);
+  await expect(s.sessions.delete({ sessionId: parent.id })).rejects.toThrow(/A child of this session is starting.*delete it/);
+  release();
+  const { childId } = await pending;
+  expect(rows('sessions').find((found) => found.id === parent.id)!.archived).toBe(0);
+  expect(s.sessions.mcpView.live(childId)).toBe(true);
+  await expect(s.sessions.archive({ sessionId: parent.id, archived: true })).rejects.toThrow(/A child of this session is working/); // once opened, the usual refusal
+});
+
+test('each refusal of delegate_start answers with words and leaves nothing behind', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const refused = async (agent: string, pattern: RegExp, more: { model?: string } = {}) => {
+    await expect(s.start(parent.id, agent, 'x', more)).rejects.toThrow(pattern);
+    await expect(s.start(parent.id, agent, 'x', more)).rejects.toBeInstanceOf(ChatRefused);
+  };
+  await refused('ghost', /no chat agent named "ghost"/);
+  await refused('edit', /"gpt-9" is not a model of the agent "edit"; it lists: haiku, opus, sonnet/, { model: 'gpt-9' });
+  await expect(s.start('missing-parent', 'edit')).rejects.toThrow('There is no such session');
+  expect(s.children()).toEqual([]);
+  expect((await s.start(parent.id, 'edit', 'x', { model: 'opus' })).childId).toBeDefined();
+  expect(s.children()[0]!.options).toMatchObject({ model: 'opus' });
+
+});
+
+test('delegate_start refuses an agent that is not found on this machine, one that is signed out and a probe that cannot list the models', async () => {
+  let missing = false;
+  let signedOut = false;
+  const s = delegation({ binaryFound: (command) => !(missing && command === 'codex'), probes: probesOf({ loggedIn: async (harness) => !(signedOut && harness === 'codex') }) });
+  const parent = await s.parent();
+  missing = true;
+  await expect(s.start(parent.id, 'cx')).rejects.toThrow('The agent "cx" is not found on this machine');
+  missing = false;
+  signedOut = true;
+  await expect(s.start(parent.id, 'cx')).rejects.toThrow('The agent "cx" is signed out');
+  expect(s.children()).toEqual([]);
+  expect(s.codex.opened).toEqual([]);
+  signedOut = false;
+  s.clock.time += 31_000; // the verdicts are kept thirty seconds
+  expect((await s.start(parent.id, 'cx')).childId).toBeDefined();
+
+  s.claude.refuseWith = 'claude is not logged in';
+  await expect(s.start(parent.id, 'edit', 'x', { model: 'opus' })).rejects.toThrow(/models of the agent "edit" could not be listed/);
+  expect(s.children()).toHaveLength(1);
+});
+
+test('a child cannot start children of its own', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit');
+  await expect(s.start(childId, 'edit')).rejects.toThrow(/cannot start children/);
+  expect(s.children()).toHaveLength(1);
+});
+
+const approval = { kind: 'approval' as const, approvalId: 'a1', tool: 'Bash', choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }] };
+
+test('waitChildren answers working when the time ends, and done with the last message cut to 4,000 characters once the turn ended, as soon as it does', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit');
+  const child = s.claude.conversations.at(-1)!;
+  const wait = (timeoutMs: number) => s.sessions.mcpView.waitChildren(parent.id, [childId], timeoutMs);
+
+  const timedOut = wait(2000);
+  await s.clock.advance(1999);
+  let answered = false;
+  void timedOut.then(() => (answered = true));
+  await Promise.resolve();
+  expect(answered).toBe(false);
+  await s.clock.advance(1);
+  expect(await timedOut).toEqual([{ childId, agent: 'edit', state: 'working' }]);
+
+  const ended = wait(45_000);
+  await s.clock.advance(10_000);
+  child.emit({ kind: 'assistant', text: 'x'.repeat(5000) });
+  child.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(await ended).toEqual([{ childId, agent: 'edit', state: 'done', message: 'x'.repeat(4000) }]);
+  expect(await wait(1000)).toEqual([{ childId, agent: 'edit', state: 'done', message: 'x'.repeat(4000) }]); // answers at once, with no time passing
+});
+
+test('waitChildren waits for every child that works, and counts one that waits for an approval as stopped', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const [a, b] = [(await s.start(parent.id, 'edit')).childId, (await s.start(parent.id, 'edit')).childId];
+  const [first, second] = s.claude.conversations.slice(-2) as [FakeConversation, FakeConversation];
+  const waiting = s.sessions.mcpView.waitChildren(parent.id, [a, b], 45_000);
+  first.emit({ kind: 'turn_end', outcome: 'ok' });
+  second.emit(approval);
+  expect((await waiting).map((report) => report.state)).toEqual(['done', 'needs_approval']);
+});
+
+test('a child in each situation is answered as it is: needs_approval, error, usage_limit and interrupted, and a child closed in the middle of a turn is interrupted and not done', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const stateOf = async (childId: string) => (await s.sessions.mcpView.waitChildren(parent.id, [childId], 1000))[0]!.state;
+  const child = async () => ({ id: (await s.start(parent.id, 'edit')).childId, conversation: s.claude.conversations.at(-1)! });
+
+  const asking = await child();
+  asking.conversation.emit(approval);
+  expect(await stateOf(asking.id)).toBe('needs_approval');
+
+  const failed = await child();
+  failed.conversation.emit({ kind: 'error', text: 'boom' });
+  failed.conversation.emit({ kind: 'turn_end', outcome: 'error' });
+  expect(await stateOf(failed.id)).toBe('error');
+
+  const limited = await child();
+  limited.conversation.emit({ kind: 'error', text: 'limit', reason: 'usage_limit', resetText: 'later' });
+  limited.conversation.emit({ kind: 'turn_end', outcome: 'error' });
+  expect(await stateOf(limited.id)).toBe('usage_limit');
+
+  const stopped = await child();
+  await s.sessions.interrupt({ sessionId: stopped.id });
+  expect(await stateOf(stopped.id)).toBe('interrupted');
+  s.sessions.mcpView.waitChildren(parent.id, [asking.id], 1000); // a wait that goes on is harmless
+
+  await s.sessions.close({ sessionId: asking.id });
+  expect(await stateOf(asking.id)).toBe('interrupted'); // closed with its turn open
+
+  const dropped = await child(); // a host that restarts finds the row working with no live conversation
+  s.db.update(schemaSessions).set({ state: 'working' }).where(eq(schemaSessions.id, dropped.id)).run();
+  await s.sessions.close({ sessionId: dropped.id });
+  s.db.update(schemaSessions).set({ state: 'working' }).where(eq(schemaSessions.id, dropped.id)).run();
+  expect(await stateOf(dropped.id)).toBe('interrupted');
+});
+
+test('a wait wakes when a child is closed mid-turn, and refuses an id that is not the caller\'s child like one that does not exist', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const other = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit');
+  const waiting = s.sessions.mcpView.waitChildren(parent.id, [childId], 45_000);
+  await s.sessions.close({ sessionId: childId });
+  expect((await waiting)[0]!.state).toBe('interrupted');
+
+  for (const [caller, id] of [[other.id, childId], [parent.id, other.id], [parent.id, 'nope'], [childId, childId]] as const) {
+    await expect(s.sessions.mcpView.waitChildren(caller, [id], 1000)).rejects.toThrow('There is no such session');
+  }
+  const mine = await s.start(parent.id, 'edit');
+  await expect(s.sessions.mcpView.waitChildren(parent.id, [mine.childId, 'nope'], 1000)).rejects.toThrow('There is no such session');
+});
+
+test('related says a parent and its child are, and a sibling, a stranger and an unknown id are not', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const stranger = await s.parent();
+  const a = (await s.start(parent.id, 'edit')).childId;
+  const b = (await s.start(parent.id, 'edit')).childId;
+  const { related } = s.sessions.mcpView;
+  expect([related(parent.id, a), related(a, parent.id)]).toEqual([true, true]);
+  expect([related(a, b), related(a, stranger.id), related(stranger.id, a), related(parent.id, 'nope'), related(parent.id, stranger.id)]).toEqual([false, false, false, false, false]);
+});
+
+test('a child takes no send, resume, archive, delete, rename, setOption or switchAgent: each is refused with words that say it belongs to its parent, and the session is unchanged', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit', 'the task');
+  const child = s.claude.conversations.at(-1)!;
+  const before = s.db.select().from(schemaSessions).where(eq(schemaSessions.id, childId)).get();
+  const sentBefore = [...child.sent];
+  const refusals: [string, () => unknown][] = [
+    ['send', () => s.sessions.send({ sessionId: childId, text: 'one more thing' })],
+    ['resume', () => s.sessions.resume({ sessionId: childId })],
+    ['archive', () => s.sessions.archive({ sessionId: childId, archived: true })],
+    ['delete', () => s.sessions.delete({ sessionId: childId })],
+    ['rename', () => s.sessions.rename({ sessionId: childId, title: 'mine' })],
+    ['setOption', () => s.sessions.setOption({ sessionId: childId, option: 'permissionMode', value: 'auto' })],
+    ['switchAgent', () => s.sessions.switchAgent({ sessionId: childId, agent: 'cx' })],
+  ];
+  for (const [name, call] of refusals) {
+    const refused = await Promise.resolve().then(call).then(() => undefined, (error: unknown) => error);
+    expect(refused, name).toBeInstanceOf(ChatRefused);
+    expect((refused as Error).message, name).toMatch(/belongs to its parent session/);
+  }
+  expect(s.db.select().from(schemaSessions).where(eq(schemaSessions.id, childId)).get()).toEqual(before);
+  expect(child.sent).toEqual(sentBefore);
+  expect(s.claude.opened).toHaveLength(2); // the parent's and the child's: nothing was resumed
+  expect(s.codex.opened).toEqual([]); // nor switched to
+  expect(s.sessions.mcpView.live(childId)).toBe(true);
+
+  // closed, it still cannot be resumed
+  await s.sessions.close({ sessionId: childId });
+  await expect(s.sessions.resume({ sessionId: childId })).rejects.toThrow(/belongs to its parent session/);
+  expect(s.claude.opened).toHaveLength(2);
+
+  // a session that is nobody's child is refused none of these
+  expect(s.sessions.rename({ sessionId: parent.id, title: 'mine' })).toEqual({});
+});
+
+test('interrupt, close, answer and events work on a child as on any session', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit', 'the task');
+  const child = s.claude.conversations.at(-1)!;
+
+  expect(s.sessions.events({ sessionId: childId, limit: 10 }).session).toMatchObject({ id: childId, parentSessionId: parent.id });
+  child.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }] });
+  expect(s.sessions.events({ sessionId: childId, limit: 10 }).approvals).toMatchObject([{ approvalId: 'a1' }]);
+  expect(s.sessions.answer({ sessionId: childId, approvalId: 'a1', choiceId: 'deny' })).toEqual({});
+  expect(s.sessions.events({ sessionId: childId, limit: 10 }).approvals).toEqual([]);
+  await expect(s.sessions.interrupt({ sessionId: childId })).resolves.toEqual({});
+  await expect(s.sessions.close({ sessionId: childId })).resolves.toEqual({});
+  expect(child.closed).toBe(true);
+});
+
+// Switching an idle session to another configured agent (ADR 0032).
+function switching(extra: Partial<Parameters<typeof createSessions>[0]> = {}) {
+  const [claude, codex] = [new FakeChatRunner(), new FakeChatRunner()];
+  const values = (...ids: string[]) => ids.map((id) => ({ id, label: id }));
+  const lists = (runner: FakeChatRunner, name: string, models: string[], mode: [id: string, values: string[]]) => {
+    runner.setup = (conversation) => {
+      const asked = runner.opened.at(-1)!.options ?? {};
+      conversation.nativeId = `${name}-${runner.opened.length}`;
+      conversation.options = [
+        { id: 'model', label: 'Model', values: values(...models), current: asked.model ?? models[0]! },
+        { id: mode[0], label: mode[0], values: values(...mode[1]), current: asked[mode[0]] ?? mode[1][0]! },
+      ];
+    };
+  };
+  lists(claude, 'claude', ['haiku', 'sonnet'], ['permissionMode', ['default', 'acceptEdits']]);
+  lists(codex, 'codex', ['gpt-5', 'gpt-5-mini'], ['sandbox', ['workspace-write', 'read-only']]);
+  const agents = {
+    a: { account: 'claude' },
+    other: { account: 'claude', options: { permissionMode: 'acceptEdits' } },
+    b: { account: 'codex', options: { sandbox: 'read-only' } },
+    withmodel: { account: 'codex', model: 'gpt-5-mini' },
+    unlisted: { account: 'codex', model: 'gpt-9' },
+  };
+  const mcp = withMcp();
+  const s = setup({ agents }, { runners: { claude, codex }, probes: probesOf(), binaryFound: () => true, ...mcp.extra, ...extra });
+  /** A session of `a` that has said one thing and has been answered, idle. */
+  const talked = async () => {
+    const { session } = await s.sessions.open({ agent: 'a', folder: work });
+    const old = claude.conversations[0]!;
+    s.sessions.send({ sessionId: session.id, text: 'Plan the export' });
+    old.emit({ kind: 'assistant', text: 'Start with the schema.' }, { kind: 'turn_end', outcome: 'ok', model: 'haiku' });
+    return { id: session.id, old };
+  };
+  const sessionRow = (id: string) => s.db.select().from(schemaSessions).where(eq(schemaSessions.id, id)).get()!;
+  const notices = (id: string) => (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((event) => event.kind === 'notice');
+  return { ...s, claude, codex, registry: mcp.registry, talked, sessionRow, notices };
+}
+
+test('a switch answers the session and the options of the new agent, and the next message goes to a conversation that opened with the handoff', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  const tokenOfOld = s.claude.opened[0]!.mcp!.token;
+  const answered = await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+
+  expect(answered.session).toMatchObject({ id, agent: 'b', harness: 'codex', nativeId: 'codex-1', state: 'idle', folder: expect.stringContaining('work') });
+  expect(answered.options.map((option) => [option.id, option.current])).toEqual([['model', 'gpt-5'], ['sandbox', 'read-only']]);
+  expect(s.sessionRow(id).options).toEqual({ sandbox: 'read-only' });
+  const instructions = s.codex.opened[0]!.instructions!;
+  expect(instructions).toContain('Plan the export');
+  expect(instructions).toContain('Start with the schema.');
+  expect(s.codex.opened[0]).toMatchObject({ folder: expect.stringContaining('work'), options: { sandbox: 'read-only' }, mcp: { serverName: 'carrier-chat' } });
+  expect(s.codex.opened[0]!.resume).toBeUndefined();
+
+  // the notice says it, and carries the agents as the config names them
+  expect(s.notices(id)).toEqual([expect.objectContaining({ switched: { from: 'a', to: 'b' }, text: expect.stringContaining('from a to b') })]);
+  // the old conversation ended and its token is gone; the new one holds one
+  expect(old.closed).toBe(true);
+  expect(s.registry.lookup(tokenOfOld)).toBeUndefined();
+  expect(s.registry.lookup(s.codex.opened[0]!.mcp!.token)).toMatchObject({ sessionId: id });
+
+  // the next message is the new conversation's; the old one is no longer recorded
+  s.sessions.send({ sessionId: id, text: 'Now build it' });
+  const fresh = s.codex.conversations[0]!;
+  expect(fresh.sent).toEqual(['Now build it']);
+  old.emit({ kind: 'assistant', text: 'a late word of the old agent' });
+  fresh.emit({ kind: 'assistant', text: 'Building.' }, { kind: 'turn_end', outcome: 'ok', model: 'gpt-5' });
+  const said = (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((event) => event.kind === 'assistant').map((event) => event.text);
+  expect(said).toEqual(['Start with the schema.', 'Building.']);
+
+  // each turn records who ran it: the earlier one stays on the first agent
+  const turns = rows('chat_turns');
+  expect(turns[0]).toMatchObject({ harness: 'claude', agent: 'a', nativeId: 'claude-1' });
+  expect(turns[1]).toMatchObject({ harness: 'codex', agent: 'b', nativeId: 'codex-1', model: 'gpt-5' });
+});
+
+test('a switch can go to another account of the same harness, and the agent takes its configured model', async () => {
+  const s = switching();
+  const { id } = await s.talked();
+  await s.sessions.switchAgent({ sessionId: id, agent: 'other' });
+  expect(s.sessionRow(id)).toMatchObject({ agent: 'other', harness: 'claude', nativeId: 'claude-2', options: { permissionMode: 'acceptEdits' } });
+  const listed = await s.sessions.switchAgent({ sessionId: id, agent: 'withmodel' });
+  expect(listed.options.find((option) => option.id === 'model')!.current).toBe('gpt-5-mini');
+  expect(s.sessionRow(id).options).toEqual({ model: 'gpt-5-mini' });
+});
+
+test('a session with no message switches with no handoff, and keeps no instructions at all', async () => {
+  const s = switching();
+  const { session } = await s.sessions.open({ agent: 'a', folder: work });
+  await s.sessions.switchAgent({ sessionId: session.id, agent: 'b' });
+  expect(s.codex.opened[0]).not.toHaveProperty('instructions');
+  expect(s.notices(session.id)).toHaveLength(1);
+  // and a resume of it still has none
+  await s.sessions.close({ sessionId: session.id });
+  await s.sessions.resume({ sessionId: session.id });
+  expect(s.codex.opened[1]).not.toHaveProperty('instructions');
+});
+
+test('a switch of a closed session works, with no old conversation to close', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  await s.sessions.close({ sessionId: id });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ live: false });
+  const answered = await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  expect(answered.session).toMatchObject({ agent: 'b', harness: 'codex' });
+  expect(old.closed).toBe(true); // by the close above, and not again
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ live: true });
+  expect(s.codex.opened[0]!.instructions).toContain('Plan the export');
+  s.sessions.send({ sessionId: id, text: 'go on' });
+  expect(s.codex.conversations[0]!.sent).toEqual(['go on']);
+});
+
+test('after a resume of the switched session the handoff is passed again, built from before the switch whatever was said after it', async () => {
+  const s = switching();
+  const { id } = await s.talked();
+  await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  const first = s.codex.opened[0]!.instructions!;
+  s.sessions.send({ sessionId: id, text: 'Now build it' });
+  s.codex.conversations[0]!.emit({ kind: 'assistant', text: 'Building.' }, { kind: 'turn_end', outcome: 'ok' });
+  await s.sessions.close({ sessionId: id });
+  await s.sessions.resume({ sessionId: id });
+  expect(s.codex.opened[1]).toMatchObject({ resume: 'codex-1', instructions: first });
+  expect(first).not.toContain('Building.');
+  // a session that never switched resumes with none
+  const plain = await s.sessions.open({ agent: 'a', folder: work });
+  await s.sessions.close({ sessionId: plain.session.id });
+  await s.sessions.resume({ sessionId: plain.session.id });
+  expect(s.claude.opened.at(-1)).not.toHaveProperty('instructions');
+});
+
+test('a second switch hands over what was said since, the new agent gets the handoff of the whole conversation', async () => {
+  const s = switching();
+  const { id } = await s.talked();
+  await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  s.sessions.send({ sessionId: id, text: 'Now build it' });
+  s.codex.conversations[0]!.emit({ kind: 'assistant', text: 'Building.' }, { kind: 'turn_end', outcome: 'ok' });
+  await s.sessions.switchAgent({ sessionId: id, agent: 'other' });
+  expect(s.claude.opened.at(-1)!.instructions).toContain('Building.');
+  expect(s.notices(id).map((notice) => notice.switched)).toEqual([{ from: 'a', to: 'b' }, { from: 'b', to: 'other' }]);
+});
+
+/** Runs a switch that has to be refused and shows the session as it was: the old conversation live and open, nothing stored, the next message going to it. */
+async function refusedSwitch(s: ReturnType<typeof switching>, id: string, old: FakeConversation, agent: string, words: RegExp) {
+  const before = s.sessionRow(id);
+  const storedBefore = rows('chat_events').length;
+  const refused = await s.sessions.switchAgent({ sessionId: id, agent }).then(() => undefined, (error: Error) => error);
+  expect(refused).toBeInstanceOf(ChatRefused);
+  expect(refused!.message).toMatch(words);
+  expect(s.sessionRow(id)).toEqual(before);
+  expect(rows('chat_events')).toHaveLength(storedBefore);
+  expect(old.closed).toBe(false);
+  expect(s.registry.lookup(s.claude.opened[0]!.mcp!.token)).toBeDefined();
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ live: true, agent: 'a' });
+  s.sessions.send({ sessionId: id, text: 'still here' });
+  expect(old.sent.at(-1)).toBe('still here');
+  old.emit({ kind: 'turn_end', outcome: 'ok' });
+}
+
+test('a switch of a session that is working or waiting for an approval is refused, in words, and leaves it as it was', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  s.sessions.send({ sessionId: id, text: 'busy now' });
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'b' })).rejects.toThrow('This session is working; interrupt it or wait, then switch its agent');
+  old.emit({ kind: 'approval', approvalId: 'p1', tool: 'Bash', choices: [{ id: 'allow', label: 'Allow', allow: true }] });
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'b' })).rejects.toThrow('waiting for an approval');
+  expect(s.codex.opened).toEqual([]);
+  expect(old.closed).toBe(false);
+  expect(s.sessionRow(id)).toMatchObject({ agent: 'a', harness: 'claude', nativeId: 'claude-1' });
+});
+
+test('a switch is refused for a session that is preparing, one whose preparation failed, an archived one and a child', async () => {
+  const s = switching();
+  const { id } = await s.talked();
+  await s.sessions.close({ sessionId: id });
+  s.db.update(schemaSessions).set({ state: 'preparing' }).where(eq(schemaSessions.id, id)).run();
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'b' })).rejects.toThrow(/being prepared/);
+  s.db.update(schemaSessions).set({ state: 'idle', plan: { workspace: { kind: 'folder', folder: work }, agent: 'a', text: 'x' } }).where(eq(schemaSessions.id, id)).run();
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'b' })).rejects.toThrow('did not finish preparing');
+  s.db.update(schemaSessions).set({ plan: null, archived: true }).where(eq(schemaSessions.id, id)).run();
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'b' })).rejects.toThrow(/archived/);
+  s.db.update(schemaSessions).set({ archived: false }).where(eq(schemaSessions.id, id)).run();
+  await expect(s.sessions.switchAgent({ sessionId: '3f2b6a52-8f5e-4a63-9d5b-0a1d2c3e4f50', agent: 'b' })).rejects.toThrow('There is no such session');
+  expect(s.codex.opened).toEqual([]);
+  expect(s.sessionRow(id)).toMatchObject({ agent: 'a', harness: 'claude' });
+});
+
+test('a switch is refused for the agent the session has, one not configured, one not found and one signed out', async () => {
+  const signedOut = { value: false };
+  const s = switching({ probes: probesOf({ loggedIn: async (harness) => !(signedOut.value && harness === 'codex') }), binaryFound: (command) => command !== 'gone' });
+  const { id, old } = await s.talked();
+  await refusedSwitch(s, id, old, 'a', /already has the agent "a"/);
+  await refusedSwitch(s, id, old, 'nobody', /no chat agent named "nobody"/);
+  signedOut.value = true;
+  await refusedSwitch(s, id, old, 'b', /"b" is signed out/);
+  expect(s.codex.opened).toEqual([]);
+});
+
+test('a switch to an agent whose binary is not found is refused', async () => {
+  const s = switching({ binaryFound: (command) => command === 'claude' });
+  const { id, old } = await s.talked();
+  await refusedSwitch(s, id, old, 'b', /"b" is not found on this machine/);
+  expect(s.codex.opened).toEqual([]);
+});
+
+test('a switch to an agent whose model the harness does not list is refused, checked against the probe, and a probe that fails refuses too', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  await refusedSwitch(s, id, old, 'unlisted', /"gpt-9" is not a model of the agent "unlisted"; it lists: gpt-5, gpt-5-mini/);
+  // the probe's conversation is not the session's: it ended
+  expect(s.codex.conversations.every((conversation) => conversation.closed)).toBe(true);
+  s.clock.time += 11 * 60_000; // what the probe kept is old
+  s.codex.refuseWith = 'codex is not logged in';
+  await refusedSwitch(s, id, old, 'withmodel', /models of the agent "withmodel" could not be listed/);
+});
+
+test('a new conversation that cannot open refuses the switch and leaves the old one live, and the same switch works once it can', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  s.codex.refuseOpen = { nth: 1, with: 'codex is not logged in' };
+  await refusedSwitch(s, id, old, 'b', /codex is not logged in/);
+  expect(s.codex.opened).toHaveLength(1);
+  await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  expect(s.sessionRow(id)).toMatchObject({ agent: 'b', nativeId: 'codex-2' });
+  expect(old.closed).toBe(true);
+});
+
+test('a new conversation that opens without the chat MCP refuses the switch, is closed again, and its token is revoked', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  const tokens = () => (s.registry as any).records.size as number;
+  const live = tokens();
+  const listed = s.codex.setup;
+  s.codex.setup = (conversation) => (listed(conversation), void (conversation.mcpProblem = 'it did not start'));
+  await refusedSwitch(s, id, old, 'b', /could not get Carrier's own tools, so the session keeps "a"/);
+  expect(s.codex.conversations.every((conversation) => conversation.closed)).toBe(true);
+  expect(tokens()).toBe(live);
+  expect(noticesOf(s, id)).toEqual([]);
+});
+
+test('a switch of a host whose chat MCP is down is refused', async () => {
+  const s = switching(withMcp(true).extra);
+  const { session } = await s.sessions.open({ agent: 'a', folder: work });
+  await expect(s.sessions.switchAgent({ sessionId: session.id, agent: 'b' })).rejects.toThrow(/could not get Carrier's own tools/);
+  expect(s.claude.conversations[0]!.closed).toBe(false);
+  expect(s.codex.conversations.every((conversation) => conversation.closed)).toBe(true);
+});
+
+test('while a switch runs, a message, a resume, a close, an option, an interrupt, a delete, an archive and a second switch are refused, and the idle clock leaves the session alone', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = s.codex.open.bind(s.codex);
+  s.codex.open = async (args) => (await gate, open(args));
+  const switched = s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  const refused = /switching to another agent/;
+  expect(() => s.sessions.send({ sessionId: id, text: 'too soon' })).toThrow(refused);
+  await expect(s.sessions.resume({ sessionId: id })).rejects.toThrow(refused);
+  await expect(s.sessions.close({ sessionId: id })).rejects.toThrow(refused);
+  await expect(s.sessions.setOption({ sessionId: id, option: 'model', value: 'sonnet' })).rejects.toThrow(refused);
+  await expect(s.sessions.interrupt({ sessionId: id })).rejects.toThrow(refused);
+  await expect(s.sessions.delete({ sessionId: id })).rejects.toThrow(refused);
+  await expect(s.sessions.archive({ sessionId: id, archived: true })).rejects.toThrow(refused);
+  await expect(s.sessions.switchAgent({ sessionId: id, agent: 'other' })).rejects.toThrow(refused);
+  s.clock.time += 2 * IDLE_AFTER; // no client is attached: the idle close would fire
+  expect(old.closed).toBe(false);
+  // reads still work
+  expect(s.sessions.events({ sessionId: id, limit: 10 }).session).toMatchObject({ id });
+  release();
+  await switched;
+  expect(old.closed).toBe(true);
+  s.sessions.send({ sessionId: id, text: 'now it works' });
+  expect(s.codex.conversations[0]!.sent).toEqual(['now it works']);
+  expect(s.codex.conversations[0]!.closed).toBe(false);
+});
+const IDLE_AFTER = 60_000;
+
+test('the old conversation stays recorded as the session\'s process until it ends, and the new one is recorded after', async () => {
+  const s = switching();
+  for (const [runner, process] of [[s.claude, { pid: 11, pgid: 11, command: '/bin/claude' }], [s.codex, { pid: 22, pgid: 22, command: '/bin/codex' }]] as const) {
+    const listed = runner.setup;
+    runner.setup = (conversation) => (listed(conversation), void (conversation.process = process));
+  }
+  const { id, old } = await s.talked();
+  let release!: () => void;
+  const ended = new Promise<void>((resolve) => (release = resolve));
+  old.close = async () => {
+    await ended;
+    old.closed = true;
+  };
+  const switched = s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  await vi.waitFor(() => expect(s.sessionRow(id).agent).toBe('b'));
+  expect(s.sessionRow(id)).toMatchObject({ pid: 11, pgid: 11, command: '/bin/claude' }); // a host that died here can still sweep it
+  release();
+  await switched;
+  expect(s.sessionRow(id)).toMatchObject({ pid: 22, pgid: 22, command: '/bin/codex' });
+});
+
+test('an old conversation that dies while the switch opens does not stop it', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = s.codex.open.bind(s.codex);
+  s.codex.open = async (args) => (await gate, open(args));
+  const switched = s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  old.die({ kind: 'error', text: 'the process ended' });
+  await vi.waitFor(() => expect(s.sessions.list({}).sessions[0]!.live).toBe(false));
+  release();
+  await expect(switched).resolves.toMatchObject({ session: { agent: 'b' } });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ live: true, agent: 'b' });
+});
+
+// A parent and its children as one: archive, delete, the clock and the host's idle exit (ADR 0033).
+async function family() {
+  const git = new FakeGit();
+  const s = delegation({ git, projects: fakeProjects(git, new FakeClock()) });
+  const repo = realpathSync(work);
+  git.repos.set(repo, { head: 'main', branches: ['main'], remoteBranches: ['main'], origin: 'git@github.com:acme/app.git' });
+  const { session: parent } = await s.sessions.open({ agent: 'main', folder: repo, worktree: { from: 'main', name: 'fam' } });
+  const workspace = parent.workspace as { path: string; branch: string };
+  git.repos.set(workspace.path, { head: workspace.branch, branches: [workspace.branch], status: [], unpushed: { [workspace.branch]: 0 } });
+  const parentConversation = s.claude.conversations[0]!;
+  const { childId } = await s.start(parent.id, 'edit');
+  const childConversation = s.claude.conversations.at(-1)!;
+  const rowOf = (id: string) => s.db.select().from(schemaSessions).where(eq(schemaSessions.id, id)).get();
+  const count = (id: string) => ({ events: s.db.select().from(chatEvents).where(eq(chatEvents.sessionId, id)).all().length, turns: s.db.select().from(chatTurns).where(eq(chatTurns.sessionId, id)).all().length });
+  return { ...s, git, parent, workspace, parentConversation, childId, childConversation, rowOf, count, finish: () => childConversation.emit({ kind: 'turn_end', outcome: 'ok' }) };
+}
+
+test('archiving a parent is refused with words while a child works and closes nothing, then closes the idle child and never archives it', async () => {
+  const f = await family();
+  await expect(f.sessions.archive({ sessionId: f.parent.id, archived: true })).rejects.toThrow(/A child of this session is working.*archive the session/);
+  expect(f.rowOf(f.parent.id)!.archived).toBe(false);
+  expect(f.parentConversation.closed).toBe(false);
+  f.finish();
+  await f.sessions.archive({ sessionId: f.parent.id, archived: true });
+  expect(f.rowOf(f.parent.id)!.archived).toBe(true);
+  expect(f.rowOf(f.childId)).toMatchObject({ archived: false, state: 'idle' });
+  expect(f.sessions.liveCount()).toBe(0);
+});
+
+test('deleting a parent is refused while a child works, leaving the family and its worktree, then removes the worktree and deletes the children and the parent', async () => {
+  const f = await family();
+  f.childConversation.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices: [{ id: 'allow', label: 'Allow', allow: true }] });
+  await expect(f.sessions.delete({ sessionId: f.parent.id })).rejects.toThrow(/A child of this session is waiting for an approval/);
+  expect(f.parentConversation.closed).toBe(false); // nothing was closed before the refusal
+  expect(existsSync(f.workspace.path)).toBe(true);
+  expect(f.rowOf(f.childId)).toBeDefined();
+  f.sessions.answer({ sessionId: f.childId, approvalId: 'a1', choiceId: 'allow' });
+  f.finish();
+  expect(f.count(f.childId).events).toBeGreaterThan(0);
+  await f.sessions.delete({ sessionId: f.parent.id });
+  expect(f.childConversation.closed).toBe(true);
+  expect(existsSync(f.workspace.path)).toBe(false);
+  expect(f.db.select().from(schemaSessions).all()).toEqual([]);
+  expect(f.count(f.childId)).toEqual({ events: 0, turns: 0 });
+  expect(f.count(f.parent.id)).toEqual({ events: 0, turns: 0 });
+});
+
+test('a parent whose worktree cannot be removed keeps its children', async () => {
+  const f = await family();
+  f.finish();
+  const run = f.git.run.bind(f.git);
+  f.git.run = async (folder, args, options) => (args[0] === 'worktree' && args[1] === 'remove' ? { ok: false, code: 1, stderr: 'locked' } : run(folder, args, options));
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  await expect(f.sessions.delete({ sessionId: f.parent.id })).rejects.toThrow();
+  expect(f.rowOf(f.parent.id)).toBeDefined();
+  expect(f.rowOf(f.childId)).toBeDefined();
+});
+
+test('the delete preview of a parent shows what deleting its family would discard: the worktree it shares with its children', async () => {
+  const f = await family();
+  f.git.repos.get(f.workspace.path)!.status = [' M a.ts'];
+  expect((await f.sessions.deletePreview({ sessionIds: [f.parent.id] })).sessions).toEqual([{ sessionId: f.parent.id, worktree: expect.objectContaining({ path: f.workspace.path, dirty: 1 }) }]);
+});
+
+test('the clock ages a parent and its children as one: a working child keeps a closed parent from being archived, and the latest activity of the family sets when it is archived and deleted', async () => {
+  const f = await family();
+  const ages = { archiveAfterDays: 15, deleteAfterDays: 30 };
+  await f.sessions.close({ sessionId: f.parent.id }); // closed for being idle, the child still works
+  f.clock.time = 20 * DAY;
+  await f.sessions.applyClock(ages);
+  expect(f.rowOf(f.parent.id)!.archived).toBe(false); // the family is live
+  f.clock.time = 25 * DAY;
+  f.finish(); // the child's last activity: day 25
+  await f.sessions.close({ sessionId: f.childId });
+  f.clock.time = 39 * DAY;
+  await f.sessions.applyClock(ages);
+  expect(f.rowOf(f.parent.id)!.archived).toBe(false); // the parent alone has been idle 39 days, the family 14
+  f.clock.time = 40 * DAY;
+  await f.sessions.applyClock(ages);
+  expect(f.rowOf(f.parent.id)!.archived).toBe(true);
+  expect(f.rowOf(f.childId)!.archived).toBe(false); // a child is never archived by itself
+  expect(f.sessions.list({ archived: true }).sessions[0]).toMatchObject({ deleteAt: 55 * DAY, kept: false });
+  f.clock.time = 54 * DAY;
+  await f.sessions.applyClock(ages);
+  expect(f.rowOf(f.parent.id)).toBeDefined(); // the parent alone is long past 30 days
+  f.clock.time = 55 * DAY;
+  await f.sessions.applyClock(ages);
+  expect(f.db.select().from(schemaSessions).all()).toEqual([]);
+});
+
+test('an archived parent whose child is live is not deleted by the clock, and a kept family reads kept from the family\'s clock', async () => {
+  const f = await family();
+  f.finish();
+  await f.sessions.archive({ sessionId: f.parent.id, archived: true });
+  f.git.repos.get(f.workspace.path)!.status = [' M a.ts'];
+  f.clock.time = 60 * DAY;
+  await f.sessions.applyClock({ archiveAfterDays: 15, deleteAfterDays: 30 });
+  expect(f.rowOf(f.parent.id)).toBeDefined();
+  expect(f.sessions.list({ archived: true }).sessions[0]).toMatchObject({ kept: true, deleteAt: null });
+});
+
+test('a host with a child working is live: a closed parent does not make it idle', async () => {
+  const f = await family();
+  await f.sessions.close({ sessionId: f.parent.id });
+  expect(f.sessions.liveCount()).toBe(1);
+  f.finish();
+  await f.sessions.close({ sessionId: f.childId });
+  expect(f.sessions.liveCount()).toBe(0);
+});
+
+test('the delegation is offered only in a mode that asks, on the scale, on a harness that is new enough, and each refusal says why in the words `agents` gives', async () => {
+  const s = delegation();
+  const offered = async (harness: 'claude' | 'codex', options: Record<string, string>, version: string | null = '0.122.0') => {
+    const runner = harness === 'claude' ? s.claude : s.codex;
+    const before = runner.conversations.length;
+    const { session } = await s.sessions.open({ agent: harness === 'claude' ? 'plain' : 'cxcareful', folder: work });
+    runner.conversations.at(-1)!.appServerVersion = version ?? undefined;
+    expect(runner.conversations.length).toBe(before + 1);
+    for (const [id, value] of Object.entries(options)) await s.sessions.setOption({ sessionId: session.id, option: id, value });
+    return { id: session.id, why: s.sessions.mcpView.delegationRefusal(session.id) };
+  };
+  expect((await offered('claude', {})).why).toBeUndefined();
+  expect((await offered('claude', { permissionMode: 'acceptEdits' })).why).toBeUndefined();
+  for (const permissionMode of ['dontAsk', 'auto', 'plan']) {
+    const { id, why } = await offered('claude', { permissionMode });
+    expect(why, permissionMode).toContain(`permissionMode is ${permissionMode}`);
+    await expect(s.start(id, 'edit')).rejects.toThrow(why!);
+  }
+  expect((await offered('codex', {})).why).toBeUndefined();
+  expect((await offered('codex', { approvalPolicy: 'on-request' })).why).toBeUndefined();
+  expect((await offered('codex', { sandbox: 'read-only' })).why).toBeUndefined();
+  expect((await offered('codex', { approvalPolicy: 'never' })).why).toContain('approvalPolicy is never');
+  expect((await offered('codex', { sandbox: 'read-only', approvalPolicy: 'never' })).why).toContain('approvalPolicy is never'); // level 0, but it never asks
+  const old = await offered('codex', {}, '0.121.9');
+  expect(old.why).toBe('This Codex app-server is 0.121.9, older than 0.122.0, which delegation needs');
+  await expect(s.start(old.id, 'edit')).rejects.toThrow(old.why!);
+  expect((await offered('codex', {}, '0.130.0')).why).toBeUndefined();
+  expect((await offered('codex', {}, '1.0.0')).why).toBeUndefined();
+  expect((await offered('codex', {}, '0.9.0')).why).toMatch(/older than/);
+  const unknown = await offered('codex', {}, null);
+  expect(unknown.why).toMatch(/version of this Codex app-server is not known/);
+  expect(s.children()).toEqual([]);
+});
+
+test('a child is told it cannot start children, and the mode changed after the tools were listed makes the next call fail', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  expect(s.sessions.mcpView.delegationRefusal(parent.id)).toBeUndefined();
+  const { childId } = await s.start(parent.id, 'edit');
+  expect(s.sessions.mcpView.delegationRefusal(childId)).toBe('A child session cannot start children of its own');
+  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'auto' });
+  await expect(s.start(parent.id, 'edit', 'again')).rejects.toThrow(/permissionMode is auto/);
+  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'default' });
+  expect((await s.start(parent.id, 'edit', 'again')).childId).toBeDefined();
+  expect(s.children()).toHaveLength(2);
+});
+
+const choices = [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }];
+const delegateApproval = (approvalId: string, input: Record<string, unknown>) => ({ kind: 'approval' as const, approvalId, tool: 'mcp__carrier-chat__delegate_start', arg: 'raw', input, choices });
+const storedApprovals = (s: { sessions: ReturnType<typeof setup>['sessions'] }, id: string) => (s.sessions.events({ sessionId: id, limit: 100 }).events as any[]).filter((event) => event.kind === 'approval');
+
+test('the approval of delegate_start is stored with the agent, the model, the level, the lowered note, the notice and the whole task, and holds no input', async () => {
+  const s = delegation();
+  const parent = await s.parent('careful');
+  const task = `Review the diff.\n${'x'.repeat(30_000)}`;
+  s.claude.conversations[0]!.emit(delegateApproval('a1', { agent: 'edit', task, model: 'opus' }));
+  const [shown] = storedApprovals(s, parent.id);
+  expect(shown.arg).toBe(`Start edit as a child session\nModel: opus\nLevel: 1 (changes, asking before each change), lowered to match this session\nThe child can read this conversation.\nTask:\n${task}`);
+  expect(shown).not.toHaveProperty('input');
+  expect(JSON.stringify(s.sessions.events({ sessionId: parent.id, limit: 100 }))).not.toContain('"input"');
+
+  s.claude.conversations[0]!.emit(delegateApproval('a2', { agent: 'plain', task: 'short' }));
+  expect(storedApprovals(s, parent.id)[1].arg).toBe('Start plain as a child session\nModel: the agent\'s own\nLevel: 1 (changes, asking before each change)\nThe child can read this conversation.\nTask:\nshort');
+  const cx = await s.parent('main');
+  s.claude.conversations.at(-1)!.emit(delegateApproval('a3', { agent: 'ghost', task: 'x' }));
+  expect(storedApprovals(s, cx.id)[0].arg).toContain('Level: not known');
+});
+
+test('a call whose level differs from the one approved fails and starts no child, until the person approves the new level', async () => {
+  const s = delegation();
+  const parent = await s.parent('main');
+  const live = s.claude.conversations[0]!;
+  live.emit(delegateApproval('a1', { agent: 'edit', task: 'do it' }));
+  expect(storedApprovals(s, parent.id)[0].arg).toContain('Level: 2 (edits without asking)');
+  s.sessions.answer({ sessionId: parent.id, approvalId: 'a1', choiceId: 'allow' });
+  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'default' }); // the person lowers the mode after approving
+  await expect(s.start(parent.id, 'edit', 'do it')).rejects.toThrow(/approval was for level 2.*level 1.*none was started/);
+  await expect(s.start(parent.id, 'edit', 'do it')).rejects.toThrow(/approval was for level 2/); // and keeps failing
+  expect(s.children()).toEqual([]);
+
+  live.emit(delegateApproval('a2', { agent: 'edit', task: 'do it' })); // asked again, at the level of now
+  expect(storedApprovals(s, parent.id)[1].arg).toContain('Level: 1 (changes, asking before each change)');
+  s.sessions.answer({ sessionId: parent.id, approvalId: 'a2', choiceId: 'allow' });
+  const { childId } = await s.start(parent.id, 'edit', 'do it');
+  expect(s.children().find((child) => child.id === childId)!.options).toMatchObject({ permissionMode: 'default' });
+  // the approval was spent: another call for the same task is not held to it
+  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'acceptEdits' });
+  expect((await s.start(parent.id, 'edit', 'do it')).childId).not.toBe(childId);
+});
+
+test('a denied approval holds no level, and a call is only held to an approval of the same agent, model and task', async () => {
+  const s = delegation();
+  const parent = await s.parent('main');
+  const live = s.claude.conversations[0]!;
+  live.emit(delegateApproval('a1', { agent: 'edit', task: 'one' }));
+  s.sessions.answer({ sessionId: parent.id, approvalId: 'a1', choiceId: 'deny' });
+  live.emit(delegateApproval('a2', { agent: 'edit', task: 'two' }));
+  s.sessions.answer({ sessionId: parent.id, approvalId: 'a2', choiceId: 'allow' });
+  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'default' });
+  expect((await s.start(parent.id, 'edit', 'one')).childId).toBeDefined(); // denied: nothing to compare with
+  expect((await s.start(parent.id, 'edit', 'other')).childId).toBeDefined(); // not what was approved
+  await expect(s.start(parent.id, 'edit', 'two')).rejects.toThrow(/approval was for level 2/);
 });

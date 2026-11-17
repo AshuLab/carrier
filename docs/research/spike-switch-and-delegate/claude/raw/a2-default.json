@@ -1,0 +1,410 @@
+{
+  "mode": "default",
+  "init": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "default",
+    "claude_code_version": "2.1.326",
+    "mcp_servers": [
+      {
+        "name": "claude.ai Claude Data",
+        "status": "connected",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Claude Docs",
+        "status": "connected",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Meetings",
+        "status": "connected",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Slides",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Sheets",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Docs",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Calendar",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Slack",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Notion",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai monday.com",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Linear",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Intercom",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai HubSpot",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Figma",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Canva",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Box",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Atlassian",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Asana",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Sass BluePrint",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Vercel",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Google Drive",
+        "status": "needs-auth",
+        "source": "claudeai"
+      },
+      {
+        "name": "claude.ai Gmail",
+        "status": "needs-auth",
+        "source": "claudeai"
+      }
+    ],
+    "tools": [
+      "Task",
+      "AskUserQuestion",
+      "Bash",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "DesignSync",
+      "Edit",
+      "EnterPlanMode",
+      "EnterWorktree",
+      "ExitPlanMode",
+      "ExitWorktree",
+      "ListAgents",
+      "Monitor",
+      "NotebookEdit",
+      "PublishPlugin",
+      "PushNotification",
+      "Read",
+      "RemoteTrigger",
+      "ReportFindings",
+      "ScheduleWakeup",
+      "SendMessage",
+      "ShareOnboardingGuide",
+      "Skill",
+      "TaskStop",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Workflow",
+      "Write",
+      "mcp__claude_ai_Claude_Data__certify_query",
+      "mcp__claude_ai_Claude_Data__get_certified_query_source",
+      "mcp__claude_ai_Claude_Data__get_live_results",
+      "mcp__claude_ai_Claude_Data__list_certified_queries",
+      "mcp__claude_ai_Claude_Data__set_certified_query_source",
+      "mcp__claude_ai_Claude_Data__share_connector",
+      "mcp__claude_ai_Claude_Data__share_live_queries",
+      "mcp__claude_ai_Claude_Data__shared_results",
+      "mcp__claude_ai_Claude_Data__uncertify_query",
+      "mcp__claude_ai_Claude_Data__unshare_connector",
+      "mcp__claude_ai_Claude_Data__unshare_live_queries",
+      "mcp__claude_ai_Claude_Docs__batch",
+      "mcp__claude_ai_Claude_Docs__create",
+      "mcp__claude_ai_Claude_Docs__delete",
+      "mcp__claude_ai_Claude_Docs__export",
+      "mcp__claude_ai_Claude_Docs__guide",
+      "mcp__claude_ai_Claude_Docs__query",
+      "mcp__claude_ai_Claude_Docs__read",
+      "mcp__claude_ai_Claude_Docs__update",
+      "mcp__claude_ai_Meetings__follow_meeting_transcript",
+      "mcp__claude_ai_Meetings__get_meeting",
+      "mcp__claude_ai_Meetings__get_meeting_action_items",
+      "mcp__claude_ai_Meetings__get_meeting_transcript",
+      "mcp__claude_ai_Meetings__list_meetings"
+    ]
+  },
+  "turns": [
+    {
+      "probe": "write-inside",
+      "turn": {
+        "prompt": "Create a file named a.txt in the current working folder with the text hi inside. Do nothing else, and if it is refused do not try another way.",
+        "ms": 3207,
+        "asked": [
+          {
+            "turn": 1,
+            "tool": "Bash",
+            "input": {
+              "command": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-jeatBe/a.txt\" && cat \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-jeatBe/a.txt\"",
+              "description": "Create a.txt containing hi in working folder and verify"
+            },
+            "displayName": "Bash",
+            "description": "Create a.txt containing hi in working folder and verify",
+            "blockedPath": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-jeatBe/a.txt",
+            "suggestions": [
+              {
+                "type": "addRules",
+                "rules": [
+                  {
+                    "toolName": "Bash",
+                    "ruleContent": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-jeatBe/a.txt\" && cat \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-jeatBe/a.txt\""
+                  }
+                ],
+                "behavior": "allow",
+                "destination": "localSettings"
+              },
+              {
+                "type": "addDirectories",
+                "directories": [
+                  "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-jeatBe"
+                ],
+                "destination": "session"
+              }
+            ],
+            "toolUseID": "toolu_018NrRXFvkyabx5g3PhgumpB"
+          }
+        ],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-jeatBe/a.txt\" && cat \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-jeatBe/a.txt\"",
+              "description": "Create a.txt containing hi in working folder and verify"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_018NrRXFvkyabx5g3PhgumpB",
+            "error": true,
+            "text": "Denied by the spike probe."
+          }
+        ],
+        "said": "I couldn't create `a.txt`. The shell command was refused with \"Denied by the spike probe,\" and you asked me not to try another way, so I stopped there. No file was written, and I haven't verified the folder's contents.\n",
+        "outcome": "success",
+        "resultText": "I couldn't create `a.txt`. The shell command was refused with \"Denied by the spike probe,\" and you asked me not to try another way, so I stopped there. No file was written, and I haven't verified the folder's contents.",
+        "denials": [
+          {
+            "tool_name": "Bash",
+            "tool_use_id": "toolu_018NrRXFvkyabx5g3PhgumpB",
+            "tool_input": {
+              "command": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-jeatBe/a.txt\" && cat \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2w-jeatBe/a.txt\"",
+              "description": "Create a.txt containing hi in working folder and verify"
+            }
+          }
+        ]
+      },
+      "fileExists": false
+    },
+    {
+      "probe": "write-outside",
+      "turn": {
+        "prompt": "Create a file named b.txt with the text hi inside, in the folder /private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-a1Zfdu. Do nothing else, and if it is refused do not try another way.",
+        "ms": 2229,
+        "asked": [
+          {
+            "turn": 2,
+            "tool": "Bash",
+            "input": {
+              "command": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-a1Zfdu/b.txt\"",
+              "description": "Create b.txt containing hi in the specified folder"
+            },
+            "displayName": "Bash",
+            "description": "Create b.txt containing hi in the specified folder",
+            "blockedPath": "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-a1Zfdu/b.txt",
+            "suggestions": [
+              {
+                "type": "addRules",
+                "rules": [
+                  {
+                    "toolName": "Bash",
+                    "ruleContent": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-a1Zfdu/b.txt\""
+                  }
+                ],
+                "behavior": "allow",
+                "destination": "localSettings"
+              },
+              {
+                "type": "addDirectories",
+                "directories": [
+                  "/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-a1Zfdu"
+                ],
+                "destination": "session"
+              }
+            ],
+            "toolUseID": "toolu_015ox3zBb1duT1LeGJ4Vw46X"
+          }
+        ],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-a1Zfdu/b.txt\"",
+              "description": "Create b.txt containing hi in the specified folder"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_015ox3zBb1duT1LeGJ4Vw46X",
+            "error": true,
+            "text": "Denied by the spike probe."
+          }
+        ],
+        "said": "I couldn't create `b.txt` in `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-a1Zfdu`. The shell command was refused with \"Denied by the spike probe,\" so per your instruction I didn't try another method. Nothing was written.\n",
+        "outcome": "success",
+        "resultText": "I couldn't create `b.txt` in `/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-a1Zfdu`. The shell command was refused with \"Denied by the spike probe,\" so per your instruction I didn't try another method. Nothing was written.",
+        "denials": [
+          {
+            "tool_name": "Bash",
+            "tool_use_id": "toolu_015ox3zBb1duT1LeGJ4Vw46X",
+            "tool_input": {
+              "command": "printf 'hi' > \"/private/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/cl-a2o-a1Zfdu/b.txt\"",
+              "description": "Create b.txt containing hi in the specified folder"
+            }
+          }
+        ]
+      },
+      "fileExists": false
+    },
+    {
+      "probe": "curl",
+      "turn": {
+        "prompt": "Run the shell command: curl -sI https://example.com | head -1 Do nothing else, and if it is refused do not try another way.",
+        "ms": 1852,
+        "asked": [
+          {
+            "turn": 3,
+            "tool": "Bash",
+            "input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch HTTP status line from example.com"
+            },
+            "displayName": "Bash",
+            "description": "Fetch HTTP status line from example.com",
+            "suggestions": [
+              {
+                "type": "addRules",
+                "rules": [
+                  {
+                    "toolName": "Bash",
+                    "ruleContent": "curl -sI https://example.com"
+                  }
+                ],
+                "behavior": "allow",
+                "destination": "localSettings"
+              }
+            ],
+            "toolUseID": "toolu_014BLtMJYoMtYwmFmMr7WNih"
+          }
+        ],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch HTTP status line from example.com"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_014BLtMJYoMtYwmFmMr7WNih",
+            "error": true,
+            "text": "Denied by the spike probe."
+          }
+        ],
+        "said": "The command was refused with \"Denied by the spike probe,\" so I didn't run it another way. I have no HTTP status line from example.com.\n",
+        "outcome": "success",
+        "resultText": "The command was refused with \"Denied by the spike probe,\" so I didn't run it another way. I have no HTTP status line from example.com.",
+        "denials": [
+          {
+            "tool_name": "Bash",
+            "tool_use_id": "toolu_014BLtMJYoMtYwmFmMr7WNih",
+            "tool_input": {
+              "command": "curl -sI https://example.com | head -1",
+              "description": "Fetch HTTP status line from example.com"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "probe": "ls",
+      "turn": {
+        "prompt": "Run the shell command: ls Do nothing else, and if it is refused do not try another way.",
+        "ms": 3093,
+        "asked": [],
+        "tools": [
+          {
+            "name": "Bash",
+            "input": {
+              "command": "ls",
+              "description": "List files in current directory"
+            }
+          }
+        ],
+        "results": [
+          {
+            "tool": "toolu_018ZMVWaeaaiSwnKzJdCqJx1",
+            "error": false,
+            "text": "(Bash completed with no output)"
+          }
+        ],
+        "said": "The `ls` command ran and printed nothing, so the current directory appears to be empty.\n",
+        "outcome": "success",
+        "resultText": "The `ls` command ran and printed nothing, so the current directory appears to be empty.",
+        "denials": []
+      }
+    }
+  ]
+}

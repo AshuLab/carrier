@@ -63,7 +63,7 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
     throw new CliError(1, error instanceof Error ? error.message : String(error));
   }
   const sessionId = opened.session.id;
-  write(`Chat ${sessionId} with ${opened.session.agent} in ${opened.session.folder}. /options, /option <id> <value>, /quit leaves it open.\n`);
+  write(`Chat ${sessionId} with ${opened.session.agent} in ${opened.session.folder}. /options, /option <id> <value>, /agent <name>, /quit leaves it open.\n`);
 
   let cursor = 0;
   let printed = 0; // characters of the message being written that are already on screen
@@ -211,6 +211,24 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
             const { options } = (await client.request('setOption', { sessionId, option: id, value })) as Pick<Reply, 'options'>;
             write(describeOption(options.find((o) => o.id === id)!));
           }
+        } catch (error) {
+          write(`${error instanceof Error ? error.message : String(error)}\n`);
+        }
+        continue;
+      }
+      if (text === '/agent' || text.startsWith('/agent ')) {
+        const [name, ...extra] = text.split(/\s+/).slice(1);
+        if (name === undefined || extra.length > 0) {
+          write('Usage: /agent <name>\n');
+          continue;
+        }
+        if (client.hello.capabilities.includes('switchAgent') === false) {
+          write('This chat host is older than this command and cannot switch the agent. Leave, stop it with `carrier chat --stop` (when no session is working), and the next `carrier chat` starts a new one.\n');
+          continue;
+        }
+        try {
+          const { session } = (await client.request('switchAgent', { sessionId, agent: name })) as { session: { agent: string } };
+          write(`The agent is now ${session.agent}.\n`);
         } catch (error) {
           write(`${error instanceof Error ? error.message : String(error)}\n`);
         }

@@ -1,0 +1,25 @@
+{
+ "which": "b",
+ "handoffBytes": 1340,
+ "carry": {
+  "label": "b: a turn of its own that carries the handoff",
+  "said": "OK",
+  "tools": [],
+  "outcome": "ok",
+  "errors": []
+ },
+ "first": {
+  "label": "b: the command",
+  "said": "PONG:BETA",
+  "tools": [],
+  "outcome": "ok",
+  "errors": []
+ },
+ "recall": {
+  "label": "b: recall",
+  "said": "Odalys Prewitt.",
+  "tools": [],
+  "outcome": "ok",
+  "errors": []
+ }
+}

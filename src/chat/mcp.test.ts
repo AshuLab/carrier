@@ -3,7 +3,11 @@ import { afterEach, beforeEach, expect, test } from 'vitest';
 import { z } from 'zod';
 import { FakeClock } from '../orchestration/fake.ts';
 import { capabilities } from './mcp/capabilities.ts';
-import { defineTool, McpSessionRegistry, startMcpServer, type McpServer } from './mcp.ts';
+import { agents } from './mcp/agents.ts';
+import { delegateStart, delegateWait } from './mcp/delegate.ts';
+import { history } from './mcp/history.ts';
+import { delegationRefusal } from './levels.ts';
+import { defineTool, McpSessionRegistry, startMcpServer, type McpServer, type McpSessions, type StoredEvent } from './mcp.ts';
 import { ChatRefused } from './runner.ts';
 
 const DAY = 24 * 60 * 60_000;
@@ -14,6 +18,7 @@ let server: McpServer;
 let existing: Set<string>;
 let liveOnes: Set<string>;
 let seen: { args: unknown; ctx: unknown }[];
+let started: { parentId: string; args: unknown }[];
 
 const echo = defineTool({
   name: 'test_echo',
@@ -68,7 +73,8 @@ beforeEach(async () => {
   existing = new Set(['s1']);
   liveOnes = new Set(['s1']);
   seen = [];
-  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }) } });
+  started = [];
+  server = await startMcpServer({ registry, tools, sessions: { exists: (id) => existing.has(id), live: (id) => liveOnes.has(id), snapshot: () => { throw new Error('not used'); }, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async (parentId, args) => (started.push({ parentId, args }), { childId: 'child-1' }), related: () => false, waitChildren: async () => [] } });
 });
 afterEach(() => server.close());
 
@@ -194,10 +200,11 @@ test('notifications get 202 and no body, known or not', async () => {
   }
 });
 
-test('tools/list names every tool with its JSON schema', async () => {
+test('tools/list names the tools the token may use with their JSON schema, and leaves out the ones that act unless it has act', async () => {
   const token = issue();
   const { result } = await rpc(token, 'tools/list');
-  expect(result.tools.map((t: any) => t.name)).toEqual(tools.map((t) => t.name));
+  expect(result.tools.map((t: any) => t.name)).toEqual(tools.filter((t) => t.access !== 'actsAsSession').map((t) => t.name));
+  expect((await rpc(issue(['read', 'act']), 'tools/list')).result.tools.map((t: any) => t.name)).toEqual(tools.map((t) => t.name));
   expect(result.tools[0]).toMatchObject({ name: 'test_echo', description: 'Reads, for any token', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, additionalProperties: false } });
 });
 
@@ -268,7 +275,7 @@ test('capabilities is a readsAsSession tool that takes no arguments and answers 
   const own = await startMcpServer({
     registry,
     tools: [capabilities],
-    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }) },
+    sessions: { exists: () => true, live: () => true, snapshot: (id) => ({ ...view, id }), agents: () => [{ name: 'a', harness: 'claude', account: 'claude', found: true }], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'missing', agents: [{ name: 'a', harness: 'claude', state: 'ready' }] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async () => { throw new Error('not used'); }, related: () => false, waitChildren: async () => [] },
   });
   try {
     const token = issue();
@@ -280,6 +287,356 @@ test('capabilities is a readsAsSession tool that takes no arguments and answers 
     }
     expect((await ask({ extra: 1 })).isError).toBe(true);
     expect((await ask([])).isError).toBe(true);
+  } finally {
+    await own.close();
+  }
+});
+
+// ---- history ----
+
+type Stored = StoredEvent & { sessionId: string };
+const longText = 'x'.repeat(9000);
+const stored: Stored[] = [
+  { sessionId: 's1', position: 1, kind: 'user', data: { text: 'hello' } },
+  { sessionId: 's1', position: 2, kind: 'reasoning', data: { text: 'private thoughts' } },
+  { sessionId: 's1', position: 3, kind: 'tool_start', data: { callId: 'c1', tool: 'Bash', arg: 'ls' } },
+  { sessionId: 's1', position: 4, kind: 'tool_end', data: { callId: 'c1', tool: 'Bash', output: ['TOP SECRET OUTPUT'], status: 'ok' } },
+  { sessionId: 's1', position: 5, kind: 'tool_start', data: { callId: 'c2', tool: 'Read' } },
+  { sessionId: 's1', position: 6, kind: 'tool_start', data: { callId: 'c3', tool: 'Grep', arg: 'foo' } },
+  { sessionId: 's1', position: 7, kind: 'tool_end', data: { callId: 'c3', tool: 'Grep', output: ['STDERR'], status: 'err' } },
+  { sessionId: 's1', position: 8, kind: 'assistant', data: { text: longText } },
+  { sessionId: 's1', position: 9, kind: 'user', data: { text: '/review src', command: 'review' } },
+  { sessionId: 's2', position: 10, kind: 'assistant', data: { text: 'not yours' } },
+];
+const store: McpSessions = {
+  exists: (id) => id === 's1' || id === 's2',
+  live: () => true,
+  snapshot: () => { throw new Error('not used'); },
+  agents: () => [],
+  agentOptions: () => ({}),
+  offer: async () => [],
+  health: async () => ({ git: 'ready', gh: 'ready', agents: [] }),
+  storedEvents: (id, { after, kinds, limit }) => stored.filter((e) => e.sessionId === id && e.position > after && kinds.includes(e.kind)).slice(0, limit),
+  storedEvent: (id, position, kinds) => stored.find((e) => e.sessionId === id && e.position === position && kinds.includes(e.kind)),
+  delegationRefusal: () => undefined,
+  startChild: async () => { throw new Error('not used'); },
+  related: () => false,
+  waitChildren: async () => [],
+  toolStatuses: (_id, callIds) => Object.fromEntries(callIds.flatMap((c): [string, 'ok' | 'err'][] => (c === 'c1' ? [[c, 'ok']] : c === 'c3' ? [[c, 'err']] : []))),
+};
+
+test('history pages the messages view from the start to a null nextPosition, and filters before the limit', async () => {
+  const own = await startMcpServer({ registry, tools: [history], sessions: store });
+  try {
+    const token = issue();
+    const ask = async (args?: unknown) => {
+      const res = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'history', ...(args !== undefined && { arguments: args }) } }) })).json()) as any;
+      return { isError: res.result.isError as boolean, body: res.result.isError ? res.result.content[0].text : JSON.parse(res.result.content[0].text) };
+    };
+    expect(history).toMatchObject({ name: 'history', access: 'readsAsSession' });
+
+    const first = await ask();
+    expect(first.body.events.map((e: any) => [e.position, e.id, e.kind])).toEqual([[1, '1', 'user'], [8, '8', 'assistant'], [9, '9', 'user']]);
+    expect(first.body.events[1].text).toHaveLength(1500);
+    expect(first.body.events[2].text).toBe('/review src');
+    expect(first.body.nextPosition).toBeNull();
+
+    const one = await ask({ limit: 1 });
+    expect(one.body).toMatchObject({ events: [{ position: 1, text: 'hello' }], nextPosition: 1 });
+    const two = await ask({ limit: 1, afterPosition: one.body.nextPosition });
+    expect(two.body.events.map((e: any) => e.position)).toEqual([8]); // the reasoning and tool rows in between are filtered before the limit
+    expect(two.body.nextPosition).toBe(8);
+    const three = await ask({ limit: 1, afterPosition: two.body.nextPosition });
+    expect(three.body).toMatchObject({ events: [{ position: 9 }], nextPosition: null });
+    expect((await ask({ sessionId: 's1', view: 'messages', afterPosition: 9 })).body).toEqual({ events: [], nextPosition: null });
+  } finally {
+    await own.close();
+  }
+});
+
+test('history called with no arguments defaults to 40 events and pages via nextPosition until null', async () => {
+  const many: Stored[] = Array.from({ length: 45 }, (_, i) => ({ sessionId: 's1', position: i + 1, kind: i % 2 === 0 ? 'user' : 'assistant', data: { text: `msg-${i + 1}` } }));
+  const own = await startMcpServer({
+    registry,
+    tools: [history],
+    sessions: { ...store, storedEvents: (id, { after, kinds, limit }) => many.filter((e) => e.sessionId === id && e.position > after && kinds.includes(e.kind)).slice(0, limit) },
+  });
+  try {
+    const token = issue();
+    const ask = async (args?: unknown) => {
+      const res = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'history', ...(args !== undefined && { arguments: args }) } }) })).json()) as any;
+      return JSON.parse(res.result.content[0].text);
+    };
+    const first = await ask();
+    expect(first.events).toHaveLength(40);
+    expect(first.nextPosition).toBe(40);
+    const second = await ask({ afterPosition: first.nextPosition });
+    expect(second.events.map((e: any) => e.position)).toEqual([41, 42, 43, 44, 45]);
+    expect(second.nextPosition).toBeNull();
+  } finally {
+    await own.close();
+  }
+});
+
+test('history activity lists a tool call as one line with no output and never reasoning, and a long item is read whole in parts', async () => {
+  const own = await startMcpServer({ registry, tools: [history], sessions: store });
+  try {
+    const token = issue();
+    const ask = async (args?: unknown) => {
+      const res = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'history', ...(args !== undefined && { arguments: args }) } }) })).json()) as any;
+      return { isError: res.result.isError as boolean, body: res.result.isError ? res.result.content[0].text : JSON.parse(res.result.content[0].text) };
+    };
+    const activity = await ask({ view: 'activity' });
+    expect(activity.body.events.map((e: any) => [e.position, e.kind, e.text.slice(0, 20)])).toEqual([
+      [1, 'user', 'hello'],
+      [3, 'tool', 'Bash ls (ok)'],
+      [5, 'tool', 'Read (running)'],
+      [6, 'tool', 'Grep foo (err)'],
+      [8, 'assistant', 'x'.repeat(20)],
+      [9, 'user', '/review src'],
+    ]);
+    expect(JSON.stringify(activity.body)).not.toMatch(/SECRET|STDERR|private/);
+    expect((await ask({ itemId: '3', view: 'activity' })).body).toEqual({ itemId: '3', text: 'Bash ls (ok)', nextTextOffset: null });
+    expect((await ask({ itemId: '3' })).body).toEqual({ itemId: '3', text: 'Bash ls (ok)', nextTextOffset: null });
+
+    const part1 = await ask({ itemId: '8' });
+    expect(part1.body.text).toBe(longText.slice(0, 4000));
+    expect(part1.body.nextTextOffset).toBe(4000);
+    const part2 = await ask({ itemId: '8', textOffset: 4000 });
+    expect(part2.body).toMatchObject({ nextTextOffset: 8000 });
+    const part3 = await ask({ itemId: '8', textOffset: 8000 });
+    expect(part3.body).toEqual({ itemId: '8', text: longText.slice(8000), nextTextOffset: null });
+    expect((await ask({ itemId: '8', textOffset: 9000 })).body).toEqual({ itemId: '8', text: '', nextTextOffset: null });
+    expect((await ask({ itemId: '8', textOffset: 50_000 })).body).toEqual({ itemId: '8', text: '', nextTextOffset: null });
+  } finally {
+    await own.close();
+  }
+});
+
+test('history refuses a bad limit, position, offset or type, and another session or another session\'s item with the words of one that does not exist', async () => {
+  const own = await startMcpServer({ registry, tools: [history], sessions: store });
+  try {
+    const token = issue();
+    const ask = async (args?: unknown) => {
+      const res = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'history', ...(args !== undefined && { arguments: args }) } }) })).json()) as any;
+      return { isError: res.result.isError as boolean, text: res.result.content[0].text as string };
+    };
+    for (const bad of [{ limit: 0 }, { limit: 101 }, { limit: 1.5 }, { afterPosition: -2 }, { afterPosition: 0.5 }, { textOffset: 0 }, { textOffset: 3 }, { itemId: '8', textOffset: -1 }, { itemId: '8', textOffset: 1.5 }, { view: 'reasoning' }, { extra: 1 }]) {
+      const refused = await ask(bad);
+      expect([bad, refused.isError]).toEqual([bad, true]);
+      expect(refused.text).toMatch(/^Invalid arguments/);
+    }
+    const noSession = await ask({ sessionId: 's2' });
+    expect(noSession).toEqual({ isError: true, text: 'There is no such session' });
+    expect(await ask({ sessionId: 'ghost' })).toEqual(noSession);
+    for (const itemId of ['10', '99', '2', '4', '7', 'abc', '-1', '1.0', '01']) expect(await ask({ itemId })).toEqual({ isError: true, text: 'There is no such item' }); // another session's, missing, reasoning, tool ends, not a position
+    expect(await ask({ sessionId: 's2', itemId: '10' })).toEqual(noSession);
+  } finally {
+    await own.close();
+  }
+});
+
+// ---- agents ----
+
+type Listed = { name: string; harness: string; account: string; found: boolean };
+const roster: Listed[] = [
+  { name: 'claude-edit', harness: 'claude', account: 'claude', found: true },
+  { name: 'claude-read', harness: 'claude', account: 'claude', found: true },
+  { name: 'codex', harness: 'codex', account: 'codex', found: true },
+  { name: 'gone', harness: 'claude', account: 'other', found: false },
+];
+const configured: Record<string, Record<string, string>> = { 'claude-edit': { permissionMode: 'acceptEdits' }, 'claude-read': { permissionMode: 'dontAsk' }, codex: {}, gone: {} };
+const offers: Record<string, { id: string; values: { id: string; label: string }[] }[]> = {
+  'claude-edit': [{ id: 'model', values: [{ id: 'opus', label: 'Opus' }, { id: 'haiku', label: 'Haiku' }] }, { id: 'effort', values: [{ id: 'low', label: 'low' }, { id: 'high', label: 'high' }] }, { id: 'permissionMode', values: [{ id: 'default', label: 'Ask' }] }],
+  'claude-read': [{ id: 'model', values: [{ id: 'sonnet', label: 'Sonnet' }] }],
+};
+let probed: string[];
+const askAgents = async (caller: { harness: string; options: Record<string, string> }, args?: unknown) => {
+  probed = [];
+  const own = await startMcpServer({
+    registry,
+    tools: [agents],
+    sessions: {
+      ...store,
+      snapshot: (id) => ({ id, agent: 'caller', harness: caller.harness, folder: '/work', model: null, options: caller.options }),
+      agents: () => roster,
+      delegationRefusal: () => delegationRefusal(caller.harness, caller.options, '0.122.0'),
+      agentOptions: (name) => configured[name] ?? {},
+      offer: async (name) => {
+        probed.push(name);
+        if (name === 'codex') throw new Error('the probe said secret things');
+        return offers[name] ?? [];
+      },
+      health: async () => ({ git: 'ready', gh: 'ready', agents: [{ name: 'claude-edit', harness: 'claude', state: 'ready' }, { name: 'codex', harness: 'codex', state: 'signedOut' }] }),
+    },
+  });
+  try {
+    const res = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${issue()}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'agents', ...(args !== undefined && { arguments: args }) } }) })).json()) as any;
+    return { isError: res.result.isError as boolean, text: res.result.content[0].text as string };
+  } finally {
+    await own.close();
+  }
+};
+
+test('agents lists each configured agent with its state and the level it would have as a child of the caller, with no models unless asked', async () => {
+  expect(agents).toMatchObject({ name: 'agents', access: 'readsAsSession' });
+  const level1 = await askAgents({ harness: 'claude', options: { permissionMode: 'default' } });
+  expect(level1.isError).toBe(false);
+  expect(JSON.parse(level1.text)).toEqual({
+    agents: [
+      { name: 'claude-edit', harness: 'claude', found: true, state: 'ready', childLevel: 1 }, // lowered from 2 by the caller
+      { name: 'claude-read', harness: 'claude', found: true, state: 'unknown', childLevel: 0 },
+      { name: 'codex', harness: 'codex', found: true, state: 'signedOut', childLevel: 1 }, // no options: the adapter's defaults
+      { name: 'gone', harness: 'claude', found: false, state: 'unknown', childLevel: 1 },
+    ],
+  });
+  expect(probed).toEqual([]);
+
+  const level2 = JSON.parse((await askAgents({ harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } }, { models: false })).text);
+  expect(level2.agents.map((agent: any) => [agent.name, agent.childLevel])).toEqual([['claude-edit', 2], ['claude-read', 0], ['codex', 1], ['gone', 1]]);
+  expect(probed).toEqual([]);
+  expect((await askAgents({ harness: 'claude', options: {} })).isError).toBe(false); // a caller with no options is at the adapter's default
+  expect((await askAgents({ harness: 'claude', options: {} }, { models: 'yes' })).isError).toBe(true);
+});
+
+test('agents answers notOffered with the words of the refusal and no childLevel when the caller may not delegate', async () => {
+  const off: { harness: string; options: Record<string, string> }[] = [
+    { harness: 'claude', options: { permissionMode: 'plan' } },
+    { harness: 'claude', options: { permissionMode: 'dontAsk' } },
+    { harness: 'claude', options: { permissionMode: 'auto' } },
+    { harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'never' } },
+    { harness: 'codex', options: { sandbox: 'danger-full-access', approvalPolicy: 'on-request' } },
+  ];
+  for (const caller of off) {
+    const { agents: listed } = JSON.parse((await askAgents(caller)).text);
+    expect(listed).toHaveLength(4);
+    for (const agent of listed) {
+      expect(agent).not.toHaveProperty('childLevel');
+      expect(agent.notOffered).toBe(delegationRefusal(caller.harness, caller.options, '0.122.0'));
+    }
+    expect(listed[0].notOffered).toContain(Object.values(caller.options).at(-1)!);
+  }
+  expect(delegationRefusal('claude', { permissionMode: 'plan' })).toMatch(/does not ask the person/);
+  expect(delegationRefusal('codex', { sandbox: 'danger-full-access', approvalPolicy: 'on-request' })).toMatch(/off the permission scale/);
+});
+
+test('agents lists models and efforts from the probe only when asked, and says so for an agent whose probe fails or that is not found', async () => {
+  const { agents: listed } = JSON.parse((await askAgents({ harness: 'claude', options: { permissionMode: 'default' } }, { models: true })).text);
+  expect(probed.sort()).toEqual(['claude-edit', 'claude-read', 'codex']); // a probe for an agent that is not found would only fail
+  expect(listed[0]).toMatchObject({ name: 'claude-edit', models: [{ id: 'opus', label: 'Opus' }, { id: 'haiku', label: 'Haiku' }], efforts: ['low', 'high'] });
+  expect(listed[1]).toMatchObject({ name: 'claude-read', models: [{ id: 'sonnet', label: 'Sonnet' }], efforts: [] });
+  expect(listed[2]).toMatchObject({ name: 'codex', childLevel: 1, modelsUnavailable: 'The models of this agent could not be listed' });
+  expect(listed[2]).not.toHaveProperty('models');
+  expect(JSON.stringify(listed)).not.toContain('secret');
+  expect(listed[3]).toMatchObject({ name: 'gone', modelsUnavailable: expect.stringContaining('not found') });
+});
+
+test('delegate_start is an actsAsSession tool: a token without act can neither list nor call it, one with act starts a child for its own session and gets its id', async () => {
+  expect(delegateStart).toMatchObject({ name: 'delegate_start', access: 'actsAsSession' });
+  const withDelegate = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, delegationRefusal: () => undefined, startChild: async (parentId: string, args: unknown) => (started.push({ parentId, args }), { childId: 'child-1' }) } as any });
+  try {
+    const ask = async (token: string, method: string, params?: unknown) => (await (await fetch(withDelegate.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params !== undefined && { params }) }) })).json()) as any;
+    const delegate = (token: string, args: unknown) => ask(token, 'tools/call', { name: 'delegate_start', arguments: args });
+
+    expect((await ask(issue(['read']), 'tools/list')).result.tools).toEqual([]);
+    expect((await delegate(issue(['read']), { agent: 'codex', task: 'review' })).result).toMatchObject({ isError: true, content: [{ text: 'This session may not use this tool' }] });
+    expect(started).toEqual([]);
+
+    const token = issue(['read', 'act']);
+    const listed = (await ask(token, 'tools/list')).result.tools[0];
+    expect(listed).toMatchObject({ name: 'delegate_start', inputSchema: { required: ['agent', 'task'], additionalProperties: false } });
+    const answer = (await delegate(token, { agent: 'codex', task: 'review the diff', model: 'gpt-5', requestId: 'r1' })).result;
+    expect(answer).toEqual({ content: [{ type: 'text', text: '{"childId":"child-1"}' }], isError: false });
+    expect(started).toEqual([{ parentId: 's1', args: { agent: 'codex', task: 'review the diff', model: 'gpt-5', requestId: 'r1' } }]);
+
+    for (const args of [{ task: 'x' }, { agent: 'a' }, { agent: '', task: 'x' }, { agent: 'a', task: '' }, { agent: 'a'.repeat(101), task: 'x' }, { agent: 'a', task: 'x'.repeat(64_001) }, { agent: 'a', task: 'x', model: 'm'.repeat(101) }, { agent: 'a', task: 'x', requestId: '' }, { agent: 'a', task: 'x', requestId: 'r'.repeat(65) }, { agent: 'a', task: 'x', level: 2 }]) {
+      expect((await delegate(token, args)).result, JSON.stringify(args).slice(0, 60)).toMatchObject({ isError: true });
+    }
+    expect(started).toHaveLength(1);
+    expect((await delegate(token, { agent: 'a', task: 'x'.repeat(64_000), requestId: 'r'.repeat(64) })).result.isError).toBe(false);
+
+    // the words of a refusal reach the agent as they are
+    const refusing = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, delegationRefusal: () => undefined, startChild: async () => { throw new ChatRefused('This session already has 4 children'); } } as any });
+    try {
+      const refused = (await (await fetch(refusing.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'delegate_start', arguments: { agent: 'a', task: 'x' } } }) })).json()) as any;
+      expect(refused.result).toMatchObject({ isError: true, content: [{ text: 'This session already has 4 children' }] });
+    } finally {
+      await refusing.close();
+    }
+  } finally {
+    await withDelegate.close();
+  }
+});
+
+test('a delegation tool is listed and callable only while the session may delegate, and the call re-checks what the listing saw', async () => {
+  expect(delegateStart.delegation).toBe(true);
+  let refusal: string | undefined;
+  const own = await startMcpServer({ registry, tools: [delegateStart, whoami], sessions: { exists: () => true, live: () => true, delegationRefusal: () => refusal, startChild: async (parentId: string, args: unknown) => (started.push({ parentId, args }), { childId: 'child-1' }) } as any });
+  try {
+    const ask = async (method: string, params?: unknown) => (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params !== undefined && { params }) }) })).json()) as any;
+    const token = issue(['read', 'act']);
+    const names = async () => (await ask('tools/list')).result.tools.map((tool: { name: string }) => tool.name);
+    const start = async () => (await ask('tools/call', { name: 'delegate_start', arguments: { agent: 'codex', task: 'review' } })).result;
+
+    expect(await names()).toEqual(['delegate_start', 'test_whoami']);
+    refusal = 'This session\'s permissionMode is auto, which does not ask the person before a change, so it cannot delegate';
+    expect(await names()).toEqual(['test_whoami']); // what reads stays
+    expect(await start()).toMatchObject({ isError: true, content: [{ text: refusal }] });
+    expect(started).toEqual([]);
+
+    // the agent listed the tools while the mode asked, and the person changed it after: the call is the check that holds
+    refusal = undefined;
+    expect(await names()).toContain('delegate_start');
+    refusal = 'now it does not ask';
+    expect(await start()).toMatchObject({ isError: true, content: [{ text: 'now it does not ask' }] });
+    expect(started).toEqual([]);
+    refusal = undefined;
+    expect((await start()).isError).toBe(false);
+    expect(started).toHaveLength(1);
+  } finally {
+    await own.close();
+  }
+});
+
+test('history reads a child for its parent and a parent for its child, and refuses any other session with the words of one that does not exist', async () => {
+  const family = (id: string, other: string) => (id === 's1' && other === 's2') || (id === 's2' && other === 's1'); // s1 is the parent of s2, s3 is a stranger
+  const own = await startMcpServer({ registry, tools: [history], sessions: { ...store, exists: () => true, related: family } });
+  try {
+    const ask = async (token: string, args: unknown) => (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'history', arguments: args } }) })).json()) as any;
+    const parent = issue(['read'], 's1');
+    const child = issue(['read'], 's2', 'i2');
+    expect((await ask(parent, { sessionId: 's2' })).result.content[0].text).toContain('not yours');
+    expect((await ask(parent, { sessionId: 's2', itemId: '10' })).result).toMatchObject({ isError: false });
+    expect((await ask(child, { sessionId: 's1' })).result.content[0].text).toContain('hello');
+    const nowhere = (await ask(parent, { sessionId: 'nope' })).result;
+    for (const refused of [nowhere, (await ask(issue(['read'], 's3', 'i3'), { sessionId: 's2' })).result, (await ask(issue(['read'], 's1', 'i4'), { sessionId: 's3' })).result]) {
+      expect(refused).toEqual({ content: [{ type: 'text', text: 'There is no such session' }], isError: true });
+    }
+  } finally {
+    await own.close();
+  }
+});
+
+test('delegate_wait is a readsAsSession tool that takes one to four ids and a timeout of 1 to 45 seconds, and answers what the host reports for its own session', async () => {
+  const waited: unknown[] = [];
+  const reports = [{ childId: 'c1', agent: 'a', state: 'done', message: 'ok' }];
+  const own = await startMcpServer({ registry, tools: [delegateWait], sessions: { exists: () => true, live: () => true, waitChildren: async (...args: unknown[]) => (waited.push(args), reports) } as any });
+  try {
+    expect(delegateWait).toMatchObject({ name: 'delegate_wait', access: 'readsAsSession' });
+    const token = issue(['read']);
+    const wait = async (args: unknown) => (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'delegate_wait', arguments: args } }) })).json()) as any;
+    const listed = (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) })).json()) as any;
+    expect(listed.result.tools.map((t: any) => t.name)).toEqual(['delegate_wait']); // a token that only reads sees it
+
+    expect((await wait({ childIds: ['c1'] })).result).toEqual({ content: [{ type: 'text', text: JSON.stringify({ children: reports }) }], isError: false });
+    expect((await wait({ childIds: ['c1', 'c2', 'c3', 'c4'], timeoutMs: 45000 })).result.isError).toBe(false);
+    expect((await wait({ childIds: ['c1'], timeoutMs: 1000 })).result.isError).toBe(false);
+    expect(waited).toEqual([['s1', ['c1'], 30000], ['s1', ['c1', 'c2', 'c3', 'c4'], 45000], ['s1', ['c1'], 1000]]);
+
+    for (const args of [{ childIds: [] }, { childIds: ['1', '2', '3', '4', '5'] }, {}, { childIds: ['c1'], timeoutMs: 999 }, { childIds: ['c1'], timeoutMs: 45001 }, { childIds: ['c1'], timeoutMs: 1500.5 }, { childIds: [1] }, { childIds: ['c1'], more: true }]) {
+      expect((await wait(args)).result, JSON.stringify(args)).toMatchObject({ isError: true });
+    }
+    expect(waited).toHaveLength(3);
   } finally {
     await own.close();
   }

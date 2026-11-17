@@ -1,0 +1,33 @@
+{
+  "session": {
+    "id": "c3d4e5f6-2a1b-4c8d-9e0f-1a2b3c4d5e03",
+    "agent": "codex",
+    "harness": "codex",
+    "folder": "/Users/dev/work/web",
+    "workspaceKind": "folder",
+    "title": "Plan the export",
+    "nativeId": "019a7c1e-5b2d-7e84-a3c1-0f6d9b2e4a71",
+    "state": "idle",
+    "createdAt": 1791940000000,
+    "lastActiveAt": 1791940060000,
+    "archived": false,
+    "parentSessionId": null,
+    "children": [],
+    "preparation": null,
+    "workspace": { "kind": "folder" }
+  },
+  "options": [
+    {
+      "id": "model",
+      "label": "Model",
+      "values": [{ "id": "gpt-5", "label": "GPT-5" }, { "id": "gpt-5-mini", "label": "GPT-5 mini" }],
+      "current": "gpt-5"
+    },
+    {
+      "id": "sandbox",
+      "label": "Sandbox",
+      "values": [{ "id": "workspace-write", "label": "Workspace write" }, { "id": "read-only", "label": "Read only" }],
+      "current": "read-only"
+    }
+  ]
+}

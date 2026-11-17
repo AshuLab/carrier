@@ -14,6 +14,8 @@ export class FakeConversation implements ChatConversation {
   nativeId: string | undefined;
   startedOver = false;
   mcpProblem: string | undefined;
+  /** What the fake says its Codex app-server is; a test sets it with `setup`. */
+  appServerVersion: string | undefined;
   process: ChatConversation['process'];
   sent: string[] = [];
   answers: { approvalId: string; choiceId: string; answers?: Record<string, string> }[] = [];
@@ -72,12 +74,15 @@ export class FakeChatRunner implements ChatRunner {
   conversations: FakeConversation[] = [];
   /** Set to make `open` refuse, as a provider that is not installed does. */
   refuseWith: string | undefined;
+  /** Set to make only the nth `open` (1 is the first) refuse, as a provider that fails once does; the others open. */
+  refuseOpen: { nth: number; with: string } | undefined;
   /** Applied to each new conversation, to script its answers. */
   setup: (conversation: FakeConversation) => void = () => {};
 
   async open(args: Parameters<ChatRunner['open']>[0]) {
     this.opened.push(args);
     if (this.refuseWith !== undefined) throw new ChatRefused(this.refuseWith);
+    if (this.refuseOpen?.nth === this.opened.length) throw new ChatRefused(this.refuseOpen.with);
     const conversation = new FakeConversation();
     this.setup(conversation);
     this.conversations.push(conversation);

@@ -1,0 +1,109 @@
+{
+  "run": "mode-dontAsk",
+  "allowedTools": [
+    "mcp__carrier-chat__ping_read"
+  ],
+  "init": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "dontAsk",
+    "claude_code_version": "2.1.326",
+    "mcp_servers": [
+      {
+        "name": "carrier-chat",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "tools": [
+      "Task",
+      "AskUserQuestion",
+      "Bash",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "DesignSync",
+      "Edit",
+      "EnterPlanMode",
+      "EnterWorktree",
+      "ExitPlanMode",
+      "ExitWorktree",
+      "ListAgents",
+      "Monitor",
+      "NotebookEdit",
+      "PublishPlugin",
+      "PushNotification",
+      "Read",
+      "RemoteTrigger",
+      "ReportFindings",
+      "ScheduleWakeup",
+      "SendMessage",
+      "ShareOnboardingGuide",
+      "Skill",
+      "TaskStop",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Workflow",
+      "Write",
+      "mcp__carrier-chat__ping_act",
+      "mcp__carrier-chat__ping_read"
+    ]
+  },
+  "readyMs": 405,
+  "turn": {
+    "prompt": "Call ping_read, then call ping_act, then say what happened",
+    "ms": 3374,
+    "asked": [],
+    "tools": [
+      {
+        "name": "ToolSearch",
+        "input": {
+          "query": "select:mcp__carrier-chat__ping_read,mcp__carrier-chat__ping_act",
+          "max_results": 2
+        }
+      },
+      {
+        "name": "mcp__carrier-chat__ping_read",
+        "input": {}
+      },
+      {
+        "name": "mcp__carrier-chat__ping_act",
+        "input": {}
+      }
+    ],
+    "results": [
+      {
+        "tool": "toolu_01VFqzvuWiS5r99qZYwHSTkm",
+        "error": false,
+        "text": " "
+      },
+      {
+        "tool": "toolu_01AXf1sYeLSM4TN5yZPWpWiM",
+        "error": false,
+        "text": "\"ping_read says PONG\""
+      },
+      {
+        "tool": "toolu_01C4NGsvyANgcHLGFhSKGSPt",
+        "error": true,
+        "text": "Permission to use mcp__carrier-chat__ping_act has been denied because Claude Code is running in don't ask mode. IMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to accomplish this goal, e"
+      }
+    ],
+    "said": "`ping_read` returned \"ping_read says PONG\".\n\n`ping_act` was denied. Claude Code is running in \"don't ask\" mode, which blocks that tool. I didn't try a workaround. If you want `ping_act` to run, you'll need to allow it in your permission settings or switch out of that mode, then I can call it again.\n",
+    "outcome": "success",
+    "resultText": "`ping_read` returned \"ping_read says PONG\".\n\n`ping_act` was denied. Claude Code is running in \"don't ask\" mode, which blocks that tool. I didn't try a workaround. If you want `ping_act` to run, you'll need to allow it in your permission settings or switch out of that mode, then I can call it again.",
+    "denials": [
+      {
+        "tool_name": "mcp__carrier-chat__ping_act",
+        "tool_use_id": "toolu_01C4NGsvyANgcHLGFhSKGSPt",
+        "tool_input": {}
+      }
+    ]
+  },
+  "serverLog": [
+    "ping_read executed"
+  ],
+  "askedRead": false,
+  "askedAct": false,
+  "actExecuted": false,
+  "readExecuted": true
+}

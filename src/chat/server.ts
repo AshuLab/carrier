@@ -15,8 +15,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette';
-export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette' | 'switchAgent';
+export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -49,6 +49,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string(), command: z.string().min(1).max(1000).optional() }).refine((r) => r.text.length > 0 || r.command !== undefined),
   z.strictObject({ id, cmd: z.literal('answer'), sessionId, approvalId: z.string().min(1), choiceId: z.string().min(1), answers: z.record(z.string().max(1000), z.string().max(4000)).refine((a) => Object.keys(a).length <= 4).optional() }),
   z.strictObject({ id, cmd: z.literal('interrupt'), sessionId }),
+  z.strictObject({ id, cmd: z.literal('switchAgent'), sessionId, agent: z.string().min(1).max(200) }),
   z.strictObject({ id, cmd: z.literal('agentOptions'), agent: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('setOption'), sessionId, option: z.string().min(1), value: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('events'), sessionId, after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200), reasoning: z.boolean().optional() }),
@@ -90,6 +91,8 @@ export type ChatControls = {
   send(args: Args<'send'>): unknown;
   answer(args: Args<'answer'>): unknown;
   interrupt(args: Args<'interrupt'>): Promise<unknown>;
+  /** Switches an idle session to another configured agent; answers what `resume` answers, and refuses in words with the session as it was. */
+  switchAgent(args: Args<'switchAgent'>): Promise<unknown>;
   setOption(args: Args<'setOption'>): Promise<unknown>;
   agentOptions(args: Args<'agentOptions'>): Promise<unknown>;
   events(args: Args<'events'>): unknown;
@@ -138,6 +141,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.answer({ sessionId: request.sessionId, approvalId: request.approvalId, choiceId: request.choiceId, answers: request.answers });
     case 'interrupt':
       return controls.interrupt({ sessionId: request.sessionId });
+    case 'switchAgent':
+      return controls.switchAgent({ sessionId: request.sessionId, agent: request.agent });
     case 'agentOptions':
       return controls.agentOptions({ agent: request.agent });
     case 'setOption':

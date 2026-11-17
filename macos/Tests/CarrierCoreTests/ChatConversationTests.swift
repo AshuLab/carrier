@@ -1081,3 +1081,38 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
         #expect(chip.label == label && chip.tint == tint && chip.icon == icon)
     }
 }
+
+// MARK: the live line's timers and the slow call
+
+@Test func theLiveTimerIsTheRunningCallsOwnAndAShellOrMcpCallPastThirtySecondsIsSlow() {
+    func timer(_ tool: String, ageMs: Int, turnMs: Int = 0) -> LiveTimer {
+        // the turn began `turnMs` ago, the call `ageMs` ago, both read at 1_000_000
+        let started = ChatEvent(id: 2, at: 1_000_000 - ageMs, kind: "tool_start", callId: "c", tool: tool, arg: "x")
+        return group(chatFeed([ChatEvent(id: 1, at: 1_000_000 - max(turnMs, ageMs), kind: "user", text: "go"), started]))
+            .liveTimer(now: 1_000_000, turnStart: 1_000_000 - max(turnMs, ageMs))
+    }
+    #expect(timer("Bash", ageMs: 31_000).slow)
+    #expect(timer("Bash", ageMs: 30_000).slow == false)
+    #expect(timer("Bash", ageMs: 30_001).slow)
+    #expect(timer("mcp__linear__create_issue", ageMs: 31_000).slow)
+    #expect(timer("mcp__linear__create_issue", ageMs: 30_000).slow == false)
+    #expect(timer("Read", ageMs: 300_000).slow == false)
+    #expect(timer("Grep", ageMs: 300_000).slow == false)
+    #expect(timer("Edit", ageMs: 300_000).slow == false)
+    // the call's own time is the first, the turn's is beside it only while longer
+    let both = timer("Bash", ageMs: 5_000, turnMs: 65_000)
+    #expect(both.primaryMs == 5_000 && both.turnMs == 65_000 && both.slow == false)
+    let same = timer("Bash", ageMs: 5_000)
+    #expect(same.primaryMs == 5_000 && same.turnMs == nil)
+}
+
+@Test func aSlowCallEndsItsAmberAndAThinkingRunUsesTheTurnsTime() {
+    var ended = ChatEvent(id: 3, at: 1_060_000, kind: "tool_end", callId: "c", tool: "Bash")
+    ended.status = "ok"
+    let done = group(chatFeed([ChatEvent(id: 1, at: 1_000_000, kind: "tool_start", callId: "c", tool: "Bash", arg: "pnpm test"), ended]))
+    #expect(done.liveTimer(now: 1_090_000).slow == false)
+    // no call goes: the timer is the turn's, as before
+    let thinking = group(chatFeed([ChatEvent(id: 1, at: 1_000_000, kind: "user", text: "go"), ChatEvent(id: 2, at: 1_001_000, kind: "reasoning", text: "Hm.")]))
+    let timer = thinking.liveTimer(now: 1_045_000, turnStart: 1_000_000)
+    #expect(timer == LiveTimer(primaryMs: 45_000, turnMs: nil, slow: false))
+}

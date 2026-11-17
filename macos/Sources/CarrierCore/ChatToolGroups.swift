@@ -9,6 +9,19 @@ public enum CallStatus: Equatable {
     case stopped
 }
 
+/// How long a Shell or MCP call runs before the live line draws its timer in amber: the same for both and for nothing else.
+public let slowCallMs = 30_000
+
+/// The timers on the right of a live line.
+public struct LiveTimer: Equatable {
+    /// The one that is read first: the running call's own time, or the turn's while no call goes.
+    public let primaryMs: Int
+    /// The turn's time, drawn quieter beside the call's while it is longer; nil when the call's is the whole of it or no call goes.
+    public let turnMs: Int?
+    /// Whether the call has run past `slowCallMs`: its timer is amber.
+    public let slow: Bool
+}
+
 /// A `tool_start` completed by its `tool_end`.
 public struct ToolCall: Equatable, Identifiable {
     public let id: String
@@ -59,6 +72,19 @@ public struct ToolCall: Equatable, Identifiable {
     }
 
     public var durationMs: Int? { endedAt.map { $0 - startedAt } }
+
+    /// How long the call has run at `now` (milliseconds since the epoch), counted from its start.
+    public func elapsedMs(now: Int) -> Int { max(0, now - startedAt) }
+
+    /// Whether the call is slow at `now`: a Shell or MCP call still going for more than `slowCallMs`; exactly that is not slow.
+    /// Nothing else is ever slow, however long it runs.
+    public func isSlow(now: Int) -> Bool {
+        guard status == .running else { return false }
+        switch kind {
+        case .shell, .mcp: return elapsedMs(now: now) > slowCallMs
+        case .read, .search, .edit, .other: return false
+        }
+    }
 
     /// What the call is named in a row: the tool, and for an MCP call the tool without its server (`create_issue`, not `mcp__linear__create_issue`).
     public var label: String {
@@ -254,6 +280,15 @@ public struct ToolGroup: Equatable {
         case .mcp(let server, _): return .mcp(server: server)
         case .other: return nil
         }
+    }
+
+    /// The timers of the live line at `now`: the running call's own time with the turn's beside it while that is longer, or the turn's alone
+    /// while the agent is thinking. The turn counts from `turnStart`, from the run's start when the feed gives none.
+    public func liveTimer(now: Int, turnStart: Int? = nil) -> LiveTimer {
+        let turn = max(0, now - (turnStart ?? startedAt))
+        guard let call = calls.last(where: { $0.status == .running }) else { return LiveTimer(primaryMs: turn, turnMs: nil, slow: false) }
+        let own = call.elapsedMs(now: now)
+        return LiveTimer(primaryMs: own, turnMs: turn > own ? turn : nil, slow: call.isSlow(now: now))
     }
 
     public var failed: Int { calls.filter { $0.status == .failed }.count }

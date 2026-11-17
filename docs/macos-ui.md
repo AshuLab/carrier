@@ -38,6 +38,8 @@ Work the agent did (calls, thoughts, messages, an error) is drawn with the chat'
 - **The line on top is 30 pt**: a 16 pt lead (`Disc`: green tick, orange or red "!", a turning ring, a hollow ring), a bold title, a quiet summary (12.5 pt, `secondary`), what is at the right that never moves (a time in `tertiary`, a `PullRequestChip`) and a `CardChevron` (9 pt, right when folded, 90° when open).
 - **Kind chip (`KindChipView`)**: a small capsule on the live line of a call group (`ChatToolGroupView`) that names what the agent is waiting on (Thinking, Read, Search, Edit, Shell, an MCP server's name, subagents, or Needs you).
   Thinking uses the thought tint; Read, Search and Edit share the files tint; Shell, MCP, subagents and Needs you each take their own colour, and a long server name is cut on one line so the line stays 30 pt.
+- **Two timers on the live line, and the slow call**: the timer at the right is the running call's own (`ToolGroup.liveTimer`), and the turn's time stands beside it in `quaternary` while it is longer; while no call runs (the agent is thinking) it is the turn's alone.
+  A Shell or MCP call that has run for more than 30 seconds (`slowCallMs`; exactly 30 is not slow) draws its timer in amber (`Color.slowCall`) until it ends, and a Read, Search or Edit never does; nothing else of the line changes, and both timers are fixed-size so the line stays 30 pt at every width.
 - **Rows hang under the line** behind a `SettingsDivider`, edge to edge.
 - **A row that opens or links is one click target as a whole**: a 4 % fill under the pointer, and no lone small icon as the only way in.
   A `Button` or a `Link`, never only `.onTapGesture`: a tap gesture is not reachable with the keyboard.

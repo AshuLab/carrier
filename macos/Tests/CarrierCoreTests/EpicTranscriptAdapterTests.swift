@@ -155,3 +155,14 @@ private func chatGroup(_ events: [ChatEvent]) -> ToolGroup? {
     #expect(epicGroup?.calls.last?.label == "create_issue" && epicGroup?.calls.last?.subject == "linear")
     #expect(epicGroup?.summary == "1 file read · 1 MCP call" && epicGroup?.summary == equivalent?.summary)
 }
+
+@Test func theAgentOutputTabsLiveLineTimesTheRunningCallAndFlagsASlowShell() {
+    let epic = [
+        ExecEvent(id: 1, at: 1_000_000, kind: "tool_start", callId: "a", tool: "Read", arg: "a.ts"),
+        ExecEvent(id: 2, at: 1_000_100, kind: "tool_end", callId: "a", tool: "Read", summary: "10 lines", status: "ok"),
+        ExecEvent(id: 3, at: 1_010_000, kind: "tool_start", callId: "b", tool: "Bash", arg: "pnpm test"),
+    ]
+    let group = run(flowItems(transcriptItems(epic), running: true))
+    #expect(group?.liveTimer(now: 1_040_000, turnStart: 1_000_000) == LiveTimer(primaryMs: 30_000, turnMs: 40_000, slow: false))
+    #expect(group?.liveTimer(now: 1_041_000, turnStart: 1_000_000) == LiveTimer(primaryMs: 31_000, turnMs: 41_000, slow: true))
+}

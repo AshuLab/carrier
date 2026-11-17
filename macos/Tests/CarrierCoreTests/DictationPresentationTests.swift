@@ -6,7 +6,7 @@ import Testing
     (DictationSession.State.idle, DictationIcon.mic, false, true, String?.none, true, "Dictate"),
     (.gettingReady, .spinner, false, false, "Getting the model ready…", false, "Dictation is getting ready"),
     (.listening, .mic, true, true, nil, false, "Stop dictation"),
-    (.transcribing, .spinner, false, false, "Transcribing…", false, "Transcribing"),
+    (.transcribing, .spinner, false, false, nil, false, "Transcribing"),
     (.cleaning, .spinner, false, true, "Cleaning…", false, "Cleaning, press to skip"),
 ])
 func theBoxDrawsAndSaysWhatEachStateNeeds(state: DictationSession.State, icon: DictationIcon, accent: Bool, pressable: Bool, caption: String?, send: Bool, label: String) throws {
@@ -17,6 +17,60 @@ func theBoxDrawsAndSaysWhatEachStateNeeds(state: DictationSession.State, icon: D
     #expect(box.caption == caption)
     #expect(box.sendEnabled == send)
     #expect(box.label == label)
+}
+
+@Test func transcribingIsSaidOnlyOnceTheAnswerIsSlow() throws {
+    let waiting = try #require(dictationPresentation(.transcribing, registered: true, answerIsSlow: true))
+    #expect(waiting.caption == "Transcribing…" && waiting.icon == .spinner && waiting.pressable == false)
+    #expect(try #require(dictationPresentation(.transcribing, registered: true)).caption == nil)
+}
+
+/// A dictation of a model that gives its text at the end, stopped, on a clock that moves when the test says so.
+@MainActor private func stopped(_ clock: FakeClock, _ recognizer: ScriptedRecognizer) async -> DictationSession {
+    let session = DictationSession(capture: ScriptedCapture(), sleep: { try await clock.sleep($0) })
+    session.start(
+        recognizer: recognizer, model: recognizer.models[0], into: DictationField(owner: "box", text: { "" }, caret: { 0 }, put: { _, _, _ in })
+    )
+    for _ in 0..<3000 where session.state != .listening || session.modelReady == false { try? await Task.sleep(for: .milliseconds(1)) }
+    session.stop()
+    return session
+}
+
+@MainActor private func caption(of session: DictationSession) -> String? {
+    dictationPresentation(session.state, registered: true, answerIsSlow: session.answerIsSlow)?.caption
+}
+
+@MainActor @Test func aFinalTextThatTakesMoreThan250msAfterTheStopShowsTranscribing() async {
+    let clock = FakeClock(), recognizer = ScriptedRecognizer(partial: .atTheEnd)
+    let session = await stopped(clock, recognizer)
+    #expect(session.state == .transcribing && caption(of: session) == nil)
+    // the time to wait is the one the dictation names, and the 30 s the recognizer has to answer is a clock of its own
+    clock.advance(past: DictationSession.quickAnswer - .milliseconds(1))
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(caption(of: session) == nil)
+    clock.advance(past: DictationSession.quickAnswer)
+    for _ in 0..<3000 where session.answerIsSlow == false { try? await Task.sleep(for: .milliseconds(1)) }
+    #expect(DictationSession.quickAnswer == .milliseconds(250))
+    #expect(session.state == .transcribing && caption(of: session) == "Transcribing…")
+    // the text comes at last: nothing of it is left for the next dictation
+    recognizer.say(.final("hola"))
+    recognizer.finish()
+    for _ in 0..<3000 where session.state != .idle { try? await Task.sleep(for: .milliseconds(1)) }
+    #expect(session.state == .idle && session.answerIsSlow == false)
+}
+
+@MainActor @Test func aFinalTextWithin250msOfTheStopNeverShowsTranscribing() async {
+    let clock = FakeClock(), recognizer = ScriptedRecognizer(partial: .atTheEnd)
+    let session = await stopped(clock, recognizer)
+    #expect(caption(of: session) == nil)
+    recognizer.say(.final("hola"))
+    recognizer.finish()
+    for _ in 0..<3000 where session.state != .idle { try? await Task.sleep(for: .milliseconds(1)) }
+    #expect(session.state == .idle && session.answerIsSlow == false)
+    // the clock reaching 250 ms after the end changes nothing
+    clock.advance(past: .seconds(1))
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(session.answerIsSlow == false)
 }
 
 @Test func whileTheModelGetsReadyWithTheCaptureRunningTheBoxListensAndSaysSoWhereTheTextWillBe() throws {

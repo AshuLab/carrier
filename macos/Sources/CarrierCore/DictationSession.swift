@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// The field a dictation writes into: the session reads its text and caret and puts back the text, the caret and the range that is
-/// still partial. `owner` says which box it is, so only that box draws the state.
+/// still tentative (the firm words before it are normal text). `owner` says which box it is, so only that box draws the state.
 public struct DictationField {
     public let owner: String
     public let text: () -> String
@@ -72,10 +72,14 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     /// ponytail: a guess at the speed of a model; one slower than the audio itself still loses its text, so measure before raising it.
     public static let answerFloor = Duration.seconds(30)
     public static let answerPerAudioSecond = Duration.seconds(1)
+    /// How long after the stop the final text of a model that gives it at the end may take before the dictation says it is transcribing: a quick one never does.
+    public static let quickAnswer = Duration.milliseconds(250)
 
     public private(set) var state = State.idle
     /// Whether the recognizer has loaded its model and reads the audio; false while a dictation listens to what it will read once it is.
     public private(set) var modelReady = false
+    /// Whether the final text of a dictation that is transcribing has taken longer than `quickAnswer`: only then do the box and the widget say "Transcribing…".
+    public private(set) var answerIsSlow = false
     /// The box that dictates, while one does.
     public private(set) var owner: String?
     private var failure: (owner: String, cause: DictationFailure)?
@@ -101,6 +105,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private var tentative = TentativeText(caret: 0, in: "")
     @ObservationIgnored private var running: Task<Void, Never>?
     @ObservationIgnored private var watchdog: Task<Void, Never>?
+    @ObservationIgnored private var slowness: Task<Void, Never>?
     @ObservationIgnored private var stopped = false
     /// Counts the dictations, so one that already ended cannot touch the next.
     @ObservationIgnored private var generation = 0
@@ -237,8 +242,18 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
                 state = .gettingReady
                 return
             }
-            if model?.partial == .atTheEnd { state = .transcribing }
+            if model?.partial == .atTheEnd { transcribe() }
             waitForTheAnswer()
+        }
+    }
+
+    private func transcribe() {
+        state = .transcribing
+        answerIsSlow = false
+        let mine = generation
+        slowness = Task {
+            guard (try? await sleep(Self.quickAnswer)) != nil, generation == mine else { return }
+            answerIsSlow = true
         }
     }
 
@@ -302,7 +317,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         watchdog = nil
         if stopped {
             // stopped while the model loaded: what was captured is read now
-            if model.partial == .atTheEnd { state = .transcribing } else { state = .listening }
+            if model.partial == .atTheEnd { transcribe() } else { state = .listening }
             waitForTheAnswer()
         }
         for await event in recognizer.recognize(counted) {
@@ -313,7 +328,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             }
             if let field, let edit = tentative.apply(event, to: field.text(), caret: field.caret()) {
                 switch event {
-                case .partial(let heard):
+                case .partial(let firm, let tentative):
+                    let heard = firm + tentative
                     noteFirstWord(heard)
                     partialWords = wordCount(heard)
                     partial = heard
@@ -325,7 +341,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
                     finals.append(heard)
                 case .failed: break
                 }
-                field.put(edit.text, edit.caret, tentative.range)
+                field.put(edit.text, edit.caret, tentative.tentativeRange)
             }
         }
         guard generation == mine else { return }
@@ -341,6 +357,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         // the recognizer has answered: the time it was given is spent, and the cleanup has its own
         watchdog?.cancel()
         watchdog = nil
+        slowness?.cancel()
         guard let cleanup, let field else { return }
         settle()
         guard let range = tentative.written else { return }
@@ -409,6 +426,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         if announcing, state == .listening || state == .transcribing || state == .cleaning { announce(dictationAnnouncement(.stopped(words: words))) }
         watchdog?.cancel()
         watchdog = nil
+        slowness?.cancel()
+        answerIsSlow = false
         running = nil
         field = nil
         model = nil

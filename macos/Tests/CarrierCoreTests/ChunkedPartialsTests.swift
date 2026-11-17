@@ -78,6 +78,21 @@ private func words(_ count: Int, from first: Int = 0) -> [TimedWord] {
     #expect(policy.settled == ["w0", "w1", "w2"])
 }
 
+@Test func theSettledWordsAreFirmAndTheOnesOfTheOpenSegmentTentativeWithTheSpaceBetweenThemInTheFirmPart() {
+    var policy = ChunkPolicy(partials: true)
+    #expect(policy.firmText.isEmpty && policy.tentativeText.isEmpty)
+    policy.add(speech(1.5))
+    policy.finish(policy.nextPass()!, words: words(2))
+    #expect(policy.firmText.isEmpty && policy.tentativeText == "w0 w1")
+    policy.add(silence(0.15))
+    policy.finish(policy.nextPass()!, words: words(3))
+    #expect(policy.firmText == "w0 w1 w2" && policy.tentativeText.isEmpty)
+    policy.add(speech(1.2))
+    policy.finish(policy.nextPass()!, words: words(2, from: 7))
+    #expect(policy.firmText == "w0 w1 w2 " && policy.tentativeText == "w7 w8")
+    #expect(policy.firmText + policy.tentativeText == policy.text)
+}
+
 @Test func aPauseAfterLessThan300msOfSpeechDoesNotCloseAnything() {
     var policy = ChunkPolicy(partials: true)
     policy.add(speech(0.2))
@@ -307,13 +322,26 @@ private func capture() -> (AsyncStream<AudioBuffer>, AsyncStream<AudioBuffer>.Co
     let (audio, input) = capture()
     var events = ChunkedRecognizer(batch, partials: true).recognize(audio).makeAsyncIterator()
     for _ in 0..<10 { input.yield(speech(0.1)) }
-    #expect(await events.next() == .partial("hola mundo"))
+    #expect(await events.next() == .partial(firm: "", tentative: "hola mundo"))
     input.yield(speech(0.3))
     input.finish()
     var rest: [DictationEvent] = []
     while let event = await events.next() { rest.append(event) }
     #expect(rest == [.final("hola mundo")], "the same text is not shown twice")
     #expect(await batch.passes.allSatisfy { $0 >= 4_800 })
+}
+
+@Test func theEventsSayWhichWordsAreSettledAndWhichAreStillForming() async {
+    let (audio, input) = capture()
+    var events = ChunkedRecognizer(ScriptedBatch(), partials: true).recognize(audio).makeAsyncIterator()
+    for _ in 0..<10 { input.yield(speech(0.1)) }
+    #expect(await events.next() == .partial(firm: "", tentative: "hola mundo"))
+    // a pause settles the segment: all of it is firm
+    input.yield(silence(0.2))
+    #expect(await events.next() == .partial(firm: "hola mundo", tentative: ""))
+    // what follows is tentative after the firm words and the space that sets them apart
+    for _ in 0..<11 { input.yield(speech(0.1)) }
+    #expect(await events.next() == .partial(firm: "hola mundo ", tentative: "hola mundo"))
 }
 
 @Test func aModelThatGivesItsTextAtTheEndShowsNoPartialTextAndIsAskedOnce() async {

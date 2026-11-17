@@ -39,9 +39,19 @@ public struct SpeechModel: Identifiable, Sendable, Equatable {
 }
 
 public enum DictationEvent: Sendable, Equatable {
-    case partial(String)
+    /// `firm` will not change while the person speaks; `tentative` follows it and may. The text is `firm` then `tentative` as they are, so the
+    /// space that sets them apart ends `firm` and `tentative` begins with a word.
+    case partial(firm: String, tentative: String)
     case final(String)
     case failed(DictationFailure)
+
+    /// A partial whose text only grows (the streaming models'): every word but the last is firm, since the last may still grow by a piece of a word.
+    public static func growing(_ text: String) -> DictationEvent {
+        guard let last = text.trimmingCharacters(in: .whitespacesAndNewlines).split(whereSeparator: \.isWhitespace).last,
+            let range = text.range(of: last, options: .backwards)
+        else { return .partial(firm: "", tentative: text) }
+        return .partial(firm: String(text[..<range.lowerBound]), tentative: String(text[range.lowerBound...]))
+    }
 }
 
 /// Why a dictation could not go on, in words for the person.

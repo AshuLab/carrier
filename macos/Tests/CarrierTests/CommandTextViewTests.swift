@@ -167,9 +167,9 @@ final class CommandTextViewTests: XCTestCase {
         func underline(at index: Int) -> Int? { view.textStorage?.attribute(.underlineStyle, at: index, effectiveRange: nil) as? Int }
 
         var tentative = TentativeText(caret: 4, in: probe.text)
-        for (event, secondary) in [(DictationEvent.partial("hola mun"), true), (.final("hola mundo "), false)] {
+        for (event, secondary) in [(DictationEvent.partial(firm: "", tentative: "hola mun"), true), (.final("hola mundo "), false)] {
             let edit = try XCTUnwrap(tentative.apply(event, to: probe.text, caret: probe.cursor))
-            (probe.text, probe.cursor, probe.tentative, probe.dictated) = (edit.text, edit.caret, tentative.range, edit.text)
+            (probe.text, probe.cursor, probe.tentative, probe.dictated) = (edit.text, edit.caret, tentative.tentativeRange, edit.text)
             host.layoutSubtreeIfNeeded()
             XCTAssertEqual(view.string, edit.text)
             XCTAssertEqual(view.selectedRange().location, edit.caret)
@@ -183,6 +183,38 @@ final class CommandTextViewTests: XCTestCase {
         }
         XCTAssertEqual(view.string, "uno hola mundo dos")
         XCTAssertEqual(view.selectedRange().location, 15)
+    }
+
+    /// The firm words of a partial are drawn as normal text, with no underline, and only the tentative tail has the provisional colour and the dotted line.
+    func testTheFirmWordsOfAPartialAreNormalTextAndOnlyTheTentativeTailIsDrawnAsPartial() throws {
+        let probe = Probe()
+        probe.text = "uno dos"
+        probe.cursor = 4
+        let host = NSHostingView(rootView: ProbeBox(probe: probe))
+        host.frame = NSRect(x: 0, y: 0, width: 600, height: 200)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let view = try XCTUnwrap(textView(in: host))
+        func colour(at index: Int) -> NSColor? { view.textStorage?.attribute(.foregroundColor, at: index, effectiveRange: nil) as? NSColor }
+        func underline(at index: Int) -> Int? { view.textStorage?.attribute(.underlineStyle, at: index, effectiveRange: nil) as? Int }
+
+        var tentative = TentativeText(caret: 4, in: probe.text)
+        // "uno hola mundos": the firm "hola " is 4..<9 and the tentative "mun" 9..<12
+        let edit = try XCTUnwrap(tentative.apply(.partial(firm: "hola ", tentative: "mun"), to: probe.text, caret: probe.cursor))
+        (probe.text, probe.cursor, probe.tentative, probe.dictated) = (edit.text, edit.caret, tentative.tentativeRange, edit.text)
+        host.layoutSubtreeIfNeeded()
+        XCTAssertEqual(view.string, "uno hola mundos")
+        for index in [0, 4, 8] {
+            XCTAssertEqual(colour(at: index), .labelColor)
+            XCTAssertNil(underline(at: index))
+        }
+        for index in [9, 11] {
+            XCTAssertEqual(colour(at: index), PillTextView.tentativeColor)
+            XCTAssertNotNil(underline(at: index))
+        }
+        XCTAssertEqual(colour(at: 12), .labelColor)
+        XCTAssertNil(underline(at: 12))
     }
 
     private func host(_ probe: Probe) -> (NSHostingView<ProbeBox>, PillTextView) {

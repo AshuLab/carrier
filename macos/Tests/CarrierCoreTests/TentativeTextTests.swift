@@ -12,24 +12,24 @@ private func hear(_ events: [DictationEvent], in text: String, caret: Int) -> (t
 
 @Test(arguments: [
     // an empty box
-    ([DictationEvent.partial("hola")], "", 0, "hola", 4, 0..<4 as Range<Int>?),
-    ([.partial("hola"), .final("hola mundo")], "", 0, "hola mundo", 10, nil),
+    ([DictationEvent.partial(firm: "", tentative: "hola")], "", 0, "hola", 4, 0..<4 as Range<Int>?),
+    ([.partial(firm: "", tentative: "hola"), .final("hola mundo")], "", 0, "hola mundo", 10, nil),
     // the caret at the start, in the middle and at the end of text that is left alone
-    ([.partial("hola")], "uno dos", 0, "holauno dos", 4, 0..<4),
-    ([.partial("hola ")], "uno dos", 4, "uno hola dos", 9, 4..<9),
-    ([.partial("hola")], "uno dos", 7, "uno dos hola", 12, 8..<12),
+    ([.partial(firm: "", tentative: "hola")], "uno dos", 0, "holauno dos", 4, 0..<4),
+    ([.partial(firm: "", tentative: "hola ")], "uno dos", 4, "uno hola dos", 9, 4..<9),
+    ([.partial(firm: "", tentative: "hola")], "uno dos", 7, "uno dos hola", 12, 8..<12),
     ([.final("hola ")], "uno dos", 4, "uno hola dos", 9, nil),
     // a partial replaced by a longer one, and by a shorter one
-    ([.partial("hola"), .partial("hola mun")], "uno dos", 4, "uno hola mundos", 12, 4..<12),
-    ([.partial("hola mun"), .partial("hola")], "uno dos", 4, "uno holados", 8, 4..<8),
+    ([.partial(firm: "", tentative: "hola"), .partial(firm: "", tentative: "hola mun")], "uno dos", 4, "uno hola mundos", 12, 4..<12),
+    ([.partial(firm: "", tentative: "hola mun"), .partial(firm: "", tentative: "hola")], "uno dos", 4, "uno holados", 8, 4..<8),
     // a final closes the range at the caret, and the next words open another after it
-    ([.partial("hola"), .final("hola."), .partial(" y")], "uno dos", 4, "uno hola. ydos", 11, 9..<11),
+    ([.partial(firm: "", tentative: "hola"), .final("hola."), .partial(firm: "", tentative: " y")], "uno dos", 4, "uno hola. ydos", 11, 9..<11),
     // an empty final removes the partial, and one with nothing to remove writes nothing
-    ([.partial("ruido"), .final("")], "uno dos", 4, "uno dos", 4, nil),
+    ([.partial(firm: "", tentative: "ruido"), .final("")], "uno dos", 4, "uno dos", 4, nil),
     ([.final("")], "", 0, "", 0, nil),
     ([.final("")], "uno dos", 7, "uno dos", 7, nil),
     // a failure writes nothing
-    ([.partial("hola"), .failed(DictationFailure("no"))], "", 0, "hola", 4, 0..<4),
+    ([.partial(firm: "", tentative: "hola"), .failed(DictationFailure("no"))], "", 0, "hola", 4, 0..<4),
 ])
 func theTentativeTextOnlyTouchesItsRange(events: [DictationEvent], text: String, caret: Int, expected: String, expectedCaret: Int, expectedRange: Range<Int>?) {
     let heard = hear(events, in: text, caret: caret)
@@ -38,12 +38,45 @@ func theTentativeTextOnlyTouchesItsRange(events: [DictationEvent], text: String,
     #expect(heard.range == expectedRange)
 }
 
+/// Only the tail of the range is tentative: the firm words before it are as normal as the text around them, and the next partial replaces both.
+@Test func theRangeHoldsTheFirmWordsAndTheTentativeOnesButOnlyTheTailIsTentative() {
+    var tentative = TentativeText(caret: 4, in: "uno dos")
+    let first = tentative.apply(.partial(firm: "hola ", tentative: "mun"), to: "uno dos", caret: 4)
+    #expect(first?.text == "uno hola mundos" && tentative.range == 4..<12 && tentative.tentativeRange == 9..<12)
+    // the firm words grow and the tentative ones are replaced, the range is still one
+    let second = tentative.apply(.partial(firm: "hola mundo ", tentative: "cru"), to: "uno hola mundos", caret: 12)
+    #expect(second?.text == "uno hola mundo crudos" && tentative.range == 4..<18 && tentative.tentativeRange == 15..<18)
+    // nothing tentative: all of it is firm, and nothing is drawn as partial
+    _ = tentative.apply(.partial(firm: "hola mundo cruel", tentative: ""), to: "uno hola mundo crudos", caret: 15)
+    #expect(tentative.range == 4..<20 && tentative.tentativeRange == nil)
+    // a final closes both, and so does keeping what is there
+    _ = tentative.apply(.final("hola mundo cruel."), to: "uno hola mundo crueldos", caret: 20)
+    #expect(tentative.range == nil && tentative.tentativeRange == nil)
+}
+
+@Test func theFirmWordsOfADictationThatOpensAfterAWordAreAfterTheSpaceThatSetsItApart() {
+    var tentative = TentativeText(caret: 4, in: "Hola")
+    _ = tentative.apply(.partial(firm: "uno ", tentative: "dos"), to: "Hola", caret: 4)
+    #expect(tentative.range == 5..<12 && tentative.tentativeRange == 9..<12)
+}
+
+@Test func anEditBeforeTheRangeMovesTheTentativeTailWithItAndOneInsideEndsTheWriting() {
+    var tentative = TentativeText(caret: 4, in: "uno dos")
+    _ = tentative.apply(.partial(firm: "hola ", tentative: "mun"), to: "uno dos", caret: 4)
+    // the person adds two characters at the start
+    _ = tentative.apply(.partial(firm: "hola mundo ", tentative: "cru"), to: "xxuno hola mundos", caret: 6)
+    #expect(tentative.tentativeRange == 17..<20)
+    // an edit inside it: the dictation writes no more
+    #expect(tentative.apply(.partial(firm: "hola mundo cruel ", tentative: "y"), to: "xxuno holaX mundo crudos", caret: 10) == nil)
+    #expect(tentative.range == nil && tentative.tentativeRange == nil)
+}
+
 @Test func closingKeepsThePartialTextAsFinalAndTheNextWordsFollowIt() {
     var tentative = TentativeText(caret: 4, in: "uno dos")
-    _ = tentative.apply(.partial("hola"), to: "uno dos", caret: 4)
+    _ = tentative.apply(.partial(firm: "", tentative: "hola"), to: "uno dos", caret: 4)
     tentative.close()
     #expect(tentative.range == nil)
-    #expect(tentative.apply(.partial("x"), to: "uno holados", caret: 8)?.text == "uno hola xdos")
+    #expect(tentative.apply(.partial(firm: "", tentative: "x"), to: "uno holados", caret: 8)?.text == "uno hola xdos")
 }
 
 @Test func aCaretPastTheEndOfTheTextDoesNotCrash() {
@@ -65,18 +98,18 @@ func theTentativeTextOnlyTouchesItsRange(events: [DictationEvent], text: String,
     ("Hola", 4, "", "Hola"),
 ])
 func aDictationIsSetApartFromTheWordBeforeIt(text: String, caret: Int, heard: String, expected: String) {
-    #expect(hear([.partial(heard), .final(heard)], in: text, caret: caret).text == expected)
+    #expect(hear([.partial(firm: "", tentative: heard), .final(heard)], in: text, caret: caret).text == expected)
 }
 
 @Test func theSpaceBeforeADictationIsWrittenOnceAndOutsideTheRange() {
-    let heard = hear([.partial("hola"), .partial("hola mun")], in: "Hola", caret: 4)
+    let heard = hear([.partial(firm: "", tentative: "hola"), .partial(firm: "", tentative: "hola mun")], in: "Hola", caret: 4)
     #expect(heard.text == "Hola hola mun" && heard.range == 5..<13 && heard.caret == 13)
 }
 
 /// The person edits while the dictation still has words to write (the last ones of a stop, or all of them for a model that answers at the end).
 @Test func anEditBeforeTheRangeMovesItAndTheNextWordsGoWhereTheyWere() {
     var tentative = TentativeText(caret: 4, in: "uno dos")
-    _ = tentative.apply(.partial("hola"), to: "uno dos", caret: 4)
+    _ = tentative.apply(.partial(firm: "", tentative: "hola"), to: "uno dos", caret: 4)
     // "X" typed at the start, and the caret after it
     let edit = tentative.apply(.final("hola mundo"), to: "Xuno holados", caret: 1)
     #expect(edit?.text == "Xuno hola mundodos")
@@ -91,18 +124,18 @@ func aDictationIsSetApartFromTheWordBeforeIt(text: String, caret: Int, heard: St
 
 @Test func anEditAfterTheRangeLeavesItAlone() {
     var tentative = TentativeText(caret: 4, in: "uno dos")
-    _ = tentative.apply(.partial("hola"), to: "uno dos", caret: 4)
+    _ = tentative.apply(.partial(firm: "", tentative: "hola"), to: "uno dos", caret: 4)
     let edit = tentative.apply(.final("hola mundo"), to: "uno holados!", caret: 12)
     #expect(edit?.text == "uno hola mundodos!" && edit?.caret == 18)
 }
 
 @Test func anEditInsideTheRangeEndsTheWritingAndKeepsWhatThePersonDid() {
     var tentative = TentativeText(caret: 4, in: "uno dos")
-    _ = tentative.apply(.partial("hola"), to: "uno dos", caret: 4)
+    _ = tentative.apply(.partial(firm: "", tentative: "hola"), to: "uno dos", caret: 4)
     #expect(tentative.apply(.final("hola mundo"), to: "uno hoadados", caret: 7) == nil)
     #expect(tentative.range == nil && tentative.lost)
     // and nothing it hears later is written either
-    #expect(tentative.apply(.partial("x"), to: "uno hoadados", caret: 7) == nil)
+    #expect(tentative.apply(.partial(firm: "", tentative: "x"), to: "uno hoadados", caret: 7) == nil)
 }
 
 @Test func aTextReplacedWholeWhileTheDictationWaitsIsNotWrittenOver() {
@@ -112,7 +145,7 @@ func aDictationIsSetApartFromTheWordBeforeIt(text: String, caret: Int, heard: St
 
 @Test(arguments: [
     // an empty event first, and a recognizer that opens with a space
-    ([DictationEvent.partial(""), .final("hola")], 4..<8),
+    ([DictationEvent.partial(firm: "", tentative: ""), .final("hola")], 4..<8),
     ([.final(" hola")], 3..<8),
 ])
 func theTextAWholeDictationWroteLeavesOutTheSpaceThatSetItApartWhenItCanBeTold(events: [DictationEvent], expected: Range<Int>) {

@@ -33,10 +33,32 @@ A stop with no audio captured yet, as a release right after the press in Hold, p
 Esc stops the capture and writes nothing.
 A model that is not ready 30 s after the press (`DictationSession.answerFloor`) stops the capture, drops what was heard and fails as a dictation that could not start, with "The speech model did not get ready in time." shown and logged.
 
+## Firm and tentative text
+
+A partial event carries two texts, `DictationEvent.partial(firm:tentative:)`: the firm words will not change while the person speaks, and the tentative ones follow them and may.
+The message box and the widget draw the firm words as normal text and only the tentative ones as partial text (the normal colour with a touch of the accent and a dotted underline), so the text no longer reads as a guess from its first word to its last.
+The widget's text still scrolls with the newest words on the last line.
+Each recognizer fills both by its own rule:
+
+- The core's chunking (Parakeet TDT v3, `ChunkPolicy.firmText` and `tentativeText`): the words it has settled are firm and the words of the last pass over the open segment are tentative.
+- Apple (`AppleRecognizer.partial(settled:volatile:)`): the final results are firm and the volatile ones tentative.
+- The streaming models (Nemotron, Parakeet EOU and Parakeet Unified, `DictationEvent.growing`): their text only grows, so every word but the last is firm and the last, which may still grow by a piece of a word, is tentative.
+- The fixture recognizer: each word is firm as the next is given, and the last one is tentative.
+- A model that gives its text at the end has no partial text.
+
+The space that sets the firm words apart from the tentative ones belongs to the firm part, so the dotted line starts at the first tentative word.
+`TentativeText` keeps one range for the dictation's text, which the next partial replaces whole, and a tentative tail inside it (`tentativeRange`), the only part the field is told to draw as partial.
+An edit by the person during a dictation, a cleanup and a cancel behave as before, over the whole range, and a stop keeps all the text, firm and tentative, as final.
+
+## "Transcribing…" only when it is slow
+
+After a stop, a model that gives its text at the end shows the spinner at once and says "Transcribing…" only when the final text has not come 250 ms after the stop (`DictationSession.quickAnswer`, `answerIsSlow`, on the injected clock); a final text within 250 ms never shows it.
+The 30 s the recognizer has to answer is its own clock.
+
 ## Under `--fixture`
 
-Under `--fixture` the app registers the fixture recognizer instead (`CarrierCore/FixtureRecognizer.swift`) and asks macOS for nothing: the microphone in the message box of the new session and of a conversation answers a click with a canned Spanish phrase, word by word as partial text (the normal colour with a touch of the accent and a dotted underline) and then final (plain), at the caret.
-`--fixture-dictation-at-the-end` gives the phrase only after the click that stops it (the box says "Transcribing…") and `--fixture-dictation-fails` fails to start with a cause shown in red under the box; the global shortcut dictates the same canned phrase into the widget.
+Under `--fixture` the app registers the fixture recognizer instead (`CarrierCore/FixtureRecognizer.swift`) and asks macOS for nothing: the microphone in the message box of the new session and of a conversation answers a click with a canned Spanish phrase, word by word as partial text (the words before the last as normal text, the last one in the normal colour with a touch of the accent and a dotted underline) and then final (plain), at the caret.
+`--fixture-dictation-at-the-end` gives the phrase only after the click that stops it (the box says "Transcribing…" if it takes more than 250 ms) and `--fixture-dictation-fails` fails to start with a cause shown in red under the box; the global shortcut dictates the same canned phrase into the widget.
 
 ## The Dictation page
 
@@ -46,7 +68,7 @@ General (`Carrier/DictationTab.swift`, which lists its groups, each its own view
 ## Global dictation
 
 The shortcut (⌥⇧ Space until the person records another) dictates in any app (`Carrier/GlobalHotKey.swift`, a system hot key, which needs no permission): it opens a floating widget over the display of the window in front, in the style and place the person chose ([below](#the-widget-style-and-position)), that never takes the focus from the app the person is in and lets every click through (`Carrier/DictationWidget.swift`).
-The widget shows the text as it is said, the time and the keys (`⌥⇧ Space to finish · Esc to cancel`), with the same wait captions as the message box (Getting the model ready…, Transcribing…).
+The widget shows the text as it is said, with the firm and tentative words drawn as in the message box ([firm and tentative text](#firm-and-tentative-text)), the time and the keys (`⌥⇧ Space to finish · Esc to cancel`), with the same wait captions as the message box (Getting the model ready…, and Transcribing… when the final text is slow).
 By default it is a toggle: the shortcut starts the dictation, the next press ends it and pastes the text once at the cursor of the app in front, and the widget closes.
 In Hold the dictation listens while the keys are down and the release ends it and pastes, as the second press does (a hot key gives the key release, `GlobalHotKey`'s `released`); the widget says "Release ⌥⇧ Space to finish". A release right after the press pastes nothing and closes with no trace, and a release while the model is getting ready ends the capture and pastes what it captured once the model is ready ([the microphone starts at the press](#the-microphone-starts-at-the-press)); Esc while the keys are held cancels, and the release after it does nothing. The mode is read when the dictation starts. With Carrier in front on a session, the release ends the message box's dictation too, whether it is listening, loading the model or waiting for the microphone prompt.
 Esc, which Carrier holds only while the widget is open, cancels in any state: nothing is pasted and the clipboard is as it was.

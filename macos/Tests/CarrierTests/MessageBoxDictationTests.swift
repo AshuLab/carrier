@@ -54,6 +54,27 @@ func theMessageBoxBuildsInEveryStateOfADictationAtWideAndNarrowWidths(state: Dic
     #expect(ImageRenderer(content: box.frame(width: 320)).cgImage != nil)
 }
 
+/// What the box is told to draw as partial text is the tentative tail only (`CommandTextViewTests` checks how it draws it).
+@MainActor @Test func theBoxIsToldToDrawOnlyTheTentativeWordsAsPartialText() async {
+    let registry = RecognizerRegistry()
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    let recognizer = ScriptedRecognizer()
+    registry.register(recognizer)
+    var text = "", tentative: Range<Int>?
+    let field = DictationField(owner: "box", text: { text }, caret: { text.utf16.count }, put: { text = $0; tentative = $2 })
+    func until(_ condition: () -> Bool) async { for _ in 0..<2000 where condition() == false { try? await Task.sleep(for: .milliseconds(1)) } }
+    dictation.toggle(into: field)
+    await until { dictation.session.state == .listening && dictation.session.modelReady }
+    recognizer.say(.partial(firm: "hola ", tentative: "mun"))
+    await until { text == "hola mun" }
+    #expect(tentative == 5..<8)
+    recognizer.say(.partial(firm: "hola mundo", tentative: ""))
+    await until { text == "hola mundo" && tentative == nil }
+    #expect(text == "hola mundo" && tentative == nil)
+    recognizer.finish()
+    await until { dictation.session.state == .idle }
+}
+
 @MainActor @Test func aBuildWithNoRecognizerRegisteredDrawsNoMicrophone() async {
     let dictation = await controller(in: nil)
     #expect(dictation.presentation(for: "box") == nil)

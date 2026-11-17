@@ -180,7 +180,7 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
         do {
             try await streamer.reset()
             await streamer.setLanguage(language)
-            await streamer.onPartial { if $0.isEmpty == false { out.yield(.partial($0)) } }
+            await streamer.onPartial { if $0.isEmpty == false { out.yield(.growing($0)) } }
             var converter: CaptureConverter?
             var fed = false
             for await buffer in audio {

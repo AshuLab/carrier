@@ -49,7 +49,7 @@ public struct FixtureRecognizer: Recognizer {
             for word in Self.phrase.split(separator: " ") {
                 do { try await sleep(.milliseconds(350)) } catch { return (heard, false) }
                 heard += heard.isEmpty ? word : " " + word
-                out.yield(.partial(heard))
+                out.yield(.growing(heard))
             }
             out.yield(.final(heard))
             return (heard, true)

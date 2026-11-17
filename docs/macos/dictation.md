@@ -10,7 +10,7 @@ SpeechAnalyzer needs only the microphone permission, not `NSSpeechRecognitionUsa
 
 ## The model ready before the press
 
-Keep the speech model ready (`dictation.model.keepReady`, on by default) loads the chosen model in the background when Carrier opens with Dictation on, when Dictation is turned on, when Keep it ready is turned on and when the chosen model or language changes, so the first dictation does not say "Getting the model ready…".
+Keep the speech model ready (`dictation.model.keepReady`, on by default) loads the chosen model in the background when Carrier opens with Dictation on, when Dictation is turned on, when Keep it ready is turned on and when the chosen model or language changes, so the first dictation does not say "Getting the model ready…" for long.
 Release the model after (`dictation.model.releaseAfter`: 5, 15, 30 or 60 minutes, or Never, 15 by default; a saved value that is not on offer reads as 15) frees the model of someone who is not dictating, whatever the switch says: the minutes count from the end of the last dictation (from the load, when nobody has dictated yet), the next dictation loads the model again and says "Getting the model ready…", and Never keeps it until Carrier quits.
 With the switch off a model loads at the first dictation, as before, and the release still applies; with Dictation off nothing loads, and turning Dictation off releases what was loaded.
 Both rows are drawn at 40% with Dictation off, and `reset(.dictation)` puts them back.
@@ -19,7 +19,18 @@ Apple's model is kept by the system while it is ready (the analyzer is created w
 A background load that fails is only appended to `dictation.log`: the person is told at the dictation, which tries again.
 Memory, measured on the Mac it was built on (the process's physical footprint, which does not count what Core ML keeps for the Neural Engine and the GPU, so the real figure is higher): Nemotron 3.5 Multilingual, the one speech model downloaded there, added about 50 MB once loaded and about 60 MB after a pass over audio; Whisper and the other FluidAudio models were not downloaded and are not measured.
 
-Each dictation appends one line to `dictation.log` with where its time went and no text of the dictation: `timing capture=40 first-audio=45 model-ready=2300 first-word=3100 final=180`, in milliseconds from the press to the capture running, to the first audio, to the model ready and to the first word shown, and from the stop to the final text (a moment that did not happen is left out, and a dictation dropped before its model was ready writes none).
+Each dictation appends one line to `dictation.log` with where its time went and no text of the dictation: `timing capture=40 first-audio=45 model-ready=2300 first-word=3100 final=180`, in milliseconds from the press to the capture running, to the first audio, to the model ready and to the first word shown, and from the stop to the final text (a moment that did not happen is left out, and a dictation dropped before the capture started writes none).
+
+## The microphone starts at the press
+
+The capture starts at the press, whether or not the model is ready (`DictationSession.run`), and the audio is kept until the recognizer is ready and then given to it from the first sample, in order, so the words said while the model gets ready end up in the text.
+The first dictation ever still asks macOS for the microphone before anything is captured, and a denied microphone behaves as before: both are the controller's, ahead of the session.
+From the press the message box and the widget draw what they draw when they listen (the line, the filled microphone and the clock) with "Getting the model ready…" where the caption goes (`dictationPresentation(_:registered:microphone:modelReady:)`), until the model is ready; then the words catch up.
+The start sound plays when the first audio arrives, not when the capture starts.
+A stop while the model gets ready (a click, the shortcut, a release in Hold, Enter) ends the capture and keeps what was captured: the box draws the spinner until the model is ready, which then reads it, and the dictation ends as a stop while listening does.
+A stop with no audio captured yet, as a release right after the press in Hold, pastes nothing.
+Esc stops the capture and writes nothing.
+A model that is not ready 30 s after the press (`DictationSession.answerFloor`) stops the capture, drops what was heard and fails as a dictation that could not start, with "The speech model did not get ready in time." shown and logged.
 
 ## Under `--fixture`
 
@@ -36,7 +47,7 @@ General (`Carrier/DictationTab.swift`, which lists its groups, each its own view
 The shortcut (⌥⇧ Space until the person records another) dictates in any app (`Carrier/GlobalHotKey.swift`, a system hot key, which needs no permission): it opens a floating widget over the display of the window in front, in the style and place the person chose ([below](#the-widget-style-and-position)), that never takes the focus from the app the person is in and lets every click through (`Carrier/DictationWidget.swift`).
 The widget shows the text as it is said, the time and the keys (`⌥⇧ Space to finish · Esc to cancel`), with the same wait captions as the message box (Getting the model ready…, Transcribing…).
 By default it is a toggle: the shortcut starts the dictation, the next press ends it and pastes the text once at the cursor of the app in front, and the widget closes.
-In Hold the dictation listens while the keys are down and the release ends it and pastes, as the second press does (a hot key gives the key release, `GlobalHotKey`'s `released`); the widget says "Release ⌥⇧ Space to finish". A release right after the press, or while the model is getting ready, pastes nothing and closes with no trace; Esc while the keys are held cancels, and the release after it does nothing. The mode is read when the dictation starts. With Carrier in front on a session, the release ends the message box's dictation too, whether it is listening, loading the model or waiting for the microphone prompt.
+In Hold the dictation listens while the keys are down and the release ends it and pastes, as the second press does (a hot key gives the key release, `GlobalHotKey`'s `released`); the widget says "Release ⌥⇧ Space to finish". A release right after the press pastes nothing and closes with no trace, and a release while the model is getting ready ends the capture and pastes what it captured once the model is ready ([the microphone starts at the press](#the-microphone-starts-at-the-press)); Esc while the keys are held cancels, and the release after it does nothing. The mode is read when the dictation starts. With Carrier in front on a session, the release ends the message box's dictation too, whether it is listening, loading the model or waiting for the microphone prompt.
 Esc, which Carrier holds only while the widget is open, cancels in any state: nothing is pasted and the clipboard is as it was.
 A dictation with no words pastes nothing and closes with no trace.
 A failure to start (a blocked microphone, no speech model, the capture) or to recognize shows its cause in red in the widget, with no clock and the words "Esc to dismiss", and it stays until Esc or the shortcut, and a line with the cause only is appended to `dictation.log`.
@@ -123,7 +134,7 @@ At the bottom, Statistics settings has the Typing speed (`dictation.statistics.w
 
 The Sounds group (`Carrier/SoundsGroup.swift`) has a Start sound and an End sound, each with a play button, a popup of three of macOS's own sounds (Tink, Pop and Glass; Tink starts and Pop ends) and a switch, and one Volume from 0 to 100 that starts at 60 and serves both (`dictation.sound.start.on`, `dictation.sound.start`, `dictation.sound.end.on`, `dictation.sound.end` and `dictation.sound.volume`, all put back by `reset(.dictation)`; a saved sound that is not on offer reads as the default).
 The sounds belong to the global dictation: the message boxes stay silent.
-The start sound plays when the widget's dictation begins to listen; the end sound plays when the shortcut stops listening and goes on to clean and paste, whether or not words were heard; Esc plays no end sound, since nothing goes on, and a dictation that never listened (a blocked microphone, a failure to start) plays none.
+The start sound plays when the first audio of the widget's dictation arrives; the end sound plays when the shortcut stops listening and goes on to clean and paste, whether or not words were heard; Esc plays no end sound, since nothing goes on, and a dictation that never listened (a blocked microphone, a failure to start) plays none.
 A switch off silences its sound and volume 0 silences both, but the play button always plays, at the volume set.
 Which sound a moment plays is a pure function, `dictationSound(for:_:)` in `CarrierCore/DictationSounds.swift`, fed by the moments the machine reports (`GlobalDictationMoment`: `listening`, `stopped`, `cancelled`); `Carrier/DictationSoundPlayer.swift` plays it through `NSSound`.
 

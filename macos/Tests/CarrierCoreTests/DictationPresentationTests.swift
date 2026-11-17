@@ -19,6 +19,19 @@ func theBoxDrawsAndSaysWhatEachStateNeeds(state: DictationSession.State, icon: D
     #expect(box.label == label)
 }
 
+@Test func whileTheModelGetsReadyWithTheCaptureRunningTheBoxListensAndSaysSoWhereTheTextWillBe() throws {
+    let waiting = try #require(dictationPresentation(.listening, registered: true, modelReady: false))
+    let listening = try #require(dictationPresentation(.listening, registered: true))
+    // what listens is drawn as listening (the line, the filled microphone) and can be stopped
+    #expect(waiting.icon == listening.icon && waiting.inAccent && waiting.pressable && waiting.sendEnabled == false)
+    #expect(waiting.label == "Stop dictation" && waiting.help == "Stop dictation")
+    #expect(waiting.caption == "Getting the model ready…" && listening.caption == nil)
+    #expect(dictationEdgeShown(waiting, dropping: false))
+    // a stop while it loads leaves the spinner, which cannot be pressed
+    let stopped = try #require(dictationPresentation(.gettingReady, registered: true, modelReady: false))
+    #expect(stopped.icon == .spinner && stopped.pressable == false && stopped.caption == "Getting the model ready…")
+}
+
 @Test(arguments: [DictationSession.State.idle, .gettingReady, .listening, .transcribing, .cleaning])
 func aBuildWithNoRecognizerDrawsNoIconInAnyState(state: DictationSession.State) {
     #expect(dictationPresentation(state, registered: false) == nil)

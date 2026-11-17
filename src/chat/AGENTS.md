@@ -25,6 +25,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   The list of sessions leaves children out and a parent's summary lists them as `children`; the `delegationRequestId` is never in a summary.
 - `plan.ts`: the plan's request schema and the step types.
 - `runner.ts`: the chat runner port, with `fake.ts` its test double; `claude.ts` and `codex.ts` are the Claude and Codex adapters.
+  Codex's usage limit (`codexErrorInfo` `usageLimitExceeded`, not retried) is an `error` with `reason: 'usage_limit'`: its `resetsAt` is read from `account/rateLimits/read` (the full window that resets last, waiting 2 s at most) and `resetText` is the error's own `try again at ...` when that gives none; the error is emitted before the turn's `turn_end`.
 - `folder.ts`: the check of a session's folder, never inside `<folder>/engine/` (and `checkProjectsFolder`, the same rule for the projects folder).
 - `projects.ts`: what the chat brings onto the Mac with the person's own `gh` login, under the projects folder ([ADR 0015](../../docs/adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)).
   `cloneRepo` (waiters share one clone, which stops when nobody waits; only git's progress lines pass on, one a second), `createProject`, the `githubRepos` listing and `repoBranches`.

@@ -9,7 +9,7 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 ## Tests
 
-The gated tests of the recognizers (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`; clips `hola-es.wav` and `hello-en.wav` in `Tests/CarrierTests/Resources`: text, an empty final for no speech, and a folder missing a file fails with its cause and downloads nothing) run only with `CARRIER_IT_DICTATION` set, naming a folder laid out as the app keeps its models ([layout](../docs/macos/dictation.md#speech-models)).
+The gated recognizer tests (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`) run only with `CARRIER_IT_DICTATION` naming a folder laid out as the app keeps its models ([layout](../docs/macos/dictation.md#speech-models)).
 The live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
 
 ## Starting Carrier and the chat host
@@ -93,16 +93,10 @@ What the person sees: [usage](../docs/macos/usage.md).
 
 What the person sees: [dictation](../docs/macos/dictation.md).
 
-The logic is `CarrierCore/Dictation.swift` (boundary and registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with the recognizer and capture of `ScriptedDictation.swift`.
-`DictationController` holds the switch both boxes read.
-The model ready before the press ([dictation](../docs/macos/dictation.md#the-model-ready-before-the-press)): the rule is the pure `speechModelStep` and the slot a recognizer keeps its loaded model in is `ModelSlot` (`CarrierCore/SpeechModelReadiness.swift`, `SpeechModelReadinessTests`), `Recognizer.release()` drops it (`ScriptedRecognizer` counts `prepare` and `release`), and `DictationController` (`warmUp`, `setKeepReady`, `setReleaseAfter`, the timer on its injected `sleep` and `now`; `DictationReadinessTests`) runs them from the launch in `AppDelegate`; the two keys are in `AppPreferences` (`AppPreferencesTests`), their rows in `DictationGroup` (dimming: `DictationSettingsTests`).
-The microphone starts at the press ([dictation](../docs/macos/dictation.md#the-microphone-starts-at-the-press)): `DictationSession.run` starts the capture before `recognizer.prepare` and the stream that counts the audio holds it until the recognizer reads it; `modelReady` says which of the two listening looks to draw (`dictationPresentation(modelReady:)`); the 30 s limit is a watchdog on the injected clock.
-Firm and tentative text ([dictation](../docs/macos/dictation.md#firm-and-tentative-text)): `DictationEvent.partial(firm:tentative:)` and `DictationEvent.growing` (`Dictation.swift`) say which words may still change; each recognizer fills both (`ChunkPolicy.firmText`/`tentativeText`, `AppleRecognizer.partial(settled:volatile:)`, `FluidAudioRecognizer` and `FixtureRecognizer` through `growing`); `TentativeText.tentativeRange` is the tail the session gives `DictationField.put` and the box draws as partial (`PillTextView.drawTentative`), and `GlobalDictation.tentative`/`split` is what the widget draws the same way (`DictationWidgetView.heard`).
-"Transcribing…" waits for `DictationSession.answerIsSlow` (`quickAnswer`, 250 ms on the injected `sleep`), which `dictationPresentation(answerIsSlow:)` reads.
-Tests: `ChunkedPartialsTests`, `AppleRecognizerTests`, `FluidAudioRecognizerTests` and `FixtureRecognizerTests` for each mapping, `TentativeTextTests` for the split, `CommandTextViewTests` and `MessageBoxDictationTests` for what the box draws, `GlobalDictationTests` for the widget's split and `DictationPresentationTests` (with the `FakeClock` of `DictationSessionTests`) for the 250 ms.
-Tests: `DictationSessionTests` with `ScriptedRecognizer.holdPrepare()` (the audio it read is `heard`, its events are kept until `recognize` takes them) and `DictationPresentationTests`.
-The line of times of each dictation is `DictationTimings`, handed by `DictationSession` to `DictationLog.append` (`DictationSessionTests`, `DictationLogTests`).
-The page is `Carrier/DictationTab.swift`, one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`, one per line; the views are untested (rules: `SettingsPageTests`, `DictationSettingsTests`).
+The logic is `CarrierCore/Dictation.swift` (boundary and registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read.
+Readiness: `speechModelStep`, `ModelSlot` (`SpeechModelReadiness.swift`), run by `DictationController.warmUp` (`DictationReadinessTests`); `DictationSession.run` captures before `prepare` (`modelReady`, `answerIsSlow`, `DictationTimings`).
+Firm and tentative: `DictationEvent.partial`, `TentativeText.tentativeRange`, `GlobalDictation.split` (`TentativeTextTests`, `MessageBoxDictationTests`).
+The page is `Carrier/DictationTab.swift`, one view per group (a new group is a file and a line there), and `reset(.dictation)` restores the keys in `AppPreferences.keys(of:)`; the views are untested (rules: `SettingsPageTests`, `DictationSettingsTests`).
 
 ### Global dictation
 
@@ -110,13 +104,14 @@ See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `Ca
 Shortcut and activation: `CarrierCore/DictationShortcut.swift` (`recordShortcut`, `DictationShortcutTests`) and the recorder row in `GlobalDictationGroup`, untested.
 `CarrierCore/PasteDecision.swift` (`pasteDecision`, `PasteDecisionTests`) picks paste or copy from `Carrier/FocusedField.swift`, which reads the focus (untested).
 `Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); the rest untested.
-Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest` (`MessageBoxDictationTests`).
-Sounds: `CarrierCore/DictationSounds.swift` (`DictationSoundsTests`); `SoundsGroup` and `DictationSoundPlayer` untested.
-Widget look, place, text fit: `CarrierCore/DictationWidgetLook.swift` (`DictationPresentationTests`); glass and line in `DictationWidget`, untested.
+Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest`.
+Sounds: `CarrierCore/DictationSounds.swift` (`DictationSoundsTests`); the group and player untested.
+Widget look and place: `CarrierCore/DictationWidgetLook.swift` (`DictationPresentationTests`); `DictationWidget` untested.
 
 ### History
 
-See [dictation](../docs/macos/dictation.md#history). `CarrierCore/DictationRecords.swift` (`DictationRecordsTests`, temp folder), fed by `DictationSession.take`; `HistoryGroup` untested.
+See [dictation](../docs/macos/dictation.md#history).
+`CarrierCore/DictationRecords.swift` (`DictationRecordsTests`), fed by `DictationSession.take`; the group untested.
 Audio: `DictationRecords` (fake clock), `DictationAudio.swift`; `AudioPlayerView` untested.
 
 ### Statistics
@@ -126,7 +121,7 @@ See [dictation](../docs/macos/dictation.md#statistics). Counters: `DictationReco
 ### Cleanup
 
 `CarrierCore/DictationCleanup.swift` (the `TextModelClient` port, `CleanupRun`; `CleanupRunTests`, scripted client) and `LocalModelClient.swift` (`LocalModelClientTests`, stub socket); the group is `Carrier/CleanupController.swift` and `CleanupGroup.swift`, untested.
-In the boxes and the widget: the `.cleaning` state of `DictationSession` (`start(cleanup:)` from `DictationController.cleanup()`; `DictationSessionTests`, `GlobalDictationTests`).
+In the boxes and the widget: the `.cleaning` state of `DictationSession` (`DictationSessionTests`, `GlobalDictationTests`).
 
 ## Embedded terminal
 

@@ -117,3 +117,20 @@ import Testing
     await rig.until { rig.recognizer.releaseCount == 1 }
     #expect(rig.recognizer.releaseCount == 1)
 }
+
+@MainActor @Test func aDictationThatStartsWhileTheBackgroundWorkRunsPreparesOnlyAfterItHasEnded() async {
+    let rig = Rig()
+    rig.recognizer.holdPrepare()
+    rig.dictation.warmUp()
+    await rig.until { rig.recognizer.prepareCount == 1 }
+    let field = DictationField(owner: "box", text: { "" }, caret: { 0 }, put: { _, _, _ in })
+    rig.dictation.toggle(into: field)
+    await rig.until { rig.dictation.session.state == .listening }
+    await rig.settles()
+    // the dictation waits for the background load: its own prepare has not begun, so a queued release could not undo it either
+    #expect(rig.recognizer.prepareCount == 1 && rig.dictation.session.modelReady == false)
+    rig.recognizer.releasePrepare()
+    await rig.until { rig.dictation.session.modelReady }
+    #expect(rig.recognizer.prepareCount == 2 && rig.dictation.session.failure(for: "box") == nil)
+    rig.dictation.session.cancel()
+}

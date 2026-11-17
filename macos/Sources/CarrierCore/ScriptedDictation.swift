@@ -113,19 +113,19 @@ public final class ScriptedRecognizer: Recognizer, @unchecked Sendable {
     public func release() async { lock.withLock { releases += 1 } }
 
     public func recognize(_ audio: AsyncStream<AudioBuffer>) -> AsyncStream<DictationEvent> {
-        let (events, continuation) = lock.withLock { () -> (AsyncStream<DictationEvent>, AsyncStream<DictationEvent>.Continuation) in
+        let (taken, yielding) = lock.withLock { () -> (AsyncStream<DictationEvent>, AsyncStream<DictationEvent>.Continuation) in
             // a dictation that already took its events leaves the next one its own
-            if events == nil { continuation = nil }
+            if self.events == nil { self.continuation = nil }
             let made = channel()
-            defer { events = nil }
-            return (events!, made)
+            defer { self.events = nil }
+            return (self.events!, made)
         }
         Task {
             for await buffer in audio { lock.withLock { buffers.append(buffer) } }
             guard let closing else { return }
-            closing.forEach { continuation.yield($0) }
-            continuation.finish()
+            closing.forEach { yielding.yield($0) }
+            yielding.finish()
         }
-        return events
+        return taken
     }
 }

@@ -250,6 +250,19 @@ private func buffer(_ value: Float) -> AudioBuffer { AudioBuffer(samples: [value
     #expect(rig.said.lines.last == "Dictation stopped, 2 words added")
 }
 
+@MainActor @Test func aStreamingModelStoppedWhileItLoadedDoesNotLookLikeListeningAgainOnceItIsReady() async {
+    let recognizer = ScriptedRecognizer()
+    let rig = await gettingReady(recognizer)
+    rig.session.stop()
+    recognizer.releasePrepare()
+    await rig.reaches(.transcribing)
+    #expect(rig.session.state == .transcribing && rig.session.modelReady)
+    recognizer.say(.final("hola"))
+    recognizer.finish()
+    await rig.reaches(.idle)
+    #expect(rig.text == "hola")
+}
+
 @MainActor @Test func aModelThatGivesItsTextAtTheEndTranscribesOnceItIsReadyAfterAStopWhileItLoaded() async {
     let recognizer = ScriptedRecognizer(partial: .atTheEnd)
     let rig = await gettingReady(recognizer)
@@ -509,7 +522,8 @@ func theAnnouncementsOfADictation(notice: DictationNotice, says: String) {
     recognizer.say(.final("hola mundo"))
     recognizer.say(.partial(firm: "", tentative: "ruido"))
     recognizer.say(.final(""))
-    await rig.until { rig.text == "hola mundo" && rig.tentative == nil }
+    // the space that set the partial "ruido" apart stays when the empty final replaces it: that is the end state, the one a poll cannot miss
+    await rig.until { rig.text == "hola mundo " && rig.tentative == nil }
     rig.session.cancel()
     #expect(rig.said.lines.last == "Dictation stopped, 2 words added")
 }

@@ -93,6 +93,9 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private let keepAudio: () -> Bool
     /// Told, with the owner of the box it was, each time a dictation ends: the widget of the global dictation hears its own end here.
     @ObservationIgnored public var onEnd: ((String?) -> Void)?
+    /// Awaited before the recognizer prepares, so a load or a release queued ahead of this dictation (the controller's) is over by then and
+    /// cannot drop what `prepare` loaded before `recognize` reads it.
+    @ObservationIgnored public var beforePrepare: () async -> Void = {}
     /// Told each time a dictation begins to listen: the first audio of the capture has arrived.
     @ObservationIgnored public var onListening: (() -> Void)?
     /// What the dictation that just ended heard, set before `onEnd` and `onTake` hear of it.
@@ -282,6 +285,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         let counted = AsyncStream<AudioBuffer> { continuation in
             let relay = Task { @MainActor in
                 for await buffer in audio {
+                    // a dictation that ended while a buffer was on its way leaves the next one its own times and samples
+                    guard generation == mine else { break }
                     if timings.firstAudio == nil {
                         timings.firstAudio = milliseconds(since: began)
                         onListening?()
@@ -304,6 +309,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             running?.cancel()
             fail(DictationFailure("The speech model did not get ready in time."))
         }
+        await beforePrepare()
+        guard generation == mine else { return }
         do {
             try await recognizer.prepare(model)
         } catch {
@@ -316,8 +323,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         watchdog?.cancel()
         watchdog = nil
         if stopped {
-            // stopped while the model loaded: what was captured is read now
-            if model.partial == .atTheEnd { transcribe() } else { state = .listening }
+            // stopped while the model loaded: what was captured is read now, and the person already stopped, so it never looks like listening again
+            transcribe()
             waitForTheAnswer()
         }
         for await event in recognizer.recognize(counted) {

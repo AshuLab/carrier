@@ -12,10 +12,16 @@ It misheard small words: "distinto nosotros" for "distinto a nosotros", "y del t
 
 Reading the code explains part of it, and leaves the rest as hypotheses to measure.
 
-- The model loads on the first dictation, and the microphone starts only after it is ready. If the recording was the first dictation since Carrier opened, the load alone explains the first seconds. Nobody has measured where the time between the press and the first word goes.
-- Every partial event the recognizers send is the whole text of the dictation, so the box cannot tell the words that will not change from the ones still forming, and draws all of it as partial. The core's chunking already knows which words are settled; it does not say so.
-- Nemotron 3.5 Multilingual runs on its full-vocabulary build at 1.12 s chunks, so its text grows in steps of about a second. FluidAudio also ships a build pruned to English, Spanish, French, Italian, Portuguese and German, which its docs call faster, and chunks of 0.56 s and 2.24 s.
-- For Parakeet TDT v3 the core closes a segment at every pause of 150 ms below a fixed -45 dBFS and transcribes each segment on its own, so the model never sees a whole sentence, not even at the stop. [The chunked partials spike](../research/dictation-chunked-partials.md) found that this costs no wrong words (0.0%) on its clips, but it counted words only, lowercase and without punctuation, on synthetic voices with clean pauses: what it does to the punctuation, the capitals and a real voice in a real room is not known. The owner has not tried Parakeet TDT v3 in Carrier for this comparison.
+- The model loads on the first dictation, and the microphone starts only after it is ready.
+  If the recording was the first dictation since Carrier opened, the load alone explains the first seconds.
+  Nobody has measured where the time between the press and the first word goes.
+- Every partial event the recognizers send is the whole text of the dictation, so the box cannot tell the words that will not change from the ones still forming, and draws all of it as partial.
+  The core's chunking already knows which words are settled; it does not say so.
+- Nemotron 3.5 Multilingual runs on its full-vocabulary build at 1.12 s chunks, so its text grows in steps of about a second.
+  FluidAudio also ships a build pruned to English, Spanish, French, Italian, Portuguese and German, which its docs call faster, and chunks of 0.56 s and 2.24 s.
+- For Parakeet TDT v3 the core closes a segment at every pause of 150 ms below a fixed -45 dBFS and transcribes each segment on its own, so the model never sees a whole sentence, not even at the stop.
+  [The chunked partials spike](../research/dictation-chunked-partials.md) found that this costs no wrong words (0.0%) on its clips, but it counted words only, lowercase and without punctuation, on synthetic voices with clean pauses: what it does to the punctuation, the capitals and a real voice in a real room is not known.
+  The owner has not tried Parakeet TDT v3 in Carrier for this comparison.
 - The box says "Transcribing…" at the stop however short the wait, so even a quick final text reads as a wait.
 
 It is solved when the owner records the same dictation again, on the model of his choice, and the words show as he says them, the text is clean and punctuated, and it flows instead of jumping.
@@ -118,7 +124,8 @@ Testing seams, on the ones the repo has (`CarrierCoreTests` with the scripted re
 
 - Nemotron 3.5 Multilingual's pruned build and its other chunk sizes.
 - Keeping the audio engine prepared between dictations and tapping it in smaller blocks.
-- Parakeet TDT v3 over whole sentences: transcribing the open window every half second, words made firm by agreement, commits at sentences, and a final pass over the whole audio that may correct what was shown. It needs a measurement of punctuation, capitals and energy on the owner's voice first.
+- Parakeet TDT v3 over whole sentences: transcribing the open window every half second, words made firm by agreement, commits at sentences, and a final pass over the whole audio that may correct what was shown.
+  It needs a measurement of punctuation, capitals and energy on the owner's voice first.
 - These three wait for the owner to record the same dictation again with this epic shipped; if it still falls short, they are the next epic, with the start's times from the log to say where.
 - Removing filler words, a dictionary of replacements and spoken punctuation without a language model: the next epic.
 - Vocabulary boosting for any recognizer.
@@ -130,4 +137,5 @@ Testing seams, on the ones the repo has (`CarrierCoreTests` with the scripted re
 
 ## Open questions
 
-- Should the Speech models table say how much memory each model holds while it is ready? The slice of story 2 measures it either way.
+- Should the Speech models table say how much memory each model holds while it is ready?
+  The slice of story 2 measures it either way.

@@ -87,6 +87,8 @@ import SwiftUI
                 DictationEntry(take, outcome: boxOutcome(take.ending), destination: DictationEntry.carrier, cleanupModel: preferences.dictationCleanupModel),
                 audio: take.clip)
         }
+        // a load or a release queued before the press is over before the recognizer prepares for it
+        session.beforePrepare = { [weak self] in await self?.work?.value }
         // sending the app to the background: nothing keeps listening unseen
         NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.stop() }

@@ -20,6 +20,8 @@ struct ChatToolGroupView: View {
     var since: Int?
     /// Whether the card is open until the person flips it (the Tool output setting set to expanded); a session's runs start folded.
     var startsOpen = false
+    /// The time the timers read instead of the clock; a test sets it.
+    var clock: Date?
     @Binding var flipped: Set<String>
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// What the lead slot shows once the run is not live: a tick for a moment after it ended, a square when it was stopped, nothing.
@@ -79,8 +81,7 @@ struct ChatToolGroupView: View {
             HStack(spacing: 8) {
                 if live {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(formatCallDuration(max(0, Int(context.date.timeIntervalSince1970 * 1000) - (since ?? group.startedAt))))
-                            .font(.scaled(12)).monospacedDigit().foregroundStyle(.tertiary)
+                        liveTimers(group.liveTimer(now: Int((clock ?? context.date).timeIntervalSince1970 * 1000), turnStart: since))
                     }
                 } else {
                     if group.added > 0 { Text("+\(group.added)").foregroundStyle(.green) }
@@ -96,6 +97,19 @@ struct ChatToolGroupView: View {
         .contentShape(Rectangle())
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: key)
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: lead)
+    }
+
+    /// The running call's own time, amber once the call is slow (a Shell or MCP call past 30 seconds), and the turn's beside it, quieter, while it is longer.
+    /// Neither wraps: the right side keeps its width and never moves the words.
+    private func liveTimers(_ timer: LiveTimer) -> some View {
+        HStack(spacing: 6) {
+            if let turn = timer.turnMs {
+                Text(formatCallDuration(turn)).font(.scaled(11.5)).foregroundStyle(.quaternary).lineLimit(1)
+            }
+            Text(formatCallDuration(timer.primaryMs)).font(.scaled(12)).foregroundStyle(timer.slow ? AnyShapeStyle(Color.slowCall) : AnyShapeStyle(.tertiary)).lineLimit(1)
+        }
+        .monospacedDigit()
+        .fixedSize()
     }
 
     /// What the line says now; it is also what rolls when it changes.
@@ -501,4 +515,11 @@ private struct CappedWidth: Layout {
         guard let child = subviews.first else { return }
         child.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
     }
+}
+
+extension Color {
+    /// The timer of a slow call: the system's amber on dark, a deeper one on light, where the system's is too pale to read.
+    static let slowCall = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .systemOrange : NSColor(red: 0.70, green: 0.36, blue: 0, alpha: 1)
+    })
 }

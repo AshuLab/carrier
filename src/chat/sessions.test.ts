@@ -8,7 +8,7 @@ import type { ChatAgent } from './config.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { openChatDatabase } from './db.ts';
 import { FakeChatRunner, FakeGit, fakeProjects, type FakeConversation, type FakeRepo } from './fake.ts';
-import { ChatRefused } from './runner.ts';
+import { ChatRefused, type ChatEvent } from './runner.ts';
 import { chatCaps } from './transcript.ts';
 import { chatEvents, chatTurns, sessions as schemaSessions } from './schema.ts';
 import type { HealthProbes } from './health.ts';
@@ -514,6 +514,121 @@ test('a live session that is idle with no client is closed after a minute: the r
   expect(s.claude.conversations[1]!.closed).toBe(true);
 });
 
+const bg = (...ids: string[]) => ({ kind: 'background' as const, tasks: ids.map((id) => ({ id, kind: 'local_bash', description: `run ${id}` })) });
+const background = (s: { sessions: ReturnType<typeof createSessions> }, id: string) => (s.sessions.list({}).sessions.find((row) => row.id === id) as { background: unknown[] }).background;
+
+test('what the agent waits for in the background is in its row, as it says it, redacted, and never stored', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  expect(background(s, one.id)).toEqual([]);
+  one.conversation.emit({ kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: `deploy with ${token}` }, { id: 'b', kind: 'local_agent', description: 'review' }] });
+  expect(background(s, one.id)).toEqual([{ id: 'a', kind: 'local_bash', description: 'deploy with [redacted]', startedAt: 0 }, { id: 'b', kind: 'local_agent', description: 'review', startedAt: 0 }]);
+  // a task keeps the time it began while it stays; one that comes later begins when it comes
+  await s.clock.advance(5_000);
+  one.conversation.emit(bg('b', 'c'));
+  expect(background(s, one.id)).toMatchObject([{ id: 'b', startedAt: 0 }, { id: 'c', startedAt: 5_000 }]);
+  one.conversation.emit(bg('c'));
+  expect(background(s, one.id)).toHaveLength(1);
+  one.conversation.emit(bg());
+  expect(background(s, one.id)).toEqual([]);
+  expect(rows('chat_events').filter((event) => event.kind === 'background')).toEqual([]);
+});
+
+test('a session that waits for background work is not closed for being idle, and is again once it has none', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  one.conversation.emit(bg('a'));
+  await s.clock.advance(10 * 60_000);
+  expect(one.conversation.closed).toBe(false);
+  one.conversation.emit(bg());
+  await s.clock.advance(59_999);
+  expect(one.conversation.closed).toBe(false);
+  await s.clock.advance(1);
+  expect(one.conversation.closed).toBe(true);
+});
+
+test('a session that waits for background work is not archived or deleted until it stops, and a stop with no turn running stops those tasks', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  one.conversation.emit(bg('a'));
+  await expect(s.sessions.archive({ sessionId: one.id, archived: true })).rejects.toThrow('waiting for a background task; stop it first, then archive it');
+  await expect(s.sessions.delete({ sessionId: one.id })).rejects.toThrow('stop it first, then delete it');
+  one.conversation.emit(bg('a', 'b'));
+  await expect(s.sessions.archive({ sessionId: one.id, archived: true })).rejects.toThrow('waiting for background tasks; stop them first');
+  await s.sessions.interrupt({ sessionId: one.id });
+  expect(one.conversation.stopped).toEqual(['a', 'b']);
+  one.conversation.emit(bg());
+  await s.sessions.interrupt({ sessionId: one.id }); // nothing to stop now
+  expect(one.conversation.stopped).toEqual(['a', 'b']);
+  await s.sessions.archive({ sessionId: one.id, archived: true });
+  expect(s.sessions.list({ archived: true }).sessions.map((row) => row.id)).toEqual([one.id]);
+});
+
+test('a turn the agent begins on its own is working from its first word and ends at its turn_end, which is recorded', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  expect(stateOf(s, one.id)).toBe('idle');
+  // the SDK woke the agent because a task it ran in the background ended: no message of the person's started this turn
+  one.conversation.emit({ kind: 'assistant', text: 'The build finished.' });
+  expect(stateOf(s, one.id)).toBe('working');
+  one.conversation.emit({ kind: 'tool_start', callId: 'c1', tool: 'Read', arg: 'a.ts' }, { kind: 'tool_end', callId: 'c1', tool: 'Read', status: 'ok' });
+  expect(stateOf(s, one.id)).toBe('working');
+  expect(rows('chat_turns')).toEqual([]);
+  one.conversation.emit({ kind: 'turn_end', outcome: 'ok', model: 'sonnet' });
+  expect(stateOf(s, one.id)).toBe('idle');
+  expect(rows('chat_turns')).toMatchObject([{ sessionId: one.id, outcome: 'ok', model: 'sonnet', toolCalls: 1 }]);
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ lastMessage: 'The build finished.', turns: 1 });
+});
+
+test('each kind of first word begins the turn: streaming, thinking, a tool and an approval, and the approval waits for the person', async () => {
+  const cases: [string, ChatEvent, string][] = [
+    ['a delta', { kind: 'delta', text: 'Wo' }, 'working'],
+    ['a thought', { kind: 'reasoning', text: 'hm' }, 'working'],
+    ['a tool', { kind: 'tool_start', callId: 'c', tool: 'Bash', arg: 'ls' }, 'working'],
+    ['an approval', { kind: 'approval', approvalId: 'a1', tool: 'Bash', arg: 'ls', choices: [{ id: 'allow', label: 'Allow', allow: true }] }, 'waiting_approval'],
+  ];
+  for (const [kind, event, expected] of cases) {
+    const s = setup();
+    const one = await openOne(s);
+    one.conversation.emit(event);
+    expect(stateOf(s, one.id), kind).toBe(expected);
+    rmSync(join(dir, 'chat.db'));
+  }
+});
+
+test('a word that comes late from a conversation the host closed is not a turn, and a session that is not idle keeps its own state', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  await s.sessions.close({ sessionId: one.id });
+  one.conversation.emit({ kind: 'assistant', text: 'too late' });
+  expect(stateOf(s, one.id)).toBe('idle');
+  expect(s.sessions.liveCount()).toBe(0);
+  // a turn that the person started is not started twice
+  const two = await openOne(setup());
+  two.sessions.send({ sessionId: two.id, text: 'go' });
+  two.conversation.emit({ kind: 'assistant', text: 'ok' });
+  expect(stateOf(two, two.id)).toBe('working');
+  two.conversation.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(stateOf(two, two.id)).toBe('idle');
+});
+
+test('a task can be stopped by itself: only the one named, refused in words when it is not running or the session is closed', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  one.conversation.emit(bg('a', 'b'));
+  await s.sessions.stopTask({ sessionId: one.id, taskId: 'b' });
+  expect(one.conversation.stopped).toEqual(['b']);
+  // one that is not there, or that the agent already finished
+  await expect(s.sessions.stopTask({ sessionId: one.id, taskId: 'nope' })).rejects.toThrow('That task is not running');
+  // the whole of them is still what an interrupt with no turn running does
+  await s.sessions.interrupt({ sessionId: one.id });
+  expect(one.conversation.stopped).toEqual(['b', 'a', 'b']);
+  // a session whose agent is not running has none to stop
+  await s.sessions.close({ sessionId: one.id });
+  await expect(s.sessions.stopTask({ sessionId: one.id, taskId: 'a' })).rejects.toThrow('This session is closed');
+  await expect(s.sessions.stopTask({ sessionId: 'unknown', taskId: 'a' })).rejects.toThrow();
+});
+
 test('with a client attached nothing is closed; the minute counts from the client leaving', async () => {
   const { sessions, conversation, clock } = await openOne();
   sessions.clientJoined();
@@ -693,27 +808,27 @@ test('stopTask reaches the agent only for a task running in that session; an unk
   const { sessions, conversation, id, claude } = await openOne();
   const started = (taskId: string, callId = `call-${taskId}`) => conversation.emit({ kind: 'task', callId, taskId, state: 'started', text: 'Explore' });
   await expect(sessions.stopTask({ sessionId: '00000000-0000-4000-8000-000000000000', taskId: 'a' })).rejects.toThrow(ChatRefused);
-  await expect(sessions.stopTask({ sessionId: id, taskId: 'a' })).rejects.toThrow('That subagent is not running');
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'a' })).rejects.toThrow('That task is not running');
   started('a');
-  await expect(sessions.stopTask({ sessionId: id, taskId: 'b' })).rejects.toThrow('That subagent is not running'); // another task's id
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'b' })).rejects.toThrow('That task is not running'); // another task's id
   expect(conversation.stopped).toEqual([]);
   expect(await sessions.stopTask({ sessionId: id, taskId: 'a' })).toEqual({});
   expect(conversation.stopped).toEqual(['a']);
 
   // a task that ended is not running; the SDK's own `stopped` ends it
   conversation.emit({ kind: 'task', callId: 'call-a', taskId: 'a', state: 'stopped' });
-  await expect(sessions.stopTask({ sessionId: id, taskId: 'a' })).rejects.toThrow('That subagent is not running');
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'a' })).rejects.toThrow('That task is not running');
 
   // a task of one session is not running in another
   await sessions.open({ agent: 'claude', folder: work });
   const other = claude.conversations[1]!;
   other.emit({ kind: 'task', callId: 'call-z', taskId: 'z', state: 'started' });
-  await expect(sessions.stopTask({ sessionId: id, taskId: 'z' })).rejects.toThrow('That subagent is not running');
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'z' })).rejects.toThrow('That task is not running');
 
   // an adapter with no stopTask (Codex) never has a task to stop
   (conversation as { stopTask?: unknown }).stopTask = undefined;
   started('c');
-  await expect(sessions.stopTask({ sessionId: id, taskId: 'c' })).rejects.toThrow('This session cannot stop a subagent');
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'c' })).rejects.toThrow('This session cannot stop a task');
   await sessions.close({ sessionId: id });
   await expect(sessions.stopTask({ sessionId: id, taskId: 'c' })).rejects.toThrow('This session is closed');
 });
@@ -817,7 +932,7 @@ test('a session resumed after the host restarted has no running tasks and is idl
   await sessions.close({ sessionId: id });
   await sessions.resume({ sessionId: id });
   expect(stateOf(s, id)).toBe('idle');
-  await expect(sessions.stopTask({ sessionId: id, taskId: 'a' })).rejects.toThrow('That subagent is not running');
+  await expect(sessions.stopTask({ sessionId: id, taskId: 'a' })).rejects.toThrow('That task is not running');
 });
 
 test('an interrupt ends the running turn as interrupted and the session takes the next message; with no turn it changes nothing', async () => {

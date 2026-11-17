@@ -2,7 +2,7 @@ import Foundation
 
 /// When each session the app has seen working started, so its row can count how long it has worked. The host does not say: a session's
 /// last activity moves with every event, so the first time the app sees it working is the start, taken as that last activity (which is
-/// the turn's start unless more events came first). Waiting for the person keeps the count, since the turn goes on; idle or done ends it.
+/// the turn's start unless more events came first). Waiting for the person keeps the count, since the turn goes on; so does waiting for what the agent started in the background; idle or done ends it.
 @MainActor public final class WorkingClock {
     public static let shared = WorkingClock()
     private var started: [String: Date] = [:]
@@ -11,17 +11,15 @@ import Foundation
 
     /// When the row's turn started, nil unless it is working. Reading it is how the clock learns a session started or stopped.
     public func since(_ row: SessionRow) -> Date? {
-        switch row.state {
-        case .idle, .done:
+        if row.state == .waiting { return nil }
+        // a session that waits for what it started in the background keeps the count: the turn that began it is still the work
+        guard row.isWorking else {
             started[row.id] = nil
             return nil
-        case .waiting:
-            return nil
-        case .working:
-            if let known = started[row.id] { return known }
-            started[row.id] = row.updatedAt
-            return row.updatedAt
         }
+        if let known = started[row.id] { return known }
+        started[row.id] = row.updatedAt
+        return row.updatedAt
     }
 }
 

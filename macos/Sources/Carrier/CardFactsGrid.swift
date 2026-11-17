@@ -4,8 +4,10 @@ import SwiftUI
 /// The facts of a card that opens on a row (`SessionPeekView`, `EpicCardView`): a quiet label and a value drawn by its kind. A path or a
 /// branch is one line cut in the middle, with the whole of it in its tooltip and selectable to copy, so a long one never breaks over four
 /// lines; an agent is its account's mark and short name.
-struct CardFactsGrid: View {
+struct CardFactsGrid<Extra: View>: View {
     let facts: [CardFact]
+    /// More rows after the facts, in the same columns (a session's pull request, its changes and what it waits for).
+    @ViewBuilder var extra: () -> Extra
 
     var body: some View {
         Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
@@ -15,6 +17,7 @@ struct CardFactsGrid: View {
                     value(facts[index]).frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            extra()
         }
         .font(SidebarMetrics.detail)
     }
@@ -39,4 +42,8 @@ struct CardFactsGrid: View {
             .help(fact.value)
         }
     }
+}
+
+extension CardFactsGrid where Extra == EmptyView {
+    init(facts: [CardFact]) { self.init(facts: facts, extra: { EmptyView() }) }
 }

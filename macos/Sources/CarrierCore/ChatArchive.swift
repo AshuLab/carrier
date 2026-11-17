@@ -139,7 +139,7 @@ public func archiveBlock(_ row: SessionRow) -> String? {
     switch row.state {
     case .working: "Stop the session to archive it"
     case .waiting: "Answer or stop the session to archive it"
-    case .idle, .done: nil
+    case .idle, .done: row.background.isEmpty ? nil : row.background.count == 1 ? "Stop the background task to archive it" : "Stop the background tasks to archive it"
     }
 }
 
@@ -153,7 +153,7 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
     copies.append(SessionMenuItem("Session id", "number", .copy(row.id)))
 
     var control: [SessionMenuItem] = []
-    if row.state == .working { control.append(SessionMenuItem("Stop", "stop.circle", .stop)) }
+    if row.isWorking { control.append(SessionMenuItem("Stop", "stop.circle", .stop)) }
     if row.archived == false { control.append(pinned ? SessionMenuItem("Unpin", "pin.slash", .unpin) : SessionMenuItem("Pin", "pin", .pin)) }
     var open = [SessionMenuItem("Open in Terminal", "terminal", .openInTerminal(path: row.folder)), SessionMenuItem("Copy", "doc.on.doc", nil, children: copies)]
     if canFilter { open.append(SessionMenuItem("Filter by \u{201C}\(row.workspace)\u{201D}", "line.3.horizontal.decrease", .filterWorkspace(row.workspace))) }

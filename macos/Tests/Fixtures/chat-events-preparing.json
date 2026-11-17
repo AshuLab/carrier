@@ -1,0 +1,10 @@
+{
+  "sessionId": "a1000000-0000-4000-8000-000000000007",
+  "events": [
+    {"at": 1792000000000, "kind": "step", "step": "worktree", "status": "done", "id": 1},
+    {"at": 1792000001000, "kind": "step", "step": "checkout", "status": "done", "id": 2},
+    {"at": 1792000002000, "kind": "step", "step": "agent", "status": "running", "id": 3}
+  ],
+  "cursor": 3,
+  "streaming": ""
+}

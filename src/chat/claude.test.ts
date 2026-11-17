@@ -281,6 +281,24 @@ test('a line it does not know is ignored and never throws', async () => {
   expect(await turn(conversation, events, 'hi')).toEqual([{ kind: 'turn_end', outcome: 'ok', model: undefined, usage: {} }]);
 });
 
+test('the background tasks the SDK reports are the whole set each time, without the watchers, and a task that goes leaves the set', async () => {
+  const task = (id: string, extra: Line = {}): Line => ({ task_id: id, task_type: 'local_bash', description: `run ${id}`, ...extra });
+  const lines: Line[] = [
+    { type: 'system', subtype: 'background_tasks_changed', tasks: [task('a'), task('w', { ambient: true }), task('b', { task_type: 'local_agent', description: 'review the diff' })] },
+    { type: 'system', subtype: 'background_tasks_changed', tasks: [task('b')] },
+    { type: 'system', subtype: 'background_tasks_changed', tasks: [] },
+    { type: 'system', subtype: 'background_tasks_changed', tasks: 'not a list' },
+    { type: 'result', subtype: 'success', is_error: false, usage: {} },
+  ];
+  const { conversation, events } = await openWith([{ text: 'hi', lines }]);
+  const got = (await turn(conversation, events, 'hi')).filter((e) => e.kind === 'background');
+  expect(got).toEqual([
+    { kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: 'run a' }, { id: 'b', kind: 'local_agent', description: 'review the diff' }] },
+    { kind: 'background', tasks: [{ id: 'b', kind: 'local_bash', description: 'run b' }] },
+    { kind: 'background', tasks: [] },
+  ]);
+});
+
 const limitText = "You've hit your session limit · resets 12:40pm (America/Montevideo)";
 // The CLI's own message about a limit, as its stream-json wraps it (`api_error*` are internal to the CLI and not in the SDK's types)
 const synthetic = (extra: Line = {}): Line => ({ type: 'assistant', error: 'rate_limit', message: { model: '<synthetic>', content: [{ type: 'text', text: limitText }] }, ...extra });
@@ -648,8 +666,9 @@ test('a turn the SDK opens by itself after a background subagent ended starts wi
   expect(marks.slice(0, 3)).toEqual(['turn_end', 'turn_start', 'turn_end']);
   expect(marks.filter((kind) => kind === 'turn_start')).toHaveLength(1);
   // it comes after the subagent's end (228) and before the reply of the turn it opens
-  const start = events.findIndex((e) => e.kind === 'turn_start');
-  expect(events[start - 1]).toMatchObject({ kind: 'task', state: 'completed' });
+  const shown = events.filter((e) => e.kind !== 'background'); // the set of background tasks is also said when the subagent ends
+  const start = shown.findIndex((e) => e.kind === 'turn_start');
+  expect(shown[start - 1]).toMatchObject({ kind: 'task', state: 'completed' });
 });
 
 test('a field of the wrong type is left out of a task event and a shape the adapter does not know gives none and never throws', async () => {

@@ -26,6 +26,8 @@ public struct SidebarStore {
     public static let showsBranchKey = "sidebar.row.branch"
     public static let showsProvidersKey = "sidebar.row.providers"
     public static let showsAgeKey = "sidebar.row.age"
+    public static let showsPullRequestKey = "sidebar.row.pullRequest"
+    public static let showsDiffKey = "sidebar.row.diff"
     private static let openKey = "sidebar.open"
     private static let slotsTotalKey = "sidebar.slotsTotal"
     public static let widthKey = "sidebar.width"
@@ -84,9 +86,12 @@ public struct SessionRowParts: Equatable {
     public var branch = true
     public var providers = true
     public var age = true
+    /// The third line: the pull request's chip, and the lines the session changed.
+    public var pullRequest = true
+    public var diff = true
 
-    public init(icon: Bool = true, branch: Bool = true, providers: Bool = true, age: Bool = true) {
-        (self.icon, self.branch, self.providers, self.age) = (icon, branch, providers, age)
+    public init(icon: Bool = true, branch: Bool = true, providers: Bool = true, age: Bool = true, pullRequest: Bool = true, diff: Bool = true) {
+        (self.icon, self.branch, self.providers, self.age, self.pullRequest, self.diff) = (icon, branch, providers, age, pullRequest, diff)
     }
 }
 
@@ -103,6 +108,12 @@ public struct SessionRowContent: Equatable {
     public var place: SessionPlace?
     public var age: String?
     public var providers: [String]
+    /// The pull request's chip, and the lines changed, that the third line has (nil while switched off, or when the session has none or the host
+    /// has not read them). The row has a third line when it has either; with neither it has two.
+    public var pullRequest: SessionPullRequest?
+    public var diff: SessionDiff?
+
+    public var hasThirdLine: Bool { pullRequest != nil || diff != nil }
 
     public init(_ row: SessionRow, showsWorkspace: Bool, parts: SessionRowParts, now: Date) {
         showsIcon = parts.icon
@@ -110,6 +121,8 @@ public struct SessionRowContent: Equatable {
         place = parts.branch ? row.branch.map(SessionPlace.branch) ?? .baseFolder : nil
         age = parts.age ? timeText(row.updatedAt, now: now) : nil
         providers = parts.providers ? row.providers : []
+        pullRequest = parts.pullRequest ? row.pullRequest : nil
+        diff = parts.diff ? row.diff : nil
     }
 }
 

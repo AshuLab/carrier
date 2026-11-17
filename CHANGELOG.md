@@ -11,6 +11,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings › Dictation: Keep the speech model ready (on by default) loads the model you chose in the background when Carrier opens, when you turn Dictation on and when you change the model or language, so the first dictation does not wait for it; Release the model after (5, 15, 30 or 60 minutes without dictating, or Never; 15 by default) frees the memory of a model nobody is using, and the next dictation loads it again.
   Both are dimmed with Dictation off.
 - Each dictation writes one line to `dictation.log`, with no text, saying where its time went: from the press to the microphone running, to the first audio, to the model ready and to the first word, and from the stop to the final text.
+- In `carrier chat`, `/agent <name>` switches an idle session to another configured agent: the new agent starts a fresh conversation and can read the old one through the `history` tool, so you go on where you were when a quota runs out or you want a second opinion.
+- When Claude or Codex hits a usage limit, the chat host reports it as its own error that names the agent and its reset time, so a client can offer another agent.
+- A session's agent can start child sessions on other agents or models with `delegate_start`, wait for them with `delegate_wait` and read their results, and each delegation asks you first, saying what will be sent; a child takes no messages, and a parent and its children are archived, deleted and aged as one.
+- The live line of a conversation says what the agent is waiting on with a chip (Thinking, Read, Search, Edit, Shell, the MCP server's name, N subagents, Needs you), its timer counts the running call and not the whole turn, and a Shell or MCP call that runs past 30 seconds turns it amber; an MCP call reads as its tool and server, not as raw JSON, and a finished run counts MCP calls and subagents apart.
+- Each subagent a session starts is a row of the conversation (its type, title, current step, count of steps and timer, with a tick, a red mark or a square when it ends), and its calls, thoughts and messages no longer land in the main agent's message.
+- In an epic's Agent output tab, a slice card shows the step its subagent is on now.
+- A session stays working while its subagents run, even after the main agent's turn ended: the sidebar and the header show it working, Archive is off, and Stop in the message box stops the running subagents as well as the turn; a subagent that never ended in a session that is no longer working shows as stopped.
+- Stop a running subagent from its own view: a Stop button next to its state in the window's header ends only that subagent, not the main agent, and the row and the view show Stopped once it has; a chat host from before this change does not offer it.
+- Tap a subagent's row in a conversation to open its own view: its brief from the main agent, then its calls, thoughts and messages as the main agent's are drawn, with ‹ Back in the window's header (title, "Explore · Subagent of <session>" and its state in place of the worktree pill) and a read-only note where the message box is.
+- In an epic's Agent output tab, tapping a slice card opens the same subagent view (its calls, thoughts and messages, all its runs in one view) with ‹ Back in the window's header, the slice's title, "Builder · <epic>" and its state, instead of unfolding the card in place.
+- A session in the sidebar that has a pull request, or lines it changed, shows them on a third line: the pull request's number and how it stands (draft, open with its checks, merged, closed), the lines the session changed and the providers (either of the first two alone when it has only that). A click on the chip opens it on GitHub. The pull request is found once by the session's branch with your own `gh` login and then only its state is asked again.
+- While the agent waits for something it started, the conversation has a line over the message box that names the tasks one after another, shows how long the oldest has run, opens to the list of them and has Stop, for all of them or, in the list, for each one.
+- Settings › Sidebar › Session rows has switches for the pull request and for the lines changed, both on.
+- The card that opens on a session's row says its state in the row's colours, its pull request and the lines it changed, and what the agent waits for in the background.
+- A session whose turn ended while the agent waits for a build, a monitor or a subagent shows as working (a cyan ring and its clock) and not as idle or "Done"; it can be stopped and cannot be archived until the tasks end. The turn the agent starts on its own when one of those tasks ends shows as working too, and not as idle.
 
 ### Changed
 
@@ -26,19 +41,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An account with no label is called by its display name, and not by its key, in the provider tabs of the message box and in the sidebar's tooltip.
 - Settings › Providers: each account shows its mark large, as an avatar at the left of its row, and saving, removing or adding an account closes its editor at once instead of waiting for Carrier to confirm; if Carrier refuses what was saved, the page says so afterwards.
 - Settings › Providers › Edit an account: every field, pop-up and picker is one width, so the form reads as a column; the icon and the color pickers are the same grid, and there are 11 more icons and 5 more colors to tell accounts apart. The new ones need an up-to-date `carrier`; with an older one the editor keeps offering the earlier set.
+- The rows of the sidebar have more room around their lines, and the branch is in monospace.
+- "Done" in a row of the sidebar and of the Sessions list has how long ago the turn ended beside it, in the place where the time was.
+- The notices over the message box (errors, uncommitted files, a held message, a question) have no edge: the colour of their glass and their badge say what they are.
+- The rows of the Sessions list say what the sidebar's do: the state at the right (Needs you, the clock, Done), a cyan ring while the agent waits for something it started, what it waits for, the branch in monospace, and the pull request with the lines changed.
 
-### Added
+### Fixed
 
-- In `carrier chat`, `/agent <name>` switches an idle session to another configured agent: the new agent starts a fresh conversation and can read the old one through the `history` tool, so you go on where you were when a quota runs out or you want a second opinion.
-- When Claude or Codex hits a usage limit, the chat host reports it as its own error that names the agent and its reset time, so a client can offer another agent.
-- A session's agent can start child sessions on other agents or models with `delegate_start`, wait for them with `delegate_wait` and read their results, and each delegation asks you first, saying what will be sent; a child takes no messages, and a parent and its children are archived, deleted and aged as one.
-- The live line of a conversation says what the agent is waiting on with a chip (Thinking, Read, Search, Edit, Shell, the MCP server's name, N subagents, Needs you), its timer counts the running call and not the whole turn, and a Shell or MCP call that runs past 30 seconds turns it amber; an MCP call reads as its tool and server, not as raw JSON, and a finished run counts MCP calls and subagents apart.
-- Each subagent a session starts is a row of the conversation (its type, title, current step, count of steps and timer, with a tick, a red mark or a square when it ends), and its calls, thoughts and messages no longer land in the main agent's message.
-- In an epic's Agent output tab, a slice card shows the step its subagent is on now.
-- A session stays working while its subagents run, even after the main agent's turn ended: the sidebar and the header show it working, Archive is off, and Stop in the message box stops the running subagents as well as the turn; a subagent that never ended in a session that is no longer working shows as stopped.
-- Stop a running subagent from its own view: a Stop button next to its state in the window's header ends only that subagent, not the main agent, and the row and the view show Stopped once it has; a chat host from before this change does not offer it.
-- Tap a subagent's row in a conversation to open its own view: its brief from the main agent, then its calls, thoughts and messages as the main agent's are drawn, with ‹ Back in the window's header (title, "Explore · Subagent of <session>" and its state in place of the worktree pill) and a read-only note where the message box is.
-- In an epic's Agent output tab, tapping a slice card opens the same subagent view (its calls, thoughts and messages, all its runs in one view) with ‹ Back in the window's header, the slice's title, "Builder · <epic>" and its state, instead of unfolding the card in place.
+- The first click on a session in the sidebar, or on its Archive button, works while the card that opens on hover is showing: that card used to swallow the click that closed it, and a second click was needed.
+- The sidebar no longer shuffles the sessions that work: with two of them at work their rows swapped places with every event of their agents. A session that works keeps the place it had when its turn began and takes its place once, when it stops.
 
 ## [0.9.0] - 2026-11-16
 

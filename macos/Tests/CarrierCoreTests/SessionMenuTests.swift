@@ -62,3 +62,14 @@ private func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.ma
     // the others are as they were: Stop is still there to be used
     #expect(sessionMenu(row("a", state: .working)).flatMap { $0 }.first { $0.title == "Stop" }?.disabledReason == nil)
 }
+
+@Test func aSessionThatWaitsForBackgroundWorkCannotBeArchivedAndCanBeStopped() {
+    var waiting = row("a")
+    waiting.background = [BackgroundTask(id: "b", kind: "local_bash", description: "pnpm build")]
+    #expect(archiveBlock(waiting) == "Stop the background task to archive it")
+    waiting.background.append(BackgroundTask(id: "c", kind: "local_agent", description: "review"))
+    #expect(archiveBlock(waiting) == "Stop the background tasks to archive it")
+    let items = sessionMenu(waiting).flatMap { $0 }
+    #expect(items.first { $0.title == "Stop" }?.action == .stop)
+    #expect(items.first { $0.title == "Archive" }?.disabledReason == "Stop the background tasks to archive it")
+}

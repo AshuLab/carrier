@@ -125,7 +125,7 @@ struct SessionsRows: View {
                             add: sort == .workspace && group.title != "Pinned" ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil
                         )
                     case .row(let row, let group):
-                        SessionRowView(row: row, showsWorkspace: sort != .workspace, hoverActions: true)
+                        SessionRowView(row: row, showsWorkspace: sort != .workspace, hoverActions: true, roomy: true)
                             .selectableSidebarRow(selected: selection == .session(id: row.id)) { selection = .session(id: row.id) }
                             .onHover(perform: track(group, row.id))
                     }

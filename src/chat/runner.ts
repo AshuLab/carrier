@@ -29,6 +29,9 @@ export type ChatQuestion = { question: string; header: string; options: { label:
 /** As the provider reports it. */
 export type ChatUsage = Record<string, number>;
 
+/** One thing the agent started and is waiting on after its turn ended. */
+export type BackgroundTask = { id: string; kind: string; description: string };
+
 export type ChatEvent =
   | { kind: 'user'; text: string; /** The name of the command invoked, when the message invoked one. */ command?: string }
   // `parentCallId` is the call that launched the subagent the event was made in; absent for the main agent's own
@@ -59,6 +62,7 @@ export type ChatEvent =
   /** A turn the provider opened itself, with no message from the person (a background subagent ended and the SDK answers it). The host's own: never stored, never shown. */
   | { kind: 'turn_start' }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
+  | { kind: 'background'; /** Every task the agent has running in the background (a command, a monitor, a subagent) after the change; the whole set each time, never stored. */ tasks: BackgroundTask[] }
   | { kind: 'error'; text: string; /** Set when the provider says the account ran out, which a retried rate limit never is. */ reason?: 'usage_limit'; /** When it resets, in ms since the epoch, when the provider gives a timestamp. */ resetsAt?: number; /** When it resets, in the provider's own words, when it gives only those. Never set with `resetsAt`. */ resetText?: string }
   | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string; /** Set when the notice is a switch of agent, naming the agents as the config does. */ switched?: { from: string; to: string } }; // said by the host, never by an adapter: a plain line, not a failure
 

@@ -26,9 +26,13 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(agents.first?.model == "claude-sonnet-5-5")
 
     let active = try await host.list(archived: false)
-    #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle, .idle])
-    #expect(active.map(\.live) == [true, true, false, false, false])
-    #expect(active.map { $0.workspace?.base } == [nil, nil, nil, "/Users/dev/work/web", nil])
+    // the fifth is a session whose turn ended while a build runs; the eleven after it fill the sidebar's other states (unread, a single task, plain, pinned, a worktree preparing, a long title...), and the last is the one with three subagents
+    #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle, .idle, .idle, .idle, .working, .idle, .working, .idle, .preparing, .idle, .waitingApproval, .working, .idle, .idle])
+    #expect(active.map(\.live) == [true, true, false, false, true, true, true, true, true, true, true, true, false, true, true, true, false])
+    let worktree = "/Users/dev/work/web"
+    #expect(active.map { $0.workspace?.base } == [nil, nil, nil, worktree, nil, nil, nil, nil, nil, worktree, worktree, worktree, nil, nil, nil, nil, nil])
+    #expect(active.map(\.background.count) == [0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    #expect(active.compactMap(\.pullRequest).map(\.number) == [983, 979, 412, 88, 1051, 1060, 431, 398, 77] && active.compactMap(\.diff).count == 10)
     #expect(try await host.list(archived: true).map(\.archived) == [true, true])
     // the parent carries its children and none of the other sessions has a parent or children
     #expect(active.first?.children == [
@@ -54,11 +58,23 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(try decode(#","children":[{"id":"c1","agent":"a","harness":"claude","state":"working","needsPerson":false}]"#).children.first?.level == nil)
 }
 
+@Test func theFixtureListIsRelativeToTheLaunchAndMarksWhatTheAppSeedsAsUnreadAndPinned() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let active = try await host.list(archived: false)
+    let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+    // "5 seconds ago" in the golden list, and the three tasks of the build session, started minutes before
+    #expect(abs(nowMs - active[0].lastActiveAt - 5_000) < 10_000)
+    #expect(active[4].background.allSatisfy { ($0.startedAt.map { Date().timeIntervalSince($0) } ?? 0) > 90 })
+    #expect(server.unreadSessionIds == ["a1000000-0000-4000-8000-000000000001"] && server.pinnedSessionIds == ["a1000000-0000-4000-8000-000000000004"])
+}
+
 @Test func theHelloCarriesTheChatCapabilities() throws {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .stopTask])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .interrupt, .stopTask])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {

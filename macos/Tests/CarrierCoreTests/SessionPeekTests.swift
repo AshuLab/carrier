@@ -44,4 +44,30 @@ import Testing
     // waiting and working outrank unread: the person is needed, or the agent is at work, whatever was or was not opened
     #expect(peek(.waiting, unread: true).subtitle == "Waiting for you" && peek(.waiting, unread: true).tone == .attention)
     #expect(peek(.working, unread: true).subtitle == "Working…" && peek(.working, unread: true).tone == .working)
+    // a turn that ended with the agent still waiting for what it started is cyan, and not done or asleep
+    #expect(sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date(), asleep: true, background: [BackgroundTask(id: "b", kind: "local_bash", description: "x")]), now: Date()).tone == .background)
+}
+
+@Test func aPeekTintsTheStateAsTheRowDoesAndSaysItsPullRequestItsLinesAndWhatItWaitsFor() {
+    func peek(_ state: SessionState, unread: Bool = false, background: [BackgroundTask] = []) -> SessionPeek {
+        sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "claude", state: state, updatedAt: Date(), unread: unread, background: background), now: Date())
+    }
+    #expect(peek(.working).tone == .working && peek(.waiting).tone == .attention && peek(.idle).tone == .quiet)
+    let done = peek(.idle, unread: true)
+    #expect(done.subtitle == "Done" && done.tone == .done)
+    let task = BackgroundTask(id: "b", kind: "local_bash", description: "pnpm build")
+    let waiting = peek(.idle, unread: true, background: [task])
+    #expect(waiting.subtitle == "Waiting on background work…" && waiting.tone == .background && waiting.background == [task])
+
+    var row = SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date(), branch: "fix/x", folder: "/srv/wt")
+    row.pullRequest = SessionPullRequest(number: 9, url: "https://github.com/o/r/pull/9", state: .draft)
+    row.diff = SessionDiff(added: 5, removed: 2)
+    let card = sessionPeek(row, now: Date())
+    #expect(card.pullRequest?.number == 9 && card.diff == SessionDiff(added: 5, removed: 2))
+    // a branch and a path are drawn as such (monospaced, on one line)
+    #expect(card.facts.map(\.kind) == [.text, .branch, .path])
+    // the card shows the lines changed even for a session with no pull request, which its row does not
+    row.pullRequest = nil
+    #expect(sessionPeek(row, now: Date()).diff != nil && sessionPeek(row, now: Date()).pullRequest == nil)
+    #expect(sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date()), now: Date()).facts.map(\.kind) == [.text])
 }

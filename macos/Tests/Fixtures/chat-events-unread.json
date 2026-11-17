@@ -1,0 +1,19 @@
+{
+  "sessionId": "a1000000-0000-4000-8000-000000000001",
+  "events": [
+    {"at": 1792000000000, "kind": "user", "text": "The sidebar shuffles the sessions that work. Keep them in order.", "id": 1},
+    {"at": 1792000001000, "kind": "tool_start", "callId": "u1", "tool": "Read", "arg": "macos/Sources/CarrierCore/Sessions.swift", "id": 2},
+    {"at": 1792000001600, "kind": "tool_end", "callId": "u1", "tool": "Read", "status": "ok", "output": ["public struct WorkingOrder {}"], "id": 3},
+    {"at": 1792000002000, "kind": "tool_start", "callId": "u2", "tool": "Edit", "arg": "macos/Sources/CarrierCore/Sessions.swift", "id": 4},
+    {"at": 1792000002600, "kind": "tool_end", "callId": "u2", "tool": "Edit", "status": "ok", "output": ["@@ -10,2 +10,3 @@", " struct WorkingOrder {", "+  var stable = true", " }"], "id": 5},
+    {"at": 1792000004000, "kind": "assistant", "text": "Done. A session that works now keeps its place until it stops, and the new order has a test.", "id": 6},
+    {"at": 1792000005000, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 1500, "output_tokens": 210, "cache_read_input_tokens": 8000}, "id": 7}
+  ],
+  "cursor": 7,
+  "streaming": "",
+  "options": [
+    {"id": "model", "label": "Model", "values": [{"id": "sonnet", "label": "Sonnet"}, {"id": "opus", "label": "Opus"}], "current": "sonnet"},
+    {"id": "effort", "label": "Effort", "values": [{"id": "medium", "label": "Medium"}, {"id": "high", "label": "High"}], "current": "high"},
+    {"id": "permissionMode", "label": "Permissions", "values": [{"id": "default", "label": "Ask first"}, {"id": "acceptEdits", "label": "Accept edits"}], "current": "default"}
+  ]
+}

@@ -74,6 +74,11 @@ public struct ChatSession: Decodable, Equatable {
     public let model: String?
     /// Whether the host said anything of how the session went: an older one does not, and then no message is not "no reply yet".
     public let reportsActivity: Bool
+    /// The lines it changed and its pull request: nil from a host that does not say, while none is known, or for a value this app does not know.
+    public let diff: SessionDiff?
+    public let pullRequest: SessionPullRequest?
+    /// What the agent waits for after its turn ended; empty from a host that does not say.
+    public let background: [BackgroundTask]
     /// The session that started this one by delegating, for a child session; nil for any other, and from a host that does not say.
     public let parentSessionId: String?
     /// The child sessions this one started, oldest first; empty from a host that does not say. The list of sessions leaves the children themselves out.
@@ -95,7 +100,7 @@ public struct ChatSession: Decodable, Equatable {
         public let branch: String?
     }
 
-    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt, lastMessage, turns, model, parentSessionId, children }
+    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt, lastMessage, turns, model, parentSessionId, children, diff, pr, background }
     private struct Kind: Decodable {
         let kind: String
         let base: String?
@@ -122,6 +127,10 @@ public struct ChatSession: Decodable, Equatable {
         turns = try values.decodeIfPresent(Int.self, forKey: .turns) ?? 0
         reportsActivity = values.contains(.turns)
         model = try values.decodeIfPresent(String.self, forKey: .model)
+        // a shape this app does not know is no data, never a list it cannot read
+        diff = (try? values.decodeIfPresent(SessionDiff.self, forKey: .diff)) ?? nil
+        pullRequest = (try? values.decodeIfPresent(SessionPullRequest.self, forKey: .pr)) ?? nil
+        background = (try? values.decodeIfPresent([BackgroundTask].self, forKey: .background)) ?? []
         parentSessionId = try values.decodeIfPresent(String.self, forKey: .parentSessionId)
         children = try values.decodeIfPresent([Child].self, forKey: .children) ?? []
         let placed = try values.decodeIfPresent(Kind.self, forKey: .workspace)
@@ -266,10 +275,11 @@ public protocol ChatHost {
     /// `send` that invokes a command the session listed: `text` is what follows its name (nothing is allowed), and the host shows it as the
     /// slash and the name and tells the provider in the provider's own way.
     func send(_ id: String, _ text: String, command: String?) async throws
-    /// Ends the turn that is in progress.
+    /// Ends the turn that is in progress; with none running, it stops what the agent waits for in the background.
     func interrupt(_ id: String) async throws
-    /// Stops one running subagent, by the `taskId` of its `task` events, and not the turn; the subagent ends when its `stopped` event arrives,
-    /// not when this returns. The host refuses a task that is not running in that session. Only for a host whose hello lists `stopTask`.
+    /// Stops one running subagent, by the `taskId` of its `task` events, or one of the tasks the agent waits for in the background (`BackgroundTask.id`), and not the turn;
+    /// the subagent ends when its `stopped` event arrives, not when this returns. The host refuses a task that is not running in that session.
+    /// Only for a host whose hello lists `stopTask`: `capabilities()` says it.
     func stopTask(_ id: String, task: String) async throws
     /// Passes the person's choice for a pending approval to the agent; the host refuses one that is not pending and a choice the provider did not list.
     func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws

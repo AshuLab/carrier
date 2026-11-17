@@ -30,7 +30,7 @@ struct QuestionCardView: View {
         NoticeCard(
             symbol: "questionmark", tint: .attention, title: question.question,
             detail: [question.multiSelect ? "Choose any that apply" : "Choose one", behind > 0 ? "\(behind) more waiting" : nil].compactMap { $0 }.joined(separator: " · "),
-            tag: question.header, edge: true
+            tag: question.header
         ) {
             if card.questions.count > 1 { progress.padding(.trailing, 4) }
             Button("Skip") { answer(card.approvalId, declineId, nil) }.buttonStyle(HoverTextButtonStyle(tint: nil, danger: true))

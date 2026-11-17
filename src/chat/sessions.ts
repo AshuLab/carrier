@@ -1,7 +1,7 @@
 import { accessSync, constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
 import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
@@ -10,6 +10,7 @@ import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
+import { buildHandoff } from './handoff.ts';
 import { realMachine, type Machine } from '../doctor/detect.ts';
 import { createHealth, realProbes, type HealthProbes } from './health.ts';
 import { childOptions, isScaleHarness, type Level, levelOf } from './levels.ts';
@@ -69,6 +70,8 @@ type Live = {
   cancelIdle?: () => void;
   /** The invocation its MCP token was issued for. */
   invocationId: string;
+  /** Set when a switch of agent replaced this conversation: its events are no longer recorded. */
+  detached?: boolean;
 };
 
 export type ChatSessionsDeps = {
@@ -127,6 +130,11 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   let closed = false;
   // Sessions being deleted: no agent may open in their folder while it is removed.
   const deleting = new Set<string>();
+  // Sessions switching agent: a marker of its own, so nothing that touches the session runs while the new conversation opens and the old one ends.
+  const switching = new Set<string>();
+  const notSwitching = (sessionId: string) => {
+    if (switching.has(sessionId)) throw new ChatRefused('This session is switching to another agent; try again in a moment');
+  };
   let clients = 0;
 
   const exists = (sessionId: string) => db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, sessionId)).get() !== undefined;
@@ -180,7 +188,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   // An idle session with no client attached is closed after a minute; working or waiting ones are kept.
   const armIdle = (sessionId: string, live: Live) => {
     live.cancelIdle?.();
-    live.cancelIdle = live.state === 'idle' && clients === 0 ? clock.after(IDLE_CLOSE_MS, async () => void (await close({ sessionId }))) : undefined;
+    live.cancelIdle = live.state === 'idle' && clients === 0 && !switching.has(sessionId) ? clock.after(IDLE_CLOSE_MS, async () => void (await close({ sessionId }))) : undefined;
   };
   const touch = (sessionId: string, live: Live, state: State = live.state) => {
     live.state = state;
@@ -282,6 +290,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   /** Readies a session to be archived or deleted: refuses an unknown one, and one working or waiting for an approval; closes an idle live one.
    * An archive does not wait for the agent to end, which can take seconds (the person is watching the row go); a delete does, as its worktree cannot be removed under a running agent. */
   async function settle(sessionId: string, verb: 'archive' | 'delete') {
+    notSwitching(sessionId);
     if (row(sessionId).state === 'preparing') throw new ChatRefused(`This session is being prepared; wait for it to finish, then ${verb} it`);
     const live = lives.get(sessionId);
     if (live === undefined) return;
@@ -308,7 +317,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   };
   const revoke = (invocationId: string) => mcp?.registry.revokeByInvocation(invocationId);
 
-  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string; child?: boolean; mcp?: { serverName: string; url: string; token: string } }) {
+  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string; child?: boolean; mcp?: { serverName: string; url: string; token: string }; instructions?: string }) {
     try {
       return await runner.open({ ...args, command, launch, env });
     } catch (error) {
@@ -354,12 +363,16 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   };
 
   /** Makes a conversation the live one of a session. */
-  const attach = (sessionId: string, conversation: ChatConversation, invocationId: string, state: State = 'idle') => {
-    const live: Live = { conversation, state, streaming: '', approvals: new Map(), invocationId };
-    lives.set(sessionId, live);
+  const recordProcess = (sessionId: string, conversation: ChatConversation) => {
     const { pid = null, pgid = null, command = null } = conversation.process ?? {};
     db.update(sessions).set({ pid, pgid, command }).where(eq(sessions.id, sessionId)).run();
+  };
+  const attach = (sessionId: string, conversation: ChatConversation, invocationId: string, state: State = 'idle', { record = true }: { record?: boolean } = {}) => {
+    const live: Live = { conversation, state, streaming: '', approvals: new Map(), invocationId };
+    lives.set(sessionId, live);
+    if (record) recordProcess(sessionId, conversation);
     conversation.onEvent((event) => {
+      if (live.detached === true) return;
       try {
         onEvent(sessionId, live, event);
       } catch (error) {
@@ -549,6 +562,18 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     }
   };
 
+  /** Refuses in words a model that the agent's harness does not list: both harnesses accept an unknown one when they open and fail on the first turn, so the check is against the option probe's list. */
+  const checkModel = async (agent: string, model: string) => {
+    const listedModels = await offerOf({ agent }).then(
+      ({ options }) => options.find((option) => option.id === 'model')?.values.map((value) => value.id),
+      (error) => {
+        log.error(`listing the models of the agent ${agent} failed`, error);
+        throw new ChatRefused(`The models of the agent "${agent}" could not be listed, so "${model}" cannot be checked`);
+      },
+    );
+    if (listedModels?.includes(model) !== true) throw new ChatRefused(`"${model}" is not a model of the agent "${agent}"; it lists: ${listedModels?.join(', ') || 'none'}`);
+  };
+
   /** Each agent with its account's harness and whether that account's binary is found; one whose account is missing or Antigravity's is not found, and `unknown` for its harness when it has none. */
   const listAgents = () => {
     const providers = readAccounts();
@@ -592,16 +617,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const verdict = (await health({})).agents.find((candidate) => candidate.name === agent)?.state;
     if (verdict === 'signedOut') throw new ChatRefused(`The agent "${agent}" is signed out`);
     if (verdict === 'missing') throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
-    if (model !== undefined) {
-      const listedModels = await offerOf({ agent }).then(
-        ({ options }) => options.find((option) => option.id === 'model')?.values.map((value) => value.id),
-        (error) => {
-          log.error(`listing the models of the agent ${agent} failed`, error);
-          throw new ChatRefused(`The models of the agent "${agent}" could not be listed, so "${model}" cannot be checked`);
-        },
-      );
-      if (listedModels?.includes(model) !== true) throw new ChatRefused(`"${model}" is not a model of the agent "${agent}"; it lists: ${listedModels?.join(', ') || 'none'}`);
-    }
+    if (model !== undefined) await checkModel(agent, model);
 
     // no await from here to the insert
     const again = earlier();
@@ -634,6 +650,82 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       throw error;
     }
     return { childId };
+  }
+
+  /** The handoff of a session: its messages stored before `before`, as the conversation after a switch opens with them (ADR 0032). Undefined when it holds no message. */
+  const handoffOf = (sessionId: string, before = Number.MAX_SAFE_INTEGER) =>
+    buildHandoff(db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), lt(chatEvents.id, before), inArray(chatEvents.kind, ['user', 'assistant']))).orderBy(asc(chatEvents.id)).all().map(({ id, kind, data }) => ({ position: id, kind, data })));
+
+  /** What a conversation that a switch started is opened with again, at each open or resume of it: the handoff from before the notice of the latest switch. Undefined for a session that never switched. */
+  const instructionsOf = (sessionId: string) => {
+    const notice = db.select({ id: chatEvents.id }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'notice'), isNotNull(sql`json_extract(${chatEvents.data}, '$.switched')`))).orderBy(desc(chatEvents.id)).limit(1).get();
+    return notice === undefined ? undefined : handoffOf(sessionId, notice.id);
+  };
+
+  /**
+   * Switches an idle session to another configured agent (ADR 0032): the session keeps its transcript and folder, takes the new agent's harness and defaults and a new
+   * conversation that opens with the handoff. The old conversation is closed only after the new one opened with the chat MCP, so a refusal leaves the session as it was.
+   * The session is marked as switching from the first await to the end, which every request that touches it checks.
+   */
+  async function switchAgent({ sessionId, agent }: { sessionId: string; agent: string }) {
+    notSwitching(sessionId);
+    const current = row(sessionId);
+    if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
+    refuseChild(sessionId, 'switched to another agent');
+    if (current.archived) throw new ChatRefused('This session is archived; restore it first, then switch its agent');
+    if (current.plan !== null) throw new ChatRefused('This session did not finish preparing');
+    const busy = lives.get(sessionId)?.state ?? current.state;
+    if (busy === 'preparing') throw new ChatRefused('This session is being prepared; wait for it to finish, then switch its agent');
+    if (busy !== 'idle') throw new ChatRefused(`This session is ${busy === 'working' ? 'working' : 'waiting for an approval'}; interrupt it or wait, then switch its agent`);
+    if (agent === current.agent) throw new ChatRefused(`This session already has the agent "${agent}"`);
+    const chosen = listed().find((candidate) => candidate.name === agent);
+    if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
+    const launch = launchOf(chosen);
+    if (listAgents().find((candidate) => candidate.name === agent)?.found !== true) throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
+
+    switching.add(sessionId);
+    try {
+      const verdict = (await health({})).agents.find((candidate) => candidate.name === agent)?.state;
+      if (verdict === 'signedOut') throw new ChatRefused(`The agent "${agent}" is signed out`);
+      if (verdict === 'missing') throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
+      const folder = checkFolder(current.folder, carrierHome());
+      const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options };
+      if (options.model !== undefined) await checkModel(agent, options.model);
+
+      const handoff = handoffOf(sessionId);
+      const issued = issueMcp(sessionId);
+      let conversation: ChatConversation | undefined;
+      try {
+        conversation = await openConversation(launch, { folder, options, mcp: issued.args, ...(handoff !== undefined && { instructions: handoff }) });
+        for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
+        if (mcp !== undefined && (mcp.url() === undefined || conversation.mcpProblem !== undefined)) throw new ChatRefused(`The agent "${agent}" could not get Carrier's own tools, so the session keeps "${current.agent}"`);
+        if (!exists(sessionId) || deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
+      } catch (error) {
+        revoke(issued.invocationId);
+        await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
+        throw error;
+      }
+
+      // The new conversation is the session's from here. The old one stays recorded as the session's process until it ends, so a host that dies meanwhile can still sweep it.
+      const old = lives.get(sessionId);
+      if (old !== undefined) {
+        old.detached = true;
+        old.cancelIdle?.();
+      }
+      db.update(sessions).set({ harness: launch.harness, agent: chosen.name, options, nativeId: conversation.nativeId ?? null, lastActiveAt: clock.now() }).where(eq(sessions.id, sessionId)).run();
+      attach(sessionId, conversation, issued.invocationId, 'idle', { record: old === undefined });
+      store(sessionId, { kind: 'notice', text: `The agent changed from ${current.agent} to ${chosen.name}. ${chosen.name} goes on from a selection of the messages above and can read the rest; reasoning and tool results did not carry over.`, switched: { from: current.agent, to: chosen.name } });
+      if (old !== undefined) {
+        revoke(old.invocationId);
+        await old.conversation.close().catch((closing) => log.error('closing the conversation of the agent that was switched away from failed', closing));
+        recordProcess(sessionId, conversation);
+      }
+      return { session: summary(row(sessionId)), options: conversation.options };
+    } finally {
+      switching.delete(sessionId);
+      const live = lives.get(sessionId);
+      if (live !== undefined) armIdle(sessionId, live);
+    }
   }
 
   return {
@@ -786,6 +878,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     /** Opens a closed session again from its stored native id, folder and options; a live one is just attached to. */
     async resume({ sessionId }: { sessionId: string }) {
       refuseChild(sessionId, 'resumed');
+      notSwitching(sessionId);
       const current = row(sessionId);
       if (current.plan !== null) throw new ChatRefused('This session did not finish preparing');
       const present = lives.get(sessionId);
@@ -799,7 +892,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const issued = issueMcp(sessionId);
       let conversation: ChatConversation;
       try {
-        conversation = await openConversation(launch, { folder, options: current.options ?? {}, mcp: issued.args, ...(current.nativeId !== null && { resume: current.nativeId }) });
+        const instructions = instructionsOf(sessionId);
+        conversation = await openConversation(launch, { folder, options: current.options ?? {}, mcp: issued.args, ...(current.nativeId !== null && { resume: current.nativeId }), ...(instructions !== undefined && { instructions }) });
       } catch (error) {
         revoke(issued.invocationId);
         throw error;
@@ -829,6 +923,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     send({ sessionId, text, command }: { sessionId: string; text: string; command?: string }) {
       refuseChild(sessionId, 'sent a message');
       if (text.length > chatCaps.message) throw new ChatRefused(`That message has ${text.length} characters; the most a message can have is ${chatCaps.message}`);
+      notSwitching(sessionId);
       const current = row(sessionId);
       const live = lives.get(sessionId);
       if (live === undefined) throw new ChatRefused('This session is closed');
@@ -845,6 +940,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     /** Passes the person's choice for a pending approval to the agent; the adapter says it was answered and the host records that. */
     answer({ sessionId, approvalId, choiceId, answers }: { sessionId: string; approvalId: string; choiceId: string; answers?: Record<string, string> }) {
+      notSwitching(sessionId);
       row(sessionId);
       const live = lives.get(sessionId);
       if (live === undefined) throw new ChatRefused('This session is closed');
@@ -871,6 +967,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     /** Ends the turn that is running, if any, and leaves the session idle for the next message. With no turn running it changes nothing. */
     async interrupt({ sessionId }: { sessionId: string }) {
+      notSwitching(sessionId);
       row(sessionId);
       const live = lives.get(sessionId);
       if (live?.turn === undefined) return {};
@@ -886,6 +983,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     async setOption({ sessionId, option, value }: { sessionId: string; option: string; value: string }) {
       refuseChild(sessionId, 'given other options');
+      notSwitching(sessionId);
       const live = lives.get(sessionId);
       if (live === undefined) throw new ChatRefused('This session is closed');
       checkOption(live.conversation.options, option, value);
@@ -917,7 +1015,12 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       };
     },
 
-    close,
+    close: async ({ sessionId }: { sessionId: string }) => {
+      notSwitching(sessionId);
+      return close({ sessionId });
+    },
+
+    switchAgent,
 
     /** Sets or clears the archived mark. A live idle session is closed first; a working or waiting one is refused. */
     async archive({ sessionId, archived }: { sessionId: string; archived: boolean }) {

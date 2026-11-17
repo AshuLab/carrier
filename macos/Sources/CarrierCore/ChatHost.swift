@@ -256,6 +256,11 @@ public protocol ChatHost {
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
     /// Opens a closed session's agent again; the host refuses a `send` to one that is not live.
     func resume(_ id: String) async throws
+    /// Switches an idle session to another configured agent: it keeps its transcript and folder, and its new agent goes on with a handoff of what was said.
+    /// Refused in words, with the session as it was, for a session that is working, waiting for an approval, preparing, archived or a child, for the agent it
+    /// already has, an agent that is not configured, not found or signed out, a model the harness does not list, and a conversation that cannot open.
+    /// Only for a host whose hello lists `switchAgent`; no screen asks for it yet.
+    func switchAgent(_ id: String, to agent: String) async throws -> AgentSwitch
     /// The host refuses it while the agent is answering ("The agent is still answering") and when it is over its character limit.
     func send(_ id: String, _ text: String) async throws
     /// `send` that invokes a command the session listed: `text` is what follows its name (nothing is allowed), and the host shows it as the
@@ -310,6 +315,9 @@ extension ChatHost {
 
     /// A host that cannot price refuses; the app only asks one that lists `usageOverride`.
     public func usageOverride(_ override: UsageOverride) async throws { throw ControlError.remote(usageNeedsNewerHost) }
+
+    /// A host that cannot switch agents refuses; the app only asks one that lists `switchAgent`.
+    public func switchAgent(_ id: String, to agent: String) async throws -> AgentSwitch { throw ControlError.remote("the chat host does not support switchAgent") }
 
     /// A host that cannot rename refuses; the app only asks one that lists `rename`.
     public func rename(_ id: String, _ title: String) async throws { throw ControlError.remote("the chat host does not support rename") }
@@ -473,6 +481,13 @@ public struct SocketChatHost: ChatHost {
         let path = socketPath()
         // resuming starts the agent again and reads its whole history: a long session takes far more than the 5 seconds of a request that only asks
         let _: AnyReply = try await Task.detached { try chatRequest(path, "resume", requires: .resume, fields: fields, timeout: 60) }.value
+    }
+
+    public func switchAgent(_ id: String, to agent: String) async throws -> AgentSwitch {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"agent\":" + jsonString(agent)
+        let path = socketPath()
+        // the host checks the agent's sign-in and models and opens its conversation before it closes the old one: far more than the 5 seconds of a request that only asks
+        return try await Task.detached { try chatRequest(path, "switchAgent", requires: .switchAgent, fields: fields, timeout: 60) }.value
     }
 
     /// The text goes on the wire JSON-encoded, so quotes, newlines and anything else in it stay inside the string.
@@ -639,6 +654,19 @@ public struct AgentOffer: Codable, Equatable {
         try values.encode(options, forKey: .options)
         try values.encode(commands, forKey: .commands)
     }
+}
+
+/// The reply of `switchAgent`: the session as it is now (it has no `live` or the activity of a listed one, so it is not a `ChatSession`) and the new agent's options.
+public struct AgentSwitch: Decodable, Equatable {
+    public struct Session: Decodable, Equatable {
+        public let id: String
+        public let agent: String
+        public let harness: String
+        public let state: ChatSession.State
+    }
+
+    public let session: Session
+    public let options: [ChatOption]
 }
 
 /// The reply of `open`: only the new session's id is read.

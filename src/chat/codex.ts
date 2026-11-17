@@ -49,6 +49,8 @@ export type CodexChatDeps = {
   spawn: (binary: string, options: { cwd: string; env: NodeJS.ProcessEnv; args: string[] }) => CodexTransport;
   /** How long `open` waits for the chat MCP to say whether it started; the real Codex answers in milliseconds. Default 5000. */
   mcpWaitMs?: number;
+  /** How long a usage limit waits for `account/rateLimits/read` before its error goes out with the error's own text. Default 2000. */
+  limitWaitMs?: number;
 };
 
 const codexLoggedIn = (binary: string, env: NodeJS.ProcessEnv) =>
@@ -136,6 +138,9 @@ class CodexConversation implements ChatConversation {
   mcpProblem: string | undefined;
   /** Called when the chat MCP reports that it started or failed, so `start` can stop waiting. */
   private mcpSettled = () => {};
+  private limitWaitMs = 2000;
+  /** The error of a usage limit seen in this turn, until it is emitted: the end of the turn waits for it. */
+  private limit: Promise<void> | undefined;
 
   constructor(chosen: Record<string, string>, binary: string, child: boolean) {
     this.chosen = chosen;
@@ -149,6 +154,7 @@ class CodexConversation implements ChatConversation {
 
   async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp, instructions }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string } | undefined; instructions: string | undefined }) {
     this.mcpServerName = mcp?.serverName;
+    this.limitWaitMs = deps.limitWaitMs ?? 2000;
     const settled = new Promise<void>((resolve) => (this.mcpSettled = resolve));
     this.transport = deps.spawn(this.binary, { cwd: folder, env, args: argsOf(launch) });
     this.transport.onLine((line) => this.receive(line));
@@ -334,7 +340,11 @@ class CodexConversation implements ChatConversation {
     try {
       const m = JSON.parse(line) as { id?: number; method?: unknown; params?: any; result?: unknown; error?: { message?: unknown } };
       if (typeof m.method === 'string' && m.id !== undefined) this.serverRequest(m.id, m.method, m.params);
-      else if (typeof m.method === 'string') this.emit(...this.translate(m.method, m.params));
+      else if (typeof m.method === 'string') {
+        const events = this.translate(m.method, m.params);
+        if (Array.isArray(events)) this.emit(...events);
+        else events.then((late) => this.emit(...late), (error) => log.error('a codex message could not be handled', error));
+      }
       else if (m.id !== undefined) {
         const call = this.waiting.get(m.id);
         this.waiting.delete(m.id);
@@ -377,8 +387,12 @@ class CodexConversation implements ChatConversation {
     this.emit({ kind: 'approval', approvalId, tool: 'command', arg: typeof params?.command === 'string' ? params.command : undefined, choices });
   }
 
-  private translate(method: string, params: any): ChatEvent[] {
+  private translate(method: string, params: any): ChatEvent[] | Promise<ChatEvent[]> {
     switch (method) {
+      case 'error':
+        // A limit Codex does not retry: its reset has to be asked for, so the error goes out when that answers.
+        if (params?.willRetry === false && isUsageLimit(params?.error)) this.limit ??= this.announceLimit(params.error.message);
+        return [];
       case 'turn/started':
         if (typeof params?.turn?.id === 'string') this.turnId = params.turn.id;
         return [];
@@ -419,22 +433,58 @@ class CodexConversation implements ChatConversation {
         // One update per model call: the turn's usage is what its calls added up to.
         for (const [key, value] of Object.entries((params?.tokenUsage?.last ?? {}) as Record<string, unknown>)) if (typeof value === 'number') this.usage[key] = (this.usage[key] ?? 0) + value;
         return [];
-      case 'turn/completed':
-        return this.turnEnd(params?.turn);
+      case 'turn/completed': {
+        if (this.limit === undefined && isUsageLimit(params?.turn?.error)) this.limit = this.announceLimit(params.turn.error.message);
+        if (this.limit === undefined) return this.turnEnd(params?.turn);
+        const announced = this.limit;
+        return announced.then(() => {
+          this.limit = undefined;
+          return this.turnEnd(params?.turn, true);
+        });
+      }
       default:
         return [];
     }
   }
 
-  private turnEnd(turn: { status?: unknown; error?: { message?: unknown } } | undefined): ChatEvent[] {
+  /** The `error` of a usage limit, with the reset of the window that is full and resets last, else the error's own words for it. */
+  private async announceLimit(message: unknown) {
+    const text = typeof message === 'string' && message !== '' ? message : 'The usage limit was reached';
+    const resetsAt = await this.limitResetsAt();
+    const resetText = resetsAt === undefined ? /\btry again at\b.*$/i.exec(text)?.[0].replace(/\.$/, '') : undefined;
+    this.emit({ kind: 'error', text, reason: 'usage_limit', ...(resetsAt !== undefined && { resetsAt }), ...(resetText !== undefined && { resetText }) });
+  }
+
+  /** Milliseconds since the epoch, from `account/rateLimits/read`; nothing when no window is full, the read fails or it takes longer than `limitWaitMs`. */
+  private async limitResetsAt(): Promise<number | undefined> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const read = await Promise.race([this.request('account/rateLimits/read', undefined), new Promise<void>((resolve) => (timer = setTimeout(resolve, this.limitWaitMs)))]);
+      const snapshots = [read?.rateLimits, ...Object.values((read?.rateLimitsByLimitId ?? {}) as Record<string, unknown>)] as ({ primary?: Window | null; secondary?: Window | null } | null | undefined)[];
+      const resets = snapshots.flatMap((snapshot) => [snapshot?.primary, snapshot?.secondary]).flatMap((w) => (typeof w?.usedPercent === 'number' && w.usedPercent >= 100 && typeof w.resetsAt === 'number' ? [w.resetsAt] : []));
+      return resets.length === 0 ? undefined : Math.max(...resets) * 1000; // the account is limited until the last full window resets
+    } catch (error) {
+      log.warn('codex did not give its rate limits', { error: String(error) });
+      return undefined;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private turnEnd(turn: { status?: unknown; error?: { message?: unknown } } | undefined, limitAnnounced = false): ChatEvent[] {
     const outcome = turn?.status === 'completed' ? 'ok' : turn?.status === 'interrupted' ? 'interrupted' : 'error';
     const usage = this.usage;
     this.turning = false;
     this.turnId = undefined;
     this.usage = {};
     const events: ChatEvent[] = [];
-    if (outcome === 'error') events.push({ kind: 'error', text: typeof turn?.error?.message === 'string' ? turn.error.message : 'The turn failed' });
+    if (outcome === 'error' && !limitAnnounced) events.push({ kind: 'error', text: typeof turn?.error?.message === 'string' ? turn.error.message : 'The turn failed' });
     events.push({ kind: 'turn_end', outcome, model: this.model, usage });
     return events;
   }
 }
+
+type Window = { usedPercent?: unknown; resetsAt?: unknown };
+
+/** The `codexErrorInfo` of an account that ran out. A rate limit Codex retries is `rateLimitExceeded`, or a 429 in `responseTooManyFailedAttempts`: neither is this. */
+const isUsageLimit = (error: { codexErrorInfo?: unknown } | null | undefined) => error?.codexErrorInfo === 'usageLimitExceeded';

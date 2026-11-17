@@ -58,7 +58,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .switchAgent])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -376,4 +376,44 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     defer { older.stop() }
     await #expect(throws: ControlError.remote("the chat host does not support repoBranches")) { _ = try await SocketChatHost(socketPath: { older.path }).repoBranches("AshuLab/carrier") }
     #expect(asked == false)
+}
+
+@Test func switchAgentSendsTheSessionAndTheAgentInsideJSONStringsAndDecodesTheGoldenReply() async throws {
+    var line = ""
+    let reply = try String(contentsOf: URL(fileURLWithPath: fixtures + "/chat-switch.json"), encoding: .utf8)
+        .split(whereSeparator: \.isNewline).joined()
+    let server = TestServer { connection in
+        connection.send(hello("\"switchAgent\""))
+        guard let read = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(read.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        line = read
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(reply)}\n")
+    }
+    defer { server.stop() }
+    let session = "c3d4e5f6-2a1b-4c8d-9e0f-1a2b3c4d5e03"
+    let switched = try await SocketChatHost(socketPath: { server.path }).switchAgent(session, to: "co\"dex")
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "switchAgent" && sent["sessionId"] as? String == session && sent["agent"] as? String == "co\"dex")
+    // the session as the host summarizes it has no `live`, and everything it says beyond what is read is ignored
+    #expect(switched.session == AgentSwitch.Session(id: session, agent: "codex", harness: "codex", state: .idle))
+    #expect(switched.options.map(\.id) == ["model", "sandbox"] && switched.options.map(\.current) == ["gpt-5", "read-only"])
+}
+
+@Test func switchAgentIsNotSentToAHostThatDoesNotListIt() async {
+    var asked = false
+    let server = TestServer { connection in
+        connection.send(hello("\"agents\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { server.stop() }
+    await #expect(throws: ControlError.self) { try await SocketChatHost(socketPath: { server.path }).switchAgent("c3d4e5f6-2a1b-4c8d-9e0f-1a2b3c4d5e03", to: "codex") }
+    #expect(asked == false)
+}
+
+@Test func aNoticeThatSaysTheAgentChangedCarriesBothAgentsAndAnyOtherNoticeNone() throws {
+    let switched = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":9,"at":1,"kind":"notice","text":"The agent changed from claude to codex.","switched":{"from":"claude","to":"codex"}}"#.utf8))
+    #expect(switched.switched == ChatEvent.Switched(from: "claude", to: "codex"))
+    let lost = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":10,"at":2,"kind":"notice","text":"new conversation","lostNativeId":"x"}"#.utf8))
+    #expect(lost.switched == nil)
+    // the feed shows it as the plain line it is
+    #expect(chatFeed([switched]) == [.line(id: "e9", text: "The agent changed from claude to codex.")])
 }

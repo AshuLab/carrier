@@ -469,3 +469,94 @@ test('the skills of the folder are the conversation\'s commands, and invoking on
   conversation.send('', conversation.commands[0]);
   expect(input()).toEqual([{ type: 'skill', name: 'pdf', path: '/skills/pdf/SKILL.md' }]);
 });
+
+// A usage limit, replayed from the spike's real capture (docs/research/spike-switch-and-delegate/codex/logs/b4.jsonl): its `error` notification and its failed `turn/completed`.
+// The recording has no `account/rateLimits/read`, so the transport answers it as the test says.
+const realLimit = readFileSync(join(import.meta.dirname, '../../docs/research/spike-switch-and-delegate/codex/logs/b4.jsonl'), 'utf8')
+  .trimEnd()
+  .split('\n')
+  .map((line) => JSON.parse(line) as { kind: string; data: Line })
+  .filter((line) => line.kind === '<-' && (line.data.params?.error?.codexErrorInfo === 'usageLimitExceeded' || line.data.params?.turn?.error?.codexErrorInfo === 'usageLimitExceeded'))
+  .map((line) => line.data);
+if (realLimit.length !== 2) throw new Error('the recording of the real limit has changed');
+const realText = realLimit[0]!.params.error.message as string;
+const window = (usedPercent: number, resetsAt: number | null) => ({ usedPercent, windowDurationMins: 300, resetsAt });
+
+/** A server that answers the handshake, and each turn with `notifications`; `limits` is what `account/rateLimits/read` does (`null`: it never answers). */
+async function limitTurn(notifications: Line[], limits: { result: Line } | { error: string } | null) {
+  let listener: (line: string) => void = () => {};
+  const play = (message: Line) => listener(JSON.stringify(message));
+  const transport: CodexTransport = {
+    onLine: (l) => void (listener = l),
+    onExit: () => {},
+    write(text) {
+      const m = JSON.parse(text) as Line;
+      if (m.id === undefined) return;
+      const results: Record<string, unknown> = {
+        initialize: { userAgent: 'carrier/0.153.4' },
+        'thread/start': { thread: { id: 'thread-1' }, model: 'gpt-fake' },
+        'model/list': { data: [] },
+        'skills/list': { data: [] },
+        'turn/start': { turn: { id: 'turn-1' } },
+      };
+      if (m.method === 'account/rateLimits/read') {
+        if (limits !== null) play({ id: m.id, ...('result' in limits ? { result: limits.result } : { error: { message: limits.error } }) });
+        return;
+      }
+      play({ id: m.id, result: results[m.method] });
+      if (m.method === 'turn/start') queueMicrotask(() => notifications.forEach(play));
+    },
+  };
+  const conversation = await codexChatRunner(deps(transport, { limitWaitMs: 50 })).open({ folder: '/work', env: {} });
+  const events: ChatEvent[] = [];
+  conversation.onEvent((event) => events.push(event));
+  return { events: (await turn(conversation, events, 'hi')).filter((e) => e.kind !== 'option'), conversation };
+}
+
+test('the real usage limit is one error with its reason and the reset of the limits read, before the end of the turn', async () => {
+  const primary = window(100, 1795212671);
+  const { events } = await limitTurn(realLimit, {
+    result: { rateLimits: { primary, secondary: window(100, 1795212671 + 86_400) }, rateLimitsByLimitId: { other: { primary: window(100, 1795212671 + 60), secondary: window(40, 1795212671 + 999_999) } } },
+  });
+  // the window at 100% that resets last, from seconds to milliseconds; a window that is not full does not count
+  expect(events).toEqual([
+    { kind: 'error', text: realText, reason: 'usage_limit', resetsAt: (1795212671 + 86_400) * 1000 },
+    { kind: 'turn_end', outcome: 'error', model: 'gpt-fake', usage: {} },
+  ]);
+  expect(realText.startsWith('You’ve hit your usage limit')).toBe(true);
+});
+
+test('a usage limit that only the failed turn carries is the same error', async () => {
+  const { events } = await limitTurn(realLimit.slice(1), { result: { rateLimits: { primary: window(100, 1795212671), secondary: null } } });
+  expect(events.map((e) => e.kind)).toEqual(['error', 'turn_end']);
+  expect(events[0]).toEqual({ kind: 'error', text: realText, reason: 'usage_limit', resetsAt: 1795212671_000 });
+});
+
+test('a usage limit whose reset cannot be read says it with the error\'s own words, still before the end of the turn', async () => {
+  const text = 'try again at Nov 20th, 2026 7:11 PM';
+  for (const limits of [{ error: 'not logged in' }, null, { result: { rateLimits: { primary: window(60, 1795212671), secondary: null } } }, { result: { rateLimits: { primary: window(100, null), secondary: null } } }]) {
+    const { events } = await limitTurn(realLimit, limits);
+    expect(events).toEqual([
+      { kind: 'error', text: realText, reason: 'usage_limit', resetText: text },
+      { kind: 'turn_end', outcome: 'error', model: 'gpt-fake', usage: {} },
+    ]);
+  }
+});
+
+test('a rate limit Codex retries is no usage limit, and the failed turn that ran out of retries is not one either', async () => {
+  const note = (message: string, codexErrorInfo: unknown, willRetry: boolean) => ({ method: 'error', params: { error: { message, codexErrorInfo }, willRetry, threadId: 'thread-1', turnId: 'turn-1' } });
+  const done = { method: 'turn/completed', params: { turn: { id: 'turn-1', status: 'completed', error: null } } };
+  const retried = await limitTurn([note('Reconnecting... 1/5 (rate limit exceeded)', 'rateLimitExceeded', true), done], null);
+  expect(retried.events).toEqual([{ kind: 'turn_end', outcome: 'ok', model: 'gpt-fake', usage: {} }]);
+
+  // a limit that says it will be retried is not one even when it is named so
+  const retriedUsage = await limitTurn([note(realText, 'usageLimitExceeded', true), done], null);
+  expect(retriedUsage.events.map((e) => e.kind)).toEqual(['turn_end']);
+
+  const exhausted = { message: 'exceeded retry limit, last status: 429 Too Many Requests', codexErrorInfo: { responseTooManyFailedAttempts: { httpStatusCode: 429 } } };
+  const failed = await limitTurn([note(exhausted.message, exhausted.codexErrorInfo, false), { method: 'turn/completed', params: { turn: { id: 'turn-1', status: 'failed', error: exhausted } } }], null);
+  expect(failed.events).toEqual([
+    { kind: 'error', text: exhausted.message },
+    { kind: 'turn_end', outcome: 'error', model: 'gpt-fake', usage: {} },
+  ]);
+});

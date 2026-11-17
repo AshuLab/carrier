@@ -40,7 +40,7 @@ export type ChatEvent =
   | { kind: 'option'; id: string; value: string }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
   | { kind: 'error'; text: string; /** Set when the provider says the account ran out, which a retried rate limit never is. */ reason?: 'usage_limit'; /** When it resets, in ms since the epoch, when the provider gives a timestamp. */ resetsAt?: number; /** When it resets, in the provider's own words, when it gives only those. Never set with `resetsAt`. */ resetText?: string }
-  | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string }; // said by the host, never by an adapter: a plain line, not a failure
+  | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string; /** Set when the notice is a switch of agent, naming the agents as the config does. */ switched?: { from: string; to: string } }; // said by the host, never by an adapter: a plain line, not a failure
 
 export interface ChatConversation {
   readonly options: ChatOption[];

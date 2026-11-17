@@ -136,6 +136,7 @@ class CodexConversation implements ChatConversation {
   /** The key the chat MCP is registered under, when it was handed over: its elicitations are accepted for the person. */
   private mcpServerName: string | undefined;
   mcpProblem: string | undefined;
+  appServerVersion: string | undefined;
   /** Called when the chat MCP reports that it started or failed, so `start` can stop waiting. */
   private mcpSettled = () => {};
   private limitWaitMs = 2000;
@@ -161,6 +162,7 @@ class CodexConversation implements ChatConversation {
     this.transport.onExit(() => this.ended());
     const hello = await this.request('initialize', { clientInfo: { name: 'carrier', title: 'Carrier', version: '0.0.0' } });
     const version = /\/(\d+\.\d+\.\d+)/.exec(String(hello?.userAgent))?.[1];
+    this.appServerVersion = version;
     if (version !== CODEX_APP_SERVER_VERSION) log.warn('codex app-server is not the version this adapter was written against', { found: version, expected: CODEX_APP_SERVER_VERSION });
     this.notify('initialized');
     const params = { cwd: folder, approvalPolicy: this.approvalPolicy, sandbox: this.sandbox, ...(this.chosen.model && { model: this.chosen.model }),

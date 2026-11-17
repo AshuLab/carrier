@@ -1,9 +1,11 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { EventEmitter } from 'node:events';
+import { createServer } from 'node:net';
 import { PassThrough, Readable } from 'node:stream';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { chatSocketOf } from '../../../chat/config.ts';
 import { FakeChatRunner, type FakeConversation } from '../../../chat/fake.ts';
 import { startChatHost } from '../../../chat/host.ts';
 import { FakeClock } from '../../../orchestration/fake.ts';
@@ -292,6 +294,47 @@ test('/options prints each option with its current value and what it offers, /op
   expect(out).toContain('Usage: /option <id> <value>\n');
   expect(out.lastIndexOf('Permission mode (mode): plan')).toBeGreaterThan(out.indexOf('Usage:')); // the second /options sees the change
   expect(claude.conversations[0]!.sent).toEqual([]); // none of this went to the agent
+});
+
+test('/agent switches the session to the agent named, says so, and the next line goes to the new agent; a refusal of the host is shown in words and the agent stays', async () => {
+  mkdirSync(join(root, 'chat'), { recursive: true });
+  writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify({ agents: { mine: { account: 'claude' }, other: { account: 'claude' } } }));
+  const { stop } = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude }, binaryFound: () => true });
+  stops.push(stop);
+  claude.conversations.length = 0;
+  claude.setup = (conversation) => {
+    conversation.reply = (_text, c) => c.emit({ kind: 'assistant', text: `from ${claude.conversations.indexOf(conversation)}` }, { kind: 'turn_end', outcome: 'ok' });
+  };
+  expect(await chatCommand({ workspace: root }, { input: typed('one', '/agent other', 'two', '/agent other', '/agent nobody', '/agent', '/quit'), pollMs: 5 })).toBe(0);
+  const out = written.join('');
+  expect(out).toContain('The agent is now other.\n');
+  expect(out).toContain('> from 0\n> The agent is now other.\n');
+  expect(out).toContain('from 1\n');
+  expect(claude.conversations.map((c) => c.sent)).toEqual([['one'], ['two']]);
+  expect(out).toContain('There is no chat agent named "nobody"');
+  expect(out).toContain('already'); // the same agent again is refused, in the host's words
+  expect(out).toContain('Usage: /agent <name>\n');
+});
+
+test('/agent against a host that does not announce switchAgent says it is too old and sends nothing', async () => {
+  const requests: string[] = [];
+  const server = createServer((socket) => {
+    socket.write(`${JSON.stringify({ event: 'hello', protocol: 1, pid: 1, startedAt: 1, version: '0.0.0', capabilities: ['agents', 'open', 'send', 'events'] })}\n`);
+    socket.on('data', (chunk) => {
+      for (const line of String(chunk).split('\n').filter(Boolean)) {
+        const request = JSON.parse(line);
+        requests.push(request.cmd);
+        const data = request.cmd === 'open' ? { session: { id: 's1', agent: 'claude', folder: root } } : { events: [], cursor: 0, streaming: '', options: [], approvals: [] };
+        socket.write(`${JSON.stringify({ id: request.id, ok: true, data })}\n`);
+      }
+    });
+  });
+  mkdirSync(dirname(chatSocketOf()), { recursive: true });
+  await new Promise<void>((resolve) => server.listen(chatSocketOf(), resolve));
+  stops.push(() => new Promise((resolve) => server.close(() => resolve())));
+  expect(await chatCommand({ workspace: root, agent: 'claude' }, { input: typed('/agent other', '/quit'), pollMs: 5 })).toBe(0);
+  expect(written.join('')).toContain('older than this command');
+  expect(requests).toEqual(['open']);
 });
 
 // The fake agent asks before it "touches" a file; it runs the tool only when the person allowed it.

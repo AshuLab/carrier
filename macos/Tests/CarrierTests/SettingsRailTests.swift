@@ -7,7 +7,7 @@ import Testing
 @Test @MainActor func theRailDrawsTheAppGroupWithNoHeadingThenChatAndCarrierWithTheirHeadings() {
     let sections = SettingsRail.sections
     #expect(sections.map(\.group.heading) == [nil, "Chat", "Carrier", nil])
-    #expect(sections[0].pages == [.general, .providers, .notifications, .appearance, .terminal, .keybindings, .dictation])
+    #expect(sections[0].pages == [.general, .providers, .notifications, .appearance, .terminal, .keybindings, .dictation, .keepAwake])
     #expect(sections[1].pages == [.chat, .sidebar, .sessions])
     #expect(sections[2].pages == [.repos, .agents, .behavior, .engine, .health])
     #expect(sections[3].pages == [.about])

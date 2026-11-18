@@ -16,6 +16,8 @@ public struct IconParts: Equatable {
     public var count: Bool
     public var bar: Bool
     public var dot: Bool
+    /// The small cup of a Mac that is being kept awake.
+    public var cup = false
 }
 
 /// What the menu bar icon draws, derived from the connection and the snapshot.
@@ -27,6 +29,7 @@ public struct IconState: Equatable {
     public var attention: Int    // epics needing a person, plus 1 when the snapshot has a problem
     public var style: IconStyle
     public var animates: Bool    // whether the segment may bounce
+    public var awake = false     // the Mac is being kept awake (Keep awake), drawn as a small cup before the rest
 
     public init(
         connected: Bool = false, working: Int = 0, done: Int = 0, total: Int = 0, attention: Int = 0,
@@ -45,7 +48,7 @@ public struct IconState: Equatable {
     /// there is no count to show, so the icon never disappears from the menu bar.
     public var parts: IconParts {
         let count = style != .barOnly && connected && working > 0
-        return IconParts(count: count, bar: style != .countOnly || !count, dot: attention > 0)
+        return IconParts(count: count, bar: style != .countOnly || !count, dot: attention > 0, cup: awake)
     }
 
     public init(_ state: ConnectionState, style: IconStyle = .countAndBar, animates: Bool = true) {

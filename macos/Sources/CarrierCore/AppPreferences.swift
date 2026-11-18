@@ -67,6 +67,13 @@ public struct AppPreferences {
     public static let dictationEndSoundOnKey = "dictation.sound.end.on"
     public static let dictationEndSoundKey = "dictation.sound.end"
     public static let dictationSoundVolumeKey = "dictation.sound.volume"
+    public static let awakeScreenKey = "awake.screen"
+    public static let awakeMinutesKey = "awake.minutes"
+    public static let awakeAgentsKey = "awake.agents"
+    public static let awakeGraceKey = "awake.grace"
+    public static let awakeBatteryKey = "awake.battery"
+    public static let awakeNotifyKey = "awake.notify"
+    public static let awakeShortcutKey = "awake.shortcut"
     public static let updateDelayKey = "updates.delayDays"
     public static let terminalThemeKey = "terminal.theme"
     public static let terminalFontFamilyKey = "terminal.font.family"
@@ -447,6 +454,29 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue.stored, forKey: Self.dictationShortcutKey) }
     }
 
+    /// What the Keep awake page sets; a missing or bad value reads as its default.
+    public var awake: AwakeSettings {
+        var settings = AwakeSettings()
+        if defaults.object(forKey: Self.awakeScreenKey) != nil { settings.keepsScreenOn = defaults.bool(forKey: Self.awakeScreenKey) }
+        if defaults.object(forKey: Self.awakeMinutesKey) != nil { settings.defaultMinutes = AwakeLength.valid(defaults.integer(forKey: Self.awakeMinutesKey)) }
+        if defaults.object(forKey: Self.awakeAgentsKey) != nil { settings.followsAgents = defaults.bool(forKey: Self.awakeAgentsKey) }
+        if defaults.object(forKey: Self.awakeGraceKey) != nil {
+            let grace = defaults.integer(forKey: Self.awakeGraceKey)
+            if AwakeSettings.graceChoices.contains(grace) { settings.graceMinutes = grace }
+        }
+        settings.battery = defaults.string(forKey: Self.awakeBatteryKey).flatMap(BatteryRule.init(rawValue:)) ?? .standard
+        if defaults.object(forKey: Self.awakeNotifyKey) != nil { settings.notifies = defaults.bool(forKey: Self.awakeNotifyKey) }
+        return settings
+    }
+
+    /// The keys that turn Keep awake on or off from any app: none until the person records them, so no installed app loses a combination.
+    public var awakeShortcut: DictationShortcut? {
+        get { defaults.string(forKey: Self.awakeShortcutKey).flatMap(DictationShortcut.init(stored:)) }
+        nonmutating set {
+            if let newValue { defaults.set(newValue.stored, forKey: Self.awakeShortcutKey) } else { defaults.removeObject(forKey: Self.awakeShortcutKey) }
+        }
+    }
+
     /// Toggle until the person chooses Hold.
     public var dictationActivation: DictationActivation {
         get { defaults.string(forKey: Self.dictationActivationKey).flatMap(DictationActivation.init(rawValue:)) ?? .toggle }
@@ -617,6 +647,7 @@ public struct AppPreferences {
                 dictationSoundVolumeKey,
             ]
         case .keybindings: [ShortcutTable.key]
+        case .keepAwake: [awakeScreenKey, awakeMinutesKey, awakeAgentsKey, awakeGraceKey, awakeBatteryKey, awakeNotifyKey, awakeShortcutKey]
         // the Providers page only reads, the About page writes Sparkle's own preferences, the Carrier pages write engine.json or (Engine) a few switches that have no Reset, and the Health page keeps its own settings
         case .providers, .about, .engine, .behavior, .repos, .agents, .health: []
         }

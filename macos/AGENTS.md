@@ -47,6 +47,13 @@ What the person sees: [the app shell](../docs/macos/app-shell.md#file-icons).
 The SVGs and the upstream licence text are in `Sources/CarrierCore/Resources/FileIcons` (release pinned in `SOURCE.txt`, notice in `THIRD-PARTY-NOTICES.md`, line in About).
 `build-app.sh` copies SwiftPM's `Carrier_CarrierCore.bundle` into `Contents/Resources` and fails when an icon or the licence text is missing from it.
 
+## Keep awake
+
+What the person sees: [keep-awake](../docs/macos/keep-awake.md).
+
+The rules and words are pure functions in `CarrierCore/KeepAwake.swift` (`KeepAwakeTests`); the power assertions, the battery source, the timer, the shortcut and the notification are `Carrier/KeepAwakeController.swift` (untested, as is the menu `KeepAwakeMenu.swift`, the page `KeepAwakeTab.swift` and the cup of `IconController`).
+The controller is fed from `AppDelegate.watchCarrier` (epics) and `watchChatSessions` (sessions); a self-test or a smoke run does not start it.
+
 ## Settings
 
 ### Providers page

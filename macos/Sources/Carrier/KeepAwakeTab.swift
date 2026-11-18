@@ -1,0 +1,84 @@
+import CarrierCore
+import SwiftUI
+
+/// The Keep awake page: the state now with the button that changes it, how a keep awake by hand starts, what follows the agents, and what the battery and the
+/// notification do. Each setting is read by `KeepAwakeController` as it is changed; nothing is restarted.
+struct KeepAwakeTabView: View {
+    var controller = KeepAwakeController.shared
+    @AppStorage(AppPreferences.awakeScreenKey) private var screen = false
+    @AppStorage(AppPreferences.awakeMinutesKey) private var minutes = AwakeLength.defaultMinutes
+    @AppStorage(AppPreferences.awakeAgentsKey) private var agents = false
+    @AppStorage(AppPreferences.awakeGraceKey) private var grace = AwakeSettings().graceMinutes
+    @AppStorage(AppPreferences.awakeBatteryKey) private var battery = BatteryRule.standard.rawValue
+    @AppStorage(AppPreferences.awakeNotifyKey) private var notifies = true
+    @AppStorage(AppPreferences.awakeShortcutKey) private var shortcutText = ""
+
+    var body: some View {
+        SettingsPageBody(reset: { AppPreferences().reset(.keepAwake) }) {
+            SettingsGroup(title: "Now") { statusRow }
+            SettingsGroup(title: "By hand") {
+                SettingsTabRow(title: "Length", detail: "What the menu's Keep awake item and the shortcut start", first: true) {
+                    ChoicePopUp(
+                        label: "Length", options: AwakeLength.choices.map { (value: $0, title: AwakeLength.title($0)) },
+                        selection: Binding(get: { AwakeLength.valid(minutes) }, set: { minutes = $0 })
+                    )
+                }
+                SettingsTabRow(title: "Keep the screen on", detail: "Off lets the screen sleep while the Mac stays awake: enough for agents, and it saves power") {
+                    Toggle("Keep the screen on", isOn: $screen).labelsHidden().toggleStyle(.switch)
+                }
+                ShortcutRecorderRow(
+                    shortcutText: shortcutText, title: "Shortcut", detail: "Turns keep awake on or off from any app, with no window", name: "Keep awake shortcut",
+                    emptyText: "None",
+                    current: { AppPreferences().awakeShortcut }, save: { AppPreferences().awakeShortcut = $0 },
+                    listening: { controller.recordingShortcut = $0 })
+            }
+            SettingsGroup(title: "With agents") {
+                SettingsTabRow(title: "Keep awake while agents work", detail: "While an epic runs or a session works, so a long job is not cut by sleep", first: true) {
+                    Toggle("Keep awake while agents work", isOn: $agents).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Stay awake after they finish", detail: "Time to read the result before the Mac may sleep") {
+                    ChoicePopUp(
+                        label: "Stay awake after they finish",
+                        options: AwakeSettings.graceChoices.map { (value: $0, title: $0 == 0 ? "Right away" : "\($0) min") },
+                        selection: Binding(get: { AwakeSettings.graceChoices.contains(grace) ? grace : AwakeSettings().graceMinutes }, set: { grace = $0 })
+                    )
+                    .disabled(agents == false)
+                }
+            }
+            SettingsGroup(title: "Battery and notices") {
+                SettingsTabRow(title: "On battery", detail: "It goes on by itself when the Mac is plugged in or charged again", first: true) {
+                    ChoicePopUp(
+                        label: "On battery", options: BatteryRule.allCases.map { (value: $0.rawValue, title: $0.title) },
+                        selection: Binding(get: { BatteryRule(rawValue: battery)?.rawValue ?? BatteryRule.standard.rawValue }, set: { battery = $0 }),
+                        width: 210
+                    )
+                }
+                SettingsTabRow(title: "Tell me when it stops by itself", detail: "A notification when the time runs out or the battery ends it. Not when you turn it off") {
+                    Toggle("Tell me when it stops by itself", isOn: $notifies).labelsHidden().toggleStyle(.switch)
+                }
+            }
+        }
+    }
+
+    /// The state in a sentence, a chip with the word, and the button that does what the menu's first item does. The time left is read again every 20 seconds.
+    private var statusRow: some View {
+        TimelineView(.periodic(from: .now, by: 20)) { context in
+            let settings = controller.settings
+            let decision = controller.decision
+            let title = awakeStatus(decision, settings: settings, now: context.date)
+            SettingsTabRow(
+                title: title, detail: "Keeps the Mac from sleeping on its own. Closing the lid still puts it to sleep, and so does Sleep in the Apple menu.", first: true
+            ) {
+                HStack(spacing: 8) {
+                    StatusChip(text: decision.holds ? "On" : decision.blocked == nil ? "Off" : "Paused", tint: decision.holds ? .green : decision.blocked == nil ? .secondary : .orange)
+                    Button { controller.toggle() } label: {
+                        Label(
+                            decision.isManual ? "Stop" : awakeToggleTitle(manualActive: false, defaultMinutes: settings.defaultMinutes),
+                            systemImage: decision.isManual ? "stop.fill" : "cup.and.saucer")
+                    }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                }
+            }
+        }
+    }
+}

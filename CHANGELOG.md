@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Keep awake: stop the Mac from sleeping from the menu bar (30 min to 5 hours, or until you turn it off), with a small cup on the icon while it holds. It can also stay on while agents work and for a few minutes after, pauses on a low battery and tells you when it stops by itself. Set it on the new Keep awake page of Settings, with an optional shortcut for any app.
+
 ### Fixed
 
 - In a new session, the Reasoning slider lists the levels of the model you chose and not those of the agent's default one, and the reasoning set in Settings is kept when that model takes it (a draft on GPT-6.1 Terra showed only Low and dropped High).

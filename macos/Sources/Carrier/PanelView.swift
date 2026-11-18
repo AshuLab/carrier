@@ -317,10 +317,10 @@ struct PanelView: View {
                 }
             }
             .themedWindowBackground()
-            .navigationTitle(title)
-            .navigationSubtitle(subtitle)
-            // the subagent's own title is in the toolbar, as one item with the line that says whose it is
-            .toolbar(removing: shell.subagentHeader == nil ? nil : .title)
+            // the subagent's own title is in the toolbar, as one item with the line that says whose it is; the system's is left empty and not removed,
+            // because it is what fills the toolbar between its two ends and keeps the buttons at the right
+            .navigationTitle(shell.subagentHeader == nil ? title : "")
+            .navigationSubtitle(shell.subagentHeader == nil ? subtitle : "")
             .onChange(of: model.shell.selection) { _, _ in
                 if let target = activeDrawerTarget,
                    target.isSessionDrawer == false,

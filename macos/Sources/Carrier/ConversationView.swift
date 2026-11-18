@@ -56,7 +56,9 @@ struct ConversationView: View {
 
     var body: some View {
         conversation
-            // the conversation stays under the subagent view, so Back finds its feed and its place as they were; nothing under it takes keys or taps
+            // the conversation stays mounted under the subagent view, so Back finds its feed and its place as they were, but it is not drawn: the
+            // subagent view replaces it, and nothing of it shows through the window's translucent surfaces; nothing under it takes keys or taps
+            .opacity(subagents.isEmpty ? 1 : 0)
             .disabled(subagents.isEmpty == false)
             .accessibilityHidden(subagents.isEmpty == false)
             .overlay {

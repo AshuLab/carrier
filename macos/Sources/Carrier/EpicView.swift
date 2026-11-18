@@ -43,7 +43,9 @@ struct EpicView: View {
                     if atEnd, tab == .agentOutput { withAnimation { page.scrollTo(SessionSectionsView.endID, anchor: .bottom) } }
                 }
         }
-        // the tab stays under the subagent view, so Back finds it as it was; nothing under it takes keys or taps
+        // the tab stays mounted under the subagent view, so Back finds it as it was, but it is not drawn: the subagent view replaces it;
+        // nothing under it takes keys or taps
+        .opacity(subagents.isEmpty ? 1 : 0)
         .disabled(subagents.isEmpty == false)
         .accessibilityHidden(subagents.isEmpty == false)
         .overlay {

@@ -68,7 +68,7 @@ struct AccountEditor: View {
                             // the steps are ours; a value already in the file that is not one of them stays in the list, so opening the editor never changes it
                             let steps = (harness == "claude" ? ["auto"] : []) + ["100000", "200000", "400000", "600000", "800000", "1000000"]
                             let values = [""] + (draft.autoCompact.isEmpty || steps.contains(draft.autoCompact) ? steps : steps + [draft.autoCompact])
-                            NativePopUp(
+                            SelectMenu(
                                 items: values.map { $0.isEmpty ? "Use default" : Int($0).map { $0.formatted() } ?? $0 },
                                 selection: Binding(get: { values.firstIndex(of: draft.autoCompact) ?? 0 }, set: { draft.autoCompact = values[$0] })
                             )
@@ -85,7 +85,7 @@ struct AccountEditor: View {
                     if harness == "claude" {
                         field("Compact idle threads", "idleCompaction", "Use default passes nothing") {
                             let cases = IdleCompaction.allCases.filter { $0 != .always || draft.idle == .always }
-                            NativePopUp(
+                            SelectMenu(
                                 items: cases.map(\.title),
                                 selection: Binding(get: { cases.firstIndex(of: draft.idle) ?? 0 }, set: { draft.idle = cases[$0] })
                             )

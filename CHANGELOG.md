@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Settings has four groups: App (with Providers), Workspace (Chat, Sessions, Sidebar and Terminal), Carrier (Agents, Repos and Behavior) and System (Engine, Health and About).
 - The font of code and output is back under Settings › Appearance (and its Reset), and the Terminal page says "Same as Appearance". Notifications has four groups instead of eight.
+- Every select in Settings is the same one (a rounded rectangle with up and down chevrons that opens a menu), the model picker's button included.
 - Settings pages that are rows (General, Appearance, Notifications, Keybindings, Chat, Sessions, Sidebar, Terminal, Agents, Behavior, Engine and About) are native grouped forms with the same rows, selects and switches, in one column of the same width, with shorter lines and the longer words under the group; Providers, Repos, Dictation and Health keep their own layout.
 - Reset is in the ⋯ menu of Settings' toolbar ("Reset this page…") and asks first, on every page that has one; Sessions and Behavior no longer have a Reset card.
 - What Carrier is missing shows as a banner on the Engine and Health pages and as a badge on their rows, not over every page.

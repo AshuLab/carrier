@@ -143,7 +143,7 @@ struct ModelPickerButton: View {
             query = ""
             open.toggle()
         } label: { pill }
-            .buttonStyle(PopUpButtonStyle())
+            .buttonStyle(SelectButtonStyle())
             .popover(isPresented: $open, arrowEdge: .bottom) { panel }
             .help("Provider, model and reasoning").accessibilityLabel("Provider, model and reasoning")
             .accessibilityValue([shownProvider, modelText, effortText].compactMap { $0 }.joined(separator: ", "))
@@ -187,9 +187,9 @@ struct ModelPickerButton: View {
             }
             // the chevrons at the right edge, as the Mac's pop-up has them, whatever the words take
             Spacer(minLength: 6)
-            Image(systemName: "chevron.up.chevron.down").font(.scaled(10, weight: .bold)).foregroundStyle(.primary.opacity(0.85))
+            SelectChevron()
         }
-        // the width of the pop-ups of the other rows with the button's own 12 pt at each side (`PopUpButtonStyle`), and long words are cut; in a form it
+        // the width of the pop-ups of the other rows with the button's own 12 pt at each side (`SelectButtonStyle`), and long words are cut; in a form it
         // takes the room it is given
         .frame(width: fill ? nil : settingsSelectWidth - 24, alignment: .leading).frame(maxWidth: fill ? .infinity : nil, alignment: .leading)
     }
@@ -363,24 +363,3 @@ struct ModelPickerButton: View {
     }
 }
 
-/// A button drawn like the pop-up of the other rows (`NativePopUp`): a small rounded rectangle on a quiet fill, not a capsule, so it sits with them.
-/// Only the picker uses it: the chat's message box keeps its own pill.
-private struct PopUpButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
-
-    private struct Face: View {
-        let configuration: ButtonStyleConfiguration
-        @Environment(\.isEnabled) private var enabled
-        @State private var hovered = false
-
-        var body: some View {
-            configuration.label
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.16 : 0.12)))
-                .opacity(enabled ? 1 : 0.5)
-                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .onHover { hovered = $0 }
-                .animation(.easeOut(duration: 0.12), value: hovered)
-        }
-    }
-}

@@ -263,44 +263,62 @@ struct SettingsStackedRow<Control: View>: View {
     }
 }
 
-/// The system's pop-up button, as the Mac draws it, for a choice among a few words. SwiftUI's menu picker takes the theme's accent for its
-/// fill and its text, which reads as a main action; this one is neutral and fills the width it is given.
-struct NativePopUp: NSViewRepresentable {
+/// A choice among a few words, the one select of the app's rows: a rounded rectangle on a quiet fill with the up and down chevrons at its
+/// right, which opens the menu of the choices (`SelectButtonStyle`, the same face the model picker's button has). It fills the width it is given;
+/// rows give it `settingsSelectWidth`. A SwiftUI menu in this style and not AppKit's pop-up: inside a form that one is drawn as a bare circle, and
+/// the two kinds of select never looked alike.
+struct SelectMenu: View {
     let items: [String]
     @Binding var selection: Int
 
-    func makeNSView(context: Context) -> NSPopUpButton {
-        let button = NSPopUpButton(frame: .zero, pullsDown: false)
-        // set, not left to automatic: inside a form AppKit draws an automatic (or rounded, or push) pop-up as a bare circle, and the selects must
-        // look the same everywhere, as they do in a card
-        button.bezelStyle = .flexiblePush
-        button.target = context.coordinator
-        button.action = #selector(Coordinator.changed(_:))
-        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        return button
-    }
+    private var shown: String { items.indices.contains(selection) ? items[selection] : "" }
 
-    func updateNSView(_ button: NSPopUpButton, context: Context) {
-        context.coordinator.parent = self
-        // a row switched off (`.disabled`) dims its pop-up too
-        button.isEnabled = context.environment.isEnabled
-        if button.itemTitles != items {
-            button.removeAllItems()
-            button.addItems(withTitles: items)
+    var body: some View {
+        Menu {
+            ForEach(items.indices, id: \.self) { index in
+                Button { selection = index } label: {
+                    if index == selection { Label(items[index], systemImage: "checkmark").labelStyle(.titleAndIcon) } else { Text(items[index]) }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(shown).lineLimit(1)
+                Spacer(minLength: 6)
+                SelectChevron()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        if button.indexOfSelectedItem != selection, items.indices.contains(selection) { button.selectItem(at: selection) }
+        .menuStyle(.button).buttonStyle(SelectButtonStyle()).menuIndicator(.hidden)
+        .accessibilityValue(shown)
     }
+}
 
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSPopUpButton, context: Context) -> CGSize? {
-        CGSize(width: proposal.width ?? nsView.intrinsicContentSize.width, height: nsView.intrinsicContentSize.height)
+/// The chevrons at the right edge of a select, as the Mac's pop-up has them.
+struct SelectChevron: View {
+    var body: some View {
+        Image(systemName: "chevron.up.chevron.down").font(.scaled(10, weight: .bold)).foregroundStyle(.primary.opacity(0.85)).accessibilityHidden(true)
     }
+}
 
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
+/// The face of a select: a small rounded rectangle on a quiet fill (not a capsule), a little lighter under the pointer, dimmed when it is off.
+/// The label brings its own width; this adds 12 pt at each side and 6 above and below.
+struct SelectButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
 
-    final class Coordinator: NSObject {
-        var parent: NativePopUp
-        init(_ parent: NativePopUp) { self.parent = parent }
-        @objc func changed(_ sender: NSPopUpButton) { parent.selection = sender.indexOfSelectedItem }
+    private struct Face: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isEnabled) private var enabled
+        @State private var hovered = false
+
+        var body: some View {
+            configuration.label
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.16 : 0.12)))
+                .opacity(enabled ? 1 : 0.5)
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .onHover { hovered = $0 }
+                .animation(.easeOut(duration: 0.12), value: hovered)
+        }
     }
 }
 
@@ -554,7 +572,7 @@ let settingsSelectWidth: CGFloat = 210
 /// How wide a slider of a row is: the width of the selects, which is at least 200 pt, so the track is long enough to aim at.
 let settingsSliderWidth: CGFloat = settingsSelectWidth
 
-/// `NativePopUp` over a value: the choices as (value, title) pairs, the one chosen bound as the value itself. A stored value that is not on the
+/// `SelectMenu` over a value: the choices as (value, title) pairs, the one chosen bound as the value itself. A stored value that is not on the
 /// list shows the first choice, as the pages already read an unknown value as their default.
 struct ChoicePopUp<Value: Hashable>: View {
     let label: String
@@ -563,7 +581,7 @@ struct ChoicePopUp<Value: Hashable>: View {
     var width: CGFloat = settingsSelectWidth
 
     var body: some View {
-        NativePopUp(
+        SelectMenu(
             items: options.map(\.title),
             selection: Binding(
                 get: { options.firstIndex { $0.value == selection } ?? 0 },

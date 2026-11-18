@@ -464,7 +464,7 @@ private struct RepoRolesCard: View {
             get: { value.wrappedValue.flatMap { own in options.firstIndex(of: own).map { $0 + 1 } ?? items.count - 1 } ?? 0 },
             set: { next in value.wrappedValue = next == 0 ? nil : (options.indices.contains(next - 1) ? options[next - 1] : value.wrappedValue) }
         )
-        return field(title) { NativePopUp(items: items, selection: index).accessibilityLabel(title) }
+        return field(title) { SelectMenu(items: items, selection: index).accessibilityLabel(title) }
     }
 
     private func persona(_ field: WritableKeyPath<RolePersona, String?>) -> Binding<String> {
@@ -683,7 +683,7 @@ private struct AddReposSheet: View {
             FilterChip(title: "Public", icon: "globe", on: visibility == .onlyPublic) { visibility = visibility == .onlyPublic ? .all : .onlyPublic }
             Spacer(minLength: 8)
             if owners.count > 1 {
-                NativePopUp(
+                SelectMenu(
                     items: ["All owners"] + owners,
                     selection: Binding(get: { owner.flatMap { owners.firstIndex(of: $0) }.map { $0 + 1 } ?? 0 }, set: { owner = $0 == 0 ? nil : owners[$0 - 1] })
                 )

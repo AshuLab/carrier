@@ -78,7 +78,7 @@ The lifecycle epic also adds a migration to `chat.db`: the two are built one aft
 
 Testing seams, per story:
 
-- 1 and 2: `NewSessionTests` with the fake host those tests use: the draft is blank after `load()` and after a send, ✕ clears the workspace, and choosing a repository or a project makes no call to the host's `cloneRepo` or `createProject` and no write to the engine's config.
+- 1 and 2: `NewSessionTests` with the fake host those tests use: the draft is blank after `load()` and after a send, ✕ clears the workspace, and choosing a repository or a project makes no write to the engine's config (the app has no `cloneRepo` or `createProject` call any more, and `ChatHostTests` fails if a request of that name is written in its sources).
 - 3, 5, 6, 7, 8, 10 and 11: `createSessions` in `sessions.test.ts` with the fake clock, `FakeGit` and the fake runner those tests use: the steps recorded for each kind of plan, a failure at each step and the retry that reuses what was done, the dirty and the clean folder at the checkout, a cancel in the middle of a clone and of the worktree, a session preparing when the host stops, the old `open` unchanged, and that a failed session reads `idle` and not live. This is the broadest seam and carries most of the behaviour.
 - 4: `projects.test.ts` with a `FakeGit` that feeds progress lines: the allowlist, the rate and a fetch instead of a clone.
 - 5 (branches): `projects.test.ts` or `github-repos.test.ts` for `repoBranches` with the fake GitHub port.

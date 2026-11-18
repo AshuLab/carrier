@@ -118,8 +118,6 @@ final class UsageHost: ChatHost, @unchecked Sendable {
     func interrupt(_ id: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
-    func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
-    func createProject(_ name: String) async throws -> String { throw ControlError.closed }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
     func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws {}

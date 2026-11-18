@@ -193,3 +193,18 @@ public func awakeEndedNotice(_ block: AwakeBlock?) -> (title: String, body: Stri
     case nil: ("Keep awake ended", "Your Mac can sleep again.")
     }
 }
+
+/// The character a menu item shows for the shortcut, so the menu teaches the keys: a letter, digit or sign in lower case, or a space. The keys
+/// with a name (arrows, F-keys) have no character to show, so the item shows none.
+public func awakeMenuKey(_ shortcut: DictationShortcut?) -> String? {
+    guard let shortcut else { return nil }
+    if shortcut.key == "Space" { return " " }
+    // the arrows are named by one character too, and a menu item needs another code for them
+    guard shortcut.key.count == 1, "←→↑↓".contains(shortcut.key) == false else { return nil }
+    return shortcut.key.lowercased()
+}
+
+/// What the icon says to the pointer and to VoiceOver: the icon is a picture of a count and a bar, so the cup needs its words.
+public func awakeIconWords(awake: Bool) -> (label: String, tip: String?) {
+    awake ? ("Carrier, keeping the Mac awake", "Keeping the Mac awake") : ("Carrier", nil)
+}

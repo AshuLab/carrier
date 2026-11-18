@@ -114,6 +114,10 @@ final class IconController {
         host.layer?.opacity = 1
         for layer in [text, track, badge] { layer.opacity = state.connected ? 1 : 0.4 }
 
+        let words = awakeIconWords(awake: parts.cup)
+        item.button?.setAccessibilityLabel(words.label)
+        item.button?.toolTip = words.tip
+
         cup.isHidden = !parts.cup
         if parts.cup {
             cup.contents = cupImage(.labelColor.resolved(in: item.button?.effectiveAppearance ?? NSApp.effectiveAppearance))

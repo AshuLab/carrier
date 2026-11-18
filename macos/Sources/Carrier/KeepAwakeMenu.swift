@@ -41,12 +41,25 @@ import CarrierCore
             toggleItem.title = awakeToggleTitle(manualActive: decision.isManual, defaultMinutes: settings.defaultMinutes)
             toggleItem.subtitle = awakeStatus(decision, settings: settings, now: now)
             showIcon(decision.holds ? "cup.and.saucer.fill" : "cup.and.saucer", on: toggleItem)
+            // the menu shows the keys that do the same from any app, so the shortcut is learned where it is used
+            let shortcut = AppPreferences().awakeShortcut
+            toggleItem.keyEquivalent = awakeMenuKey(shortcut) ?? ""
+            toggleItem.keyEquivalentModifierMask = shortcut.map { Self.flags($0.modifiers) } ?? []
         } else if item === agentsItem {
             agentsItem.state = settings.followsAgents ? .on : .off
         } else if item.action == #selector(chooseLength(_:)) {
             item.state = decision.isManual && controller.manualMinutes == item.tag ? .on : .off
         }
         return true
+    }
+
+    private static func flags(_ modifiers: ShortcutModifiers) -> NSEvent.ModifierFlags {
+        var flags: NSEvent.ModifierFlags = []
+        if modifiers.contains(.command) { flags.insert(.command) }
+        if modifiers.contains(.shift) { flags.insert(.shift) }
+        if modifiers.contains(.option) { flags.insert(.option) }
+        if modifiers.contains(.control) { flags.insert(.control) }
+        return flags
     }
 
     @objc private func toggle() { controller.toggle() }

@@ -159,3 +159,26 @@ private func decide(
     #expect(state.parts.cup)
     var stopped = IconState(); stopped.awake = true; #expect(stopped.parts.cup)
 }
+
+@Test func theMenuShowsTheShortcutsCharacterWhenItHasOne() throws {
+    func shortcut(_ code: Int, _ characters: String) throws -> DictationShortcut {
+        guard case .accepted(let accepted) = recordShortcut(keyCode: code, characters: characters, modifiers: [.control, .option, .command]) else {
+            throw RecordingRefused()
+        }
+        return accepted
+    }
+    #expect(awakeMenuKey(nil) == nil)
+    #expect(awakeMenuKey(try shortcut(0, "a")) == "a")
+    #expect(awakeMenuKey(try shortcut(49, " ")) == " ")
+    // a key with a name and no character shows none
+    #expect(awakeMenuKey(try shortcut(126, "")) == nil)
+    #expect(awakeMenuKey(try shortcut(122, "")) == nil)
+}
+
+private struct RecordingRefused: Error {}
+
+@Test func theIconSaysWhenTheMacIsKeptAwake() {
+    #expect(awakeIconWords(awake: false) == ("Carrier", nil))
+    #expect(awakeIconWords(awake: true).label.contains("awake"))
+    #expect(awakeIconWords(awake: true).tip != nil)
+}

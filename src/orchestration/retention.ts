@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, sep } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, eq, inArray, isNotNull, lte } from 'drizzle-orm';
+import type { EnginePlaces } from '../config/places.ts';
 import type { Db } from '../storage/db.ts';
 import { executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
@@ -68,11 +69,11 @@ function sessionFiles({ claude, codex }: SessionDirs, ids: string[]): string[] {
 }
 
 /**
- * Deletes the execution logs (`<logs>/executions/<executionId>/`) and the sessions the CLIs saved
+ * Deletes the execution logs (`<logs>/executions/<executionId>/`), the results (`<state>/results/<executionId>.json`) and the sessions the CLIs saved
  * for them, of epics finished or cancelled 30 days or more before `now`, and the events stored from those logs.
  * Never touches other SQLite rows nor workspaces; a symlink is removed itself, never followed. Returns the paths deleted.
  */
-export function purgeExpired(db: Db, logs: string, now: number, sessionDirs: SessionDirs = sessionDirsFrom()): string[] {
+export function purgeExpired(db: Db, places: Pick<EnginePlaces, 'logs' | 'state'>, now: number, sessionDirs: SessionDirs = sessionDirsFrom()): string[] {
   const rows = db
     .select({ executionId: executions.executionId, sessionId: executions.sessionId, configDir: executions.configDir })
     .from(executions)
@@ -104,29 +105,28 @@ export function purgeExpired(db: Db, logs: string, now: number, sessionDirs: Ses
     for (const file of sessionFiles(folder === null ? sessionDirs : { claude: folder, codex: folder }, ids)) if (!deleted.includes(file)) remove(file);
   }
 
-  let real: string;
-  try {
-    real = realpathSync(logs);
-  } catch {
-    return deleted; // no logs folder: no logs were ever written
-  }
-  try {
-    // A folder that resolves outside the logs folder (symlinked) is not ours to delete from.
-    if (!realpathSync(join(logs, 'executions')).startsWith(real + sep)) return deleted;
-  } catch {
-    return deleted; // folder absent
-  }
-  for (const { executionId } of rows) if (safeId.test(executionId)) remove(join(logs, 'executions', executionId));
+  const ids = rows.map((r) => r.executionId).filter((id) => safeId.test(id));
+  if (ownFolder(places.state, 'results')) for (const id of ids) remove(join(places.state, 'results', `${id}.json`));
+  if (ownFolder(places.logs, 'executions')) for (const id of ids) remove(join(places.logs, 'executions', id));
   return deleted;
 }
 
+// A folder that resolves outside its parent (symlinked) is not ours to delete from; an absent one has nothing to delete.
+function ownFolder(parent: string, name: string) {
+  try {
+    return realpathSync(join(parent, name)).startsWith(realpathSync(parent) + sep);
+  } catch {
+    return false;
+  }
+}
+
 /** Purges now and every 24 hours on the injected clock; a failed purge is logged and tried again next day. */
-export function startRetention(db: Db, logs: string, clock: Clock, sessionDirs?: SessionDirs): () => void {
+export function startRetention(db: Db, places: Pick<EnginePlaces, 'logs' | 'state'>, clock: Clock, sessionDirs?: SessionDirs): () => void {
   let cancel = () => {};
   let stopped = false;
   const run = async () => {
     try {
-      const deleted = purgeExpired(db, logs, clock.now(), sessionDirs);
+      const deleted = purgeExpired(db, places, clock.now(), sessionDirs);
       if (deleted.length > 0) log.info('purged expired logs and sessions', { count: deleted.length });
     } catch (error) {
       log.error('retention purge failed', error);

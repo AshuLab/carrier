@@ -61,12 +61,14 @@ export type ChatPlaces = {
   worktrees: string;
   /** The default projects folder (`projectsFolder` in `chat.json` changes it). */
   projects: string;
-  /** The app's copies of attached files: `<id>/<name>`. */
-  attachments: string;
+  /** The app's copies of dropped files not sent yet: `<id>/<name>`, swept after a day. */
+  pending: string;
+  /** What belongs to one session and goes with it: `<session>/attachments/<id>/<name>`. */
+  sessions: string;
 };
 
 export function chatPlacesOf(folder = carrierHome()): ChatPlaces {
   const dir = join(folder, 'chat');
   const state = join(dir, 'state');
-  return { dir, state, socket: join(state, 'chat.sock'), logs: join(dir, 'logs'), worktrees: join(dir, 'worktrees'), projects: join(dir, 'projects'), attachments: join(dir, 'attachments') };
+  return { dir, state, socket: join(state, 'chat.sock'), logs: join(dir, 'logs'), worktrees: join(dir, 'worktrees'), projects: join(dir, 'projects'), pending: join(dir, 'pending'), sessions: join(dir, 'sessions') };
 }

@@ -35,17 +35,21 @@ The top of the folder holds only the files you edit; each process has its own fo
   chat.json        the chat's settings (see Chat configuration), optional
   providers.json   the accounts both read (see AI providers)
   engine/          the engine's own folder
-  chat/            the chat host's own folder: state/, logs/, worktrees/, projects/, attachments/
+  chat/            the chat host's own folder: state/, logs/, worktrees/, projects/, pending/, sessions/
   app/             the macOS app's own folder: state/, logs/, cache/
 ```
 
-The app's `state/` has its terminals and dictation history, `logs/` its `dictation.log`, and `cache/` the speech models it downloads and the shell setup of its terminals; `cache/` can be deleted, and comes back.
+A file dropped in a message is copied to the chat's `pending/<id>/`; when the message is sent the host moves it to `sessions/<session>/attachments/<id>/`, and deleting the session deletes it. A copy never sent is swept from `pending/` after a day.
+
+The app's `state/` has its terminals and dictation history, `logs/` its `dictation.log`, and `cache/` the speech models it downloads and the shell setup of its terminals; `cache/` is kept out of Time Machine and can be deleted, and comes back.
+
+`orchestrator.log` and `chat-host.log` rotate at 10 MB: the full one becomes `.1`, the one before `.2`, and so on, keeping 10 files in all.
 
 What each part of `engine/` holds:
 
 | Folder | Holds |
 |--------|-------|
-| `state/` | `carrier.db` (SQLite, the authority), `control.sock` (the control socket the CLI and the app use), `carrier.lock` (one engine per folder), the results of each execution, and `forge-cwd/<owner>/<name>` (the stub folder Forge runs in before a repo's first clone). |
+| `state/` | `carrier.db` (SQLite, the authority), `control.sock` (the control socket the CLI and the app use), `carrier.lock` (one engine per folder), the results of each execution (deleted with its logs), and `forge-cwd/<owner>/<name>` (the stub folder Forge runs in before a repo's first clone). |
 | `logs/` | `orchestrator.log`, `executions/<id>/` (each agent run's full output), and `start.log` (what a detached Carrier prints; the macOS app's start writes `app-start.log`). |
 | `repos/` | Carrier's clones, `<owner>/<repo>`. |
 | `reviews/` | The reviewer's separate checkouts. |

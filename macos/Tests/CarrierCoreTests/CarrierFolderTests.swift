@@ -26,11 +26,20 @@ import Testing
     let places = CarrierPlaces(folder: "/h")
     #expect([places.engineConfig, places.chatConfig, places.providers] == ["/h/engine.json", "/h/chat.json", "/h/providers.json"])
     #expect([places.engineLogs, places.engineStartLog, places.controlSocket] == ["/h/engine/logs", "/h/engine/logs/app-start.log", "/h/engine/state/control.sock"])
-    #expect([places.chatSocket, places.chatStartLog, places.chatWorktrees, places.chatProjects, places.chatAttachments] == [
-        "/h/chat/state/chat.sock", "/h/chat/logs/app-start.log", "/h/chat/worktrees", "/h/chat/projects", "/h/chat/attachments",
+    #expect([places.chatSocket, places.chatStartLog, places.chatWorktrees, places.chatProjects, places.chatPending] == [
+        "/h/chat/state/chat.sock", "/h/chat/logs/app-start.log", "/h/chat/worktrees", "/h/chat/projects", "/h/chat/pending",
     ])
     #expect([places.terminals, places.dictations, places.dictationStatistics, places.dictationAudio] == [
         "/h/app/state/terminals.json", "/h/app/state/dictations.jsonl", "/h/app/state/dictation-statistics.json", "/h/app/state/audio",
     ])
     #expect([places.dictationLog, places.speechModels, places.zshShim] == ["/h/app/logs/dictation.log", "/h/app/cache/models", "/h/app/cache/zsh-bottom-prompt"])
+}
+
+@Test func theAppCacheIsMadeAndKeptOutOfBackups() throws {
+    let folder = NSTemporaryDirectory() + "carrier-cache-" + UUID().uuidString
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let places = CarrierPlaces(folder: folder)
+    #expect(prepareAppCache(places))
+    let values = try URL(fileURLWithPath: places.appCache).resourceValues(forKeys: [.isExcludedFromBackupKey])
+    #expect(values.isExcludedFromBackup == true)
 }

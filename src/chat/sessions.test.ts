@@ -1258,6 +1258,22 @@ test('delete leaves nothing of the session in sessions, chat_events or chat_turn
   expect(() => s.sessions.events({ sessionId: a.id, limit: 5 })).toThrow('no such session');
 });
 
+test('a file attached to a message moves into the session, the agent gets its new path, and deleting the session takes it away', async () => {
+  const s = setup();
+  const { id, conversation } = await openOne(s);
+  conversation.reply = (_t, c) => c.emit({ kind: 'turn_end', outcome: 'ok' });
+  const pending = join(dir, 'home', 'chat', 'pending', 'A1');
+  mkdirSync(pending, { recursive: true });
+  writeFileSync(join(pending, 'shot.png'), 'png');
+  s.sessions.send({ sessionId: id, text: `see\n\nAttached files:\n- ${join(pending, 'shot.png')}` });
+  const moved = join(dir, 'home', 'chat', 'sessions', id, 'attachments', 'A1', 'shot.png');
+  expect(conversation.sent.at(-1)).toBe(`see\n\nAttached files:\n- ${moved}`);
+  expect(rows('chat_events').find((r) => r.kind === 'user')!.data).toContain(moved);
+  expect(existsSync(pending)).toBe(false);
+  await s.sessions.delete({ sessionId: id });
+  expect(existsSync(join(dir, 'home', 'chat', 'sessions', id))).toBe(false);
+});
+
 test('archive and delete refuse a working session and one waiting for an approval, with the reason, and change nothing', async () => {
   const s = setup();
   const a = await openOne(s);
@@ -1410,6 +1426,18 @@ test('openPlan answers at once with the session preparing, and the steps run to 
   // the user's message comes before the answer, and the message step is done before the answer
   expect((s.sessions.events({ sessionId: session.id, limit: 200 }).events as any[]).map((e) => e.kind)).toEqual(['step', 'step', 'step', 'user', 'step', 'assistant', 'turn_end']);
   expect(rows('chat_turns')).toHaveLength(1);
+});
+
+test('a file attached to the first message of a plan moves into the new session before the agent gets it', async () => {
+  const s = setup();
+  s.claude.setup = (conversation) => void (conversation.reply = () => {});
+  const pending = join(dir, 'home', 'chat', 'pending', 'B2');
+  mkdirSync(pending, { recursive: true });
+  writeFileSync(join(pending, 'notes.md'), 'md');
+  const { session } = await s.sessions.openPlan({ plan: planFor({ text: `build it\n\nAttached files:\n- ${join(pending, 'notes.md')}` }) });
+  const moved = join(dir, 'home', 'chat', 'sessions', session.id, 'attachments', 'B2', 'notes.md');
+  await vi.waitFor(() => expect(s.claude.conversations[0]?.sent).toEqual([`build it\n\nAttached files:\n- ${moved}`]));
+  expect(readFileSync(moved, 'utf8')).toBe('md');
 });
 
 test('a failure at the agent leaves the session idle and not live, preparation failed, the reason in words and the plan kept', async () => {

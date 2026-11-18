@@ -270,6 +270,17 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         }
     }
 
+    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped. A method of its own, not a
+    /// task in `run`: the toolchain of the macos-26 runner aborts ("freed pointer was not the last allocation") on that task's closure there.
+    private func watchTheModel(_ mine: Int) {
+        watchdog = Task {
+            guard (try? await sleep(Self.answerFloor)) != nil, Task.isCancelled == false, generation == mine, modelReady == false else { return }
+            samples = []
+            running?.cancel()
+            fail(DictationFailure("The speech model did not get ready in time."))
+        }
+    }
+
     private func run(_ recognizer: any Recognizer, _ model: SpeechModel, _ mine: Int) async {
         // a dictation ended before this task began never touches the capture
         guard generation == mine else { return }
@@ -302,13 +313,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             }
             continuation.onTermination = { _ in relay.cancel() }
         }
-        // a model that is not ready past the floor is a dictation that could not start, and what was heard is dropped
-        watchdog = Task {
-            guard (try? await sleep(Self.answerFloor)) != nil, Task.isCancelled == false, generation == mine, modelReady == false else { return }
-            samples = []
-            running?.cancel()
-            fail(DictationFailure("The speech model did not get ready in time."))
-        }
+        watchTheModel(mine)
         await beforePrepare()
         guard generation == mine else { return }
         do {

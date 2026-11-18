@@ -1,7 +1,7 @@
 import Foundation
 
 // The Sessions section of Settings that needs no view: the two ages of the session lifecycle (docs/specs/session-lifecycle.md), read from and
-// written to the chat's own `chat.json` (ADR 0016, ADR 0019). The host reads the file each pass, so a save is used with no restart.
+// written to the chat's own `chat.json` (ADR 0034, ADR 0019). The host reads the file each pass, so a save is used with no restart.
 
 /// An age of the session clock: a whole number of days, or `never` (that part of the clock is off).
 public enum SessionAge: Equatable {

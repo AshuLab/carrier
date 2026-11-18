@@ -4,7 +4,7 @@ import Foundation
 /// Runs `brew` for the Carrier upgrade with its output appended to one log in the engine's logs folder, next to `app-start.log`.
 /// Blocks until `brew` ends: call it off the main thread.
 enum BrewRunner {
-    static var logPath: String { engineFolder() + "/logs/app-upgrade.log" }
+    static var logPath: String { CarrierPlaces().engineUpgradeLog }
 
     /// A new job starts a new log.
     static func startLog() {

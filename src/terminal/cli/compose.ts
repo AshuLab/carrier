@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { configureUniversalLogger, createScopedLogger, type LogLevel } from '@ashulab/universal-logger';
-import { enginePlacesOf } from '../../config/engine-places.ts';
+import { enginePlacesOf } from '../../config/places.ts';
 import type { Config } from '../../config/schema.ts';
 import { resolveRepoConfig } from '../../config/resolve.ts';
 import type { AgentRunner } from '../../execution/agent-runner.ts';

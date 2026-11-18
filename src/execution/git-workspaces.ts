@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import type { EnginePlaces } from '../config/engine-places.ts';
+import type { EnginePlaces } from '../config/places.ts';
 import { repoNamePattern } from '../config/schema.ts';
 import type { GitHubProfile } from '../integrations/github.ts';
 import type { Workspaces } from './workspaces.ts';

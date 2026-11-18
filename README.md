@@ -37,7 +37,7 @@ More options (no Homebrew, upgrade, uninstall): [install](docs/install.md).
 ## First run
 
 ```bash
-carrier init      # guided setup: repos, agents, identities. Writes ~/.carrier/config.json
+carrier init      # guided setup: repos, agents, identities. Writes ~/.carrier/engine.json
 carrier doctor    # checks the config and the machine, and tells you how to fix what fails
 carrier           # starts Carrier and shows the live panel (Ctrl+C stops it)
 ```
@@ -60,7 +60,7 @@ It survives interruptions: state lives in SQLite, retries first check the real s
 | Command | What it does |
 |---------|--------------|
 | `carrier start` | Run in the background; `stop`, `pause`, `resume` and `check` control it from any terminal |
-| `carrier reload` | Make the running Carrier read `config.json` and `providers.json` again, with no restart |
+| `carrier reload` | Make the running Carrier read `engine.json` and `providers.json` again, with no restart |
 | `carrier status` / `carrier watch` | Show what the running Carrier is doing, once or live |
 | `carrier restart <owner/name>#<issue>` | Resume an epic that stopped in `needs-human` |
 | `carrier chat --workspace <folder>` | Talk to an agent in a session |

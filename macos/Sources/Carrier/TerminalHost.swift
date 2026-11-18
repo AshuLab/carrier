@@ -94,7 +94,8 @@ final class CarrierTerminalStore {
                     isDirectory: true
                 )
             }
-            return dir.lastPathComponent == "app" ? dir.deletingLastPathComponent() : dir
+            let app = dir.deletingLastPathComponent() // the store is <folder>/app/state/terminals.json
+            return dir.lastPathComponent == "state" && app.lastPathComponent == "app" ? app.deletingLastPathComponent() : dir
         }()
         self.zshShimDirectory = zshShimDirectory ?? TerminalZshBottomPromptShim.defaultDirectory(
             carrierFolder: derivedCarrierFolder

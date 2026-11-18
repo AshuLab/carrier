@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// The rows of the Providers page: the host's `providers` reply joined with who uses each account in config.json and chat.json.
+// The rows of the Providers page: the host's `providers` reply joined with who uses each account in engine.json and chat.json.
 
 private let golden = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/chat-providers.json")

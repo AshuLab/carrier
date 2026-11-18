@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// The Use a lead reviewer switch of the Agents page: what turning it off removes from a temporary config.json, that turning it on writes nothing
+// The Use a lead reviewer switch of the Agents page: what turning it off removes from a temporary engine.json, that turning it on writes nothing
 // until identity, provider and model are chosen, and what the page's model says about the dimmed page.
 
 private let accounts = ["claude", "codex", "agy"]

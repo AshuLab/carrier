@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The entry point: read the command line, hand it to the command, turn a CliError into an exit code. Nothing else lives here.
 import { resolve } from 'node:path';
-import { carrierHome } from '../../config/default-path.ts';
+import { carrierHome } from '../../config/places.ts';
 import { parseCli, usage } from './args.ts';
 import { CliError } from './cli-error.ts';
 import { configPathFor, loadConfigFile, noConfig } from './config-file.ts';
@@ -59,7 +59,7 @@ else if (cli.flags.help) {
         break;
       case 'chat':
       case 'chat-host':
-        // the chat runs from the Carrier folder alone (ADR 0016), not from an engine config
+        // the chat runs from the Carrier folder alone (ADR 0034), not from an engine config
         if (cli.flags.config !== undefined) throw new CliError(2, `carrier ${cli.command} takes no --config: it runs from the Carrier folder (CARRIER_HOME, else ~/.carrier)`);
         if (cli.command === 'chat') exit = await (await import('./commands/chat.ts')).chatCommand(cli.flags);
         else await (await import('./commands/chat-host.ts')).chatHostCommand(); // runs until stopped

@@ -47,11 +47,11 @@ struct TerminalZshBottomPromptShimTests {
         #expect(unsetZdotdir["ZDOTDIR"] == shimDir.path)
         #expect(unsetZdotdir[TerminalZshBottomPromptShim.userZdotdirEnvKey] == nil)
 
-        // Default shim folder lives under Carrier's app/ subfolder per ADR 0016.
+        // Default shim folder lives in the app's cache, per ADR 0034.
         let carrierRoot = URL(fileURLWithPath: "/tmp/carrier-home", isDirectory: true)
         #expect(
             TerminalZshBottomPromptShim.defaultDirectory(carrierFolder: carrierRoot).path
-                == "/tmp/carrier-home/app/terminal/zsh-bottom-prompt"
+                == "/tmp/carrier-home/app/cache/zsh-bottom-prompt"
         )
 
         // Avoid recursive self-wrapping when inherited ZDOTDIR already points at the shim directory.

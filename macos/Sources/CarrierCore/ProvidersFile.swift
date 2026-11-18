@@ -43,7 +43,7 @@ public struct ProvidersFile {
     private let save: (Data, URL) throws -> Void
 
     public init(folder: String, save: @escaping (Data, URL) throws -> Void = { try $0.write(to: $1, options: .atomic) }) {
-        url = URL(fileURLWithPath: folder + "/providers.json")
+        url = URL(fileURLWithPath: CarrierPlaces(folder: folder).providers)
         self.save = save
     }
 

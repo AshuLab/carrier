@@ -1,12 +1,12 @@
 # Configuration
 
-`carrier init` writes this file for you, by default to `~/.carrier/config.json` (global, one per user; `carrier` and `carrier doctor` read it when you do not pass `--config`; `CARRIER_HOME` changes the folder); this page is the reference for editing it by hand. `carrier doctor --config <file>` checks it and `carrier schema` prints its JSON Schema (add it to your editor for completion).
+`carrier init` writes this file for you, by default to `~/.carrier/engine.json` (global, one per user; `carrier` and `carrier doctor` read it when you do not pass `--config`; `CARRIER_HOME` changes the folder); this page is the reference for editing it by hand. `carrier doctor --config <file>` checks it and `carrier schema` prints its JSON Schema (add it to your editor for completion).
 
 The file is a JSON object merged over the defaults: objects merge field by field, simple values replace the default, lists replace it whole. A value of the wrong type is an error, never converted. An invalid config prints every error with its field and exits without starting anything.
 
 ## Changing the config while Carrier runs
 
-A running Carrier applies a changed `config.json` or `providers.json` when it is asked to reload, with no restart. The Mac app asks after each save, and `carrier reload` asks by hand, for an edit in the file (it prints `Reloaded`; it exits 1 with the problem when a file does not match, and also when Carrier is not running or is too old to reload). Nothing watches the files: an edit by hand that is never followed by `carrier reload` waits for the next start.
+A running Carrier applies a changed `engine.json` or `providers.json` when it is asked to reload, with no restart. The Mac app asks after each save, and `carrier reload` asks by hand, for an edit in the file (it prints `Reloaded`; it exits 1 with the problem when a file does not match, and also when Carrier is not running or is too old to reload). Nothing watches the files: an edit by hand that is never followed by `carrier reload` waits for the next start.
 
 The engine reads both files again, from the same config path and Carrier folder it started with, and checks them as a start does. A file that does not match is refused with the key named, the same lines a start would print, and Carrier goes on with the settings it had; fix the file and reload again.
 
@@ -25,14 +25,21 @@ Still read only at start: the Carrier folder, the `--config` path and the one-in
 
 ## The Carrier folder
 
-Carrier keeps everything it owns in one folder: `~/.carrier/`, or the one in `CARRIER_HOME`. The folder is only that: no key of the config and no `--config` changes it. `--config <file>` only chooses which config file to read (by default `<folder>/config.json`); to run a second Carrier, give it a second `CARRIER_HOME`.
+Carrier keeps everything it owns in one folder: `~/.carrier/`, or the one in `CARRIER_HOME`. The folder is only that: no key of the config and no `--config` changes it. `--config <file>` only chooses which config file to read (by default `<folder>/engine.json`); to run a second Carrier, give it a second `CARRIER_HOME`.
+
+The top of the folder holds only the files you edit; each process has its own folder next to them, and only that process writes in it ([ADR 0034](adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)).
 
 ```
 <folder>/
-  config.json   the engine's config, this page
-  engine/       the engine's own folder; only Carrier writes in it
-  chat/         the chat host's own folder (see Chat configuration)
+  engine.json      the engine's config, this page
+  chat.json        the chat's settings (see Chat configuration), optional
+  providers.json   the accounts both read (see AI providers)
+  engine/          the engine's own folder
+  chat/            the chat host's own folder: state/, logs/, worktrees/, projects/, attachments/
+  app/             the macOS app's own folder: state/, logs/, cache/
 ```
+
+The app's `state/` has its terminals and dictation history, `logs/` its `dictation.log`, and `cache/` the speech models it downloads and the shell setup of its terminals; `cache/` can be deleted: the shell setup is rewritten at the next start, and the speech models are downloaded again from Settings.
 
 What each part of `engine/` holds:
 
@@ -90,7 +97,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 
 An AI provider represents an account/login setup for an AI harness (e.g. Claude Code with a specific `configDir`, Antigravity, or Codex). A provider defines the account and installation independently of the model.
 
-The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `config.json` and wherever `--config` points: [ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md). It is optional (without it there is one account per harness, see below), it is read when the engine starts and again on a [reload](#changing-the-config-while-carrier-runs), and a file that does not match stops the start, or is refused by the reload, with the key named. A `config.json` that still has `providers` is refused and told to move it here.
+The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json` and wherever `--config` points: [ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md). It is optional (without it there is one account per harness, see below), it is read when the engine starts and again on a [reload](#changing-the-config-while-carrier-runs), and a file that does not match stops the start, or is refused by the reload, with the key named. An `engine.json` that still has `providers` is refused and told to move it here.
 
 ```json
 {
@@ -236,7 +243,7 @@ Profile names used in an override must exist in `profiles`, and provider names i
 
 ## Chat configuration
 
-The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrier`, or `CARRIER_HOME`) and read no engine config. The chat reads `providers.json` in the same folder for its accounts, and nothing else of the engine's. Everything the chat owns is in `<folder>/chat/` (`state/`, `logs/`, `projects/`, `worktrees/`), and its settings are in the optional `<folder>/chat/chat.json`. Every key is optional and so is the file; with neither, the chat uses the defaults below. Unknown keys are errors. A file that is not valid JSON or does not match makes `carrier chat-host` exit with a message that names the file and the key, and the host does not start.
+The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrier`, or `CARRIER_HOME`) and read no engine config. The chat reads `providers.json` in the same folder for its accounts, and nothing else of the engine's. Everything the chat owns is in `<folder>/chat/` (`state/`, `logs/`, `projects/`, `worktrees/`), and its settings are in the optional `<folder>/chat.json`. Every key is optional and so is the file; with neither, the chat uses the defaults below. Unknown keys are errors. A file that is not valid JSON or does not match makes `carrier chat-host` exit with a message that names the file and the key, and the host does not start.
 
 ```json
 {
@@ -313,7 +320,7 @@ A provider defines the **harness** (the CLI that runs the loop and the tools) an
 ```json
 // providers.json
 { "providers": { "local": { "harness": "codex", "provider": "lmstudio" } } }
-// config.json
+// engine.json
 "agents": {
   "reviewer": { "profile": "reviewer-bot", "provider": "local", "model": "google/gemma-4-12b" }
 }

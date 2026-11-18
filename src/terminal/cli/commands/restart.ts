@@ -1,4 +1,4 @@
-import { enginePlacesOf } from '../../../config/engine-places.ts';
+import { enginePlacesOf } from '../../../config/places.ts';
 import type { ControlSnapshot, EpicAdditions, PanelEpic } from '../../../status/types.ts';
 import { cancelled, makeClackUi } from '../../prompts/clack.ts';
 import { Cancelled, type Ui } from '../../prompts/types.ts';

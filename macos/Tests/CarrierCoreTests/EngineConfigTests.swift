@@ -137,7 +137,7 @@ private let profiled = Data(#"{"zeta":1,"profiles":{"bot":{}},"repos":[{"name":"
     #expect(object(applyingOrchestratorProfile("bot", to: file))["orchestratorProfile"] as? String == "bot")
 }
 
-/// Like every writer of `config.json`, the identity writes the keys sorted: their values stay, their order does not.
+/// Like every writer of `engine.json`, the identity writes the keys sorted: their values stay, their order does not.
 @Test func theIdentityWritesTheKeysSortedLikeEveryWriter() throws {
     let unsorted = Data(#"{"z":2,"orchestratorProfile":"x","a":1}"#.utf8)
     let text = String(decoding: try #require(applyingOrchestratorProfile("y", to: unsorted)), as: UTF8.self)
@@ -170,13 +170,13 @@ private let profiled = Data(#"{"zeta":1,"profiles":{"bot":{}},"repos":[{"name":"
     #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == Data("[]".utf8))
     let folder = NSTemporaryDirectory() + "carrier-identity-\(UUID().uuidString)"
     try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
-    try profiled.write(to: URL(fileURLWithPath: folder + "/config.json"))
+    try profiled.write(to: URL(fileURLWithPath: folder + "/engine.json"))
     try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: folder)
     defer {
         try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder)
         try? FileManager.default.removeItem(atPath: folder)
     }
-    guard case .failed = saveOrchestratorProfile("bot", path: folder + "/config.json", reload: engine.reload) else {
+    guard case .failed = saveOrchestratorProfile("bot", path: folder + "/engine.json", reload: engine.reload) else {
         Issue.record("expected the write to fail")
         return
     }

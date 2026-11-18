@@ -291,7 +291,7 @@ test('reload asks the engine to reload and answers ok', async () => {
 });
 
 test('reload refused is the problem in the reply, as the lines a start would print', async () => {
-  const problem = 'Invalid config /c/config.json:\n  limits.maxReviews: Too small';
+  const problem = 'Invalid config /c/engine.json:\n  limits.maxReviews: Too small';
   await open(undefined, { ...fakeControls().controls, reload: () => { throw new ReloadRefused(problem); } });
   expect(await (await client()).ask('{"id":4,"cmd":"reload"}')).toEqual({ id: 4, ok: false, error: problem });
 });

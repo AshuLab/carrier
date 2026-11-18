@@ -1,4 +1,4 @@
-import { chatSocketOf } from '../../../chat/config.ts';
+import { chatPlacesOf } from '../../../config/places.ts';
 import { CliError } from '../cli-error.ts';
 import { startDetached } from '../detached.ts';
 import { hostClient } from './chat.ts';
@@ -73,7 +73,7 @@ export async function usageCommand(
   const days = oneOf('days', flags.days, DAYS) ?? '30';
   const provider = oneOf('provider', flags.provider, PROVIDERS);
   const source = oneOf('source', flags.source, SOURCES);
-  const client = await hostClient(chatSocketOf(), start, USAGE_TIMEOUT_MS);
+  const client = await hostClient(chatPlacesOf().socket, start, USAGE_TIMEOUT_MS);
   // an older host would only answer "invalid request"
   if (client.hello.capabilities.includes('usage') === false) {
     client.close();

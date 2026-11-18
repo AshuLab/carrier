@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// What the Engine page shows and writes of `orchestratorProfile` (CarrierCore/EngineIdentity.swift): read from `config.json` each time the page
+/// What the Engine page shows and writes of `orchestratorProfile` (CarrierCore/EngineIdentity.swift): read from `engine.json` each time the page
 /// appears, the file changes or the app comes back to the front, written as the person chooses (and the engine asked to reload), then read back.
 @MainActor final class EngineIdentityStore: ObservableObject {
     @Published private(set) var identity: EngineIdentity?

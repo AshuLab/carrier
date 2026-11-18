@@ -53,7 +53,7 @@ private func identityRow(_ json: String) -> EngineRow {
     let missing = page(configured: false)[2].rows[0]
     #expect(missing.detail == "Available once the engine is configured" && missing.problem == nil)
     let unreadable = page(configured: true, identity: nil)[2].rows[0]
-    #expect(unreadable.problem == "config.json in the Carrier folder could not be read or is not a JSON object")
+    #expect(unreadable.problem == "engine.json in the Carrier folder could not be read or is not a JSON object")
 }
 
 private func files(exists: @escaping (String) -> Bool, folder: String = "/h/.carrier") -> [EngineRow] {

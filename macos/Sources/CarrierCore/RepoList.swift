@@ -1,6 +1,6 @@
 import Foundation
 
-// The Repos tab as plain values: the `repos` of `config.json` the app lets the person change (which repos are watched), their
+// The Repos tab as plain values: the `repos` of `engine.json` the app lets the person change (which repos are watched), their
 // rows and the text of the confirmation to stop watching one. Nothing here reads or shows a repo's own settings: a repo's other
 // fields in the file are kept exactly as they are.
 

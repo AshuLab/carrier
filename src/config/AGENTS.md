@@ -1,13 +1,14 @@
 # src/config
 
-The Carrier folder (`~/.carrier`, or `CARRIER_HOME`, [ADR 0016](../../docs/adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)) holds the engine's config at `<folder>/config.json` and the accounts at `<folder>/providers.json` ([ADR 0020](../../docs/adr/0020-accounts-live-in-a-file-both-processes-read.md)).
-`providers.ts` is the accounts' schema and reader, and `config.json` refuses a `providers` key.
+The Carrier folder (`~/.carrier`, or `CARRIER_HOME`, [ADR 0034](../../docs/adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)) holds the engine's config at `<folder>/engine.json` and the accounts at `<folder>/providers.json` ([ADR 0020](../../docs/adr/0020-accounts-live-in-a-file-both-processes-read.md)).
+`providers.ts` is the accounts' schema and reader, and `engine.json` refuses a `providers` key.
 The engine's files are in `<folder>/engine/`: `state/` (`carrier.db`, `control.sock`, `carrier.lock`), `logs/`, `repos/`, `reviews/` and `worktrees/`.
-`engine-places.ts` computes them from the folder, and nothing else decides them; `--config` only chooses the config file.
+`places.ts` computes every path in the folder (the three files at the top, the engine's and the chat's places), and nothing else decides them; `--config` only chooses the engine's config file.
+Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also has the app's places.
 
 ## Adding a config field
 
-`config.json`:
+`engine.json`:
 
 1. `src/config/schema.ts`: the field in `configSchema`.
 2. `src/config/load.ts`: its default in `defaults`.
@@ -31,4 +32,4 @@ The engine's files are in `<folder>/engine/`: `state/` (`carrier.db`, `control.s
 2. Swift: `macos/Sources/CarrierCore/SessionAges.swift`, only for the ages it edits.
 
 All three: `docs/configuration.md`, the Settings pages in `docs/macos/` if Settings shows it, and `CHANGELOG.md`.
-The app's writers keep keys they do not know, and send `reload` after saving `config.json` or `providers.json`.
+The app's writers keep keys they do not know, and send `reload` after saving `engine.json` or `providers.json`.

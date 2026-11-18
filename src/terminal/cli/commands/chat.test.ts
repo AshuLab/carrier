@@ -5,7 +5,7 @@ import { EventEmitter } from 'node:events';
 import { createServer } from 'node:net';
 import { PassThrough, Readable } from 'node:stream';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { chatSocketOf } from '../../../chat/config.ts';
+import { chatPlacesOf } from '../../../config/places.ts';
 import { FakeChatRunner, type FakeConversation } from '../../../chat/fake.ts';
 import { startChatHost } from '../../../chat/host.ts';
 import { FakeClock } from '../../../orchestration/fake.ts';
@@ -122,12 +122,12 @@ test('--workspace starts the host when none answers', async () => {
 
 test('--workspace without --agent picks the first agent chat.json lists, and says so when it lists none', async () => {
   mkdirSync(join(root, 'chat'), { recursive: true });
-  writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify({ agents: { mine: { account: 'claude' }, claude: { account: 'claude' } } }));
+  writeFileSync(join(root, 'chat.json'), JSON.stringify({ agents: { mine: { account: 'claude' }, claude: { account: 'claude' } } }));
   const { stop } = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude }, binaryFound: () => true });
   expect(await chatCommand({ workspace: root }, { input: typed('/quit') })).toBe(0);
   expect(written.join('')).toContain(" with mine in ");
   await stop();
-  writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify({ agents: {} }));
+  writeFileSync(join(root, 'chat.json'), JSON.stringify({ agents: {} }));
   await host();
   await expect(chatCommand({ workspace: root }, { input: typed('/quit') })).rejects.toMatchObject({ code: 1, lines: [expect.stringContaining('lists no agents')] });
 });
@@ -298,7 +298,7 @@ test('/options prints each option with its current value and what it offers, /op
 
 test('/agent switches the session to the agent named, says so, and the next line goes to the new agent; a refusal of the host is shown in words and the agent stays', async () => {
   mkdirSync(join(root, 'chat'), { recursive: true });
-  writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify({ agents: { mine: { account: 'claude' }, other: { account: 'claude' } } }));
+  writeFileSync(join(root, 'chat.json'), JSON.stringify({ agents: { mine: { account: 'claude' }, other: { account: 'claude' } } }));
   const { stop } = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude }, binaryFound: () => true });
   stops.push(stop);
   claude.conversations.length = 0;
@@ -329,8 +329,8 @@ test('/agent against a host that does not announce switchAgent says it is too ol
       }
     });
   });
-  mkdirSync(dirname(chatSocketOf()), { recursive: true });
-  await new Promise<void>((resolve) => server.listen(chatSocketOf(), resolve));
+  mkdirSync(dirname(chatPlacesOf().socket), { recursive: true });
+  await new Promise<void>((resolve) => server.listen(chatPlacesOf().socket, resolve));
   stops.push(() => new Promise((resolve) => server.close(() => resolve())));
   expect(await chatCommand({ workspace: root, agent: 'claude' }, { input: typed('/agent other', '/quit'), pollMs: 5 })).toBe(0);
   expect(written.join('')).toContain('older than this command');

@@ -4,7 +4,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import type { ChatCapability } from '../chat/server.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
-import { controlSocketIn } from '../config/engine-places.ts';
+import { controlSocketIn } from '../config/places.ts';
 import { optionNamePattern } from '../config/providers.ts';
 import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';

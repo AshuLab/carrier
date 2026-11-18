@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { enginePlacesOf } from '../../config/engine-places.ts';
+import { enginePlacesOf } from '../../config/places.ts';
 import type { Config } from '../../config/schema.ts';
 import { repoNamePattern } from '../../config/schema.ts';
 import { defaults } from '../../config/load.ts';

@@ -13,8 +13,8 @@ let root: string;
 let stops: (() => Promise<void>)[];
 let git: FakeGit;
 let token: () => Promise<string>;
-const chatJson = () => join(root, 'chat', 'chat.json');
-const writeConfig = (chat: object = {}) => (mkdirSync(join(root, 'chat'), { recursive: true }), writeFileSync(chatJson(), JSON.stringify(chat)));
+const chatJson = () => join(root, 'chat.json');
+const writeConfig = (chat: object = {}) => writeFileSync(chatJson(), JSON.stringify(chat));
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'pr-')); // short: a socket path holds 103 bytes on macOS
   vi.stubEnv('CARRIER_HOME', root);

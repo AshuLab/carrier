@@ -12,7 +12,7 @@ import { eq } from 'drizzle-orm';
 import { epics } from '../storage/schema.ts';
 import { epicOf } from './epic.ts';
 import { startControlServer } from './server.ts';
-import { enginePlacesOf } from '../config/engine-places.ts';
+import { enginePlacesOf } from '../config/places.ts';
 
 // The slices a poll cached, served by the epic request over a real socket from a real (temp) SQLite, with the engine and a fake GitHub.
 const MIN = 60_000;

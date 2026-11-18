@@ -1,4 +1,4 @@
-import { enginePlacesOf } from '../../../config/engine-places.ts';
+import { enginePlacesOf } from '../../../config/places.ts';
 import type { PanelSnapshot } from '../../../status/types.ts';
 import type { SessionsReply } from '../../../control/replies.ts';
 import { renderDashboard } from '../../dashboard/dashboard.ts';

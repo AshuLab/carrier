@@ -4,7 +4,7 @@ import Foundation
 // draws this; the later groups of the page add themselves here.
 
 /// The row a view has to draw for. The Starting rows are switches over an app preference; the Programs rows are `carrier`, `node`, the `PATH`
-/// and the button that looks for the tools again; `orchestratorProfile` is a choice written to `config.json`, the Files rows a button over a path.
+/// and the button that looks for the tools again; `orchestratorProfile` is a choice written to `engine.json`, the Files rows a button over a path.
 public enum EngineRowID: Equatable {
     case startOnOpen, confirmStop
     case carrier, node, path, lookAgain
@@ -98,15 +98,15 @@ public func engineGroups(
         ]),
         EngineGroup(title: "Files", rows: [
             file(.carrierFolder, "Carrier folder", "Where Carrier keeps its config, clones and logs", folder, .reveal),
-            file(.logs, "Logs", "What Carrier wrote while it ran", engineLogsFolder(environment: places, home: home), .reveal),
-            file(.startLog, "Start log", "What the app saw the last time it started Carrier", engineStartLogPath(environment: places, home: home), .open),
+            file(.logs, "Logs", "What Carrier wrote while it ran", CarrierPlaces(environment: places, home: home).engineLogs, .reveal),
+            file(.startLog, "Start log", "What the app saw the last time it started Carrier", CarrierPlaces(environment: places, home: home).engineStartLog, .open),
         ]),
     ]
 }
 
 /// A file that is there but is not a JSON object says so; one that names an undeclared profile says it is kept.
 private func identityProblem(configured: Bool, identity: EngineIdentity?) -> String? {
-    guard let identity else { return configured ? "config.json in the Carrier folder could not be read or is not a JSON object" : nil }
+    guard let identity else { return configured ? "engine.json in the Carrier folder could not be read or is not a JSON object" : nil }
     return identity.undeclared.map { "“\($0)” is not in profiles; it is kept until you pick another" }
 }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-// Every save of `config.json` or `providers.json` ends by asking the running engine to apply it (docs/specs/settings-apply-without-restart.md).
+// Every save of `engine.json` or `providers.json` ends by asking the running engine to apply it (docs/specs/settings-apply-without-restart.md).
 
 /// What came of asking the engine to read its settings again.
 public enum ReloadOutcome: Equatable, Sendable {

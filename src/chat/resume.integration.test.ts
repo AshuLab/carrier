@@ -32,7 +32,7 @@ describe.skipIf(!enabled)('a chat session resumed by a second host, with the rea
     mkdirSync(join(root, 'chat'), { recursive: true });
     const chat = { agents: { claude: { account: 'claude', model: 'haiku' } } };
     const providers = { providers: { claude: { harness: 'claude', ...(process.env.CARRIER_IT_CLAUDE_COMMAND && { command: process.env.CARRIER_IT_CLAUDE_COMMAND }) } } };
-    writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify(chat));
+    writeFileSync(join(root, 'chat.json'), JSON.stringify(chat));
     writeFileSync(join(root, 'providers.json'), JSON.stringify(providers));
     const run = async (body: (client: Awaited<ReturnType<typeof connectControl>>) => Promise<void>) => {
       const exit = vi.fn();

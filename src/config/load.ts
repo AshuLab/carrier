@@ -34,7 +34,7 @@ const movedKeys = ['option'];
 /** The config from the user's file merged over `base`, with the accounts `providers.json` declares (read by `loadProviders`; none without the file) where `config.providers` is. */
 export function loadConfig(base: unknown, user: unknown, providers: Providers = {}): LoadResult {
   if (isObject(user) && 'providers' in user) {
-    return { ok: false, errors: [{ path: 'providers', message: `accounts moved out of config.json into providers.json in the Carrier folder (see docs/configuration.md)` }] };
+    return { ok: false, errors: [{ path: 'providers', message: `accounts live in providers.json in the Carrier folder, not in engine.json (see docs/configuration.md)` }] };
   }
   if (isObject(user) && 'identities' in user) {
     return { ok: false, errors: [{ path: 'identities', message: `"identities" is gone: an epic is shared when its author and reviewer resolve to the same account, so there is nothing to set (see docs/configuration.md)` }] };

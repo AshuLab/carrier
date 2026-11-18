@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute } from 'node:path';
 import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
-import { carrierHome, expandHome } from '../config/default-path.ts';
+import { carrierHome, chatConfigPathOf, chatPlacesOf, expandHome } from '../config/places.ts';
 
 const movedToAccount = (key: string) => z.never({ error: `${key} is declared by the account in providers.json now; name it with "account"` }).optional();
 
@@ -21,7 +21,7 @@ export type ChatAgent = Omit<z.infer<typeof chatAgent>, 'harness' | 'command'> &
 /** Days of no activity before the session lifecycle acts (ADR 0019): a whole number, or `"never"` to turn that step off. */
 const days = z.union([z.int().positive(), z.literal('never')]);
 
-// The chat's own configuration level (ADR 0016): `<folder>/chat/chat.json`, every key optional, strict like the engine's config.
+// The chat's own configuration level (ADR 0034): `<folder>/chat.json`, every key optional, strict like the engine's config.
 const chatConfigSchema = z.strictObject({
   agents: z.record(z.string().regex(chatAgentName, 'a chat agent name is lowercase letters, digits and hyphens, starting with a letter'), chatAgent).optional(),
   projectsFolder: z.string().min(1).transform(expandHome).refine(isAbsolute, 'must be an absolute path, or start with ~/').optional(),
@@ -43,18 +43,11 @@ export type ChatSettings = { agents: ChatAgent[] | undefined; projectsFolder: st
 export type ChatConfigError = { path: string; message: string };
 export type ChatConfigResult = { ok: true; settings: ChatSettings } | { ok: false; errors: ChatConfigError[] };
 
-/** Where the chat keeps what it owns, inside the Carrier folder. */
-export const chatDirOf = (folder = carrierHome()) => join(folder, 'chat');
-export const chatStateOf = (folder = carrierHome()) => join(chatDirOf(folder), 'state');
-export const chatLogsOf = (folder = carrierHome()) => join(chatDirOf(folder), 'logs');
-export const chatSocketOf = (folder = carrierHome()) => join(chatStateOf(folder), 'chat.sock');
-export const chatConfigPathOf = (folder = carrierHome()) => join(chatDirOf(folder), 'chat.json');
-
 /** The chat's settings from the parsed contents of `chat.json` (`{}` when there is no file), with the defaults for what it leaves out. */
 export function loadChatConfig(user: unknown, folder = carrierHome()): ChatConfigResult {
   const parsed = chatConfigSchema.safeParse(user);
   if (parsed.success === false) return { ok: false, errors: parsed.error.issues.map((issue) => ({ path: issue.path.join('.') || '(root)', message: issue.message })) };
-  const { agents, projectsFolder = join(chatDirOf(folder), 'projects'), githubCallTimeoutSeconds = 30, logLevel = LogLevel.INFO, archiveAfterDays, deleteAfterDays } = parsed.data;
+  const { agents, projectsFolder = chatPlacesOf(folder).projects, githubCallTimeoutSeconds = 30, logLevel = LogLevel.INFO, archiveAfterDays, deleteAfterDays } = parsed.data;
   return { ok: true, settings: { agents: agents && Object.entries(agents).map(([name, agent]) => ({ name, ...agent })), projectsFolder, githubCallTimeoutSeconds, logLevel, archiveAfterDays, deleteAfterDays } };
 }
 

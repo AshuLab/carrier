@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { EnginePlaces } from '../config/engine-places.ts';
+import type { EnginePlaces } from '../config/places.ts';
 import { repoNamePattern } from '../config/schema.ts';
 
 /**

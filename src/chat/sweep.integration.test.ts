@@ -44,7 +44,7 @@ describe.skipIf(!enabled)('the sweep of a dead chat host, with the real Claude',
     const providers = { providers: { claude: { harness: 'claude', ...(process.env.CARRIER_IT_CLAUDE_COMMAND && { command: process.env.CARRIER_IT_CLAUDE_COMMAND }) } } };
     vi.stubEnv('CARRIER_HOME', root);
     mkdirSync(join(root, 'chat'), { recursive: true });
-    writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify(chat));
+    writeFileSync(join(root, 'chat.json'), JSON.stringify(chat));
     writeFileSync(join(root, 'providers.json'), JSON.stringify(providers));
     const main = join(import.meta.dirname, '../terminal/cli/main.ts');
     const child = spawn(process.execPath, [main, 'chat-host'], { stdio: 'ignore', env: { ...process.env, CARRIER_HOME: root } });

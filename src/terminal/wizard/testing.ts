@@ -2,8 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll } from 'vitest';
-import { carrierHome } from '../../config/default-path.ts';
-import { providersPathOf } from '../../config/providers.ts';
+import { carrierHome, providersPathOf } from '../../config/places.ts';
 import type { Machine } from '../../doctor/detect.ts';
 import type { Check } from '../../doctor/doctor.ts';
 import type { Ui } from '../prompts/types.ts';
@@ -36,7 +35,7 @@ export function roleOf(written: Record<string, string>, out: string, role: 'auth
   };
 }
 
-/** `readConfig` over a config that still has its accounts in it: they are served as `providers.json`, the rest as `config.json`. */
+/** `readConfig` over a config that still has its accounts in it: they are served as `providers.json`, the rest as `engine.json`. */
 export const asFiles = ({ providers, ...config }: Record<string, unknown>) => (path: string) => (path.endsWith('providers.json') ? { providers } : config);
 
 /** An answer by question; a list answers the same question again and again, in order, and what is left unanswered takes the default. */

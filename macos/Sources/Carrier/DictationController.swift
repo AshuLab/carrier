@@ -337,8 +337,8 @@ import SwiftUI
     }
 }
 
-/// Where the speech models live: `<Carrier folder>/app/models`.
-func dictationModelsRoot() -> URL { URL(fileURLWithPath: currentCarrierFolder() + "/app/models") }
+/// Where the speech models live: `<Carrier folder>/app/cache/models`.
+func dictationModelsRoot() -> URL { URL(fileURLWithPath: CarrierPlaces().speechModels) }
 
 /// The downloader of a real build: each recognizer's own.
 private struct RealDownloads: ModelDownloader {

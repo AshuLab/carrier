@@ -7,7 +7,7 @@ import { tilde } from './summary.ts';
 /** What an existing config already says, to start from when editing it. */
 export type Prior = { repos: string[]; providers: Record<string, AIProvider>; failover?: Failover; author: Role; reviewer: Role; leadReviewer?: Role };
 
-/** `raw` is the parsed `config.json`, `rawProviders` the parsed `providers.json` (`{}` when there is none). */
+/** `raw` is the parsed `engine.json`, `rawProviders` the parsed `providers.json` (`{}` when there is none). */
 export function priorFrom(raw: unknown, rawProviders: unknown): Prior | undefined {
   const accounts = loadProviders(rawProviders);
   if (!accounts.ok) return undefined;

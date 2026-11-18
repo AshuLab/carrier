@@ -77,7 +77,8 @@ public func attachedFile(at url: URL, carrierFolder: String, fileManager: FileMa
     guard fileManager.fileExists(atPath: path, isDirectory: &isFolder) else {
         return AttachedFile(path: path, kind: attachmentKind(ofExtension: url.pathExtension), problem: .missing)
     }
-    let own = [carrierFolder + "/engine/", carrierFolder + "/chat/state/"].contains { path.hasPrefix($0) }
+    let places = CarrierPlaces(folder: carrierFolder)
+    let own = [places.engine + "/", places.chatState + "/"].contains { path.hasPrefix($0) }
     if isFolder.boolValue {
         let items = (try? fileManager.contentsOfDirectory(atPath: path).filter { $0.hasPrefix(".") == false }.count) ?? 0
         return AttachedFile(path: path, kind: .folder, items: items, problem: own ? .carrierOwn : nil)
@@ -111,7 +112,7 @@ public func discardAttachment(_ file: AttachedFile, carrierFolder: String, fileM
     try? fileManager.removeItem(at: folder)
 }
 
-private func attachmentsFolder(_ carrierFolder: String) -> String { URL(fileURLWithPath: carrierFolder).standardizedFileURL.path + "/chat/attachments" }
+private func attachmentsFolder(_ carrierFolder: String) -> String { CarrierPlaces(folder: URL(fileURLWithPath: carrierFolder).standardizedFileURL.path).chatAttachments }
 
 private let attachmentsHeading = "Attached files:"
 

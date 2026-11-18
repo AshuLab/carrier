@@ -1,6 +1,6 @@
 import Foundation
 
-// Changing a global role from the Agents page (docs/specs/agents-in-settings.md): writes one key of `agents.<role>` of `config.json`, plus the
+// Changing a global role from the Agents page (docs/specs/agents-in-settings.md): writes one key of `agents.<role>` of `engine.json`, plus the
 // profile a chosen identity needs, and nothing else. The file is read again inside the save, so a change another writer made since the page read it
 // is not lost, and every key the app does not know stays. The checks and `RoleSave` are the ones of a repo's role (RepoRoleSave.swift).
 
@@ -42,7 +42,7 @@ public func saveGlobalRole(_ changes: [RoleChange], role: AgentRole, path: Strin
     } else if creating {
         entry = [:]
     } else {
-        return .refused("\(role.title) has no entry in config.json. Add it there first.")
+        return .refused("\(role.title) has no entry in engine.json. Add it there first.")
     }
     var profiles = file["profiles"] as? [String: Any] ?? [:]
 

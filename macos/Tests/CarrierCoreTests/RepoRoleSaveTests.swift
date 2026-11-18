@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// Changing and resetting a repo's role: what is written to a temporary config.json, and what is refused before writing.
+// Changing and resetting a repo's role: what is written to a temporary engine.json, and what is refused before writing.
 
 private let accounts = ["claude", "codex", "agy"]
 private let base = #"""

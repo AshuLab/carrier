@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { chatPlacesOf } from '../config/places.ts';
 import { claimAttachments, sessionFolder, sweepPending } from './attachments.ts';
@@ -37,6 +37,15 @@ test('a message without a whole block of paths is left as it is', () => {
   const path = dropped('A1', 'a.txt');
   for (const text of ['hello', `hello\n\nAttached files:\n- ${path}\nnot a path`]) expect(claimAttachments(text, 's1', folder)).toBe(text);
   expect(existsSync(path)).toBe(true);
+});
+
+test('a copy is claimed whatever form of the Carrier folder its path was written with', () => {
+  dropped('A1', 'a.txt');
+  const alias = join(mkdtempSync(join(tmpdir(), 'carrier-alias-')), 'home');
+  symlinkSync(folder, alias);
+  const text = `Attached files:\n- ${join(alias, 'chat', 'pending', 'A1', 'a.txt')}`;
+  expect(claimAttachments(text, 's1', folder)).toBe(`Attached files:\n- ${inSession('s1', 'A1', 'a.txt')}`);
+  rmSync(dirname(alias), { recursive: true });
 });
 
 test('a symlink in pending that leads out of it is not moved', () => {

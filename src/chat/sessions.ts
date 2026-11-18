@@ -5,7 +5,7 @@ import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql 
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/places.ts';
 import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
-import { claimAttachments, sessionFolder } from './attachments.ts';
+import { claimAttachments, releaseAttachments, sessionFolder } from './attachments.ts';
 import type { ChatAgent, ChatSettings } from './config.ts';
 import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
@@ -432,7 +432,13 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         tx.delete(chatTurns).where(inArray(chatTurns.sessionId, family)).run();
         for (const id of family) tx.delete(sessions).where(eq(sessions.id, id)).run();
       });
-      for (const id of family) rmSync(sessionFolder(id), { recursive: true, force: true }); // its attached files
+      for (const id of family) {
+        try {
+          rmSync(sessionFolder(id), { recursive: true, force: true }); // its attached files
+        } catch (error) {
+          log.error('the folder of a deleted session could not be removed', error, { sessionId: id });
+        }
+      }
     } finally {
       deleting.delete(sessionId);
     }
@@ -1060,17 +1066,19 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const { state, plan } = row(sessionId);
       if (state !== 'preparing') throw new ChatRefused('This session is not being prepared, so there is nothing to cancel');
       deleting.add(sessionId); // a retry or a resume that comes in meanwhile is refused
+      let released = plan;
       try {
         const running = preparing.get(sessionId);
         running?.abort.abort();
         await running?.done;
         await close({ sessionId }); // the agent that waits to answer the first message
         db.update(sessions).set({ state: 'idle' }).where(eq(sessions.id, sessionId)).run();
+        if (plan !== null) released = { ...plan, text: releaseAttachments(plan.text, sessionId) }; // the draft keeps its files
         await deleteSession({ sessionId });
       } finally {
         deleting.delete(sessionId);
       }
-      return { plan };
+      return { plan: released };
     },
 
     agentOptions: offerOf,

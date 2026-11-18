@@ -1440,6 +1440,22 @@ test('a file attached to the first message of a plan moves into the new session 
   expect(readFileSync(moved, 'utf8')).toBe('md');
 });
 
+test('cancelling a preparation puts its attached files back in pending, where the plan it answers points', async () => {
+  const s = repoSetup();
+  let release!: () => void;
+  s.git.worktreePending = new Promise<void>((resolve) => (release = resolve));
+  const pending = join(dir, 'home', 'chat', 'pending', 'C3');
+  mkdirSync(pending, { recursive: true });
+  writeFileSync(join(pending, 'a.txt'), 'a');
+  const plan = planFor({ branch: 'main', worktree: { name: 'my-fix' }, text: `fix it\n\nAttached files:\n- ${join(pending, 'a.txt')}` });
+  const { session } = await s.sessions.openPlan({ plan });
+  await vi.waitFor(() => expect(s.git.calls.some((call) => call.args[0] === 'worktree' && call.args[1] === 'add')).toBe(true));
+  expect(await s.sessions.cancelPreparation({ sessionId: session.id })).toEqual({ plan });
+  release();
+  expect(readFileSync(join(pending, 'a.txt'), 'utf8')).toBe('a');
+  expect(existsSync(join(dir, 'home', 'chat', 'sessions', session.id))).toBe(false);
+});
+
 test('a failure at the agent leaves the session idle and not live, preparation failed, the reason in words and the plan kept', async () => {
   const s = setup();
   s.claude.refuseWith = 'claude is not logged in';

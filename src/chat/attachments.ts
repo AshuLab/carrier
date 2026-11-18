@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { chatPlacesOf } from '../config/places.ts';
@@ -36,7 +36,8 @@ export function claimAttachments(text: string, sessionId: string, folder?: strin
     const path = line.slice(2);
     const copy = dirname(path);
     const id = basename(copy);
-    if (dirname(copy) !== chatPlacesOf(folder).pending || !safeId.test(id)) return line;
+    // compared by real path: the app writes the Carrier folder as it was given, which may differ in form from the host's
+    if (realOrUndefined(dirname(copy)) !== pending || !safeId.test(id)) return line;
     const target = join(into, id);
     try {
       // only a real folder inside pending moves: a symlink out of it is not Carrier's copy
@@ -51,6 +52,33 @@ export function claimAttachments(text: string, sessionId: string, folder?: strin
     return existsSync(join(target, basename(path))) ? `- ${join(target, basename(path))}` : line;
   });
   return text.slice(0, start) + claimed.join('\n');
+}
+
+/**
+ * Undoes the claims of a session cancelled before its first message reached the agent: its copies go back to pending, with a new day
+ * before the sweep, and the text points at them there again, so the draft it is put back in keeps its files.
+ */
+export function releaseAttachments(text: string, sessionId: string, folder?: string): string {
+  const from = join(sessionFolder(sessionId, folder), 'attachments');
+  const pending = chatPlacesOf(folder).pending;
+  let ids: string[];
+  try {
+    ids = readdirSync(from);
+  } catch {
+    return text; // nothing was attached
+  }
+  let released = text;
+  for (const id of ids) {
+    try {
+      mkdirSync(pending, { recursive: true });
+      renameSync(join(from, id), join(pending, id));
+      utimesSync(join(pending, id), new Date(), new Date());
+      released = released.replaceAll(`${join(from, id)}/`, `${join(pending, id)}/`);
+    } catch (error) {
+      log.error('an attached file could not be put back in pending', error, { sessionId });
+    }
+  }
+  return released;
 }
 
 /** Removes from pending the copies dropped more than a day before `now` and never sent. */

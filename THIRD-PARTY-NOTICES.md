@@ -121,7 +121,7 @@ SOFTWARE.
 ## Speech models
 
 None of these is part of the app or is redistributed by Carrier: a person downloads each from Hugging Face, from the
-Dictation page of Settings, into `app/models` of the Carrier folder, and the page shows its licence with a link to its
+Dictation page of Settings, into `app/cache/models` of the Carrier folder, and the page shows its licence with a link to its
 card. Apple's own recognizer is managed by macOS and has no entry. Where a card and the app's list disagree, the list
 follows the licence of the model's author.
 

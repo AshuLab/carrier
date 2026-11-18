@@ -134,7 +134,7 @@ public enum TerminalWorkspaceLoadRejection: Equatable, Sendable {
     case unsupportedSchema(Int)
 }
 
-/// Outcome of reading `<Carrier folder>/app/terminals.json` at launch.
+/// Outcome of reading `<Carrier folder>/app/state/terminals.json` at launch.
 public enum TerminalWorkspaceLoadResult: Equatable, Sendable {
     case missing
     case loaded(PersistedTerminalWorkspace)

@@ -1,6 +1,6 @@
 # 0016 - Carrier keeps everything in one folder, with a subfolder per process and three levels of configuration
 
-- Status: superseded by [0034](0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)
+- Status: accepted; the folder's layout is superseded by [0034](0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)
 - Date: 2026-10-29
 
 ## Context

@@ -2,7 +2,7 @@ import CarrierCore
 import Foundation
 
 /// The only code that starts the user's shell. `zsh -ilc` runs the whole .zshrc and takes about a second, so it is run
-/// for a detection (first launch, or Detect on the Engine page), never at any other time, and is killed after `limit` seconds.
+/// for a detection (first launch, Detect on the Engine page, or the retry of a start that ended with `spawn <tool> ENOENT`), never at any other time, and is killed after `limit` seconds.
 enum ShellDetector {
     static let limit: TimeInterval = 10
 

@@ -69,6 +69,27 @@ public func startFailureText(_ failure: StartFailure, name: String = "Carrier") 
     }
 }
 
+/// The tool a start log says could not be run: the `agent-forge` of `spawn agent-forge ENOENT`, which Node prints when the PATH it was
+/// given has no such program. nil when the log has no such line. The name is the program as written, never a path.
+public func missingTool(in log: String) -> String? {
+    guard let found = log.range(of: #"spawn ([\w.@+-]+) ENOENT"#, options: .regularExpression) else { return nil }
+    return String(log[found].dropFirst("spawn ".count).dropLast(" ENOENT".count))
+}
+
+/// The settings to try a start again with, after a start failed for a tool that was not found: what the shell says now. A value it did
+/// not find stays as it was, so an answer that is partial (a `.zshrc` that loads `node` lazily) never removes one that worked.
+public func redetected(_ settings: SetupSettings, with detection: Detection) -> SetupSettings {
+    SetupSettings(node: detection.node ?? settings.node, path: detection.path ?? settings.path)
+}
+
+/// What the alert adds when a start failed for a tool and the shell was asked for its PATH again: that it has no such tool either, or that
+/// it did not answer (`shellAnswered` false), so the person knows whether the PATH was read.
+public func toolNotFoundText(_ tool: String, shellAnswered: Bool = true) -> String {
+    shellAnswered
+        ? "\(tool) is not on the PATH of your shell either, which was read again just now. Install it, or add its folder to the PATH of your shell, and start again."
+        : "\(tool) was not found, and the shell gave no answer when asked for its PATH again. Press Detect in Settings to try once more."
+}
+
 /// The last `lines` lines of the start log, for the alert.
 public func logTail(_ log: Data, lines: Int = 30) -> String {
     let text = String(decoding: log, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)

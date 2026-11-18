@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Carrier no longer fails to start from the app for a folder you added to your shell's PATH after the app first read it (pnpm's, where `agent-forge` lives): when a start ends with `spawn agent-forge ENOENT`, the app reads the PATH from your shell again and starts once more, and if the tool is still not there the alert says so.
 - A session whose `origin` is an SSH alias of GitHub (`git@github.com-work:owner/repo.git`) shows its pull request and its changed lines again, and the worktrees you make from it go under its `owner/repo`, like any GitHub repository.
 - In a new session, the Reasoning slider lists the levels of the model you chose and not those of the agent's default one, and the reasoning set in Settings is kept when that model takes it (a draft on GPT-6.1 Terra showed only Low and dropped High).
 

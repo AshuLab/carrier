@@ -49,6 +49,14 @@ The SVGs and the upstream licence text are in `Sources/CarrierCore/Resources/Fil
 
 ## Settings
 
+### The window and its search
+
+What the person sees: [settings](../docs/macos/settings.md).
+
+The window is `Carrier/SettingsWindow.swift`: `SettingsWindowController` (one `NSWindow`, kept; `WindowController.showSettings` opens it), `SettingsRoot` (the split view and the toolbar), `SettingsSidebar` and `SettingsPages` (the page and its notices); the pages are the `*Tab*.swift` views, and the shared pieces (`SettingsPageBody`, `SettingsGroup`, `SettingsTabRow`) are in `SettingsTabs.swift`, which draw a native `Form` where `SettingsPage.usesForm` says so.
+The pure parts are tested: the pages and their groups (`SettingsPageTests`), the back and forward walk (`SettingsHistory`, `SettingsHistoryTests`) and the search (`settingsIndex`, `settingsResults`, `settingsAnchor`, `SettingsIndexTests`); `SettingsIndexDriftTests` reads the views' sources and fails when a title they draw is not in the index.
+The window, the sidebar, the toolbar, the scroll to a row and the Reset menu are untested; the self-test opens and closes the window.
+
 ### Providers page
 
 What the person sees: [settings-app](../docs/macos/settings-app.md#providers).

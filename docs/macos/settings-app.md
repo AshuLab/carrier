@@ -42,18 +42,18 @@ Under `--fixture` the fixture home has a `providers.json` and the fake host's `p
 
 ## Notifications
 
-The Notifications tab (`CarrierCore/NotificationsTab.swift`, the logic in `CarrierCore/Notifications.swift`) has three groups.
+The Notifications tab (`CarrierCore/NotificationsTab.swift`, the logic in `CarrierCore/Notifications.swift`) has four groups (Carrier, Chat, Delivery and Permission).
 What to tell me: Needs you and Ready for test (user defaults `notify.needsYou` and `notify.readyForTest`, on by default) and A problem (`notify.problem`, off by default), which says once when the snapshot's `problem` text appears or changes, once when GitHub starts refusing a watched repo (until it recovers) and once when Carrier stops without the app having asked: Stop in the menu and the chat host's own start (`ChatHostStarter`) call `NotificationWatcher.expectStop()`, which lapses after 30 seconds.
-How: Only when Carrier is not in front (`notify.onlyWhenAway`, on by default), which holds the banner back while the app is active (`shouldPresent`; the test notification always shows).
+Delivery: Only when Carrier is not in front (`notify.onlyWhenAway`, on by default), which holds the banner back while the app is active (`shouldPresent`; the test notification always shows).
 Play a sound (`notify.sound`, on by default) sets whether a banner plays the notification sound; the style of the banner belongs to macOS, per app, in System Settings › Notifications › Carrier.
 Permission shows what macOS says (`UNNotificationSettings`: allowed with banners, alerts or None and the sound on or off, denied, not asked, or only from `Carrier.app`), Open System Settings (always, to change those), Allow (when it has not been asked) and Send a test, which says why instead when macOS would swallow it.
 A click on a notification opens the window, on the epic when it is about one (the repo and issue travel in the notification's `userInfo`; the delegate is attached at launch so a click on an older notification works too).
 
 ## Terminal
 
-The Terminal page (`Carrier/TerminalTabView.swift`, `SettingsPage.terminal`, in the App group after Appearance) configures the embedded Ghostty terminal via `AppPreferences.terminal` (`terminal.*` keys) with an immediate Reset card (`AppPreferences.reset(.terminal)`).
+The Terminal page (`Carrier/TerminalTabView.swift`, `SettingsPage.terminal`, in the Workspace group after Sidebar) configures the embedded Ghostty terminal via `AppPreferences.terminal` (`terminal.*` keys) with the toolbar's Reset (`AppPreferences.reset(.terminal)`).
 Appearance lets you keep the global app theme or choose a terminal-only `Theme` override, adjust Ghostty's `minimumContrast` (`1.0...21.0`) and horizontal/vertical padding (`0...32 pt`) and inspect a live `SettingsPreview` rendered from `TerminalAppearanceProfile`.
-Typography inherits `Chat > Code and output` by default ("Same as Chat") or overrides font family (`MonospaceStyle.installedFamilies`, preserving any saved custom family), point size (`9...24 pt`), ligatures and font thickening (`fontThicken`).
+Typography inherits `Appearance > Code and output` by default ("Same as Appearance") or overrides font family (`MonospaceStyle.installedFamilies`, preserving any saved custom family), point size (`9...24 pt`), ligatures and font thickening (`fontThicken`).
 Cursor sets `cursorStyle` (`Block`, `Bar`, `Underline` via `SegmentedChoice`) and `cursorBlink`.
 Panes toggles `dimInactivePanes` (dimming unfocused panes in a split) and `focusFollowsMouse` (moving active focus as the pointer hovers across split panes).
 Input and scrollback sets `optionAsAlt` (`Off`, `Left Option`, `Right Option`, `Both`), `copyOnSelect` (automatically copying highlighted text to the clipboard) and `scrollbackLimit` (`1 MB`, `10 MB`, `50 MB`, `100 MB`).

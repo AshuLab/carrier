@@ -10,23 +10,26 @@ Nothing here is checked by a test: a view is looked at in the app (`macos/build-
 
 ## The page
 
-A Settings page is a header and groups of rows (`SettingsSheet.swift`, `SettingsTabs.swift`).
+A Settings page is groups of rows under the window's toolbar, which says what page it is (`SettingsWindow.swift`, `SettingsTabs.swift`).
+Settings is a window of its own with a native sidebar (`List` in `.sidebar` style, a colored tile before each name, `SettingsTile`) and a toolbar: the page's name is the title and its line the subtitle, ‹ › go back and forward, the page's note (`SettingsNoteView`) and the ⋯ menu are at the right. There is no header inside the page and no close button: ⌘W closes the window.
 
 | Piece | What it is |
 |---|---|
-| `SettingsPageHeader` | The page's tile (38 pt, the theme's accent at 16 %), its name and its line, at the top of the scroll under `safeAreaBar`. |
-| `SettingsGroup(title:)` | A small uppercase title over a card. `SettingsGroup(title:accessory:content:)` puts a control at the right of the title (the models table's recognizer chips). |
+| `SettingsPageBody(reset:)` | What a page is made of. A page in `SettingsPage.usesForm` gets a native `Form` (`.formStyle(.grouped)`: its groups are sections, its rows labeled content, and the form scrolls by itself); the others (lists that open an editor, accounts, the checks, the keys, the speech models) keep a column of cards in the window's scroll. Give it `reset` and the toolbar's ⋯ menu runs it after asking "Reset <page>?": a page does not draw its own Reset card. |
+| `SettingsGroup(title:)` | A small uppercase title over a card, or a `Section` of a form. `footer:` is the longer word about the whole group (under the card or the section), so a row's own line stays short; `SettingsGroup(title:accessory:content:)` puts a control at the right of the title (the models table's recognizer chips). |
 | `StatusChip(text:tint:)` | A capsule with a word in it, its colour at 16 % under the same colour; the word carries the state, never the colour alone (Dictation's microphone: Allowed, Not allowed, Not asked yet; Usage's Stale). |
 | `Badge(text:icon:tint:)` | `StatusChip` with a symbol before the word (`SheetParts.swift`). As the label of a plain `Button` it is a small action that is also a state: Usage's `Unpriced · Map` (orange) and `Custom` (secondary) open the price sheet; give the button an `accessibilityLabel` that says what it does. |
 | `SettingsTabCard` | The card: 14 pt side padding, rounded 14, `secondary` at 7 %. |
-| `SettingsTabRow` | A row of a card: title, detail (and `note`, a quiet monospaced third line, cut in the middle to one line, with its whole text as a tooltip and selectable to copy), the control at the right. `leading:` is a tile at the left of the title (Providers' `AccountTile`: the account's mark, 22 pt, in a 38 pt rounded square at `primary` 7 %, so it reads as an avatar); the rest of the row keeps its place. `first: true` on the first row (no line above it). `roomy: true` for a form with many stacked fields (14 pt above and below instead of 10). |
+| `SettingsTabRow` | A row of a card (a `LabeledContent` in a form): title, detail (and `note`, a quiet monospaced third line, cut in the middle to one line, with its whole text as a tooltip and selectable to copy), the control at the right. `leading:` is a tile at the left of the title (Providers' `AccountTile`: the account's mark, 22 pt, in a 38 pt rounded square at `primary` 7 %, so it reads as an avatar); the rest of the row keeps its place. `first: true` on the first row (no line above it). `roomy: true` for a form with many stacked fields (14 pt above and below instead of 10). |
 | `.settingsCard()` | The card's background as a modifier (rounded 14, `secondary` at 7 %), for a list, a note or a card that is not a group of rows. Never write the fill out again. |
 | `.sectionLabel()` | The type and colour of the small uppercase title (`caption2`, semibold, `secondary`, upper case by `textCase`), for a title that cannot be a `SettingsGroup` (a list's label, the owners of a picker). The caller adds the padding its place needs; write the text as a normal sentence, not in capitals. |
 | `SettingsDivider` | The line between two rows: 1 pt, `primary` at 7 %. `SettingsDivider(vertical: true)` is the line between two columns (Usage's four figures); give their `HStack` `.fixedSize(horizontal: false, vertical: true)` so the line takes the height of the tallest. |
 | `EmptyStateView` | Icon, title and one line, centred. For nothing to show: not installed, not running, no model. Give it `.frame(minHeight: 260)` inside a page, or the height of what it stands for inside a card (Usage's chart, 220, so the card does not jump). Its `action` is the way out (Clear filters), a `SecondaryCapsuleButtonStyle` capsule by default or an `AccentGlassPillButton` (`actionStyle: .accentGlass`) with `actionIcon` before its words. `LoadingStateView` is its twin while something loads. |
 | `SettingsPreview` | A sample of what the rows around it change, inside their group (the terminal's, the time format's, Dictation's widget style). |
 
-Spacing: **14 between blocks, 4 inside a block** (a name and its version), 12 between a tile and its text. The close button of the sheet is an `IconButton` (`xmark`) at the top right of the header; there is no footer, and Esc closes.
+Spacing: **14 between blocks, 4 inside a block** (a name and its version), 12 between a tile and its text. A row's line is one line: what does not fit goes to the group's `footer`.
+
+**What can be searched is `settingsIndex`** (`CarrierCore/SettingsIndex.swift`): a new row or group is added there in the same change, with its page, its group and the words it says; `SettingsIndexDriftTests` fails when a title a page draws is missing. A row is found by its page, group and title, so the group a row is in and its title are not renamed without the index.
 
 ## Cards in the feed
 

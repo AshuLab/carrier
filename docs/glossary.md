@@ -238,8 +238,8 @@ _Avoid_: setup (that is a repository's own scripts, out of scope), provisioning,
 **Session lifecycle** - The life of a user session: created by its first message, worked in, then archived or deleted by the person or by the clock. A session idle for 15 days is archived and an archived one idle for 30 days is deleted, both from its last activity and both configurable in `chat.json`; a delete by the clock spares a session with unsaved work ([0019](adr/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md)).
 _Avoid_: expiry, retention, auto-clean.
 
-**Settings group** - One heading of the Settings rail, by what its pages configure: App (how the app looks and behaves on this Mac: the app's preferences, a config level, and what both processes share, the accounts of `providers.json`), Chat (the chat host, its `chat.json`) and Carrier (the engine, its `engine.json`). App has no heading in the rail and comes first; Chat and Carrier have theirs, in that order. A page belongs to one group, and the group says where its settings live without the page naming a file.
-_Avoid_: tab (a page is a row of the rail, not a tab), section (that is a part of a page, or a sidebar section), category.
+**Settings group** - One heading of the Settings sidebar, by what its pages are about: App (how the app looks and behaves on this Mac: the app's preferences and what both processes share, the accounts of `providers.json`), Workspace (the chat and its sessions, sidebar and terminal), Carrier (who works on an epic and what it watches) and System (the engine, whether this Mac is ready, and About). App has no heading and comes first. A page belongs to one group.
+_Avoid_: tab (a page is a row of the sidebar, not a tab), section (that is a part of a page, or a sidebar section), category.
 
 **Legacy group** - The Settings group that held the pages that existed before the groups. It is gone: its last page, Health, is in the Carrier group.
 _Avoid_: old settings, misc, other.

@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Settings is a window of its own and not a sheet: it does not stop you using the main window, it comes back where you left it, and it has a sidebar, a toolbar with the page's name, and ‹ › (⌘[ and ⌘]) to go back and forward through the pages you visited.
+- Settings has a search field at the top of the sidebar (⌘F): it finds a page, a group or a row by what it says, lists the results under their pages and, when you choose one, opens the page and shows the row.
+
+### Changed
+
+- Settings has four groups: App (with Providers), Workspace (Chat, Sessions, Sidebar and Terminal), Carrier (Agents, Repos and Behavior) and System (Engine, Health and About).
+- The font of code and output is back under Settings › Appearance (and its Reset), and the Terminal page says "Same as Appearance". Notifications has four groups instead of eight.
+- Settings pages that are simple rows (General, Appearance, Notifications, Chat, Sessions, Sidebar, Terminal, Engine and About) are native grouped forms, with shorter lines and the longer words under the group.
+- Reset is in the ⋯ menu of Settings' toolbar ("Reset this page…") and asks first, on every page that has one; Sessions and Behavior no longer have a Reset card.
+- What Carrier is missing shows as a banner on the Engine and Health pages and as a badge on their rows, not over every page.
+
 ### Fixed
 
 - In a new session, the Reasoning slider lists the levels of the model you chose and not those of the agent's default one, and the reasoning set in Settings is kept when that model takes it (a draft on GPT-6.1 Terra showed only Low and dropped High).

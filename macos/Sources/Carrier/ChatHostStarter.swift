@@ -62,7 +62,7 @@ import Observation
                     guard let command else { done(false); return }
                     self.starting = true
                     DispatchQueue.global().async {
-                        let failure = StartController.launch(command, name: "The chat host", again: { startChatHostCommand(settings: $0, carrier: carrier, environment: ProcessInfo.processInfo.environment) })
+                        let failure = StartController.launch(command, name: "The chat host")
                         DispatchQueue.main.async {
                             self.starting = false
                             if let failure { StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail) }

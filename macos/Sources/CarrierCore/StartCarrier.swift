@@ -76,17 +76,18 @@ public func missingTool(in log: String) -> String? {
     return String(log[found].dropFirst("spawn ".count).dropLast(" ENOENT".count))
 }
 
-/// The settings to try a start again with, after a start failed for a tool that was not found: what the shell says now, and nil when
-/// that is what the start already ran with (or the shell gave no answer), so a second start would fail the same way.
-public func redetected(_ settings: SetupSettings, with detection: Detection?) -> SetupSettings? {
-    guard let detection else { return nil }
-    let fresh = SetupSettings(node: detection.node ?? "", path: detection.path ?? "")
-    return fresh == settings ? nil : fresh
+/// The settings to try a start again with, after a start failed for a tool that was not found: what the shell says now. A value it did
+/// not find stays as it was, so an answer that is partial (a `.zshrc` that loads `node` lazily) never removes one that worked.
+public func redetected(_ settings: SetupSettings, with detection: Detection) -> SetupSettings {
+    SetupSettings(node: detection.node ?? settings.node, path: detection.path ?? settings.path)
 }
 
-/// What the alert adds when a start failed for a tool and the shell was asked again.
-public func toolNotFoundText(_ tool: String) -> String {
-    "\(tool) is not on the PATH of your shell either, which was read again just now. Install it, or add its folder to the PATH of your shell, and start again."
+/// What the alert adds when a start failed for a tool and the shell was asked for its PATH again: that it has no such tool either, or that
+/// it did not answer (`shellAnswered` false), so the person knows whether the PATH was read.
+public func toolNotFoundText(_ tool: String, shellAnswered: Bool = true) -> String {
+    shellAnswered
+        ? "\(tool) is not on the PATH of your shell either, which was read again just now. Install it, or add its folder to the PATH of your shell, and start again."
+        : "\(tool) was not found, and the shell gave no answer when asked for its PATH again. Press Detect in Settings to try once more."
 }
 
 /// The last `lines` lines of the start log, for the alert.

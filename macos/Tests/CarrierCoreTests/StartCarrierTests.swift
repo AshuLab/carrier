@@ -140,11 +140,16 @@ private let homebrew = "/opt/homebrew/bin/carrier"
     #expect(missingTool(in: "") == nil)
 }
 
-@Test func theStartIsTriedAgainOnlyWithSettingsTheShellChangedAndTheTextNamesTheTool() {
+@Test func theShellsNewAnswerReplacesWhatItFoundAndNeverRemovesWhatItDidNot() {
     let ran = SetupSettings(node: "/n/node", path: "/usr/bin")
     #expect(redetected(ran, with: Detection(node: "/n/node", path: "/usr/bin:/p/bin")) == SetupSettings(node: "/n/node", path: "/usr/bin:/p/bin"))
-    // the same answer, or none: another start would fail the same way
-    #expect(redetected(ran, with: Detection(node: "/n/node", path: "/usr/bin")) == nil)
-    #expect(redetected(ran, with: nil) == nil)
-    #expect(toolNotFoundText("agent-forge").hasPrefix("agent-forge is not on the PATH of your shell"))
+    #expect(redetected(ran, with: Detection(node: "/m/node", path: "/x")) == SetupSettings(node: "/m/node", path: "/x"))
+    // a partial answer keeps the value that worked
+    #expect(redetected(ran, with: Detection(node: nil, path: "/x")) == SetupSettings(node: "/n/node", path: "/x"))
+    #expect(redetected(ran, with: Detection()) == ran)
+}
+
+@Test func theAlertSaysWhetherTheShellWasReadAgain() {
+    #expect(toolNotFoundText("agent-forge") == "agent-forge is not on the PATH of your shell either, which was read again just now. Install it, or add its folder to the PATH of your shell, and start again.")
+    #expect(toolNotFoundText("gh", shellAnswered: false) == "gh was not found, and the shell gave no answer when asked for its PATH again. Press Detect in Settings to try once more.")
 }

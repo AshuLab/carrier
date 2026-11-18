@@ -1056,7 +1056,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   return {
     async start() {
-      stopRetention = startRetention(db, places.logs, clock, sessionDirs);
+      stopRetention = startRetention(db, places, clock, sessionDirs);
       // GitHub down: retried every cycle until it works.
       try {
         await recover();

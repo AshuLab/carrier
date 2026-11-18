@@ -2,7 +2,8 @@ import Foundation
 
 // Files handed to the chat by dropping them on the message box. The agent reads a file by its path with its own tools, so attaching one is
 // putting its path in the message (docs/ explorations: attachments-options): a block of lines after what the person wrote, which the
-// conversation reads back to show the files as chips under the bubble. Nothing of this reaches the host.
+// conversation reads back to show the files as chips under the bubble. The host moves each copy still in pending into the session when the
+// message goes, and rewrites its path (src/chat/attachments.ts).
 
 public enum AttachmentKind: Equatable { case image, pdf, folder, log, code, data, archive, other }
 
@@ -88,7 +89,7 @@ public func attachedFile(at url: URL, carrierFolder: String, fileManager: FileMa
     return AttachedFile(path: path, kind: attachmentKind(ofExtension: url.pathExtension), size: size, problem: problem)
 }
 
-/// A file the person dropped, as the chat holds it: a copy under `<carrier>/chat/attachments/<id>/<name>`, so deleting or moving the original
+/// A file the person dropped, as the chat holds it: a copy under `<carrier>/chat/pending/<id>/<name>`, so deleting or moving the original
 /// leaves the conversation its file. A folder (or a file that cannot go) stays where it is, and the copy is not made.
 public func attachedCopy(of url: URL, carrierFolder: String, fileManager: FileManager = .default) -> AttachedFile {
     var file = attachedFile(at: url, carrierFolder: carrierFolder, fileManager: fileManager)
@@ -104,7 +105,7 @@ public func attachedCopy(of url: URL, carrierFolder: String, fileManager: FileMa
     return file
 }
 
-/// Takes the copy of a file out again (the person removed its chip before sending); only ever something inside the attachments folder.
+/// Takes the copy of a file out again (the person removed its chip before sending); only ever something inside the pending folder.
 public func discardAttachment(_ file: AttachedFile, carrierFolder: String, fileManager: FileManager = .default) {
     guard file.source != nil else { return }
     let folder = URL(fileURLWithPath: file.path).deletingLastPathComponent()
@@ -112,7 +113,7 @@ public func discardAttachment(_ file: AttachedFile, carrierFolder: String, fileM
     try? fileManager.removeItem(at: folder)
 }
 
-private func attachmentsFolder(_ carrierFolder: String) -> String { CarrierPlaces(folder: URL(fileURLWithPath: carrierFolder).standardizedFileURL.path).chatAttachments }
+private func attachmentsFolder(_ carrierFolder: String) -> String { CarrierPlaces(folder: URL(fileURLWithPath: carrierFolder).standardizedFileURL.path).chatPending }
 
 private let attachmentsHeading = "Attached files:"
 

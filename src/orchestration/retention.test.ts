@@ -25,7 +25,9 @@ afterEach(() => {
 });
 
 const logsDir = () => join(dir, 'engine', 'logs');
+const places = () => ({ logs: logsDir(), state: join(dir, 'engine', 'state') });
 const logs = (id: string) => join(logsDir(), 'executions', id);
+const result = (id: string) => join(places().state, 'results', `${id}.json`);
 // Where the CLIs really keep a session (docs/research/headless-agents.md), whichever harness ran it.
 const claudeSession = (id: string) => join(dirs.claude, 'projects', '-Users-me-solve-worktrees-demo-feature', `${id}.jsonl`);
 const codexSession = (id: string) => join(dirs.codex, 'sessions', '2026', '10', '15', `rollout-2026-10-15T20-35-49-${id}.jsonl`);
@@ -37,6 +39,8 @@ function seed(name: string, status: (typeof epicStates)[number], finishedAt: num
   db.insert(executions).values({ executionId: `x-${name}`, epicId: epic.id, stage: 'ship', sessionId: `s-${name}`, resultPath: 'r', startedAt: 0 }).run();
   mkdirSync(logs(`x-${name}`), { recursive: true });
   writeFileSync(join(logs(`x-${name}`), 'stdout.log'), 'out');
+  mkdirSync(dirname(result(`x-${name}`)), { recursive: true });
+  writeFileSync(result(`x-${name}`), '{}');
   for (const file of session(`s-${name}`)) {
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, '{}');
@@ -44,8 +48,8 @@ function seed(name: string, status: (typeof epicStates)[number], finishedAt: num
   mkdirSync(join(dirname(claudeSession(`s-${name}`)), `s-${name}`), { recursive: true }); // what a Claude session spawned
 }
 const sessionFolder = (name: string) => join(dirname(claudeSession(`s-${name}`)), `s-${name}`);
-const gone = (name: string) => !existsSync(logs(`x-${name}`)) && session(`s-${name}`).every((f) => !existsSync(f)) && !existsSync(sessionFolder(name));
-const kept = (name: string) => existsSync(logs(`x-${name}`)) && session(`s-${name}`).every((f) => existsSync(f)) && existsSync(sessionFolder(name));
+const gone = (name: string) => !existsSync(logs(`x-${name}`)) && !existsSync(result(`x-${name}`)) && session(`s-${name}`).every((f) => !existsSync(f)) && !existsSync(sessionFolder(name));
+const kept = (name: string) => existsSync(logs(`x-${name}`)) && existsSync(result(`x-${name}`)) && session(`s-${name}`).every((f) => existsSync(f)) && existsSync(sessionFolder(name));
 
 test('deletes logs and sessions of finished epics at 30 days, not before, whatever the finished status', () => {
   const now = 100 * DAY;
@@ -53,7 +57,7 @@ test('deletes logs and sessions of finished epics at 30 days, not before, whatev
   seed('merged', 'merged', now - 90 * DAY);
   seed('cancelled', 'cancelled', now - 31 * DAY);
   seed('recent', 'merged', now - retentionMs + 1);
-  purgeExpired(db, logsDir(), now, dirs);
+  purgeExpired(db, places(), now, dirs);
   expect([gone('ready'), gone('merged'), gone('cancelled'), kept('recent')]).toEqual([true, true, true, true]);
 });
 
@@ -61,7 +65,7 @@ test('keeps everything of queued, running, needs_human and repo_removed epics, h
   const now = 1000 * DAY;
   for (const status of ['queued', 'running', 'needs_human', 'repo_removed'] as const) seed(status, status, 0);
   seed('nofinish', 'cancelled', null);
-  purgeExpired(db, logsDir(), now, dirs);
+  purgeExpired(db, places(), now, dirs);
   for (const name of ['queued', 'running', 'needs_human', 'repo_removed', 'nofinish']) expect(kept(name)).toBe(true);
 });
 
@@ -70,14 +74,14 @@ test('deletes the stored events with the logs they were read from, and only thos
   seed('old', 'merged', 0);
   seed('recent', 'merged', now);
   for (const name of ['old', 'recent']) db.insert(executionEvents).values({ executionId: `x-${name}`, at: 1, kind: 'say' }).run();
-  purgeExpired(db, logsDir(), now, dirs);
+  purgeExpired(db, places(), now, dirs);
   expect(db.select().from(executionEvents).all().map((e) => e.executionId)).toEqual(['x-recent']);
 });
 
 test('keeps the interrupted executions of a running epic', () => {
   seed('int', 'running', 0);
   db.update(executions).set({ status: 'interrupted', finishedAt: 1 }).run();
-  purgeExpired(db, logsDir(), 1000 * DAY, dirs);
+  purgeExpired(db, places(), 1000 * DAY, dirs);
   expect(kept('int')).toBe(true);
 });
 
@@ -87,7 +91,7 @@ test('leaves SQLite rows and workspace folders intact', () => {
   writeFileSync(join(workspace, 'file.txt'), 'work');
   seed('old', 'merged', 0);
   const before = { epics: db.select().from(epics).all(), executions: db.select().from(executions).all() };
-  purgeExpired(db, logsDir(), 100 * DAY, dirs);
+  purgeExpired(db, places(), 100 * DAY, dirs);
   expect(gone('old')).toBe(true);
   expect({ epics: db.select().from(epics).all(), executions: db.select().from(executions).all() }).toEqual(before);
   expect(existsSync(join(workspace, 'file.txt'))).toBe(true);
@@ -102,7 +106,7 @@ test('a symlinked session is removed without following it, and an id with path p
   symlinkSync(outside, sessionFolder('link'));
   seed('evil', 'merged', 0);
   db.update(executions).set({ sessionId: '../../outside' }).where(eq(executions.executionId, 'x-evil')).run();
-  purgeExpired(db, logsDir(), 100 * DAY, dirs);
+  purgeExpired(db, places(), 100 * DAY, dirs);
   expect(existsSync(sessionFolder('link'))).toBe(false);
   expect(existsSync(join(outside, 'precious'))).toBe(true);
 });
@@ -113,9 +117,21 @@ test('a logs folder symlinked out of the engine folder is not deleted from', () 
   seed('x', 'merged', 0);
   rmSync(join(logsDir(), 'executions'), { recursive: true });
   symlinkSync(outside, join(logsDir(), 'executions'));
-  purgeExpired(db, logsDir(), 100 * DAY, dirs);
+  purgeExpired(db, places(), 100 * DAY, dirs);
   expect(existsSync(join(outside, 'x-x'))).toBe(true);
   expect(session('s-x').some((f) => existsSync(f))).toBe(false);
+});
+
+test('a results folder symlinked out of the engine folder is not deleted from', () => {
+  const outside = join(dir, 'outside-results');
+  mkdirSync(outside);
+  writeFileSync(join(outside, 'x-x.json'), '{}');
+  seed('x', 'merged', 0);
+  rmSync(join(places().state, 'results'), { recursive: true });
+  symlinkSync(outside, join(places().state, 'results'));
+  purgeExpired(db, places(), 100 * DAY, dirs);
+  expect(existsSync(join(outside, 'x-x.json'))).toBe(true);
+  expect(existsSync(logs('x-x'))).toBe(false);
 });
 
 test('only the sessions of expired epics go: the id decides, other sessions and the CLIs\' other folders stay', () => {
@@ -126,7 +142,7 @@ test('only the sessions of expired epics go: the id decides, other sessions and 
   mkdirSync(dirname(other), { recursive: true });
   writeFileSync(other, '{}');
   writeFileSync(config, '{}');
-  const deleted = purgeExpired(db, logsDir(), 100 * DAY, dirs);
+  const deleted = purgeExpired(db, places(), 100 * DAY, dirs);
   expect(deleted).toEqual(expect.arrayContaining([claudeSession('s-old'), sessionFolder('old'), codexSession('s-old')]));
   expect([other, config].every(existsSync)).toBe(true);
   expect(kept('live')).toBe(true);
@@ -141,10 +157,10 @@ test('a folder named like a session id is only removed beside its transcript, an
   writeFileSync(join(outside, 's-old.jsonl'), 'precious');
   symlinkSync(outside, join(dirs.claude, 'projects', '-linked'));
   db.update(executions).set({ sessionId: 's-old-lone' }).run();
-  purgeExpired(db, logsDir(), 100 * DAY, dirs);
+  purgeExpired(db, places(), 100 * DAY, dirs);
   expect(existsSync(lone)).toBe(true); // no s-old-lone.jsonl next to it
   db.update(executions).set({ sessionId: 's-old' }).run();
-  purgeExpired(db, logsDir(), 100 * DAY, dirs);
+  purgeExpired(db, places(), 100 * DAY, dirs);
   expect(existsSync(join(outside, 's-old.jsonl'))).toBe(true);
   expect(existsSync(claudeSession('s-old'))).toBe(false);
 });
@@ -168,14 +184,14 @@ test('an epic with executions in two config folders loses its sessions from both
   const fileA = seedIn(a, 'a', 'claude', 'merged', 0);
   const fileB = seedIn(b, 'b', 'codex', 'merged', 0);
   db.update(executions).set({ epicId: db.select().from(executions).where(eq(executions.executionId, 'x-a')).get()!.epicId }).where(eq(executions.executionId, 'x-b')).run(); // one epic, two logins
-  const deleted = purgeExpired(db, logsDir(), 100 * DAY, dirs);
+  const deleted = purgeExpired(db, places(), 100 * DAY, dirs);
   expect(deleted).toEqual(expect.arrayContaining([fileA, fileB, logs('x-a'), logs('x-b')]));
   expect([fileA, fileB, logs('x-a'), logs('x-b')].some(existsSync)).toBe(false);
 });
 
 test('the sessions of an unfinished epic in another config folder are not touched', () => {
   const files = (['queued', 'running', 'needs_human', 'repo_removed'] as const).map((status) => seedIn(join(dir, 'login'), status, 'claude', status, 0));
-  purgeExpired(db, logsDir(), 1000 * DAY, dirs);
+  purgeExpired(db, places(), 1000 * DAY, dirs);
   expect(files.every(existsSync)).toBe(true);
 });
 
@@ -189,7 +205,7 @@ test('a recorded config folder that is not absolute is ignored: nothing is delet
   const previous = process.cwd();
   process.chdir(dir);
   try {
-    purgeExpired(db, logsDir(), 100 * DAY, dirs);
+    purgeExpired(db, places(), 100 * DAY, dirs);
   } finally {
     process.chdir(previous);
   }
@@ -206,7 +222,7 @@ test('runs at startup and again every 24 hours on the injected clock, until stop
   const clock = new FakeClock();
   seed('a', 'merged', -retentionMs); // already expired at t=0
   seed('b', 'merged', 0); // expires at t=30d
-  const stop = startRetention(db, logsDir(), clock, dirs);
+  const stop = startRetention(db, places(), clock, dirs);
   expect([gone('a'), kept('b')]).toEqual([true, true]);
   await clock.advance(29 * DAY);
   expect(kept('b')).toBe(true);

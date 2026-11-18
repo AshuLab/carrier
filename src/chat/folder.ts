@@ -3,9 +3,9 @@ import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { chatPlacesOf, enginePlacesOf } from '../config/places.ts';
 import { ChatRefused } from './runner.ts';
 
-// A session never works in the engine's folder (ADR 0034); the projects folder also stays out of the chat's own state, logs and worktrees.
+// A session never works in the engine's folder (ADR 0034); the projects folder also stays out of the chat's own state, logs, worktrees, pending and sessions.
 const engineFolders = (home: string) => [enginePlacesOf(home).dir];
-const chatOwnFolders = (home: string) => [...engineFolders(home), chatPlacesOf(home).state, chatPlacesOf(home).logs, chatPlacesOf(home).worktrees];
+const chatOwnFolders = (home: string) => [...engineFolders(home), chatPlacesOf(home).state, chatPlacesOf(home).logs, chatPlacesOf(home).worktrees, chatPlacesOf(home).pending, chatPlacesOf(home).sessions];
 
 const realOrSelf = (path: string) => {
   try {

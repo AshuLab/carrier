@@ -23,21 +23,21 @@ Nobody but the author has data in the folder, so nothing is migrated and no old 
 The top of the Carrier folder holds only the files a person edits: `engine.json` (the engine's config, formerly `config.json`), `chat.json` (the chat's, formerly `chat/chat.json`) and `providers.json` (the accounts both processes read, [0020](0020-accounts-live-in-a-file-both-processes-read.md)).
 Next to them, one folder per process, and only that process writes in it: `engine/`, `chat/` and `app/`.
 Two exceptions are accepted.
-The app copies the files a person attaches into `chat/attachments/`, because the chat is where they are used.
+The app copies the files a person attaches into `chat/pending/`, because the chat is where they are used; the host moves each one into `chat/sessions/<session>/attachments/` when the message is sent and sweeps what was never sent after a day.
 The app writes what it saw when it started a process (`app-start.log`) and ran a Homebrew upgrade (`app-upgrade.log`) into that process's `logs/`, next to the process's own logs.
 
 Inside its folder, a process splits what it writes by lifecycle:
 
 - `state/`: what it cannot rebuild (databases, sockets, locks, the app's terminals and dictation history), kept and backed up.
 - `logs/`: what it wrote while it ran, rotated and purged.
-- work (`repos/`, `worktrees/`, `reviews/`, `projects/`, `attachments/`): folders that belong to an epic, a session or a project, removed when their owner ends.
+- work (`repos/`, `worktrees/`, `reviews/`, `projects/`, `sessions/`): folders that belong to an epic, a session or a project, removed when their owner ends.
 - `cache/`: what can be fetched or rebuilt (the app's speech models, downloaded again from Settings, and its terminal shim, rewritten at each start), safe to delete and left out of backups.
 
 ```
 <folder>/
   engine.json, chat.json, providers.json
   engine/  state/ (carrier.db, control.sock, carrier.lock, results/, forge-cwd/), logs/, repos/, worktrees/, reviews/
-  chat/    state/ (chat.db, chat.sock, carrier.lock), logs/, worktrees/, projects/, attachments/
+  chat/    state/ (chat.db, chat.sock, carrier.lock), logs/, worktrees/, projects/, pending/, sessions/
   app/     state/ (terminals.json, dictations.jsonl, dictation-statistics.json, audio/), logs/, cache/ (models/, zsh-bottom-prompt/)
 ```
 

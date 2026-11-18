@@ -117,10 +117,9 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
     case .sessions:
         return page(.sessions, "New sessions", [("Starts with", "Provider, model and reasoning"), ("Work in", "Base folder or a new worktree")])
             + page(.sessions, "Archive and delete", [
-                ("Archive after", "Days without activity before a session is archived"), ("Delete after", "Days an archived session waits before it is deleted"),
-                ("Ask before deleting a session", "The question says that its worktree is removed with it"),
+                ("Archive after", "Days without activity before it is archived"), ("Delete after", "Days an archived session waits before it is deleted"),
+                ("Ask before deleting a session", "The question says its worktree goes with it"),
             ]) + page(.sessions, "With these ages", [("With these ages", "What the ages do to a session left alone from today")])
-            + page(.sessions, "Reset", [("Restore the defaults", "Everything on this page goes back to how it came")])
     case .sidebar:
         return page(.sidebar, "Order", [
             ("Group epics by", "How the epics under Carrier are grouped"), ("Sort sessions", "How the Sessions list is grouped and ordered"),
@@ -158,7 +157,6 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
             + page(.repos, "Who works here", [("Defaults", "Every repo follows the roles of Agents unless it has its own")])
     case .behavior:
         return behaviorGroups.flatMap { group in page(.behavior, group.title, group.rows.map { ($0.title, $0.detail) }) }
-            + page(.behavior, behaviorReset.group, [(behaviorReset.title, behaviorReset.detail)])
     case .engine:
         return page(.engine, "Starting", [
             ("Start Carrier when the app opens", "Carrier starts working on ready epics as soon as the app opens"),

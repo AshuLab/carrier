@@ -30,6 +30,15 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         }
     }
 
+    /// The page is a native `Form` of grouped sections. The others (a list that opens an editor, accounts, the checks, the keys, the speech
+    /// models) are lists and tables of their own, which a form would not hold.
+    public var usesForm: Bool {
+        switch self {
+        case .general, .appearance, .notifications, .chat, .sessions, .sidebar, .terminal, .engine, .about: true
+        case .providers, .keybindings, .dictation, .agents, .repos, .behavior, .health: false
+        }
+    }
+
     /// The page's icon in the sidebar (an SF Symbol).
     public var icon: String {
         switch self {

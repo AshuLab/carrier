@@ -35,3 +35,7 @@ import Testing
     #expect(SettingsPage.allCases.count == 16)
     #expect(SettingsPage.allCases.allSatisfy { !$0.icon.isEmpty && !$0.detail.isEmpty })
 }
+
+@Test func thePagesOfSettingsThatAreSettingsFormsAreTheOnesMadeOfSimpleRows() {
+    #expect(SettingsPage.allCases.filter(\.usesForm) == [.general, .appearance, .notifications, .chat, .sessions, .sidebar, .terminal, .engine, .about])
+}

@@ -5,7 +5,8 @@ import SwiftUI
 
 // The page pattern of Settings (a header, cards of rows, a preview, a Reset) and the General and Notifications pages.
 
-/// A row of these tabs: a title and a line under it on the left, the control on the right.
+/// A row of these tabs: a title and a line under it on the left, the control on the right. In a page that is a native `Form` it is a
+/// `LabeledContent` of its section; elsewhere it is a row of a card.
 struct SettingsTabRow<Control: View>: View {
     let title: String
     let detail: String
@@ -21,30 +22,47 @@ struct SettingsTabRow<Control: View>: View {
     /// A tile at the row's left, before the title (an account's avatar); the text keeps its place after it.
     var leading: AnyView?
     @ViewBuilder var control: Control
+    @Environment(\.settingsForm) private var form
+
+    private var words: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title).fontWeight(.medium)
+            if detail.isEmpty == false || problem != nil {
+                Group {
+                    if let problem { Text("\(Image(systemName: "exclamationmark.triangle.fill")) \(problem)").foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
+                }
+                .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(11)).lineLimit(2).truncationMode(.middle)
+            }
+            if let note {
+                // cut in the middle to one line: the whole of it (a long PATH) is in the tooltip, and it can be selected to copy
+                Text(note).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
+                    .help(note).textSelection(.enabled)
+            }
+        }
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
-            if let leading { leading }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).fontWeight(.medium)
-                if detail.isEmpty == false || problem != nil {
-                    Group {
-                        if let problem { Text("\(Image(systemName: "exclamationmark.triangle.fill")) \(problem)").foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
-                    }
-                    .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(11)).lineLimit(2).truncationMode(.middle)
-                }
-                if let note {
-                    // cut in the middle to one line: the whole of it (a long PATH) is in the tooltip, and it can be selected to copy
-                    Text(note).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
-                        .help(note).textSelection(.enabled)
+        if form {
+            LabeledContent {
+                control.environment(\.settingsInvalid, problem != nil)
+            } label: {
+                HStack(spacing: 12) {
+                    if let leading { leading }
+                    words
                 }
             }
-            Spacer(minLength: 8)
-            control.environment(\.settingsInvalid, problem != nil)
+            .settingsAnchored(title)
+        } else {
+            HStack(spacing: 12) {
+                if let leading { leading }
+                words
+                Spacer(minLength: 8)
+                control.environment(\.settingsInvalid, problem != nil)
+            }
+            .padding(.vertical, roomy ? 14 : 10).frame(minHeight: 46)
+            .overlay(alignment: .top) { if first == false { SettingsDivider() } }
+            .settingsAnchored(title)
         }
-        .padding(.vertical, roomy ? 14 : 10).frame(minHeight: 46)
-        .overlay(alignment: .top) { if first == false { SettingsDivider() } }
-        .settingsAnchored(title)
     }
 }
 
@@ -56,6 +74,28 @@ extension EnvironmentValues {
     @Entry var settingsGroup = ""
     /// The anchor the search just took the person to: its row shows itself for a moment.
     @Entry var settingsHighlight: String?
+    /// The page is a native `Form`: its groups are sections and its rows are labeled content, and the page's reset goes to the toolbar.
+    @Entry var settingsForm = false
+    /// Where a page puts what its Reset does (`SettingsPageBody`), for the window's toolbar to run after asking.
+    @Entry var settingsReset: SettingsReset?
+}
+
+/// The Reset of the page that is open: set by the page when it appears, cleared when it goes, and read by the toolbar's menu.
+@MainActor @Observable final class SettingsReset {
+    private(set) var action: (() -> Void)?
+    @ObservationIgnored private var owner: UUID?
+
+    func set(_ owner: UUID, _ action: @escaping () -> Void) {
+        self.owner = owner
+        self.action = action
+    }
+
+    /// Only the page that set it clears it: the next page may have set its own before this one has gone.
+    func clear(_ owner: UUID) {
+        guard self.owner == owner else { return }
+        self.owner = nil
+        action = nil
+    }
 }
 
 /// Makes a row (or a group, with its own title as both) findable by the search: the id the page scrolls to, and the color it takes when it is the
@@ -206,6 +246,7 @@ struct SettingsStackedRow<Control: View>: View {
     let detail: String
     var first = false
     @ViewBuilder var control: Control
+    @Environment(\.settingsForm) private var form
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -215,8 +256,8 @@ struct SettingsStackedRow<Control: View>: View {
             }
             control
         }
-        .padding(.vertical, 12).frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .top) { if first == false { SettingsDivider() } }
+        .padding(.vertical, form ? 4 : 12).frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .top) { if first == false && form == false { SettingsDivider() } }
         .settingsAnchored(title)
     }
 }
@@ -361,29 +402,48 @@ func roleSummary(_ fields: RoleFields) -> Text {
     }
 }
 
-/// A group of a tab: a small uppercase title over a card of rows.
+/// A group of a tab: a small uppercase title over a card of rows, or a section of a native `Form`. `footer` is the longer word about the whole
+/// group, under it, so a row's own line can stay short.
 struct SettingsGroup<Content: View, Accessory: View>: View {
     let title: String
+    var footer: String?
     @ViewBuilder var accessory: Accessory
     @ViewBuilder var content: Content
+    @Environment(\.settingsForm) private var form
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(title).sectionLabel()
-                Spacer(minLength: 8)
-                accessory
+        if form {
+            Section {
+                content.environment(\.settingsGroup, title)
+            } header: {
+                HStack {
+                    Text(title)
+                    Spacer(minLength: 8)
+                    accessory
+                }
+                .settingsAnchored(title, group: title)
+            } footer: {
+                if let footer { Text(footer) }
             }
-            .padding(.leading, 14).padding(.top, 8)
-            SettingsTabCard { content }.environment(\.settingsGroup, title)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(title).sectionLabel()
+                    Spacer(minLength: 8)
+                    accessory
+                }
+                .padding(.leading, 14).padding(.top, 8)
+                SettingsTabCard { content }.environment(\.settingsGroup, title)
+                if let footer { Text(footer).font(.scaled(11)).foregroundStyle(.secondary).padding(.horizontal, 14) }
+            }
+            .settingsAnchored(title, group: title)
         }
-        .settingsAnchored(title, group: title)
     }
 }
 
 extension SettingsGroup where Accessory == EmptyView {
-    init(title: String, @ViewBuilder content: () -> Content) {
-        self.init(title: title, accessory: { EmptyView() }, content: content)
+    init(title: String, footer: String? = nil, @ViewBuilder content: () -> Content) {
+        self.init(title: title, footer: footer, accessory: { EmptyView() }, content: content)
     }
 }
 
@@ -499,28 +559,32 @@ struct ChoicePopUp<Value: Hashable>: View {
     }
 }
 
-/// What goes under a page's header: the groups and a Reset row where the page has many controls.
+/// What a page is made of: its groups, as a native `Form` where the page is one (`SettingsPage.usesForm`) and a column of cards elsewhere. A page
+/// with many controls gives `reset`: the toolbar's menu runs it after asking.
 struct SettingsPageBody<Content: View>: View {
     var reset: (() -> Void)?
     @ViewBuilder var content: Content
+    @Environment(\.settingsForm) private var form
+    @Environment(\.settingsReset) private var resetter
+    @State private var owner = UUID()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            content
-            if let reset {
-                SettingsTabCard {
-                    SettingsTabRow(title: "Reset", detail: "Puts this page back to how it came", first: true) {
-                        Button(action: reset) { Label("Reset", systemImage: "arrow.counterclockwise") }.buttonStyle(SecondaryCapsuleButtonStyle())
-                    }
-                }
+        Group {
+            if form {
+                Form { content }.formStyle(.grouped)
+            } else {
+                VStack(alignment: .leading, spacing: 12) { content }
             }
         }
+        .onAppear { if let reset { resetter?.set(owner, reset) } }
+        .onDisappear { resetter?.clear(owner) }
     }
 }
 
 /// A sample of what the rows around it change, inside the group of those rows so that it sits next to the controls.
 struct SettingsPreview<Content: View>: View {
     @ViewBuilder var content: Content
+    @Environment(\.settingsForm) private var form
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -528,7 +592,7 @@ struct SettingsPreview<Content: View>: View {
             content.frame(maxWidth: .infinity)
         }
         .padding(.vertical, 12)
-        .overlay(alignment: .top) { SettingsDivider() }
+        .overlay(alignment: .top) { if form == false { SettingsDivider() } }
     }
 }
 
@@ -575,7 +639,7 @@ struct GeneralTabView: View {
                 }
             }
             SettingsGroup(title: "Display") {
-                SettingsTabRow(title: "Time format", detail: "Ages read \"11m\", or as the time of the event, \"14:32\"", first: true) {
+                SettingsTabRow(title: "Time format", detail: "Ages read \"11m\" or as a time, \"14:32\"", first: true) {
                     // a saved value that is not a choice reads as the default, as the formatter does
                     ChoicePopUp(
                         label: "Time format", options: [(value: TimeStyle.relative, title: "Relative"), (value: .clock, title: "Clock")],
@@ -655,7 +719,7 @@ struct AppearanceTabView: View {
                 ThemeGallery(theme: $theme)
             }
             SettingsGroup(title: "Look") {
-                SettingsTabRow(title: "Color scheme", detail: "System follows the Mac; light and dark stay as chosen", first: true) {
+                SettingsTabRow(title: "Color scheme", detail: "System follows the Mac", first: true) {
                     ChoicePopUp(label: "Color scheme", options: ColorSchemeChoice.allCases.map { (value: $0, title: $0.title) }, selection: $colorScheme)
                 }
                 SettingsTabRow(title: "Text size", detail: "The size of the text of the whole app, \(textSize)%") {
@@ -674,13 +738,13 @@ struct AppearanceTabView: View {
                 statesPreview
             }
             SettingsGroup(title: "Color") {
-                SettingsTabRow(title: "Accent color", detail: "Buttons, switches and the selection; the first one is the theme's own", first: true) {
+                SettingsTabRow(title: "Accent color", detail: "Buttons, switches and the selection", first: true) {
                     AccentSwatches(theme: theme, scheme: scheme == .dark ? .dark : .light, accent: $accent)
                 }
-                SettingsTabRow(title: "Tint the windows", detail: "A touch of the theme's own color on the backgrounds; the accent you pick does not change it") {
+                SettingsTabRow(title: "Tint the windows", detail: "A touch of the theme's own color on the backgrounds") {
                     ChoicePopUp(label: "Tint the windows", options: Tint.allCases.map { (value: $0, title: $0.title) }, selection: $tint)
                 }
-                SettingsTabRow(title: "Translucent windows", detail: "Off draws solid backgrounds; it follows the Mac's Reduce transparency until you choose") {
+                SettingsTabRow(title: "Translucent windows", detail: "Off draws solid backgrounds") {
                     Toggle("Translucent windows", isOn: Binding(
                         get: { translucentChoice ?? (reduceTransparency == false) }, set: { translucentChoice = $0 }
                     ))
@@ -699,7 +763,7 @@ struct AppearanceTabView: View {
                         width: 200
                     )
                 }
-                SettingsTabRow(title: "Size", detail: "\(Int(codeSize)) pt, before the text size of the whole app") {
+                SettingsTabRow(title: "Size", detail: "In points, before the text size of the whole app") {
                     Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
                         .frame(width: 160).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
                 }
@@ -797,10 +861,7 @@ private struct ThemePreview: View {
     func open(color: NSColor, picked: @escaping (NSColor) -> Void) {
         let panel = NSColorPanel.shared
         panel.showsAlpha = false
-        // Settings is a sheet, which blocks the other windows: the panel has to work with one open and stay above it
-        panel.worksWhenModal = true
         panel.isFloatingPanel = true
-        panel.level = .floating
         // set before the target, so showing the current color does not count as a pick
         panel.color = color
         self.picked = picked
@@ -990,7 +1051,7 @@ struct ChatTabView: View {
                 SettingsTabRow(title: "Send with", detail: "The other key makes a new line", first: true) {
                     ChoicePopUp(label: "Send with", options: [(value: SendKey.return, title: "Return"), (value: .commandReturn, title: "\u{2318}Return")], selection: $sendKey)
                 }
-                SettingsTabRow(title: "While the agent works", detail: "What sending does while it answers: hold the message until the turn ends, or stop the turn and send it") {
+                SettingsTabRow(title: "While the agent works", detail: "Hold the message, or stop the turn and send it") {
                     ChoicePopUp(label: "While the agent works", options: [(value: WhileWorking.queue, title: "Queue it"), (value: .interrupt, title: "Interrupt")], selection: $whileWorking)
                 }
                 SettingsTabRow(title: "Writing Tools", detail: "The system's offer to rewrite or proofread what you select") {
@@ -1010,13 +1071,13 @@ struct ChatTabView: View {
                 SettingsTabRow(title: "Message times", detail: "When a message shows the time it was written, as in General") {
                     ChoicePopUp(label: "Message times", options: MessageTimes.allCases.map { (value: $0, title: $0.title) }, selection: $messageTimes)
                 }
-                SettingsTabRow(title: "Tool output", detail: "What the agent's tools show: nothing, each run folded, or every call open") {
+                SettingsTabRow(title: "Tool output", detail: "Nothing, each run folded, or every call open") {
                     ChoicePopUp(label: "Tool output", options: ToolOutputMode.allCases.map { (value: $0, title: $0.title) }, selection: $toolOutput)
                 }
                 SettingsTabRow(title: "Open the calls that failed", detail: "A call that failed opens by itself, even when the rest are folded") {
                     Toggle("Open the calls that failed", isOn: $opensFailedCalls).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Diff style", detail: "How an edit reads: its lines one under the other, or removed and added side by side") {
+                SettingsTabRow(title: "Diff style", detail: "Unified, or removed and added side by side") {
                     ChoicePopUp(label: "Diff style", options: DiffStyle.allCases.map { (value: $0, title: $0.title) }, selection: $diffStyle)
                 }
                 SettingsTabRow(title: "Output length", detail: "How many lines of an output show before Show more") {
@@ -1031,7 +1092,7 @@ struct ChatTabView: View {
                         selection: $messageWidth, width: 180
                     )
                 }
-                SettingsTabRow(title: "Surfaces", detail: "Glass blurs what is under the cards, the bubble and the message box; flat draws them as a quiet solid fill") {
+                SettingsTabRow(title: "Surfaces", detail: "Glass blurs what is under; flat is a quiet solid fill") {
                     SegmentedChoice(options: ChatSurface.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $chatSurface)
                 }
                 messagePreview

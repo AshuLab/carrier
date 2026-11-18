@@ -17,7 +17,6 @@ struct BehaviorTabView: View {
     @State private var note: String?
     /// the ask of the engine that waits for the person to stop typing; the file is already written
     @State private var askLater: Task<Void, Never>?
-    @State private var confirmingReset = false
     /// what the engine answered to the last save, from any tab
     private let engine = ReloadStatus.shared
 
@@ -41,7 +40,7 @@ struct BehaviorTabView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        SettingsPageBody(reset: { if unreadable == false { draft = EngineConfig(); unparsable = [] } }) {
             ForEach(behaviorGroups, id: \.title) { page in
                 SettingsGroup(title: page.title) {
                     ForEach(Array(page.rows.enumerated()), id: \.element.key) { index, item in
@@ -49,19 +48,6 @@ struct BehaviorTabView: View {
                     }
                 }
             }
-            SettingsGroup(title: behaviorReset.group) {
-                SettingsTabRow(title: behaviorReset.title, detail: behaviorReset.detail, first: true) {
-                    Button { confirmingReset = true } label: { Label(behaviorReset.button, systemImage: "arrow.counterclockwise") }
-                        .disabled(draft == EngineConfig() && unparsable.isEmpty)
-                }
-            }
-        }
-        // it rewrites all eight values, and a running Carrier applies them
-        .alert(behaviorReset.title + "?", isPresented: $confirmingReset) {
-            Button("Cancel", role: .cancel) {}
-            Button(behaviorReset.button, role: .destructive) { draft = EngineConfig(); unparsable = [] }
-        } message: {
-            Text(behaviorReset.detail)
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)

@@ -90,6 +90,8 @@ struct SettingsRoot: View {
     let navigator: SettingsNavigator
     @State private var headerNote: SettingsHeaderNote?
     @State private var query = ""
+    @State private var resetter = SettingsReset()
+    @State private var confirmingReset = false
 
     var body: some View {
         @Bindable var navigator = navigator
@@ -111,7 +113,23 @@ struct SettingsRoot: View {
                             .disabled(navigator.history.canGoForward == false).keyboardShortcut("]", modifiers: .command).help("Forward")
                     }
                     if let headerNote { ToolbarItem(placement: .primaryAction) { SettingsNoteView(note: headerNote) } }
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            Button { confirmingReset = true } label: { Label("Reset this page…", systemImage: "arrow.counterclockwise") }
+                                .disabled(resetter.action == nil)
+                        } label: {
+                            Image(systemName: "ellipsis")
+                        }
+                        .menuIndicator(.hidden).help("Page actions")
+                    }
                 }
+        }
+        .environment(\.settingsReset, resetter)
+        .alert("Reset \(navigator.page.rawValue)?", isPresented: $confirmingReset) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) { resetter.action?() }
+        } message: {
+            Text("Every setting on this page goes back to how it came. This can’t be undone.")
         }
         // the size of a Text with no font of its own, so it follows the text size too
         .font(.scaled(13))
@@ -126,6 +144,7 @@ struct SettingsRoot: View {
 struct SettingsSidebar: View {
     let navigator: SettingsNavigator
     @Binding var query: String
+    @ObservedObject private var setup = SetupController.shared
 
     var body: some View {
         if query.trimmingCharacters(in: .whitespaces).isEmpty { pages } else { results }
@@ -193,8 +212,12 @@ struct SettingsSidebar: View {
     private func rows(_ group: SettingsPage.Group) -> some View {
         ForEach(SettingsPage.pages(in: group), id: \.self) { page in
             Label { Text(page.rawValue) } icon: { SettingsTile(page: page) }.tag(page).help(page.detail)
+                // what Carrier is missing is fixed on these two pages: the sidebar says so, and the banner is on them alone
+                .badge(page == .engine || page == .health ? missing : 0)
         }
     }
+
+    private var missing: Int { readinessBanner(missing: setup.missing, detecting: setup.detecting).state == .missing ? 1 : 0 }
 }
 
 struct SettingsTile: View {
@@ -249,9 +272,24 @@ struct SettingsPages: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                section.padding(24).frame(maxWidth: .infinity, alignment: .topLeading)
+            Group {
+                if page.usesForm {
+                    // the form scrolls by itself; what is said over every page of its own kind stays above it
+                    VStack(spacing: 0) {
+                        notices.padding([.horizontal, .top], 24).padding(.bottom, showsNotices ? 8 : 0)
+                        pageContent
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            notices
+                            pageContent
+                        }
+                        .padding(24).frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
+                }
             }
+            .environment(\.settingsForm, page.usesForm)
             .id(page)
             // the page is drawn a moment after it is chosen: scroll to the place, show it, and let it go
             .task(id: target?.id) {
@@ -269,40 +307,48 @@ struct SettingsPages: View {
         .onPreferenceChange(SettingsHeaderNoteKey.self) { headerNote = $0 }
     }
 
-    @ViewBuilder private var section: some View {
-        let banner = readinessBanner(missing: setup.missing, detecting: setup.detecting)
+    /// The readiness banner and what detecting said belong to the pages where it is fixed, not to every page.
+    private var showsNotices: Bool { (page == .engine || page == .health) && (banner.state != .ready || setup.message != nil) }
+    private var banner: ReadinessBanner { readinessBanner(missing: setup.missing, detecting: setup.detecting) }
+
+    @ViewBuilder private var notices: some View {
+        if showsNotices {
+            VStack(alignment: .leading, spacing: 8) {
+                if banner.state != .ready {
+                    ReadinessBannerView(banner: banner, detecting: setup.detecting) { setup.detect() }
+                }
+                if let message = setup.message {
+                    Label(message, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var pageContent: some View {
         let notConfigured = engineNotConfiguredNotice(configExists: start.configExists)
-        VStack(alignment: .leading, spacing: 14) {
-            if banner.state != .ready {
-                ReadinessBannerView(banner: banner, detecting: setup.detecting) { setup.detect() }
-            }
-            if let message = setup.message {
-                Label(message, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange)
-            }
-            switch page {
-            case .general: GeneralTabView()
-            case .appearance: AppearanceTabView()
-            case .terminal: TerminalTabView()
-            case .sidebar: SidebarTabView()
-            case .chat: ChatTabView()
-            case .dictation: DictationTabView()
-            case .keybindings: KeybindingsTabView()
-            case .about: AboutTabView()
-            case .providers: ProvidersTabView(openAgents: { open(.agents) })
-            case .engine:
-                // one container, so the versions are read once and not once per group
-                VStack(alignment: .leading, spacing: 14) { engine(notConfigured: notConfigured) }
-                    .task(id: versionsKey) {
-                        versions = nil
-                        versions = await ProgramVersions.read(setup)
-                    }
-            case .behavior: BehaviorTabView()
-            case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { open(.agents) })
-            case .agents: AgentsTabView()
-            case .sessions: SessionsTabView()
-            case .notifications: NotificationsTabView()
-            case .health: HealthTabView(state: state)
-            }
+        switch page {
+        case .general: GeneralTabView()
+        case .appearance: AppearanceTabView()
+        case .terminal: TerminalTabView()
+        case .sidebar: SidebarTabView()
+        case .chat: ChatTabView()
+        case .dictation: DictationTabView()
+        case .keybindings: KeybindingsTabView()
+        case .about: AboutTabView()
+        case .providers: ProvidersTabView(openAgents: { open(.agents) })
+        case .engine:
+            // one container, so the versions are read once and not once per group
+            SettingsPageBody { engine(notConfigured: notConfigured) }
+                .task(id: versionsKey) {
+                    versions = nil
+                    versions = await ProgramVersions.read(setup)
+                }
+        case .behavior: BehaviorTabView()
+        case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { open(.agents) })
+        case .agents: AgentsTabView()
+        case .sessions: SessionsTabView()
+        case .notifications: NotificationsTabView()
+        case .health: HealthTabView(state: state)
         }
     }
 

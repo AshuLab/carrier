@@ -43,9 +43,12 @@ struct SessionsTabView: View {
     private var problems: [SessionAgeField: String] { sessionAgeProblems(draft, unparsable: unparsableFields) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SettingsGroup(title: "New sessions") {
-                SettingsTabRow(title: "Starts with", detail: "The provider, model and reasoning a new session opens with; the message box still changes them for that session", first: true) {
+        SettingsPageBody(reset: reset) {
+            SettingsGroup(
+                title: "New sessions",
+                footer: "A new worktree is offered only for a git repository. The message box and the new session screen still change these for that one session."
+            ) {
+                SettingsTabRow(title: "Starts with", detail: "Provider, model and reasoning", first: true) {
                     ModelPickerButton(
                         provider: startAgent.isEmpty ? nil : startAgent, model: startModel.isEmpty ? nil : startModel, effort: startEffort,
                         accounts: startAccounts, catalog: catalog, showsAccess: false, accessScales: startAccessScales,
@@ -66,14 +69,17 @@ struct SessionsTabView: View {
                     }
                     .task { await catalog.load() }
                 }
-                SettingsTabRow(title: "Work in", detail: "Where a new session opens. A new worktree is offered only for a git repository; the new session screen still changes it for that session") {
+                SettingsTabRow(title: "Work in", detail: "Base folder or a new worktree") {
                     ChoicePopUp(label: "Work in", options: WorkIn.allCases.map { (value: $0, title: $0.title) }, selection: $workIn, width: 160)
                 }
             }
-            SettingsGroup(title: "Archive and delete") {
-                row("Archive after", "Days without activity before a session is archived", .archive, off: nil, first: true, age: $draft.archive, fallback: defaultArchiveAfterDays)
-                row("Delete after", "Days an archived session waits before it is deleted, with its worktree. Work that is not saved is kept", .delete, off: deleteAgeOffReason(draft), age: $draft.delete, fallback: defaultDeleteAfterDays)
-                SettingsTabRow(title: "Ask before deleting a session", detail: "The question says that its worktree is removed with it") {
+            SettingsGroup(
+                title: "Archive and delete",
+                footer: "Ages count from a session’s last activity. Delete is off while Archive is Never. Deleting removes the session’s worktree; work that is not saved is kept."
+            ) {
+                row("Archive after", "Days without activity before it is archived", .archive, off: nil, first: true, age: $draft.archive, fallback: defaultArchiveAfterDays)
+                row("Delete after", "Days an archived session waits before it is deleted", .delete, off: deleteAgeOffReason(draft), age: $draft.delete, fallback: defaultDeleteAfterDays)
+                SettingsTabRow(title: "Ask before deleting a session", detail: "The question says its worktree goes with it") {
                     Toggle("Ask before deleting a session", isOn: $confirmDelete).labelsHidden().toggleStyle(.switch)
                 }
             }
@@ -84,11 +90,6 @@ struct SessionsTabView: View {
                 SettingsTabRow(title: "Left alone", detail: "A session that is working, waiting for you or open is looked at again later", first: line == nil) { EmptyView() }
             }
             if let failure { Label(failure, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange) }
-            SettingsGroup(title: "Reset") {
-                SettingsTabRow(title: "Restore the defaults", detail: "Everything on this page goes back to how it came", first: true) {
-                    Button(action: reset) { Label("Reset", systemImage: "arrow.counterclockwise") }.buttonStyle(SecondaryCapsuleButtonStyle())
-                }
-            }
         }
         .onAppear(perform: load)
         .onChange(of: draft) { save() }

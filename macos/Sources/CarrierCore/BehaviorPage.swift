@@ -44,6 +44,3 @@ public let behaviorGroups: [BehaviorGroup] = [
     ]),
 ]
 
-/// The last group of the page: one card that puts the eight values back to the engine's defaults (`EngineConfig()`).
-public let behaviorReset = (group: "Reset", title: "Restore the defaults", detail: "Everything on this page goes back to how it came", button: "Reset")
-

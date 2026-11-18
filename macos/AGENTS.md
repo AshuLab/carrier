@@ -16,7 +16,7 @@ The live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetecti
 
 What the person sees: [lifecycle](../docs/macos/lifecycle.md).
 
-The decision and command line are in `CarrierCore/StartCarrier.swift` (spawn and alert untested); so are the pieces of the retry after a `spawn <tool> ENOENT` (`missingTool`, `redetected`, `toolNotFoundText`), which `StartController.launch` runs.
+The decision and command line are in `CarrierCore/StartCarrier.swift` (spawn and alert untested).
 The decision, command line and notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert (wiring, views untested).
 The sequence is tested on a real socket against a scripted engine (`EngineReplacementTests`).
 

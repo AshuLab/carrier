@@ -351,7 +351,7 @@ struct MessageBox<Selects: View>: View {
         // the long texts go in blocks under what is typed, then the files as paths; both are taken out of the box once the message is on its way
         if ready {
             var message = messageWithPastes(text.trimmingCharacters(in: .whitespacesAndNewlines), pastes: pastes.map(\.text).filter { $0.allSatisfy(\.isWhitespace) == false })
-            if attachments.isEmpty == false { message = messageWithAttachments(message, files: attachments) }
+            if attachments.isEmpty == false { message = messageWithAttachments(message, files: refreshedCopies(attachments, carrierFolder: carrier)) }
             if message != text {
                 fired = message
                 text = message

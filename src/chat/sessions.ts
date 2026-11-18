@@ -195,14 +195,14 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     return checkFolder(found.folder, carrierHome());
   };
 
-  /** The cleanup of `chat.json`'s `worktreeCleanup`: removes the folder of an idle session's worktree whose PR is merged or that stayed archived long enough, never one with uncommitted work, and keeps its branch. */
-  const cleanWorktrees = async ({ afterPrMerged, afterArchivedDays }: WorktreeCleanup, now: number) => {
-    if (afterPrMerged === false && afterArchivedDays === 'never') return;
+  /** The cleanup of `chat.json`'s `worktreeCleanup`: removes the folder of an idle session's worktree whose PR is merged or that is archived and has had no activity for `afterInactiveDays`, never one with uncommitted work, and keeps its branch. */
+  const cleanWorktrees = async ({ afterPrMerged, afterInactiveDays }: WorktreeCleanup, now: number) => {
+    if (afterPrMerged === false && afterInactiveDays === 'never') return;
     for (const found of db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all()) {
       if (closed) return;
       if (switching.has(found.id) || deleting.has(found.id) || existsSync(found.worktreePath!) === false) continue;
       const { lastActiveAt, live } = familyClock(found);
-      const due = (afterPrMerged && found.prState === 'merged') || (found.archived && idleFor({ state: found.state, lastActiveAt }, live, now, afterArchivedDays));
+      const due = (afterPrMerged && found.prState === 'merged') || (found.archived && idleFor({ state: found.state, lastActiveAt }, live, now, afterInactiveDays));
       if (due === false || found.state !== 'idle' || live) continue;
       const clear = async () => {
         const { dirty } = await previewWorktree(git, worktreeOf(found), [found.worktreeBranch!]);

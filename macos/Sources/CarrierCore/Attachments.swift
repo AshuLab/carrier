@@ -105,6 +105,15 @@ public func attachedCopy(of url: URL, carrierFolder: String, fileManager: FileMa
     return file
 }
 
+/// The files about to go with a message, each with the copy Carrier keeps: one whose copy the host swept after a day in the box is copied again from
+/// where the person dropped it, and when that is gone too it says so (`.missing`) and is left out of the message like any file that cannot go.
+public func refreshedCopies(_ files: [AttachedFile], carrierFolder: String, fileManager: FileManager = .default) -> [AttachedFile] {
+    files.map { file in
+        guard let source = file.source, fileManager.fileExists(atPath: file.path) == false else { return file }
+        return attachedCopy(of: URL(fileURLWithPath: source), carrierFolder: carrierFolder, fileManager: fileManager)
+    }
+}
+
 /// Takes the copy of a file out again (the person removed its chip before sending); only ever something inside the pending folder.
 public func discardAttachment(_ file: AttachedFile, carrierFolder: String, fileManager: FileManager = .default) {
     guard file.source != nil else { return }

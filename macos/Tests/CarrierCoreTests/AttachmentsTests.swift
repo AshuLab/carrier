@@ -87,3 +87,34 @@ private func temporaryFolder() throws -> URL {
     discardAttachment(dir, carrierFolder: carrier)
     #expect(FileManager.default.fileExists(atPath: sub.path))
 }
+
+@Test func aCopyTheHostSweptIsMadeAgainFromItsSourceAndWhenThatIsGoneItSaysSo() throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let carrier = folder.appendingPathComponent("carrier").standardizedFileURL.path
+    let original = folder.appendingPathComponent("log.txt")
+    try Data("hello".utf8).write(to: original)
+    let kept = attachedCopy(of: original, carrierFolder: carrier)
+
+    // a copy that is still there stays as it is
+    #expect(refreshedCopies([kept], carrierFolder: carrier) == [kept])
+
+    // the host swept it after a day: the same file comes back, in a new copy
+    try FileManager.default.removeItem(atPath: kept.path)
+    let again = try #require(refreshedCopies([kept], carrierFolder: carrier).first)
+    #expect(again.path != kept.path && again.path.hasPrefix(carrier + "/chat/pending/") && again.problem == nil && again.source == kept.source)
+    #expect(try String(contentsOfFile: again.path, encoding: .utf8) == "hello")
+
+    // the original is gone too: it cannot go, and the message leaves it out
+    try FileManager.default.removeItem(atPath: again.path)
+    try FileManager.default.removeItem(at: original)
+    let gone = try #require(refreshedCopies([again], carrierFolder: carrier).first)
+    #expect(gone.problem == .missing)
+    #expect(messageWithAttachments("hi", files: [gone]) == "hi")
+
+    // a file with no copy (a folder, a file that stayed where it is) is never touched
+    let sub = folder.appendingPathComponent("fixtures")
+    try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+    let dir = attachedCopy(of: sub, carrierFolder: carrier)
+    #expect(refreshedCopies([dir], carrierFolder: carrier) == [dir])
+}

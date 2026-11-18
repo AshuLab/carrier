@@ -360,6 +360,14 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
   });
 });
 
+describe.skipIf(!enabled)('sshHost, with the real ssh', () => {
+  test('a host answers with what ssh -G resolves it to, and a name ssh does not know or takes for an option answers with itself', async () => {
+    expect(await realGit.sshHost('github.com')).toBe('github.com');
+    expect(await realGit.sshHost('no-such-alias.invalid')).toBe('no-such-alias.invalid');
+    expect(await realGit.sshHost('-oProxyCommand=x')).toBe('-oProxyCommand=x');
+  });
+});
+
 describe.skipIf(!enabled)('cloneRepo, with the real git', () => {
   let work: string;
   let previousGlobal: string | undefined;

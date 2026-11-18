@@ -14,13 +14,21 @@ export interface Git {
 const TIMEOUT_MS = 20_000;
 const MAX_OUTPUT = 16 * 1024 * 1024;
 
+const sshHosts = new Map<string, Promise<string>>();
+
 /** The host's own environment plus `GIT_TERMINAL_PROMPT=0`, so a command that wants a password fails instead of waiting for one. */
 export const realGit: Git = {
-  // `host` is checked by the caller to start with a word character, and `--` keeps it an argument and not an option
-  sshHost: (host) =>
-    new Promise((resolve) => {
+  // `host` is checked by the caller to start with a word character, and `--` keeps it an argument and not an option.
+  // ponytail: asked once per host for the life of the process, so a change in the ssh config needs a restart of the host.
+  sshHost: (host) => {
+    const known = sshHosts.get(host);
+    if (known !== undefined) return known;
+    const asked = new Promise<string>((resolve) => {
       execFile('ssh', ['-G', '--', host], { timeout: 5_000, encoding: 'utf8' }, (error, stdout) => resolve((error === null && /^hostname (\S+)$/m.exec(stdout)?.[1]) || host));
-    }),
+    });
+    sshHosts.set(host, asked);
+    return asked;
+  },
   run: (folder, args, options) =>
     new Promise((resolve) => {
       const { onProgress } = options ?? {};

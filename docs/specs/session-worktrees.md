@@ -62,7 +62,7 @@ type WorkspaceInfo = {
   git: boolean;                    // false for a plain folder; every field below is then at its empty value
   bare: boolean;
   linkedWorktree: boolean;         // the folder is itself a linked worktree of another repository
-  repo: { owner: string; name: string } | null;     // from `origin`, null without a GitHub origin
+  repo: { owner: string; name: string } | null;     // from `origin` (an ssh alias of GitHub counts), null without a GitHub origin
   branch: string | null;           // checked out; null when detached
   defaultBranch: string | null;    // origin/HEAD, else main or master when one exists
   dirty: number;                   // files with uncommitted changes, tracked or not

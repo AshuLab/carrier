@@ -29,6 +29,7 @@ describe('resolveOrigin', () => {
     ['ssh://git@github-personal:443/acme/app.git', 'acme', 'app'],
     ['ssh://git@ssh.github.com:443/acme/app.git', 'acme', 'app'],
     ['git@github.com:acme/app.git', 'acme', 'app'],
+    ['ssh://git@github-personal/acme/app/', 'acme', 'app'],
   ])('%s', async (url, owner, name) => expect(await resolveOrigin(git, url)).toEqual({ owner, name }));
 
   test.each(['git@gitlab-work:acme/app.git', 'git@unknown-alias:acme/app.git', 'git@github.com-emu:acme', 'git@github.com-emu:acme/app/extra', 'git@github.com-emu:acme/..', 'https://gitlab.com/acme/app.git', '/srv/git/app.git', ''])('%s is not GitHub', async (url) => expect(await resolveOrigin(git, url)).toBeNull());

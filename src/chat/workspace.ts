@@ -29,7 +29,7 @@ export function parseOrigin(url: string): { owner: string; name: string } | null
   return { owner: found[1]!, name: found[2]! };
 }
 
-const ALIASED = /^(?:ssh:\/\/)?git@(\w[\w.-]*)(?::\d+)?[:/]([\w.-]+\/[\w.-]+)$/;
+const ALIASED = /^(?:ssh:\/\/)?git@(\w[\w.-]*)(?::\d+)?[:/]([\w.-]+\/[\w.-]+)\/?$/;
 const GITHUB_SSH_HOSTS = ['github.com', 'ssh.github.com'];
 
 /** `parseOrigin`, and also an ssh remote whose host is an alias in the person's ssh config (`github.com-work`) that `ssh` resolves to GitHub, as `gh` does. */

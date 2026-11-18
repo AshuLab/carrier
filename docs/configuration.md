@@ -267,7 +267,7 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
   "logLevel": "info",
   "archiveAfterDays": 15,
   "deleteAfterDays": 30,
-  "worktreeCleanup": { "afterPrMerged": false, "afterArchivedDays": "never" }
+  "worktreeCleanup": { "afterPrMerged": false, "afterInactiveDays": "never" }
 }
 ```
 
@@ -279,7 +279,7 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
 | `logLevel` | `info` | `debug`, `info`, `warn` or `error`. Read when the host starts. |
 | `archiveAfterDays` | `15` | Days of no activity after which a session is archived: a positive whole number, or `"never"`. A wrong value (`0`, a negative, a fraction, a text such as `"15"`, `null`) stops the host naming the key. See [The session clock](#the-session-clock). |
 | `deleteAfterDays` | `30` | Days of no activity after which an archived session is deleted, with its worktree and branch: a positive whole number, or `"never"`. It must be greater than `archiveAfterDays` when both are numbers (the error is reported on `deleteAfterDays`); with `"never"` on either side there is no such rule. Same checks as `archiveAfterDays`. See [The session clock](#the-session-clock). |
-| `worktreeCleanup` | both off | When the clock removes the folder of a session's worktree and keeps its branch: `afterPrMerged` (`true` or `false`) once the session's pull request is merged, `afterArchivedDays` (a positive whole number or `"never"`, same checks as `archiveAfterDays`) once the session is archived and left alone that long. See [The session clock](#the-session-clock). |
+| `worktreeCleanup` | both off | When the clock removes the folder of a session's worktree and keeps its branch: `afterPrMerged` (`true` or `false`) once the session's pull request is merged, `afterInactiveDays` (a positive whole number or `"never"`, same checks as `archiveAfterDays`) once the session is archived and has had no activity for that many days (the clock of `archiveAfterDays` and `deleteAfterDays`: it counts from the last activity, not from the archiving). See [The session clock](#the-session-clock). |
 
 A session never works inside `<folder>/engine/`, nor through a symlink into it. The engine's config has no `chat` section: it rejects one like any unknown key.
 

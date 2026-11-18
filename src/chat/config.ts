@@ -32,7 +32,7 @@ const chatConfigSchema = z.strictObject({
   /** An archived session left alone this long is deleted by the same pass, unless its worktree holds unsaved work; it must be greater than `archiveAfterDays` when both are numbers. */
   deleteAfterDays: days.default(30),
   /** When the clock's pass removes a session's worktree folder, keeping its branch; both off by default. */
-  worktreeCleanup: z.strictObject({ afterPrMerged: z.boolean().default(false), afterArchivedDays: days.default('never') }).default({ afterPrMerged: false, afterArchivedDays: 'never' }),
+  worktreeCleanup: z.strictObject({ afterPrMerged: z.boolean().default(false), afterInactiveDays: days.default('never') }).default({ afterPrMerged: false, afterInactiveDays: 'never' }),
 }).refine((c) => typeof c.archiveAfterDays !== 'number' || typeof c.deleteAfterDays !== 'number' || c.deleteAfterDays > c.archiveAfterDays, {
   path: ['deleteAfterDays'],
   when: (payload) => payload.issues.length === 0, // a value already refused is not also reported against the other
@@ -42,7 +42,7 @@ const chatConfigSchema = z.strictObject({
 /** The chat's settings once the defaults are in. */
 /** `agents` is undefined when `chat.json` lists none: the agents are then the accounts of `providers.json` (see `chatAgentsOf`). */
 export type ChatSettings = { agents: ChatAgent[] | undefined; projectsFolder: string; githubCallTimeoutSeconds: number; logLevel: LogLevel; archiveAfterDays: number | 'never'; deleteAfterDays: number | 'never'; worktreeCleanup: WorktreeCleanup };
-export type WorktreeCleanup = { afterPrMerged: boolean; afterArchivedDays: number | 'never' };
+export type WorktreeCleanup = { afterPrMerged: boolean; afterInactiveDays: number | 'never' };
 export type ChatConfigError = { path: string; message: string };
 export type ChatConfigResult = { ok: true; settings: ChatSettings } | { ok: false; errors: ChatConfigError[] };
 

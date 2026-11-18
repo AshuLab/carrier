@@ -479,10 +479,18 @@ private var work: AccountDraft {
 private final class LockedAnswers: @unchecked Sendable {
     private let lock = NSLock()
     private var outcomes: [ReloadOutcome]
+    private var handed = 0
     init(_ outcomes: [ReloadOutcome]) { self.outcomes = outcomes }
+    /// How many reloads have taken their answer.
+    var taken: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return handed
+    }
     func next() -> ReloadOutcome {
         lock.lock()
         defer { lock.unlock() }
+        handed += 1
         return outcomes.isEmpty ? .applied : outcomes.removeFirst()
     }
 }
@@ -518,9 +526,17 @@ private final class LockedAnswers: @unchecked Sendable {
     let gate = DispatchSemaphore(value: 0)
     let answers = LockedAnswers([.refused("bad"), .applied])
     var logged: [String] = []
-    let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { logged.append($0) }, reload: { gate.wait(); return answers.next() })
+    // each reload takes its answer as it starts, before it waits at the gate: the gate lets them out in any order, and the answer is the ask's, not the thread's
+    let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { logged.append($0) }, reload: { let mine = answers.next(); gate.wait(); return mine })
 
     #expect(await store.save(name: "claude", draft: work))
+    // the older ask is in the engine's hands before the newer one is made, so it is the one that gets the refusal
+    var waited = 0
+    while answers.taken < 1, waited < 5000 {
+        try await Task.sleep(for: .milliseconds(1))
+        waited += 1
+    }
+    #expect(answers.taken == 1)
     var again = work
     again.displayName = "Work 2"
     #expect(await store.save(name: "claude", draft: again))

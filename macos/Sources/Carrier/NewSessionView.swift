@@ -116,7 +116,7 @@ struct NewSessionView: View {
         let detail = split.map { String(warning[$0.upperBound...]) }
         return NoticeCard(symbol: "exclamationmark", tint: .orange, title: title, detail: detail) {
             if model.offersWorktree, model.worktree == false {
-                Button("Use a worktree") { Task { await model.useWorktree(true) } }.buttonStyle(HoverTextButtonStyle(tint: .themeAccent))
+                Button("Use a worktree") { Task { await model.useWorktree(true) } }.buttonStyle(HoverTextButtonStyle(tint: .primary))
             }
         }
     }

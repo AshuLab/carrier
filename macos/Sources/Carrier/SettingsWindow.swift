@@ -125,6 +125,8 @@ struct SettingsRoot: View {
                 }
         }
         .environment(\.settingsReset, resetter)
+        // the session rows of the Sidebar page's preview read what the main window gives its own
+        .environment(model.actions)
         .alert("Reset \(navigator.page.rawValue)?", isPresented: $confirmingReset) {
             Button("Cancel", role: .cancel) {}
             Button("Reset", role: .destructive) { resetter.action?() }

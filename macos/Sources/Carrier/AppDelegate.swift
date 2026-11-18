@@ -284,7 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 FileHandle.standardError.write(Data("carrier: selftest log failed: \(error)\n".utf8))
             }
         }
-        let steps: [(String, () -> String)] = [
+        var steps: [(String, () -> String)] = [
             ("icon state", { IconController.shared?.summary ?? "no icon" }),
             ("icon hit test passes clicks", { "\(IconController.shared.map { $0.host.hitTest(NSPoint(x: 2, y: 2)) == nil } ?? false)" }),
             ("status item present", { "\(self.statusItem != nil)" }),
@@ -328,6 +328,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("choose About Carrier", { self.chooseAbout() }),
             ("notifications", { SystemNotificationCentre.selfTestSummary }),
         ]
+        // every page of Settings is drawn, a second each: a page that cannot be drawn (a missing environment object) ends the process here
+        if let opened = steps.firstIndex(where: { $0.0 == "open settings" }) {
+            let pages: [(String, () -> String)] = SettingsPage.allCases.map { page in
+                ("settings page \(page.rawValue)", { WindowController.shared.showSettings(page); return WindowController.shared.settingsStatus })
+            }
+            steps.insert(contentsOf: pages, at: opened + 1)
+        }
         write("start")
         for (index, step) in steps.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1 + Double(index)) {

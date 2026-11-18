@@ -193,3 +193,9 @@ func theWidgetIsCentredUnderTheMenuBarOrAboveTheDockOfTheVisibleFrame(position: 
     let origin = dictationWidgetOrigin(size: CGSize(width: 420, height: 90), in: area, position: position)
     #expect(origin.x == 1440 + 960 - 210 && origin.y == y)
 }
+
+@Test func aCopiedTextSaysWhyItWasNotPastedAndWhyItWasNotCleaned() {
+    let reason = PasteReason.noPermission
+    #expect(dictationKeptNotices(reason: reason, notCleaned: nil) == ["\(reason.explanation) It is on the clipboard."])
+    #expect(dictationKeptNotices(reason: reason, notCleaned: "the model did not answer in time").last == "It was not cleaned: the model did not answer in time")
+}

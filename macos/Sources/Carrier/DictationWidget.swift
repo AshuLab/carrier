@@ -12,6 +12,8 @@ import SwiftUI
     static let fade = 0.3
     /// The room the listening line and the shadow have around the box, inside the panel.
     static let glow: CGFloat = 14
+    /// How far the box sits from the edge of the display's visible frame.
+    static let margin: CGFloat = 24
 
     private let panel: WidgetPanel
     private let dictation: GlobalDictation
@@ -42,7 +44,10 @@ import SwiftUI
         panel.ignoresMouseEvents = true
         panel.keyable = false
         if panel.isKeyWindow { panel.orderOut(nil) }
-        panel.contentView = NSHostingView(rootView: DictationWidgetView(dictation: dictation, style: style, hint: hint, voice: voice))
+        let host = NSHostingView(rootView: DictationWidgetView(dictation: dictation, style: style, hint: hint, voice: voice))
+        // the panel's size is `place()`'s alone: with the hosting view's own, a state with a scrolling text and buttons made the panel as tall as the display
+        host.sizingOptions = []
+        panel.contentView = host
         place()
         panel.orderFrontRegardless()
         follow()
@@ -67,9 +72,29 @@ import SwiftUI
     }
 
     private func place() {
-        let size = dictationWidgetLook(dictation.shown, style: style).windowSize
-        let box = NSRect(origin: dictationWidgetOrigin(size: size, in: area, position: position), size: size)
+        let look = dictationWidgetLook(dictation.shown, style: style)
+        var size = look.windowSize
+        if let box = look.box, case .copied(let reason) = dictation.state {
+            // the notices over a text that was only copied take the lines they need, not a fixed number: a long reason wraps in a narrow box
+            let textSize = TextSize.shared.scale.size(box.text)
+            let notices = dictationKeptNotices(reason: reason, notCleaned: dictation.notCleaned)
+            let wanted = Self.height(of: notices, size: textSize, width: box.width - 32)
+            size.height += max(0, wanted - CGFloat(DictationWidgetBox.reasonLines) * box.lineHeight(textSize: textSize)).rounded(.up)
+        }
+        // never larger than the display leaves, whatever the state holds
+        size.height = min(size.height, max(120, area.height - 2 * (Self.margin + Self.glow)))
+        size.width = min(size.width, max(120, area.width - 2 * (Self.margin + Self.glow)))
+        let box = NSRect(origin: dictationWidgetOrigin(size: size, in: area, position: position, margin: Self.margin), size: size)
         panel.setFrame(box.insetBy(dx: -Self.glow, dy: -Self.glow), display: true)
+    }
+
+    /// The height `lines` of text take at `size` points in `width`, one under the other with the 4 points between them that the box leaves.
+    private static func height(of lines: [String], size: CGFloat, width: CGFloat) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: size)
+        let heights = lines.map { line in
+            (line as NSString).boundingRect(with: NSSize(width: width, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font]).height.rounded(.up)
+        }
+        return heights.reduce(0, +) + 4 * CGFloat(max(0, lines.count - 1))
     }
 
     /// Places the panel again each time what the widget shows changes the look (a Pill opens as the Small box for a text, a box grows to its buttons).
@@ -228,9 +253,7 @@ private struct DictationWidgetView: View {
     }
 
     /// Why the text was only copied, over the text, which is complete and scrolls under them.
-    private func keptNotices(_ reason: PasteReason) -> [String] {
-        ["\(reason.explanation) It is on the clipboard."] + (dictation.notCleaned.map { ["It was not cleaned: \($0)"] } ?? [])
-    }
+    private func keptNotices(_ reason: PasteReason) -> [String] { dictationKeptNotices(reason: reason, notCleaned: dictation.notCleaned) }
 
     /// The buttons of a text that was only copied; when they do not fit the box's width they keep only their symbols.
     private func keptButtons(_ reason: PasteReason) -> some View {

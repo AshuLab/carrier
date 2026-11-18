@@ -255,7 +255,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         answerIsSlow = false
         let mine = generation
         slowness = Task {
-            guard (try? await sleep(Self.quickAnswer)) != nil, generation == mine else { return }
+            do { try await sleep(Self.quickAnswer) } catch { return }
+            guard generation == mine else { return }
             answerIsSlow = true
         }
     }
@@ -270,11 +271,13 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         }
     }
 
-    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped. A method of its own, not a
-    /// task in `run`: the toolchain of the macos-26 runner aborts ("freed pointer was not the last allocation") on that task's closure there.
+    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped. The wait is a `do` and not a
+    /// `try?` in the `guard`: the toolchain of the macos-26 runner aborts ("freed pointer was not the last allocation") on that `try? await` when
+    /// the task was cancelled before it began, which is what a model that is ready at once does to it.
     private func watchTheModel(_ mine: Int) {
         watchdog = Task {
-            guard (try? await sleep(Self.answerFloor)) != nil, Task.isCancelled == false, generation == mine, modelReady == false else { return }
+            do { try await sleep(Self.answerFloor) } catch { return }
+            guard Task.isCancelled == false, generation == mine, modelReady == false else { return }
             samples = []
             running?.cancel()
             fail(DictationFailure("The speech model did not get ready in time."))

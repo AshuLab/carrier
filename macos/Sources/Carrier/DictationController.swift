@@ -224,7 +224,7 @@ import SwiftUI
         guard loaded, minutes > 0 else { return }
         let wait = idleSince.addingTimeInterval(Double(minutes) * 60).timeIntervalSince(now())
         releaseTimer = Task { [weak self, sleep] in
-            guard (try? await sleep(.seconds(max(wait, 0)))) != nil else { return }
+            do { try await sleep(.seconds(max(wait, 0))) } catch { return }
             self?.evaluate()
         }
     }

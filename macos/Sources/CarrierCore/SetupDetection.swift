@@ -1,6 +1,6 @@
 import Foundation
 
-// The setup the app starts Carrier with: `node` and the `PATH`, found once by asking the user's own shell (`zsh -ilc`), and where
+// The setup the app starts Carrier with: `node` and the `PATH`, found by asking the user's own shell (once, and again when a start fails for a tool it did not find) (`zsh -ilc`), and where
 // `carrier` is. An app started from the Dock sees only /usr/bin:/bin:/usr/sbin:/sbin, and `zsh -lc` does not read .zshrc, so it finds
 // a different Node than nvm's.
 

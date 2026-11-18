@@ -131,3 +131,25 @@ private let homebrew = "/opt/homebrew/bin/carrier"
     #expect(decide(fixture: true) == false)
     #expect(decide(tried: true) == false)
 }
+
+@Test func aToolNodeCouldNotSpawnIsNamedFromTheLog() {
+    #expect(missingTool(in: "carrier failed to start: gh failed: spawn agent-forge ENOENT") == "agent-forge")
+    #expect(missingTool(in: "Error: spawn gh ENOENT\n    at ChildProcess._handle.onexit") == "gh")
+    #expect(missingTool(in: "config invalid: github.token is required") == nil)
+    #expect(missingTool(in: "spawn /a/b ENOENT") == nil)
+    #expect(missingTool(in: "") == nil)
+}
+
+@Test func theShellsNewAnswerReplacesWhatItFoundAndNeverRemovesWhatItDidNot() {
+    let ran = SetupSettings(node: "/n/node", path: "/usr/bin")
+    #expect(redetected(ran, with: Detection(node: "/n/node", path: "/usr/bin:/p/bin")) == SetupSettings(node: "/n/node", path: "/usr/bin:/p/bin"))
+    #expect(redetected(ran, with: Detection(node: "/m/node", path: "/x")) == SetupSettings(node: "/m/node", path: "/x"))
+    // a partial answer keeps the value that worked
+    #expect(redetected(ran, with: Detection(node: nil, path: "/x")) == SetupSettings(node: "/n/node", path: "/x"))
+    #expect(redetected(ran, with: Detection()) == ran)
+}
+
+@Test func theAlertSaysWhetherTheShellWasReadAgain() {
+    #expect(toolNotFoundText("agent-forge") == "agent-forge is not on the PATH of your shell either, which was read again just now. Install it, or add its folder to the PATH of your shell, and start again.")
+    #expect(toolNotFoundText("gh", shellAnswered: false) == "gh was not found, and the shell gave no answer when asked for its PATH again. Press Detect in Settings to try once more.")
+}

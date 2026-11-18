@@ -131,7 +131,16 @@ export class FakeGit implements Git {
   failures = new Map<string, Extract<GitResult, { ok: false }>>();
   /** What a repository is when it has just been cloned, besides its origin: `head` and `branches` are `main` unless this says otherwise. */
   cloned: Partial<FakeRepo> = {};
+  /** What `ssh -G` says the host of each alias is; a host that is not here is its own. */
+  sshHosts: Record<string, string> = {};
+  /** The hosts `sshHost` was asked about. */
+  sshAsked: string[] = [];
   private progress: ((line: string) => void) | undefined;
+
+  async sshHost(host: string) {
+    this.sshAsked.push(host);
+    return this.sshHosts[host] ?? host;
+  }
 
   /** Plays a line of stderr of the clone that is running, as git writes it. */
   emitProgress(...lines: string[]) {
@@ -203,6 +212,7 @@ export class FakeGit implements Git {
       return out();
     }
     if (verb === 'rev-parse') return out(String(repo.bare === true), repo.linked ? '/elsewhere/.git/worktrees/w' : '.git', repo.linked ? '/elsewhere/.git' : '.git', repo.fetchHead ?? '.git/FETCH_HEAD');
+    if (verb === 'remote' && rest[0] === 'get-url') return repo.origin === undefined ? { ok: false as const, code: 2, stderr: '' } : out(repo.origin);
     if (verb === 'config') return repo.origin === undefined ? no : out(repo.origin);
     if (verb === 'symbolic-ref' && rest.includes('refs/remotes/origin/HEAD')) return repo.originHead === undefined ? no : out(`refs/remotes/origin/${repo.originHead}`);
     if (verb === 'symbolic-ref') return repo.head === null ? no : out(repo.head);

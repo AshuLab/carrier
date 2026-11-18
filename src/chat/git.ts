@@ -5,6 +5,8 @@ export type GitResult = { ok: true; out: string } | { ok: false; code: number | 
 
 /** The port through which the chat host runs the `git` of the machine (docs/specs/session-worktrees.md, Decisions). */
 export interface Git {
+  /** The host `ssh` really reaches for `host`, which may be an alias of the person's ssh config (`ssh -G`); `host` itself when ssh cannot say. Never rejects. */
+  sshHost(host: string): Promise<string>;
   /** Runs `git <args>` in `folder`: no shell, so every argument stays one argument. Never rejects. `timeoutMs` replaces the default limit; `env` is added to the host's (credentials travel here, never in `args`); `signal` kills git when it aborts. `onProgress` is called with each line git writes to stderr while it runs (git is told `--progress`, since it only reports on a terminal otherwise): the caller keeps what it may show, as stderr can hold a URL. */
   run(folder: string, args: string[], options?: { timeoutMs?: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal; onProgress?: (line: string) => void }): Promise<GitResult>;
 }
@@ -12,8 +14,21 @@ export interface Git {
 const TIMEOUT_MS = 20_000;
 const MAX_OUTPUT = 16 * 1024 * 1024;
 
+const sshHosts = new Map<string, Promise<string>>();
+
 /** The host's own environment plus `GIT_TERMINAL_PROMPT=0`, so a command that wants a password fails instead of waiting for one. */
 export const realGit: Git = {
+  // `host` is checked by the caller to start with a word character, and `--` keeps it an argument and not an option.
+  // ponytail: asked once per host for the life of the process, so a change in the ssh config needs a restart of the host.
+  sshHost: (host) => {
+    const known = sshHosts.get(host);
+    if (known !== undefined) return known;
+    const asked = new Promise<string>((resolve) => {
+      execFile('ssh', ['-G', '--', host], { timeout: 5_000, encoding: 'utf8' }, (error, stdout) => resolve((error === null && /^hostname (\S+)$/m.exec(stdout)?.[1]) || host));
+    });
+    sshHosts.set(host, asked);
+    return asked;
+  },
   run: (folder, args, options) =>
     new Promise((resolve) => {
       const { onProgress } = options ?? {};

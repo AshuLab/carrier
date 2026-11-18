@@ -5,7 +5,7 @@ import type { ChatDb } from './db.ts';
 import type { Git } from './git.ts';
 import { pullRequestKey, type PullRequestChecks, type PullRequestInfo, type PullRequests, type PullRequestState } from './pull-requests.ts';
 import { sessions } from './schema.ts';
-import { parseOrigin } from './workspace.ts';
+import { resolveOrigin } from './workspace.ts';
 
 const log = createScopedLogger('chat');
 
@@ -65,8 +65,8 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
   async function whereOf(found: Found) {
     const worktree = found.workspaceKind === 'worktree';
     const originFolder = worktree ? (found.worktreeBase ?? found.folder) : found.folder;
-    const origin = await out(originFolder, ['config', '--get', 'remote.origin.url']);
-    const parsed = origin === null ? null : parseOrigin(origin);
+    const origin = await out(originFolder, ['remote', 'get-url', 'origin']); // as git resolves it, `insteadOf` included
+    const parsed = origin === null ? null : await resolveOrigin(git, origin);
     const branch = worktree ? found.worktreeBranch : await out(found.folder, ['rev-parse', '--abbrev-ref', 'HEAD']);
     const head = await out(originFolder, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
     return {
@@ -102,6 +102,7 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
   async function discover(found: Found) {
     discoveredAt.set(found.id, clock.now());
     const where = await whereOf(found);
+    if (where.repo === null) log.debug('no GitHub repository to look for a pull request in', { session: found.id }); // not the remote: it can hold a token
     if (where.repo === null || where.branch === null || where.branch === where.defaultBranch) return;
     const info = await pulls.find(where.repo, where.branch);
     if (info === null) return;

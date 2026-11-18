@@ -158,13 +158,17 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
 }
 
 @Test func theAppSendsNoCloneRepoOrCreateProjectRequest() throws {
-    // a plan replaced both; a host keeps them only for apps older than this one
+    // a plan replaced both (#668); a host keeps them only for apps older than this one
     let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Sources")
     let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+    var scanned = 0
     for case let file as URL in files where file.pathExtension == "swift" {
+        scanned += 1
         let text = try String(contentsOf: file, encoding: .utf8)
-        #expect(text.contains(", \"cloneRepo\"") == false && text.contains(", \"createProject\"") == false, "\(file.lastPathComponent) sends a request the plan replaced")
+        #expect(text.contains("\"cloneRepo\"") == false && text.contains("\"createProject\"") == false, "\(file.lastPathComponent) sends a request the plan replaced")
     }
+    // a wrong path would scan nothing and pass
+    #expect(scanned > 50)
 }
 
 @Test func theFixtureHostAnswersGithubReposByPageFromTheGoldenFileWithTheLoginOnPageOneOnly() async throws {

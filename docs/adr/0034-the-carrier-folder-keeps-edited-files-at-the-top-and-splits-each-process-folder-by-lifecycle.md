@@ -1,6 +1,6 @@
 # 0034 - The Carrier folder keeps the edited files at the top and splits each process's folder by lifecycle
 
-- Status: accepted; supersedes [0016](0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)
+- Status: accepted; supersedes the folder layout of [0016](0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)
 - Date: 2026-11-17
 
 ## Context
@@ -22,14 +22,16 @@ Nobody but the author has data in the folder, so nothing is migrated and no old 
 
 The top of the Carrier folder holds only the files a person edits: `engine.json` (the engine's config, formerly `config.json`), `chat.json` (the chat's, formerly `chat/chat.json`) and `providers.json` (the accounts both processes read, [0020](0020-accounts-live-in-a-file-both-processes-read.md)).
 Next to them, one folder per process, and only that process writes in it: `engine/`, `chat/` and `app/`.
-The one exception is accepted: the app copies the files a person attaches into `chat/attachments/`, because the chat is where they are used.
+Two exceptions are accepted.
+The app copies the files a person attaches into `chat/attachments/`, because the chat is where they are used.
+The app writes what it saw when it started a process (`app-start.log`) and ran a Homebrew upgrade (`app-upgrade.log`) into that process's `logs/`, next to the process's own logs.
 
 Inside its folder, a process splits what it writes by lifecycle:
 
 - `state/`: what it cannot rebuild (databases, sockets, locks, the app's terminals and dictation history), kept and backed up.
 - `logs/`: what it wrote while it ran, rotated and purged.
 - work (`repos/`, `worktrees/`, `reviews/`, `projects/`, `attachments/`): folders that belong to an epic, a session or a project, removed when their owner ends.
-- `cache/`: what comes back on its own (the app's speech models and its terminal shim), safe to delete and left out of backups.
+- `cache/`: what can be fetched or rebuilt (the app's speech models, downloaded again from Settings, and its terminal shim, rewritten at each start), safe to delete and left out of backups.
 
 ```
 <folder>/
@@ -39,19 +41,23 @@ Inside its folder, a process splits what it writes by lifecycle:
   app/     state/ (terminals.json, dictations.jsonl, dictation-statistics.json, audio/), logs/, cache/ (models/, zsh-bottom-prompt/)
 ```
 
-Every place is computed from the folder in one module per language, `src/config/places.ts` and `macos/Sources/CarrierCore/CarrierPlaces.swift`, and no other file builds a path inside the folder by hand.
+Every folder of this layout, and every file another process or the app reaches (the configs, the sockets, the app's start and upgrade logs), is computed from the Carrier folder in one module per language, `src/config/places.ts` and `macos/Sources/CarrierCore/CarrierPlaces.swift`.
+A file only its owner touches inside its own folders (a database, a lock, `results/`, `forge-cwd/`, a log) is named where the owner writes it, from the folder those modules give.
 
 ## Alternatives considered
 
-Keeping each config inside its process's folder (`engine/engine.json`, `chat/chat.json`). It follows ownership to the letter, but a person edits these files and should find them in one place, and the processes' folders become pure output that can be inspected or wiped without touching a setting.
+Keeping each config inside its process's folder (`engine/engine.json`, `chat/chat.json`).
+It follows ownership to the letter, but a person edits these files and should find them in one place, and the processes' folders become pure output that can be inspected or wiped without touching a setting.
 
-Naming the chat's folder `sessions/`. It names what a person sees, but the folders at the top name the process that owns them, and the chat's sessions already have that word for their own subfolder.
+Naming the chat's folder `sessions/`.
+It names what a person sees, but the folders at the top name the process that owns them, and the chat's sessions already have that word for their own subfolder.
 
-A shared `cache/` or `workspaces/` at the top for every process. It would make one place to exclude from backups, but today only the app has a cache and every worktree belongs to the clone of the process that made it, so a shared folder would have no shared content.
+A shared `cache/` or `workspaces/` at the top for every process.
+It would make one place to exclude from backups, but today only the app has a cache and every worktree belongs to the clone of the process that made it, so a shared folder would have no shared content.
 
 ## Consequences
 
 A person's settings are the three files at the top, and copying them is copying the setup.
 `carrier init`, `--config` and the app's Settings read and write `engine.json`; a `config.json` left from before is ignored.
-The app's cache can be left out of Time Machine and deleted by hand; the models download again and the shim is rewritten at the next start.
+The app's cache can be left out of Time Machine and deleted by hand; the models are downloaded again from Settings and the shim is rewritten at the next start.
 Where things go is decided in two files, so a later change of place, like the cleanup of worktrees or the rotation of logs, touches those and their callers only.

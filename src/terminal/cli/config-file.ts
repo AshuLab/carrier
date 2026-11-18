@@ -1,16 +1,16 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { carrierHome, defaultConfigPath } from '../../config/places.ts';
+import { carrierHome, engineConfigPathOf } from '../../config/places.ts';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { providersProblem, readProvidersFile } from '../../config/providers.ts';
 import type { Config } from '../../config/schema.ts';
 import { CliError } from './cli-error.ts';
 
 /** The explicit `--config` wins; otherwise the global file `carrier init` writes, if it is there. */
-export const configPathFor = (explicit: unknown) => (typeof explicit === 'string' ? explicit : existsSync(defaultConfigPath()) ? defaultConfigPath() : undefined);
+export const configPathFor = (explicit: unknown) => (typeof explicit === 'string' ? explicit : existsSync(engineConfigPathOf()) ? engineConfigPathOf() : undefined);
 
 /** When there is no config to use: what to do about it. */
-export const noConfig = (...first: string[]) => new CliError(2, ...first, `No config at ${defaultConfigPath()}: run "carrier init" to create one.`);
+export const noConfig = (...first: string[]) => new CliError(2, ...first, `No config at ${engineConfigPathOf()}: run "carrier init" to create one.`);
 
 /** Reads, merges over the defaults and validates; every problem is reported at once, with its field. The accounts come from `providers.json` in the Carrier folder, wherever `path` is. */
 export function loadConfigFile(path: string, folder = carrierHome()): Config {

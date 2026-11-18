@@ -17,7 +17,7 @@ public enum FixtureError: Error, Equatable {
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; `switchAgent` gives an idle session another listed agent and a notice that says so; anything else is an error.
-/// It owns a temporary home (`home`) holding a `engine.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
+/// It owns a temporary home (`home`) holding an `engine.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 /// The `engine.json` of the fixture home: the repos of the fixture snapshot, the profiles and the three global roles, and one repo that
 /// overrides the reviewer's model, so the Repos page shows an inherited role and a mixed one.
@@ -190,7 +190,7 @@ public final class FixtureServer {
         self.home = home
         do {
             let places = CarrierPlaces(folder: home)
-            try FileManager.default.createDirectory(atPath: places.engine + "/state", withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(atPath: places.engineState, withIntermediateDirectories: true)
             try Data(fixtureConfig.utf8).write(to: URL(fileURLWithPath: places.engineConfig))
             try Data(fixtureForgeRegistry.utf8).write(to: URL(fileURLWithPath: home + "/agent-forge.json"))
             // what the app's doctor run answers in `--fixture` mode (`doctorFixtureOutput`)

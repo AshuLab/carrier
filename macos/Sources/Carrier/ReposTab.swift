@@ -106,7 +106,7 @@ struct ReposTabView: View {
         }
     }
 
-    /// Not awaited: the card says it is running. The store ignores a run while one is running and runs only with a `engine.json`.
+    /// Not awaited: the card says it is running. The store ignores a run while one is running and runs only with an `engine.json`.
     private func runDoctor() {
         let settings = setup.settings, configExists = start.configExists
         // a fixture has no `carrier` to find: any path will do, the run answers with the golden output

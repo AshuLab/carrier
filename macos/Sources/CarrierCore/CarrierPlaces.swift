@@ -28,7 +28,10 @@ public struct CarrierPlaces: Sendable, Equatable {
     public var engineLogs: String { engine + "/logs" }
     /// What the app saw the last time it started the engine.
     public var engineStartLog: String { engineLogs + "/app-start.log" }
-    public var controlSocket: String { engine + "/state/control.sock" }
+    /// What the last Homebrew upgrade run from the app wrote.
+    public var engineUpgradeLog: String { engineLogs + "/app-upgrade.log" }
+    public var engineState: String { engine + "/state" }
+    public var controlSocket: String { engineState + "/control.sock" }
 
     // The chat host's. It does not read the engine's config.
     public var chat: String { folder + "/chat" }

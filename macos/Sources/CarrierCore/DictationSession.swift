@@ -255,16 +255,23 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         answerIsSlow = false
         let mine = generation, quick = Self.quickAnswer
         slowness = Task {
-            guard (try? await sleep(quick)) != nil, generation == mine else { return }
+            guard await pause(quick), generation == mine else { return }
             answerIsSlow = true
         }
+    }
+
+    /// Waits for `duration` on the session's clock; false when the wait was cancelled. A method of its own: the tasks below crashed on the macos-26
+    /// runner ("freed pointer was not the last allocation") with this wait written in their own `guard`.
+    private func pause(_ duration: Duration) async -> Bool {
+        do { try await sleep(duration) } catch { return false }
+        return true
     }
 
     private func waitForTheAnswer() {
         let mine = generation
         let timeout = Self.answerFloor + Self.answerPerAudioSecond * captured.components.seconds
         watchdog = Task {
-            guard (try? await sleep(timeout)) != nil, Task.isCancelled == false, generation == mine else { return }
+            guard await pause(timeout), Task.isCancelled == false, generation == mine else { return }
             running?.cancel()
             fail(DictationFailure("The recognizer did not answer."))
         }
@@ -276,7 +283,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     private func watchTheModel(_ mine: Int) {
         let floor = Self.answerFloor
         Task {
-            guard (try? await sleep(floor)) != nil, generation == mine, modelReady == false, state != .idle else { return }
+            guard await pause(floor), generation == mine, modelReady == false, state != .idle else { return }
             samples = []
             running?.cancel()
             fail(DictationFailure("The speech model did not get ready in time."))

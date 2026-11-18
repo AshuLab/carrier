@@ -30,10 +30,11 @@ final class StartController: ObservableObject {
     /// `done` is called on the main thread with whether Carrier came up (also false when nothing was started).
     func start(done: ((Bool) -> Void)? = nil) {
         guard starting == false, refreshConfig() else { done?(false); return }
-        guard let command = startCommand(settings: SetupController.shared.settings, carrier: SetupController.shared.carrier, environment: ProcessInfo.processInfo.environment) else { done?(false); return }
+        let carrier = SetupController.shared.carrier, environment = ProcessInfo.processInfo.environment
+        guard let command = startCommand(settings: SetupController.shared.settings, carrier: carrier, environment: environment) else { done?(false); return }
         starting = true
         DispatchQueue.global().async {
-            let failure = Self.launch(command)
+            let failure = Self.launch(command, again: { startCommand(settings: $0, carrier: carrier, environment: environment) })
             DispatchQueue.main.async {
                 self.starting = false
                 if let failure { Self.showAlert(reason: failure.reason, tail: failure.tail) }
@@ -51,8 +52,27 @@ final class StartController: ObservableObject {
         return "start enabled, would run \(command.program) \(command.arguments.joined(separator: " ")), log \(command.logPath)"
     }
 
-    /// Spawns Carrier and waits for its socket; nil when it came up, else what to tell the person.
-    static func launch(_ command: StartCommand, name: String = "Carrier") -> (reason: String, tail: String)? {
+    /// Spawns Carrier and waits for its socket; nil when it came up, else what to tell the person. When it exits because a tool was not
+    /// found on the PATH (`spawn agent-forge ENOENT`) and `again` can build the command for other settings, the shell is asked for its
+    /// PATH once more, since a folder added after the app first asked never reached the engine, and the start is tried once more with it.
+    /// Called off the main thread.
+    static func launch(_ command: StartCommand, name: String = "Carrier", again: ((SetupSettings) -> StartCommand?)? = nil) -> (reason: String, tail: String)? {
+        guard let first = attempt(command, name: name) else { return nil }
+        guard first.exited, var tool = missingTool(in: first.tail), let again else { return (first.reason, first.tail) }
+        var failed = first
+        let current = DispatchQueue.main.sync { SetupController.shared.settings }
+        if let fresh = redetected(current, with: ShellDetector.run()), let next = again(fresh) {
+            DispatchQueue.main.sync { SetupController.shared.settings = fresh }
+            guard let second = attempt(next, name: name) else { return nil }
+            guard second.exited, let still = missingTool(in: second.tail) else { return (second.reason, second.tail) }
+            failed = second
+            tool = still
+        }
+        return (failed.reason + " " + toolNotFoundText(tool), failed.tail)
+    }
+
+    /// One spawn and its wait; `exited` is whether the process ended, as against not opening its socket in time.
+    private static func attempt(_ command: StartCommand, name: String) -> (reason: String, tail: String, exited: Bool)? {
         let log = URL(fileURLWithPath: command.logPath)
         do {
             try prepareLogFolder(command)
@@ -65,13 +85,15 @@ final class StartController: ObservableObject {
                 let answered = ControlClient.connect(path: command.socketPath) != nil
                 switch startOutcome(exitCode: exit.value, socketAnswered: answered, elapsed: Date().timeIntervalSince(began)) {
                 case .running?: return nil
-                case .failed(let failure)?: return (startFailureText(failure, name: name), tail(of: log))
+                case .failed(let failure)?:
+                    if case .exited = failure { return (startFailureText(failure, name: name), tail(of: log), true) }
+                    return (startFailureText(failure, name: name), tail(of: log), false)
                 case nil: Thread.sleep(forTimeInterval: 0.25)
                 }
             }
         } catch {
             FileHandle.standardError.write(Data("carrier: \(name) start failed: \(error)\n".utf8))
-            return ("\(name) could not be started: \(error.localizedDescription)", tail(of: log))
+            return ("\(name) could not be started: \(error.localizedDescription)", tail(of: log), false)
         }
     }
 

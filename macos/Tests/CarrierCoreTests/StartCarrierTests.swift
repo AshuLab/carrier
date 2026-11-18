@@ -131,3 +131,20 @@ private let homebrew = "/opt/homebrew/bin/carrier"
     #expect(decide(fixture: true) == false)
     #expect(decide(tried: true) == false)
 }
+
+@Test func aToolNodeCouldNotSpawnIsNamedFromTheLog() {
+    #expect(missingTool(in: "carrier failed to start: gh failed: spawn agent-forge ENOENT") == "agent-forge")
+    #expect(missingTool(in: "Error: spawn gh ENOENT\n    at ChildProcess._handle.onexit") == "gh")
+    #expect(missingTool(in: "config invalid: github.token is required") == nil)
+    #expect(missingTool(in: "spawn /a/b ENOENT") == nil)
+    #expect(missingTool(in: "") == nil)
+}
+
+@Test func theStartIsTriedAgainOnlyWithSettingsTheShellChangedAndTheTextNamesTheTool() {
+    let ran = SetupSettings(node: "/n/node", path: "/usr/bin")
+    #expect(redetected(ran, with: Detection(node: "/n/node", path: "/usr/bin:/p/bin")) == SetupSettings(node: "/n/node", path: "/usr/bin:/p/bin"))
+    // the same answer, or none: another start would fail the same way
+    #expect(redetected(ran, with: Detection(node: "/n/node", path: "/usr/bin")) == nil)
+    #expect(redetected(ran, with: nil) == nil)
+    #expect(toolNotFoundText("agent-forge").hasPrefix("agent-forge is not on the PATH of your shell"))
+}

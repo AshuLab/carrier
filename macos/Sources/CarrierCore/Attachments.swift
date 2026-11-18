@@ -106,12 +106,18 @@ public func attachedCopy(of url: URL, carrierFolder: String, fileManager: FileMa
 }
 
 /// The files about to go with a message, each with the copy Carrier keeps: one whose copy the host swept after a day in the box is copied again from
-/// where the person dropped it, and when that is gone too it says so (`.missing`) and is left out of the message like any file that cannot go.
+/// where the person dropped it, as the original is at this moment (an edited file goes in its new version). When the original cannot go either, the
+/// file comes back with its problem (`.missing`, too big, Carrier's own), and `lostInRefresh` says so.
 public func refreshedCopies(_ files: [AttachedFile], carrierFolder: String, fileManager: FileManager = .default) -> [AttachedFile] {
     files.map { file in
         guard let source = file.source, fileManager.fileExists(atPath: file.path) == false else { return file }
         return attachedCopy(of: URL(fileURLWithPath: source), carrierFolder: carrierFolder, fileManager: fileManager)
     }
+}
+
+/// A file that could go before `refreshedCopies` and cannot after it: the message would leave it out without a word, so the send waits for the person to see it.
+public func lostInRefresh(_ before: [AttachedFile], _ after: [AttachedFile]) -> Bool {
+    zip(before, after).contains { $0.problem == nil && $1.problem != nil }
 }
 
 /// Takes the copy of a file out again (the person removed its chip before sending); only ever something inside the pending folder.

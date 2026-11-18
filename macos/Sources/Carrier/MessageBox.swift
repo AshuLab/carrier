@@ -347,11 +347,18 @@ struct MessageBox<Selects: View>: View {
     /// Enter and the button: sends, and makes the arrow bounce when there is something to send.
     private func fire() {
         guard sendAllowed || busy else { return }
+        // a copy the host swept after a day is made again first; the chips take the new ones, and a file that cannot be had any more stops the send so its chip says so
+        if ready, attachments.isEmpty == false {
+            let fresh = refreshedCopies(attachments, carrierFolder: carrier)
+            let lost = lostInRefresh(attachments, fresh)
+            attachments = fresh
+            if lost { return }
+        }
         if ready || busy { sent += 1 }
         // the long texts go in blocks under what is typed, then the files as paths; both are taken out of the box once the message is on its way
         if ready {
             var message = messageWithPastes(text.trimmingCharacters(in: .whitespacesAndNewlines), pastes: pastes.map(\.text).filter { $0.allSatisfy(\.isWhitespace) == false })
-            if attachments.isEmpty == false { message = messageWithAttachments(message, files: refreshedCopies(attachments, carrierFolder: carrier)) }
+            if attachments.isEmpty == false { message = messageWithAttachments(message, files: attachments) }
             if message != text {
                 fired = message
                 text = message

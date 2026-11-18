@@ -531,7 +531,11 @@ private final class LockedAnswers: @unchecked Sendable {
 
     #expect(await store.save(name: "claude", draft: work))
     // the older ask is in the engine's hands before the newer one is made, so it is the one that gets the refusal
-    for _ in 0..<5000 where answers.taken < 1 { try await Task.sleep(for: .milliseconds(1)) }
+    var waited = 0
+    while answers.taken < 1, waited < 5000 {
+        try await Task.sleep(for: .milliseconds(1))
+        waited += 1
+    }
     #expect(answers.taken == 1)
     var again = work
     again.displayName = "Work 2"

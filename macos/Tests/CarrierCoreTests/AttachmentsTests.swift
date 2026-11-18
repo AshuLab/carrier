@@ -108,9 +108,14 @@ private func temporaryFolder() throws -> URL {
     // the original is gone too: it cannot go, and the message leaves it out
     try FileManager.default.removeItem(atPath: again.path)
     try FileManager.default.removeItem(at: original)
-    let gone = try #require(refreshedCopies([again], carrierFolder: carrier).first)
+    let goneFiles = refreshedCopies([again], carrierFolder: carrier)
+    let gone = try #require(goneFiles.first)
     #expect(gone.problem == .missing)
     #expect(messageWithAttachments("hi", files: [gone]) == "hi")
+    // that is a loss to say before sending; a file that already said its problem, or one made again, is not
+    #expect(lostInRefresh([again], goneFiles))
+    #expect(lostInRefresh([gone], goneFiles) == false)
+    #expect(lostInRefresh([kept], [again]) == false)
 
     // a file with no copy (a folder, a file that stayed where it is) is never touched
     let sub = folder.appendingPathComponent("fixtures")

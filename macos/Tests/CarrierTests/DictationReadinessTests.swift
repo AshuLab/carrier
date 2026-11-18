@@ -105,7 +105,8 @@ import Testing
     let field = DictationField(owner: "box", text: { "" }, caret: { 0 }, put: { _, _, _ in })
     rig.dictation.toggle(into: field)
     await rig.until { rig.dictation.session.state == .listening }
-    #expect(rig.clock.requested.isEmpty)
+    // no timer of the release while it dictates (the session's own 30 s wait for the model may be there)
+    #expect(rig.clock.requested.allSatisfy { $0 == .seconds(30) })
     rig.clock.advance(minutes: 4)
     rig.dictation.session.stop()
     rig.recognizer.say(.final(""))

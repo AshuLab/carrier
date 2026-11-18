@@ -255,6 +255,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         answerIsSlow = false
         let mine = generation
         slowness = Task {
+            guard Task.isCancelled == false else { return }
             do { try await sleep(Self.quickAnswer) } catch { return }
             guard generation == mine else { return }
             answerIsSlow = true
@@ -265,17 +266,20 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         let mine = generation
         let timeout = Self.answerFloor + Self.answerPerAudioSecond * captured.components.seconds
         watchdog = Task {
-            guard (try? await sleep(timeout)) != nil, Task.isCancelled == false, generation == mine else { return }
+            guard Task.isCancelled == false else { return }
+            do { try await sleep(timeout) } catch { return }
+            guard Task.isCancelled == false, generation == mine else { return }
             running?.cancel()
             fail(DictationFailure("The recognizer did not answer."))
         }
     }
 
-    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped. The wait is a `do` and not a
-    /// `try?` in the `guard`: the toolchain of the macos-26 runner aborts ("freed pointer was not the last allocation") on that `try? await` when
-    /// the task was cancelled before it began, which is what a model that is ready at once does to it.
+    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped. A model that is ready at once
+    /// cancels this task before it begins, and the runtime of the macos-26 runner aborts ("freed pointer was not the last allocation") when a
+    /// task that was cancelled before it began goes on to sleep: so it looks first.
     private func watchTheModel(_ mine: Int) {
         watchdog = Task {
+            guard Task.isCancelled == false else { return }
             do { try await sleep(Self.answerFloor) } catch { return }
             guard Task.isCancelled == false, generation == mine, modelReady == false else { return }
             samples = []

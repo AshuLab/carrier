@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-17
+
+Switch a session to another agent and hand work to child sessions, and see what the agent waits on: the conversation shows its subagents, its background tasks and what each call is doing, and the sidebar's cards show pull requests and lines changed.
+
 ### Added
 
 - In `carrier chat`, `/agent <name>` switches an idle session to another configured agent: the new agent starts a fresh conversation and can read the old one through the `history` tool, so you go on where you were when a quota runs out or you want a second opinion.
@@ -324,7 +328,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/AshuLab/carrier/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/AshuLab/carrier/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/AshuLab/carrier/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/AshuLab/carrier/compare/v0.6.0...v0.7.0

@@ -112,7 +112,7 @@ How the app looks is in [macos-ui](../docs/macos-ui.md); what it does, area by a
 
 - [The app shell](../docs/macos/app-shell.md): the Dock and menu bar app, the window, the sidebar and its shortcuts, epics and file icons.
 - [Starting Carrier and the chat host](../docs/macos/lifecycle.md): Start Carrier, the chat host, version checks and replacement.
-- [Settings](../docs/macos/settings.md): the sheet and its rail, with a page per group: [App](../docs/macos/settings-app.md), [Chat](../docs/macos/settings.md#sessions-page), [Carrier](../docs/macos/settings-carrier.md) and [Legacy](../docs/macos/settings-legacy.md).
+- [Settings](../docs/macos/settings.md): the sheet and its rail, with a page per group: [App](../docs/macos/settings-app.md), [Chat](../docs/macos/settings.md#sessions-page), [Carrier](../docs/macos/settings-carrier.md) and [Health](../docs/macos/settings-health.md).
 - [Sessions](../docs/macos/sessions.md): the Sessions home, the Archive and the conversation.
 - [New session](../docs/macos/new-session.md): the plan, the workspace and the preparation.
 - [Terminal](../docs/macos/terminal.md): standalone terminals, tabs and splits, the session drawer and the bottom-anchored Zsh prompt.

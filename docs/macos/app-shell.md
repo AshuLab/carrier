@@ -19,7 +19,7 @@ The app asks for the snapshot every second while connected and tries to connect 
 The update has no window: a glass pill in the sidebar's title bar, after the window's buttons (`UpdatePill.swift`), is all of it, drawn from `UpdateFlow` (`CarrierCore/UpdateFlow.swift`, tested in `UpdateFlowTests`), which Sparkle's user driver of our own (`UpdateDriver` in `AppUpdater.swift`) moves.
 When a check finds a version the pill slides in with `↓ X.Y.Z`; a click downloads it in place, the version rolling to the percent while the chat's thinking glow runs round the edge; done, a tick says Ready and it rolls to `Restart`, whose words shimmer; a click installs and relaunches (`Restarting…`); if Carrier does not close (a quit that was cancelled or delayed), a click on `Restarting…` asks it to quit again, and the log says whether the app had closed (`installing the update, application terminated`).
 A failed download leaves `Retry`, which checks again and downloads what it finds.
-A check the person asks for (Settings > Updates, Check for Updates… in the menu) that finds an update shows it in the pill too; one that finds nothing, or fails before any download, says so in an alert.
+A check the person asks for (Settings > About, Check for Updates… in the menu) that finds an update shows it in the pill too; one that finds nothing, or fails before any download, says so in an alert.
 While the sidebar is hidden the pill is not shown; with Reduce Motion the glow, the shimmer and the bounce stop and the words still tell the state.
 `--fixture-update` plays the whole course with a made-up version.
 

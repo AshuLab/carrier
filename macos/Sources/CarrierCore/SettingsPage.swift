@@ -2,35 +2,35 @@
 /// these, in the order of the cases.
 public enum SettingsPage: String, CaseIterable {
     case general = "General", providers = "Providers", notifications = "Notifications", appearance = "Appearance", terminal = "Terminal"
-    case keybindings = "Keybindings"
-    case updates = "Updates"
-    case chat = "Chat", sidebar = "Sidebar", sessions = "Sessions", dictation = "Dictation"
+    case keybindings = "Keybindings", dictation = "Dictation"
+    case chat = "Chat", sidebar = "Sidebar", sessions = "Sessions"
     case repos = "Repos"
     case agents = "Agents"
     case behavior = "Behavior"
     case engine = "Engine"
     case health = "Health"
+    case about = "About"
 
-    /// A group of the rail: the App one has no heading, Chat, Carrier and Legacy have their own.
+    /// A group of the rail: the App one has no heading, Chat and Carrier have their own, and About is last, kept at the foot of the rail.
     public enum Group: CaseIterable {
-        case app, chat, carrier, legacy
+        case app, chat, carrier, about
 
         public var heading: String? {
             switch self {
             case .app: nil
             case .chat: "Chat"
             case .carrier: "Carrier"
-            case .legacy: "Legacy"
+            case .about: nil
             }
         }
     }
 
     public var group: Group {
         switch self {
-        case .general, .providers, .notifications, .appearance, .terminal, .keybindings, .updates: .app
-        case .chat, .sidebar, .sessions, .dictation: .chat
-        case .repos, .agents, .behavior, .engine: .carrier
-        case .health: .legacy
+        case .general, .providers, .notifications, .appearance, .terminal, .keybindings, .dictation: .app
+        case .chat, .sidebar, .sessions: .chat
+        case .repos, .agents, .behavior, .engine, .health: .carrier
+        case .about: .about
         }
     }
 
@@ -45,7 +45,7 @@ public enum SettingsPage: String, CaseIterable {
         case .chat: "bubble.left.and.text.bubble.right"
         case .dictation: "mic"
         case .keybindings: "keyboard"
-        case .updates: "arrow.down.circle"
+        case .about: "info.circle"
         case .providers: "brain"
         case .engine: "cpu"
         case .behavior: "slider.horizontal.3"
@@ -67,7 +67,7 @@ public enum SettingsPage: String, CaseIterable {
         case .chat: "The message box and the conversation"
         case .dictation: "Speak instead of typing"
         case .keybindings: "The keys that run the app's actions"
-        case .updates: "This version, and whether Carrier looks for a newer one by itself"
+        case .about: "This version, its links and whether Carrier updates by itself"
         case .providers: "The AI tools on this Mac and their accounts"
         case .engine: "How the app runs Carrier"
         case .behavior: "How Carrier runs epics"

@@ -43,14 +43,15 @@ struct SettingsTabRow<Control: View>: View {
 
     var body: some View {
         if form {
-            LabeledContent {
+            // an HStack and not a LabeledContent: that one sets the control at the height of the first line, so on a row with a detail line the
+            // switches and selects would not sit in the middle of it
+            HStack(spacing: 12) {
+                if let leading { leading }
+                words
+                Spacer(minLength: 8)
                 control.environment(\.settingsInvalid, problem != nil)
-            } label: {
-                HStack(spacing: 12) {
-                    if let leading { leading }
-                    words
-                }
             }
+            .frame(minHeight: 36)
             .settingsAnchored(title)
         } else {
             HStack(spacing: 12) {
@@ -270,6 +271,8 @@ struct NativePopUp: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSPopUpButton {
         let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        // set, not left to automatic: inside a form AppKit draws an automatic pop-up as a bare circle, and the selects must look the same everywhere
+        button.bezelStyle = .rounded
         button.target = context.coordinator
         button.action = #selector(Coordinator.changed(_:))
         button.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -436,6 +439,7 @@ struct SettingsGroup<Content: View, Accessory: View>: View {
                 SettingsTabCard { content }.environment(\.settingsGroup, title)
                 if let footer { Text(footer).font(.scaled(11)).foregroundStyle(.secondary).padding(.horizontal, 14) }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .settingsAnchored(title, group: title)
         }
     }
@@ -539,13 +543,16 @@ extension View {
     }
 }
 
+/// How wide the select of a row is, the same on every page so the selects end and begin on one line down the card.
+let settingsSelectWidth: CGFloat = 180
+
 /// `NativePopUp` over a value: the choices as (value, title) pairs, the one chosen bound as the value itself. A stored value that is not on the
 /// list shows the first choice, as the pages already read an unknown value as their default.
 struct ChoicePopUp<Value: Hashable>: View {
     let label: String
     let options: [(value: Value, title: String)]
     @Binding var selection: Value
-    var width: CGFloat = 160
+    var width: CGFloat = settingsSelectWidth
 
     var body: some View {
         NativePopUp(
@@ -573,7 +580,7 @@ struct SettingsPageBody<Content: View>: View {
             if form {
                 Form { content }.formStyle(.grouped)
             } else {
-                VStack(alignment: .leading, spacing: 12) { content }
+                VStack(alignment: .leading, spacing: 12) { content }.frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .onAppear { if let reset { resetter?.set(owner, reset) } }
@@ -1089,7 +1096,7 @@ struct ChatTabView: View {
                 SettingsTabRow(title: "Message width", detail: "How wide a message gets before it wraps") {
                     ChoicePopUp(
                         label: "Message width", options: MessageWidth.allCases.map { (value: $0, title: "\($0.title) · \(Int($0.points)) pt") },
-                        selection: $messageWidth, width: 180
+                        selection: $messageWidth
                     )
                 }
                 SettingsTabRow(title: "Surfaces", detail: "Glass blurs what is under; flat is a quiet solid fill") {

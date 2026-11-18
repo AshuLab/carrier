@@ -39,6 +39,15 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         }
     }
 
+    /// The page is a column of the same width as the others (a readable line, centered). The lists that open an editor, the checks and the
+    /// tables take the whole width of the window instead.
+    public var isColumn: Bool {
+        switch self {
+        case .providers, .repos, .health, .dictation: false
+        default: true
+        }
+    }
+
     /// The page's icon in the sidebar (an SF Symbol).
     public var icon: String {
         switch self {

@@ -224,11 +224,13 @@ struct SettingsSidebar: View {
 
 struct SettingsTile: View {
     let page: SettingsPage
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        Image(systemName: page.icon).font(.scaled(11, weight: .semibold)).foregroundStyle(.white)
+        // the system's colors are made for a light window: on a dark one they glow, so they are mixed with black there
+        Image(systemName: page.icon).font(.scaled(11, weight: .semibold)).foregroundStyle(.white.opacity(scheme == .dark ? 0.88 : 1))
             .frame(width: 22, height: 22)
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(page.tint))
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(page.tint.mix(with: .black, by: scheme == .dark ? 0.4 : 0.05)))
             .accessibilityHidden(true)
     }
 }
@@ -252,6 +254,9 @@ extension SettingsPage {
         }
     }
 }
+
+/// How wide the pages of rows are, whatever the window: the same for every page that is a column (`SettingsPage.isColumn`).
+let settingsColumnWidth: CGFloat = 760
 
 /// The chosen page in a scroll of its own; its title is the window's toolbar. The readiness banner shows over every page while something is
 /// missing or being looked for.
@@ -281,13 +286,17 @@ struct SettingsPages: View {
                         notices.padding([.horizontal, .top], 24).padding(.bottom, showsNotices ? 8 : 0)
                         pageContent
                     }
+                    .frame(maxWidth: page.isColumn ? settingsColumnWidth : .infinity)
+                    .frame(maxWidth: .infinity)
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {
                             notices
                             pageContent
                         }
-                        .padding(24).frame(maxWidth: .infinity, alignment: .topLeading)
+                        .padding(24)
+                        .frame(maxWidth: page.isColumn ? settingsColumnWidth : .infinity, alignment: .topLeading)
+                        .frame(maxWidth: .infinity)
                     }
                 }
             }

@@ -70,7 +70,7 @@ struct SessionsTabView: View {
                     .task { await catalog.load() }
                 }
                 SettingsTabRow(title: "Work in", detail: "Base folder or a new worktree") {
-                    ChoicePopUp(label: "Work in", options: WorkIn.allCases.map { (value: $0, title: $0.title) }, selection: $workIn, width: 160)
+                    ChoicePopUp(label: "Work in", options: WorkIn.allCases.map { (value: $0, title: $0.title) }, selection: $workIn)
                 }
             }
             SettingsGroup(

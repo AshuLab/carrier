@@ -202,7 +202,7 @@ struct TerminalTabView: View {
         SettingsPageBody(reset: resetTerminalSettings) {
             SettingsGroup(title: "Appearance") {
                 SettingsTabRow(title: "Theme", detail: "Color palette for panes; inherits the app theme by default", first: true) {
-                    ChoicePopUp(label: "Theme", options: themeOptions, selection: themeSelection, width: 200)
+                    ChoicePopUp(label: "Theme", options: themeOptions, selection: themeSelection)
                 }
                 SettingsTabRow(
                     title: "Minimum contrast",
@@ -242,13 +242,13 @@ struct TerminalTabView: View {
                     detail: "Monospaced font used in panes; inherits Appearance › Code and output",
                     first: true
                 ) {
-                    ChoicePopUp(label: "Font", options: fontFamilyOptions, selection: fontFamilySelection, width: 200)
+                    ChoicePopUp(label: "Font", options: fontFamilyOptions, selection: fontFamilySelection)
                 }
                 SettingsTabRow(title: "Size", detail: "Text size in points for terminal output") {
-                    ChoicePopUp(label: "Size", options: fontSizeOptions, selection: fontSizeSelection, width: 200)
+                    ChoicePopUp(label: "Size", options: fontSizeOptions, selection: fontSizeSelection)
                 }
                 SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
-                    ChoicePopUp(label: "Ligatures", options: ligaturesOptions, selection: $fontLigaturesOverride, width: 200)
+                    ChoicePopUp(label: "Ligatures", options: ligaturesOptions, selection: $fontLigaturesOverride)
                 }
                 SettingsTabRow(title: "Thicken font", detail: "Renders glyphs slightly heavier on Retina displays") {
                     Toggle("Thicken font", isOn: $fontThicken).labelsHidden().toggleStyle(.switch)

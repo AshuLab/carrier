@@ -47,7 +47,7 @@ struct CleanupGroup: View {
                 ChoicePopUp(
                     label: "Server",
                     options: [(value: "", title: "Choose…")] + CleanupServer.allCases.map { (value: $0.rawValue, title: $0.title) },
-                    selection: Binding(get: { cleanup.server?.rawValue ?? "" }, set: { cleanup.choose(server: CleanupServer(rawValue: $0)) }), width: 160
+                    selection: Binding(get: { cleanup.server?.rawValue ?? "" }, set: { cleanup.choose(server: CleanupServer(rawValue: $0)) })
                 )
             }
         }
@@ -62,7 +62,7 @@ struct CleanupGroup: View {
         return SettingsTabRow(title: "Model", detail: detail) {
             ChoicePopUp(
                 label: "Model", options: [(value: "", title: "Choose…")] + (kept + listed).map { (value: $0, title: $0) },
-                selection: Binding(get: { cleanup.model ?? "" }, set: { cleanup.choose(model: $0.isEmpty ? nil : $0) }), width: 200
+                selection: Binding(get: { cleanup.model ?? "" }, set: { cleanup.choose(model: $0.isEmpty ? nil : $0) })
             )
             .disabled(cleanup.server == nil)
         }

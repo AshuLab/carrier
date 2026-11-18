@@ -96,7 +96,7 @@ struct BehaviorTabView: View {
                 )
             }
         case .logLevel:
-            ChoicePopUp(label: item.title, options: EngineConfig.logLevels.map { (value: $0, title: $0) }, selection: $draft.logLevel, width: 100)
+            ChoicePopUp(label: item.title, options: EngineConfig.logLevels.map { (value: $0, title: $0) }, selection: $draft.logLevel)
         }
     }
 

@@ -23,7 +23,7 @@ struct HistoryGroup: View {
                 Toggle("Keep the audio", isOn: $keepAudio).labelsHidden().toggleStyle(.switch)
             }
             SettingsTabRow(title: "Delete audio older than", detail: "The transcripts stay") {
-                ChoicePopUp(label: "Delete audio older than", options: dictationAudioLimits.map { (value: $0.days, title: $0.title) }, selection: $days, width: 110)
+                ChoicePopUp(label: "Delete audio older than", options: dictationAudioLimits.map { (value: $0.days, title: $0.title) }, selection: $days)
             }
             SettingsTabRow(title: "Audio on disk", detail: formatAudioOnDisk(bytes: dictation.records.audioBytes, files: dictation.records.audioIDs.count)) {
                 Button(role: .destructive) { confirmingDelete = true } label: { Label("Delete all audio", systemImage: "trash") }

@@ -281,7 +281,7 @@ struct AgentsTabView: View {
                 else if choice.hasPrefix("bot:") { _ = save(.bot(String(choice.dropFirst(4))), role: row.role, page: page) }
             }
         )
-        return NativePopUp(items: items, selection: index).accessibilityLabel("Identity").frame(width: 220)
+        return NativePopUp(items: items, selection: index).accessibilityLabel("Identity").frame(width: settingsSelectWidth)
     }
 }
 

@@ -29,7 +29,7 @@ struct DictationGroup: View {
             SettingsTabRow(title: "Release the model after", detail: "Without dictating, to give its memory back; the next dictation loads it again") {
                 ChoicePopUp(
                     label: "Release the model after", options: dictationReleaseChoices.map { (value: $0.minutes, title: $0.title) },
-                    selection: Binding(get: { AppPreferences().dictationReleaseAfter }, set: { dictation.setReleaseAfter($0) }), width: 110
+                    selection: Binding(get: { AppPreferences().dictationReleaseAfter }, set: { dictation.setReleaseAfter($0) })
                 )
             }
             .live(.releaseAfter, enabled: enabled)
@@ -46,7 +46,7 @@ struct DictationGroup: View {
             ) {
                 ChoicePopUp(
                     label: "Speech model", options: choice.options.map { (value: $0.id, title: $0.name) },
-                    selection: Binding(get: { shown.id }, set: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) }), width: 200
+                    selection: Binding(get: { shown.id }, set: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) })
                 )
             }
         }
@@ -57,7 +57,7 @@ struct DictationGroup: View {
             SettingsTabRow(title: "Language", detail: choices.hint) {
                 ChoicePopUp(
                     label: "Language", options: choices.offered.map { (value: $0, title: languageName($0)) },
-                    selection: Binding(get: { choices.selected }, set: { dictation.choose(language: $0) }), width: 200
+                    selection: Binding(get: { choices.selected }, set: { dictation.choose(language: $0) })
                 )
             }
         }

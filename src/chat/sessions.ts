@@ -155,6 +155,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const switching = new Set<string>();
   // Children whose row exists and whose conversation is still opening, until each is attached or discarded: what a repeated call waits on, and what archive and delete refuse over.
   const opening = new Map<string, Promise<void>>();
+  // Sessions whose worktree folder the clock's cleanup is reading or removing, until it is done: an agent about to open in the folder waits for it.
+  const clearing = new Map<string, Promise<void>>();
   const notSwitching = (sessionId: string) => {
     if (switching.has(sessionId)) throw new ChatRefused('This session is switching to another agent; try again in a moment');
   };
@@ -187,6 +189,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
    * ponytail: two clients resuming the same cleaned session at once may both try the add; the second fails with a reason, retrying works.
    */
   const folderOf = async (found: typeof sessions.$inferSelect) => {
+    await clearing.get(found.id)?.catch(() => undefined); // its failure is the clock's to log; what it left is looked at below
     if (found.workspaceKind === 'worktree') await restoreWorktree(git, worktreeOf(found));
     return checkFolder(found.folder, carrierHome());
   };
@@ -200,17 +203,24 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const { lastActiveAt, live } = familyClock(found);
       const due = (afterPrMerged && found.prState === 'merged') || (found.archived && idleFor({ state: found.state, lastActiveAt }, live, now, afterArchivedDays));
       if (due === false || found.state !== 'idle' || live) continue;
-      try {
+      const clear = async () => {
         const { dirty } = await previewWorktree(git, worktreeOf(found), [found.worktreeBranch!]);
         if (dirty > 0) {
           log.info('kept a worktree with uncommitted work', { sessionId: found.id, dirty });
-          continue;
+          return;
         }
-        if (familyClock(found).live) continue; // resumed while git read it
+        if (familyClock(found).live || switching.has(found.id) || deleting.has(found.id)) return; // taken up while git read it
         await clearWorktree(git, worktreeOf(found));
         log.info('removed the folder of a worktree, its branch is kept', { sessionId: found.id, branch: found.worktreeBranch });
+      };
+      const cleared = clear();
+      clearing.set(found.id, cleared);
+      try {
+        await cleared;
       } catch (error) {
         log.error('the clock could not clean up a worktree; the next pass tries again', error);
+      } finally {
+        clearing.delete(found.id);
       }
     }
   };
@@ -1139,6 +1149,12 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         revoke(issued.invocationId);
         await conversation.close();
         throw new ChatRefused('This session is being deleted');
+      }
+      if (current.workspaceKind === 'worktree' && (clearing.has(sessionId) || existsSync(folder) === false)) {
+        // the clock's cleanup took the worktree folder while the provider opened: the agent may not stay in a folder that is going
+        revoke(issued.invocationId);
+        await conversation.close();
+        throw new ChatRefused('This session\'s worktree folder was being cleaned up; open it again to bring it back');
       }
       attach(sessionId, conversation, issued.invocationId);
       if (conversation.startedOver) {

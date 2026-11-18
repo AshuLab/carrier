@@ -1246,6 +1246,29 @@ test('a live session is never cleaned up, and resuming one whose folder was clea
   expect(s.git.calls.at(-1)?.args).toEqual(['worktree', 'add', one.path, one.branch]);
 });
 
+test('a resume still opening when the cleanup takes the folder is refused, leaves no agent behind, and the next one brings the folder back', async () => {
+  const s = worktreeSetup();
+  const one = await s.inWorktree('one');
+  prMerged(s, one.id);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  const open = s.claude.open.bind(s.claude);
+  s.claude.open = async (args) => {
+    await held;
+    return open(args);
+  };
+  const resuming = s.sessions.resume({ sessionId: one.id });
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterArchivedDays: 'never' }));
+  expect(existsSync(one.path)).toBe(false);
+  release();
+  await expect(resuming).rejects.toThrow('was being cleaned up');
+  expect(s.claude.conversations.at(-1)?.closed).toBe(true);
+
+  s.claude.open = open;
+  await s.sessions.resume({ sessionId: one.id });
+  expect(existsSync(one.path)).toBe(true);
+});
+
 test('resuming a cleaned session whose branch is gone refuses in words and makes nothing', async () => {
   const s = worktreeSetup();
   const gone = await s.inWorktree('gone');

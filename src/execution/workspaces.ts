@@ -8,4 +8,9 @@ export interface Workspaces {
    * nowhere (the clone itself does not count: it is shared by every epic of the repo). Solve decides the epic worktree's path, so the real one is read back after `ship`, never assumed.
    */
   findWorktree(repo: string, branch: string): Promise<string | null>;
+  /**
+   * Removes what a merged or cancelled epic left: its reviewer checkout, the author's worktree of `branch` and its lanes, and the
+   * epic's local branches already on the remote. Returns the local branches it kept because they were not.
+   */
+  cleanUp(repo: string, epic: number, branch: string | null): Promise<{ kept: string[] }>;
 }

@@ -100,4 +100,13 @@ export class FakeWorkspaces implements Workspaces {
   async findWorktree(repo: string, branch: string): Promise<string | null> {
     return `/work/${repo}/worktrees/${branch}`;
   }
+
+  /** Every clean-up asked for, in order; set `failCleanUp` to make the next ones throw. */
+  readonly cleanedUp: { repo: string; epic: number; branch: string | null }[] = [];
+  failCleanUp: Error | null = null;
+  async cleanUp(repo: string, epic: number, branch: string | null) {
+    if (this.failCleanUp) throw this.failCleanUp;
+    this.cleanedUp.push({ repo, epic, branch });
+    return { kept: [] };
+  }
 }

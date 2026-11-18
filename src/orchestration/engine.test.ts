@@ -1687,6 +1687,36 @@ test('a merged final PR stops the running executions and leaves the epic merged,
   expect(labelsOf(1)).toEqual([]); // running removed, nothing added
 });
 
+test('a merged epic has its worktrees and branches cleaned up once, and a failed clean-up is tried again at the next poll', async () => {
+  const engine = await reviewingHung();
+  const branch = rows(engine.db)[0]!.branch;
+  workspaces.failCleanUp = new Error('git worktree remove failed');
+  pull(50, { state: 'merged' });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'merged', cleanedAt: null }); // the failure blocks nothing
+
+  workspaces.failCleanUp = null;
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(workspaces.cleanedUp).toEqual([{ repo: 'AshuLab/a', epic: 1, branch }]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'merged', cleanedAt: 15 * MIN });
+
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(workspaces.cleanedUp).toHaveLength(1);
+});
+
+test('epics that ended before the clean-up existed are caught up, and live or parked ones are never touched', async () => {
+  github.ready = {};
+  const engine = await start(0);
+  for (const [issue, status] of [[1, 'merged'], [2, 'cancelled'], [3, 'ready_for_test'], [4, 'needs_human'], [5, 'repo_removed']] as const)
+    engine.db.insert(epics).values({ repo: 'AshuLab/a', issue, status, branch: `feat/f${issue}/epic` }).run();
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(workspaces.cleanedUp.map((c) => [c.epic, c.branch])).toEqual([[1, 'feat/f1/epic'], [2, 'feat/f2/epic']]);
+});
+
 test.each(['ready_for_test', 'needs_human'] as const)('a %s epic whose final PR is merged or whose issue is closed ends too', async (parked) => {
   const engine = await reviewingHung();
   engine.db.update(epics).set({ status: parked }).where(eq(epics.issue, 1)).run();

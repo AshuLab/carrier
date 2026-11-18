@@ -174,6 +174,14 @@ export class FakeGit implements Git {
       const signal = options?.signal;
       if (this.worktreePending !== undefined) await Promise.race([this.worktreePending, new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }))]);
       if (signal?.aborted === true) return { ok: false, code: null, stderr: 'killed' };
+      if (rest.length === 3) {
+        // worktree add <path> <branch>: an existing branch checked out again in a new folder
+        const [, again, existing] = rest;
+        if (repo.branches.includes(existing!) === false) return { ok: false, code: 128, stderr: 'fatal: invalid reference' };
+        mkdirSync(again!, { recursive: true });
+        (repo.worktrees ??= []).push({ path: again!, branch: existing! });
+        return out();
+      }
       // worktree add --no-track -b <branch> <path> <start>: the branch and the folder appear, as git makes them
       const [branch, path, start] = rest.slice(3);
       const known = [...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`)];

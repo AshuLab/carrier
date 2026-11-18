@@ -119,17 +119,58 @@ export class GitWorkspaces implements Workspaces {
     return this.serial(repo, () => this.ensureClone(repo));
   }
 
-  async findWorktree(repo: string, branch: string) {
-    return this.serial(repo, async () => {
-      const list = await git(['worktree', 'list', '--porcelain'], { cwd: this.clonePath(repo) });
-      // One block per worktree: `worktree <path>`, then `branch refs/heads/<name>` unless it is detached.
-      // The first is the clone itself: other epics of the repo share it, so an epic that was not isolated has no workspace.
-      for (const block of list.split('\n\n').slice(1)) {
-        const lines = block.split('\n');
-        if (lines.includes(`branch refs/heads/${branch}`)) return lines.find((l) => l.startsWith('worktree '))!.slice('worktree '.length);
-      }
-      return null;
+  /** The linked worktrees of the clone, as `git worktree list` says; `branch` is null for a detached one. */
+  private async linkedWorktrees(clone: string) {
+    const list = await git(['worktree', 'list', '--porcelain'], { cwd: clone });
+    // One block per worktree: `worktree <path>`, then `branch refs/heads/<name>` unless it is detached.
+    // The first is the clone itself: other epics of the repo share it, so an epic that was not isolated has no workspace.
+    return list.split('\n\n').slice(1).map((block) => {
+      const lines = block.split('\n');
+      const branch = lines.find((l) => l.startsWith('branch refs/heads/'));
+      return { path: lines.find((l) => l.startsWith('worktree '))!.slice('worktree '.length), branch: branch ? branch.slice('branch refs/heads/'.length) : null };
     });
+  }
+
+  async findWorktree(repo: string, branch: string) {
+    return this.serial(repo, async () => (await this.linkedWorktrees(this.clonePath(repo))).find((w) => w.branch === branch)?.path ?? null);
+  }
+
+  /**
+   * What a merged or cancelled epic leaves on the disk goes: its reviewer checkout, the author's worktree of `branch` and Solve's
+   * `<that path>--lane-N` worktrees beside it, then the epic's local branches whose tip is already on the remote. A branch that is
+   * not is kept, and returned so the caller can say why. Only paths `git worktree list` reports for this clone are removed.
+   */
+  async cleanUp(repo: string, epic: number, branch: string | null) {
+    assertCount(epic, 'epic');
+    return this.serial(repo, async () => {
+      const clone = this.clonePath(repo);
+      if (!existsSync(join(clone, '.git'))) return { kept: [] };
+      const linked = await this.linkedWorktrees(clone);
+      const author = branch ? linked.find((w) => w.branch === branch)?.path : undefined;
+      const review = this.reviewPath(repo, epic);
+      const doomed = linked.filter((w) => w.path === review || (author && (w.path === author || w.path.startsWith(`${author}--lane-`))));
+      // One already deleted by hand is only a stale entry: `prune` drops it.
+      for (const { path } of doomed.filter((w) => existsSync(w.path))) await git(['worktree', 'remove', '--force', path], { cwd: clone });
+      await git(['worktree', 'prune'], { cwd: clone });
+      if (!branch) return { kept: [] };
+      await this.remote(repo, ['fetch', '--prune', 'origin'], clone);
+      // The epic branch and, for Solve's `<prefix>/epic`, its slices under `<prefix>/`; never a wider prefix.
+      const refs = branch.endsWith('/epic') ? `refs/heads/${branch.slice(0, -'epic'.length)}` : `refs/heads/${branch}`;
+      const locals = (await git(['for-each-ref', '--format=%(refname:short)', refs], { cwd: clone })).split('\n').filter(Boolean);
+      // A branch still checked out (in the clone, or a worktree that is not the epic's) cannot go, and is not ours to move.
+      const checkedOut = new Set([await git(['branch', '--show-current'], { cwd: clone }), ...(await this.linkedWorktrees(clone)).map((w) => w.branch)]);
+      const kept: string[] = [];
+      for (const local of locals) {
+        const pushed = (await git(['branch', '-r', '--contains', local], { cwd: clone })) !== '';
+        if (pushed && !checkedOut.has(local)) await git(['branch', '-D', local], { cwd: clone });
+        else kept.push(local);
+      }
+      return { kept };
+    });
+  }
+
+  private reviewPath(repo: string, epic: number) {
+    return join(this.places.reviews, repo.split('/')[1]!, String(epic));
   }
 
   /** A checkout detached at the PR's head, apart from the author's and from Solve's `worktrees/`; each round re-points it. */
@@ -140,7 +181,7 @@ export class GitWorkspaces implements Workspaces {
       const clone = await this.ensureClone(repo);
       await this.remote(repo, ['fetch', 'origin', this.reviewRef(pr)], clone);
       const sha = await git(['rev-parse', '--verify', 'FETCH_HEAD^{commit}'], { cwd: clone });
-      const path = join(this.places.reviews, repo.split('/')[1]!, String(epic));
+      const path = this.reviewPath(repo, epic);
       if (existsSync(join(path, '.git'))) await git(['switch', '--detach', sha], { cwd: path });
       else {
         await mkdir(dirname(path), { recursive: true });

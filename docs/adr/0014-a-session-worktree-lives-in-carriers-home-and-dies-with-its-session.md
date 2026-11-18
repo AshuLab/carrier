@@ -1,6 +1,6 @@
 # 0014 - A session worktree lives in Carrier's home and dies with its session
 
-- Status: accepted
+- Status: accepted; amended by [0035](0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md): an opt-in cleanup can remove the folder earlier, keeping the branch
 - Date: 2026-10-28
 
 ## Context

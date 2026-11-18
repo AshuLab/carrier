@@ -116,6 +116,35 @@ export async function previewWorktree(git: Git, made: MadeWorktree, batch: strin
 }
 
 /**
+ * The cleanup's half of a delete: removes only the folder of a session's recorded worktree and keeps its branch, so `restoreWorktree`
+ * can bring it back. The caller has checked it holds no uncommitted work; what is ignored (builds, dependencies) goes with it.
+ */
+export async function clearWorktree(git: Git, made: MadeWorktree): Promise<void> {
+  const path = recorded(made);
+  if (existsSync(path) === false || existsSync(made.base) === false) return;
+  const removed = await git.run(made.base, ['worktree', 'remove', '--force', path]);
+  if (removed.ok === false) {
+    log.error('git could not remove the folder of a cleaned-up worktree', { code: removed.code, timedOut: removed.timedOut === true });
+    throw new ChatRefused('Git could not remove the worktree folder');
+  }
+}
+
+/** Brings back the folder of a recorded worktree the cleanup removed, on its kept branch; refuses with a reason in words when it cannot. */
+export async function restoreWorktree(git: Git, made: MadeWorktree): Promise<void> {
+  const path = recorded(made);
+  if (existsSync(path)) return;
+  if (existsSync(made.base) === false) throw new ChatRefused('This session\'s worktree was cleaned up and the folder it was made from is gone, so it cannot be opened again');
+  if ((await branchExists(git, made.base, made.branch)) === false) throw new ChatRefused(`This session's worktree was cleaned up and its branch ${made.branch} is gone, so it cannot be opened again`);
+  await git.run(made.base, ['worktree', 'prune']);
+  // recorded() checked the branch is `carrier/<a valid name>`, so it cannot read as an option
+  const added = await git.run(made.base, ['worktree', 'add', path, made.branch], { timeoutMs: ADD_TIMEOUT_MS });
+  if (added.ok === false) {
+    log.error('git could not bring back a cleaned-up worktree', { code: added.code, timedOut: added.timedOut === true });
+    throw new ChatRefused('Git could not bring back the worktree of this session');
+  }
+}
+
+/**
  * Removes the worktree a session recorded, then its recorded branch, and refuses with a reason in words when git cannot, so the session stays.
  * Only a path under the worktrees folder is touched. When the base folder is gone git cannot do it: the worktree folder is removed directly and the branch is left.
  */

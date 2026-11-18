@@ -28,16 +28,22 @@ export function rotatingFile(file: string, maxBytes = 10 * 1024 * 1024, keep = 1
   let fd = openSync(file, 'a');
   let size = fstatSync(fd).size;
   return (text) => {
-    const bytes = Buffer.byteLength(text);
-    if (size > 0 && size + bytes > maxBytes) {
+    if (size > 0 && size + Buffer.byteLength(text) > maxBytes) {
       closeSync(fd);
-      for (let n = keep - 2; n >= 1; n--) if (existsSync(`${file}.${n}`)) renameSync(`${file}.${n}`, `${file}.${n + 1}`);
-      renameSync(file, `${file}.1`);
+      let failed: unknown;
+      try {
+        for (let n = keep - 2; n >= 1; n--) if (existsSync(`${file}.${n}`)) renameSync(`${file}.${n}`, `${file}.${n + 1}`);
+        renameSync(file, `${file}.1`);
+      } catch (error) {
+        failed = error; // the log was moved or deleted meanwhile: a new one starts, since a console call must never throw
+      }
+      mkdirSync(dirname(file), { recursive: true });
       fd = openSync(file, 'a');
       size = 0;
+      if (failed !== undefined) text = `[warn] the log could not be rotated: ${String(failed)}\n${text}`;
     }
     writeSync(fd, text);
-    size += bytes;
+    size += Buffer.byteLength(text);
   };
 }
 

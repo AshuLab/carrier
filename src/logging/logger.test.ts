@@ -25,6 +25,22 @@ test('rotatingFile moves a full file aside and keeps at most `keep` files', () =
   }
 });
 
+test('rotatingFile never throws when the log was deleted under it: a new one starts and says so', () => {
+  const folder = mkdtempSync(join(tmpdir(), 'carrier-rotate-'));
+  const log = join(folder, 'logs', 'chat-host.log');
+  try {
+    const write = rotatingFile(log, 10, 3);
+    write('aaaa\nbbbb\n');
+    rmSync(join(folder, 'logs'), { recursive: true });
+    write('cccc\n');
+    expect(readFileSync(log, 'utf8')).toMatch(/could not be rotated.*\ncccc\n$/s);
+    write('dddd\n');
+    expect(readFileSync(log, 'utf8')).toBe('dddd\n');
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 test('universal-logger exposes createScopedLogger', () => {
   expect(typeof createScopedLogger).toBe('function');
 });

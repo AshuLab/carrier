@@ -50,7 +50,6 @@ test('the host starts from an empty Carrier folder: state is 0700 with a 0600 so
 });
 
 test('a chat.json that sets agents and a log level is what the host lists and logs at', async () => {
-  mkdirSync(join(root, 'chat'), { recursive: true });
   writeFileSync(join(root, 'chat.json'), JSON.stringify({ agents: { mine: { account: 'claude' } }, logLevel: 'debug' }));
   const installLogging = vi.fn();
   const started = await startChatHost({ installLogging, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, binaryFound: () => true });

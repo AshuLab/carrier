@@ -42,7 +42,8 @@ The top of the folder holds only the files you edit; each process has its own fo
 A file dropped in a message is copied to the chat's `pending/<id>/`; when the message is sent the host moves it to `sessions/<session>/attachments/<id>/`, and deleting the session deletes it.
 A copy never sent is swept from `pending/` after a day.
 
-The app's `state/` has its terminals and dictation history, `logs/` its `dictation.log`, and `cache/` the speech models it downloads and the shell setup of its terminals; `cache/` is kept out of Time Machine and can be deleted, and comes back.
+The app's `state/` has its terminals and dictation history, `logs/` its `dictation.log`, and `cache/` the speech models it downloads and the shell setup of its terminals.
+`cache/` is kept out of Time Machine and can be deleted: the shell setup is rewritten at the next start, and the speech models are downloaded again from Settings.
 
 `orchestrator.log` and `chat-host.log` rotate at 10 MB: the full one becomes `.1`, the one before `.2`, and so on, keeping 10 files in all.
 
@@ -102,7 +103,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 
 An AI provider represents an account/login setup for an AI harness (e.g. Claude Code with a specific `configDir`, Antigravity, or Codex). A provider defines the account and installation independently of the model.
 
-The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json` and wherever `--config` points: [ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md). It is optional (without it there is one account per harness, see below), it is read when the engine starts and again on a [reload](#changing-the-config-while-carrier-runs), and a file that does not match stops the start, or is refused by the reload, with the key named. A `engine.json` that still has `providers` is refused and told to move it here.
+The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json` and wherever `--config` points: [ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md). It is optional (without it there is one account per harness, see below), it is read when the engine starts and again on a [reload](#changing-the-config-while-carrier-runs), and a file that does not match stops the start, or is refused by the reload, with the key named. An `engine.json` that still has `providers` is refused and told to move it here.
 
 ```json
 {

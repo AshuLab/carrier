@@ -11,7 +11,6 @@ export const carrierHome = () => process.env.CARRIER_HOME || join(homedir(), '.c
 
 /** The engine's config, `<folder>/engine.json`: where `carrier init` writes it and where `carrier` looks when there is no `--config`. */
 export const engineConfigPathOf = (folder = carrierHome()) => join(folder, 'engine.json');
-export const defaultConfigPath = () => engineConfigPathOf();
 
 /** The chat's settings, `<folder>/chat.json`; optional. */
 export const chatConfigPathOf = (folder = carrierHome()) => join(folder, 'chat.json');
@@ -48,6 +47,9 @@ export function enginePlacesOf(folder: string): EnginePlaces {
   return { dir, state, socket: controlSocketIn(state), db: join(state, 'carrier.db'), logs: join(dir, 'logs'), repos: join(dir, 'repos'), reviews: join(dir, 'reviews'), worktrees: join(dir, 'worktrees') };
 }
 
+/** The chat socket in a chat state folder; the host opens it from the folder it is given. */
+export const chatSocketIn = (state: string) => join(state, 'chat.sock');
+
 /** Where the chat host keeps what it owns. Only the chat host writes in `dir`, except the app's copies of attached files. */
 export type ChatPlaces = {
   /** `<folder>/chat`. */
@@ -70,5 +72,5 @@ export type ChatPlaces = {
 export function chatPlacesOf(folder = carrierHome()): ChatPlaces {
   const dir = join(folder, 'chat');
   const state = join(dir, 'state');
-  return { dir, state, socket: join(state, 'chat.sock'), logs: join(dir, 'logs'), worktrees: join(dir, 'worktrees'), projects: join(dir, 'projects'), pending: join(dir, 'pending'), sessions: join(dir, 'sessions') };
+  return { dir, state, socket: chatSocketIn(state), logs: join(dir, 'logs'), worktrees: join(dir, 'worktrees'), projects: join(dir, 'projects'), pending: join(dir, 'pending'), sessions: join(dir, 'sessions') };
 }

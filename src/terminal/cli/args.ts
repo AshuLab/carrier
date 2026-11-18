@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { defaultConfigPath } from '../../config/places.ts';
+import { engineConfigPathOf } from '../../config/places.ts';
 
 export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'chat', 'chat-host', 'usage'] as const;
 export type CommandName = (typeof commandNames)[number];
@@ -23,7 +23,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier usage [--json] [--refresh] [--days <7|14|30>] [--provider <all|claude|codex|agy|local>] [--source <all|epic|chat|external>]   live quotas and what was used (starts the chat host if needed)
        carrier --version                 print the installed version
 
---config defaults to ${defaultConfigPath()} (where init writes it) when that file exists.
+--config defaults to ${engineConfigPathOf()} (where init writes it) when that file exists.
 
 restart: with neither flag it asks for each role in a terminal and keeps the current options without one. --author and --reviewer name an option
 of the config here, not the <harness>:<model> of init.

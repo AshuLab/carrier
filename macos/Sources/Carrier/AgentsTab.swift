@@ -45,7 +45,7 @@ struct AgentsTabView: View {
     }
 
     private func load() {
-        let providers = try? Data(contentsOf: URL(fileURLWithPath: currentCarrierFolder() + "/providers.json"))
+        let providers = try? Data(contentsOf: URL(fileURLWithPath: CarrierPlaces().providers))
         problem = nil
         icons = accountIcons(providersJSON: providers)
         page = currentConfig().flatMap { agentsPage(config: $0, providers: providers, bots: forgeBots(registry: currentForgeRegistry())) }

@@ -44,12 +44,43 @@ struct SettingsTabRow<Control: View>: View {
         }
         .padding(.vertical, roomy ? 14 : 10).frame(minHeight: 46)
         .overlay(alignment: .top) { if first == false { SettingsDivider() } }
+        .settingsAnchored(title)
     }
 }
 
 extension EnvironmentValues {
     /// Whether the row the control sits in says its value is not valid.
     @Entry var settingsInvalid = false
+    /// The page being drawn and the title of the group a row is in, so a row knows the anchor the search finds it by (`settingsAnchor`).
+    @Entry var settingsPage: SettingsPage?
+    @Entry var settingsGroup = ""
+    /// The anchor the search just took the person to: its row shows itself for a moment.
+    @Entry var settingsHighlight: String?
+}
+
+/// Makes a row (or a group, with its own title as both) findable by the search: the id the page scrolls to, and the color it takes when it is the
+/// place that was chosen.
+private struct SettingsAnchored: ViewModifier {
+    let group: String?
+    let title: String
+    @Environment(\.settingsPage) private var page
+    @Environment(\.settingsGroup) private var inherited
+    @Environment(\.settingsHighlight) private var highlight
+
+    func body(content: Content) -> some View {
+        if let page {
+            let anchor = settingsAnchor(page, group: group ?? inherited, title: title)
+            content.id(anchor)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.yellow.opacity(highlight == anchor ? 0.3 : 0)))
+                .animation(.easeOut(duration: 0.5), value: highlight == anchor)
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func settingsAnchored(_ title: String, group: String? = nil) -> some View { modifier(SettingsAnchored(group: group, title: title)) }
 }
 
 /// The line between two rows of a card: a whole point tall and quiet, where the system's Divider is a grey hairline that stands out on the dark themes.
@@ -186,6 +217,7 @@ struct SettingsStackedRow<Control: View>: View {
         }
         .padding(.vertical, 12).frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .top) { if first == false { SettingsDivider() } }
+        .settingsAnchored(title)
     }
 }
 
@@ -343,8 +375,9 @@ struct SettingsGroup<Content: View, Accessory: View>: View {
                 accessory
             }
             .padding(.leading, 14).padding(.top, 8)
-            SettingsTabCard { content }
+            SettingsTabCard { content }.environment(\.settingsGroup, title)
         }
+        .settingsAnchored(title, group: title)
     }
 }
 
@@ -573,6 +606,24 @@ struct AppearanceTabView: View {
     @Environment(\.colorScheme) private var scheme
     @AppStorage(TypeScale.percentKey) private var textSize = 100
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    @AppStorage(AppPreferences.monospaceFamilyKey) private var family = MonospaceSettings.systemFamily
+    @AppStorage(AppPreferences.monospaceSizeKey) private var codeSize = Double(MonospaceSettings.defaultSize)
+    @AppStorage(AppPreferences.monospaceLineHeightKey) private var lineHeight = LineHeight.normal
+    @AppStorage(AppPreferences.monospaceLigaturesKey) private var ligatures = true
+    @AppStorage(AppPreferences.monospaceWrapKey) private var wrapLongLines = true
+    @AppStorage(AppPreferences.monospaceLineNumbersKey) private var lineNumbers = false
+
+    /// A few lines of code under the settings: a long line to wrap, and the pairs of characters a ligature joins.
+    private static let sample = """
+        func total(_ lines: [Int]) -> Int {
+            // a line that is longer than the room it has, so wrapping and scrolling sideways show: 0123456789 abcdefghij 0123456789
+            lines.filter { $0 != 0 && $0 >= 1 }.reduce(0, +)
+        }
+        """
+
+    private func codePreview() -> some View {
+        SettingsPreview { CodeBlockView(language: "swift", code: Self.sample) }
+    }
 
     @AppStorage(AppPreferences.statesByShapeKey) private var statesByShape = false
     /// The four states as the app draws them now, with or without their symbols, larger than they are in a row so the mark inside reads.
@@ -635,6 +686,36 @@ struct AppearanceTabView: View {
                     ))
                     .labelsHidden().toggleStyle(.switch)
                 }
+            }
+            SettingsGroup(title: "Code and output") {
+                SettingsTabRow(title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
+                    // a family that is no longer installed shows as the system's, as the views draw it
+                    ChoicePopUp(
+                        label: "Font", options: ([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies).map { (value: $0, title: $0) },
+                        selection: Binding(
+                            get: { MonospaceStyle.installedFamilies.contains(family) ? family : MonospaceSettings.systemFamily },
+                            set: { family = $0 }
+                        ),
+                        width: 200
+                    )
+                }
+                SettingsTabRow(title: "Size", detail: "\(Int(codeSize)) pt, before the text size of the whole app") {
+                    Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
+                        .frame(width: 160).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
+                }
+                SettingsTabRow(title: "Line height", detail: "The room between the lines of code and output") {
+                    ChoicePopUp(label: "Line height", options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)
+                }
+                SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
+                    Toggle("Ligatures", isOn: $ligatures).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Wrap long lines", detail: "Off keeps each line whole and scrolls sideways") {
+                    Toggle("Wrap long lines", isOn: $wrapLongLines).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Line numbers", detail: "In code blocks and the output of a command") {
+                    Toggle("Line numbers", isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
+                }
+                codePreview()
             }
         }
     }
@@ -876,28 +957,10 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.diffStyleKey) private var diffStyle = AppPreferences.defaultDiffStyle
     @AppStorage(AppPreferences.outputLengthKey) private var outputLength = AppPreferences.defaultOutputLength
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
-    @AppStorage(AppPreferences.monospaceFamilyKey) private var family = MonospaceSettings.systemFamily
-    @AppStorage(AppPreferences.monospaceSizeKey) private var codeSize = Double(MonospaceSettings.defaultSize)
-    @AppStorage(AppPreferences.monospaceLineHeightKey) private var lineHeight = LineHeight.normal
-    @AppStorage(AppPreferences.monospaceLigaturesKey) private var ligatures = true
-    @AppStorage(AppPreferences.monospaceWrapKey) private var wrapLongLines = true
-    @AppStorage(AppPreferences.monospaceLineNumbersKey) private var lineNumbers = false
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
     @AppStorage(AppPreferences.chatSurfaceKey) private var chatSurface = AppPreferences.defaultChatSurface
     @State private var previewRoom: CGFloat = 0
     @State private var flipped: Set<String> = []
-
-    /// A few lines of code under the settings: a long line to wrap, and the pairs of characters a ligature joins.
-    private static let sample = """
-        func total(_ lines: [Int]) -> Int {
-            // a line that is longer than the room it has, so wrapping and scrolling sideways show: 0123456789 abcdefghij 0123456789
-            lines.filter { $0 != 0 && $0 >= 1 }.reduce(0, +)
-        }
-        """
-
-    private func codePreview() -> some View {
-        SettingsPreview { CodeBlockView(language: "swift", code: Self.sample) }
-    }
 
     /// The column of a conversation as the person set it, drawn with the feed's own rows (a message of theirs, the agent's work, its answer) in the
     /// middle of a track that is the widest column: the column is to the track as the chosen width is to the widest one, so the four differ in
@@ -973,36 +1036,6 @@ struct ChatTabView: View {
                 }
                 messagePreview
             }
-            SettingsGroup(title: "Code and output") {
-                SettingsTabRow(title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
-                    // a family that is no longer installed shows as the system's, as the views draw it
-                    ChoicePopUp(
-                        label: "Font", options: ([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies).map { (value: $0, title: $0) },
-                        selection: Binding(
-                            get: { MonospaceStyle.installedFamilies.contains(family) ? family : MonospaceSettings.systemFamily },
-                            set: { family = $0 }
-                        ),
-                        width: 200
-                    )
-                }
-                SettingsTabRow(title: "Size", detail: "\(Int(codeSize)) pt, before the text size of the whole app") {
-                    Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
-                        .frame(width: 160).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
-                }
-                SettingsTabRow(title: "Line height", detail: "The room between the lines of code and output") {
-                    ChoicePopUp(label: "Line height", options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)
-                }
-                SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
-                    Toggle("Ligatures", isOn: $ligatures).labelsHidden().toggleStyle(.switch)
-                }
-                SettingsTabRow(title: "Wrap long lines", detail: "Off keeps each line whole and scrolls sideways") {
-                    Toggle("Wrap long lines", isOn: $wrapLongLines).labelsHidden().toggleStyle(.switch)
-                }
-                SettingsTabRow(title: "Line numbers", detail: "In code blocks and the output of a command") {
-                    Toggle("Line numbers", isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
-                }
-                codePreview()
-            }
         }
     }
 }
@@ -1044,32 +1077,24 @@ struct NotificationsTabView: View {
                     Toggle("Chat done", isOn: $chatDone).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(title: "When") {
+            SettingsGroup(title: "Delivery") {
                 SettingsTabRow(title: "Only when Carrier is not in front", detail: "No banner while its window is the one you are looking at", first: true) {
                     Toggle("Only when Carrier is not in front", isOn: $onlyWhenAway).labelsHidden().toggleStyle(.switch)
                 }
-            }
-            SettingsGroup(title: "Dock") {
-                SettingsTabRow(title: "Dock badge", detail: "The Dock icon counts the epics that need a person and the sessions that wait for an approval", first: true) {
+                SettingsTabRow(title: "Dock badge", detail: "The Dock icon counts the epics that need a person and the sessions that wait for an approval") {
                     Toggle("Dock badge", isOn: $dockBadge).labelsHidden().toggleStyle(.switch)
                 }
-            }
-            SettingsGroup(title: "Sound") {
-                SettingsTabRow(title: "Play a sound", detail: "A banner plays the notification sound", first: true) {
+                SettingsTabRow(title: "Play a sound", detail: "A banner plays the notification sound") {
                     Toggle("Play a sound", isOn: $sound).labelsHidden().toggleStyle(.switch)
                 }
-            }
-            SettingsGroup(title: "Reminders") {
-                SettingsTabRow(title: "Remind me again", detail: "While an epic or a session still needs attention. Ready for test and Done never remind", first: true) {
+                SettingsTabRow(title: "Remind me again", detail: "While an epic or a session still needs attention. Ready for test and Done never remind") {
                     // a saved value that is not a choice reads as Never, as the watcher does
                     ChoicePopUp(
                         label: "Remind me again", options: ReminderInterval.allCases.map { (value: $0, title: $0.title) },
                         selection: Binding(get: { ReminderInterval(rawValue: reminder) ?? .never }, set: { reminder = $0.rawValue })
                     )
                 }
-            }
-            SettingsGroup(title: "Quiet hours") {
-                SettingsTabRow(title: "Quiet hours", detail: "No banner and no sound: notifications wait in the Notification Center", first: true) {
+                SettingsTabRow(title: "Quiet hours", detail: "No banner and no sound: notifications wait in the Notification Center") {
                     Toggle("Quiet hours", isOn: $quiet).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(title: "From", detail: "When the quiet starts") {

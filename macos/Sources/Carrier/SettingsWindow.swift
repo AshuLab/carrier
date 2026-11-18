@@ -9,6 +9,8 @@ import SwiftUI
 @MainActor @Observable final class SettingsNavigator {
     static let lastPageKey = "settingsLastPage"
     private(set) var history: SettingsHistory
+    /// The place the search took the person to: its page scrolls to it and shows it for a moment, and then lets it go.
+    var target: SettingsEntry?
 
     var page: SettingsPage { history.current }
 
@@ -19,6 +21,12 @@ import SwiftUI
     func go(_ page: SettingsPage) {
         history.visit(page)
         remember()
+    }
+
+    /// Goes to a place the search found: its page, and the row or group on it.
+    func open(_ entry: SettingsEntry) {
+        go(entry.page)
+        target = entry.isPage ? nil : entry
     }
 
     func back() {
@@ -81,13 +89,18 @@ struct SettingsRoot: View {
     let model: PanelModel
     let navigator: SettingsNavigator
     @State private var headerNote: SettingsHeaderNote?
+    @State private var query = ""
 
     var body: some View {
+        @Bindable var navigator = navigator
         NavigationSplitView {
-            SettingsSidebar(navigator: navigator)
+            SettingsSidebar(navigator: navigator, query: $query)
+                .searchable(text: $query, placement: .sidebar, prompt: "Search settings")
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
         } detail: {
-            SettingsPages(state: model.state, canReload: model.epics.canReload, page: navigator.page, open: navigator.go, headerNote: $headerNote)
+            SettingsPages(
+                state: model.state, canReload: model.epics.canReload, page: navigator.page, open: navigator.go, target: $navigator.target, headerNote: $headerNote
+            )
                 .navigationTitle(navigator.page.rawValue)
                 .navigationSubtitle(navigator.page.detail)
                 .toolbar {
@@ -112,8 +125,13 @@ struct SettingsRoot: View {
 /// The pages in groups, as the sidebar of System Settings lists its own: a colored tile with the page's symbol before its name.
 struct SettingsSidebar: View {
     let navigator: SettingsNavigator
+    @Binding var query: String
 
     var body: some View {
+        if query.trimmingCharacters(in: .whitespaces).isEmpty { pages } else { results }
+    }
+
+    private var pages: some View {
         List(selection: Binding(get: { navigator.page }, set: { if let page = $0 { navigator.go(page) } })) {
             ForEach(SettingsPage.Group.allCases, id: \.self) { group in
                 if let heading = group.heading {
@@ -124,6 +142,52 @@ struct SettingsSidebar: View {
             }
         }
         .listStyle(.sidebar)
+    }
+
+    /// What the search found, under the pages it is in; choosing one opens the page and shows the row.
+    @ViewBuilder private var results: some View {
+        let found = settingsResults(query)
+        let words = query.split(whereSeparator: \.isWhitespace).map(String.init)
+        if found.isEmpty {
+            ContentUnavailableView.search(text: query)
+        } else {
+            List {
+                ForEach(SettingsPage.allCases.filter { page in found.contains { $0.page == page } }, id: \.self) { page in
+                    Section {
+                        ForEach(found.filter { $0.page == page }) { entry in
+                            Button {
+                                navigator.open(entry)
+                                query = ""
+                            } label: {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(marked(entry.title, words: words))
+                                    Text(marked(entry.isPage ? entry.detail : [entry.group, entry.detail].filter { !$0.isEmpty }.joined(separator: " · "), words: words))
+                                        .font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    } header: {
+                        Label { Text(page.rawValue) } icon: { SettingsTile(page: page) }
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+        }
+    }
+
+    /// The words of the search shown on what matched them.
+    private func marked(_ text: String, words: [String]) -> AttributedString {
+        var out = AttributedString(text)
+        for word in words {
+            var from = out.startIndex
+            while let found = out[from...].range(of: word, options: [.caseInsensitive, .diacriticInsensitive]) {
+                out[found].backgroundColor = Color.yellow.opacity(0.45)
+                from = found.upperBound
+            }
+        }
+        return out
     }
 
     private func rows(_ group: SettingsPage.Group) -> some View {
@@ -171,6 +235,8 @@ struct SettingsPages: View {
     let canReload: Bool
     let page: SettingsPage
     let open: (SettingsPage) -> Void
+    /// The place the search chose: scrolled to and shown for a moment, once the page is drawn.
+    @Binding var target: SettingsEntry?
     @Binding var headerNote: SettingsHeaderNote?
     @ObservedObject var setup: SetupController = .shared
     @ObservedObject private var start = StartController.shared
@@ -179,12 +245,27 @@ struct SettingsPages: View {
     @StateObject private var github = EngineIdentityStore()
     /// What `carrier --version` and `node --version` printed for the programs the page shows; nil while they are being read.
     @State private var versions: ProgramVersions?
+    @State private var highlight: String?
 
     var body: some View {
-        ScrollView {
-            section.padding(24).frame(maxWidth: .infinity, alignment: .topLeading)
+        ScrollViewReader { proxy in
+            ScrollView {
+                section.padding(24).frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .id(page)
+            // the page is drawn a moment after it is chosen: scroll to the place, show it, and let it go
+            .task(id: target?.id) {
+                guard let place = target, place.page == page else { return }
+                try? await Task.sleep(for: .milliseconds(200))
+                withAnimation { proxy.scrollTo(place.id, anchor: .center) }
+                highlight = place.id
+                try? await Task.sleep(for: .seconds(1.8))
+                highlight = nil
+                target = nil
+            }
         }
-        .id(page)
+        .environment(\.settingsPage, page)
+        .environment(\.settingsHighlight, highlight)
         .onPreferenceChange(SettingsHeaderNoteKey.self) { headerNote = $0 }
     }
 

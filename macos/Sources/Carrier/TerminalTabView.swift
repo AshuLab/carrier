@@ -239,7 +239,7 @@ struct TerminalTabView: View {
             SettingsGroup(title: "Typography") {
                 SettingsTabRow(
                     title: "Font",
-                    detail: "Monospaced font used in panes; inherits Chat › Code and output",
+                    detail: "Monospaced font used in panes; inherits Appearance › Code and output",
                     first: true
                 ) {
                     ChoicePopUp(label: "Font", options: fontFamilyOptions, selection: fontFamilySelection, width: 200)

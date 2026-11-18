@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-18
+
+Dictation that is live and fast: the microphone starts at the press, the words that will not change are drawn as normal text, and the speech model can stay loaded in the background so the first dictation does not wait for it.
+
 ### Added
 
 - Settings › Dictation: Keep the speech model ready (on by default) loads the model you chose in the background when Carrier opens, when you turn Dictation on and when you change the model or language, so the first dictation does not wait for it; Release the model after (5, 15, 30 or 60 minutes without dictating, or Never; 15 by default) frees the memory of a model nobody is using, and the next dictation loads it again.
@@ -342,7 +346,8 @@ First release. Carrier picks up your ready epics, builds them with one agent, re
 - Everything lives in one Carrier folder (`~/.carrier`, or `CARRIER_HOME`).
 - Installation with Homebrew (`brew install ashulab/tap/carrier` for the command, `brew install --cask ashulab/tap/carrier` for the app) and from npm as `@ashulab/carrier`.
 
-[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/AshuLab/carrier/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/AshuLab/carrier/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/AshuLab/carrier/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/AshuLab/carrier/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/AshuLab/carrier/compare/v0.7.0...v0.8.0

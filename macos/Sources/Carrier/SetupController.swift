@@ -2,7 +2,7 @@ import CarrierCore
 import Foundation
 
 /// The setup the app starts Carrier with: loaded from user defaults, filled by asking the shell when nothing is saved,
-/// and again only when the person asks. Saved on every edit.
+/// and again when the person asks, or when a start fails for a tool the saved PATH lacks (`StartController.launch`). Saved on every edit.
 final class SetupController: ObservableObject {
     static let shared = SetupController()
 

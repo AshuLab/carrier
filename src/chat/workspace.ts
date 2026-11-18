@@ -29,6 +29,18 @@ export function parseOrigin(url: string): { owner: string; name: string } | null
   return { owner: found[1]!, name: found[2]! };
 }
 
+const ALIASED = /^(?:ssh:\/\/)?git@(\w[\w.-]*)(?::\d+)?[:/]([\w.-]+\/[\w.-]+)\/?$/;
+const GITHUB_SSH_HOSTS = ['github.com', 'ssh.github.com'];
+
+/** `parseOrigin`, and also an ssh remote whose host is an alias in the person's ssh config (`github.com-work`) that `ssh` resolves to GitHub, as `gh` does. */
+export async function resolveOrigin(git: Git, url: string): Promise<{ owner: string; name: string } | null> {
+  const plain = parseOrigin(url);
+  if (plain !== null) return plain;
+  const aliased = ALIASED.exec(url.trim());
+  if (aliased === null || GITHUB_SSH_HOSTS.includes((await git.sshHost(aliased[1]!)).toLowerCase()) === false) return null;
+  return parseOrigin(`git@github.com:${aliased[2]}`); // the same checks of the owner and the name as any other GitHub remote
+}
+
 /** The number of lines `git status --porcelain` printed. */
 export const countPorcelain = (out: string) => lines(out).length;
 
@@ -87,20 +99,20 @@ export async function inspectFolder(git: Git, folder: string): Promise<Workspace
   }
   const isBare = bare === 'true';
   const [url, branch, originHead, refs, status] = await Promise.all([
-    git.run(folder, ['config', '--get', 'remote.origin.url']),
+    git.run(folder, ['remote', 'get-url', 'origin']), // not `config --get`: this one applies `url.<base>.insteadOf`, as git does when it connects
     git.run(folder, ['symbolic-ref', '-q', '--short', 'HEAD']),
     git.run(folder, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']),
     git.run(folder, ['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes/origin']),
     isBare ? Promise.resolve<GitResult>({ ok: true, out: '' }) : git.run(folder, ['--no-optional-locks', 'status', '--porcelain']),
   ]);
   const branches = parseBranches(mustRun(refs, 'for-each-ref'));
-  const origin = answer(url, 'config');
+  const origin = url.ok === false && url.code === 2 ? null : answer(url, 'remote'); // `get-url` exits 2 for no origin
   return {
     folder,
     git: true,
     bare: isBare,
     linkedWorktree: resolve(folder, gitDir!) !== resolve(folder, commonDir!),
-    repo: origin === null ? null : parseOrigin(origin),
+    repo: origin === null ? null : await resolveOrigin(git, origin),
     branch: answer(branch, 'symbolic-ref') || null,
     defaultBranch: parseDefaultBranch(answer(originHead, 'symbolic-ref'), branches),
     dirty: countPorcelain(mustRun(status, 'status')),

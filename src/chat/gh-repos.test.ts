@@ -3,7 +3,7 @@ import { beforeEach, expect, test, vi } from 'vitest';
 const execFile = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ execFile }));
 
-const { ghRepos, ghBranches } = await import('./projects.ts');
+const { ghRepos, ghBranches, ghToken } = await import('./projects.ts');
 
 beforeEach(() => {
   execFile.mockReset();
@@ -23,4 +23,11 @@ test('the branches of a repository are the default one and the first hundred, wi
   expect(await ghBranches('acme/app', 1000)).toEqual({ default: 'trunk', branches: names, hasMore: true });
   const asked = execFile.mock.calls.map((call) => (call[1] as string[]).join(' '));
   expect(asked).toEqual(expect.arrayContaining([expect.stringContaining('api repos/acme/app --jq'), expect.stringContaining('api repos/acme/app/branches?per_page=100 --jq')]));
+});
+
+test('a gh that took too long to give the token is not taken for one that is signed out', async () => {
+  execFile.mockImplementation((_cmd: string, _args: string[], _opts: object, done: (error: object, out: string) => void) => done({ killed: true, code: null }, ''));
+  await expect(ghToken()).rejects.toThrow('took too long');
+  execFile.mockImplementation((_cmd: string, _args: string[], _opts: object, done: (error: object, out: string) => void) => done({ code: 1 }, ''));
+  await expect(ghToken()).rejects.toThrow('not signed in');
 });

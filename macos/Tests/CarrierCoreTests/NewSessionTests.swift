@@ -40,13 +40,10 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     /// What `githubRepos` answers by page (one not listed is an empty last page) and the pages it was asked for.
     var repoPages: [Int: GithubReposPage] = [:]
     var repoCalls: [Int] = []
-    var created: [String] = []
-    /// What `cloneRepo` was asked for: the draft never asks.
-    var clones: [String] = []
     /// What `repoBranches` answers by repository (one not listed is refused as for a repository the login cannot see) and what it was asked for.
     var branchesOf: [String: RepoBranches] = [:]
     var branchCalls: [String] = []
-    /// Where the host puts what it clones and makes; a test points it at the config's projects folder, which the real host reads at each request.
+    /// The projects folder the draft reads; a test points it at the config's projects folder.
     var projects: () -> String = { "/projects" }
 
     func agents() async throws -> [ChatAgent] { agents }
@@ -93,20 +90,11 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
     func capabilities() async throws -> Set<ControlClient.Capability> { capabilities }
-    func cloneRepo(_ repo: String) async throws -> ClonedRepo {
-        clones.append(repo)
-        return ClonedRepo(folder: "\(projects())/\(repo)", repo: repo, fetched: false)
-    }
     func repoBranches(_ repo: String) async throws -> RepoBranches {
         branchCalls.append(repo)
         if let error = refuse["repoBranches"] { throw error }
         guard let listed = branchesOf[repo] else { throw ControlError.remote("\(repo) was not found, or your GitHub login cannot see it") }
         return listed
-    }
-    func createProject(_ name: String) async throws -> String {
-        created.append(name)
-        if let error = refuse["createProject"] { throw error }
-        return "\(projects())/local/\(name)"
     }
     func githubRepos(page: Int) async throws -> GithubReposPage {
         repoCalls.append(page)
@@ -720,7 +708,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     await model.choose(folder: "/w/api")
     #expect(await model.useRepo())
     // nothing was cloned, nothing was written, and nothing was asked of the folder, which is not there
-    #expect(host.clones.isEmpty && config.writes == 0 && host.branchCalls == ["AshuLab/carrier"])
+    #expect(config.writes == 0 && host.branchCalls == ["AshuLab/carrier"])
     #expect(model.repo == "AshuLab/carrier" && model.toClone && model.folder == "/nowhere/AshuLab/carrier" && model.urlText.isEmpty)
     #expect(model.workspace?.branches.map(\.name) == ["main", "feat/x"] && model.workspace?.branch == "main" && model.startBranch == "main")
     #expect(model.picker(query: "")?.local.map(\.name) == ["main", "feat/x"])
@@ -765,7 +753,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     model.text = "hello"
     #expect(await model.send() == opened)
     #expect(host.plans == [SessionPlan(agent: "claude", workspace: .repo("AshuLab/carrier"), branch: "feat/x", text: "hello")])
-    #expect(host.clones.isEmpty && model.repo == nil && model.folder == nil)
+    #expect(model.repo == nil && model.folder == nil)
     await model.choose(repo: "AshuLab/carrier")
     await model.useWorktree(true)
     model.choose(startBranch: "feat/x")
@@ -785,7 +773,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     model.show(.url)
     model.urlText = "github.com/ashulab/Carrier"
     #expect(await model.useRepo())
-    #expect(host.branchCalls.isEmpty && host.clones.isEmpty && model.toClone == false && model.repo == "AshuLab/carrier")
+    #expect(host.branchCalls.isEmpty && model.toClone == false && model.repo == "AshuLab/carrier")
     #expect(model.folder == root + "/AshuLab/carrier" && model.workspace?.dirty == 3 && model.warning != nil)
     #expect(model.sendSteps.map(\.parts) == [[.text("Updates "), .code("AshuLab/carrier"), .text(" from GitHub first")]])
     model.text = "hello"
@@ -823,7 +811,6 @@ private func projectsRoot(_ names: [String]) throws -> String {
     model.restore(SessionPlan(agent: "claude", workspace: .repo("AshuLab/carrier"), worktree: WorktreeRequest(from: "feat/x"), text: "again"))
     await model.load()
     #expect(model.repo == "AshuLab/carrier" && model.toClone && model.worktree && model.startBranch == "feat/x" && model.text == "again" && model.worktreeName.isEmpty == false)
-    #expect(host.clones.isEmpty)
 }
 
 @MainActor @Test func theNewProjectStepShowsThePathAndItsButtonStaysOffForANameTheHostWouldRefuse() async throws {
@@ -851,7 +838,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     model.show(.project)
     model.projectName = "my-idea"
     #expect(model.useProject())
-    #expect(host.created.isEmpty && host.calls.isEmpty && model.projectName.isEmpty)
+    #expect(host.calls.isEmpty && model.projectName.isEmpty)
     #expect(model.newProject == "my-idea" && model.folder == "/nowhere/local/my-idea")
     #expect(model.projectNote == "/nowhere/local/my-idea will be created, with git ready, when the message is sent.")
     #expect(model.sentence == "Work in my-idea in the folder (new project, no commits yet: no worktree)")
@@ -882,7 +869,6 @@ private func projectsRoot(_ names: [String]) throws -> String {
     model.text = "build it"
     #expect(await model.send() == opened)
     #expect(host.plans == [SessionPlan(agent: "claude", workspace: .project("my-idea"), text: "build it")])
-    #expect(host.created.isEmpty)
     #expect(model.newProject == nil && model.folder == nil)
 }
 
@@ -891,34 +877,6 @@ private func projectsRoot(_ names: [String]) throws -> String {
     model.restore(SessionPlan(agent: "claude", workspace: .project("my-idea"), text: "again"))
     await model.load()
     #expect(model.newProject == "my-idea" && model.folder == "/nowhere/local/my-idea" && model.text == "again")
-}
-
-@Test func cancellingTheCloneRequestClosesItsConnection() async throws {
-    let closed = ConnectionClosed()
-    let server = TestServer { connection in
-        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"cloneRepo\"]}\n")
-        guard connection.readRequestId() != nil else { return }
-        closed.requested()
-        // the host answers only when the clone ends; what the app does here is close the connection
-        if connection.readLine() == nil { closed.closed() }
-    }
-    defer { server.stop() }
-    let call = Task { try await SocketChatHost(socketPath: { server.path }).cloneRepo("AshuLab/carrier") }
-    while closed.isRequested == false { try await Task.sleep(for: .milliseconds(2)) }
-    call.cancel()
-    for _ in 0..<500 where closed.isClosed == false { try await Task.sleep(for: .milliseconds(2)) }
-    #expect(closed.isClosed)
-    await #expect(throws: ControlError.closed) { try await call.value }
-}
-
-private final class ConnectionClosed: @unchecked Sendable {
-    private let lock = NSLock()
-    private var asked = false
-    private var gone = false
-    func requested() { lock.lock(); asked = true; lock.unlock() }
-    func closed() { lock.lock(); gone = true; lock.unlock() }
-    var isRequested: Bool { lock.lock(); defer { lock.unlock() }; return asked }
-    var isClosed: Bool { lock.lock(); defer { lock.unlock() }; return gone }
 }
 
 /// A host that is not there until `ensureHost` runs: its agents are refused before and answered after.
@@ -945,8 +903,6 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
     func capabilities() async throws -> Set<ControlClient.Capability> { [.plan] }
-    func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
-    func createProject(_ name: String) async throws -> String { throw ControlError.closed }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
 }
@@ -1026,7 +982,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     // once: looking again changes nothing
     await model.settleWatches()
     try await Task.sleep(for: .milliseconds(30))
-    #expect(config.writes == 1 && host.clones.isEmpty)
+    #expect(config.writes == 1)
 }
 
 @MainActor @Test func theEngineIsAskedToReloadAfterTheRepositoryIsWrittenAndNeverWhenItWasNot() async throws {
@@ -1173,7 +1129,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     model.show(.url)
     model.urlText = "acme/web"
     #expect(await model.useRepo())
-    #expect(model.folder == new + "/acme/web" && host.clones.isEmpty)
+    #expect(model.folder == new + "/acme/web")
     model.show(.project)
     model.projectName = "idea"
     #expect(model.useProject())
@@ -1290,7 +1246,7 @@ private func page(_ names: [String], more: Bool, login: String? = nil) -> Github
     let model = await popover(host, config: config)
     await model.showRepos()
     await model.choose(repo: "AshuLab/carrier")
-    #expect(host.clones.isEmpty && config.writes == 0 && model.repo == "AshuLab/carrier" && model.toClone && model.folder == "/nowhere/AshuLab/carrier")
+    #expect(config.writes == 0 && model.repo == "AshuLab/carrier" && model.toClone && model.folder == "/nowhere/AshuLab/carrier")
     #expect(model.repoList.repos.count == 1 && model.login == "vemec")
 }
 
@@ -1574,7 +1530,7 @@ private func gitHealth(_ git: ToolState) -> HostHealth { HostHealth(git: git, gh
     #expect(model.branchChange?.to == "feat/x" && model.worktree == false)
     #expect(model.chosenOptions == ["model": "haiku"])
     // nothing was made on the machine
-    #expect(host.calls.filter { $0.hasPrefix("open") }.isEmpty && host.created.isEmpty && host.clones.isEmpty)
+    #expect(host.calls.filter { $0.hasPrefix("open") }.isEmpty)
     // and it is given back once: the next opening is blank
     await model.load()
     #expect(model.folder == nil && model.text.isEmpty)

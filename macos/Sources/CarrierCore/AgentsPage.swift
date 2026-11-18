@@ -1,6 +1,6 @@
 import Foundation
 
-// The Agents page of Settings (docs/specs/agents-in-settings.md): the three fixed roles of `config.json` with their identity, provider, model,
+// The Agents page of Settings (docs/specs/agents-in-settings.md): the three fixed roles of `engine.json` with their identity, provider, model,
 // effort, persona and failover steps, as plain values. This only reads; the file is never written from here.
 
 /// The bots of the Agent Forge registry: names only, never a key.

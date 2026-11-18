@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { carrierHome } from '../config/default-path.ts';
+import { carrierHome } from '../config/places.ts';
 import { listAvailableRepos, type AvailableRepo } from '../integrations/available-repos.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import { repoNamePattern } from '../config/schema.ts';

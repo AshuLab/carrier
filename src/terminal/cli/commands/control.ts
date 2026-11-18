@@ -1,4 +1,4 @@
-import { enginePlacesOf } from '../../../config/engine-places.ts';
+import { enginePlacesOf } from '../../../config/places.ts';
 import { CliError } from '../cli-error.ts';
 import { connectControl, ControlUnreachable, type CarrierClient } from '../control-client.ts';
 

@@ -1,13 +1,12 @@
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
-import { carrierHome } from '../../../config/default-path.ts';
-import { providersPathOf } from '../../../config/providers.ts';
+import { carrierHome, providersPathOf } from '../../../config/places.ts';
 import { fakeDeps, quietUi, useTempDir } from '../testing.ts';
 import { runInit } from '../wizard.ts';
 
 const dir = useTempDir();
 
-test('the default place is the global ~/.carrier/config.json, and the closing line then needs no --config', async () => {
+test('the default place is the global ~/.carrier/engine.json, and the closing line then needs no --config', async () => {
   const { deps, written } = fakeDeps();
   const { ui, asked } = quietUi({ 'Start Carrier now? (Ctrl+C stops it)': false });
   process.env.CARRIER_HOME = join(dir, 'home');
@@ -16,7 +15,7 @@ test('the default place is the global ~/.carrier/config.json, and the closing li
   } finally {
     delete process.env.CARRIER_HOME;
   }
-  expect(Object.keys(written)).toEqual([join(dir, 'home', 'config.json'), join(dir, 'home', 'providers.json')]);
+  expect(Object.keys(written)).toEqual([join(dir, 'home', 'engine.json'), join(dir, 'home', 'providers.json')]);
   expect(asked.at(-1)).toMatch(/^outro:Ready\. Start it with: carrier\n/);
 });
 

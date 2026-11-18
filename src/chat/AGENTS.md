@@ -1,9 +1,9 @@
 # src/chat
 
 The chat host ([ADR 0013](../../docs/adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md)), a process of its own that holds user sessions and shares no state with the engine.
-It starts from the Carrier folder alone (`~/.carrier`, or `CARRIER_HOME`, [ADR 0016](../../docs/adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)) and reads no engine config.
+It starts from the Carrier folder alone ([ADR 0034](../../docs/adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)) and reads no engine config.
 It reads only `providers.json`, the accounts that a chat agent names with its `account`, at each request through `account.ts`: the adapters get the account's login, binary, compaction and launch arguments from it ([ADR 0020](../../docs/adr/0020-accounts-live-in-a-file-both-processes-read.md)).
-It keeps everything in `<folder>/chat/`: `state/` (`chat.db`, `chat.sock`, `carrier.lock`), `logs/`, `projects/`, `worktrees/` and its optional `chat.json`.
+It keeps `state/`, `logs/`, `projects/`, `worktrees/` and the app's `attachments/` in `<folder>/chat/`, settings in `<folder>/chat.json` (paths: `config/places.ts`).
 
 Adding a request to `chat.sock`: follow the checklist in [`src/control/AGENTS.md`](../control/AGENTS.md#adding-a-request-to-a-socket).
 Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-a-config-field).

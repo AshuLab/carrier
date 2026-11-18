@@ -1,13 +1,13 @@
 import { join } from 'node:path';
 import { createScopedLogger, type LogLevel } from '@ashulab/universal-logger';
-import { carrierHome } from '../config/default-path.ts';
+import { carrierHome, chatPlacesOf } from '../config/places.ts';
 import { installFileLogging } from '../logging/logger.ts';
 import { realClock, type Clock } from '../orchestration/clock.ts';
 import { acquireLock } from '../storage/lock.ts';
 import { chatAgentsOf } from './account.ts';
 import { claudeChatRunner } from './claude.ts';
 import { codexChatRunner } from './codex.ts';
-import { chatConfigProblem, chatDirOf, chatLogsOf, chatStateOf, readChatConfig, type ChatSettings } from './config.ts';
+import { chatConfigProblem, readChatConfig, type ChatSettings } from './config.ts';
 import { realGit, type Git } from './git.ts';
 import { createProjects, ghBranches, ghLogin, ghRepos, ghToken, type GithubRepos } from './projects.ts';
 import { ghPullRequests, type PullRequests } from './pull-requests.ts';
@@ -72,7 +72,7 @@ const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: in
 
 /**
  * Runs the chat host from the Carrier folder alone (`CARRIER_HOME`, else `~/.carrier`): its own lock, database and socket under
- * `chat/state/` and its log under `chat/logs/`, sharing nothing with the engine. Its settings are `chat/chat.json`'s, read at start (the
+ * `chat/state/` and its log under `chat/logs/`, sharing nothing with the engine. Its settings are `chat.json`'s, read at start (the
  * projects folder again at each request, the session ages at each `list` and at each hourly pass); a file that is wrong at start throws
  * ChatConfigInvalid before anything is created. Throws HostBusy when another host holds the lock. Resolves once the socket answers and
  * the first pass of the session clock is done; the returned `stop()` is the one shutdown (`stop` request, idle exit, signals), and it
@@ -83,10 +83,10 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   if (loaded.ok === false) throw new ChatConfigInvalid(chatConfigProblem(carrierHome(), loaded.errors));
   const { settings } = loaded;
   const deps = { ...realDeps(settings), ...overrides };
-  const stateDir = chatStateOf();
+  const stateDir = chatPlacesOf().state;
   const lock = acquireLock(stateDir);
-  if (!lock.ok) throw new HostBusy(`Another chat host is already running on ${chatDirOf()}`);
-  deps.installLogging(join(chatLogsOf(), 'chat-host.log'), settings.logLevel);
+  if (!lock.ok) throw new HostBusy(`Another chat host is already running on ${chatPlacesOf().dir}`);
+  deps.installLogging(join(chatPlacesOf().logs, 'chat-host.log'), settings.logLevel);
   const log = createScopedLogger('chat');
   const db = openChatDatabase(join(stateDir, 'chat.db'));
   await sweepDeadHost(db, deps.processes); // the lock is ours, so any recorded process belongs to a host that died

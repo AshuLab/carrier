@@ -1,6 +1,6 @@
 # Troubleshooting
 
-First step for almost everything: `carrier doctor` (it reads `~/.carrier/config.json`; pass `--config <file>` for another).
+First step for almost everything: `carrier doctor` (it reads `~/.carrier/engine.json`; pass `--config <file>` for another).
 
 ## Start with the Health tab
 
@@ -11,7 +11,7 @@ In the macOS app, open Settings and the Health tab first when **a session fails*
 | A session fails right after the first message | This Mac, the provider's row | `Signed out`: press its button (`claude auth login` or `codex login` in Terminal). `Not installed`: install the CLI from the link in the row. |
 | My GitHub repositories do not load, or cloning is off | This Mac, `gh` | `Signed out`: press `gh auth login`. `Not installed`: install `gh` from the link. |
 | New worktree is off | This Mac, `git` | `Not installed`: press `xcode-select --install`. |
-| The engine does not start | Carrier, then Engine setup | `carrier` not found: press its fix in Health (`brew install ashulab/tap/carrier` in Terminal), or choose one with “Use another…” under Programs in Settings > Engine. Engine not configured: the setup wizard makes `config.json`. Otherwise read the failing doctor checks and their fix text. |
+| The engine does not start | Carrier, then Engine setup | `carrier` not found: press its fix in Health (`brew install ashulab/tap/carrier` in Terminal), or choose one with “Use another…” under Programs in Settings > Engine. Engine not configured: the setup wizard makes `engine.json`. Otherwise read the failing doctor checks and their fix text. |
 | A row says `Could not check` | The row | The probe timed out or could not be read; press Check again. It never blocks anything. |
 
 Without the app, `carrier doctor` is the same engine-setup check in a terminal; `carrier doctor --json` prints its checks as one JSON array (`{ name, status, detail?, fix?, repo?, profiles? }`, `status` being `ok`, `warn` or `fail`; the checks about one repo, the token each identity can mint, the read and the Solve labels, also carry `repo` and `profiles`, the names under `config.profiles` they stand for) and exits 1 when any fails, as the app reads it.

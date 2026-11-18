@@ -37,13 +37,13 @@ private func temporaryConfig(_ text: String = #"{"keep":1,"repos":[{"name":"a/b"
     // a folder nobody can write to: the replacement cannot be made
     let folder = NSTemporaryDirectory() + "carrier-config-save-\(UUID().uuidString)"
     try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
-    try Data("{}".utf8).write(to: URL(fileURLWithPath: folder + "/config.json"))
+    try Data("{}".utf8).write(to: URL(fileURLWithPath: folder + "/engine.json"))
     try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: folder)
     defer {
         try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder)
         try? FileManager.default.removeItem(atPath: folder)
     }
-    guard case .failed = saveConfig(path: folder + "/config.json", unusable: "unusable", edit: { $0 }, reload: engine.reload) else {
+    guard case .failed = saveConfig(path: folder + "/engine.json", unusable: "unusable", edit: { $0 }, reload: engine.reload) else {
         Issue.record("expected the write to fail")
         return
     }

@@ -1,10 +1,11 @@
 import { realpathSync, statSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { chatPlacesOf, enginePlacesOf } from '../config/places.ts';
 import { ChatRefused } from './runner.ts';
 
-// A session never works in the engine's folder (ADR 0016); the projects folder also stays out of the chat's own state, logs and worktrees.
-const engineFolders = ['engine'];
-const chatOwnFolders = [...engineFolders, join('chat', 'state'), join('chat', 'logs'), join('chat', 'worktrees')];
+// A session never works in the engine's folder (ADR 0034); the projects folder also stays out of the chat's own state, logs and worktrees.
+const engineFolders = (home: string) => [enginePlacesOf(home).dir];
+const chatOwnFolders = (home: string) => [...engineFolders(home), chatPlacesOf(home).state, chatPlacesOf(home).logs, chatPlacesOf(home).worktrees];
 
 const realOrSelf = (path: string) => {
   try {
@@ -28,11 +29,10 @@ export function checkFolder(folder: string, home: string): string {
   return real;
 }
 
-function refuseInside(real: string, home: string, names: string[]) {
+function refuseInside(real: string, home: string, folders: (home: string) => string[]) {
   const realHome = realOrSelf(home);
-  for (const name of names) {
-    const refused = join(realHome, name);
-    if (real === refused || real.startsWith(refused + sep)) throw new ChatRefused(`That folder is inside Carrier's own ${name} folder; a chat never works there`);
+  for (const refused of folders(realHome)) {
+    if (real === refused || real.startsWith(refused + sep)) throw new ChatRefused(`That folder is inside Carrier's own ${relative(realHome, refused)} folder; a chat never works there`);
   }
 }
 

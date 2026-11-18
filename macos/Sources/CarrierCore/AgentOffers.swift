@@ -75,13 +75,13 @@ import Foundation
     }
 }
 
-/// Stands for the accounts and the chat agents: a digest of `providers.json` and `chat/chat.json` in the Carrier folder, so a change to
+/// Stands for the accounts and the chat agents: a digest of `providers.json` and `chat.json` in the Carrier folder, so a change to
 /// either gives another value. A file that is not there counts as empty.
 public func agentOfferFingerprint(carrierFolder: String) -> String {
-    let folder = URL(fileURLWithPath: carrierFolder)
+    let places = CarrierPlaces(folder: carrierFolder)
     var digest = SHA256()
-    for path in ["providers.json", "chat/chat.json"] {
-        digest.update(data: (try? Data(contentsOf: folder.appendingPathComponent(path))) ?? Data())
+    for path in [places.providers, places.chatConfig] {
+        digest.update(data: (try? Data(contentsOf: URL(fileURLWithPath: path))) ?? Data())
         digest.update(data: Data([0]))
     }
     return digest.finalize().map { String(format: "%02x", $0) }.joined()

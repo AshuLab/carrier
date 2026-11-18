@@ -946,7 +946,7 @@ struct CarrierTerminalStoreTests {
         let firstTab = store.openTab(for: .terminal(UUID()), workingDirectory: "/tmp")
         let firstPaneId = firstTab.activePaneId
         let realized = try #require(store.state(for: firstPaneId))
-        #expect(realized.configuration.envVars["ZDOTDIR"] == tempRoot.appendingPathComponent("app/terminal/zsh-bottom-prompt").path)
+        #expect(realized.configuration.envVars["ZDOTDIR"] == tempRoot.appendingPathComponent("app/cache/zsh-bottom-prompt").path)
 
         // Selecting an already-active pane must not trigger redundant synchronous writes.
         try? FileManager.default.removeItem(at: workspaceFile)

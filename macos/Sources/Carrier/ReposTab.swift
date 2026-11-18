@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The Repos page: which repos Carrier watches (the `repos` of `config.json`, CarrierCore/RepoList.swift), each with how its last
+/// The Repos page: which repos Carrier watches (the `repos` of `engine.json`, CarrierCore/RepoList.swift), each with how its last
 /// check went. Add from the gh login's list, stop watching with a question first. Saved like the Behavior tab: every change is written
 /// as it is made, and nothing restarts Carrier.
 struct ReposTabView: View {
@@ -45,7 +45,7 @@ struct ReposTabView: View {
         let chosen = rows.first { $0.name == selection } ?? rows.first
         VStack(alignment: .leading, spacing: 14) {
             if unreadable {
-                Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
+                Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
                     .font(.scaled(12)).foregroundStyle(.orange)
             }
             HStack(alignment: .top, spacing: 14) {
@@ -106,7 +106,7 @@ struct ReposTabView: View {
         }
     }
 
-    /// Not awaited: the card says it is running. The store ignores a run while one is running and runs only with a `config.json`.
+    /// Not awaited: the card says it is running. The store ignores a run while one is running and runs only with a `engine.json`.
     private func runDoctor() {
         let settings = setup.settings, configExists = start.configExists
         // a fixture has no `carrier` to find: any path will do, the run answers with the golden output
@@ -157,7 +157,7 @@ struct ReposTabView: View {
     }
 
     private var providersData: Data? {
-        try? Data(contentsOf: URL(fileURLWithPath: path).deletingLastPathComponent().appendingPathComponent("providers.json"))
+        try? Data(contentsOf: URL(fileURLWithPath: CarrierPlaces().providers))
     }
 
     private var refusal: String? {

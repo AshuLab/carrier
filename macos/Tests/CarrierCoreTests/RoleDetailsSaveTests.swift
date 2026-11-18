@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// The persona and the failover steps of a global role, written to a temporary config.json: what is saved, what is refused before writing, and that
+// The persona and the failover steps of a global role, written to a temporary engine.json: what is saved, what is refused before writing, and that
 // every other key stays.
 
 private let accounts = ["claude", "codex", "agy"]

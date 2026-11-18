@@ -1,7 +1,7 @@
 import Foundation
 
 // The Details and "When it runs out of tokens" cards of the Agents page (docs/specs/agents-in-settings.md): the persona of `agents.<role>` and the
-// steps of `failover.roles.<role>` in `config.json`, and nothing else. The file is read again inside the save and every key the app does not know
+// steps of `failover.roles.<role>` in `engine.json`, and nothing else. The file is read again inside the save and every key the app does not know
 // stays. The persona's limits are the ones of a repo's role (`RoleFields.problems`, RepoRoleSave.swift).
 
 /// Reads the file, lets `edit` change it (a returned value stops the save, nothing is written) and writes it back.
@@ -31,7 +31,7 @@ public func saveGlobalPersona(name: String?, prompt: String?, role: AgentRole, p
     if problems.isEmpty == false { return .refused(problems.joined(separator: " ")) }
     return updateConfig(path: path, reload: reload) { file in
         var agents = file["agents"] as? [String: Any] ?? [:]
-        guard var entry = agents[role.rawValue] as? [String: Any] else { return .refused("\(role.title) has no entry in config.json. Add it there first.") }
+        guard var entry = agents[role.rawValue] as? [String: Any] else { return .refused("\(role.title) has no entry in engine.json. Add it there first.") }
         let clean = RoleFields(persona: persona).normalized().persona
         entry["persona"] = clean.map { ["name": $0.name, "prompt": $0.prompt].compactMapValues { $0 } }
         agents[role.rawValue] = entry
@@ -59,7 +59,7 @@ public func saveGlobalFailover(first: FailoverStep?, second: FailoverStep?, role
     }
     return updateConfig(path: path, reload: reload) { file in
         guard let own = (file["agents"] as? [String: Any])?[role.rawValue] as? [String: Any] else {
-            return .refused("\(role.title) has no entry in config.json. Add it there first.")
+            return .refused("\(role.title) has no entry in engine.json. Add it there first.")
         }
         var failover = file["failover"] as? [String: Any] ?? [:]
         var roles = failover["roles"] as? [String: Any] ?? [:]

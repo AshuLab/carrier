@@ -24,7 +24,7 @@ import { FakeClock, FakeGitHub } from './fake.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
-import { enginePlacesOf } from '../config/engine-places.ts';
+import { enginePlacesOf } from '../config/places.ts';
 
 const MIN = 60_000;
 const agents = {

@@ -1,4 +1,4 @@
-import { carrierHome } from '../config/default-path.ts';
+import { carrierHome } from '../config/places.ts';
 import { providersProblem, readProvidersFile, runtimeOf, type Providers } from '../config/providers.ts';
 import { configDirVariable } from '../harnesses/names.ts';
 import type { ChatAgent } from './config.ts';

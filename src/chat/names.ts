@@ -1,6 +1,6 @@
 import { lstatSync } from 'node:fs';
 import { basename, join, sep } from 'node:path';
-import { carrierHome } from '../config/default-path.ts';
+import { chatPlacesOf } from '../config/places.ts';
 import type { Git } from './git.ts';
 import { ChatRefused } from './runner.ts';
 import { adjectives, places, units } from './words.ts';
@@ -33,7 +33,7 @@ export function generateName(random: () => number = Math.random): string {
 }
 
 /** Where every session worktree lives. */
-export const worktreesDir = () => join(carrierHome(), 'chat', 'worktrees');
+export const worktreesDir = () => chatPlacesOf().worktrees;
 
 /** Where a worktree called `name` of this repository lives: `<CARRIER_HOME>/chat/worktrees/<owner>/<repo>/<name>`, or `local/<folder name>` without a GitHub origin. A path that would lie anywhere else is refused. */
 export function worktreePath(info: WorkspaceInfo, name: string): string {

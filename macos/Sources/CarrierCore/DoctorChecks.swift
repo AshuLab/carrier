@@ -3,7 +3,7 @@ import Observation
 
 // The engine's setup in the Health tab (docs/specs/health-check-in-the-app.md): the checks of `carrier doctor --json`, run as a process with
 // `CARRIER_HOME` when the tab opens and on Check again, never in the background (the doctor makes GitHub calls and mints tokens), and
-// only with a `config.json`. The process itself lives in the shell and is passed in, so the store is tested with a fake one.
+// only with a `engine.json`. The process itself lives in the shell and is passed in, so the store is tested with a fake one.
 
 /// One check of the doctor, as it prints it. The `fix` is shown as text and never run.
 public struct DoctorCheck: Decodable, Equatable {
@@ -74,7 +74,7 @@ public func doctorState(from outcome: ProcessOutcome) -> DoctorState {
     return checks.isEmpty ? .unknown("carrier doctor printed no checks" + exit) : .checks(checks)
 }
 
-/// `carrier doctor --config <folder>/config.json --json` (behind `node` for a script), with the engine's `PATH` and `CARRIER_HOME`; nil
+/// `carrier doctor --config <folder>/engine.json --json` (behind `node` for a script), with the engine's `PATH` and `CARRIER_HOME`; nil
 /// when `carrier`, or the `node` a script needs, is missing.
 public func doctorCommand(settings: SetupSettings, carrier: String?, environment: [String: String], home: String = NSHomeDirectory()) -> StartCommand? {
     guard let start = startCommand(settings: settings, carrier: carrier, environment: environment, home: home) else { return nil }

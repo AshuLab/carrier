@@ -99,9 +99,10 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         carrierFolder: String, keep: @escaping () -> Bool, keepAudio: @escaping () -> Bool = { false }, audioDays: @escaping () -> Int = { 0 },
         now: @escaping () -> Date = Date.init, calendar: Calendar = .current
     ) {
-        path = carrierFolder + "/app/dictations.jsonl"
-        statisticsPath = carrierFolder + "/app/dictation-statistics.json"
-        audioFolder = carrierFolder + "/app/audio"
+        let places = CarrierPlaces(folder: carrierFolder)
+        path = places.dictations
+        statisticsPath = places.dictationStatistics
+        audioFolder = places.dictationAudio
         self.keep = keep
         self.keepAudio = keepAudio
         self.audioDays = audioDays

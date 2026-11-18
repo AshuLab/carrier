@@ -1951,7 +1951,7 @@ test('a repository that is not owner/name, or a projects folder that is not vali
   const s = repoSession();
   for (const repo of ['', '../x', 'a/b/c', 'solo']) await expect(s.sessions.openPlan({ plan: repoPlan({}, repo) }), repo).rejects.toThrow('is not a repository');
   mkdirSync(join(dir, 'home', 'chat'), { recursive: true });
-  writeFileSync(join(dir, 'home', 'chat', 'chat.json'), JSON.stringify({ projectsFolder: join(dir, 'home', 'engine', 'mine') }));
+  writeFileSync(join(dir, 'home', 'chat.json'), JSON.stringify({ projectsFolder: join(dir, 'home', 'engine', 'mine') }));
   await expect(s.sessions.openPlan({ plan: repoPlan() })).rejects.toThrow("inside Carrier's own engine folder");
   expect(rows('sessions')).toEqual([]);
   expect(s.git.calls).toEqual([]);

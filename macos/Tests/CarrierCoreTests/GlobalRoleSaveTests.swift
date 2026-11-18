@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// Changing a global role from the Agents page: what is written to a temporary config.json, and what is refused before writing.
+// Changing a global role from the Agents page: what is written to a temporary engine.json, and what is refused before writing.
 
 private let accounts = ["claude", "codex", "agy"]
 private let bots = ["acme-author", "acme-reviewer", "spare"]

@@ -1,10 +1,8 @@
 import Foundation
 
-/// Canonical path for the persisted terminal workspace inside `<Carrier folder>/app/terminals.json`.
+/// Canonical path for the persisted terminal workspace: `<Carrier folder>/app/state/terminals.json`.
 public func terminalWorkspaceURL(carrierFolder: String) -> URL {
-    URL(fileURLWithPath: carrierFolder, isDirectory: true)
-        .appendingPathComponent("app", isDirectory: true)
-        .appendingPathComponent("terminals.json", isDirectory: false)
+    URL(fileURLWithPath: CarrierPlaces(folder: carrierFolder).terminals, isDirectory: false)
 }
 
 /// Versioned snapshot of all open terminal owners, tabs, split layouts, ratios, focus, and working directories.

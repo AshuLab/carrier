@@ -75,7 +75,7 @@ export const configSchema = z
     profiles: z.record(z.string(), profile),
     /** Left out, it is the author's profile (ADR 0021). */
     orchestratorProfile: z.string().min(1).optional(),
-    /** Not a key of `config.json`: the loader puts here what `providers.json` declares (ADR 0020). */
+    /** Not a key of `engine.json`: the loader puts here what `providers.json` declares (ADR 0020). */
     providers: accounts,
     agents: z.strictObject({ author: agent, reviewer: agent, leadReviewer: agent.optional() }),
     /** A role with a non-empty list of steps moves to the next one upon usage_limit, rate_limit, or service_down. */

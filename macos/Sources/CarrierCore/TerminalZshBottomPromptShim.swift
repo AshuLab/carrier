@@ -4,13 +4,10 @@ import Foundation
 /// so interactive Carrier shells anchor their prompt to the bottom of the viewport without altering
 /// any user dotfiles (`~/.zshrc`, `~/.zshenv`, etc.).
 public enum TerminalZshBottomPromptShim {
-    public static let shimFolderComponents = ["app", "terminal", "zsh-bottom-prompt"]
     public static let userZdotdirEnvKey = "CARRIER_USER_ZDOTDIR"
 
     public static func defaultDirectory(carrierFolder: URL) -> URL {
-        shimFolderComponents.reduce(carrierFolder) { url, component in
-            url.appendingPathComponent(component, isDirectory: true)
-        }
+        URL(fileURLWithPath: CarrierPlaces(folder: carrierFolder.path).zshShim, isDirectory: true)
     }
 
     public static func isZshShell(_ shellPath: String?) -> Bool {

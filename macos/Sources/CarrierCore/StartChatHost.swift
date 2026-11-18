@@ -11,11 +11,11 @@ public func startChatHostCommand(settings: SetupSettings, carrier: String?, envi
     var environment = environment
     environment["PATH"] = enginePath(detected: settings.path, node: settings.node)
     environment["CARRIER_HOME"] = folder
-    let chat = folder + "/chat"
+    let places = CarrierPlaces(folder: folder)
     let run = carrierProgram(carrier: carrier, node: settings.node, arguments: ["chat-host"])
     return StartCommand(
         program: run.program, arguments: run.arguments, environment: environment,
-        processDir: chat, logPath: chat + "/logs/app-start.log", socketPath: chat + "/state/chat.sock"
+        processDir: places.chat, logPath: places.chatStartLog, socketPath: places.chatSocket
     )
 }
 

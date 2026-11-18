@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 // The Providers page of Settings (docs/specs/providers-in-settings.md): what the chat host says of the AI tools on this Mac (`providers`),
-// joined with who uses each account, read from `config.json` (roles, repo overrides, failover) and `chat.json` (chat agents). The page reads; it writes `providers.json` for the Add of a harness found with no account and for an account's Add, edit and Remove (`ProvidersStore`, `ProvidersFile`, `ProvidersEdit`).
+// joined with who uses each account, read from `engine.json` (roles, repo overrides, failover) and `chat.json` (chat agents). The page reads; it writes `providers.json` for the Add of a harness found with no account and for an account's Add, edit and Remove (`ProvidersStore`, `ProvidersFile`, `ProvidersEdit`).
 
 /// The reply of `providers`: the accounts of `providers.json` with their state, the harnesses found that no account has, and the local servers.
 public struct HostProviders: Decodable, Equatable {
@@ -48,7 +48,7 @@ public struct HostProviders: Decodable, Equatable {
 public enum ProviderRole: CaseIterable {
     case author, reviewer, leadReviewer
 
-    /// The key of the role in `config.json`.
+    /// The key of the role in `engine.json`.
     var key: String {
         switch self {
         case .author: "author"
@@ -266,7 +266,7 @@ public enum ProvidersOutcome: Equatable {
     @ObservationIgnored private var changes = 0
 
     /// `file` is looked up at each use, so the Carrier folder is the one the app has then. `uses` is who names each account, read from
-    /// `config.json` and `chat.json` when an account is removed; a `chat.json` that is there and cannot be read stops the removal.
+    /// `engine.json` and `chat.json` when an account is removed; a `chat.json` that is there and cannot be read stops the removal.
     public init(
         host: ChatHost, file: @escaping () -> ProvidersFile = ProvidersFile.current,
         uses: @escaping () throws -> [String: [AccountUse]] = { accountUses(config: currentConfig(), chat: try currentChatConfig()) },

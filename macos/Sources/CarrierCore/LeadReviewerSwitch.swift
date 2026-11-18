@@ -1,7 +1,7 @@
 import Foundation
 
 // The Use a lead reviewer switch of the Agents page (docs/specs/agents-in-settings.md). Off removes `agents.leadReviewer` and its failover steps
-// from `config.json` and keeps every other key. On writes nothing until identity, provider and model are chosen (`LeadReviewerDraft`), then the
+// from `engine.json` and keeps every other key. On writes nothing until identity, provider and model are chosen (`LeadReviewerDraft`), then the
 // whole role goes in one write through `saveGlobalRole`, so the file never holds a half role.
 
 /// What the person has chosen for the Lead reviewer while the switch is on in the page and the file has no role yet.

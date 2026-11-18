@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The Behavior tab: the values of `config.json` (CarrierCore/EngineConfig.swift), in the three
+/// The Behavior tab: the values of `engine.json` (CarrierCore/EngineConfig.swift), in the three
 /// groups of `behaviorGroups` (CarrierCore/BehaviorPage.swift). Every change that the engine would accept is written to the file as it is made, in place; nothing restarts Carrier.
 /// A running Carrier is asked to read it when the person pauses (a number typed as "30" must not reach it as 3 and then 30), or at once when they leave.
 /// The note about saving, or why it cannot, is in the page's header (`SettingsHeaderNoteKey`).
@@ -26,7 +26,7 @@ struct BehaviorTabView: View {
     /// Said at the right of the header only when there is something to say: that it saved, or why it could not.
     private var headerNote: SettingsHeaderNote? {
         if unreadable {
-            return SettingsHeaderNote(text: "The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", tone: .problem)
+            return SettingsHeaderNote(text: "The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", tone: .problem)
         }
         if let failure { return SettingsHeaderNote(text: failure, tone: .problem) }
         // the page says a problem answer to VoiceOver itself, once, when it comes (`announcesReloadProblems`)

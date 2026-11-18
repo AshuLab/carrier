@@ -284,9 +284,9 @@ test('a reload through the control socket applies the loader\'s next config, and
 
   // an invalid one: nothing changes, and the reply is the lines a start prints
   next = () => {
-    throw new CliError(1, 'Invalid config /c/config.json:', '  limits.maxReviews: Too small');
+    throw new CliError(1, 'Invalid config /c/engine.json:', '  limits.maxReviews: Too small');
   };
-  await expect(client.request('reload')).rejects.toThrow('Invalid config /c/config.json:\n  limits.maxReviews: Too small');
+  await expect(client.request('reload')).rejects.toThrow('Invalid config /c/engine.json:\n  limits.maxReviews: Too small');
   expect(seen.levels).toEqual(['warn']);
   expect(await snapshot()).toEqual({ pollIntervalMs: 3 * MIN, slots: 1, maxReviews: 8, finished: 0 });
 });

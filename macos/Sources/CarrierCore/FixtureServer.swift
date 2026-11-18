@@ -17,9 +17,9 @@ public enum FixtureError: Error, Equatable {
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; `switchAgent` gives an idle session another listed agent and a notice that says so; anything else is an error.
-/// It owns a temporary home (`home`) holding a `config.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
+/// It owns a temporary home (`home`) holding a `engine.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
-/// The `config.json` of the fixture home: the repos of the fixture snapshot, the profiles and the three global roles, and one repo that
+/// The `engine.json` of the fixture home: the repos of the fixture snapshot, the profiles and the three global roles, and one repo that
 /// overrides the reviewer's model, so the Repos page shows an inherited role and a mixed one.
 public let fixtureConfig = """
 {
@@ -61,8 +61,8 @@ public final class FixtureServer {
     /// The sessions the list marks `fixtureUnread` and `fixturePinned`: the app, which keeps what the person has seen and pinned, starts with them so.
     public let unreadSessionIds: [String]
     public let pinnedSessionIds: [String]
-    public var socketPath: String { home + "/engine/state/control.sock" }
-    public var chatSocketPath: String { home + "/chat/state/chat.sock" }
+    public var socketPath: String { CarrierPlaces(folder: home).controlSocket }
+    public var chatSocketPath: String { CarrierPlaces(folder: home).chatSocket }
 
     private let listener: Int32
     private let chatListener: Int32
@@ -189,20 +189,20 @@ public final class FixtureServer {
         let home = String(cString: template)
         self.home = home
         do {
-            let state = home + "/engine/state"
-            try FileManager.default.createDirectory(atPath: state, withIntermediateDirectories: true)
-            try Data(fixtureConfig.utf8).write(to: URL(fileURLWithPath: home + "/config.json"))
+            let places = CarrierPlaces(folder: home)
+            try FileManager.default.createDirectory(atPath: places.engine + "/state", withIntermediateDirectories: true)
+            try Data(fixtureConfig.utf8).write(to: URL(fileURLWithPath: places.engineConfig))
             try Data(fixtureForgeRegistry.utf8).write(to: URL(fileURLWithPath: home + "/agent-forge.json"))
             // what the app's doctor run answers in `--fixture` mode (`doctorFixtureOutput`)
             try Data(contentsOf: URL(fileURLWithPath: fixtures + "/doctor.json")).write(to: URL(fileURLWithPath: home + "/doctor.json"))
-            try FileManager.default.createDirectory(atPath: home + "/chat/state", withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(atPath: places.chatState, withIntermediateDirectories: true)
             let chatConfig = #"{"agents":{"claude":{"account":"claude"},"codex":{"account":"codex"},"work":{"account":"claude-work"}}}"#
-            try Data(chatConfig.utf8).write(to: URL(fileURLWithPath: home + "/chat/chat.json"))
+            try Data(chatConfig.utf8).write(to: URL(fileURLWithPath: places.chatConfig))
             // the accounts of the golden reply, without Antigravity: it is found and has no account, so the page shows its Add row
             let accounts = #"{"providers":{"claude":{"harness":"claude"},"claude-work":{"harness":"claude","displayName":"Work","configDir":"/Users/demo/.claude-work"},"codex":{"harness":"codex","command":"/opt/homebrew/bin/codex"}}}"#
             try ProvidersFile(folder: home).write(Data(accounts.utf8))
-            listener = try Self.listen(path: state + "/control.sock")
-            do { chatListener = try Self.listen(path: home + "/chat/state/chat.sock") } catch {
+            listener = try Self.listen(path: places.controlSocket)
+            do { chatListener = try Self.listen(path: places.chatSocket) } catch {
                 Darwin.close(listener)
                 throw error
             }

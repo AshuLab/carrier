@@ -1,6 +1,6 @@
 import Foundation
 
-// Changing and resetting a repo's role from its page: writes `repos[].agents.<role>` of `config.json` and nothing else. The file is read
+// Changing and resetting a repo's role from its page: writes `repos[].agents.<role>` of `engine.json` and nothing else. The file is read
 // again inside the save, so a change made by another writer since the page read it is not lost, and every key the app does not know stays.
 
 public let roleEfforts = ["low", "medium", "high", "xhigh", "max"]

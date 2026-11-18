@@ -11,7 +11,7 @@ Then only the controls that apply: while Carrier is stopped, Start Carrier (enab
 Last, Open window (⌘O), Settings… (⌘,) and Quit Carrier (⌘Q).
 The line comes from Carrier's control socket, `<folder>/engine/state/control.sock`, where `<folder>` is the Carrier folder: `CARRIER_HOME` from the app's own environment, else `~/.carrier`.
 The app finds the engine from the folder alone, with no config file read, and has no setting for a config path; it works the folder out again at each connection attempt.
-The engine's config is `<folder>/config.json`, and while that file does not exist the Carrier home and the Carrier section of the sidebar say that the engine is not configured (with nothing to do about it here: the setup wizard makes the file) and Start Carrier is off, with that as the reason.
+The engine's config is `<folder>/engine.json`, and while that file does not exist the Carrier home and the Carrier section of the sidebar say that the engine is not configured (with nothing to do about it here: the setup wizard makes the file) and Start Carrier is off, with that as the reason.
 The app asks for the snapshot every second while connected and tries to connect every three seconds while not.
 
 ## Sidebar and window shortcuts
@@ -80,7 +80,7 @@ How they are drawn is in [the look of the app](../macos-ui.md#cards-in-the-feed)
 
 An epic's Agent output tab lists its sessions oldest first, the newest last, as centered rows with no card (how they are drawn is in [the UI guide](../macos-ui.md#rows-of-a-feed); the words are `sessionRowText`, `sessionSummary` and `earlierSessions` in `CarrierCore/SessionSections.swift`).
 A row says who acted (the GitHub profile, an Agent Forge bot, or the tool's name when none is known), the role and place ("Builder · Ship", "Reviewer · Round 2"), and on a second line the tool, the account, the model and the effort that are known.
-The engine's `sessions` reply gives the key of `profiles` the session acted as (`profile`), and the app reads `config.json` when the tab opens to say whose account that is: a `forge` profile is named by its Agent Forge bot, a `gh` profile has no name in the file, so such a session shows the tool's name, and a key the file does not have stays as sent.
+The engine's `sessions` reply gives the key of `profiles` the session acted as (`profile`), and the app reads `engine.json` when the tab opens to say whose account that is: a `forge` profile is named by its Agent Forge bot, a `gh` profile has no name in the file, so such a session shows the tool's name, and a key the file does not have stays as sent.
 An engine that sends no key (an epic frozen before it was kept) gets the bot of `agents.author` (builder and fixer) or `agents.reviewer`, and the role's `effort` when the session ran on the role's model.
 A repository's own `agents` override is not read.
 Under the row one line sums the session up: while it runs "Working · since 16:09 · 62 calls"; stopped, the orange `stopped` badge and the failure's kind and detail; open, the counts (calls, edits with their lines, test runs, errors, time); folded, how it ended in bold (Completed, Changes requested, Needs a human), the CI verdict and the time, or the counts when it has no result.

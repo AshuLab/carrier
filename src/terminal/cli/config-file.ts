@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { carrierHome, defaultConfigPath } from '../../config/default-path.ts';
+import { carrierHome, defaultConfigPath } from '../../config/places.ts';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { providersProblem, readProvidersFile } from '../../config/providers.ts';
 import type { Config } from '../../config/schema.ts';

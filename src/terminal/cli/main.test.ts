@@ -99,7 +99,7 @@ test('invalid config lists every error and exits non-zero', () => {
   expect(result.stderr).toContain('orchestratorProfile');
 });
 
-test('a providers.json that does not match stops it with the key named, and a config.json with providers is told where they went', () => {
+test('a providers.json that does not match stops it with the key named, and an engine.json with providers is told where they go', () => {
   home = join(dir, 'bad-accounts');
   mkdirSync(home, { recursive: true });
   writeFileSync(join(home, 'providers.json'), JSON.stringify({ providers: { claude: { harness: 'claude', displayName: '' } } }));
@@ -107,7 +107,7 @@ test('a providers.json that does not match stops it with the key named, and a co
   expect([mismatch.status, mismatch.stdout, mismatch.stderr]).toEqual([1, '', expect.stringContaining('providers.claude.displayName')]);
   home = withAccounts(join(dir, 'moved-accounts'));
   const moved = run('--config', write('moved.json', { ...valid, providers: {} }));
-  expect([moved.status, moved.stderr]).toEqual([1, expect.stringContaining('moved out of config.json into providers.json')]);
+  expect([moved.status, moved.stderr]).toEqual([1, expect.stringContaining('accounts live in providers.json in the Carrier folder, not in engine.json')]);
 });
 
 test('a second carrier on the same Carrier folder reports it and exits non-zero without printing config', async () => {
@@ -219,11 +219,11 @@ test('doctor --json prints only the checks as a JSON array on stdout and exits l
 test('without --config the global file is used when it exists, and init is suggested when it does not', () => {
   home = join(dir, 'global');
   const missing = run('doctor');
-  expect([missing.status, missing.stderr]).toEqual([2, expect.stringContaining(`No config at ${join(home, 'config.json')}: run "carrier init"`)]);
+  expect([missing.status, missing.stderr]).toEqual([2, expect.stringContaining(`No config at ${join(home, 'engine.json')}: run "carrier init"`)]);
   withAccounts(home);
-  writeFileSync(join(home, 'config.json'), JSON.stringify({ ...valid, orchestratorProfile: 'x' }));
+  writeFileSync(join(home, 'engine.json'), JSON.stringify({ ...valid, orchestratorProfile: 'x' }));
   const found = run('doctor');
-  expect([found.status, found.stderr]).toEqual([1, expect.stringContaining(`Invalid config ${join(home, 'config.json')}`)]);
+  expect([found.status, found.stderr]).toEqual([1, expect.stringContaining(`Invalid config ${join(home, 'engine.json')}`)]);
 });
 
 test('status prints the panel of the running carrier, plain when piped, and exits 0; with none running it says so and exits 1', async () => {
@@ -618,10 +618,10 @@ test('chat and chat-host take no --config, and a chat.json that is wrong stops c
       expect(refused.stderr).toContain('takes no --config');
     }
     mkdirSync(join(folder, 'chat'));
-    writeFileSync(join(folder, 'chat', 'chat.json'), JSON.stringify({ githubCallTimeoutSeconds: 0 }));
+    writeFileSync(join(folder, 'chat.json'), JSON.stringify({ githubCallTimeoutSeconds: 0 }));
     const bad = chatRun(folder, 'chat-host');
     expect(bad.status).toBe(1);
-    expect(bad.stderr).toContain(join(folder, 'chat', 'chat.json'));
+    expect(bad.stderr).toContain(join(folder, 'chat.json'));
     expect(bad.stderr).toContain('githubCallTimeoutSeconds');
     expect(existsSync(join(folder, 'chat', 'state'))).toBe(false);
     const listed = chatRun(folder, 'chat', '--list'); // a client that starts the host shows why it did not come up

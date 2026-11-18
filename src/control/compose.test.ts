@@ -3,7 +3,7 @@ import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { enginePlacesOf } from '../config/engine-places.ts';
+import { enginePlacesOf } from '../config/places.ts';
 import { loadWithProviders } from '../config/testing.ts';
 import { FakeAgentRunner, FakeWorkspaces } from '../execution/fake.ts';
 import { FakeClock, FakeGitHub } from '../orchestration/fake.ts';

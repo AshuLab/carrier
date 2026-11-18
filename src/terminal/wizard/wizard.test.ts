@@ -18,7 +18,7 @@ const withHome = async <T>(run: () => Promise<T>) => {
   }
 };
 
-const existingKey = `A config already exists at ${join(dir, 'home', 'config.json')}`;
+const existingKey = `A config already exists at ${join(dir, 'home', 'engine.json')}`;
 
 const existing = {
   repos: [{ name: 'X/y' }, { name: 'X/z' }],
@@ -147,7 +147,7 @@ test('an existing config can be edited: its answers are the starting points and 
   const { ui, asked } = quietUi();
   await withHome(() => runInit({}, ui, deps));
   const [path] = Object.keys(written);
-  expect(path).toBe(join(dir, 'home', 'config.json'));
+  expect(path).toBe(join(dir, 'home', 'engine.json'));
   const { providers, ...config } = existing;
   expect(JSON.parse(written[path!]!)).toEqual(config);
   expect(providersWritten(written, join(dir, 'home'))).toEqual(providers); // the existing accounts are the starting points
@@ -159,7 +159,7 @@ test('"Start over" ignores the old answers but still replaces that file without 
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(existing) });
   const { ui } = quietUi({ [existingKey]: 'fresh' });
   await withHome(() => runInit({}, ui, deps));
-  expect(JSON.parse(written[join(dir, 'home', 'config.json')]!).repos).toEqual([{ name: 'AshuLab/carrier' }]); // the origin suggestion, not the old repos
+  expect(JSON.parse(written[join(dir, 'home', 'engine.json')]!).repos).toEqual([{ name: 'AshuLab/carrier' }]); // the origin suggestion, not the old repos
 });
 
 test('"Leave it as it is" cancels, and an unreadable config is said so instead of crashing', async () => {
@@ -253,7 +253,7 @@ test('editing a config starts from its efforts and its failover steps, and the r
   expect(initial['GitHub identity for the author']).toBe('gh');
   expect(notes['This is what will be saved']).toContain('Identity      shared: author and reviewer are the same account, and the signature in what they publish will show it');
   const { providers, ...config } = shared;
-  expect(JSON.parse(written[join(dir, 'home', 'config.json')]!)).toEqual(config);
+  expect(JSON.parse(written[join(dir, 'home', 'engine.json')]!)).toEqual(config);
   expect(providersWritten(written, join(dir, 'home'))).toEqual(providers);
 });
 
@@ -336,7 +336,7 @@ test('editing a config with personas starts from them, and the recap lists them'
   expect(defaultsSeen[promptOf('reviewer')]).toBe('Be strict.');
   expect(notes['This is what will be saved']).toContain('persona: Rex · Be strict.');
   const { providers: _, ...config } = withPersona;
-  expect(JSON.parse(written[join(dir, 'home', 'config.json')]!)).toEqual(config);
+  expect(JSON.parse(written[join(dir, 'home', 'engine.json')]!)).toEqual(config);
 });
 
 test('editing a persona: a dash clears the field, and clearing both leaves no persona', async () => {
@@ -344,7 +344,7 @@ test('editing a persona: a dash clears the field, and clearing both leaves no pe
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(withPersona) });
   const { ui } = quietUi({ [gateOf('reviewer')]: 'set', [nameOf('reviewer')]: '-', [promptOf('reviewer')]: '-' });
   await withHome(() => runInit({}, ui, deps));
-  expect(JSON.parse(written[join(dir, 'home', 'config.json')]!).agents.reviewer).not.toHaveProperty('persona');
+  expect(JSON.parse(written[join(dir, 'home', 'engine.json')]!).agents.reviewer).not.toHaveProperty('persona');
 });
 
 test('editing a persona: Keep leaves it as it was without asking its fields, Remove drops it', async () => {
@@ -354,7 +354,7 @@ test('editing a persona: Keep leaves it as it was without asking its fields, Rem
     const { ui, asked } = quietUi(answer ? { [gateOf('reviewer')]: answer } : {});
     await withHome(() => runInit({}, ui, deps));
     expect(asked).not.toContain(nameOf('reviewer'));
-    expect(JSON.parse(written[join(dir, 'home', 'config.json')]!).agents.reviewer.persona).toEqual(expected);
+    expect(JSON.parse(written[join(dir, 'home', 'engine.json')]!).agents.reviewer.persona).toEqual(expected);
   }
 });
 
@@ -438,12 +438,12 @@ test('an existing failover is kept only when the person says so; saying no asks 
   const keep = 'Keep the failover you have? author: codex gpt-test';
   const kept = fakeDeps({ exists: () => true, readConfig: asFiles(withFailover) });
   await withHome(() => runInit({}, quietUi({ [notNow]: false }).ui, kept.deps));
-  expect(JSON.parse(kept.written[join(dir, 'home', 'config.json')]!).failover.roles.author).toEqual([{ provider: 'codex', model: 'gpt-test' }]);
+  expect(JSON.parse(kept.written[join(dir, 'home', 'engine.json')]!).failover.roles.author).toEqual([{ provider: 'codex', model: 'gpt-test' }]);
   const redone = fakeDeps({ exists: () => true, readConfig: asFiles(withFailover) });
   const { ui, asked } = quietUi({ [keep]: false, [notNow]: false });
   await withHome(() => runInit({}, ui, redone.deps));
   expect(asked.some((q) => q.startsWith('Turn failover on for the author'))).toBe(true);
-  expect(JSON.parse(redone.written[join(dir, 'home', 'config.json')]!)).not.toHaveProperty('failover'); // asked again and declined
+  expect(JSON.parse(redone.written[join(dir, 'home', 'engine.json')]!)).not.toHaveProperty('failover'); // asked again and declined
 });
 
 test('every wait on the machine or GitHub shows a loading line', async () => {

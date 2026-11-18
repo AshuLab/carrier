@@ -116,7 +116,7 @@ public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: Docto
 private func setupSection(_ doctor: DoctorState, configExists: Bool) -> HealthSection {
     let title = "Engine setup"
     guard configExists else {
-        return HealthSection(title: title, note: "The engine's setup needs the config: there is no config.json in the Carrier folder.", rows: [])
+        return HealthSection(title: title, note: "The engine's setup needs the config: there is no engine.json in the Carrier folder.", rows: [])
     }
     switch doctor {
     case .idle: return HealthSection(title: title, note: "Not checked yet.", rows: [])

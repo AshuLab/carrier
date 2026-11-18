@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { defaultConfigPath } from './default-path.ts';
+import { defaultConfigPath } from './places.ts';
 import { defaults, loadConfig } from './load.ts';
 import { resolveRepoConfig } from './resolve.ts';
 import { loadProviders } from './providers.ts';
@@ -224,13 +224,13 @@ describe('root', () => {
 });
 
 describe('the config\'s place', () => {
-  test('is config.json in the Carrier folder, wherever that is', () => {
+  test('is engine.json in the Carrier folder, wherever that is', () => {
     const before = process.env.CARRIER_HOME;
     try {
       process.env.CARRIER_HOME = '/tmp/some-home';
-      expect(defaultConfigPath()).toBe('/tmp/some-home/config.json');
+      expect(defaultConfigPath()).toBe('/tmp/some-home/engine.json');
       delete process.env.CARRIER_HOME;
-      expect(defaultConfigPath()).toBe(join(homedir(), '.carrier', 'config.json'));
+      expect(defaultConfigPath()).toBe(join(homedir(), '.carrier', 'engine.json'));
     } finally {
       if (before === undefined) delete process.env.CARRIER_HOME;
       else process.env.CARRIER_HOME = before;
@@ -316,7 +316,7 @@ describe('providers', () => {
     expect(loaded).toMatchObject({ ok: true, config: { providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' }, agy: { harness: 'agy' } }, agents: { author: { provider: 'claude' } } } });
   });
 
-  test('a config.json that still has `providers` is refused with a message that names providers.json', () => {
+  test('a engine.json that still has `providers` is refused with a message that names providers.json', () => {
     expect(loadConfig(defaults, valid)).toEqual({ ok: false, errors: [{ path: 'providers', message: expect.stringContaining('providers.json') }] });
   });
 

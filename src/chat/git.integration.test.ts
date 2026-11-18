@@ -350,7 +350,7 @@ describe.skipIf(!enabled)('cloneRepo, with the real git', () => {
     // the projects folder is read from the chat's own config in the Carrier folder
     vi.stubEnv('CARRIER_HOME', join(work, 'home'));
     mkdirSync(join(work, 'home', 'chat'), { recursive: true });
-    writeFileSync(join(work, 'home', 'chat', 'chat.json'), JSON.stringify({ projectsFolder: join(work, 'projects') }));
+    writeFileSync(join(work, 'home', 'chat.json'), JSON.stringify({ projectsFolder: join(work, 'projects') }));
   });
   afterAll(() => {
     vi.unstubAllEnvs();

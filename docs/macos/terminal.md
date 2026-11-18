@@ -48,11 +48,11 @@ Control returns to Carrier when the person explicitly triggers **Resume** in `Ep
 
 ## Bottom-anchored Zsh prompt and Clear
 
-When `TerminalSettings.pinPromptToBottom` (`AppPreferences.terminalPinPromptToBottomKey`, opt-in and off by default) is enabled for an interactive Zsh shell with no explicit command override, `CarrierTerminalStore` sets `ZDOTDIR` in the child environment (`resolvedEnvVars`) to `<Carrier folder>/app/terminal/zsh-bottom-prompt` without altering stored pane metadata (`TerminalZshBottomPromptShim`).
+When `TerminalSettings.pinPromptToBottom` (`AppPreferences.terminalPinPromptToBottomKey`, opt-in and off by default) is enabled for an interactive Zsh shell with no explicit command override, `CarrierTerminalStore` sets `ZDOTDIR` in the child environment (`resolvedEnvVars`) to `<Carrier folder>/app/cache/zsh-bottom-prompt` without altering stored pane metadata (`TerminalZshBottomPromptShim`).
 The shim preserves any user `ZDOTDIR` in `CARRIER_USER_ZDOTDIR`, sources the user's `.zshenv`, `.zprofile`, `.zshrc` and `.zlogin` in order, preserves `~/.zsh_history` unless overridden by user dotfiles, wraps output positioning in synchronized updates (`\e[?2026h...\e[?2026l`), clears the initial login banner before user prompts draw, wraps `clear` only if the user has not defined a custom `clear` function or alias, and attaches a `precmd` hook (`\e[999B`) plus ZLE `clear-screen` overrides so the prompt stays anchored at the bottom row while command output scrolls upward.
 Pressing `⌘K` while a terminal pane has focus runs `CarrierTerminalStore.clearScrollback(paneId:)`, which executes `clear_screen` and sends `Ctrl+L` afterwards only when bottom-prompt pinning is active and process inspection confirms without error that no foreground command is running in that pane.
 
 ## Persistence
 
-Workspace layout, tab order and split trees are persisted in `<Carrier folder>/app/terminals.json` (`0600`) without environment variables (`TerminalWorkspaceFileStore`).
+Workspace layout, tab order and split trees are persisted in `<Carrier folder>/app/state/terminals.json` (`0600`) without environment variables (`TerminalWorkspaceFileStore`).
 Ephemeral `TerminalOwner.epic` tabs are excluded from both persistence export and restore so resumed CLI processes and their scoped environment variables never respawn across app launches.

@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { chatConfigPathOf, chatConfigProblem, chatDirOf, chatSocketOf, loadChatConfig, readChatConfig } from './config.ts';
+import { chatConfigPathOf } from '../config/places.ts';
+import { chatConfigProblem, loadChatConfig, readChatConfig } from './config.ts';
 
 let folder: string;
 beforeEach(() => {
@@ -19,16 +20,7 @@ const errorsOf = (user: unknown) => {
   if (result.ok) throw new Error('expected errors');
   return result.errors;
 };
-const write = (text: string) => {
-  mkdirSync(chatDirOf(), { recursive: true });
-  writeFileSync(chatConfigPathOf(), text);
-};
-
-test('the chat lives in <folder>/chat, and the socket in its state folder', () => {
-  expect(chatDirOf()).toBe(join(folder, 'chat'));
-  expect(chatSocketOf()).toBe(join(folder, 'chat', 'state', 'chat.sock'));
-  expect(chatConfigPathOf()).toBe(join(folder, 'chat', 'chat.json'));
-});
+const write = (text: string) => writeFileSync(chatConfigPathOf(), text);
 
 test('without the file, or with an empty one, every setting has its default', () => {
   const defaults = {
@@ -102,5 +94,5 @@ test('a file that is not JSON is an error that says so, and the message names th
   write('{"githubCallTimeoutSeconds": 0}');
   const bad = readChatConfig();
   if (bad.ok) throw new Error('expected errors');
-  expect(chatConfigProblem(folder, bad.errors)).toContain(`${join(folder, 'chat', 'chat.json')}:\n  githubCallTimeoutSeconds:`);
+  expect(chatConfigProblem(folder, bad.errors)).toContain(`${join(folder, 'chat.json')}:\n  githubCallTimeoutSeconds:`);
 });

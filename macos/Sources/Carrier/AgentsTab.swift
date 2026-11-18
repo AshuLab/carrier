@@ -3,7 +3,7 @@ import CarrierCore
 import SwiftUI
 
 /// The Agents page of Settings (docs/specs/agents-in-settings.md): the three roles of every epic in a list, and for the chosen one its Who,
-/// Details and When it runs out of tokens cards. It reads `config.json`, `providers.json` and the Agent Forge registry (`agentsPage`, tested
+/// Details and When it runs out of tokens cards. It reads `engine.json`, `providers.json` and the Agent Forge registry (`agentsPage`, tested
 /// in `AgentsPageTests`); the Who card writes one field of one role as it changes (`saveGlobalRole`, tested in `GlobalRoleSaveTests`). The page has no
 /// automated test.
 struct AgentsTabView: View {
@@ -31,7 +31,7 @@ struct AgentsTabView: View {
                 if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.scaled(12)).foregroundStyle(.secondary).padding(.horizontal, 4) }
                 if let note = page.bots.note { Text(note).font(.scaled(12)).foregroundStyle(.secondary).padding(.horizontal, 4) }
             } else {
-                Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
+                Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
                     .font(.scaled(12)).foregroundStyle(.orange)
             }
         }

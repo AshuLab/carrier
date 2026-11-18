@@ -117,7 +117,7 @@ public struct SessionSection: Equatable, Identifiable {
     public var result: ResultCard?
     /// `killed: SIGKILL`, the failure kind and its detail as the header says them; nil when the session has no failure.
     public var failure: String?
-    /// The role of `config.json` the session ran as (`author`, `reviewer`), which says whose profile it acted as.
+    /// The role of `engine.json` the session ran as (`author`, `reviewer`), which says whose profile it acted as.
     public var engineRole = ""
     /// The engine's stage (`ship`, `review`, `fix`) and round, to find what the session answers or found.
     public var stage = ""
@@ -187,7 +187,7 @@ public func ciVerdictText(_ word: String) -> String {
 // MARK: the session's row
 // The centered row that opens a session: who acted, what it did, how it ran, and one line of numbers under it.
 
-/// What `config.json` says of its profiles and of the two roles a session runs as. The engine sends the key of `profiles` a session acted
+/// What `engine.json` says of its profiles and of the two roles a session runs as. The engine sends the key of `profiles` a session acted
 /// as, a name the person chose; this says whose GitHub account it is, and names who a session acted as when the engine sends no key.
 /// ponytail: the global roles only; a repo's own `agents` override is not read.
 public struct RoleIdentities: Equatable {

@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
-import { chatConfigPathOf, chatLogsOf, chatSocketOf } from '../../../chat/config.ts';
+import { chatConfigPathOf, chatPlacesOf } from '../../../config/places.ts';
 import { CliError } from '../cli-error.ts';
 import { connectControl, ControlUnreachable, type CarrierClient } from '../control-client.ts';
 import { startDetached } from '../detached.ts';
@@ -27,7 +27,7 @@ export const POLL_MS = 200;
 export async function hostClient(socketPath: string, start: typeof startDetached, timeoutMs?: number): Promise<CarrierClient> {
   const client = await connectHost(socketPath, timeoutMs);
   if (client !== null) return client;
-  await start({ label: 'The chat host', args: ['chat-host'], socketPath, logPath: join(chatLogsOf(), 'start.log') });
+  await start({ label: 'The chat host', args: ['chat-host'], socketPath, logPath: join(chatPlacesOf().logs, 'start.log') });
   const started = await connectHost(socketPath, timeoutMs);
   if (started === null) throw new CliError(1, 'The chat host stopped answering right after it started');
   return started;
@@ -258,7 +258,7 @@ export async function chatCommand(
   flags: { list?: boolean; archived?: boolean; stop?: boolean; workspace?: string; agent?: string; resume?: string; archive?: string; unarchive?: string; delete?: string },
   { start = startDetached, input = process.stdin, pollMs = POLL_MS, now = Date.now, sigint = process }: { start?: typeof startDetached; input?: Readable; pollMs?: number; now?: () => number; sigint?: EventEmitter } = {},
 ): Promise<number> {
-  const socketPath = chatSocketOf();
+  const socketPath = chatPlacesOf().socket;
   if (flags.stop) {
     const client = await connectHost(socketPath);
     if (client === null) {

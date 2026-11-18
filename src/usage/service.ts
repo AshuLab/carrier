@@ -4,7 +4,7 @@ import type { ChatAgent } from '../chat/config.ts';
 import type { ChatDb } from '../chat/db.ts';
 import { ChatRefused } from '../chat/runner.ts';
 import { providersProblem, readProvidersFile, type Providers } from '../config/providers.ts';
-import { enginePlacesOf } from '../config/engine-places.ts';
+import { enginePlacesOf } from '../config/places.ts';
 import { createHistory, type HistoryFilter, type HistoryPorts, type HistoryRoots } from './history.ts';
 import { catalog, createPriceOverrides, PriceOverrideInvalid, type OverrideRequest } from './pricing.ts';
 import { createQuotas } from './quotas.ts';

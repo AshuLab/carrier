@@ -154,7 +154,7 @@ test('running again on an existing config keeps its options and failover, adds m
   expect(initial['Which account runs the reviewer?']).toBe('work');
   expect(asked).not.toContain('Where should the config be saved?');
   expect(asked.some((q) => q.startsWith('Turn failover'))).toBe(false);
-  const config = load(written, join(home, 'config.json'), home);
+  const config = load(written, join(home, 'engine.json'), home);
   expect(config.providers).toEqual({ ...existing.providers, agy: { harness: 'agy' } });
   expect(config.failover).toEqual(existing.failover);
   expect(config.agents).toMatchObject(existing.agents);

@@ -10,7 +10,7 @@ public struct DictationLog: Sendable {
 
     // ponytail: one backup and a fixed ceiling; a rotation by date or a setting only if someone needs to read further back
     public init(carrierFolder: String, home: String = NSHomeDirectory(), limit: Int = 1_000_000) {
-        path = carrierFolder + "/app/logs/dictation.log"
+        path = CarrierPlaces(folder: carrierFolder).dictationLog
         self.home = home
         self.limit = limit
     }

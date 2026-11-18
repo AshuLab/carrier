@@ -15,7 +15,7 @@ import { executions } from '../storage/executions.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { epics } from '../storage/schema.ts';
 import { epicOf, MAX_ROUNDS } from './epic.ts';
-import { enginePlacesOf } from '../config/engine-places.ts';
+import { enginePlacesOf } from '../config/places.ts';
 
 const MIN = 60_000;
 const CLIENT_LINE_LIMIT = 8 * 1024 * 1024; // macos/Sources/CarrierCore/ControlClient.swift maxLineBytes

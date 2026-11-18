@@ -51,7 +51,7 @@ test('the host starts from an empty Carrier folder: state is 0700 with a 0600 so
 
 test('a chat.json that sets agents and a log level is what the host lists and logs at', async () => {
   mkdirSync(join(root, 'chat'), { recursive: true });
-  writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify({ agents: { mine: { account: 'claude' } }, logLevel: 'debug' }));
+  writeFileSync(join(root, 'chat.json'), JSON.stringify({ agents: { mine: { account: 'claude' } }, logLevel: 'debug' }));
   const installLogging = vi.fn();
   const started = await startChatHost({ installLogging, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, binaryFound: () => true });
   stops.push(started.stop);
@@ -72,13 +72,12 @@ test.each([
   ['has a relative projects folder', '{"projectsFolder":"projects"}', 'projectsFolder'],
   ['has an empty projects folder', '{"projectsFolder":""}', 'projectsFolder'],
 ])('a chat.json that %s stops the host with a message naming the file and the key, and no socket is made', async (_name, text, key) => {
-  mkdirSync(join(root, 'chat'), { recursive: true });
-  writeFileSync(join(root, 'chat', 'chat.json'), text);
+  writeFileSync(join(root, 'chat.json'), text);
   const error = await startChatHost({ installLogging: () => {}, signals: false }).catch((e) => e);
   expect(error).toBeInstanceOf(ChatConfigInvalid);
-  expect(error.message).toContain(join(root, 'chat', 'chat.json'));
+  expect(error.message).toContain(join(root, 'chat.json'));
   expect(error.message).toContain(key);
-  expect(readdirSync(join(root, 'chat'))).toEqual(['chat.json']); // no state, no socket, no log
+  expect(readdirSync(root)).toEqual(['chat.json']); // no chat folder: no state, no socket, no log
 });
 
 test('a second host on the same root is refused, and the lock is free again after stop', async () => {
@@ -661,7 +660,7 @@ const archivedIds = async () => {
 test('the host archives at its start what is due, and again after an hour of its clock, with a client connected', async () => {
   const clock = new FakeClock();
   const id = await leaveIdleSession(clock);
-  writeFileSync(join(root, 'chat', 'chat.json'), '{"deleteAfterDays":1000}'); // this test is about archiving
+  writeFileSync(join(root, 'chat.json'), '{"deleteAfterDays":1000}'); // this test is about archiving
   clock.time = 40 * DAY; // the host was off for 40 days
   const first = await host(clock);
   expect(await archivedIds()).toEqual([id]);
@@ -679,7 +678,7 @@ test('the pass reads chat.json each time: a change is used by the next pass and 
   const clock = new FakeClock();
   const id = await leaveIdleSession(clock);
   clock.time = 20 * DAY;
-  const config = (text: string) => writeFileSync(join(root, 'chat', 'chat.json'), text);
+  const config = (text: string) => writeFileSync(join(root, 'chat.json'), text);
   config('{"archiveAfterDays":30,"deleteAfterDays":60}');
   const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
   await host(clock);
@@ -708,7 +707,7 @@ test('the host deletes at its start what is due for deletion, and again after an
 test('list says the delete date from the ages in chat.json, read at each request, and a wrong file keeps the last good ages', async () => {
   const clock = new FakeClock();
   const id = await leaveIdleSession(clock);
-  const config = (text: string) => writeFileSync(join(root, 'chat', 'chat.json'), text);
+  const config = (text: string) => writeFileSync(join(root, 'chat.json'), text);
   config('{"archiveAfterDays":1,"deleteAfterDays":40}');
   clock.time = 2 * DAY;
   await host(clock); // archives it at its start

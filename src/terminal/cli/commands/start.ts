@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { enginePlacesOf } from '../../../config/engine-places.ts';
+import { enginePlacesOf } from '../../../config/places.ts';
 import { pidAt, startDetached } from '../detached.ts';
 
 /**

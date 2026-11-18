@@ -43,10 +43,10 @@ public func projectNameProblem(_ name: String) -> String? {
 }
 
 /// The chat host's projects folder: `projectsFolder` of `chat.json` (`~/` expanded), else `<folder>/chat/projects`; `carrierFolder` is the
-/// Carrier folder. The file is the host's own level of configuration (ADR 0016), never the engine's config.
+/// Carrier folder. The file is the host's own level of configuration (ADR 0034), never the engine's config.
 public func projectsFolder(chatJSON: Data?, carrierFolder: String, home: String) -> String {
     let object = chatJSON.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
-    guard let chosen = (object?["projectsFolder"] as? String).flatMap({ $0.isEmpty ? nil : $0 }) else { return carrierFolder + "/chat/projects" }
+    guard let chosen = (object?["projectsFolder"] as? String).flatMap({ $0.isEmpty ? nil : $0 }) else { return CarrierPlaces(folder: carrierFolder).chatProjects }
     if chosen == "~" { return home }
     return chosen.hasPrefix("~/") ? home + chosen.dropFirst() : chosen
 }
@@ -56,9 +56,9 @@ public func projectsFolder(chatJSON: Data?, carrierFolder: String, home: String)
 public func projectsFolderRefusal(_ folder: String, carrierFolder: String) -> String? {
     guard folder.hasPrefix("/") else { return "The projects folder must be an absolute path" }
     let real = URL(fileURLWithPath: folder).resolvingSymlinksInPath().path
-    let base = URL(fileURLWithPath: carrierFolder).resolvingSymlinksInPath().path
-    for name in ["engine", "chat/state", "chat/logs", "chat/worktrees"] {
-        let own = base + "/" + name
+    let places = CarrierPlaces(folder: URL(fileURLWithPath: carrierFolder).resolvingSymlinksInPath().path)
+    for own in [places.engine, places.chatState, places.chatLogs, places.chatWorktrees] {
+        let name = String(own.dropFirst(places.folder.count + 1))
         if real == own || real.hasPrefix(own + "/") { return "That folder is inside Carrier's own \(name) folder; the chat never works there" }
     }
     return nil
@@ -106,7 +106,7 @@ public func writeCurrentConfig(_ data: Data) throws { try data.write(to: current
 /// The Carrier folder the app works with: `CARRIER_HOME` in its own environment, else `~/.carrier`.
 public func currentCarrierFolder() -> String { carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()) }
 
-private func currentChatConfigURL() -> URL { URL(fileURLWithPath: currentCarrierFolder() + "/chat/chat.json") }
+private func currentChatConfigURL() -> URL { URL(fileURLWithPath: CarrierPlaces().chatConfig) }
 
 /// The chat's `chat.json`, read each time; nil when it is not there, an error when it is there and cannot be read.
 public func currentChatConfig() throws -> Data? {
@@ -114,7 +114,7 @@ public func currentChatConfig() throws -> Data? {
     return FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil
 }
 
-/// Writes `chat.json` in place, making the chat's folder when it is not there yet.
+/// Writes `chat.json` in place, making the Carrier folder when it is not there yet.
 public func writeCurrentChatConfig(_ data: Data) throws {
     let url = currentChatConfigURL()
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

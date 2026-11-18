@@ -39,9 +39,9 @@ private let sample = #"[{"name":"config","status":"ok"},{"name":"gh","status":"w
 }
 
 @Test func aConfigTheEngineRefusesComesBackWithTheDoctorsReason() {
-    let stderr = "[12:00:00] info doctor starting\nInvalid config /tmp/config.json:\n  repos.0.agents.reviewer.effort: Invalid option: expected one of \"low\"\n"
+    let stderr = "[12:00:00] info doctor starting\nInvalid config /tmp/engine.json:\n  repos.0.agents.reviewer.effort: Invalid option: expected one of \"low\"\n"
     #expect(doctorState(from: ProcessOutcome(exitCode: 1, stdout: "", stderr: stderr)) == .refused(
-        "Invalid config /tmp/config.json:\n  repos.0.agents.reviewer.effort: Invalid option: expected one of \"low\""
+        "Invalid config /tmp/engine.json:\n  repos.0.agents.reviewer.effort: Invalid option: expected one of \"low\""
     ))
     // the checks win over the noise on stderr
     #expect(doctorState(from: ProcessOutcome(exitCode: 1, stdout: sample, stderr: "Invalid x")) != .refused("Invalid x"))
@@ -53,11 +53,11 @@ private let sample = #"[{"name":"config","status":"ok"},{"name":"gh","status":"w
     let settings = SetupSettings(node: "/usr/bin/node", path: "/usr/bin")
     let command = try #require(doctorCommand(settings: settings, carrier: "/opt/carrier.js", environment: ["CARRIER_HOME": "/tmp/folder"], home: "/Users/x"))
     #expect(command.program == "/usr/bin/node")
-    #expect(command.arguments == ["/opt/carrier.js", "doctor", "--config", "/tmp/folder/config.json", "--json"])
+    #expect(command.arguments == ["/opt/carrier.js", "doctor", "--config", "/tmp/folder/engine.json", "--json"])
     #expect(command.environment["CARRIER_HOME"] == "/tmp/folder")
     let binary = try #require(doctorCommand(settings: settings, carrier: "/opt/homebrew/bin/carrier", environment: [:], home: "/Users/x"))
     #expect(binary.program == "/opt/homebrew/bin/carrier")
-    #expect(binary.arguments == ["doctor", "--config", "/Users/x/.carrier/config.json", "--json"])
+    #expect(binary.arguments == ["doctor", "--config", "/Users/x/.carrier/engine.json", "--json"])
     #expect(doctorCommand(settings: SetupSettings(), carrier: nil, environment: [:]) == nil)
 }
 

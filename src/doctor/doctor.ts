@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { socketPathFits } from '../control/server.ts';
-import { enginePlacesOf } from '../config/engine-places.ts';
+import { enginePlacesOf } from '../config/places.ts';
 import { resolveRepoConfig, sameAccount } from '../config/resolve.ts';
 import type { Config } from '../config/schema.ts';
 import { profileToken } from '../execution/git-workspaces.ts';

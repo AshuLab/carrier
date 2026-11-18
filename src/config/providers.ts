@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute } from 'node:path';
 import { z } from 'zod';
 import { harnessNames, localProvidersOf } from '../harnesses/names.ts';
-import { carrierHome, expandHome } from './default-path.ts';
+import { carrierHome, expandHome, providersPathOf } from './places.ts';
 import { refusedLaunchArg } from './launch-args.ts';
 
 /** The key of an account: stored and shown as is. */
@@ -96,9 +96,6 @@ const providersFileSchema = z.strictObject({ providers: accounts.default(default
 
 export type ProvidersError = { path: string; message: string };
 export type ProvidersResult = { ok: true; providers: Providers } | { ok: false; errors: ProvidersError[] };
-
-/** Where the accounts live: `providers.json` in the Carrier folder, wherever the engine's `--config` points (ADR 0020). */
-export const providersPathOf = (folder = carrierHome()) => join(folder, 'providers.json');
 
 /** The accounts from the parsed contents of `providers.json` (`{}` when there is no file: the default accounts). */
 export function loadProviders(json: unknown): ProvidersResult {

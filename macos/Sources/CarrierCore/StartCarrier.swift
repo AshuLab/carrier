@@ -34,11 +34,11 @@ public func startCommand(settings: SetupSettings, carrier: String?, environment:
     var environment = environment
     environment["PATH"] = enginePath(detected: settings.path, node: settings.node)
     environment["CARRIER_HOME"] = folder
-    let engine = engineFolder(environment: environment, home: home)
+    let places = CarrierPlaces(environment: environment, home: home)
     let run = carrierProgram(carrier: carrier, node: settings.node, arguments: [])
     return StartCommand(
         program: run.program, arguments: run.arguments, environment: environment,
-        processDir: engine, logPath: engineStartLogPath(environment: environment, home: home), socketPath: controlSocketPath(environment: environment, home: home)
+        processDir: places.engine, logPath: places.engineStartLog, socketPath: places.controlSocket
     )
 }
 
@@ -76,10 +76,10 @@ public func logTail(_ log: Data, lines: Int = 30) -> String {
     return text.isEmpty ? "(the start log is empty)" : tail.joined(separator: "\n")
 }
 
-/// What the Carrier home and the Carrier section of the sidebar say while `<folder>/config.json` does not exist; nil once it does.
+/// What the Carrier home and the Carrier section of the sidebar say while `<folder>/engine.json` does not exist; nil once it does.
 /// It has no action: the config is made by the native setup wizard, which is its own epic.
 public func engineNotConfiguredNotice(configExists: Bool) -> String? {
-    configExists ? nil : "The engine is not configured: there is no config.json in the Carrier folder."
+    configExists ? nil : "The engine is not configured: there is no engine.json in the Carrier folder."
 }
 
 /// The Start Carrier menu item: it can be pressed only while Carrier is stopped, the engine is configured, the settings are

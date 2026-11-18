@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { carrierHome } from '../config/default-path.ts';
+import { carrierHome } from '../config/places.ts';
 import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
 import type { ChatAgent, ChatSettings } from './config.ts';
 import { resolveBinary } from '../harnesses/common.ts';

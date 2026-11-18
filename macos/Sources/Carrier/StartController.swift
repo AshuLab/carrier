@@ -12,7 +12,7 @@ final class StartController: ObservableObject {
 
     var missing: [String] { SetupController.shared.missing }
 
-    /// Whether the Carrier folder has its `config.json`; without it the engine does not start. Published so the views that read it
+    /// Whether the Carrier folder has its `engine.json`; without it the engine does not start. Published so the views that read it
     /// follow the file while Carrier stays stopped: it is read again every 3 seconds and whenever `refreshConfig` is called.
     @Published private(set) var configExists = FileManager.default.fileExists(atPath: configFilePath())
 

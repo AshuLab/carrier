@@ -1,6 +1,6 @@
 import Foundation
 
-// The GitHub identity the engine acts as: `orchestratorProfile` of `config.json`, one of the file's `profiles`. Left out of the file it is the
+// The GitHub identity the engine acts as: `orchestratorProfile` of `engine.json`, one of the file's `profiles`. Left out of the file it is the
 // author's profile, so choosing the default removes the key. The engine is asked to reload after the write (EngineReload.swift).
 
 public struct EngineIdentity: Equatable {

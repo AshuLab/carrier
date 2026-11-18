@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { GitWorkspaces, profileToken } from './git-workspaces.ts';
-import { enginePlacesOf } from '../config/engine-places.ts';
+import { enginePlacesOf } from '../config/places.ts';
 
 const git = (cwd: string, ...args: string[]) =>
   execFileSync('git', args, {

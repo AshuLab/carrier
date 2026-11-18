@@ -104,7 +104,7 @@ node src/terminal/cli/main.ts chat --list              # from another terminal w
 node src/terminal/cli/main.ts chat --stop              # ends the host
 ```
 
-The host creates `$CARRIER_HOME/chat/` (`state/`, `logs/`) on its own and uses the defaults of `chat.json`; to try other settings, write `$CARRIER_HOME/chat/chat.json` before starting it (a wrong file stops the host and names the key). To run the app against it, build it (see [`macos/README.md`](macos/README.md)) and start its binary from the same terminal, so it inherits `CARRIER_HOME`:
+The host creates `$CARRIER_HOME/chat/` (`state/`, `logs/`) on its own and uses the defaults of `chat.json`; to try other settings, write `$CARRIER_HOME/chat.json` before starting it (a wrong file stops the host and names the key). To run the app against it, build it (see [`macos/README.md`](macos/README.md)) and start its binary from the same terminal, so it inherits `CARRIER_HOME`:
 
 ```bash
 (cd macos && ./build-app.sh)

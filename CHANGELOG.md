@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- In a new session, the Reasoning slider lists the levels of the model you chose and not those of the agent's default one, and the reasoning set in Settings is kept when that model takes it (a draft on GPT-6.1 Terra showed only Low and dropped High).
+
 ## [0.13.0] - 2026-11-18
 
 Settings gets a page of its own for About, with the update delay, and the app's rough edges after 0.12.0 are smoothed: subagent views, account marks, the dictation widget and the timeline's cards.

@@ -4,8 +4,11 @@ import type { Account } from '../config/providers.ts';
 // Carrier's own chat events whatever the provider speaks, and it is not the engine's `AgentRunner`: nothing in it is
 // epic-shaped, there is no result file and the process is not done after one answer.
 
-/** A value of an option: `detail` says what it is in a line, `version` which exact thing it stands for (a model's alias is not its number). */
-export type ChatOptionValue = { id: string; label: string; detail?: string; version?: string };
+/**
+ * A value of an option: `detail` says what it is in a line, `version` which exact thing it stands for (a model's alias is not its number).
+ * A model also says its reasoning levels (`efforts`, and `defaultEffort` when the provider names one), so a client that has not opened the session can draw them.
+ */
+export type ChatOptionValue = { id: string; label: string; detail?: string; version?: string; efforts?: string[]; defaultEffort?: string };
 export type ChatOption = { id: string; label: string; values: ChatOptionValue[]; current: string };
 /**
  * Something the person can invoke from the message box, whatever the provider calls it (Claude's slash commands and skills, Codex's

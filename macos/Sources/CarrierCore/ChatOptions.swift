@@ -12,12 +12,17 @@ public struct ChatOption: Codable, Equatable {
         public let detail: String?
         /// The exact thing the value stands for, when it is not what the id says (the model an alias resolves to).
         public let version: String?
+        /// The reasoning levels a model takes, and the one it starts on when the provider names it; nil on a value that is not a model or from a host that does not say.
+        public let efforts: [String]?
+        public let defaultEffort: String?
 
-        public init(id: String, label: String, detail: String? = nil, version: String? = nil) {
+        public init(id: String, label: String, detail: String? = nil, version: String? = nil, efforts: [String]? = nil, defaultEffort: String? = nil) {
             self.id = id
             self.label = label
             self.detail = detail
             self.version = version
+            self.efforts = efforts
+            self.defaultEffort = defaultEffort
         }
     }
 

@@ -1763,3 +1763,54 @@ private let accessOptions = claudeOptions + [
     await model.choose(repo: "AshuLab/carrier")
     #expect(model.toClone && model.worktree && model.worktreeName.isEmpty == false && model.startBranch == "main")
 }
+
+// MARK: the reasoning levels follow the model chosen in the draft
+
+/// What a host lists when it opened its probe session with `best-model`: the effort is that model's, the models say their own levels.
+private let codexLevels = [
+    ChatOption(id: "model", label: "Model", values: [
+        .init(id: "best-model", label: "Best model", efforts: ["low"], defaultEffort: "low"),
+        .init(id: "gpt-6.1-terra", label: "GPT-6.1 Terra", efforts: ["low", "medium", "high"], defaultEffort: "low"),
+        .init(id: "gpt-6.1-sol", label: "GPT-6.1 Sol", efforts: ["low", "medium", "high"], defaultEffort: "medium"),
+    ], current: "best-model"),
+    ChatOption(id: "effort", label: "Reasoning effort", values: [.init(id: "low", label: "low")], current: "low"),
+]
+
+@MainActor private func effortOf(_ model: NewSessionModel) -> ChatOption? { model.shownOptions.first { $0.id == "effort" } }
+
+@MainActor @Test func theSettingsReasoningIsKeptWhenTheModelItNamesTakesIt() async {
+    let host = FakeChat()
+    host.agents = [ChatAgent(name: "codex", harness: "codex", found: true)]
+    host.offered["codex"] = codexLevels
+    let model = await draft(host, starting: NewSessionStart(agent: "codex", model: "gpt-6.1-terra", effort: "high"))
+    await model.loadOptions()
+    #expect(model.chosenOptions == ["model": "gpt-6.1-terra", "effort": "high"])
+    #expect(effortOf(model)?.values.map(\.id) == ["low", "medium", "high"] && optionsPill(model.shownOptions) == "GPT-6.1 Terra · high")
+}
+
+@MainActor @Test func choosingAModelInTheDraftBringsItsLevelsAndItsDefault() async {
+    let host = FakeChat()
+    host.agents = [ChatAgent(name: "codex", harness: "codex", found: true)]
+    host.offered["codex"] = codexLevels
+    let model = await draft(host)
+    await model.loadOptions()
+    #expect(effortOf(model)?.values.map(\.id) == ["low"])
+    model.choose(option: "model", value: "gpt-6.1-sol")
+    #expect(effortOf(model)?.values.map(\.id) == ["low", "medium", "high"] && effortOf(model)?.current == "medium")
+    model.choose(option: "effort", value: "high")
+    #expect(model.chosenOptions == ["model": "gpt-6.1-sol", "effort": "high"])
+    // a level the next model does not take is let go, and that model's default shows
+    model.choose(option: "model", value: "best-model")
+    #expect(model.chosenOptions == ["model": "best-model"] && effortOf(model)?.values.map(\.id) == ["low"] && effortOf(model)?.current == "low")
+}
+
+@MainActor @Test func aHostThatSendsNoLevelsLeavesTheReasoningAsItListsIt() async {
+    let host = FakeChat()
+    host.offered["claude"] = claudeOptions
+    let model = await draft(host)
+    await model.loadOptions()
+    model.choose(option: "model", value: "haiku")
+    #expect(effortOf(model)?.values.map(\.id) == ["low", "high"] && effortOf(model)?.current == "high")
+    model.choose(option: "effort", value: "low")
+    #expect(model.chosenOptions == ["model": "haiku", "effort": "low"])
+}

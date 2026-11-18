@@ -551,6 +551,9 @@ extension View {
 /// How wide the select of a row is, the same on every page so the selects end and begin on one line down the card.
 let settingsSelectWidth: CGFloat = 210
 
+/// How wide a slider of a row is: the width of the selects, which is at least 200 pt, so the track is long enough to aim at.
+let settingsSliderWidth: CGFloat = settingsSelectWidth
+
 /// `NativePopUp` over a value: the choices as (value, title) pairs, the one chosen bound as the value itself. A stored value that is not on the
 /// list shows the first choice, as the pages already read an unknown value as their default.
 struct ChoicePopUp<Value: Hashable>: View {
@@ -739,7 +742,7 @@ struct AppearanceTabView: View {
                         value: Binding(get: { Double(textSize) }, set: { textSize = Int($0) }),
                         in: Double(TypeScale.range.lowerBound)...Double(TypeScale.range.upperBound), step: 5
                     )
-                    .frame(width: 160).accessibilityLabel("Text size").accessibilityValue("\(textSize) percent")
+                    .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Text size").accessibilityValue("\(textSize) percent")
                 }
                 SettingsTabRow(title: "Density", detail: "The space in the sidebar rows and between the messages") {
                     ChoicePopUp(label: "Density", options: Density.allCases.map { (value: $0, title: $0.title) }, selection: $density)
@@ -777,7 +780,7 @@ struct AppearanceTabView: View {
                 }
                 SettingsTabRow(title: "Size", detail: "In points, before the text size of the whole app") {
                     Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
-                        .frame(width: 160).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
+                        .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
                 }
                 SettingsTabRow(title: "Line height", detail: "The room between the lines of code and output") {
                     ChoicePopUp(label: "Line height", options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)

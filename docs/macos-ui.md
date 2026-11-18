@@ -28,6 +28,7 @@ Settings is a window of its own with a native sidebar (`List` in `.sidebar` styl
 | `SettingsPreview` | A sample of what the rows around it change, inside their group (the terminal's, the time format's, Dictation's widget style). |
 
 Spacing: **14 between blocks, 4 inside a block** (a name and its version), 12 between a tile and its text. A row's line is one line: what does not fit goes to the group's `footer`.
+A page that is a column (`SettingsPage.isColumn`, `settingsColumnWidth`) is centered by `.contentMargins(.horizontal, _, for: .scrollContent)` on its scroll view and never by narrowing the view: the scroll bar stays at the window's edge and what scrolls under the toolbar reaches both sides of it.
 
 **What can be searched is `settingsIndex`** (`CarrierCore/SettingsIndex.swift`): a new row or group is added there in the same change, with its page, its group and the words it says; `SettingsIndexDriftTests` fails when a title a page draws is missing. A row is found by its page, group and title, so the group a row is in and its title are not renamed without the index.
 
@@ -113,6 +114,7 @@ A row that opens an editor or a form shows **a chevron `chevron.right` at its ri
 ## Fields and selects
 
 - **A text field is `TextField(…).settingsField(width:)`** (`SettingsTabs.swift`): a quiet fill with rounded corners of 8, no line while idle, the theme's accent as a 1.5 pt ring while it has the focus, and a click anywhere in the box puts the cursor in it. `width: 240` for a short value, no width to fill the space given (a multi-line field too). Do not use `.textFieldStyle(.roundedBorder)` in a form.
+- **A slider of a row is `settingsSliderWidth`** (210 pt, the selects' width, so the tracks begin on the same line) **with `.labelsHidden()`**: in a form the track is otherwise drawn at about half of its frame, right-aligned in it.
 - A search field is the same field with `icon: "magnifyingglass"` (`settingsField(icon:)` draws the symbol inside the box) and a prompt that says what it searches ("Search repos").
 - A field that saves as the person leaves it (Agents) passes its own focus: `settingsField(width:focused: $focused)`, so the ring and the save follow the same state.
 - **Filters are `FilterChip`s** (`SettingsTabs.swift`): small capsules that are on (the theme's accent) or off (a quiet fill), in a row under the search. `SegmentedChoice` (`SettingsTabs.swift`) is a few exclusive choices in one grey capsule, the chosen one a lighter capsule and never the accent, every choice the same type and padding so nothing changes size (Usage's metric and range); the system's segmented `Picker` is not used for filters. Chips that exclude each other start with "All" and a second click on the one that is on goes back to it; an on/off filter ("Hide watched") is a chip of its own at the right of the row; a filter with many values (the owner) is a `NativePopUp`. The filtering is a pure function in `CarrierCore` with a test (`repoGroups`), not logic in the view.

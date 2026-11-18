@@ -209,7 +209,7 @@ struct TerminalTabView: View {
                     detail: "Raises low-contrast ANSI text · \(TerminalSettings.minimumContrastLabel(minimumContrast))"
                 ) {
                     Slider(value: minimumContrastSelection, in: TerminalSettings.minimumContrastRange)
-                        .frame(width: 160)
+                        .labelsHidden().frame(width: settingsSliderWidth)
                         .accessibilityLabel("Minimum contrast")
                         .accessibilityValue(TerminalSettings.minimumContrastLabel(minimumContrast))
                 }
@@ -218,7 +218,7 @@ struct TerminalTabView: View {
                     detail: "Left and right margin inside each pane · \(Int(paddingX.rounded())) pt"
                 ) {
                     Slider(value: paddingXSelection, in: TerminalSettings.paddingRange)
-                        .frame(width: 160)
+                        .labelsHidden().frame(width: settingsSliderWidth)
                         .accessibilityLabel("Horizontal padding")
                         .accessibilityValue("\(Int(paddingX.rounded())) points")
                 }
@@ -227,7 +227,7 @@ struct TerminalTabView: View {
                     detail: "Top and bottom margin inside each pane · \(Int(paddingY.rounded())) pt"
                 ) {
                     Slider(value: paddingYSelection, in: TerminalSettings.paddingRange)
-                        .frame(width: 160)
+                        .labelsHidden().frame(width: settingsSliderWidth)
                         .accessibilityLabel("Vertical padding")
                         .accessibilityValue("\(Int(paddingY.rounded())) points")
                 }
@@ -286,7 +286,7 @@ struct TerminalTabView: View {
                     detail: "Sends Option key presses as Meta/Alt escape sequences in shells",
                     first: true
                 ) {
-                    ChoicePopUp(label: "Option as Alt", options: optionAsAltOptions, selection: optionAsAltSelection, width: 160)
+                    ChoicePopUp(label: "Option as Alt", options: optionAsAltOptions, selection: optionAsAltSelection)
                 }
                 SettingsTabRow(
                     title: "Copy on select",
@@ -298,7 +298,7 @@ struct TerminalTabView: View {
                     title: "Scrollback limit",
                     detail: "Memory reserved per pane for scrollback output history"
                 ) {
-                    ChoicePopUp(label: "Scrollback limit", options: scrollbackLimitOptions, selection: scrollbackLimitSelection, width: 160)
+                    ChoicePopUp(label: "Scrollback limit", options: scrollbackLimitOptions, selection: scrollbackLimitSelection)
                 }
             }
 

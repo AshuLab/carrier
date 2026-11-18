@@ -279,6 +279,9 @@ struct SettingsPages: View {
     /// What `carrier --version` and `node --version` printed for the programs the page shows; nil while they are being read.
     @State private var versions: ProgramVersions?
     @State private var highlight: String?
+    /// The width the page has, to center a column in it.
+    @State private var width: CGFloat = 0
+    private var inset: CGFloat { page.isColumn ? max(0, (width - settingsColumnWidth) / 2) : 0 }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -286,23 +289,23 @@ struct SettingsPages: View {
                 if page.usesForm {
                     // the form scrolls by itself; what is said over every page of its own kind stays above it
                     VStack(spacing: 0) {
-                        notices.padding([.horizontal, .top], 24).padding(.bottom, showsNotices ? 8 : 0)
+                        notices.padding(.horizontal, 24 + inset).padding(.top, showsNotices ? 24 : 0).padding(.bottom, showsNotices ? 8 : 0)
                         pageContent
                     }
-                    .frame(maxWidth: page.isColumn ? settingsColumnWidth : .infinity)
-                    .frame(maxWidth: .infinity)
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {
                             notices
                             pageContent
                         }
-                        .padding(24)
-                        .frame(maxWidth: page.isColumn ? settingsColumnWidth : .infinity, alignment: .topLeading)
-                        .frame(maxWidth: .infinity)
+                        .padding(24).frame(maxWidth: .infinity, alignment: .topLeading)
                     }
                 }
             }
+            // a page that is a column is centered by margins of its scroll view, not by narrowing the view: the scroll bar stays at the edge of the
+            // window and what scrolls under the toolbar reaches both sides of it
+            .contentMargins(.horizontal, inset, for: .scrollContent)
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
             .environment(\.settingsForm, page.usesForm)
             // the theme's color under the page, as under the main window's views
             .themedWindowBackground()

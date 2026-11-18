@@ -143,7 +143,7 @@ const progressLine = /^(?:remote: )?((?:Counting|Compressing|Receiving|Resolving
 export function createProjects({ git, token, github, clock }: { git: Git; token: () => Promise<string>; github: GithubRepos; clock: Clock }) {
   const running = new Map<string, Job>();
 
-    const authEnv = async () => tokenEnv(await token());
+  const authEnv = async () => tokenEnv(await token());
 
   async function fetchOrClone(repo: string, dest: string, signal: AbortSignal, onProgress: (line: string) => void): Promise<CloneReply> {
     if (existsSync(dest)) {

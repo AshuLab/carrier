@@ -182,7 +182,7 @@ export class FakeGit implements Git {
     if (verb === 'worktree' && rest[0] === 'add') {
       const signal = options?.signal;
       if (this.worktreePending !== undefined) await Promise.race([this.worktreePending, new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }))]);
-      if (signal?.aborted === true) return { ok: false, code: null, stderr: 'killed' };
+      if (signal?.aborted === true) return { ok: false, code: null, aborted: true, stderr: 'killed' };
       if (rest.length === 3) {
         // worktree add <path> <branch>: an existing branch checked out again in a new folder
         const [, again, existing] = rest;

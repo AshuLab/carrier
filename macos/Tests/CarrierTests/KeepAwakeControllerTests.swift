@@ -24,8 +24,9 @@ private func assertionsHeldBySystem() -> [String] {
     var notices: [String] = []
     var changes: [Bool] = []
 
-    init(agents: Bool = false, grace: Int = 5, screen: Bool = false) {
+    init(agents: Bool = false, grace: Int = 5, screen: Bool = false, shortcut: DictationShortcut? = nil) {
         defaults = UserDefaults(suiteName: suite)!
+        AppPreferences(defaults: defaults).awakeShortcut = shortcut
         defaults.set(agents, forKey: AppPreferences.awakeAgentsKey)
         defaults.set(grace, forKey: AppPreferences.awakeGraceKey)
         defaults.set(screen, forKey: AppPreferences.awakeScreenKey)
@@ -190,7 +191,7 @@ private func assertionsHeldBySystem() -> [String] {
     #expect(assertionsHeldBySystem().count == 1)
 }
 
-@Test @MainActor func startingOnALowBatteryHoldsNothingAndSaysNothingYet() {
+@Test @MainActor func startingOnALowBatteryHoldsNothingAndSaysItIsWaiting() {
     let rig = Rig()
     defer { rig.finish() }
     rig.power = PowerFacts(onBattery: true, percent: 10)
@@ -198,7 +199,10 @@ private func assertionsHeldBySystem() -> [String] {
     rig.controller.start(minutes: 60)
     #expect(rig.controller.holdsSystem == false)
     #expect(rig.controller.decision.blocked == .batteryLow(10))
-    #expect(rig.notices.isEmpty)
+    // the person just asked and the menu closed on nothing: it is told, even with the notices switch off
+    #expect(rig.notices == ["Keep awake is waiting"])
+    rig.plug(PowerFacts(onBattery: false, percent: 10))
+    #expect(rig.controller.holdsSystem)
 }
 
 @Test @MainActor func theNoticeIsLeftOutWhenTheSwitchIsOff() {
@@ -212,10 +216,35 @@ private func assertionsHeldBySystem() -> [String] {
     #expect(rig.notices.isEmpty)
 }
 
-@Test @MainActor func theSummaryForTheSelfTestSaysWhatIsHeld() {
+/// ⌃⌥⇧⌘ Y: a combination nothing else registers.
+private func oddShortcut() -> DictationShortcut? {
+    guard case .accepted(let shortcut) = recordShortcut(keyCode: 16, characters: "y", modifiers: [.control, .option, .shift, .command]) else { return nil }
+    return shortcut
+}
+
+@Test @MainActor func aShortcutTheSystemRefusesIsNotShownAsActiveAndIsTriedAgainOnceItIsFree() throws {
+    let shortcut = try #require(oddShortcut())
+    let first = Rig(shortcut: shortcut)
+    let second = Rig(shortcut: shortcut)
+    defer {
+        first.finish()
+        second.finish()
+    }
+    #expect(first.controller.shortcutProblem == nil)
+    // the same keys in the same process: the second is refused, and says so
+    #expect(second.controller.shortcutProblem?.contains(shortcut.text) == true)
+    // the first lets go (it records other keys), and the second takes them when it is asked again
+    first.controller.recordingShortcut = true
+    second.controller.recordingShortcut = true
+    second.controller.recordingShortcut = false
+    #expect(second.controller.shortcutProblem == nil)
+    // and now the first is the refused one
+    first.controller.recordingShortcut = false
+    #expect(first.controller.shortcutProblem?.contains(shortcut.text) == true)
+}
+
+@Test @MainActor func noShortcutIsNoProblem() {
     let rig = Rig()
     defer { rig.finish() }
-    #expect(rig.controller.summary.hasPrefix("awake=false"))
-    rig.controller.start(minutes: 30)
-    #expect(rig.controller.summary.hasPrefix("awake=true"))
+    #expect(rig.controller.shortcutProblem == nil)
 }

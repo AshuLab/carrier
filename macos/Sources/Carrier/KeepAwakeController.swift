@@ -16,8 +16,8 @@ import IOKit.pwr_mgt
     private(set) var decision = AwakeDecision()
     private(set) var power = PowerFacts(onBattery: false, percent: nil)
     private(set) var settings = AwakeSettings()
-    /// Bumped each time the answer changes, for the views that show it.
-    private(set) var revision = 0
+    /// Why the recorded shortcut is not registered (another app or Carrier itself holds it); nil when it is, or none is recorded.
+    private(set) var shortcutProblem: String?
 
     @ObservationIgnored private var epicsWorking = 0
     @ObservationIgnored private var sessionsWorking = 0
@@ -26,7 +26,9 @@ import IOKit.pwr_mgt
     @ObservationIgnored private var displayAssertion = IOPMAssertionID(0)
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var hotKey: GlobalHotKey?
-    @ObservationIgnored private var hotKeyText: String?
+    /// The shortcut that is registered, and the one the system refused (not tried again until the keys are recorded or Carrier comes back to the front).
+    @ObservationIgnored private var registered: DictationShortcut?
+    @ObservationIgnored private var refused: DictationShortcut?
     @ObservationIgnored private var powerSource: CFRunLoopSource?
     @ObservationIgnored private var started = false
     /// The Settings recorder listens: the registered shortcut is let go, so pressing it records it and does not toggle.
@@ -35,7 +37,7 @@ import IOKit.pwr_mgt
     @ObservationIgnored var onChange: (AwakeDecision) -> Void = { _ in }
     /// Where a stop by itself is told; the tests and the self-test put their own.
     @ObservationIgnored var notify: (String, String) -> Void = { title, body in
-        SystemNotificationCentre.shared.post([EpicNotification(title: title, body: body, sound: false)])
+        SystemNotificationCentre.shared.post([EpicNotification(title: title, body: body, sound: false, always: true)])
     }
     @ObservationIgnored var now: () -> Date = Date.init
     /// How the Mac is powered; the tests say their own.
@@ -54,7 +56,8 @@ import IOKit.pwr_mgt
 
     var working: Bool { epicsWorking + sessionsWorking > 0 }
 
-    /// Reads the settings and the battery, watches both, registers the shortcut. Called once when the app opens.
+    /// Reads the settings and the battery, watches both, registers the shortcut. Called once when the app opens, on the shared instance only:
+    /// the battery's callback holds this object without retaining it, and nothing here is torn down.
     func start() {
         guard started == false else { return }
         started = true
@@ -72,6 +75,13 @@ import IOKit.pwr_mgt
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.settingsChanged() }
         }
+        // coming back to the front tries again a shortcut that was refused: the other app may have let it go
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refused = nil
+                self?.registerShortcut()
+            }
+        }
         settingsChanged()
     }
 
@@ -83,6 +93,11 @@ import IOKit.pwr_mgt
         manualMinutes = length
         manual = length == 0 ? .indefinite : .until(now().addingTimeInterval(Double(length) * 60))
         refresh()
+        // asked for and not holding (the battery's rule): the menu closes on nothing, so it is said
+        if let blocked = decision.blocked {
+            let notice = awakeWaitingNotice(blocked)
+            notify(notice.title, notice.body)
+        }
     }
 
     /// Stops what was asked for by hand. The agents' own keep awake, when it is on, goes on.
@@ -148,7 +163,6 @@ import IOKit.pwr_mgt
         apply(next)
         scheduleTimer(next)
         if next != before {
-            revision += 1
             onChange(next)
             // an end after agents finished is the ordinary one and says nothing; a manual end and the battery's are told
             let ordinary = before.isManual == false && next.blocked == nil
@@ -197,14 +211,24 @@ import IOKit.pwr_mgt
     // MARK: the shortcut
 
     private func registerShortcut() {
-        let shortcut = recordingShortcut ? nil : preferences.awakeShortcut
-        guard shortcut?.text != hotKeyText else { return }
+        let wanted = recordingShortcut ? nil : preferences.awakeShortcut
+        if recordingShortcut { refused = nil }
+        guard wanted != registered, wanted == nil || wanted != refused else { return }
         hotKey = nil
-        hotKeyText = shortcut?.text
-        guard let shortcut else { return }
-        hotKey = GlobalHotKey(GlobalHotKey.Shortcut(shortcut), pressed: { [weak self] in
+        registered = nil
+        shortcutProblem = nil
+        guard let wanted else { return }
+        let key = GlobalHotKey(GlobalHotKey.Shortcut(wanted), pressed: { [weak self] in
             MainActor.assumeIsolated { self?.toggle() }
         })
+        // the system said no (another app, or Carrier's own Dictation, holds the keys): nothing is shown as active, and the page says why
+        guard let key else {
+            refused = wanted
+            shortcutProblem = "\(wanted.text) is held by another app. Record other keys."
+            return
+        }
+        hotKey = key
+        registered = wanted
     }
 
     // MARK: the battery
@@ -222,11 +246,5 @@ import IOKit.pwr_mgt
             percent = current * 100 / maximum
         }
         return PowerFacts(onBattery: providing == kIOPSBatteryPowerValue, percent: percent)
-    }
-
-    /// One line for the self-test log.
-    var summary: String {
-        "awake=\(decision.holds) reason=\(String(describing: decision.reason)) blocked=\(String(describing: decision.blocked)) "
-            + "screen=\(displayAssertion != 0) battery=\(power.onBattery ? "\(power.percent ?? -1)%" : "plugged")"
     }
 }

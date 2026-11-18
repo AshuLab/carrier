@@ -194,6 +194,14 @@ public func awakeEndedNotice(_ block: AwakeBlock?) -> (title: String, body: Stri
     }
 }
 
+/// What the notification says when a keep awake was asked for and cannot start because of the battery: the person just did it and the menu closed on nothing.
+public func awakeWaitingNotice(_ block: AwakeBlock) -> (title: String, body: String) {
+    switch block {
+    case .batteryLow(let percent): ("Keep awake is waiting", "The battery is at \(percent) %. It starts by itself when the Mac is plugged in.")
+    case .unplugged: ("Keep awake is waiting", "Your Mac is on battery, and you chose to keep awake only while plugged in. It starts when it is.")
+    }
+}
+
 /// The character a menu item shows for the shortcut, so the menu teaches the keys: a letter, digit or sign in lower case, or a space. The keys
 /// with a name (arrows, F-keys) have no character to show, so the item shows none.
 public func awakeMenuKey(_ shortcut: DictationShortcut?) -> String? {

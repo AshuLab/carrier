@@ -313,5 +313,8 @@ _Avoid_: failover, subagent call, handover (the parent keeps the session).
 **Permission level** - Carrier's scale of three steps for what a chat session may do without asking the person, from reading only to editing without asking, on which the options of each harness sit (Claude's permission modes, Codex's sandbox and approval policy). It exists to keep a child session from having more privilege than its parent ([0033](adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)).
 _Avoid_: permission mode (Claude's own option), sandbox (Codex's own option), access level (what a chat MCP tool declares, [0024](adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)).
 
-**Keep awake** - Holding the Mac from sleeping on its own, with the system's power assertions and no password, so a long job is not cut by sleep. It is asked for by hand (a length, or no end) or, with its switch on, by the agents working (an epic running or a chat session working, and for a grace after). It pauses on a low battery as the person set it, and it does not stop the lid or Sleep in the Apple menu. See [keep-awake](macos/keep-awake.md).
+**Keep awake** - Holding the Mac from sleeping on its own, with the system's power assertions and no password, so a long job is not cut by sleep.
+It is asked for by hand (a length, or no end) or, with its switch on, by the agents working (an epic running or a chat session working, and for a grace after).
+It pauses on a low battery as the person set it, and it does not stop the lid or Sleep in the Apple menu.
+See [keep-awake](macos/keep-awake.md).
 _Avoid_: caffeinate (the command it replaces), prevent sleep, wake lock.

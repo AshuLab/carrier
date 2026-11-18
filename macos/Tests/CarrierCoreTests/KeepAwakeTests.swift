@@ -182,3 +182,9 @@ private struct RecordingRefused: Error {}
     #expect(awakeIconWords(awake: true).label.contains("awake"))
     #expect(awakeIconWords(awake: true).tip != nil)
 }
+
+@Test func theWaitingNoticeNamesTheBatteryOrThePlug() {
+    #expect(awakeWaitingNotice(.batteryLow(10)).body.contains("10 %"))
+    #expect(awakeWaitingNotice(.unplugged).body.contains("plugged"))
+    #expect(awakeWaitingNotice(.unplugged).title == "Keep awake is waiting")
+}

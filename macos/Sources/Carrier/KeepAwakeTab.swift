@@ -28,9 +28,9 @@ struct KeepAwakeTabView: View {
                 }
                 ShortcutRecorderRow(
                     shortcutText: shortcutText, title: "Shortcut", detail: "Turns keep awake on or off from any app, with no window", name: "Keep awake shortcut",
-                    emptyText: "None",
+                    emptyText: "None", problem: controller.shortcutProblem,
                     current: { AppPreferences().awakeShortcut }, save: { AppPreferences().awakeShortcut = $0 },
-                    listening: { controller.recordingShortcut = $0 })
+                    taken: { $0 == AppPreferences().dictationShortcut ? "Dictation uses these keys" : nil })
             }
             SettingsGroup(title: "With agents") {
                 SettingsTabRow(title: "Keep awake while agents work", detail: "While an epic runs or a session works, so a long job is not cut by sleep", first: true) {
@@ -65,13 +65,16 @@ struct KeepAwakeTabView: View {
         TimelineView(.periodic(from: .now, by: 20)) { context in
             let settings = controller.settings
             let decision = controller.decision
-            let title = awakeStatus(decision, settings: settings, now: context.date)
-            SettingsTabRow(
-                title: title, detail: "Keeps the Mac from sleeping on its own. Closing the lid still puts it to sleep, and so does Sleep in the Apple menu.", first: true
-            ) {
+            // the tick only makes this draw again: the time left is read from the clock now, or it would lag by up to a tick
+            let _ = context.date
+            let title = awakeStatus(decision, settings: settings, now: Date())
+            SettingsTabRow(title: title, detail: "Closing the lid or choosing Sleep still puts the Mac to sleep", first: true) {
                 HStack(spacing: 8) {
                     StatusChip(text: decision.holds ? "On" : decision.blocked == nil ? "Off" : "Paused", tint: decision.holds ? .green : decision.blocked == nil ? .secondary : .orange)
-                    Button { controller.toggle() } label: {
+                    Button {
+                        controller.toggle()
+                        AccessibilityNotification.Announcement(awakeStatus(controller.decision, settings: controller.settings, now: Date())).post()
+                    } label: {
                         Label(
                             decision.isManual ? "Stop" : awakeToggleTitle(manualActive: false, defaultMinutes: settings.defaultMinutes),
                             systemImage: decision.isManual ? "stop.fill" : "cup.and.saucer")

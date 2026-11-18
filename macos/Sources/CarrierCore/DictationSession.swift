@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// The field a dictation writes into: the session reads its text and caret and puts back the text, the caret and the range that is
-/// still partial. `owner` says which box it is, so only that box draws the state.
+/// still tentative (the firm words before it are normal text). `owner` says which box it is, so only that box draws the state.
 public struct DictationField {
     public let owner: String
     public let text: () -> String
@@ -36,12 +36,34 @@ public struct DictationTake: Equatable, Sendable {
     public var clip: AudioClip? = nil
 }
 
+/// Where the time of one dictation went, in milliseconds and with no text: from the press to the capture running, to the first audio, to the model
+/// ready and to the first word shown, and from the stop to the final text. A moment that did not happen is nil.
+public struct DictationTimings: Equatable, Sendable {
+    public var capture: Int?
+    public var firstAudio: Int?
+    public var modelReady: Int?
+    public var firstWord: Int?
+    public var finalText: Int?
+
+    public init(capture: Int? = nil, firstAudio: Int? = nil, modelReady: Int? = nil, firstWord: Int? = nil, finalText: Int? = nil) {
+        self.capture = capture
+        self.firstAudio = firstAudio
+        self.modelReady = modelReady
+        self.firstWord = firstWord
+        self.finalText = finalText
+    }
+
+    var isEmpty: Bool { self == DictationTimings() }
+}
+
 /// What a box asks of the Cleanup (docs/adr/0030): the text the dictation added goes in, the cleaned text comes out, or it throws (a `CleanupFailure`
 /// says its cause in words).
 public typealias DictationCleanup = @Sendable (String) async throws -> String
 
-/// One dictation, from the click that starts it to idle: getting ready (the recognizer loads its model), listening, transcribing
-/// when the model gives its text only at the end, and cleaning when the box asked for it. A failure at any point returns to idle with its cause and keeps the text heard so far.
+/// One dictation, from the click that starts it to idle: listening (the capture runs from the press, and the audio waits for the recognizer while it loads
+/// its model: `modelReady` says whether it has), getting ready (the person stopped while the model loads: the capture ended and the recognizer reads what it
+/// kept once it is ready), transcribing when the model gives its text only at the end, and cleaning when the box asked for it. A failure at any point returns
+/// to idle with its cause and keeps the text heard so far.
 @MainActor @Observable public final class DictationSession {
     public enum State: Equatable, Sendable { case idle, gettingReady, listening, transcribing, cleaning }
 
@@ -50,8 +72,14 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     /// ponytail: a guess at the speed of a model; one slower than the audio itself still loses its text, so measure before raising it.
     public static let answerFloor = Duration.seconds(30)
     public static let answerPerAudioSecond = Duration.seconds(1)
+    /// How long after the stop the final text of a model that gives it at the end may take before the dictation says it is transcribing: a quick one never does.
+    public static let quickAnswer = Duration.milliseconds(250)
 
     public private(set) var state = State.idle
+    /// Whether the recognizer has loaded its model and reads the audio; false while a dictation listens to what it will read once it is.
+    public private(set) var modelReady = false
+    /// Whether the final text of a dictation that is transcribing has taken longer than `quickAnswer`: only then do the box and the widget say "Transcribing…".
+    public private(set) var answerIsSlow = false
     /// The box that dictates, while one does.
     public private(set) var owner: String?
     private var failure: (owner: String, cause: DictationFailure)?
@@ -60,11 +88,15 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
     @ObservationIgnored private let announce: (String) -> Void
     @ObservationIgnored private let log: (DictationFailure) -> Void
+    @ObservationIgnored private let timed: (DictationTimings) -> Void
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let keepAudio: () -> Bool
     /// Told, with the owner of the box it was, each time a dictation ends: the widget of the global dictation hears its own end here.
     @ObservationIgnored public var onEnd: ((String?) -> Void)?
-    /// Told each time a dictation begins to listen (the capture runs); `owner` says whose.
+    /// Awaited before the recognizer prepares, so a load or a release queued ahead of this dictation (the controller's) is over by then and
+    /// cannot drop what `prepare` loaded before `recognize` reads it.
+    @ObservationIgnored public var beforePrepare: () async -> Void = {}
+    /// Told each time a dictation begins to listen: the first audio of the capture has arrived.
     @ObservationIgnored public var onListening: (() -> Void)?
     /// What the dictation that just ended heard, set before `onEnd` and `onTake` hear of it.
     @ObservationIgnored public private(set) var take: DictationTake?
@@ -76,6 +108,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private var tentative = TentativeText(caret: 0, in: "")
     @ObservationIgnored private var running: Task<Void, Never>?
     @ObservationIgnored private var watchdog: Task<Void, Never>?
+    @ObservationIgnored private var slowness: Task<Void, Never>?
     @ObservationIgnored private var stopped = false
     /// Counts the dictations, so one that already ended cannot touch the next.
     @ObservationIgnored private var generation = 0
@@ -93,21 +126,26 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored private var partial = ""
     @ObservationIgnored private var began = Date.distantPast
     @ObservationIgnored private var stoppedAt: Date?
+    @ObservationIgnored private var timings = DictationTimings()
     @ObservationIgnored private var cleaned: String?
     @ObservationIgnored private var cleanupSeconds: Double?
     /// A dictation asked for while another one stops: it starts when that one is idle.
     @ObservationIgnored private var queued: (recognizer: any Recognizer, model: SpeechModel, field: DictationField, cleanup: DictationCleanup?)?
 
     /// `announce` is told what VoiceOver should say (`dictationAnnouncement`): the start, the stop and a failure, never partial text; `log` hears
-    /// every failure, with its cause only. `keepAudio` is asked as each dictation starts: when it says yes the take carries the audio.
+    /// every failure, with its cause only; `timed` hears where the time of each dictation went when it ends. `keepAudio` is asked as each dictation
+    /// starts: when it says yes the take carries the audio.
     public init(
-        capture: AudioCapture, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in }, now: @escaping () -> Date = Date.init,
-        keepAudio: @escaping () -> Bool = { false }
+        capture: AudioCapture, sleep: ((Duration) async throws -> Void)? = nil,
+        announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in },
+        timed: @escaping (DictationTimings) -> Void = { _ in }, now: @escaping () -> Date = Date.init, keepAudio: @escaping () -> Bool = { false }
     ) {
         self.keepAudio = keepAudio
+        self.timed = timed
         self.capture = capture
-        self.sleep = sleep
+        // the real sleep is chosen here and not as the default of the argument: an async closure literal there is compiled into every client of
+        // the initialiser, and Xcode 26's debug builds can pair the body of one copy with the frame size of another and abort the test process
+        self.sleep = sleep ?? { try await Task.sleep(for: $0) }
         self.announce = announce
         self.log = log
         self.now = now
@@ -142,6 +180,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         partial = ""
         began = now()
         stoppedAt = nil
+        timings = DictationTimings()
         cleaned = nil
         cleanupSeconds = nil
         self.field = field
@@ -150,6 +189,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         owner = field.owner
         tentative = TentativeText(caret: field.caret(), in: field.text())
         stopped = false
+        modelReady = false
         state = .gettingReady
         announce(dictationAnnouncement(.gettingReady))
         generation += 1
@@ -193,43 +233,84 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         switch state {
         case .idle, .transcribing, .cleaning: return
         case .gettingReady:
-            skip()
+            // the capture has not started, or the person already stopped it and the model still loads
+            if stopped == false { skip() }
         case .listening:
             guard stopped == false else { return }
+            // a stop before the model is ready with nothing captured has nothing to read: it ends, as a release right after the press in Hold does
+            if modelReady == false, captured == .zero { return skip() }
             stopped = true
             stoppedAt = now()
             capture.stop()
-            if model?.partial == .atTheEnd { state = .transcribing }
-            let mine = generation
-            let timeout = Self.answerFloor + Self.answerPerAudioSecond * captured.components.seconds
-            watchdog = Task {
-                guard (try? await sleep(timeout)) != nil, Task.isCancelled == false, generation == mine else { return }
-                running?.cancel()
-                fail(DictationFailure("The recognizer did not answer."))
+            // the model still loads: the recognizer reads what was captured once it is ready, and its time to answer starts then
+            if modelReady == false {
+                state = .gettingReady
+                return
             }
+            if model?.partial == .atTheEnd { transcribe() }
+            waitForTheAnswer()
+        }
+    }
+
+    private func transcribe() {
+        state = .transcribing
+        answerIsSlow = false
+        let mine = generation, quick = Self.quickAnswer
+        slowness = Task {
+            guard await pause(quick), generation == mine else { return }
+            answerIsSlow = true
+        }
+    }
+
+    /// Waits for `duration` on the session's clock; false when the wait was cancelled.
+    private func pause(_ duration: Duration) async -> Bool {
+        do { try await sleep(duration) } catch { return false }
+        return true
+    }
+
+    private func waitForTheAnswer() {
+        let mine = generation
+        let timeout = Self.answerFloor + Self.answerPerAudioSecond * captured.components.seconds
+        watchdog = Task {
+            guard await pause(timeout), Task.isCancelled == false, generation == mine else { return }
+            running?.cancel()
+            fail(DictationFailure("The recognizer did not answer."))
+        }
+    }
+
+    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped.
+    /// The task is never cancelled: when it wakes it checks that this dictation is still the current one and that the model is still not ready.
+    private func watchTheModel(_ mine: Int) {
+        let floor = Self.answerFloor
+        Task {
+            guard await pause(floor), generation == mine, modelReady == false, state != .idle else { return }
+            samples = []
+            running?.cancel()
+            fail(DictationFailure("The speech model did not get ready in time."))
         }
     }
 
     private func run(_ recognizer: any Recognizer, _ model: SpeechModel, _ mine: Int) async {
-        do {
-            try await recognizer.prepare(model)
-        } catch {
-            if generation == mine { fail(error) }
-            return
-        }
+        // a dictation ended before this task began never touches the capture
         guard generation == mine else { return }
         let audio: AsyncStream<AudioBuffer>
         do { audio = try capture.start() } catch {
             fail(error)
             return
         }
+        timings.capture = milliseconds(since: began)
         state = .listening
         announce(dictationAnnouncement(.listening))
-        onListening?()
-        // the recognizer reads the audio through a stream that counts it
+        // the recognizer reads the audio through a stream that counts it, and that keeps what the capture gives, in order, until the recognizer reads it
         let counted = AsyncStream<AudioBuffer> { continuation in
             let relay = Task { @MainActor in
                 for await buffer in audio {
+                    // a dictation that ended while a buffer was on its way leaves the next one its own times and samples
+                    guard generation == mine else { break }
+                    if timings.firstAudio == nil {
+                        timings.firstAudio = milliseconds(since: began)
+                        onListening?()
+                    }
                     captured += .seconds(Double(buffer.samples.count) / buffer.sampleRate)
                     if recording {
                         samples += buffer.samples
@@ -241,6 +322,23 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             }
             continuation.onTermination = { _ in relay.cancel() }
         }
+        watchTheModel(mine)
+        await beforePrepare()
+        guard generation == mine else { return }
+        do {
+            try await recognizer.prepare(model)
+        } catch {
+            if generation == mine { fail(error) }
+            return
+        }
+        guard generation == mine else { return }
+        timings.modelReady = milliseconds(since: began)
+        modelReady = true
+        if stopped {
+            // stopped while the model loaded: what was captured is read now, and the person already stopped, so it never looks like listening again
+            transcribe()
+            waitForTheAnswer()
+        }
         for await event in recognizer.recognize(counted) {
             guard generation == mine else { return }
             if case .failed(let failure) = event {
@@ -249,20 +347,24 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
             }
             if let field, let edit = tentative.apply(event, to: field.text(), caret: field.caret()) {
                 switch event {
-                case .partial(let heard):
+                case .partial(let firm, let tentative):
+                    let heard = firm + tentative
+                    noteFirstWord(heard)
                     partialWords = wordCount(heard)
                     partial = heard
                 case .final(let heard):
+                    noteFirstWord(heard)
                     words += wordCount(heard)
                     partialWords = 0
                     partial = ""
                     finals.append(heard)
                 case .failed: break
                 }
-                field.put(edit.text, edit.caret, tentative.range)
+                field.put(edit.text, edit.caret, tentative.tentativeRange)
             }
         }
         guard generation == mine else { return }
+        if let stoppedAt { timings.finalText = milliseconds(since: stoppedAt) }
         await clean(mine)
         // a cleanup that failed has told its cause, which is not a stop
         if generation == mine { end(announcing: failure == nil) }
@@ -274,6 +376,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         // the recognizer has answered: the time it was given is spent, and the cleanup has its own
         watchdog?.cancel()
         watchdog = nil
+        slowness?.cancel()
         guard let cleanup, let field else { return }
         settle()
         guard let range = tentative.written else { return }
@@ -319,6 +422,12 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         field.put(field.text(), field.caret(), nil)
     }
 
+    private func noteFirstWord(_ heard: String) {
+        if timings.firstWord == nil, wordCount(heard) > 0 { timings.firstWord = milliseconds(since: began) }
+    }
+
+    private func milliseconds(since start: Date) -> Int { Int((now().timeIntervalSince(start) * 1000).rounded()) }
+
     private func wordCount(_ heard: String) -> Int { heard.split(whereSeparator: \.isWhitespace).count }
 
     private func fail(_ error: Error) {
@@ -336,10 +445,13 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         if announcing, state == .listening || state == .transcribing || state == .cleaning { announce(dictationAnnouncement(.stopped(words: words))) }
         watchdog?.cancel()
         watchdog = nil
+        slowness?.cancel()
+        answerIsSlow = false
         running = nil
         field = nil
         model = nil
         cleanup = nil
+        if timings.isEmpty == false { timed(timings) }
         let finished = owner
         owner = nil
         generation += 1

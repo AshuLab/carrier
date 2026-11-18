@@ -78,7 +78,7 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
         let reset: () async throws -> Void
     }
 
-    private enum Loaded {
+    private enum Loaded: @unchecked Sendable {
         case batch(AsrManager)
         case streaming(Streamer)
     }
@@ -88,8 +88,8 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
     private let root: URL
     private let preferredLanguages: [String]
     private let lock = NSLock()
-    /// Kept after the first load: the model stays in memory, so only the first dictation waits for "Getting the model ready…".
-    private var loaded: (id: String, model: Loaded)?
+    /// Kept from the first load until `release`: the model stays in memory, so a dictation does not wait for "Getting the model ready…".
+    private let slot = ModelSlot<Loaded>()
     private var chosenLanguage = automaticLanguage
 
     init(modelsRoot: URL, preferredLanguages: [String] = Locale.preferredLanguages) {
@@ -101,12 +101,10 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
     func prepare(_ model: SpeechModel) async throws {
         let chosen = languageChoices(for: model, macOSLanguages: preferredLanguages, saved: AppPreferences().dictationLanguage).selected
         lock.withLock { chosenLanguage = chosen }
-        if lock.withLock({ loaded?.id }) == model.id { return }
         guard let engine = Self.engine(of: model) else { throw DictationFailure("\(model.name) is not a model of FluidAudio.") }
         let files = Self.files(engine, in: ModelStore.folder(in: root, for: model))
         do {
-            let model = (model.id, try await Self.load(engine, from: files))
-            lock.withLock { loaded = model }
+            try await slot.load(model.id) { try await Self.load(engine, from: files) }
         } catch {
             throw DictationFailure(
                 "\(model.name) could not be loaded from its folder (\(error.localizedDescription)). Delete it on the Dictation page and download it again."
@@ -114,10 +112,16 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
         }
     }
 
+    func release() async { slot.release() }
+
     private static func load(_ engine: Engine, from files: URL) async throws -> Loaded {
         switch engine {
         case .batch(let version, _):
-            return .batch(AsrManager(models: try AsrModels.loadLocal(from: files, version: version)))
+            let manager = AsrManager(models: try AsrModels.loadLocal(from: files, version: version))
+            // one second of silence, discarded: the first inference is slow, so a dictation does not pay it
+            var state = try TdtDecoderState(decoderLayers: await manager.decoderLayerCount)
+            _ = try await manager.transcribe([Float](repeating: 0, count: 16_000), decoderState: &state)
+            return .batch(manager)
         case .eou:
             let manager = StreamingEouAsrManager(chunkSize: .ms320)
             try await manager.loadModels(from: files)
@@ -154,7 +158,8 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
 
     func recognize(_ audio: AsyncStream<CarrierCore.AudioBuffer>) -> AsyncStream<DictationEvent> {
         let (events, out) = AsyncStream<DictationEvent>.makeStream()
-        let (taken, language, partial) = lock.withLock { (loaded?.model, chosenLanguage, Self.entries.first { $0.model.id == loaded?.id }?.model.partial) }
+        let held = slot.current
+        let (taken, language, partial) = (held?.model, lock.withLock { chosenLanguage }, Self.entries.first { $0.model.id == held?.id }?.model.partial)
         Task {
             switch taken {
             case .batch(let manager):
@@ -175,7 +180,7 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
         do {
             try await streamer.reset()
             await streamer.setLanguage(language)
-            await streamer.onPartial { if $0.isEmpty == false { out.yield(.partial($0)) } }
+            await streamer.onPartial { if $0.isEmpty == false { out.yield(.growing($0)) } }
             var converter: CaptureConverter?
             var fed = false
             for await buffer in audio {

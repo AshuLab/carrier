@@ -82,6 +82,10 @@ public struct ChunkPolicy: Sendable {
     /// What the box shows: the settled words followed by the tentative ones.
     public var text: String { (settled + tentative).joined(separator: " ") }
 
+    /// The settled words, with the space that sets them apart from the tentative ones when there are any: `firmText + tentativeText` is `text`.
+    public var firmText: String { settled.joined(separator: " ") + (settled.isEmpty || tentative.isEmpty ? "" : " ") }
+    public var tentativeText: String { tentative.joined(separator: " ") }
+
     private var minimumSamples: Int { Int(Self.minimumSpeech * sampleRate) }
 
     public mutating func add(_ buffer: AudioBuffer) {
@@ -227,7 +231,7 @@ public struct ChunkedRecognizer: Sendable {
             await withTaskGroup(of: Void.self) { passes in
                 var policy = ChunkPolicy(partials: partials)
                 var running = false
-                var shown = ""
+                var shown: DictationEvent?
                 for await input in inputs {
                     switch input {
                     case .audio(let buffer): policy.add(buffer)
@@ -254,9 +258,10 @@ public struct ChunkedRecognizer: Sendable {
                         out.yield(.final(policy.text))
                         break
                     }
-                    if policy.text != shown, policy.text.isEmpty == false {
-                        shown = policy.text
-                        out.yield(.partial(shown))
+                    let heard = DictationEvent.partial(firm: policy.firmText, tentative: policy.tentativeText)
+                    if heard != shown, policy.text.isEmpty == false {
+                        shown = heard
+                        out.yield(heard)
                     }
                 }
                 out.finish()

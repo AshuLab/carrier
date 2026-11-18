@@ -39,9 +39,19 @@ public struct SpeechModel: Identifiable, Sendable, Equatable {
 }
 
 public enum DictationEvent: Sendable, Equatable {
-    case partial(String)
+    /// `firm` will not change while the person speaks; `tentative` follows it and may. The text is `firm` then `tentative` as they are, so the
+    /// space that sets them apart ends `firm` and `tentative` begins with a word.
+    case partial(firm: String, tentative: String)
     case final(String)
     case failed(DictationFailure)
+
+    /// A partial whose text only grows (the streaming models'): every word but the last is firm, since the last may still grow by a piece of a word.
+    public static func growing(_ text: String) -> DictationEvent {
+        guard let last = text.trimmingCharacters(in: .whitespacesAndNewlines).split(whereSeparator: \.isWhitespace).last,
+            let range = text.range(of: last, options: .backwards)
+        else { return .partial(firm: "", tentative: text) }
+        return .partial(firm: String(text[..<range.lowerBound]), tentative: String(text[range.lowerBound...]))
+    }
 }
 
 /// Why a dictation could not go on, in words for the person.
@@ -68,13 +78,15 @@ public protocol AudioCapture: Sendable {
     func stop()
 }
 
-/// Turns audio into text events. `prepare` loads what the model needs (it may take seconds); `recognize` listens until the audio ends,
+/// Turns audio into text events. `prepare` loads what the model needs (it may take seconds, and returns at once when it is loaded); `release` drops it; `recognize` listens until the audio ends,
 /// then gives its last `final` (an empty one when nothing was said, never a failure) and ends its events.
 public protocol Recognizer: Sendable {
     var id: RecognizerID { get }
     var models: [SpeechModel] { get }
     func prepare(_ model: SpeechModel) async throws
     func recognize(_ audio: AsyncStream<AudioBuffer>) -> AsyncStream<DictationEvent>
+    /// Drops what `prepare` loaded; the next `prepare` loads it again. Harmless when nothing is loaded.
+    func release() async
 }
 
 /// The recognizers a build offers: with none, the message box draws no microphone.

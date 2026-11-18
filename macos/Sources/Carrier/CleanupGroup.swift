@@ -1,9 +1,10 @@
 import CarrierCore
 import SwiftUI
 
-/// The Cleanup group of the page: the switch, the server and its models, the prompt and the Test. With Dictation off the group is drawn at 40%.
+/// The Cleanup group of the page: the switch, the server and its models, the prompt and the Try it box. With Dictation off the group is drawn at 40%; with the switch off the server, model, prompt and Try it box are too.
 struct CleanupGroup: View {
     var cleanup = CleanupController.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // the choices are the controller's to read and write; these make the group redraw when they change, Reset included
     @AppStorage(AppPreferences.dictationCleanupEnabledKey) private var savedEnabled = false
     @AppStorage(AppPreferences.dictationCleanupServerKey) private var savedServer: String?
@@ -14,20 +15,24 @@ struct CleanupGroup: View {
         SettingsGroup(title: "Cleanup") {
             SettingsTabRow(
                 title: "Clean the text with a model",
-                detail: cleanup.canBeOn ? "After you dictate, a model on this Mac rewrites the text with your prompt" : "Choose a server and a model first", first: true
+                detail: cleanup.enabled && cleanup.canBeOn == false ? "Choose a server and a model below; until then the text stays as dictated" : "After you dictate, a model on this Mac rewrites the text with your prompt",
+                first: true
             ) {
                 Toggle("Clean the text with a model", isOn: Binding(get: { cleanup.enabled }, set: { cleanup.setEnabled($0) }))
-                    .labelsHidden().toggleStyle(.switch).disabled(cleanup.canBeOn == false)
+                    .labelsHidden().toggleStyle(.switch)
             }
-            serverRow
-            modelRow
-            promptRow
+            // the switch is the whole group's: off, all of it is dimmed and takes no clicks
+            Group { serverRow; modelRow; promptRow; tryRow }.opacity(cleanup.enabled ? 1 : 0.4).disabled(cleanup.enabled == false)
         }
         .task(id: savedServer) { await cleanup.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await cleanup.refresh() } }
         .onChange(of: cleanup.test) { _, test in
             // the result appears under the button, where VoiceOver is not looking
-            if case .done(let result) = test { AccessibilityNotification.Announcement("Cleaned in \(String(format: "%.1f", result.seconds)) seconds: \(result.text)").post() }
+            switch test {
+            case .done(let result): AccessibilityNotification.Announcement("Cleaned in \(String(format: "%.1f", result.seconds)) seconds: \(result.text)").post()
+            case .failed(let failure): AccessibilityNotification.Announcement("Could not clean: \(failure.message)").post()
+            default: break
+            }
         }
     }
 
@@ -68,21 +73,89 @@ struct CleanupGroup: View {
             TextEditor(text: Binding(get: { cleanup.prompt }, set: { cleanup.set(prompt: $0) }))
                 .font(.scaled(13)).scrollContentBackground(.hidden).frame(height: 96).settingsField()
                 .writingToolsBehavior(.disabled).accessibilityLabel("Cleanup prompt")
-            HStack(spacing: 10) {
-                Button { Task { await cleanup.runTest() } } label: { Label("Test with a sample", systemImage: "play") }
-                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(cleanup.test == .running)
-                testResult
+        }
+    }
+
+    /// The test: the sample the model gets, then what it gives back, each under its own label, so it is plain which text is cleaned and what came out.
+    private var tryRow: some View {
+        SettingsStackedRow(title: "Try it", detail: "Runs the prompt above on this sample dictation, as the model will get it") {
+            VStack(alignment: .leading, spacing: 20) {
+                testPanel("Dictated", text: cleanupSample, tint: .secondary)
+                HStack {
+                    Spacer()
+                    Button { Task { await cleanup.runTest() } } label: { Label("Clean this sample", systemImage: "arrow.down") }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(cleanup.test == .running)
+                    Spacer()
+                }
+                testOutput
             }
         }
     }
 
-    @ViewBuilder private var testResult: some View {
-        switch cleanup.test {
-        case .idle: Text("If the model fails or is slow, the raw text is used and the widget says so.").font(.scaled(11)).foregroundStyle(.secondary)
-        case .running: Text("Cleaning…").font(.scaled(11)).foregroundStyle(.secondary)
-        case .done(let result):
-            Text("\(Text("“\(result.text)”").foregroundStyle(.primary)) · \(String(format: "%.1f", result.seconds)) s").font(.scaled(11)).foregroundStyle(.secondary)
-        case .failed(let failure): ProblemLine(text: failure.message, font: .scaled(11))
+    /// A labelled box of text: a sample or an answer.
+    private func testPanel(_ label: String, text: String, tint: Color, seconds: TimeInterval? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label).sectionLabel()
+                Spacer()
+                if let seconds { Text(String(format: "%.1f s", seconds)).font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit() }
+            }
+            Text(text).font(.scaled(13)).foregroundStyle(tint).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.05)))
+    }
+
+    @ViewBuilder private var testOutput: some View {
+        switch cleanup.test {
+        case .idle:
+            testPlaceholder("Cleaned", "The result appears here. If the model fails or is slow, the raw text is used and the widget says so.")
+        case .running: testWorking
+        case .done(let result):
+            testPanel("Cleaned", text: result.text, tint: .primary, seconds: result.seconds)
+        case .failed(let failure): testFailure(failure.message)
+        }
+    }
+
+    /// The box of the answer while the model works: a spinner and two lines that shimmer where the text will be.
+    private var testWorking: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Text("Cleaned").sectionLabel()
+                Spacer()
+                ProgressView().controlSize(.mini)
+                Text("Cleaning…").font(.scaled(11)).foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: 7) {
+                RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.14)).frame(height: 9)
+                RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.14)).frame(height: 9).padding(.trailing, 90)
+            }
+            .modifier(Shimmer(active: reduceMotion == false))
+            .accessibilityHidden(true)
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The box of the answer when the model gave none: the same box in orange, with the cause as a sentence.
+    private func testFailure(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Could not clean", systemImage: "exclamationmark.triangle.fill").sectionLabel().foregroundStyle(.orange)
+            Text(message).font(.scaled(13)).foregroundStyle(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(12)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.orange.opacity(0.12)))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.orange.opacity(0.4), lineWidth: 1))
+    }
+
+    private func testPlaceholder(_ label: String, _ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).sectionLabel()
+            Text(text).font(.scaled(12)).foregroundStyle(.tertiary).fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(12)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.primary.opacity(0.1), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
     }
 }

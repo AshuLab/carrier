@@ -339,9 +339,9 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.dictationEnabledKey) }
     }
 
-    /// Whether Cleanup is on: off until the person turns it on, and never on without a server and a model.
+    /// Whether Cleanup is on: off until the person turns it on. It does not wait for a server and a model: the run needs them (`DictationController`).
     public var dictationCleanupEnabled: Bool {
-        get { defaults.bool(forKey: Self.dictationCleanupEnabledKey) && cleanupCanBeOn(server: dictationCleanupServer, model: dictationCleanupModel) }
+        get { defaults.bool(forKey: Self.dictationCleanupEnabledKey) }
         nonmutating set { defaults.set(newValue, forKey: Self.dictationCleanupEnabledKey) }
     }
 

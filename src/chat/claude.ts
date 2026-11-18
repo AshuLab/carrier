@@ -200,13 +200,16 @@ class ClaudeConversation implements ChatConversation {
   }
 
   get options(): ChatOption[] {
-    const efforts = this.models.find((m) => m.value === this.model)?.supportedEffortLevels ?? this.models.find((m) => m.value === 'default')?.supportedEffortLevels ?? [];
+    const efforts = this.effortsOf(this.model);
     return [
       { id: 'permissionMode', label: 'Permission mode', values: PERMISSION_MODES, current: this.mode },
-      { id: 'model', label: 'Model', values: this.models.map((m) => ({ id: m.value, label: m.displayName, ...(m.description && { detail: m.description }), ...(m.resolvedModel && { version: m.resolvedModel }) })), current: this.model },
+      { id: 'model', label: 'Model', values: this.models.map((m) => ({ id: m.value, label: m.displayName, ...(m.description && { detail: m.description }), ...(m.resolvedModel && { version: m.resolvedModel }), efforts: this.effortsOf(m.value) })), current: this.model },
       ...(efforts.length > 0 ? [{ id: 'effort', label: 'Reasoning effort', values: efforts.map((id) => ({ id, label: id })), current: this.effort }] : []),
     ];
   }
+
+  /** A model that lists no levels of its own has the default model's. */
+  private effortsOf = (model: string): string[] => this.models.find((m) => m.value === model)?.supportedEffortLevels ?? this.models.find((m) => m.value === 'default')?.supportedEffortLevels ?? [];
 
   get commands(): ChatCommand[] {
     return this.slash

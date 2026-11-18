@@ -358,21 +358,44 @@ public struct WatchNote: Equatable {
     private func takeRestoredOptions() {
         guard let wanted = restoredOptions, loadingOptions == false, agent == optionsAgent else { return }
         restoredOptions = nil
-        for (option, value) in wanted { choose(option: option, value: value) }
+        // the model first: the reasoning levels are the chosen model's, so its effort is checked against them
+        if let model = wanted["model"] { choose(option: "model", value: model) }
+        for (option, value) in wanted where option != "model" { choose(option: option, value: value) }
     }
 
     /// What the selects list: the agent's options with the person's choices on top.
     public var shownOptions: [ChatOption] {
-        agentOptions.map { option in
-            guard let chosen = chosenOptions[option.id] else { return option }
-            return ChatOption(id: option.id, label: option.label, values: option.values, current: chosen)
+        let picked = chosenModel
+        let levels = picked?.efforts ?? []
+        // a model that lists no levels has no reasoning option, as in the host
+        return agentOptions.filter { $0.id != "effort" || picked?.efforts?.isEmpty != true }.map { option in
+            var values = option.values
+            var current = option.current
+            // the levels of the model chosen here, not those of the one the host opened its probe session with; a model other than that one
+            // starts on its own default, and with none named the host's current stays (the host knows it, we do not guess one)
+            if option.id == "effort", levels.isEmpty == false {
+                values = levels.map { .init(id: $0, label: $0) }
+                let probed = agentOptions.first { $0.id == "model" }?.current
+                if picked?.id != probed, let fallback = picked?.defaultEffort { current = fallback }
+            }
+            return ChatOption(id: option.id, label: option.label, values: values, current: chosenOptions[option.id] ?? current)
         }
+    }
+
+    /// The model picked in this draft, as the agent lists it; nil while none is picked.
+    private var chosenModel: ChatOption.Value? {
+        guard let id = chosenOptions["model"] else { return nil }
+        return agentOptions.first { $0.id == "model" }?.values.first { $0.id == id }
     }
 
     /// Chooses a value of an option the agent lists; one it does not list is not taken.
     public func choose(option: String, value: String) {
-        guard agentOptions.contains(where: { $0.id == option && $0.values.contains { $0.id == value } }) else { return }
+        guard shownOptions.contains(where: { $0.id == option && $0.values.contains { $0.id == value } }) else { return }
         chosenOptions[option] = value
+        // a level the new model does not take cannot stay chosen
+        if option == "model", let kept = chosenOptions["effort"], shownOptions.first(where: { $0.id == "effort" })?.values.contains(where: { $0.id == kept }) == false {
+            chosenOptions["effort"] = nil
+        }
     }
 
     /// The sources the popover lists under the folders.

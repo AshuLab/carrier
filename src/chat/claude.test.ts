@@ -368,6 +368,16 @@ test('a rate limit that Claude retries is no usage limit, and a failed result of
   expect(keyLimit.find((e) => e.kind === 'error')).toEqual({ kind: 'error', text: 'API Error: 429 rate limit on this API key' });
 });
 
+test('each model lists the reasoning levels it takes, the default model\'s when it has none of its own', async () => {
+  const { conversation } = await openWith(main);
+  const values = conversation.options.find((o) => o.id === 'model')!.values;
+  const fallback = models.find((m: Line) => m.value === 'default').supportedEffortLevels;
+  for (const value of values) {
+    const own = models.find((m: Line) => m.value === value.id).supportedEffortLevels ?? fallback;
+    expect(value.efforts).toEqual(own);
+  }
+});
+
 test('an effort change is a turn of its own that the person does not see', async () => {
   const done = (extra: Line = {}): Line => ({ type: 'result', subtype: 'success', is_error: false, usage: {}, ...extra });
   const { conversation, events } = await openWith([

@@ -257,6 +257,13 @@ test('options are listed, change from the next turn, an interrupt ends the turn 
   expect(seen.unexpected).toEqual([]);
 });
 
+test('each model lists its own reasoning levels and default, so a client can draw them before a session exists', async () => {
+  const { conversation } = await openWith(main);
+  const byModel = Object.fromEntries(conversation.options.find((o) => o.id === 'model')!.values.map((v) => [v.id, v]));
+  expect(byModel['gpt-5.6-luna']).toMatchObject({ efforts: ['low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'medium' });
+  expect(byModel['gpt-5.6-terra']!.efforts).toContain('ultra');
+});
+
 test('a model that does not list the current reasoning effort brings its own default', async () => {
   const { conversation, events } = await openWith(main);
   await conversation.setOption('model', 'gpt-5.6-terra');

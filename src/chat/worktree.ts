@@ -39,9 +39,10 @@ export async function createWorktree(git: Git, folder: string, request: { from: 
   // The start point is spelled as a full ref, so it cannot read as an option, and `--no-track` leaves the new branch without an upstream.
   const added = await git.run(folder, ['worktree', 'add', '--no-track', '-b', made.branch, made.path, `${start.remote ? 'refs/remotes/' : 'refs/heads/'}${start.name}`], { timeoutMs: ADD_TIMEOUT_MS, signal });
   if (added.ok === false) {
-    log.error('git worktree add failed', { code: added.code, timedOut: added.timedOut === true });
+    if (added.aborted === true) log.info('git worktree add stopped'); // the person left: not a failure of git
+    else log.error('git worktree add failed', { code: added.code, timedOut: added.timedOut === true });
     await removeWorktree(git, made, mine);
-    throw new ChatRefused(added.timedOut === true ? 'Creating the worktree took too long and was stopped' : 'Git could not create the worktree');
+    throw new ChatRefused(added.aborted === true ? 'Creating the worktree was cancelled' : added.timedOut === true ? 'Creating the worktree took too long and was stopped' : 'Git could not create the worktree');
   }
   return made;
 }

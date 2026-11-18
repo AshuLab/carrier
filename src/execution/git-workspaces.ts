@@ -11,6 +11,13 @@ import type { Workspaces } from './workspaces.ts';
 
 const execFileAsync = promisify(execFile);
 
+/** The environment that makes git send `token` as the HTTPS credential: in the environment, never in argv, a file or a log. */
+export const tokenEnv = (token: string): NodeJS.ProcessEnv => ({
+  GIT_CONFIG_COUNT: '1',
+  GIT_CONFIG_KEY_0: 'http.extraHeader',
+  GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
+});
+
 export interface GitWorkspacesOptions {
   /** The engine's places: clones go to `<repos>/<owner>/<name>`, reviewer checkouts to `<reviews>/<name>/<epic>`. */
   places: Pick<EnginePlaces, 'repos' | 'reviews'>;
@@ -93,11 +100,7 @@ export class GitWorkspaces implements Workspaces {
 
   /** Git over the network with the profile's token in the environment (not in argv, not in any config file). */
   private async remote(repo: string, args: string[], cwd?: string) {
-    const env: NodeJS.ProcessEnv = {};
-    if (this.token) {
-      const basic = Buffer.from(`x-access-token:${await this.token(repo)}`).toString('base64');
-      Object.assign(env, { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader', GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}` });
-    }
+    const env = this.token ? tokenEnv(await this.token(repo)) : {};
     return git(args, { cwd, env, timeoutMs: this.timeoutMs });
   }
 

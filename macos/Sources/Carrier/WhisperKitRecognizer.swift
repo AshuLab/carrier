@@ -77,8 +77,9 @@ final class WhisperKitRecognizer: Recognizer, @unchecked Sendable {
     private let root: URL
     private let preferredLanguages: [String]
     private let lock = NSLock()
-    /// Kept after the first load: the model stays in memory, so only the first dictation waits for "Getting the model ready…".
-    private var loaded: (id: String, kit: WhisperKit)?
+    /// Kept from the first load until `release`: the model stays in memory, so a dictation does not wait for "Getting the model ready…".
+    private let slot = ModelSlot<Kit>()
+    private struct Kit: @unchecked Sendable { let kit: WhisperKit }
     private var chosenLanguage = automaticLanguage
 
     init(modelsRoot: URL, preferredLanguages: [String] = Locale.preferredLanguages) {
@@ -89,18 +90,18 @@ final class WhisperKitRecognizer: Recognizer, @unchecked Sendable {
     func prepare(_ model: SpeechModel) async throws {
         let chosen = languageChoices(for: model, macOSLanguages: preferredLanguages, saved: AppPreferences().dictationLanguage).selected
         lock.withLock { chosenLanguage = chosen }
-        if lock.withLock({ loaded?.id }) == model.id { return }
         guard let entry = Self.entry(of: model) else { throw DictationFailure("\(model.name) is not a model of WhisperKit.") }
         let folder = ModelStore.folder(in: root, for: model)
         do {
-            // without a tokenizer it can read, the library would go and fetch one from the Hub
-            try await Self.checkTokenizer(entry, in: folder)
-            let config = WhisperKitConfig(
-                modelFolder: Self.files(entry, in: folder).path, tokenizerFolder: folder, verbose: false, logLevel: .none, prewarm: false, load: true,
-                download: false
-            )
-            let kit = try await WhisperKit(config)
-            lock.withLock { loaded = (model.id, kit) }
+            try await slot.load(model.id) {
+                // without a tokenizer it can read, the library would go and fetch one from the Hub
+                try await Self.checkTokenizer(entry, in: folder)
+                let config = WhisperKitConfig(
+                    modelFolder: Self.files(entry, in: folder).path, tokenizerFolder: folder, verbose: false, logLevel: .none, prewarm: false, load: true,
+                    download: false
+                )
+                return Kit(kit: try await WhisperKit(config))
+            }
         } catch {
             throw DictationFailure(
                 "\(model.name) could not be loaded from its folder (\(error.localizedDescription)). Delete it on the Dictation page and download it again."
@@ -108,12 +109,16 @@ final class WhisperKitRecognizer: Recognizer, @unchecked Sendable {
         }
     }
 
+    func release() async { slot.release() }
+
     func recognize(_ audio: AsyncStream<CarrierCore.AudioBuffer>) -> AsyncStream<DictationEvent> {
         let (events, out) = AsyncStream<DictationEvent>.makeStream()
-        let (kit, language, partial) = lock.withLock { (loaded?.kit, chosenLanguage, Self.entries.first { $0.model.id == loaded?.id }?.model.partial) }
+        let held = slot.current
+        let (kit, language, partial) = (held?.model.kit, lock.withLock { chosenLanguage }, Self.entries.first { $0.model.id == held?.id }?.model.partial)
         Task {
             if let kit {
-                let batch = ChunkedRecognizer(WhisperTranscriber(kit: kit, language: language), partials: partial == .chunked)
+                let chunked = partial == .chunked
+                let batch = ChunkedRecognizer(WhisperTranscriber(kit: kit, language: language, timed: chunked), partials: chunked)
                 for await event in batch.recognize(audio) { out.yield(event) }
             } else {
                 out.yield(.failed(DictationFailure("The speech model was not prepared.")))
@@ -125,15 +130,23 @@ final class WhisperKitRecognizer: Recognizer, @unchecked Sendable {
 }
 
 /// One pass of Whisper over the audio so far, as the words the core's chunking works with.
+/// `timed` is for the by-chunks partial text, which needs where each word sits; a model that gives its text at the end decodes without word
+/// timestamps (the words come from its text) and lets WhisperKit cut a long recording at its pauses and decode the pieces in parallel.
 private struct WhisperTranscriber: BatchTranscriber, @unchecked Sendable {
     let kit: WhisperKit
     let language: String
+    let timed: Bool
 
     func transcribe(_ samples: [Float], sampleRate: Double) async throws -> [TimedWord] {
         let heard = try AudioConverter().resample(samples, from: sampleRate)
         let automatic = language == automaticLanguage
-        let options = DecodingOptions(language: automatic ? nil : language, detectLanguage: automatic, wordTimestamps: true)
+        let options = DecodingOptions(
+            language: automatic ? nil : language, detectLanguage: automatic, wordTimestamps: timed, chunkingStrategy: timed ? nil : .vad
+        )
         let results = try await kit.transcribe(audioArray: heard, decodeOptions: options)
+        if timed == false {
+            return results.map(\.text).joined(separator: " ").split(whereSeparator: \.isWhitespace).map { TimedWord(String($0), start: 0, end: 0) }
+        }
         return results.flatMap(\.allWords).compactMap { word in
             let text = word.word.trimmingCharacters(in: .whitespacesAndNewlines)
             return text.isEmpty ? nil : TimedWord(text, start: Double(word.start), end: Double(word.end))

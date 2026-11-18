@@ -38,6 +38,8 @@ public struct FixtureRecognizer: Recognizer {
         if mode == .failsToStart { throw DictationFailure("No microphone is available: the fixture is set to fail.") }
     }
 
+    public func release() async {}
+
     public func recognize(_ audio: AsyncStream<AudioBuffer>) -> AsyncStream<DictationEvent> {
         let (mode, sleep) = (mode, sleep)
         let (events, out) = AsyncStream<DictationEvent>.makeStream()
@@ -47,7 +49,7 @@ public struct FixtureRecognizer: Recognizer {
             for word in Self.phrase.split(separator: " ") {
                 do { try await sleep(.milliseconds(350)) } catch { return (heard, false) }
                 heard += heard.isEmpty ? word : " " + word
-                out.yield(.partial(heard))
+                out.yield(.growing(heard))
             }
             out.yield(.final(heard))
             return (heard, true)

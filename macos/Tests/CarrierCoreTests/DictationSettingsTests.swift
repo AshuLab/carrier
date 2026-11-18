@@ -65,9 +65,18 @@ private func theLanguagePageOffersAFunctionOfTheModelMacOSAndTheSavedChoice(c: C
 }
 
 @Test func theSwitchDimsEveryRowButItselfStorageAndReset() {
-    let rows: [DictationRow] = [.enabledSwitch, .speechModel, .language, .microphone, .modelsTable, .storage, .reset, .cleanup, .sounds]
+    let rows: [DictationRow] = [.enabledSwitch, .speechModel, .language, .keepReady, .releaseAfter, .microphone, .modelsTable, .storage, .reset, .cleanup, .sounds]
     #expect(rows.filter { dictationRowIsLive($0, enabled: false) } == [.enabledSwitch, .storage, .reset])
     #expect(rows.allSatisfy { dictationRowIsLive($0, enabled: true) })
+}
+
+@Test func theTwoRowsThatKeepTheModelReadyAreDimmedWithDictationOff() {
+    for row in [DictationRow.keepReady, .releaseAfter] {
+        #expect(dictationRowIsLive(row, enabled: false) == false)
+        #expect(dictationRowIsLive(row, enabled: true))
+    }
+    #expect(dictationReleaseChoices.map(\.minutes) == [5, 15, 30, 60, 0])
+    #expect(dictationReleaseChoices.last?.title == "Never")
 }
 
 @Test func theGlobalDictationSwitchIsDimmedWithDictationOffAndTheShortcutNeedsBothSwitches() {

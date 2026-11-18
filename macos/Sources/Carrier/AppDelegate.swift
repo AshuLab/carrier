@@ -25,6 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let apple = await AppleRecognizer.make() { RecognizerRegistry.shared.register(apple) }
                 RecognizerRegistry.shared.register(FluidAudioRecognizer(modelsRoot: dictationModelsRoot()))
                 RecognizerRegistry.shared.register(WhisperKitRecognizer(modelsRoot: dictationModelsRoot()))
+                // the chosen model loads in the background now, so the first dictation does not wait for it; a self-test or a smoke run loads nothing
+                if Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false { DictationController.shared.warmUp() }
             }
         }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)

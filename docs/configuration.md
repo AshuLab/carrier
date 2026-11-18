@@ -39,7 +39,8 @@ The top of the folder holds only the files you edit; each process has its own fo
   app/             the macOS app's own folder: state/, logs/, cache/
 ```
 
-A file dropped in a message is copied to the chat's `pending/<id>/`; when the message is sent the host moves it to `sessions/<session>/attachments/<id>/`, and deleting the session deletes it. A copy never sent is swept from `pending/` after a day.
+A file dropped in a message is copied to the chat's `pending/<id>/`; when the message is sent the host moves it to `sessions/<session>/attachments/<id>/`, and deleting the session deletes it.
+A copy never sent is swept from `pending/` after a day.
 
 The app's `state/` has its terminals and dictation history, `logs/` its `dictation.log`, and `cache/` the speech models it downloads and the shell setup of its terminals; `cache/` is kept out of Time Machine and can be deleted, and comes back.
 

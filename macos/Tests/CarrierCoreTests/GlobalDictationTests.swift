@@ -42,10 +42,12 @@ import Testing
         Issue.record("never happened: \(what)")
     }
 
-    /// Presses the shortcut and waits until it listens.
+    /// Presses the shortcut and waits until it listens: the first audio has arrived and the model is ready.
     func listen() async {
         machine.handle(.down)
         await until { session.state == .listening }
+        capture.feed(AudioBuffer(samples: [0.1], sampleRate: 16000))
+        await until { session.modelReady && moments.isEmpty == false }
     }
 }
 
@@ -78,11 +80,25 @@ private final class ScriptedModel: TextModelClient, @unchecked Sendable {
 
 private final class Logged: @unchecked Sendable { var causes: [String] = [] }
 
+@MainActor @Test func theWidgetKnowsWhereTheWordsStillFormingAreAndTheFirmOnesAreApart() async {
+    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola mundo")]))
+    await widget.listen()
+    widget.recognizer.say(.partial(firm: "hola ", tentative: "mun"))
+    await widget.until { widget.machine.text == "hola mun" }
+    #expect(widget.machine.split == (firm: "hola ", tentative: "mun"))
+    widget.recognizer.say(.partial(firm: "hola mundo", tentative: ""))
+    await widget.until { widget.machine.text == "hola mundo" && widget.machine.tentative == nil }
+    #expect(widget.machine.split == (firm: "hola mundo", tentative: ""))
+    widget.machine.handle(.down)
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.machine.split.tentative.isEmpty)
+}
+
 @MainActor @Test func theShortcutOpensTheWidgetAndTheNextPressPastesTheTextOnceAndClosesIt() async {
     let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola mundo")]))
     await widget.listen()
     #expect(widget.machine.state == .running && widget.effects == [.show])
-    widget.recognizer.say(.partial("hola"))
+    widget.recognizer.say(.partial(firm: "", tentative: "hola"))
     await widget.until { widget.machine.text == "hola" }
     widget.machine.handle(.down)
     await widget.until { widget.machine.state == .idle }
@@ -105,7 +121,7 @@ private final class Logged: @unchecked Sendable { var causes: [String] = [] }
 @MainActor @Test func escapeWhileListeningPastesNothingAndClosesTheWidget() async {
     let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola")]))
     await widget.listen()
-    widget.recognizer.say(.partial("hola"))
+    widget.recognizer.say(.partial(firm: "", tentative: "hola"))
     await widget.until { widget.machine.text == "hola" }
     widget.machine.handle(.escape)
     #expect(widget.machine.state == .idle && widget.session.state == .idle && widget.capture.isRunning == false)
@@ -164,7 +180,7 @@ private final class Logged: @unchecked Sendable { var causes: [String] = [] }
 @MainActor @Test func aFailureToRecognizeShowsItsCauseInTheWidgetAndIsLoggedUntilEscapeClosesIt() async {
     let widget = Widget()
     await widget.listen()
-    widget.recognizer.say(.partial("hola"))
+    widget.recognizer.say(.partial(firm: "", tentative: "hola"))
     widget.recognizer.say(.failed(DictationFailure("The model broke")))
     await widget.until { widget.machine.state == .failed("The model broke") }
     #expect(widget.effects == [.show] && widget.logged.causes == ["The model broke"])
@@ -287,7 +303,9 @@ func aTextThatCannotBePastedIsCopiedAndStaysInTheWidgetWithItsReason(reason: Pas
     widget.machine.handle(.down)
     #expect(widget.moments.isEmpty)
     await widget.until { widget.session.state == .listening }
-    #expect(widget.moments == [.listening])
+    #expect(widget.moments.isEmpty)
+    widget.capture.feed(AudioBuffer(samples: [0.1], sampleRate: 16000))
+    await widget.until { widget.moments == [.listening] }
     widget.machine.handle(.down)
     widget.machine.handle(.down)
     await widget.until { widget.machine.state == .idle }
@@ -331,7 +349,7 @@ func aTextThatCannotBePastedIsCopiedAndStaysInTheWidgetWithItsReason(reason: Pas
 @MainActor @Test func aCancelledAndAFailedDictationAreRecordedWithWhatWasHeardAndAnEmptyOneIsNot() async {
     let cancelled = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("hola")]))
     await cancelled.listen()
-    cancelled.recognizer.say(.partial("hola"))
+    cancelled.recognizer.say(.partial(firm: "", tentative: "hola"))
     await cancelled.until { cancelled.machine.text == "hola" }
     cancelled.machine.handle(.escape)
     #expect(cancelled.recorded.map(\.outcome) == [.cancelled] && cancelled.recorded.map(\.text) == ["hola"] && cancelled.recorded.map(\.destination) == [DictationEntry.widgetOnly])
@@ -368,7 +386,7 @@ func aTextThatCannotBePastedIsCopiedAndStaysInTheWidgetWithItsReason(reason: Pas
 @MainActor @Test func inAHoldThePressStartsAndTheReleaseEndsAndPastesOnce() async {
     let widget = holdWidget()
     await widget.listen()
-    widget.recognizer.say(.partial("hola"))
+    widget.recognizer.say(.partial(firm: "", tentative: "hola"))
     await widget.until { widget.machine.text == "hola" }
     widget.machine.handle(.up)
     await widget.until { widget.machine.state == .idle }
@@ -600,7 +618,7 @@ func aCleanupThatFailsPastesTheRawTextSaysItWasNotCleanedAndLogsTheCauseAlone(fa
     let widget = Widget()
     widget.server = ScriptedModel()
     await widget.listen()
-    widget.recognizer.say(.partial("hola"))
+    widget.recognizer.say(.partial(firm: "", tentative: "hola"))
     widget.recognizer.say(.failed(DictationFailure("The model broke")))
     await widget.until { widget.machine.state == .failed("The model broke") }
     #expect(widget.effects == [.show] && widget.machine.notCleaned == nil)

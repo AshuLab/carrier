@@ -80,6 +80,7 @@ Specs of one area that build on each other are listed oldest first.
 ## macOS app: dictation
 
 - [dictation-in-the-app](dictation-in-the-app.md): dictating into the message box with local speech models. Implemented (v0.4.0).
+- [dictation-live-and-fast](dictation-live-and-fast.md): the model ready before the press, firm and tentative text, Parakeet over whole sentences. Spec.
 
 ## macOS app: terminal
 

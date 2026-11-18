@@ -47,10 +47,14 @@ public final class ScriptedRecognizer: Recognizer, @unchecked Sendable {
     public let models: [SpeechModel]
     private let lock = NSLock()
     private var continuation: AsyncStream<DictationEvent>.Continuation?
+    private var events: AsyncStream<DictationEvent>?
     private var gate: AsyncStream<Void>.Continuation?
     private var held: AsyncStream<Void>?
     private let prepareError: DictationFailure?
     private let closing: [DictationEvent]?
+    private var releases = 0
+    private var prepares = 0
+    private var buffers: [AudioBuffer] = []
 
     public init(id: RecognizerID = .apple, partial: PartialText = .native, prepareError: DictationFailure? = nil, atAudioEnd: [DictationEvent]? = nil) {
         self.id = id
@@ -75,12 +79,23 @@ public final class ScriptedRecognizer: Recognizer, @unchecked Sendable {
 
     public func releasePrepare() { lock.withLock { gate }?.finish() }
 
-    public func say(_ event: DictationEvent) { _ = lock.withLock { continuation }?.yield(event) }
+    /// An event said before `recognize` is called (the model is still loading) waits and comes first.
+    public func say(_ event: DictationEvent) { _ = lock.withLock { channel() }.yield(event) }
 
     /// Ends the events, as a recognizer does once it has said its last.
-    public func finish() { lock.withLock { continuation }?.finish() }
+    public func finish() { lock.withLock { channel() }.finish() }
+
+    /// The events of the dictation that listens, or that will: made by the first `say` or `finish`, or by `recognize` when none waits. Call with the lock held.
+    private func channel() -> AsyncStream<DictationEvent>.Continuation {
+        if let continuation { return continuation }
+        let (events, continuation) = AsyncStream<DictationEvent>.makeStream()
+        self.events = events
+        self.continuation = continuation
+        return continuation
+    }
 
     public func prepare(_ model: SpeechModel) async throws {
+        lock.withLock { prepares += 1 }
         let waiting = lock.withLock { () -> AsyncStream<Void>? in
             defer { held = nil }
             return held
@@ -89,16 +104,28 @@ public final class ScriptedRecognizer: Recognizer, @unchecked Sendable {
         if let prepareError { throw prepareError }
     }
 
+    /// How many times `prepare` and `release` were called.
+    public var prepareCount: Int { lock.withLock { prepares } }
+    public var releaseCount: Int { lock.withLock { releases } }
+    /// The audio `recognize` has read, in the order it came.
+    public var heard: [AudioBuffer] { lock.withLock { buffers } }
+
+    public func release() async { lock.withLock { releases += 1 } }
+
     public func recognize(_ audio: AsyncStream<AudioBuffer>) -> AsyncStream<DictationEvent> {
-        let (events, continuation) = AsyncStream<DictationEvent>.makeStream()
-        lock.withLock { self.continuation = continuation }
-        if let closing {
-            Task {
-                for await _ in audio {}
-                closing.forEach { continuation.yield($0) }
-                continuation.finish()
-            }
+        let (taken, yielding) = lock.withLock { () -> (AsyncStream<DictationEvent>, AsyncStream<DictationEvent>.Continuation) in
+            // a dictation that already took its events leaves the next one its own
+            if self.events == nil { self.continuation = nil }
+            let made = channel()
+            defer { self.events = nil }
+            return (self.events!, made)
         }
-        return events
+        Task {
+            for await buffer in audio { lock.withLock { buffers.append(buffer) } }
+            guard let closing else { return }
+            closing.forEach { yielding.yield($0) }
+            yielding.finish()
+        }
+        return taken
     }
 }

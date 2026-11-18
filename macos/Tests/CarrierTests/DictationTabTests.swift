@@ -32,8 +32,8 @@ private final class Asked: @unchecked Sendable { var times = 0 }
 @MainActor @Test func turningDictationOffWhileItListensStopsItKeepsItsTextAndTakesTheMicrophoneOutOfTheBox() async {
     let rig = Rig()
     rig.dictation.toggle(into: rig.field)
-    await rig.until { rig.dictation.session.state == .listening }
-    rig.recognizer.say(.partial("hola"))
+    await rig.until { rig.dictation.session.state == .listening && rig.dictation.session.modelReady }
+    rig.recognizer.say(.partial(firm: "", tentative: "hola"))
     await rig.until { rig.text == "hola" }
     rig.dictation.setEnabled(false)
     rig.recognizer.finish()
@@ -114,7 +114,7 @@ func theDictationPageBuildsWithTheSwitchOnAndOff(enabled: Bool) {
 @MainActor @Test func aMessageBoxDictationIsRecordedAsGoingToCarrierAndNothingIsKeptWithTheSwitchOff() async {
     let rig = Rig()
     rig.dictation.toggle(into: rig.field)
-    await rig.until { rig.dictation.session.state == .listening }
+    await rig.until { rig.dictation.session.state == .listening && rig.dictation.session.modelReady }
     rig.recognizer.say(.final("hola mundo"))
     await rig.until { rig.text == "hola mundo" }
     rig.dictation.session.stop()
@@ -125,7 +125,7 @@ func theDictationPageBuildsWithTheSwitchOnAndOff(enabled: Bool) {
     rig.preferences.dictationKeepText = false
     rig.text = ""
     rig.dictation.toggle(into: rig.field)
-    await rig.until { rig.dictation.session.state == .listening }
+    await rig.until { rig.dictation.session.state == .listening && rig.dictation.session.modelReady }
     rig.recognizer.say(.final("adiós"))
     await rig.until { rig.text == "adiós" }
     rig.dictation.session.cancel()

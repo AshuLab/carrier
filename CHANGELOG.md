@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Settings › Dictation: Keep the speech model ready (on by default) loads the model you chose in the background when Carrier opens, when you turn Dictation on and when you change the model or language, so the first dictation does not wait for it; Release the model after (5, 15, 30 or 60 minutes without dictating, or Never; 15 by default) frees the memory of a model nobody is using, and the next dictation loads it again.
+  Both are dimmed with Dictation off.
+- Each dictation writes one line to `dictation.log`, with no text, saying where its time went: from the press to the microphone running, to the first audio, to the model ready and to the first word, and from the stop to the final text.
+
+### Changed
+
+- Dictation: the microphone starts at the press even when the speech model is not ready.
+  The box and the widget show the listening line and the clock with "Getting the model ready…", the words you say meanwhile are kept and appear once the model is ready, and the start sound plays when the first audio arrives.
+  A model that is not ready after 30 seconds fails as a dictation that could not start.
+- Dictation: only the words still forming are drawn as partial text (dotted underline, accent colour); the words that will not change are normal text, so the text no longer reads as a guess from the first word to the last.
+- Dictation: "Transcribing…" shows only when the final text takes more than a quarter of a second after the stop.
+- Dictation: Apple's recognizer no longer trades accuracy for speed, Whisper skips word timestamps when it gives its text at the end and cuts a recording longer than 30 seconds at its pauses, and Parakeet TDT v3 and Ultra warm up when they load, so the first dictation does not pay for the first pass.
+
 ## [0.10.0] - 2026-11-17
 
 Switch a session to another agent and hand work to child sessions, and see what the agent waits on: the conversation shows its subagents, its background tasks and what each call is doing, and the sidebar's cards show pull requests and lines changed.

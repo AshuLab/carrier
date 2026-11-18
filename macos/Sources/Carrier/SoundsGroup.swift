@@ -15,7 +15,7 @@ struct SoundsGroup: View {
             soundRow("Start sound", detail: "Plays when it begins to listen", on: $startOn, name: $start, first: true)
             soundRow("End sound", detail: "Plays when it stops listening and goes on to clean and paste", on: $endOn, name: $end)
             SettingsTabRow(title: "Volume", detail: "For both sounds, in the global dictation only; \(volume)%") {
-                Slider(value: Binding(get: { Double(volume) }, set: { volume = Int($0) }), in: 0...100, step: 1)
+                Slider(value: Binding(get: { Double(volume) }, set: { volume = Int($0.rounded()) }), in: 0...100)
                     .frame(width: 160).accessibilityLabel("Volume").accessibilityValue("\(volume) percent")
             }
         }

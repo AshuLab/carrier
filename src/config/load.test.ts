@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { defaultConfigPath } from './places.ts';
+import { engineConfigPathOf } from './places.ts';
 import { defaults, loadConfig } from './load.ts';
 import { resolveRepoConfig } from './resolve.ts';
 import { loadProviders } from './providers.ts';
@@ -228,9 +228,9 @@ describe('the config\'s place', () => {
     const before = process.env.CARRIER_HOME;
     try {
       process.env.CARRIER_HOME = '/tmp/some-home';
-      expect(defaultConfigPath()).toBe('/tmp/some-home/engine.json');
+      expect(engineConfigPathOf()).toBe('/tmp/some-home/engine.json');
       delete process.env.CARRIER_HOME;
-      expect(defaultConfigPath()).toBe(join(homedir(), '.carrier', 'engine.json'));
+      expect(engineConfigPathOf()).toBe(join(homedir(), '.carrier', 'engine.json'));
     } finally {
       if (before === undefined) delete process.env.CARRIER_HOME;
       else process.env.CARRIER_HOME = before;

@@ -1,8 +1,8 @@
 import { rmSync } from 'node:fs';
 import { createServer, type Socket } from 'node:net';
-import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
+import { chatSocketIn } from '../config/places.ts';
 import { repoNamePattern } from '../config/schema.ts';
 import { socketPathFits, version, type Hello, type Reply } from '../control/server.ts';
 import { plan } from './plan.ts';
@@ -224,7 +224,7 @@ async function answer(line: string, controls: ChatControls, gone: AbortSignal, s
  * `close()` is synchronous and removes the file.
  */
 export async function startChatServer({ stateDir, startedAt, controls, stop, clients }: { stateDir: string; startedAt: number; controls: ChatControls; stop: () => Promise<void>; clients: { joined(): void; left(): void } }): Promise<{ close: () => void }> {
-  const path = join(stateDir, 'chat.sock');
+  const path = chatSocketIn(stateDir);
   const { fits, bytes } = socketPathFits(path);
   if (fits === false) throw new Error(`${path} is ${bytes} bytes, too long for a socket; use a shorter CARRIER_HOME`);
   const sockets = new Set<Socket>();

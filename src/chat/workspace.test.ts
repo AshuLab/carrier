@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { FakeGit } from './fake.ts';
-import { countPorcelain, inspectFolder, parseBranches, parseDefaultBranch, parseOrigin } from './workspace.ts';
+import { countPorcelain, inspectFolder, parseBranches, parseDefaultBranch, parseOrigin, resolveOrigin } from './workspace.ts';
 
 describe('parseOrigin', () => {
   test.each([
@@ -17,6 +17,26 @@ describe('parseOrigin', () => {
   ])('%s', (url, owner, name) => expect(parseOrigin(url)).toEqual({ owner, name }));
 
   test.each(['https://gitlab.com/acme/app.git', 'git@gitlab.com:acme/app.git', 'https://github.com.evil.io/acme/app', 'https://evil.io/github.com/acme/app', 'http://github.com/acme/app', '/srv/git/app.git', 'https://github.com/acme', 'https://github.com/acme/app/extra', 'https://github.com/acme/..', ''])('%s is not GitHub', (url) => expect(parseOrigin(url)).toBeNull());
+});
+
+describe('resolveOrigin', () => {
+  const git = new FakeGit();
+  git.sshHosts = { 'github.com-emu': 'github.com', 'github-personal': 'ssh.github.com', 'gitlab-work': 'gitlab.com' };
+
+  test.each([
+    ['git@github.com-emu:acme/app.git', 'acme', 'app'],
+    ['git@github-personal:acme/app', 'acme', 'app'],
+    ['ssh://git@github-personal:443/acme/app.git', 'acme', 'app'],
+    ['ssh://git@ssh.github.com:443/acme/app.git', 'acme', 'app'],
+    ['git@github.com:acme/app.git', 'acme', 'app'],
+  ])('%s', async (url, owner, name) => expect(await resolveOrigin(git, url)).toEqual({ owner, name }));
+
+  test.each(['git@gitlab-work:acme/app.git', 'git@unknown-alias:acme/app.git', 'git@github.com-emu:acme', 'git@github.com-emu:acme/app/extra', 'git@github.com-emu:acme/..', 'https://gitlab.com/acme/app.git', '/srv/git/app.git', ''])('%s is not GitHub', async (url) => expect(await resolveOrigin(git, url)).toBeNull());
+
+  test('a host that could pass for an ssh option is never asked', async () => {
+    expect(await resolveOrigin(git, 'git@-oProxyCommand=x:acme/app.git')).toBeNull();
+    expect(git.sshAsked).not.toContain('-oProxyCommand=x');
+  });
 });
 
 test('countPorcelain counts the lines git prints', () => {
@@ -67,6 +87,12 @@ describe('inspectFolder with the fake git', () => {
   });
   test('a detached HEAD has no branch', async () => expect((await inspectFolder(withRepo({ head: null, branches: ['main'] }), folder)).branch).toBeNull());
   test('a remote that is not GitHub gives no repo', async () => expect((await inspectFolder(withRepo({ head: 'main', branches: ['main'], origin: 'https://gitlab.com/acme/app.git' }), folder)).repo).toBeNull());
+  test('an ssh alias of GitHub gives its repo, and origin is read as git resolves it (insteadOf applied)', async () => {
+    const git = withRepo({ head: 'main', branches: ['main'], origin: 'git@github.com-emu:acme/app.git' });
+    git.sshHosts = { 'github.com-emu': 'github.com' };
+    expect((await inspectFolder(git, folder)).repo).toEqual({ owner: 'acme', name: 'app' });
+    expect(git.calls.some((call) => call.args.join(' ') === 'remote get-url origin')).toBe(true);
+  });
   test('a linked worktree and a bare repository are told apart, and a bare one is not asked its status', async () => {
     expect((await inspectFolder(withRepo({ head: 'main', branches: ['main'], linked: true }), folder)).linkedWorktree).toBe(true);
     const git = withRepo({ head: 'main', branches: ['main'], bare: true });

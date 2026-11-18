@@ -18,6 +18,10 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 function scriptedGit(answers: Record<string, string>) {
   const calls: { folder: string; command: string }[] = [];
   const git: Git = {
+    // an alias of GitHub in the person's ssh config
+    async sshHost(host) {
+      return host === 'github.com-emu' ? 'github.com' : host;
+    },
     async run(folder, args): Promise<GitResult> {
       const command = args.join(' ');
       calls.push({ folder, command });
@@ -44,7 +48,7 @@ class FakePulls implements PullRequests {
 }
 
 const pr = (number: number, state: PullRequestInfo['state'] = 'open', checks: PullRequestInfo['checks'] = null): PullRequestInfo => ({ number, url: `https://github.com/AshuLab/carrier/pull/${number}`, state, checks });
-const ORIGIN = 'config --get remote.origin.url';
+const ORIGIN = 'remote get-url origin';
 const DEFAULT = 'symbolic-ref --short refs/remotes/origin/HEAD';
 
 function setup(answers: Record<string, string>, extra: Partial<typeof sessions.$inferInsert> = {}) {
@@ -83,6 +87,13 @@ test('of the pull requests of a branch the newest open one is shown, else the ne
   expect(pickPullRequest('o/r', [node(9, 'MERGED', 'o/r'), node(7, 'CLOSED', 'o/r')])?.number).toBe(9);
   expect(pickPullRequest('o/r', [node(10, 'OPEN', 'someone/r'), node(9, 'MERGED', 'O/R')])?.number).toBe(9);
   expect(pickPullRequest('o/r', [])).toBeNull();
+});
+
+test('the pull request is found when origin is an ssh alias of GitHub', async () => {
+  const s = setup({ [ORIGIN]: 'git@github.com-emu:AshuLab/carrier.git', 'rev-parse --abbrev-ref HEAD': 'feat/x\n', [DEFAULT]: 'origin/main' });
+  s.pulls.found['AshuLab/carrier:feat/x'] = pr(137, 'draft');
+  await s.data.afterTurn(s.id);
+  expect(s.data.view(s.row()).pr).toMatchObject({ repo: 'AshuLab/carrier', number: 137 });
 });
 
 test('a turn counts the lines of a worktree from where it was cut, and says nothing for a clean one', async () => {

@@ -24,6 +24,9 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(agents.map(\.name) == ["claude", "codex", "claude-beta"])
     #expect(agents.map(\.found) == [true, true, false])
     #expect(agents.first?.model == "claude-sonnet-5-5")
+    // an agent named by the person still has its tool's mark: the harness is what it is looked up by, and an agent not known is its own name
+    #expect(AgentAccounts.harness(of: "claude-beta") == "claude" && AgentAccounts.harness(of: "codex") == "codex")
+    #expect(AgentAccounts.harness(of: "nobody") == "nobody")
 
     let active = try await host.list(archived: false)
     // the fifth is a session whose turn ended while a build runs; the eleven after it fill the sidebar's other states (unread, a single task, plain, pinned, a worktree preparing, a long title...), and the last is the one with three subagents

@@ -44,7 +44,7 @@ To remove the Carrier folder as well, stop Carrier first (`carrier stop` and `ca
 rm -rf ~/.carrier
 ```
 
-That deletes everything in it, for good: `engine.json`; `chat.json`; `providers.json`; `engine/` (its `state/` with `carrier.db`, the control socket and the lock, its `logs/`, the managed clones in `repos/`, the reviewer's checkouts in `reviews/` and the epics' `worktrees/`); and `chat/` (its `state/` with `chat.db`, the chat socket and the lock, its `logs/`, the repositories it cloned in `projects/`, the session `worktrees/` and the app's copies of attached files in `attachments/`); and `app/` (the app's terminals and dictation history in `state/`, its `logs/`, and the speech models and terminal shim in `cache/`). Commit and push any work you want to keep from those worktrees first. See [Where it keeps things](#where-it-keeps-things).
+That deletes everything in it, for good: `engine.json`; `chat.json`; `providers.json`; `engine/` (its `state/` with `carrier.db`, the control socket and the lock, its `logs/`, the managed clones in `repos/`, the reviewer's checkouts in `reviews/` and the epics' `worktrees/`); and `chat/` (its `state/` with `chat.db`, the chat socket and the lock, its `logs/`, the repositories it cloned in `projects/`, the session `worktrees/`, the attached files waiting in `pending/` and each session's own files in `sessions/`); and `app/` (the app's terminals and dictation history in `state/`, its `logs/`, and the speech models and terminal shim in `cache/`). Commit and push any work you want to keep from those worktrees first. See [Where it keeps things](#where-it-keeps-things).
 
 ## Where it keeps things
 

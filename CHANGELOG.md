@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - The Carrier folder has a new layout ([ADR 0034](docs/adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)): the engine's config is `engine.json` (was `config.json`) and the chat's is `chat.json` at the top (was `chat/chat.json`), next to `providers.json`; the app keeps its terminals and dictation history in `app/state/`, its speech models and terminal shim in `app/cache/`. Old paths are not read: move or recreate the files.
+- What the Carrier folder holds no longer grows without end: `orchestrator.log` and `chat-host.log` rotate at 10 MB and keep 10 files; a file dropped in a message waits in `chat/pending/` and moves into `chat/sessions/<id>/attachments/` when the message is sent, so deleting the session deletes it, and one never sent is swept after a day; the execution results in `engine/state/results/` go with the execution logs 30 days after the epic ends; and the app's `cache/` is kept out of Time Machine.
 
 ## [0.11.0] - 2026-11-18
 

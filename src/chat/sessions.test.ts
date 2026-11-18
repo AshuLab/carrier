@@ -1258,6 +1258,22 @@ test('delete leaves nothing of the session in sessions, chat_events or chat_turn
   expect(() => s.sessions.events({ sessionId: a.id, limit: 5 })).toThrow('no such session');
 });
 
+test('a file attached to a message moves into the session, the agent gets its new path, and deleting the session takes it away', async () => {
+  const s = setup();
+  const { id, conversation } = await openOne(s);
+  conversation.reply = (_t, c) => c.emit({ kind: 'turn_end', outcome: 'ok' });
+  const pending = join(dir, 'home', 'chat', 'pending', 'A1');
+  mkdirSync(pending, { recursive: true });
+  writeFileSync(join(pending, 'shot.png'), 'png');
+  s.sessions.send({ sessionId: id, text: `see\n\nAttached files:\n- ${join(pending, 'shot.png')}` });
+  const moved = join(dir, 'home', 'chat', 'sessions', id, 'attachments', 'A1', 'shot.png');
+  expect(conversation.sent.at(-1)).toBe(`see\n\nAttached files:\n- ${moved}`);
+  expect(rows('chat_events').find((r) => r.kind === 'user')!.data).toContain(moved);
+  expect(existsSync(pending)).toBe(false);
+  await s.sessions.delete({ sessionId: id });
+  expect(existsSync(join(dir, 'home', 'chat', 'sessions', id))).toBe(false);
+});
+
 test('archive and delete refuse a working session and one waiting for an approval, with the reason, and change nothing', async () => {
   const s = setup();
   const a = await openOne(s);
@@ -1410,6 +1426,34 @@ test('openPlan answers at once with the session preparing, and the steps run to 
   // the user's message comes before the answer, and the message step is done before the answer
   expect((s.sessions.events({ sessionId: session.id, limit: 200 }).events as any[]).map((e) => e.kind)).toEqual(['step', 'step', 'step', 'user', 'step', 'assistant', 'turn_end']);
   expect(rows('chat_turns')).toHaveLength(1);
+});
+
+test('a file attached to the first message of a plan moves into the new session before the agent gets it', async () => {
+  const s = setup();
+  s.claude.setup = (conversation) => void (conversation.reply = () => {});
+  const pending = join(dir, 'home', 'chat', 'pending', 'B2');
+  mkdirSync(pending, { recursive: true });
+  writeFileSync(join(pending, 'notes.md'), 'md');
+  const { session } = await s.sessions.openPlan({ plan: planFor({ text: `build it\n\nAttached files:\n- ${join(pending, 'notes.md')}` }) });
+  const moved = join(dir, 'home', 'chat', 'sessions', session.id, 'attachments', 'B2', 'notes.md');
+  await vi.waitFor(() => expect(s.claude.conversations[0]?.sent).toEqual([`build it\n\nAttached files:\n- ${moved}`]));
+  expect(readFileSync(moved, 'utf8')).toBe('md');
+});
+
+test('cancelling a preparation puts its attached files back in pending, where the plan it answers points', async () => {
+  const s = repoSetup();
+  let release!: () => void;
+  s.git.worktreePending = new Promise<void>((resolve) => (release = resolve));
+  const pending = join(dir, 'home', 'chat', 'pending', 'C3');
+  mkdirSync(pending, { recursive: true });
+  writeFileSync(join(pending, 'a.txt'), 'a');
+  const plan = planFor({ branch: 'main', worktree: { name: 'my-fix' }, text: `fix it\n\nAttached files:\n- ${join(pending, 'a.txt')}` });
+  const { session } = await s.sessions.openPlan({ plan });
+  await vi.waitFor(() => expect(s.git.calls.some((call) => call.args[0] === 'worktree' && call.args[1] === 'add')).toBe(true));
+  expect(await s.sessions.cancelPreparation({ sessionId: session.id })).toEqual({ plan });
+  release();
+  expect(readFileSync(join(pending, 'a.txt'), 'utf8')).toBe('a');
+  expect(existsSync(join(dir, 'home', 'chat', 'sessions', session.id))).toBe(false);
 });
 
 test('a failure at the agent leaves the session idle and not live, preparation failed, the reason in words and the plan kept', async () => {

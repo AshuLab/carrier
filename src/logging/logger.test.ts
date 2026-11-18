@@ -1,11 +1,45 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { executionOutput, taskContext } from './logger.ts';
+import { executionOutput, rotatingFile, taskContext } from './logger.ts';
+
+test('rotatingFile moves a full file aside and keeps at most `keep` files', () => {
+  const folder = mkdtempSync(join(tmpdir(), 'carrier-rotate-'));
+  const log = join(folder, 'logs', 'chat-host.log');
+  try {
+    const write = rotatingFile(log, 10, 3);
+    for (const line of ['aaaa\n', 'bbbb\n', 'cccc\n', 'dddd\n', 'eeee\n', 'ffff\n', 'gggg\n']) write(line);
+    expect(readFileSync(log, 'utf8')).toBe('gggg\n');
+    expect(readFileSync(`${log}.1`, 'utf8')).toBe('eeee\nffff\n');
+    expect(readFileSync(`${log}.2`, 'utf8')).toBe('cccc\ndddd\n');
+    expect(existsSync(`${log}.3`)).toBe(false);
+    // a restart appends to what is there and counts it
+    rotatingFile(log, 10, 3)('hhhh\n');
+    expect(readFileSync(log, 'utf8')).toBe('gggg\nhhhh\n');
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('rotatingFile never throws when the log was deleted under it: a new one starts and says so', () => {
+  const folder = mkdtempSync(join(tmpdir(), 'carrier-rotate-'));
+  const log = join(folder, 'logs', 'chat-host.log');
+  try {
+    const write = rotatingFile(log, 10, 3);
+    write('aaaa\nbbbb\n');
+    rmSync(join(folder, 'logs'), { recursive: true });
+    write('cccc\n');
+    expect(readFileSync(log, 'utf8')).toMatch(/could not be rotated.*\ncccc\n$/s);
+    write('dddd\n');
+    expect(readFileSync(log, 'utf8')).toBe('dddd\n');
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
 
 test('universal-logger exposes createScopedLogger', () => {
   expect(typeof createScopedLogger).toBe('function');

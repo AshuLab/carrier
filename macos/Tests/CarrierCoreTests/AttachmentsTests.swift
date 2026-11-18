@@ -71,7 +71,7 @@ private func temporaryFolder() throws -> URL {
     try Data(count: 64).write(to: original)
 
     let kept = attachedCopy(of: original, carrierFolder: carrier)
-    #expect(kept.path.hasPrefix(carrier + "/chat/attachments/") && kept.name == "shot.png" && kept.kind == .image && kept.source == original.standardizedFileURL.path)
+    #expect(kept.path.hasPrefix(carrier + "/chat/pending/") && kept.name == "shot.png" && kept.kind == .image && kept.source == original.standardizedFileURL.path)
     try FileManager.default.removeItem(at: original)
     #expect(FileManager.default.fileExists(atPath: kept.path))
 
@@ -79,7 +79,7 @@ private func temporaryFolder() throws -> URL {
     discardAttachment(kept, carrierFolder: carrier)
     #expect(FileManager.default.fileExists(atPath: kept.path) == false)
 
-    // a folder stays where it is, and nothing outside the attachments folder is ever deleted
+    // a folder stays where it is, and nothing outside the pending folder is ever deleted
     let sub = folder.appendingPathComponent("fixtures")
     try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
     let dir = attachedCopy(of: sub, carrierFolder: carrier)

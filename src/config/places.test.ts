@@ -26,6 +26,7 @@ test('every place of the chat is under <folder>/chat/, the socket in its state f
     logs: '/h/chat/logs',
     worktrees: '/h/chat/worktrees',
     projects: '/h/chat/projects',
-    attachments: '/h/chat/attachments',
+    pending: '/h/chat/pending',
+    sessions: '/h/chat/sessions',
   });
 });

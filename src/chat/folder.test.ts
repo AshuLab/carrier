@@ -54,7 +54,7 @@ test("a projects folder may not exist yet, but not be relative nor lie in the en
   expect(checkProjectsFolder(home, home)).toBe(home); // the Carrier folder itself is checked again below, per project
   expect(checkProjectsFolder(join(work, 'a', 'b'), home)).toBe(join(work, 'a', 'b'));
   expect(() => checkProjectsFolder('projects', home)).toThrow('absolute');
-  for (const name of ['engine', join('chat', 'state'), join('chat', 'logs'), join('chat', 'worktrees')]) {
+  for (const name of ['engine', join('chat', 'state'), join('chat', 'logs'), join('chat', 'worktrees'), join('chat', 'pending'), join('chat', 'sessions')]) {
     expect(() => checkProjectsFolder(join(home, name), home)).toThrow(`inside Carrier's own ${name} folder`);
     expect(() => checkProjectsFolder(join(home, name, 'new', 'deeper'), home)).toThrow(`inside Carrier's own ${name} folder`);
   }

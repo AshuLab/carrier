@@ -1,10 +1,11 @@
-import { accessSync, constants } from 'node:fs';
+import { accessSync, constants, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/places.ts';
 import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
+import { claimAttachments, releaseAttachments, sessionFolder } from './attachments.ts';
 import type { ChatAgent, ChatSettings } from './config.ts';
 import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
@@ -431,6 +432,13 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         tx.delete(chatTurns).where(inArray(chatTurns.sessionId, family)).run();
         for (const id of family) tx.delete(sessions).where(eq(sessions.id, id)).run();
       });
+      for (const id of family) {
+        try {
+          rmSync(sessionFolder(id), { recursive: true, force: true }); // its attached files
+        } catch (error) {
+          log.error('the folder of a deleted session could not be removed', error, { sessionId: id });
+        }
+      }
     } finally {
       deleting.delete(sessionId);
     }
@@ -1026,13 +1034,15 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     /**
      * Opens a session from a plan: it exists at once as `preparing`, and the steps run in the background and record their events.
      */
-    async openPlan({ plan }: { plan: Plan }) {
-      if (plan.text.length > chatCaps.message) throw new ChatRefused(`That message has ${plan.text.length} characters; the most a message can have is ${chatCaps.message}`);
-      const target = targetOf(plan);
+    async openPlan({ plan: asked }: { plan: Plan }) {
+      if (asked.text.length > chatCaps.message) throw new ChatRefused(`That message has ${asked.text.length} characters; the most a message can have is ${chatCaps.message}`);
+      const target = targetOf(asked);
       const now = clock.now();
+      const id = randomUUID();
+      const plan = { ...asked, text: claimAttachments(asked.text, id) };
       const created = db
         .insert(sessions)
-        .values({ id: randomUUID(), agent: target.launch.chosen.name, harness: target.launch.harness, folder: target.folder, plan, title: titleOf(plan.text), state: 'preparing', createdAt: now, lastActiveAt: now })
+        .values({ id, agent: target.launch.chosen.name, harness: target.launch.harness, folder: target.folder, plan, title: titleOf(plan.text), state: 'preparing', createdAt: now, lastActiveAt: now })
         .returning()
         .get();
       begin(created.id, target, plan); // before the answer, so the host is never idle between the reply and the first step
@@ -1056,17 +1066,19 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const { state, plan } = row(sessionId);
       if (state !== 'preparing') throw new ChatRefused('This session is not being prepared, so there is nothing to cancel');
       deleting.add(sessionId); // a retry or a resume that comes in meanwhile is refused
+      let released = plan;
       try {
         const running = preparing.get(sessionId);
         running?.abort.abort();
         await running?.done;
         await close({ sessionId }); // the agent that waits to answer the first message
         db.update(sessions).set({ state: 'idle' }).where(eq(sessions.id, sessionId)).run();
+        if (plan !== null) released = { ...plan, text: releaseAttachments(plan.text, sessionId) }; // the draft keeps its files
         await deleteSession({ sessionId });
       } finally {
         deleting.delete(sessionId);
       }
-      return { plan };
+      return { plan: released };
     },
 
     agentOptions: offerOf,
@@ -1116,7 +1128,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       return { session: summary(current), options: conversation.options };
     },
 
-    send({ sessionId, text, command }: { sessionId: string; text: string; command?: string }) {
+    send({ sessionId, text: written, command }: { sessionId: string; text: string; command?: string }) {
+      let text = written;
       refuseChild(sessionId, 'sent a message');
       if (text.length > chatCaps.message) throw new ChatRefused(`That message has ${text.length} characters; the most a message can have is ${chatCaps.message}`);
       notSwitching(sessionId);
@@ -1127,6 +1140,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       // a command is named by the id the session listed; what the person sees of it is a slash and its name, whatever the provider does with it
       const invoked = command === undefined ? undefined : live.conversation.commands.find((candidate) => candidate.id === command);
       if (command !== undefined && invoked === undefined) throw new ChatRefused('This session does not list that command');
+      text = claimAttachments(text, sessionId);
       const shown = invoked === undefined ? text : `/${invoked.name}${text === '' ? '' : ` ${text}`}`;
       if (shown.length > chatCaps.message) throw new ChatRefused(`That message has ${shown.length} characters; the most a message can have is ${chatCaps.message}`);
       if (current.title === null) db.update(sessions).set({ title: titleOf(shown) }).where(eq(sessions.id, sessionId)).run();

@@ -5,6 +5,7 @@ import { installFileLogging } from '../logging/logger.ts';
 import { realClock, type Clock } from '../orchestration/clock.ts';
 import { acquireLock } from '../storage/lock.ts';
 import { chatAgentsOf } from './account.ts';
+import { sweepPending } from './attachments.ts';
 import { claudeChatRunner } from './claude.ts';
 import { codexChatRunner } from './codex.ts';
 import { chatConfigProblem, readChatConfig, type ChatSettings } from './config.ts';
@@ -110,6 +111,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   let stopped = false;
   let passInFlight: Promise<void> = Promise.resolve();
   const runPass = async () => {
+    sweepPending(deps.clock.now());
     try {
       const current = readChatConfig();
       if (current.ok) await sessions.applyClock(current.settings);

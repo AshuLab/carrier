@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, openSync, writeSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, fstatSync, mkdirSync, openSync, renameSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { format } from 'node:util';
 import { configureUniversalLogger, LogLevel } from '@ashulab/universal-logger';
@@ -12,12 +12,39 @@ import { redact } from './redact.ts';
  */
 export function installFileLogging(file: string, minLevel: LogLevel): void {
   process.env.NODE_ENV ??= 'production'; // 'development' makes the library emit several lines per log
-  mkdirSync(dirname(file), { recursive: true });
-  const fd = openSync(file, 'a');
+  const write = rotatingFile(file);
   for (const method of ['log', 'info', 'warn', 'error', 'debug'] as const) {
-    console[method] = (...args: unknown[]) => void writeSync(fd, redact(`[${method}] ${format(...args)}\n`));
+    console[method] = (...args: unknown[]) => write(redact(`[${method}] ${format(...args)}\n`));
   }
   configureUniversalLogger({ enabled: true, minLevel });
+}
+
+/**
+ * Appends to `file` and rotates it by size: past `maxBytes` it becomes `file.1`, `file.1` becomes `file.2`, and so on,
+ * and the oldest beyond `keep` files in all is overwritten. Rotation happens between whole writes, so a line is never split.
+ */
+export function rotatingFile(file: string, maxBytes = 10 * 1024 * 1024, keep = 10): (text: string) => void {
+  mkdirSync(dirname(file), { recursive: true });
+  let fd = openSync(file, 'a');
+  let size = fstatSync(fd).size;
+  return (text) => {
+    if (size > 0 && size + Buffer.byteLength(text) > maxBytes) {
+      closeSync(fd);
+      let failed: unknown;
+      try {
+        for (let n = keep - 2; n >= 1; n--) if (existsSync(`${file}.${n}`)) renameSync(`${file}.${n}`, `${file}.${n + 1}`);
+        renameSync(file, `${file}.1`);
+      } catch (error) {
+        failed = error; // the log was moved or deleted meanwhile: a new one starts, since a console call must never throw
+      }
+      mkdirSync(dirname(file), { recursive: true });
+      fd = openSync(file, 'a');
+      size = 0;
+      if (failed !== undefined) text = `[warn] the log could not be rotated: ${String(failed)}\n${text}`;
+    }
+    writeSync(fd, text);
+    size += Buffer.byteLength(text);
+  };
 }
 
 /** Context every log of an execution carries when it applies. */

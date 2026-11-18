@@ -38,6 +38,19 @@ import IOKit.pwr_mgt
         SystemNotificationCentre.shared.post([EpicNotification(title: title, body: body, sound: false)])
     }
     @ObservationIgnored var now: () -> Date = Date.init
+    /// How the Mac is powered; the tests say their own.
+    @ObservationIgnored var readPower: () -> PowerFacts = { KeepAwakeController.systemPower() }
+    @ObservationIgnored private let preferences: AppPreferences
+    @ObservationIgnored private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        preferences = AppPreferences(defaults: defaults)
+    }
+
+    /// Whether the system's assertion is held now, and the display's.
+    var holdsSystem: Bool { systemAssertion != 0 }
+    var holdsDisplay: Bool { displayAssertion != 0 }
 
     var working: Bool { epicsWorking + sessionsWorking > 0 }
 
@@ -85,7 +98,7 @@ import IOKit.pwr_mgt
 
     /// The switch "While agents work", from the menu or from the page.
     func setFollowsAgents(_ on: Bool) {
-        UserDefaults.standard.set(on, forKey: AppPreferences.awakeAgentsKey)
+        defaults.set(on, forKey: AppPreferences.awakeAgentsKey)
         settingsChanged()
     }
 
@@ -108,8 +121,8 @@ import IOKit.pwr_mgt
         refresh()
     }
 
-    private func settingsChanged() {
-        let read = AppPreferences().awake
+    func settingsChanged() {
+        let read = preferences.awake
         if read != settings {
             settings = read
             // the person changed it: that is not a stop by itself
@@ -118,7 +131,7 @@ import IOKit.pwr_mgt
         registerShortcut()
     }
 
-    private func powerChanged() {
+    func powerChanged() {
         let read = readPower()
         guard read != power else { return }
         power = read
@@ -127,7 +140,7 @@ import IOKit.pwr_mgt
 
     // MARK: acting on the answer
 
-    private func refresh(silent: Bool = false) {
+    func refresh(silent: Bool = false) {
         let before = decision
         if case .until(let end)? = manual, end <= now() { manual = nil }
         let next = awakeDecision(now: now(), manual: manual, settings: settings, agentsWorking: working, lastWorked: lastWorked, power: power)
@@ -184,7 +197,7 @@ import IOKit.pwr_mgt
     // MARK: the shortcut
 
     private func registerShortcut() {
-        let shortcut = recordingShortcut ? nil : AppPreferences().awakeShortcut
+        let shortcut = recordingShortcut ? nil : preferences.awakeShortcut
         guard shortcut?.text != hotKeyText else { return }
         hotKey = nil
         hotKeyText = shortcut?.text
@@ -196,7 +209,7 @@ import IOKit.pwr_mgt
 
     // MARK: the battery
 
-    private func readPower() -> PowerFacts {
+    private static func systemPower() -> PowerFacts {
         guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue() else { return PowerFacts(onBattery: false, percent: nil) }
         let providing = IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() as String?
         let sources = (IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef]) ?? []

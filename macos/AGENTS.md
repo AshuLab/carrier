@@ -51,7 +51,7 @@ The SVGs and the upstream licence text are in `Sources/CarrierCore/Resources/Fil
 
 What the person sees: [keep-awake](../docs/macos/keep-awake.md).
 
-The rules and words are pure functions in `CarrierCore/KeepAwake.swift` (`KeepAwakeTests`); the power assertions, the battery source, the timer, the shortcut and the notification are `Carrier/KeepAwakeController.swift` (untested, as is the menu `KeepAwakeMenu.swift`, the page `KeepAwakeTab.swift` and the cup of `IconController`).
+The rules and words are pure functions in `CarrierCore/KeepAwake.swift` (`KeepAwakeTests`); the power assertions, the battery source, the timer, the shortcut and the notification are `Carrier/KeepAwakeController.swift`, tested in `KeepAwakeControllerTests` with a clock, a battery and a notification the test moves, and asking the system itself (`IOPMCopyAssertionsByProcess`) what is held, so an assertion never let go is seen; the shortcut's registration, the menu `KeepAwakeMenu.swift`, the page `KeepAwakeTab.swift` and the cup of `IconController` are untested.
 The controller is fed from `AppDelegate.watchCarrier` (epics) and `watchChatSessions` (sessions); a self-test or a smoke run does not start it.
 
 ## Settings

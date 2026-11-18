@@ -52,7 +52,7 @@ What each part of `engine/` holds:
 | `worktrees/` | `<repo>/<feature>/`, Carrier's own place for an epic's worktree by default. Any other place works: Carrier finds an epic's worktree with `git worktree list`. |
 
 When an epic is merged or cancelled the engine removes, always, its reviewer checkout, the author's worktree and Solve's `<worktree>--lane-N` worktrees beside it, wherever they are, and the epic's local branches whose tip is already on the remote.
-A branch that is not on the remote is kept and the log says so.
+An author or lane worktree with uncommitted files or commits on no branch is kept, and so is a branch that is not on the remote; the log says so.
 It does this at the next poll, also for epics that ended earlier; a failure is logged and tried again at the following one.
 
 The socket path has a length limit (about 100 bytes), so keep a `CARRIER_HOME` short; `carrier doctor` warns when `engine/state/control.sock` does not fit.

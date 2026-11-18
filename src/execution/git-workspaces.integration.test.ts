@@ -156,6 +156,22 @@ describe('GitWorkspaces against a local bare remote', () => {
     expect(await ws.cleanUp(repo, 4, null)).toEqual({ kept: [] });
   });
 
+  test('cleanUp keeps a worktree with uncommitted files or with commits on no branch, and the branch it has checked out', async () => {
+    const ws = workspaces();
+    const clone = await ws.prepareAuthor(repo, 3);
+    const epicPath = join(root, 'worktrees', 'demo', 'unsaved');
+    git(clone, 'worktree', 'add', '-q', '-b', 'feat/unsaved/epic', epicPath, 'origin/main');
+    writeFileSync(join(epicPath, 'notes.md'), 'not committed');
+    const detached = `${epicPath}--lane-1`;
+    git(clone, 'worktree', 'add', '-q', '--detach', detached, 'origin/main');
+    writeFileSync(join(detached, 'x'), 'x');
+    git(detached, 'add', '.');
+    git(detached, 'commit', '-qm', 'on no branch');
+
+    expect(await ws.cleanUp(repo, 3, 'feat/unsaved/epic')).toEqual({ kept: [epicPath, detached, 'feat/unsaved/epic'] });
+    for (const path of [epicPath, detached]) expect(existsSync(path)).toBe(true);
+  });
+
   test('the token never reaches a git config, and a failing minting is reported without leaking', async () => {
     const ws = workspaces(async () => 'SECRET-TOKEN-123');
     openPr(7, git(work, 'rev-parse', 'HEAD'));

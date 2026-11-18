@@ -673,7 +673,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     for (const epic of ended) {
       try {
         const { kept } = await workspaces.cleanUp(epic.repo, epic.issue, epic.branch);
-        if (kept.length > 0) log.warn('kept local branches that are not on the remote', { repo: epic.repo, issue: epic.issue, branches: kept });
+        if (kept.length > 0) log.warn('kept worktrees with unsaved work and local branches that are not on the remote', { repo: epic.repo, issue: epic.issue, kept });
         db.update(epics).set({ cleanedAt: clock.now() }).where(eq(epics.id, epic.id)).run();
       } catch (e) {
         log.warn('could not clean up an ended epic, trying again at the next poll', { repo: epic.repo, issue: epic.issue, error: (e as Error).message });

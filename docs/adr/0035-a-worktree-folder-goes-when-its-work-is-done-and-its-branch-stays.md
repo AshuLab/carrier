@@ -13,6 +13,7 @@ A session worktree went only with its session ([0014](0014-a-session-worktree-li
 
 When an epic is merged or cancelled, the engine removes its reviewer checkout, the author's worktree of the epic's branch and Solve's `<that path>--lane-N` worktrees beside it, always, with no setting.
 It then deletes the epic's local branches (the epic branch and, for `<prefix>/epic`, its slices under `<prefix>/`) whose tip is on the remote, and keeps and logs any that is not.
+It keeps, and logs, an author or lane worktree that holds uncommitted files or commits on no branch, since a cancelled epic's work may be there only.
 It only removes paths `git worktree list` reports for its clone, does it at the next poll (also for epics that ended earlier), records it on the epic, and retries a failure at the next poll without blocking anything.
 
 A session worktree's folder can go before the session does, by the opt-in `worktreeCleanup` of `chat.json`: `afterPrMerged`, `afterArchivedDays`, both off by default.

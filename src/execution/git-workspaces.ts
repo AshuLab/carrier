@@ -137,8 +137,9 @@ export class GitWorkspaces implements Workspaces {
 
   /**
    * What a merged or cancelled epic leaves on the disk goes: its reviewer checkout, the author's worktree of `branch` and Solve's
-   * `<that path>--lane-N` worktrees beside it, then the epic's local branches whose tip is already on the remote. A branch that is
-   * not is kept, and returned so the caller can say why. Only paths `git worktree list` reports for this clone are removed.
+   * `<that path>--lane-N` worktrees beside it, then the epic's local branches whose tip is already on the remote. A worktree with
+   * work nowhere else and a branch not on the remote are kept, and returned so the caller can say why. Only paths `git worktree list`
+   * reports for this clone are removed.
    */
   async cleanUp(repo: string, epic: number, branch: string | null) {
     assertCount(epic, 'epic');
@@ -149,17 +150,30 @@ export class GitWorkspaces implements Workspaces {
       const author = branch ? linked.find((w) => w.branch === branch)?.path : undefined;
       const review = this.reviewPath(repo, epic);
       const doomed = linked.filter((w) => w.path === review || (author && (w.path === author || w.path.startsWith(`${author}--lane-`))));
+      // Fetched first, so a commit is judged against the remote as it is now.
+      if (branch) await this.remote(repo, ['fetch', '--prune', 'origin'], clone);
+      const kept: string[] = [];
       // One already deleted by hand is only a stale entry: `prune` drops it.
-      for (const { path } of doomed.filter((w) => existsSync(w.path))) await git(['worktree', 'remove', '--force', path], { cwd: clone });
+      for (const { path } of doomed.filter((w) => existsSync(w.path))) {
+        // The reviewer's checkout is detached at the PR's head, which is on the remote; an author or lane worktree may hold work nowhere else:
+        // uncommitted files, or commits of a detached HEAD on no branch. Such a one stays, and its branch with it (it is checked out).
+        if (path !== review) {
+          const dirty = (await git(['status', '--porcelain'], { cwd: path })) !== '';
+          const unsaved = (await git(['rev-list', '--count', 'HEAD', '--not', '--branches', '--remotes'], { cwd: path })) !== '0';
+          if (dirty || unsaved) {
+            kept.push(path);
+            continue;
+          }
+        }
+        await git(['worktree', 'remove', '--force', path], { cwd: clone });
+      }
       await git(['worktree', 'prune'], { cwd: clone });
-      if (!branch) return { kept: [] };
-      await this.remote(repo, ['fetch', '--prune', 'origin'], clone);
+      if (!branch) return { kept };
       // The epic branch and, for Solve's `<prefix>/epic`, its slices under `<prefix>/`; never a wider prefix.
       const refs = branch.endsWith('/epic') ? `refs/heads/${branch.slice(0, -'epic'.length)}` : `refs/heads/${branch}`;
       const locals = (await git(['for-each-ref', '--format=%(refname:short)', refs], { cwd: clone })).split('\n').filter(Boolean);
       // A branch still checked out (in the clone, or a worktree that is not the epic's) cannot go, and is not ours to move.
       const checkedOut = new Set([await git(['branch', '--show-current'], { cwd: clone }), ...(await this.linkedWorktrees(clone)).map((w) => w.branch)]);
-      const kept: string[] = [];
       for (const local of locals) {
         const pushed = (await git(['branch', '-r', '--contains', local], { cwd: clone })) !== '';
         if (pushed && !checkedOut.has(local)) await git(['branch', '-D', local], { cwd: clone });

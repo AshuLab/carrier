@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- When an epic is merged or cancelled, the engine removes its reviewer checkout, its worktrees and its local branches already on the remote, also for epics that ended earlier.
+- When an epic is merged or cancelled, the engine removes its reviewer checkout, its worktrees (not one with uncommitted files or commits on no branch) and its local branches already on the remote, also for epics that ended earlier.
 - `worktreeCleanup` in `chat.json` (off by default) removes the folder of a session's worktree once its pull request is merged or it stayed archived long enough, keeping the branch; the next message brings the folder back.
 - In `carrier chat`, `/agent <name>` switches an idle session to another configured agent: the new agent starts a fresh conversation and can read the old one through the `history` tool, so you go on where you were when a quota runs out or you want a second opinion.
 - When Claude or Codex hits a usage limit, the chat host reports it as its own error that names the agent and its reset time, so a client can offer another agent.

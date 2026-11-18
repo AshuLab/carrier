@@ -1,13 +1,14 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, rm, rmdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/places.ts';
 import { listAvailableRepos, type AvailableRepo } from '../integrations/available-repos.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import { repoNamePattern } from '../config/schema.ts';
+import { tokenEnv } from '../execution/git-workspaces.ts';
 import { readChatConfig } from './config.ts';
 import { checkProjectsFolder } from './folder.ts';
 import type { Git, GitResult } from './git.ts';
@@ -27,6 +28,7 @@ export const ghToken = (): Promise<string> =>
   new Promise((resolve, reject) => {
     execFile('gh', ['auth', 'token'], { encoding: 'utf8', timeout: 15_000 }, (error, stdout) => {
       if ((error as NodeJS.ErrnoException | null)?.code === 'ENOENT') return reject(new ChatRefused('The GitHub CLI (gh) is not installed'));
+      if ((error as { killed?: boolean } | null)?.killed === true) return reject(new ChatRefused('The GitHub CLI took too long to answer'));
       const token = stdout.trim();
       if (error !== null || token === '') return reject(new ChatRefused('gh is not signed in to GitHub; run "gh auth login"'));
       resolve(token);
@@ -81,6 +83,10 @@ const notVisible = /repository not found|not found|authentication failed|could n
 const offline = /could not resolve host|failed to connect|connection (timed out|refused|reset)|network is unreachable|unable to access/i;
 
 function refusal(result: Extract<GitResult, { ok: false }>, did: 'clone' | 'fetch', repo: string) {
+  if (result.aborted === true) {
+    log.info(`git ${did} stopped`, { repo }); // the person left: not a failure of git
+    return new ChatRefused(`The ${did} was cancelled`);
+  }
   log.error(`git ${did} failed`, { repo, code: result.code, timedOut: result.timedOut === true });
   if (result.timedOut === true) return new ChatRefused(`The ${did} took more than ten minutes and was stopped`);
   if (notVisible.test(result.stderr)) return new ChatRefused(`${repo} was not found, or your GitHub login cannot see it`);
@@ -137,11 +143,7 @@ const progressLine = /^(?:remote: )?((?:Counting|Compressing|Receiving|Resolving
 export function createProjects({ git, token, github, clock }: { git: Git; token: () => Promise<string>; github: GithubRepos; clock: Clock }) {
   const running = new Map<string, Job>();
 
-  // Not in argv, in a file or in a log: git reads the header from its environment, as `git-workspaces.ts` does.
-  const authEnv = async (): Promise<NodeJS.ProcessEnv> => {
-    const basic = Buffer.from(`x-access-token:${await token()}`).toString('base64');
-    return { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader', GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}` };
-  };
+    const authEnv = async () => tokenEnv(await token());
 
   async function fetchOrClone(repo: string, dest: string, signal: AbortSignal, onProgress: (line: string) => void): Promise<CloneReply> {
     if (existsSync(dest)) {
@@ -156,14 +158,17 @@ export function createProjects({ git, token, github, clock }: { git: Git; token:
     await mkdir(dirname(dest), { recursive: true });
     try {
       await mkdir(dest); // not recursive: it fails if something appeared since the check, and what is there now is ours to remove only if we made it
-    } catch {
-      throw new ChatRefused(`${dest} is already there and is not a clone of ${repo}; it was left as it is`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new ChatRefused(`${dest} is already there and is not a clone of ${repo}; it was left as it is`);
+      log.error('could not make the folder of a clone', error, { repo });
+      throw new ChatRefused(`The folder for ${repo} could not be made`);
     }
     try {
       const cloned = await git.run(dirname(dest), ['clone', '--', `https://github.com/${repo}.git`, dest], { timeoutMs: GIT_TIMEOUT_MS, env, signal, onProgress });
       if (cloned.ok === false) throw refusal(cloned, 'clone', repo);
     } catch (error) {
       await rm(dest, { recursive: true, force: true });
+      await rmdir(dirname(dest)).catch(() => {}); // the owner folder goes too unless it holds another repository (then rmdir refuses, and that is right)
       throw error;
     }
     return { folder: dest, repo, fetched: false };
@@ -193,8 +198,9 @@ export function createProjects({ git, token, github, clock }: { git: Git; token:
     /** A page of the repositories the person's login can read; page 1 also says the login. */
     async githubRepos({ page }: { page: number }): Promise<{ repos: AvailableRepo[]; hasMore: boolean; login?: string }> {
       if (page > 1) return github.repos(page);
-      const [first, who] = await Promise.all([github.repos(page), github.login()]);
-      return { ...first, login: who };
+      // The login is for show: when only it fails (the refusal is already logged) the repositories still go out.
+      const [first, who] = await Promise.all([github.repos(page), github.login().catch(() => undefined)]);
+      return who === undefined ? first : { ...first, login: who };
     },
 
     /** Makes `<projects folder>/local/<name>` and runs `git init -b main` in it (the `createProject` request, for apps older than the plan). */

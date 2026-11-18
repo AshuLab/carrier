@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 
-/** What running one git command comes to. `code` is git's exit status, null when git could not run or ran out of time. `stderr` is git's own words and can hold a URL: it is never logged or sent to a client as it is. */
-export type GitResult = { ok: true; out: string } | { ok: false; code: number | null; timedOut?: true; stderr: string };
+/** What running one git command comes to. `code` is git's exit status, null when git could not run, ran out of time (`timedOut`) or was stopped by its `signal` (`aborted`). `stderr` is git's own words and can hold a URL: it is never logged or sent to a client as it is. */
+export type GitResult = { ok: true; out: string } | { ok: false; code: number | null; timedOut?: true; aborted?: true; stderr: string };
 
 /** The port through which the chat host runs the `git` of the machine (docs/specs/session-worktrees.md, Decisions). */
 export interface Git {
@@ -34,6 +34,7 @@ export const realGit: Git = {
       const { onProgress } = options ?? {};
       const child = execFile('git', onProgress === undefined ? args : [args[0]!, '--progress', ...args.slice(1)], { cwd: folder, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...options?.env }, signal: options?.signal, timeout: options?.timeoutMs ?? TIMEOUT_MS, maxBuffer: MAX_OUTPUT, encoding: 'utf8' }, (error, stdout, stderr) => {
         if (error === null) return resolve({ ok: true, out: stdout });
+        if (options?.signal?.aborted === true) return resolve({ ok: false, code: null, aborted: true, stderr: 'git was stopped' });
         const { code, killed } = error as NodeJS.ErrnoException & { killed?: boolean };
         if (killed) return resolve({ ok: false, code: null, timedOut: true, stderr: 'git took too long' });
         resolve({ ok: false, code: typeof code === 'number' ? code : null, stderr: stderr || error.message });

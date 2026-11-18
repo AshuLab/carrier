@@ -156,7 +156,7 @@ export class FakeGit implements Git {
       mkdirSync(dest, { recursive: true });
       const signal = options?.signal;
       if (this.clonePending !== undefined) await Promise.race([this.clonePending, new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }))]);
-      if (signal?.aborted === true) return { ok: false, code: null, stderr: 'killed' };
+      if (signal?.aborted === true) return { ok: false, code: null, aborted: true, stderr: 'killed' };
       const failure = this.failures.get(args.join(' '));
       if (failure !== undefined) return failure;
       mkdirSync(join(dest, '.git'));

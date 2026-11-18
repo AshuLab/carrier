@@ -6,15 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Settings › Dictation: Keep the speech model ready (on by default) loads the model you chose in the background when Carrier opens, when you turn Dictation on and when you change the model or language, so the first dictation does not wait for it; Release the model after (5, 15, 30 or 60 minutes without dictating, or Never; 15 by default) frees the memory of a model nobody is using, and the next dictation loads it again.
+  Both are dimmed with Dictation off.
+- Each dictation writes one line to `dictation.log`, with no text, saying where its time went: from the press to the microphone running, to the first audio, to the model ready and to the first word, and from the stop to the final text.
+
+### Changed
+
+- Dictation: the microphone starts at the press even when the speech model is not ready.
+  The box and the widget show the listening line and the clock with "Getting the model ready…", the words you say meanwhile are kept and appear once the model is ready, and the start sound plays when the first audio arrives.
+  A model that is not ready after 30 seconds fails as a dictation that could not start.
+- Dictation: only the words still forming are drawn as partial text (dotted underline, accent colour); the words that will not change are normal text, so the text no longer reads as a guess from the first word to the last.
+- Dictation: "Transcribing…" shows only when the final text takes more than a quarter of a second after the stop.
+- Dictation: Apple's recognizer no longer trades accuracy for speed, Whisper skips word timestamps when it gives its text at the end and cuts a recording longer than 30 seconds at its pauses, and Parakeet TDT v3 and Ultra warm up when they load, so the first dictation does not pay for the first pass.
+
 ## [0.10.0] - 2026-11-17
 
 Switch a session to another agent and hand work to child sessions, and see what the agent waits on: the conversation shows its subagents, its background tasks and what each call is doing, and the sidebar's cards show pull requests and lines changed.
 
 ### Added
 
-- Settings › Dictation: Keep the speech model ready (on by default) loads the model you chose in the background when Carrier opens, when you turn Dictation on and when you change the model or language, so the first dictation does not wait for it; Release the model after (5, 15, 30 or 60 minutes without dictating, or Never; 15 by default) frees the memory of a model nobody is using, and the next dictation loads it again.
-  Both are dimmed with Dictation off.
-- Each dictation writes one line to `dictation.log`, with no text, saying where its time went: from the press to the microphone running, to the first audio, to the model ready and to the first word, and from the stop to the final text.
 - In `carrier chat`, `/agent <name>` switches an idle session to another configured agent: the new agent starts a fresh conversation and can read the old one through the `history` tool, so you go on where you were when a quota runs out or you want a second opinion.
 - When Claude or Codex hits a usage limit, the chat host reports it as its own error that names the agent and its reset time, so a client can offer another agent.
 - A session's agent can start child sessions on other agents or models with `delegate_start`, wait for them with `delegate_wait` and read their results, and each delegation asks you first, saying what will be sent; a child takes no messages, and a parent and its children are archived, deleted and aged as one.
@@ -33,12 +45,6 @@ Switch a session to another agent and hand work to child sessions, and see what 
 
 ### Changed
 
-- Dictation: the microphone starts at the press even when the speech model is not ready.
-  The box and the widget show the listening line and the clock with "Getting the model ready…", the words you say meanwhile are kept and appear once the model is ready, and the start sound plays when the first audio arrives.
-  A model that is not ready after 30 seconds fails as a dictation that could not start.
-- Dictation: only the words still forming are drawn as partial text (dotted underline, accent colour); the words that will not change are normal text, so the text no longer reads as a guess from the first word to the last.
-- Dictation: "Transcribing…" shows only when the final text takes more than a quarter of a second after the stop.
-- Dictation: Apple's recognizer no longer trades accuracy for speed, Whisper skips word timestamps when it gives its text at the end and cuts a recording longer than 30 seconds at its pauses, and Parakeet TDT v3 and Ultra warm up when they load, so the first dictation does not pay for the first pass.
 - The cards that open when the pointer rests on a session or an epic in the sidebar are tidier: a long folder or branch is one line cut in the middle (the whole of it in its tooltip) instead of breaking over several lines, the branch has its own line, the agent shows its account's mark and name, and a session's state has the color of its row and says Done, as the row does, for a turn you have not opened.
 - Usage: where an account has a header of its own (several accounts of a tool, or one that needs a look), it wears its icon and color before its name, as it does everywhere else in the app.
 - The banner of a turn that failed or was refused ("Lu couldn't continue") names the account by its label or display name, and wears its icon and color when it has them, so two accounts of one tool are told apart there too.

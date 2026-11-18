@@ -57,8 +57,10 @@ import SwiftUI
         downloader: any ModelDownloader = FixtureModelDownloader(), cleanupClient: any TextModelClient = LocalModelClient(),
         // a fixture build, like a test, keeps its history in a temporary folder, never in the person's Carrier folder
         recordsFolder: String = NSTemporaryDirectory() + "carrier-fixture-dictations-\(UUID().uuidString)",
-        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, now: @escaping () -> Date = Date.init
+        sleep: ((Duration) async throws -> Void)? = nil, now: @escaping () -> Date = Date.init
     ) {
+        // chosen here and not as the default of the argument, as `DictationSession` does: see the note there
+        let sleep = sleep ?? { try await Task.sleep(for: $0) }
         self.log = log
         self.sleep = sleep
         self.now = now

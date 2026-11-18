@@ -136,14 +136,16 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     /// every failure, with its cause only; `timed` hears where the time of each dictation went when it ends. `keepAudio` is asked as each dictation
     /// starts: when it says yes the take carries the audio.
     public init(
-        capture: AudioCapture, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        capture: AudioCapture, sleep: ((Duration) async throws -> Void)? = nil,
         announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in },
         timed: @escaping (DictationTimings) -> Void = { _ in }, now: @escaping () -> Date = Date.init, keepAudio: @escaping () -> Bool = { false }
     ) {
         self.keepAudio = keepAudio
         self.timed = timed
         self.capture = capture
-        self.sleep = sleep
+        // the real sleep is chosen here and not as the default of the argument: an async closure literal there is compiled into every client of
+        // the initialiser, and Xcode 26's debug builds can pair the body of one copy with the frame size of another and abort the test process
+        self.sleep = sleep ?? { try await Task.sleep(for: $0) }
         self.announce = announce
         self.log = log
         self.now = now
@@ -260,8 +262,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         }
     }
 
-    /// Waits for `duration` on the session's clock; false when the wait was cancelled. A method of its own: the tasks below crashed on the macos-26
-    /// runner ("freed pointer was not the last allocation") with this wait written in their own `guard`.
+    /// Waits for `duration` on the session's clock; false when the wait was cancelled.
     private func pause(_ duration: Duration) async -> Bool {
         do { try await sleep(duration) } catch { return false }
         return true
@@ -277,9 +278,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         }
     }
 
-    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped. The task is never cancelled,
-    /// it only finds out when it wakes that the dictation is over or the model is ready: a model that is ready at once used to cancel it as it began
-    /// to sleep, and the runtime of the macos-26 runner aborts there ("freed pointer was not the last allocation").
+    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped.
+    /// The task is never cancelled: when it wakes it checks that this dictation is still the current one and that the model is still not ready.
     private func watchTheModel(_ mine: Int) {
         let floor = Self.answerFloor
         Task {

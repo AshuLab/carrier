@@ -1,40 +1,36 @@
-/// A page of the Settings rail: its title is the raw value, and it carries its group and its row of the rail. The rail is built from
-/// these, in the order of the cases.
-public enum SettingsPage: String, CaseIterable {
-    case general = "General", providers = "Providers", notifications = "Notifications", appearance = "Appearance", terminal = "Terminal"
+/// A page of Settings: its title is the raw value, and it carries its group and its row of the sidebar. The sidebar is built from these, in
+/// the order of the cases.
+public enum SettingsPage: String, CaseIterable, Sendable {
+    case general = "General", providers = "Providers", appearance = "Appearance", notifications = "Notifications"
     case keybindings = "Keybindings", dictation = "Dictation"
-    case chat = "Chat", sidebar = "Sidebar", sessions = "Sessions"
-    case repos = "Repos"
-    case agents = "Agents"
-    case behavior = "Behavior"
-    case engine = "Engine"
-    case health = "Health"
-    case about = "About"
+    case chat = "Chat", sessions = "Sessions", sidebar = "Sidebar", terminal = "Terminal"
+    case agents = "Agents", repos = "Repos", behavior = "Behavior"
+    case engine = "Engine", health = "Health", about = "About"
 
-    /// A group of the rail: the App one has no heading, Chat and Carrier have their own, and About is last, kept at the foot of the rail.
-    public enum Group: CaseIterable {
-        case app, chat, carrier, about
+    /// A group of the sidebar: the App one has no heading, the others have their own.
+    public enum Group: CaseIterable, Sendable {
+        case app, workspace, carrier, system
 
         public var heading: String? {
             switch self {
             case .app: nil
-            case .chat: "Chat"
+            case .workspace: "Workspace"
             case .carrier: "Carrier"
-            case .about: nil
+            case .system: "System"
             }
         }
     }
 
     public var group: Group {
         switch self {
-        case .general, .providers, .notifications, .appearance, .terminal, .keybindings, .dictation: .app
-        case .chat, .sidebar, .sessions: .chat
-        case .repos, .agents, .behavior, .engine, .health: .carrier
-        case .about: .about
+        case .general, .providers, .appearance, .notifications, .keybindings, .dictation: .app
+        case .chat, .sessions, .sidebar, .terminal: .workspace
+        case .agents, .repos, .behavior: .carrier
+        case .engine, .health, .about: .system
         }
     }
 
-    /// The page's icon in the rail and in its header (an SF Symbol).
+    /// The page's icon in the sidebar (an SF Symbol).
     public var icon: String {
         switch self {
         case .general: "gearshape"

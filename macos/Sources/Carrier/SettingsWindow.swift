@@ -2,53 +2,190 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// Past this width the pages read badly, so the sheet stops growing and only its height follows the window.
-let settingsMaxWidth: Double = 1300
+// Settings in a window of its own (not a sheet over the main one): a sidebar with the pages on the left, the chosen one on the right under a
+// toolbar that says which it is, with ‹ › to go back and forward through the pages visited. The main window stays usable beside it.
 
-/// Settings as a sheet over the main window, in the shape of the workspace chooser: a rail with the sections on the left, the chosen one on the
-/// right, closed by the corner button or Esc. The readiness banner shows over every section while something is missing or being looked for.
-struct SettingsSheet: View {
-    let state: ConnectionState?
-    let canReload: Bool
-    @ObservedObject var setup: SetupController = .shared
-    @ObservedObject private var start = StartController.shared
-    @Binding var tab: SettingsPage
-    @AppStorage(startOnOpenKey) private var startOnOpen = false
-    @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
-    @StateObject private var github = EngineIdentityStore()
+/// Which page Settings is on and the pages it has been on; the page is remembered for the next time the window opens.
+@MainActor @Observable final class SettingsNavigator {
+    static let lastPageKey = "settingsLastPage"
+    private(set) var history: SettingsHistory
+
+    var page: SettingsPage { history.current }
+
+    init() {
+        history = SettingsHistory(UserDefaults.standard.string(forKey: Self.lastPageKey).flatMap(SettingsPage.init(rawValue:)) ?? .general)
+    }
+
+    func go(_ page: SettingsPage) {
+        history.visit(page)
+        remember()
+    }
+
+    func back() {
+        history.back()
+        remember()
+    }
+
+    func forward() {
+        history.forward()
+        remember()
+    }
+
+    private func remember() { UserDefaults.standard.set(page.rawValue, forKey: Self.lastPageKey) }
+}
+
+/// The one Settings window: made the first time it is asked for and kept, so it comes back where it was (its place, its size, its page).
+@MainActor final class SettingsWindowController: NSObject, NSWindowDelegate {
+    static let shared = SettingsWindowController()
+    private(set) var window: NSWindow?
+    private let navigator = SettingsNavigator()
+
+    var isShown: Bool { window?.isVisible == true }
+
+    /// `page` nil keeps the one it was left on.
+    func show(_ page: SettingsPage?, model: PanelModel) {
+        if let page { navigator.go(page) }
+        let window = window ?? makeWindow(model: model)
+        self.window = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    func close() { window?.close() }
+
+    private func makeWindow(model: PanelModel) -> NSWindow {
+        let host = NSHostingController(rootView: SettingsRoot(model: model, navigator: navigator).themed())
+        // the split view's title and toolbar go to the window, and its content does not size it (as the main window's)
+        host.sceneBridgingOptions = .all
+        host.sizingOptions = []
+        let window = NSWindow(contentViewController: host)
+        window.title = "Settings"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.isReleasedWhenClosed = false
+        window.contentMinSize = NSSize(width: 760, height: 480)
+        window.delegate = self
+        // where it was and how big; the first time, the size of a page that does not need a scroll to be read
+        if window.setFrameAutosaveName("CarrierSettingsWindow") == false {
+            window.setContentSize(NSSize(width: 940, height: 660))
+            window.center()
+        }
+        return window
+    }
+
+    /// What the person fixed here is what the chat host needs: look again when they are done.
+    func windowWillClose(_ notification: Notification) { ChatHostStarter.shared.checkAtOpen() }
+}
+
+/// The window's content: the sidebar and, in the detail, the chosen page under the toolbar.
+struct SettingsRoot: View {
+    let model: PanelModel
+    let navigator: SettingsNavigator
     @State private var headerNote: SettingsHeaderNote?
-    /// What `carrier --version` and `node --version` printed for the programs the page shows; nil while they are being read.
-    @State private var versions: ProgramVersions?
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                SettingsRail(page: $tab)
-                Divider()
-                page.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
+        NavigationSplitView {
+            SettingsSidebar(navigator: navigator)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
+        } detail: {
+            SettingsPages(state: model.state, canReload: model.epics.canReload, page: navigator.page, open: navigator.go, headerNote: $headerNote)
+                .navigationTitle(navigator.page.rawValue)
+                .navigationSubtitle(navigator.page.detail)
+                .toolbar {
+                    ToolbarItemGroup(placement: .navigation) {
+                        Button(action: navigator.back) { Label("Back", systemImage: "chevron.backward") }
+                            .disabled(navigator.history.canGoBack == false).keyboardShortcut("[", modifiers: .command).help("Back")
+                        Button(action: navigator.forward) { Label("Forward", systemImage: "chevron.forward") }
+                            .disabled(navigator.history.canGoForward == false).keyboardShortcut("]", modifiers: .command).help("Forward")
+                    }
+                    if let headerNote { ToolbarItem(placement: .primaryAction) { SettingsNoteView(note: headerNote) } }
+                }
         }
         // the size of a Text with no font of its own, so it follows the text size too
         .font(.scaled(13))
-        .windowSheetSize(maxWidth: settingsMaxWidth)
-        // what the person fixed here is what the chat host needs: look again when they are done
-        .onDisappear { ChatHostStarter.shared.checkAtOpen() }
+        // a problem appears while the person looks elsewhere: say it to VoiceOver too
+        .onChange(of: headerNote) { _, note in
+            if let note, note.tone == .saved || (note.tone == .problem && note.announces) { AccessibilityNotification.Announcement(note.text).post() }
+        }
+    }
+}
+
+/// The pages in groups, as the sidebar of System Settings lists its own: a colored tile with the page's symbol before its name.
+struct SettingsSidebar: View {
+    let navigator: SettingsNavigator
+
+    var body: some View {
+        List(selection: Binding(get: { navigator.page }, set: { if let page = $0 { navigator.go(page) } })) {
+            ForEach(SettingsPage.Group.allCases, id: \.self) { group in
+                if let heading = group.heading {
+                    Section(heading) { rows(group) }
+                } else {
+                    Section { rows(group) }
+                }
+            }
+        }
+        .listStyle(.sidebar)
     }
 
-    /// The chosen page in a scroll of its own, under its title, which stays at the top while the page scrolls beneath it (the scroll edge
-    /// effect the main window's bars have).
-    private var page: some View {
+    private func rows(_ group: SettingsPage.Group) -> some View {
+        ForEach(SettingsPage.pages(in: group), id: \.self) { page in
+            Label { Text(page.rawValue) } icon: { SettingsTile(page: page) }.tag(page).help(page.detail)
+        }
+    }
+}
+
+struct SettingsTile: View {
+    let page: SettingsPage
+
+    var body: some View {
+        Image(systemName: page.icon).font(.scaled(11, weight: .semibold)).foregroundStyle(.white)
+            .frame(width: 22, height: 22)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(page.tint))
+            .accessibilityHidden(true)
+    }
+}
+
+extension SettingsPage {
+    /// The color of the page's tile in the sidebar.
+    var tint: Color {
+        switch self {
+        case .general, .engine, .keybindings: .gray
+        case .providers: .purple
+        case .appearance, .about: .blue
+        case .notifications: .red
+        case .dictation: .pink
+        case .chat: .teal
+        case .sessions: .indigo
+        case .sidebar: .cyan
+        case .terminal: Color(white: 0.25)
+        case .agents: .orange
+        case .repos, .health: .green
+        case .behavior: .brown
+        }
+    }
+}
+
+/// The chosen page in a scroll of its own; its title is the window's toolbar. The readiness banner shows over every page while something is
+/// missing or being looked for.
+struct SettingsPages: View {
+    let state: ConnectionState?
+    let canReload: Bool
+    let page: SettingsPage
+    let open: (SettingsPage) -> Void
+    @Binding var headerNote: SettingsHeaderNote?
+    @ObservedObject var setup: SetupController = .shared
+    @ObservedObject private var start = StartController.shared
+    @AppStorage(startOnOpenKey) private var startOnOpen = false
+    @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
+    @StateObject private var github = EngineIdentityStore()
+    /// What `carrier --version` and `node --version` printed for the programs the page shows; nil while they are being read.
+    @State private var versions: ProgramVersions?
+
+    var body: some View {
         ScrollView {
-            section.padding(.horizontal, 24).padding(.bottom, 24).padding(.top, 8).frame(maxWidth: .infinity, alignment: .topLeading)
+            section.padding(24).frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .id(page)
         .onPreferenceChange(SettingsHeaderNoteKey.self) { headerNote = $0 }
-        .safeAreaBar(edge: .top, spacing: 0) {
-            SettingsPageHeader(page: tab, note: headerNote).padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // closing is a corner button (Esc closes a sheet as well), not a footer
-                .overlay(alignment: .topTrailing) { IconButton(icon: "xmark", name: "Close", shortcut: "Esc") { dismiss() }.padding(.top, 24).padding(.trailing, 16) }
-        }
     }
 
     @ViewBuilder private var section: some View {
@@ -61,7 +198,7 @@ struct SettingsSheet: View {
             if let message = setup.message {
                 Label(message, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange)
             }
-            switch tab {
+            switch page {
             case .general: GeneralTabView()
             case .appearance: AppearanceTabView()
             case .terminal: TerminalTabView()
@@ -70,7 +207,7 @@ struct SettingsSheet: View {
             case .dictation: DictationTabView()
             case .keybindings: KeybindingsTabView()
             case .about: AboutTabView()
-            case .providers: ProvidersTabView(openAgents: { tab = .agents })
+            case .providers: ProvidersTabView(openAgents: { open(.agents) })
             case .engine:
                 // one container, so the versions are read once and not once per group
                 VStack(alignment: .leading, spacing: 14) { engine(notConfigured: notConfigured) }
@@ -79,7 +216,7 @@ struct SettingsSheet: View {
                         versions = await ProgramVersions.read(setup)
                     }
             case .behavior: BehaviorTabView()
-            case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { tab = .agents })
+            case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { open(.agents) })
             case .agents: AgentsTabView()
             case .sessions: SessionsTabView()
             case .notifications: NotificationsTabView()
@@ -157,42 +294,6 @@ struct SettingsSheet: View {
         .onAppear { github.load() }
         .onChange(of: start.configExists) { github.load() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in github.load() }
-    }
-}
-
-/// The rail: the pages of each group in order, the heading of a group over its pages when it has one.
-struct SettingsRail: View {
-    @Binding var page: SettingsPage
-
-    /// What the rail draws: each group with its pages.
-    static let sections = SettingsPage.Group.allCases.map { (group: $0, pages: SettingsPage.pages(in: $0)) }
-
-    private func railRow(_ row: SettingsPage) -> some View {
-        RailRow(title: row.rawValue, detail: nil, icon: row.icon, selected: page == row) { page = row }.help(row.detail)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            RailHeader(title: "Settings", detail: "How Carrier runs here")
-            // the pages scroll under the header, so the last ones stay in reach in a short window
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Self.sections.filter { $0.group != .about }, id: \.group) { section in
-                        if let heading = section.group.heading {
-                            Text(heading).sectionLabel()
-                                .padding(.leading, 8).padding(.top, 10).accessibilityAddTraits(.isHeader)
-                        }
-                        ForEach(section.pages, id: \.self) { row in railRow(row) }
-                    }
-                }
-            }
-            // About stays at the foot, in view however short the window is
-            Divider().padding(.vertical, 4)
-            ForEach(SettingsPage.pages(in: .about), id: \.self) { row in railRow(row) }
-        }
-        // the header sits 24 from the top and 24 from the left (16 + the row's 8), as a page's header does on the right
-        .padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 14).frame(width: 250)
-        .background(Color.secondary.opacity(0.06))
     }
 }
 

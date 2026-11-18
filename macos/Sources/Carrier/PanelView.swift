@@ -191,7 +191,7 @@ struct PanelView: View {
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, terminalStore: terminalStore, selection: $shell.selection, open: $shell.open, groupBy: $groupBy, sessionSort: $sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() }, newSessionIn: { path in
+            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, terminalStore: terminalStore, selection: $shell.selection, open: $shell.open, groupBy: $groupBy, sessionSort: $sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { WindowController.shared.showSettings() }, newSessionIn: { path in
                 model.newSession.start(in: path)
                 shell.selection = .newSession
             }, newTerminal: createNewTerminal, closeTerminal: closeStandaloneTerminal)
@@ -245,7 +245,7 @@ struct PanelView: View {
                         } else if shell.selection == .usage {
                             UsageView(store: AppUsage.store)
                         } else if shell.selection == .newSession {
-                            NewSessionView(model: model.newSession, openHealth: shell.openHealth) { shell.selection = .session(id: $0) }
+                            NewSessionView(model: model.newSession, openHealth: { WindowController.shared.showSettings(.health) }) { shell.selection = .session(id: $0) }
                         } else if let emptyPage {
                             EmptyStateView(state: emptyPage)
                         } else if case .session(let id) = shell.selection {
@@ -263,7 +263,7 @@ struct PanelView: View {
                             }
                         } else {
                             // Carrier is not answering (or has not yet): what to do about it
-                            StoppedView(state: model.state, openSettings: { shell.showSettings(.engine) })
+                            StoppedView(state: model.state, openSettings: { WindowController.shared.showSettings(.engine) })
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -451,7 +451,6 @@ struct PanelView: View {
         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
         // what the engine answered to a save belongs to the engine that answered: another one, or none, starts clean
         .onChange(of: engineRunning) { ReloadStatus.shared.reset() }
-        .sheet(isPresented: $shell.settingsShown) { SettingsSheet(state: model.state, canReload: model.epics.canReload, tab: $shell.settingsTab).themed() }
         .frame(minWidth: 1100, minHeight: 600)
         .themed()
         .environment(model.actions)

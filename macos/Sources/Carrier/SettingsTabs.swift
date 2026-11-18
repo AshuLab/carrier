@@ -371,30 +371,11 @@ struct SettingsHeaderNoteKey: PreferenceKey {
     static func reduce(value: inout SettingsHeaderNote?, nextValue: () -> SettingsHeaderNote?) { value = nextValue() ?? value }
 }
 
-/// The top of a page: an icon, the title and a line, and the page's note at the right when it has one, or below the title when the page is
-/// too narrow for both.
-struct SettingsPageHeader: View {
-    let page: SettingsPage
-    var note: SettingsHeaderNote?
+/// A page's note as the toolbar shows it, at its right: the Behavior page's "Saved", or why it cannot save, with a way to ask Carrier again.
+struct SettingsNoteView: View {
+    let note: SettingsHeaderNote
 
-    private var tile: some View {
-        Image(systemName: page.icon)
-            .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
-            .frame(width: 38, height: 38)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
-            .accessibilityHidden(true)
-    }
-
-    // the two lines are about as tall as the tile (a Spacer here would take the whole height the page's bar offers)
-    private var titles: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(page.rawValue).font(.scaled(15).weight(.semibold))
-            Text(page.detail).font(.scaled(12)).foregroundStyle(.secondary)
-        }
-    }
-
-    // an engine's message can be long: it wraps instead of being cut
-    @ViewBuilder private func noteView(_ note: SettingsHeaderNote) -> some View {
+    var body: some View {
         HStack(spacing: 10) {
             Group {
                 switch note.tone {
@@ -403,33 +384,9 @@ struct SettingsPageHeader: View {
                 case .plain: Label(note.text, systemImage: "info.circle").foregroundStyle(.secondary)
                 }
             }
-            .font(.scaled(12)).fixedSize(horizontal: false, vertical: true)
+            .font(.scaled(12)).lineLimit(2).frame(maxWidth: 420, alignment: .trailing)
             if note.asksAgain { AskAgainButton() }
         }
-    }
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 12) {
-                tile
-                titles.fixedSize(horizontal: true, vertical: false)
-                if let note {
-                    Spacer(minLength: 16)
-                    noteView(note).multilineTextAlignment(.trailing).frame(maxWidth: 420, alignment: .trailing)
-                }
-            }
-            // too narrow for the title and the note side by side: the note goes under the title, with the room of the page
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center, spacing: 12) { tile; titles }
-                if let note { noteView(note).frame(maxWidth: .infinity, alignment: .leading) }
-            }
-        }
-        // a problem appears while the person looks elsewhere: say it to VoiceOver too
-        .onChange(of: note) { _, note in
-            if let note, note.tone == .saved || (note.tone == .problem && note.announces) { AccessibilityNotification.Announcement(note.text).post() }
-        }
-        // room for the close button, which sits over the corner of the header
-        .padding(.trailing, 32)
     }
 }
 

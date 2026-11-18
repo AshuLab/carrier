@@ -134,7 +134,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         showIcon("info.circle", on: item)
     }
 
-    /// Adds the "Settings…" item: it opens the window if it was closed, then shows the Settings sheet over it.
+    /// Adds the "Settings…" item: it opens Settings in its window.
     func addSettingsItem(to menu: NSMenu) {
         let item = menu.addItem(withTitle: "Settings…", action: #selector(settingsFromMenu), keyEquivalent: ",")
         item.target = self
@@ -145,14 +145,16 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     @objc private func settingsFromMenu() { showSettings() }
 
-    func showSettings() {
+    /// Opens Settings on a page (the one it was left on when none is asked for). The main window opens too when it was closed: the pages read
+    /// what Carrier answers to it (its state, its repos), and Settings is a window of its own over it that does not stop it being used.
+    func showSettings(_ page: SettingsPage? = nil) {
         open()
-        model.shell.showSettings()
+        MainActor.assumeIsolated { SettingsWindowController.shared.show(page, model: model) }
     }
 
     /// For the self-test.
-    func closeSettings() { model.shell.settingsShown = false }
-    var settingsStatus: String { "settings sheet \(model.shell.settingsShown ? "shown" : "hidden")" }
+    func closeSettings() { MainActor.assumeIsolated { SettingsWindowController.shared.close() } }
+    var settingsStatus: String { MainActor.assumeIsolated { "settings window \(SettingsWindowController.shared.isShown ? "shown" : "hidden")" } }
 
     @objc private func aboutFromMenu() { showAbout() }
 
@@ -185,16 +187,17 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// For the Conversation menu: acts only while a conversation is open.
     func conversation(_ action: ConversationAction) { model.shell.perform(.conversation(action)) }
 
-    /// What is in front, for the global dictation (`dictationFront`): Carrier's main window, or the sheet over it, must be the key window.
+    /// What is in front, for the global dictation (`dictationFront`): Carrier's main window (or a sheet over it) or its Settings window must be the key window.
     @MainActor
     var dictationFront: DictationFront {
         let key = NSApp.keyWindow
         let shell = model.shell
+        let settingsKey = key != nil && key === SettingsWindowController.shared.window
         var hasBox = false
         if case .session(let id) = shell.selection { hasBox = model.sessions.rows.first { $0.id == id }.map { $0.archived == false } ?? false }
         return CarrierCore.dictationFront(
-            carrierIsFront: NSApp.isActive && key != nil && (key === window || key?.sheetParent === window),
-            settingsShown: shell.settingsShown, selection: shell.selection, sessionHasBox: hasBox)
+            carrierIsFront: NSApp.isActive && key != nil && (key === window || key?.sheetParent === window || settingsKey),
+            settingsShown: settingsKey, selection: shell.selection, sessionHasBox: hasBox)
     }
 
     /// The global shortcut in a session: the open conversation focuses its message box and starts its dictation, or stops it.

@@ -663,6 +663,24 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
   }
 
+  // A merged or cancelled epic's worktrees, reviewer checkout and pushed branches go, always: the code is on GitHub.
+  // Also catches up epics that ended before this existed. A failure is logged and tried again at the next poll; it never blocks anything.
+  // Read apart from the clean-up so a poll with nothing to clean awaits nothing more.
+  const endedToClean = () =>
+    db.select().from(epics).where(and(inArray(epics.status, ['merged', 'cancelled']), isNull(epics.cleanedAt), inArray(epics.repo, repos().map((r) => r.name)))).orderBy(asc(epics.id)).all()
+      .filter((epic) => !db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).get()); // still stopping: next poll
+  async function cleanUpEnded(ended: Epic[]) {
+    for (const epic of ended) {
+      try {
+        const { kept } = await workspaces.cleanUp(epic.repo, epic.issue, epic.branch);
+        if (kept.length > 0) log.warn('kept worktrees with unsaved work and local branches that are not on the remote', { repo: epic.repo, issue: epic.issue, kept });
+        db.update(epics).set({ cleanedAt: clock.now() }).where(eq(epics.id, epic.id)).run();
+      } catch (e) {
+        log.warn('could not clean up an ended epic, trying again at the next poll', { repo: epic.repo, issue: epic.issue, error: (e as Error).message });
+      }
+    }
+  }
+
   // Finished executions whose result could not be imported yet (GitHub was down).
   async function settlePending() {
     const pending = db
@@ -993,6 +1011,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       await resumeStarts();
       await reconcileLabels();
       await fillSlots();
+      const ended = endedToClean();
+      if (ended.length > 0) await cleanUpEnded(ended);
       error = null;
       return settings().pollIntervalMs;
     } catch (e) {

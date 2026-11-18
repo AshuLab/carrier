@@ -125,6 +125,53 @@ describe('GitWorkspaces against a local bare remote', () => {
     expect(await ws.findWorktree(repo, 'feat/inplace/epic')).toBeNull(); // not isolated: the clone is shared, it is nobody's workspace
   });
 
+  test('cleanUp removes the epic worktree, its lanes and its reviewer checkout, and deletes only the local branches on the remote', async () => {
+    const ws = workspaces();
+    openPr(7, git(work, 'rev-parse', 'HEAD'));
+    const clone = await ws.prepareAuthor(repo, 3);
+    const review = await ws.prepareReviewer(repo, 3, 7);
+    const epicPath = join(root, 'worktrees', 'demo', 'feature');
+    git(clone, 'worktree', 'add', '-q', '-b', 'feat/feature/epic', epicPath, 'origin/main');
+    git(clone, 'worktree', 'add', '-q', '--detach', `${epicPath}--lane-1`, 'origin/main');
+    git(clone, 'worktree', 'add', '-q', '-b', 'feat/feature/001-x', `${epicPath}--lane-2`, 'origin/main');
+    writeFileSync(join(`${epicPath}--lane-2`, 'local'), 'only here');
+    git(`${epicPath}--lane-2`, 'add', '.');
+    git(`${epicPath}--lane-2`, 'commit', '-qm', 'local only'); // never pushed: its branch must stay
+    const other = join(root, 'worktrees', 'demo', 'other');
+    git(clone, 'worktree', 'add', '-q', '-b', 'feat/other/epic', other, 'origin/main');
+    git(clone, 'branch', 'feat/featurex/epic', 'origin/main'); // a sibling prefix, not this epic's
+
+    expect(await ws.cleanUp(repo, 3, 'feat/feature/epic')).toEqual({ kept: ['feat/feature/001-x'] });
+    for (const gone of [review, epicPath, `${epicPath}--lane-1`, `${epicPath}--lane-2`]) expect(existsSync(gone)).toBe(false);
+    expect(existsSync(other)).toBe(true);
+    const branches = git(clone, 'for-each-ref', '--format=%(refname:short)', 'refs/heads/');
+    expect(branches).not.toContain('feat/feature/epic');
+    expect(branches).toContain('feat/feature/001-x');
+    expect(branches).toContain('feat/other/epic');
+    expect(branches).toContain('feat/featurex/epic');
+    expect(git(clone, 'worktree', 'list')).not.toContain(epicPath + '\n');
+
+    // Again, and for an epic that never had a branch: nothing left to do, nothing fails.
+    expect(await ws.cleanUp(repo, 3, 'feat/feature/epic')).toEqual({ kept: ['feat/feature/001-x'] });
+    expect(await ws.cleanUp(repo, 4, null)).toEqual({ kept: [] });
+  });
+
+  test('cleanUp keeps a worktree with uncommitted files or with commits on no branch, and the branch it has checked out', async () => {
+    const ws = workspaces();
+    const clone = await ws.prepareAuthor(repo, 3);
+    const epicPath = join(root, 'worktrees', 'demo', 'unsaved');
+    git(clone, 'worktree', 'add', '-q', '-b', 'feat/unsaved/epic', epicPath, 'origin/main');
+    writeFileSync(join(epicPath, 'notes.md'), 'not committed');
+    const detached = `${epicPath}--lane-1`;
+    git(clone, 'worktree', 'add', '-q', '--detach', detached, 'origin/main');
+    writeFileSync(join(detached, 'x'), 'x');
+    git(detached, 'add', '.');
+    git(detached, 'commit', '-qm', 'on no branch');
+
+    expect(await ws.cleanUp(repo, 3, 'feat/unsaved/epic')).toEqual({ kept: [epicPath, detached, 'feat/unsaved/epic'] });
+    for (const path of [epicPath, detached]) expect(existsSync(path)).toBe(true);
+  });
+
   test('the token never reaches a git config, and a failing minting is reported without leaking', async () => {
     const ws = workspaces(async () => 'SECRET-TOKEN-123');
     openPr(7, git(work, 'rev-parse', 'HEAD'));

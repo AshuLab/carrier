@@ -1,4 +1,4 @@
-import { accessSync, constants, rmSync } from 'node:fs';
+import { accessSync, constants, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
@@ -6,7 +6,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/places.ts';
 import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
 import { claimAttachments, releaseAttachments, sessionFolder } from './attachments.ts';
-import type { ChatAgent, ChatSettings } from './config.ts';
+import type { ChatAgent, ChatSettings, WorktreeCleanup } from './config.ts';
 import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
@@ -27,7 +27,7 @@ import { checkName, suggestName } from './names.ts';
 import { createProject, projectFolder, type createProjects } from './projects.ts';
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
-import { createWorktree, deleteWorktree, previewWorktree, removeWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
 import { checkout, fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
@@ -45,7 +45,7 @@ export const FOLLOW_UP_MS = 3_000;
 
 const DAY = 86_400_000;
 /** The lifecycle's ages (ADR 0019), as `chat.json` gives them. */
-export type SessionAges = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'>;
+export type SessionAges = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'> & Partial<Pick<ChatSettings, 'worktreeCleanup'>>;
 const idleFor = (row: { state: State; lastActiveAt: number }, live: boolean, now: number, days: number | 'never') => days !== 'never' && row.state === 'idle' && !live && now - row.lastActiveAt >= days * DAY;
 
 type Harness = (typeof sessions.$inferSelect)['harness'];
@@ -156,6 +156,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const switching = new Set<string>();
   // Children whose row exists and whose conversation is still opening, until each is attached or discarded: what a repeated call waits on, and what archive and delete refuse over.
   const opening = new Map<string, Promise<void>>();
+  // Sessions whose worktree folder the clock's cleanup is reading or removing, until it is done: an agent about to open in the folder waits for it.
+  const clearing = new Map<string, Promise<void>>();
   const notSwitching = (sessionId: string) => {
     if (switching.has(sessionId)) throw new ChatRefused('This session is switching to another agent; try again in a moment');
   };
@@ -180,6 +182,48 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const familyClock = (found: { id: string; lastActiveAt: number }) => {
     const kids = db.select({ id: sessions.id, lastActiveAt: sessions.lastActiveAt }).from(sessions).where(eq(sessions.parentSessionId, found.id)).all();
     return { lastActiveAt: Math.max(found.lastActiveAt, ...kids.map((kid) => kid.lastActiveAt)), live: [found, ...kids].some((member) => lives.has(member.id) || opening.has(member.id)) };
+  };
+  const worktreeOf = (found: typeof sessions.$inferSelect) => ({ path: found.worktreePath!, branch: found.worktreeBranch!, from: found.worktreeFrom!, base: found.worktreeBase! });
+
+  /**
+   * The folder a session works in, checked; a worktree the cleanup removed comes back on its kept branch first.
+   * ponytail: two clients resuming the same cleaned session at once may both try the add; the second fails with a reason, retrying works.
+   */
+  const folderOf = async (found: typeof sessions.$inferSelect) => {
+    await clearing.get(found.id)?.catch(() => undefined); // its failure is the clock's to log; what it left is looked at below
+    if (found.workspaceKind === 'worktree') await restoreWorktree(git, worktreeOf(found));
+    return checkFolder(found.folder, carrierHome());
+  };
+
+  /** The cleanup of `chat.json`'s `worktreeCleanup`: removes the folder of an idle session's worktree whose PR is merged or that stayed archived long enough, never one with uncommitted work, and keeps its branch. */
+  const cleanWorktrees = async ({ afterPrMerged, afterArchivedDays }: WorktreeCleanup, now: number) => {
+    if (afterPrMerged === false && afterArchivedDays === 'never') return;
+    for (const found of db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all()) {
+      if (closed) return;
+      if (switching.has(found.id) || deleting.has(found.id) || existsSync(found.worktreePath!) === false) continue;
+      const { lastActiveAt, live } = familyClock(found);
+      const due = (afterPrMerged && found.prState === 'merged') || (found.archived && idleFor({ state: found.state, lastActiveAt }, live, now, afterArchivedDays));
+      if (due === false || found.state !== 'idle' || live) continue;
+      const clear = async () => {
+        const { dirty } = await previewWorktree(git, worktreeOf(found), [found.worktreeBranch!]);
+        if (dirty > 0) {
+          log.info('kept a worktree with uncommitted work', { sessionId: found.id, dirty });
+          return;
+        }
+        if (familyClock(found).live || switching.has(found.id) || deleting.has(found.id)) return; // taken up while git read it
+        await clearWorktree(git, worktreeOf(found));
+        log.info('removed the folder of a worktree, its branch is kept', { sessionId: found.id, branch: found.worktreeBranch });
+      };
+      const cleared = clear();
+      clearing.set(found.id, cleared);
+      try {
+        await cleared;
+      } catch (error) {
+        log.error('the clock could not clean up a worktree; the next pass tries again', error);
+      } finally {
+        clearing.delete(found.id);
+      }
+    }
   };
   const childrenOf = (parentId: string): ChildSummary[] =>
     db.select().from(sessions).where(eq(sessions.parentSessionId, parentId)).orderBy(asc(sessions.createdAt)).all().map((child) => ({
@@ -750,7 +794,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
     if (listAgents().find((candidate) => candidate.name === agent)?.found !== true) throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
     const launch = launchOf(chosen);
-    const folder = checkFolder(parent.folder, carrierHome());
+    const folder = await folderOf(parent);
     const verdict = (await health({})).agents.find((candidate) => candidate.name === agent)?.state;
     if (verdict === 'signedOut') throw new ChatRefused(`The agent "${agent}" is signed out`);
     if (verdict === 'missing') throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
@@ -886,7 +930,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const verdict = (await health({})).agents.find((candidate) => candidate.name === agent)?.state;
       if (verdict === 'signedOut') throw new ChatRefused(`The agent "${agent}" is signed out`);
       if (verdict === 'missing') throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
-      const folder = checkFolder(current.folder, carrierHome());
+      const folder = await folderOf(current);
       const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options };
       if (options.model !== undefined) await checkModel(agent, options.model);
 
@@ -1095,7 +1139,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const chosen = listed().find((candidate) => candidate.name === current.agent);
       if (chosen === undefined) throw new ChatRefused(`The agent "${current.agent}" of this session is not configured any more`);
       const launch = launchOf(chosen);
-      const folder = checkFolder(current.folder, carrierHome());
+      const folder = await folderOf(current);
       // a session that never got a native id (nothing was said) has nothing to resume: it starts again, as it was opened
       const issued = issueMcp(sessionId);
       let conversation: ChatConversation;
@@ -1117,6 +1161,12 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         revoke(issued.invocationId);
         await conversation.close();
         throw new ChatRefused('This session is being deleted');
+      }
+      if (current.workspaceKind === 'worktree' && (clearing.has(sessionId) || existsSync(folder) === false)) {
+        // the clock's cleanup took the worktree folder while the provider opened: the agent may not stay in a folder that is going
+        revoke(issued.invocationId);
+        await conversation.close();
+        throw new ChatRefused('This session\'s worktree folder was being cleaned up; open it again to bring it back');
       }
       attach(sessionId, conversation, issued.invocationId);
       if (conversation.startedOver) {
@@ -1274,13 +1324,14 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
      * The clock's pass: archives each session left alone for `archiveAfterDays`, then deletes each archived one left alone for `deleteAfterDays`, sparing
      * (marking `keptAt`) one whose worktree holds unsaved work. A working, waiting or live one is looked at again on the next pass.
      */
-    async applyClock({ archiveAfterDays, deleteAfterDays }: SessionAges) {
+    async applyClock({ archiveAfterDays, deleteAfterDays, worktreeCleanup }: SessionAges) {
       const now = clock.now();
       for (const found of db.select().from(sessions).where(and(eq(sessions.archived, false), isNull(sessions.parentSessionId))).all()) {
         if (switching.has(found.id)) continue; // a switch is opening its new conversation; the next pass looks again
         const { lastActiveAt, live } = familyClock(found);
         if (idleFor({ state: found.state, lastActiveAt }, live, now, archiveAfterDays)) db.update(sessions).set({ archived: true }).where(eq(sessions.id, found.id)).run();
       }
+      if (worktreeCleanup !== undefined) await cleanWorktrees(worktreeCleanup, now);
       if (archiveAfterDays === 'never') return;
       for (const { id } of db.select().from(sessions).where(and(eq(sessions.archived, true), isNull(sessions.parentSessionId))).all()) {
         if (closed) return;

@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { realGit } from './git.ts';
 import { createProjects } from './projects.ts';
 import { ChatRefused } from './runner.ts';
-import { createWorktree, removeWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
 import { openChatDatabase } from './db.ts';
 import { FakeChatRunner, fakeProjects } from './fake.ts';
 import { createSessions } from './sessions.ts';
@@ -202,6 +202,30 @@ describe.skipIf(!enabled)('a session worktree, with the real git', () => {
     expect(git(clone, 'worktree', 'list')).not.toContain(fromLocal.path);
     expect(existsSync(fromRemote.path)).toBe(true); // only the one asked
     expect(snapshot(clone)).toEqual(before);
+  });
+
+  test('the cleanup removes only the folder, ignored files with it, and the folder comes back on the same branch with its commits', async () => {
+    const repo = repoAt('cleaned');
+    writeFileSync(join(repo, '.gitignore'), 'build/\n');
+    git(repo, 'add', '.');
+    git(repo, 'commit', '-q', '-m', 'ignore');
+    const made = await createWorktree(realGit, repo, { from: 'main', name: 'cleaned' });
+    writeFileSync(join(made.path, 'work.txt'), 'w\n');
+    git(made.path, 'add', '.');
+    git(made.path, 'commit', '-q', '-m', 'work');
+    const tip = git(made.path, 'rev-parse', 'HEAD').trim();
+    mkdirSync(join(made.path, 'build'));
+    writeFileSync(join(made.path, 'build', 'big.bin'), 'x'); // ignored: not uncommitted work, goes with the folder
+    expect(await previewWorktree(realGit, made, [made.branch])).toMatchObject({ dirty: 0 });
+
+    await clearWorktree(realGit, made);
+    expect(existsSync(made.path)).toBe(false);
+    expect(git(repo, 'rev-parse', made.branch).trim()).toBe(tip);
+
+    await restoreWorktree(realGit, made);
+    expect(git(made.path, 'branch', '--show-current').trim()).toBe(made.branch);
+    expect(readFileSync(join(made.path, 'work.txt'), 'utf8')).toBe('w\n');
+    expect(existsSync(join(made.path, 'build'))).toBe(false);
   });
 
   test('a name is generated when none is given, and refused when taken by a branch', async () => {

@@ -54,8 +54,12 @@ What each part of `engine/` holds:
 | `state/` | `carrier.db` (SQLite, the authority), `control.sock` (the control socket the CLI and the app use), `carrier.lock` (one engine per folder), the results of each execution (deleted with its logs), and `forge-cwd/<owner>/<name>` (the stub folder Forge runs in before a repo's first clone). |
 | `logs/` | `orchestrator.log`, `executions/<id>/` (each agent run's full output), and `start.log` (what a detached Carrier prints; the macOS app's start writes `app-start.log`). |
 | `repos/` | Carrier's clones, `<owner>/<repo>`. |
-| `reviews/` | The reviewer's separate checkouts. |
+| `reviews/` | The reviewer's separate checkouts, `<repo>/<epic>/`. |
 | `worktrees/` | `<repo>/<feature>/`, Carrier's own place for an epic's worktree by default. Any other place works: Carrier finds an epic's worktree with `git worktree list`. |
+
+When an epic is merged or cancelled the engine removes, always, its reviewer checkout, the author's worktree and Solve's `<worktree>--lane-N` worktrees beside it, wherever they are, and the epic's local branches whose tip is already on the remote.
+An author or lane worktree with uncommitted files or commits on no branch is kept, and so is a branch that is not on the remote; the log says so.
+It does this at the next poll, also for epics that ended earlier; a failure is logged and tried again at the following one.
 
 The socket path has a length limit (about 100 bytes), so keep a `CARRIER_HOME` short; `carrier doctor` warns when `engine/state/control.sock` does not fit.
 
@@ -262,7 +266,8 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
   "githubCallTimeoutSeconds": 30,
   "logLevel": "info",
   "archiveAfterDays": 15,
-  "deleteAfterDays": 30
+  "deleteAfterDays": 30,
+  "worktreeCleanup": { "afterPrMerged": false, "afterArchivedDays": "never" }
 }
 ```
 
@@ -274,6 +279,7 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
 | `logLevel` | `info` | `debug`, `info`, `warn` or `error`. Read when the host starts. |
 | `archiveAfterDays` | `15` | Days of no activity after which a session is archived: a positive whole number, or `"never"`. A wrong value (`0`, a negative, a fraction, a text such as `"15"`, `null`) stops the host naming the key. See [The session clock](#the-session-clock). |
 | `deleteAfterDays` | `30` | Days of no activity after which an archived session is deleted, with its worktree and branch: a positive whole number, or `"never"`. It must be greater than `archiveAfterDays` when both are numbers (the error is reported on `deleteAfterDays`); with `"never"` on either side there is no such rule. Same checks as `archiveAfterDays`. See [The session clock](#the-session-clock). |
+| `worktreeCleanup` | both off | When the clock removes the folder of a session's worktree and keeps its branch: `afterPrMerged` (`true` or `false`) once the session's pull request is merged, `afterArchivedDays` (a positive whole number or `"never"`, same checks as `archiveAfterDays`) once the session is archived and left alone that long. See [The session clock](#the-session-clock). |
 
 A session never works inside `<folder>/engine/`, nor through a symlink into it. The engine's config has no `chat` section: it rejects one like any unknown key.
 
@@ -285,6 +291,7 @@ The chat host applies the two ages in one pass when it starts and again every ho
 - **`"never"`.** `archiveAfterDays: "never"` archives nothing, and with it nothing is deleted by the clock, whatever `deleteAfterDays` says. `deleteAfterDays: "never"` archives but never deletes.
 - **What the clock skips.** A session that is working, waiting for an approval or open in the host is left alone and looked at again on the next pass.
 - **What an automatic delete spares.** An archived session whose worktree has uncommitted changes or commits that exist nowhere else is not deleted: it stays archived and the Archive page shows it as kept, until a later pass finds the worktree clean (and deletes it) or you restore or delete it yourself. A worktree that git cannot read is left alone, the failure is logged and the next pass tries again. A session in your own folder has no worktree and is deleted without that check. Archiving loses nothing and has no such check.
+- **Cleaning up a worktree's folder.** With `worktreeCleanup` on, the same pass removes only the folder of a session's worktree (and with it what git ignores, such as builds and dependencies), keeping the session and its branch. It never does it for a session that is working, waiting or open, nor for a worktree with uncommitted changes, which is skipped and looked at again on the next pass. The next message to that session brings the folder back on its branch first; if the branch is gone, the host refuses in words.
 - **What is never deleted.** The clones in the [projects folder](#projects-folder) and anything else in it.
 - **Changing it.** Edit the two keys here, or in the macOS app under Settings, Sessions: each age is a number of days or Never, and it is saved as you change it, and the page says in dates when a session left alone from today is archived and deleted. The host reads the file at each pass, so no restart is needed; if the file is wrong at that moment the pass is skipped and the log says why. The Archive page shows when each archived session will go ("Deletes in N days", "Deletes soon" once due) or "Kept because its worktree has unsaved work". If a session is kept, see [Troubleshooting](troubleshooting.md#an-archived-session-is-kept-and-not-deleted).
 

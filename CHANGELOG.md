@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- When an epic is merged or cancelled, the engine removes its reviewer checkout, its worktrees (not one with uncommitted files or commits on no branch) and its local branches already on the remote, also for epics that ended earlier.
+- `worktreeCleanup` in `chat.json` (off by default) removes the folder of a session's worktree once its pull request is merged or it stayed archived long enough, keeping the branch; the next message brings the folder back.
+
 ### Changed
 
 - The Carrier folder has a new layout ([ADR 0034](docs/adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)): the engine's config is `engine.json` (was `config.json`) and the chat's is `chat.json` at the top (was `chat/chat.json`), next to `providers.json`; the app keeps its terminals and dictation history in `app/state/`, its speech models and terminal shim in `app/cache/`. Old paths are not read: move or recreate the files.

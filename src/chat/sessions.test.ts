@@ -1190,6 +1190,95 @@ test('a git that fails on one session leaves it alone, logs the failure and does
   errors.mockRestore();
 });
 
+const cleanup = (worktreeCleanup: { afterPrMerged: boolean; afterArchivedDays: number | 'never' }) => ({ archiveAfterDays: 'never' as const, deleteAfterDays: 'never' as const, worktreeCleanup });
+const prMerged = (s: { db: ReturnType<typeof setup>['db'] }, id: string) => s.db.update(schemaSessions).set({ prState: 'merged' }).where(eq(schemaSessions.id, id)).run();
+
+test('worktree cleanup is off by default: a merged, long-archived session keeps its worktree folder', async () => {
+  const s = worktreeSetup();
+  const done = await s.inWorktree('done');
+  prMerged(s, done.id);
+  await s.sessions.archive({ sessionId: done.id, archived: true });
+  s.clock.time = 400 * DAY;
+  await s.sessions.applyClock(cleanup({ afterPrMerged: false, afterArchivedDays: 'never' }));
+  expect(existsSync(done.path)).toBe(true);
+});
+
+test('afterPrMerged removes the worktree folder of a merged session and keeps its branch and the session, never one with uncommitted work or an open PR', async () => {
+  const s = worktreeSetup();
+  const merged = await s.inWorktree('merged');
+  const open = await s.inWorktree('open');
+  const dirty = await s.inWorktree('dirty', { status: ['?? notes.md'] });
+  prMerged(s, merged.id);
+  prMerged(s, dirty.id);
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterArchivedDays: 'never' }));
+  expect(existsSync(merged.path)).toBe(false);
+  expect(existsSync(open.path)).toBe(true);
+  expect(existsSync(dirty.path)).toBe(true);
+  expect(s.base.branches).toEqual(['main', merged.branch, open.branch, dirty.branch]);
+  expect(sessionIds(s).sort()).toEqual([merged.id, open.id, dirty.id].sort());
+});
+
+test('afterArchivedDays removes the folder of a session archived and left alone that long, and not of one a day short or not archived', async () => {
+  const s = worktreeSetup();
+  const due = await s.inWorktree('due');
+  const active = await s.inWorktree('active');
+  s.clock.time = 1 * DAY;
+  const short = await s.inWorktree('short');
+  for (const sessionId of [due.id, short.id]) await s.sessions.archive({ sessionId, archived: true });
+  s.clock.time = 3 * DAY;
+  await s.sessions.applyClock(cleanup({ afterPrMerged: false, afterArchivedDays: 3 }));
+  expect([due, active, short].map((w) => existsSync(w.path))).toEqual([false, true, true]);
+});
+
+test('a live session is never cleaned up, and resuming one whose folder was cleaned brings it back on its branch', async () => {
+  const s = worktreeSetup();
+  const one = await s.inWorktree('one');
+  prMerged(s, one.id);
+  await s.sessions.resume({ sessionId: one.id });
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterArchivedDays: 'never' }));
+  expect(existsSync(one.path)).toBe(true); // live
+  await s.sessions.close({ sessionId: one.id });
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterArchivedDays: 'never' }));
+  expect(existsSync(one.path)).toBe(false);
+
+  await s.sessions.resume({ sessionId: one.id });
+  expect(existsSync(one.path)).toBe(true);
+  expect(s.git.calls.at(-1)?.args).toEqual(['worktree', 'add', one.path, one.branch]);
+});
+
+test('a resume still opening when the cleanup takes the folder is refused, leaves no agent behind, and the next one brings the folder back', async () => {
+  const s = worktreeSetup();
+  const one = await s.inWorktree('one');
+  prMerged(s, one.id);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  const open = s.claude.open.bind(s.claude);
+  s.claude.open = async (args) => {
+    await held;
+    return open(args);
+  };
+  const resuming = s.sessions.resume({ sessionId: one.id });
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterArchivedDays: 'never' }));
+  expect(existsSync(one.path)).toBe(false);
+  release();
+  await expect(resuming).rejects.toThrow('was being cleaned up');
+  expect(s.claude.conversations.at(-1)?.closed).toBe(true);
+
+  s.claude.open = open;
+  await s.sessions.resume({ sessionId: one.id });
+  expect(existsSync(one.path)).toBe(true);
+});
+
+test('resuming a cleaned session whose branch is gone refuses in words and makes nothing', async () => {
+  const s = worktreeSetup();
+  const gone = await s.inWorktree('gone');
+  prMerged(s, gone.id);
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterArchivedDays: 'never' }));
+  s.base.branches = ['main'];
+  await expect(s.sessions.resume({ sessionId: gone.id })).rejects.toThrow(`its branch ${gone.branch} is gone`);
+  expect(existsSync(gone.path)).toBe(false);
+});
+
 test('a session in the person\'s own folder is deleted without the check', async () => {
   const s = await openOne();
   await s.sessions.close({ sessionId: s.id });

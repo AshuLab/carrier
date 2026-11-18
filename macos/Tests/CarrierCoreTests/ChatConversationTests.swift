@@ -41,7 +41,7 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
         "allowed: Allowed Bash pnpm lint · Allow · by you",
         "tools: Worked | 1 command",
         "agent: The page is two componen",
-        "end: sonnet 5.5 · 12s · 10.8k context · 436 out",
+        "end: sonnet 5.5 · 12s · 10.8k in · 436 out",
         "user: Now run the tests.",
         "error: The turn failed",
         "end: sonnet 5.5 · 1s",
@@ -158,14 +158,17 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
         return chatFeed(user + [end]).compactMap { if case .turnEnd(_, let summary) = $0 { summary.text } else { nil } }.first
     }
     func end(model: String? = nil, usage: [String: Double]? = nil, at: Int = 65_000) -> ChatEvent { ChatEvent(id: 2, at: at, kind: "turn_end", outcome: "ok", model: model, usage: usage) }
-    #expect(line(end(model: "m", usage: ["input_tokens": 12, "output_tokens": 2500, "total_cost_usd": 0.5])) == "m · 1m · 12 context · 2.5k out")
+    #expect(line(end(model: "m", usage: ["input_tokens": 12, "output_tokens": 2500, "total_cost_usd": 0.5])) == "m · 1m · 12 in · 2.5k out")
+    // what the calls of the turn read added up is not the context, so it is not called that: only a host that says the last call's size does
+    #expect(line(end(model: "m", usage: ["input_tokens": 12, "cache_read_input_tokens": 500_000, "context_tokens": 181_200, "output_tokens": 130])) == "m · 1m · 181.2k context · 130 out")
+    #expect(line(end(model: "gpt", usage: ["inputTokens": 900_000, "contextTokens": 95_000], at: 4000)) == "gpt · 4s · 95.0k context")
     // the cache counts toward what the model read
-    #expect(line(end(model: "m", usage: ["input_tokens": 2, "cache_read_input_tokens": 22_000, "cache_creation_input_tokens": 100, "output_tokens": 130])) == "m · 1m · 22.1k context · 130 out")
+    #expect(line(end(model: "m", usage: ["input_tokens": 2, "cache_read_input_tokens": 22_000, "cache_creation_input_tokens": 100, "output_tokens": 130])) == "m · 1m · 22.1k in · 130 out")
     // Codex reports in camel case; a usage with only some of the counts shows only those
-    #expect(line(end(model: "gpt", usage: ["inputTokens": 900], at: 4000)) == "gpt · 4s · 900 context")
+    #expect(line(end(model: "gpt", usage: ["inputTokens": 900], at: 4000)) == "gpt · 4s · 900 in")
     #expect(line(end(model: "m", usage: [:], at: 4000)) == "m · 4s")
     // a page that starts after the turn began has no start to measure from
-    #expect(line(end(model: "m", usage: ["input_tokens": 5]), from: nil) == "m · 5 context")
+    #expect(line(end(model: "m", usage: ["input_tokens": 5]), from: nil) == "m · 5 in")
     #expect(line(end(), from: nil) == nil)
 }
 
@@ -212,7 +215,7 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         "agent: One test still fails. Le",
         "tools: Worked | 1 other tool",
         "agent: The server is fine, so t",
-        "end: sonnet 5.5 · 16s · 2.1k context · 310 out",
+        "end: sonnet 5.5 · 16s · 2.1k in · 310 out",
     ])
     let explored = group(rows)
     #expect(explored.calls.map(\.result) == ["3 lines", "3 lines", "2 matches"] && explored.durationMs == 1600 && explored.failed == 0)

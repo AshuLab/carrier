@@ -499,9 +499,13 @@ public struct TurnSummary: Equatable {
     public var cacheRead: Double?
     public var cacheWrite: Double?
     public var output: Double?
+    /// What the turn's last model call read: the context at the turn's end. The three counts above add every call of the turn up, and each call
+    /// reads the whole context again, so they are many times it; nil from a host that does not say it.
+    public var contextTokens: Double?
 
-    public init(model: String? = nil, duration: String? = nil, input: Double? = nil, cacheRead: Double? = nil, cacheWrite: Double? = nil, output: Double? = nil) {
+    public init(model: String? = nil, duration: String? = nil, input: Double? = nil, cacheRead: Double? = nil, cacheWrite: Double? = nil, output: Double? = nil, contextTokens: Double? = nil) {
         (self.model, self.duration, self.input, self.cacheRead, self.cacheWrite, self.output) = (model, duration, input, cacheRead, cacheWrite, output)
+        self.contextTokens = contextTokens
     }
 
     init?(_ end: ChatEvent, turnStart: Int?) {
@@ -509,22 +513,30 @@ public struct TurnSummary: Equatable {
         self.init(
             model: end.model, duration: turnStart.map { formatDuration(end.at - $0) },
             input: count("input_tokens", "inputTokens"), cacheRead: count("cache_read_input_tokens", "cacheReadInputTokens"),
-            cacheWrite: count("cache_creation_input_tokens", "cacheCreationInputTokens"), output: count("output_tokens", "outputTokens")
+            cacheWrite: count("cache_creation_input_tokens", "cacheCreationInputTokens"), output: count("output_tokens", "outputTokens"),
+            contextTokens: count("context_tokens", "contextTokens")
         )
         if text.isEmpty { return nil }
     }
 
-    /// Everything the model read, nil when the provider reported none of it.
-    public var context: Double? {
+    /// Everything the turn's model calls read added up, nil when the provider reported none of it.
+    public var read: Double? {
         let reads = [input, cacheRead, cacheWrite].compactMap { $0 }
         return reads.isEmpty ? nil : reads.reduce(0, +)
+    }
+
+    /// `181.2k context`: the context at the turn's end. A host that does not say it (an older one, or a turn it stored before) leaves only what the
+    /// calls read added up, which is not the context and is not called that: `540.1k in`.
+    public var contextText: String? {
+        if let contextTokens { return "\(Self.tokens(contextTokens)) context" }
+        return read.map { "\(Self.tokens($0)) in" }
     }
 
     /// `12`, `2.5k`: a count as the line writes it.
     public static func tokens(_ count: Double) -> String { count < 1000 ? "\(Int(count))" : String(format: "%.1fk", count / 1000) }
 
     public var text: String {
-        [shortModel, duration, context.map { "\(Self.tokens($0)) context" }, output.map { "\(Self.tokens($0)) out" }].compactMap { $0 }.joined(separator: " · ")
+        [shortModel, duration, contextText, output.map { "\(Self.tokens($0)) out" }].compactMap { $0 }.joined(separator: " · ")
     }
 
     /// The model as a person says it: `claude-haiku-5-5` is `haiku 5.5`, and a dated one (`claude-opus-4-1-20250805`) loses its date. A name

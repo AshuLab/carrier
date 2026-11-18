@@ -410,7 +410,7 @@ extension FeedRowView {
     }
 
     private func summaryView(_ summary: TurnSummary) -> some View {
-        let numbers = [summary.duration, summary.context.map { "\(TurnSummary.tokens($0)) context" }, summary.output.map { "\(TurnSummary.tokens($0)) out" }]
+        let numbers = [summary.duration, summary.contextText, summary.output.map { "\(TurnSummary.tokens($0)) out" }]
             .compactMap { $0 }.joined(separator: " · ")
         return HStack(spacing: 10) {
             if let model = summary.shortModel {
@@ -436,10 +436,14 @@ extension FeedRowView {
         }
     }
 
-    /// What the context is made of, for the tooltip of the numbers.
+    /// The tooltip of the numbers: the context at the end of the turn, then what all its model calls read and wrote added up (each call reads the whole
+    /// context again, most of it from the cache, so these are many times the context).
     private func breakdown(_ summary: TurnSummary) -> String {
-        [("New input", summary.input), ("Read from the cache", summary.cacheRead), ("Written to the cache", summary.cacheWrite), ("Output", summary.output)]
-            .compactMap { name, count in count.map { "\(name): \(Int($0).formatted())" } }.joined(separator: "\n")
+        let total = [("New input", summary.input), ("Read from the cache", summary.cacheRead), ("Written to the cache", summary.cacheWrite), ("Output", summary.output)]
+            .compactMap { name, count in count.map { "\(name): \(Int($0).formatted())" } }
+        let context = summary.contextTokens.map { ["Context at the end: \(Int($0).formatted())"] } ?? []
+        let header = total.isEmpty ? [] : [context.isEmpty ? "All the turn's model calls:" : "\nAll the turn's model calls:"]
+        return (context + header + total).joined(separator: "\n")
     }
 
     /// Copies the message as it was written (its Markdown) and says so with a green tick for a moment. An agent message also offers its plain text, with the

@@ -143,7 +143,7 @@ test('the recorded conversation: remembers across turns, streams, and every turn
   expect(first.filter((e) => e.kind === 'delta')).toEqual([{ kind: 'delta', text: 'OK' }]);
   expect(first.filter((e) => e.kind !== 'delta' && e.kind !== 'option')).toEqual([
     { kind: 'assistant', text: 'OK' },
-    { kind: 'turn_end', outcome: 'ok', model: 'gpt-5.6-luna', usage: expect.objectContaining({ totalTokens: 18291, outputTokens: 5 }) },
+    { kind: 'turn_end', outcome: 'ok', model: 'gpt-5.6-luna', usage: expect.objectContaining({ totalTokens: 18291, outputTokens: 5, contextTokens: expect.any(Number) }) },
   ]);
 
   const second = await turn(conversation, events, mainTexts[1]!);

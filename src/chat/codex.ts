@@ -128,6 +128,8 @@ class CodexConversation implements ChatConversation {
   private turning = false;
   private turnId: string | undefined;
   private usage: ChatUsage = {};
+  /** What the turn's last model call read (its `inputTokens` already holds what came from the cache): the context at the turn's end, which the sum of the calls is not. */
+  private lastContext: number | undefined;
   private closing = false;
   private chosen: Record<string, string>;
   private binary: string;
@@ -217,6 +219,7 @@ class CodexConversation implements ChatConversation {
   send(text: string, command?: ChatCommand) {
     this.turning = true;
     this.usage = {};
+    this.lastContext = undefined;
     this.turnId = undefined;
     const overrides = this.overrides;
     this.overrides = {};
@@ -467,6 +470,7 @@ class CodexConversation implements ChatConversation {
       case 'thread/tokenUsage/updated':
         // One update per model call: the turn's usage is what its calls added up to.
         for (const [key, value] of Object.entries((params?.tokenUsage?.last ?? {}) as Record<string, unknown>)) if (typeof value === 'number') this.usage[key] = (this.usage[key] ?? 0) + value;
+        if (typeof params?.tokenUsage?.last?.inputTokens === 'number') this.lastContext = params.tokenUsage.last.inputTokens;
         return [];
       case 'turn/completed': {
         if (this.limit === undefined && isUsageLimit(params?.turn?.error)) this.limit = this.announceLimit(params.turn.error.message);
@@ -511,6 +515,8 @@ class CodexConversation implements ChatConversation {
   private turnEnd(turn: { status?: unknown; error?: { message?: unknown } } | undefined, limitAnnounced = false): ChatEvent[] {
     const outcome = turn?.status === 'completed' ? 'ok' : turn?.status === 'interrupted' ? 'interrupted' : 'error';
     const usage = this.usage;
+    if (this.lastContext !== undefined) usage.contextTokens = this.lastContext;
+    this.lastContext = undefined;
     this.turning = false;
     this.turnId = undefined;
     this.usage = {};

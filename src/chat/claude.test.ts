@@ -93,7 +93,7 @@ test('the recorded conversation: remembers across turns, runs a tool, and every 
   expect(first.filter((e) => e.kind === 'delta').length).toBeGreaterThan(0);
   expect(first.filter((e) => e.kind !== 'delta')).toEqual([
     { kind: 'assistant', text: 'OK' },
-    { kind: 'turn_end', outcome: 'ok', model: 'claude-haiku-5-5', usage: expect.objectContaining({ output_tokens: 4, cache_read_input_tokens: 22126, total_cost_usd: expect.any(Number) }) },
+    { kind: 'turn_end', outcome: 'ok', model: 'claude-haiku-5-5', usage: expect.objectContaining({ output_tokens: 4, cache_read_input_tokens: 22126, context_tokens: expect.any(Number), total_cost_usd: expect.any(Number) }) },
   ]);
   expect(conversation.nativeId).toBe(sessionId);
 
@@ -279,6 +279,25 @@ test('a line it does not know is ignored and never throws', async () => {
   const unknown: Line[] = [{ type: 'brand_new' }, { type: 'assistant', message: 7 }, { type: 'user', message: { content: [null, { type: 'tool_result' }] } }, { type: 'stream_event', event: 3 }, { type: 'system', subtype: 'hook_started' }, { type: 'result', usage: 'x', modelUsage: null }];
   const { conversation, events } = await openWith([{ text: 'hi', lines: unknown }]);
   expect(await turn(conversation, events, 'hi')).toEqual([{ kind: 'turn_end', outcome: 'ok', model: undefined, usage: {} }]);
+});
+
+test('a turn ends with the context of its last model call, not the sum of the calls its result adds up', async () => {
+  const call = (usage: Line, parent?: string): Line => ({ type: 'assistant', ...(parent && { parent_tool_use_id: parent }), message: { model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'ok' }], usage } });
+  const lines: Line[] = [
+    call({ input_tokens: 3, cache_read_input_tokens: 90_000, cache_creation_input_tokens: 1_000 }),
+    // a subagent's call is its own context, not the turn's
+    call({ input_tokens: 5, cache_read_input_tokens: 400_000, cache_creation_input_tokens: 0 }, 'toolu_sub'),
+    call({ input_tokens: 4, cache_read_input_tokens: 92_000, cache_creation_input_tokens: 500 }),
+    { type: 'result', subtype: 'success', is_error: false, usage: { input_tokens: 7, cache_read_input_tokens: 182_000, cache_creation_input_tokens: 1_500, output_tokens: 20 } },
+  ];
+  const { conversation, events } = await openWith([{ text: 'hi', lines }]);
+  const end = (await turn(conversation, events, 'hi')).find((e) => e.kind === 'turn_end');
+  expect(end).toMatchObject({ usage: { context_tokens: 92_504, cache_read_input_tokens: 182_000 } });
+  // the next turn starts clean: a result that no call came before has no context
+  const next = await openWith([{ text: 'a', lines: [call({ input_tokens: 1, cache_read_input_tokens: 10 }), { type: 'result', subtype: 'success', is_error: false, usage: {} }] }, { text: 'b', lines: [{ type: 'result', subtype: 'success', is_error: false, usage: {} }] }]);
+  await turn(next.conversation, next.events, 'a');
+  expect((await turn(next.conversation, next.events, 'b')).find((e) => e.kind === 'turn_end')).toMatchObject({ usage: {} });
+  expect((await turn(next.conversation, next.events, 'b')).find((e) => e.kind === 'turn_end')).not.toHaveProperty('usage.context_tokens');
 });
 
 test('the background tasks the SDK reports are the whole set each time, without the watchers, and a task that goes leaves the set', async () => {

@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-18
+
+A new layout for the Carrier folder, and what it holds stops growing without end: the configs sit at the top as `engine.json` and `chat.json`, the logs rotate, a message's files go with their session, and the folders of finished epics and of idle sessions' worktrees are cleaned up.
+Old paths are not read: move `config.json` to `engine.json` and `chat/chat.json` to `chat.json`.
+
 ### Added
 
 - When an epic is merged or cancelled, the engine removes its reviewer checkout, its worktrees (not one with uncommitted files or commits on no branch) and its local branches already on the remote, also for epics that ended earlier.

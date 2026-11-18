@@ -359,19 +359,24 @@ public struct WatchNote: Equatable {
         guard let wanted = restoredOptions, loadingOptions == false, agent == optionsAgent else { return }
         restoredOptions = nil
         // the model first: the reasoning levels are the chosen model's, so its effort is checked against them
-        for (option, value) in wanted.sorted(by: { ($0.key == "model" ? 0 : 1, $0.key) < ($1.key == "model" ? 0 : 1, $1.key) }) { choose(option: option, value: value) }
+        if let model = wanted["model"] { choose(option: "model", value: model) }
+        for (option, value) in wanted where option != "model" { choose(option: option, value: value) }
     }
 
     /// What the selects list: the agent's options with the person's choices on top.
     public var shownOptions: [ChatOption] {
-        let levels = chosenModel?.efforts ?? []
-        return agentOptions.map { option in
+        let picked = chosenModel
+        let levels = picked?.efforts ?? []
+        // a model that lists no levels has no reasoning option, as in the host
+        return agentOptions.filter { $0.id != "effort" || picked?.efforts?.isEmpty != true }.map { option in
             var values = option.values
             var current = option.current
-            // the levels of the model chosen here, not those of the one the host opened its probe session with; the session starts on the model's own default
+            // the levels of the model chosen here, not those of the one the host opened its probe session with; a model other than that one
+            // starts on its own default, and with none named the host's current stays (the host knows it, we do not guess one)
             if option.id == "effort", levels.isEmpty == false {
                 values = levels.map { .init(id: $0, label: $0) }
-                current = chosenModel?.defaultEffort ?? (levels.contains(current) ? current : levels[0])
+                let probed = agentOptions.first { $0.id == "model" }?.current
+                if picked?.id != probed, let fallback = picked?.defaultEffort { current = fallback }
             }
             return ChatOption(id: option.id, label: option.label, values: values, current: chosenOptions[option.id] ?? current)
         }

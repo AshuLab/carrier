@@ -1814,3 +1814,43 @@ private let codexLevels = [
     model.choose(option: "effort", value: "low")
     #expect(model.chosenOptions == ["model": "haiku", "effort": "low"])
 }
+
+@MainActor @Test func theProbeModelKeepsTheEffortTheHostReportsAndAModelWithNoDefaultNamesNone() async {
+    let host = FakeChat()
+    host.offered["codex"] = [
+        ChatOption(id: "model", label: "Model", values: [
+            .init(id: "probe", label: "Probe", efforts: ["low", "high"], defaultEffort: "low"),
+            .init(id: "other", label: "Other", efforts: ["low", "high"]),
+        ], current: "probe"),
+        ChatOption(id: "effort", label: "Reasoning effort", values: [.init(id: "low", label: "low"), .init(id: "high", label: "high")], current: "high"),
+    ]
+    host.agents = [ChatAgent(name: "codex", harness: "codex", found: true)]
+    let model = await draft(host)
+    await model.loadOptions()
+    // the probe's own model: the effort the host reports (it may come from the person's own config), not the model's default
+    model.choose(option: "model", value: "probe")
+    #expect(effortOf(model)?.current == "high")
+    // a model that names no default: the host's current stays and no level is made up
+    model.choose(option: "model", value: "other")
+    #expect(effortOf(model)?.current == "high")
+}
+
+@MainActor @Test func aModelThatListsNoLevelsHasNoReasoningOption() async {
+    let host = FakeChat()
+    host.offered["codex"] = [
+        ChatOption(id: "model", label: "Model", values: [
+            .init(id: "plain", label: "Plain", efforts: []),
+            .init(id: "deep", label: "Deep", efforts: ["low", "high"], defaultEffort: "low"),
+        ], current: "deep"),
+        ChatOption(id: "effort", label: "Reasoning effort", values: [.init(id: "low", label: "low"), .init(id: "high", label: "high")], current: "low"),
+    ]
+    host.agents = [ChatAgent(name: "codex", harness: "codex", found: true)]
+    let model = await draft(host)
+    await model.loadOptions()
+    model.choose(option: "model", value: "plain")
+    #expect(effortOf(model) == nil)
+    model.choose(option: "effort", value: "high")
+    #expect(model.chosenOptions == ["model": "plain"])
+    model.choose(option: "model", value: "deep")
+    #expect(effortOf(model)?.values.map(\.id) == ["low", "high"])
+}

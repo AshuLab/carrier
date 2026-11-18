@@ -223,9 +223,9 @@ import SwiftUI
         let minutes = preferences.dictationReleaseAfter
         guard loaded, minutes > 0 else { return }
         let wait = idleSince.addingTimeInterval(Double(minutes) * 60).timeIntervalSince(now())
+        let delay = Duration.seconds(max(wait, 0))
         releaseTimer = Task { [weak self, sleep] in
-            guard Task.isCancelled == false else { return }
-            do { try await sleep(.seconds(max(wait, 0))) } catch { return }
+            guard (try? await sleep(delay)) != nil else { return }
             self?.evaluate()
         }
     }

@@ -253,11 +253,9 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     private func transcribe() {
         state = .transcribing
         answerIsSlow = false
-        let mine = generation
+        let mine = generation, quick = Self.quickAnswer
         slowness = Task {
-            guard Task.isCancelled == false else { return }
-            do { try await sleep(Self.quickAnswer) } catch { return }
-            guard generation == mine else { return }
+            guard (try? await sleep(quick)) != nil, generation == mine else { return }
             answerIsSlow = true
         }
     }
@@ -266,22 +264,18 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         let mine = generation
         let timeout = Self.answerFloor + Self.answerPerAudioSecond * captured.components.seconds
         watchdog = Task {
-            guard Task.isCancelled == false else { return }
-            do { try await sleep(timeout) } catch { return }
-            guard Task.isCancelled == false, generation == mine else { return }
+            guard (try? await sleep(timeout)) != nil, Task.isCancelled == false, generation == mine else { return }
             running?.cancel()
             fail(DictationFailure("The recognizer did not answer."))
         }
     }
 
-    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped. A model that is ready at once
-    /// cancels this task before it begins, and the runtime of the macos-26 runner aborts ("freed pointer was not the last allocation") when a
-    /// task that was cancelled before it began goes on to sleep: so it looks first.
+    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped. The floor is read before the
+    /// task: the runtime of the macos-26 runner aborts ("freed pointer was not the last allocation") when the task reads it as it sleeps.
     private func watchTheModel(_ mine: Int) {
+        let floor = Self.answerFloor
         watchdog = Task {
-            guard Task.isCancelled == false else { return }
-            do { try await sleep(Self.answerFloor) } catch { return }
-            guard Task.isCancelled == false, generation == mine, modelReady == false else { return }
+            guard (try? await sleep(floor)) != nil, Task.isCancelled == false, generation == mine, modelReady == false else { return }
             samples = []
             running?.cancel()
             fail(DictationFailure("The speech model did not get ready in time."))

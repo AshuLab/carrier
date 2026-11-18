@@ -125,6 +125,8 @@ class ClaudeConversation implements ChatConversation {
   /** Turns that Carrier started itself (an `/effort` change) and the person must not see. */
   private hidden = 0;
   private lastModel: string | undefined;
+  /** What the turn's last model call of its own (not a subagent's) read: the context at the turn's end. The result's `usage` adds every call up, which is not it. */
+  private lastContext: number | undefined;
   /** The reset the CLI's own message about a usage limit gave, held until the turn's result says whether it was one (epoch ms). */
   private limitResetsAt: number | undefined;
   private closing = false;
@@ -365,7 +367,12 @@ class ClaudeConversation implements ChatConversation {
         const parentCallId = parentOf(m);
         const own = parentCallId === undefined ? {} : { parentCallId };
         // "<synthetic>" is the CLI's own message (a usage limit, an API error), not a model the person ran; a subagent's model is not the turn's
-        if (parentCallId === undefined && typeof m.message?.model === 'string' && m.message.model !== '<synthetic>') this.lastModel = m.message.model;
+        if (parentCallId === undefined && typeof m.message?.model === 'string' && m.message.model !== '<synthetic>') {
+          this.lastModel = m.message.model;
+          const read = (key: string) => (typeof m.message?.usage?.[key] === 'number' ? (m.message.usage[key] as number) : 0);
+          const context = read('input_tokens') + read('cache_read_input_tokens') + read('cache_creation_input_tokens');
+          if (context > 0) this.lastContext = context;
+        }
         const events: ChatEvent[] = [];
         // A usage limit comes out once, as the `error` of the result: its words are not an answer
         if (m.message?.model === '<synthetic>' && isUsageLimit(m.api_error, textOf(m.message.content))) {
@@ -426,6 +433,8 @@ class ClaudeConversation implements ChatConversation {
   private turnEnd(m: { subtype?: string; is_error?: boolean; errors?: unknown; result?: unknown; api_error?: unknown; usage?: unknown; total_cost_usd?: unknown; modelUsage?: unknown }): ChatEvent[] {
     const resetsAt = this.limitResetsAt;
     this.limitResetsAt = undefined;
+    const context = this.lastContext;
+    this.lastContext = undefined;
     if (this.hidden > 0) {
       this.hidden--;
       return [];
@@ -444,6 +453,7 @@ class ClaudeConversation implements ChatConversation {
     const usage: ChatUsage = {};
     for (const [key, value] of Object.entries((m.usage ?? {}) as Record<string, unknown>)) if (typeof value === 'number') usage[key] = value;
     if (typeof m.total_cost_usd === 'number') usage.total_cost_usd = m.total_cost_usd;
+    if (context !== undefined) usage.context_tokens = context;
     const model = this.lastModel ?? Object.keys((m.modelUsage ?? {}) as object)[0];
     events.push({ kind: 'turn_end', outcome: interrupted ? 'interrupted' : m.is_error ? 'error' : 'ok', model, usage });
     return events;

@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Settings › About, kept at the foot of the rail, replaces Updates: the app's icon and version, links to the release notes, the documentation and GitHub, a Star Carrier on GitHub row, and the updates with the engine's own.
+- Settings › About › Update delay (None, 1, 3, 7, 14 or 30 days): Carrier waits that long after a release before it offers it by itself; Check now and a critical update ignore it.
+
+### Changed
+
+- Settings: Dictation is in the App group, after Keybindings, since it is global; the Legacy group is gone and Health is the last page of Carrier.
+- Settings › Dictation › Cleanup: the switch turns the whole group on and off (the server, model, prompt and test are dimmed while it is off), and you choose the server after turning it on. The test is a Try it box: a sample dictation with fillers in English under Dictated, a button, and what the model gave back under Cleaned, with a shimmer while it works and an orange box with the cause when it fails.
+- The sliders of Settings › Dictation › Sounds and Settings › Terminal have no tick marks under them.
+- "Use a worktree", in the notice about uncommitted files, is in the color of the text and not the accent, so it reads over the orange.
+- The card of a turn in the conversation's timeline has larger text, more contrast and more room.
+- The line that closes a turn says the context it ended with ("181.2k context") and not the sum of what each model call read; a turn stored without it says "N in".
+
+### Fixed
+
+- A subagent's view replaces the conversation instead of showing it through, and its state, Stop and the terminal button sit at the right of the window's header.
+- The model menu, the message box and the session's card show an account's own mark in its color and not a letter ("C Lu"), also for an account named by you.
+- The dictation widget no longer grows as tall as the screen when it holds a text that was only copied or a failure, and the reasons over a copied text no longer squeeze it.
+
 ## [0.12.0] - 2026-11-18
 
 A new layout for the Carrier folder, and what it holds stops growing without end: the configs sit at the top as `engine.json` and `chat.json`, the logs rotate, a message's files go with their session, and the folders of finished epics and of idle sessions' worktrees are cleaned up.

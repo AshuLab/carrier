@@ -73,7 +73,7 @@ public struct CleanupRun: Sendable {
     }
 }
 
-/// Cleanup can be on only with a server and one of its models chosen.
+/// Cleanup can run only with a server and one of its models chosen.
 public func cleanupCanBeOn(server: CleanupServer?, model: String?) -> Bool { server != nil && model?.isEmpty == false }
 
 /// What the prompt says until the person writes their own.
@@ -82,5 +82,5 @@ public let defaultCleanupPrompt = """
     Do not translate, add or explain anything. Reply with the cleaned text only.
     """
 
-/// What the Test button sends, a dictation with fillers and a stutter.
-public let cleanupSample = "eh bueno entonces lo que quería decir es que el el endpoint tiene que devolver los datos este por día y no por hora o sea"
+/// What the Try it box sends: a dictation with fillers, a stutter, a false start and no punctuation or capitals.
+public let cleanupSample = "um so basically what i wanted to say is that the the endpoint should return the data uh per day and not per hour you know i mean per day"

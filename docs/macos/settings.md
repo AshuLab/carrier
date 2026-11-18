@@ -2,19 +2,20 @@
 
 The Settings sheet, its rail and where each group of pages is described.
 
-Settings is a sheet over the window (`Carrier/SettingsSheet.swift`, the shape of the workspace chooser: a rail of sixteen pages in four groups, App (General, Providers, Notifications, Appearance, Terminal, Keybindings, Updates; no heading, and Providers is here because both the engine and the chat host read its accounts), Chat (Chat, Sidebar, Sessions, Dictation), Carrier (Repos, Agents, Behavior, Engine) and Legacy (Health), `RailHeader` and `RailRow` of `SheetParts.swift`, the chosen one on the right, closed by an ✕ at the top right or Esc).
+Settings is a sheet over the window (`Carrier/SettingsSheet.swift`, the shape of the workspace chooser: a rail of sixteen pages in three groups, App (General, Providers, Notifications, Appearance, Terminal, Keybindings, Dictation; no heading, and Providers is here because both the engine and the chat host read its accounts), Chat (Chat, Sidebar, Sessions) and Carrier (Repos, Agents, Behavior, Engine, Health) and About (alone, kept at the foot of the rail under a line, so it stays in view in a short window), `RailHeader` and `RailRow` of `SheetParts.swift`, the chosen one on the right, closed by an ✕ at the top right or Esc).
 The menu's Settings…, ⌘, and the sidebar's Settings row open it over whatever page is selected (`WindowShell.showSettings`, `settingsShown`; it is not a `Selection`), on General unless a caller asks for another (`openHealth` asks for Health, and the Open Settings button of the stopped-Carrier view asks for Engine).
 
 ## The rail
 
-- App: [settings-app](settings-app.md) (General, Providers, Notifications, Appearance, Terminal, Keybindings, Updates).
-- Chat: [Sessions](#sessions-page) below and [dictation](dictation.md#the-dictation-page) (Dictation).
-- Carrier: [settings-carrier](settings-carrier.md) (Repos, Agents, Behavior, Engine).
-- Legacy: [settings-legacy](settings-legacy.md) (Health).
+- App: [settings-app](settings-app.md) (General, Providers, Notifications, Appearance, Terminal, Keybindings) and [dictation](dictation.md#the-dictation-page) (Dictation, after Keybindings: it is global, not of the chat).
+- Chat: [Sessions](#sessions-page) below (Chat, Sidebar, Sessions).
+- Carrier: [settings-carrier](settings-carrier.md) (Repos, Agents, Behavior, Engine) and [settings-health](settings-health.md) (Health).
+- About (`Carrier/AboutTab.swift`, last of the rail): the app's icon, name and version with the links of the About panel (`aboutLinks`: Release notes, Documentation, GitHub) and a row Star Carrier on GitHub with its button (it opens the repository, `repositoryURL`); Updates (Check now or the step of an update found, Check by itself, Install by itself and Update delay: None, 1, 3, 7, 14 or 30 days, `updates.delayDays`, `updateDelayChoices`); and the engine's own update with Try again.
+The delay holds back, for that many days after its date in the appcast, a release that Sparkle finds on its own (`UpdateDelay`, the updater's delegate, ending that check as "no update" and not as a failure, so the pill shows nothing); Check now and a critical update ignore it, and a release with no date is offered.
 
 ## Sessions page
 
-Settings has a Sessions page (`Carrier/SessionsTab.swift`, `SettingsPage.sessions`, in the Chat group between Sidebar and Dictation, "How sessions start and age out") with everything a person sets about how a session starts, ages and is deleted; the Chat page keeps only the message box and the conversation.
+Settings has a Sessions page (`Carrier/SessionsTab.swift`, `SettingsPage.sessions`, in the Chat group after Sidebar, "How sessions start and age out") with everything a person sets about how a session starts, ages and is deleted; the Chat page keeps only the message box and the conversation.
 Its groups are New sessions ("Starts with", the provider, model, reasoning and access a new session opens with, and "Work in", the base folder or a new worktree), Archive and delete, With these ages and Reset.
 Archive and delete has the session clock's two ages, `archiveAfterDays` and `deleteAfterDays` of the chat's `<folder>/chat.json`: each a number of days or Never, shown with the values the file has (15 and 30 when it has none), and "Ask before deleting a session".
 A change of an age is saved as it is made (`applyingSessionAges` in `CarrierCore/SessionAges.swift`, as `applyingProjectsFolder` does: the file's other keys are kept, an age equal to its default is left out, a file that is not a JSON object is never overwritten); the host reads the file each pass, so nothing is restarted.

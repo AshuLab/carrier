@@ -70,15 +70,17 @@ struct ConversationTimeline: View {
 
     /// What the turn was: the person's message over the start of the answer. Always laid out, so it fades in and out.
     private func card(_ marker: TurnMarker?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(marker?.title ?? "").font(.scaled(12, weight: .semibold)).lineLimit(1)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(marker?.title ?? "").font(.scaled(13.5, weight: .semibold)).lineLimit(2).lineSpacing(2)
             if marker?.preview.isEmpty == false {
-                Text(marker?.preview ?? "").font(.scaled(12)).foregroundStyle(.secondary).lineLimit(3)
+                // the start of the answer is a step quieter than the title, not so quiet that the glass behind it wins
+                Text(marker?.preview ?? "").font(.scaled(12.5)).foregroundStyle(Color.primary.opacity(0.72)).lineLimit(4).lineSpacing(3)
             }
         }
-        .frame(width: 280, alignment: .leading)
-        .padding(12)
-        .chatSurface(in: RoundedRectangle(cornerRadius: 12))
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 320, alignment: .leading)
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .chatSurface(in: RoundedRectangle(cornerRadius: 14))
         .opacity(marker == nil ? 0 : 1)
         .animation(.easeOut(duration: 0.15), value: marker?.id)
     }

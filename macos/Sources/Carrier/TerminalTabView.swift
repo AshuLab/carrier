@@ -71,21 +71,21 @@ struct TerminalTabView: View {
     private var minimumContrastSelection: Binding<Double> {
         Binding(
             get: { minimumContrast },
-            set: { minimumContrast = TerminalSettings.clampMinimumContrast($0) }
+            set: { minimumContrast = TerminalSettings.clampMinimumContrast(($0 * 2).rounded() / 2) }
         )
     }
 
     private var paddingXSelection: Binding<Double> {
         Binding(
             get: { paddingX },
-            set: { paddingX = TerminalSettings.clampPadding($0) }
+            set: { paddingX = TerminalSettings.clampPadding($0.rounded()) }
         )
     }
 
     private var paddingYSelection: Binding<Double> {
         Binding(
             get: { paddingY },
-            set: { paddingY = TerminalSettings.clampPadding($0) }
+            set: { paddingY = TerminalSettings.clampPadding($0.rounded()) }
         )
     }
 
@@ -208,7 +208,7 @@ struct TerminalTabView: View {
                     title: "Minimum contrast",
                     detail: "Raises low-contrast ANSI text · \(TerminalSettings.minimumContrastLabel(minimumContrast))"
                 ) {
-                    Slider(value: minimumContrastSelection, in: TerminalSettings.minimumContrastRange, step: 0.5)
+                    Slider(value: minimumContrastSelection, in: TerminalSettings.minimumContrastRange)
                         .frame(width: 160)
                         .accessibilityLabel("Minimum contrast")
                         .accessibilityValue(TerminalSettings.minimumContrastLabel(minimumContrast))
@@ -217,7 +217,7 @@ struct TerminalTabView: View {
                     title: "Horizontal padding",
                     detail: "Left and right margin inside each pane · \(Int(paddingX.rounded())) pt"
                 ) {
-                    Slider(value: paddingXSelection, in: TerminalSettings.paddingRange, step: 1)
+                    Slider(value: paddingXSelection, in: TerminalSettings.paddingRange)
                         .frame(width: 160)
                         .accessibilityLabel("Horizontal padding")
                         .accessibilityValue("\(Int(paddingX.rounded())) points")
@@ -226,7 +226,7 @@ struct TerminalTabView: View {
                     title: "Vertical padding",
                     detail: "Top and bottom margin inside each pane · \(Int(paddingY.rounded())) pt"
                 ) {
-                    Slider(value: paddingYSelection, in: TerminalSettings.paddingRange, step: 1)
+                    Slider(value: paddingYSelection, in: TerminalSettings.paddingRange)
                         .frame(width: 160)
                         .accessibilityLabel("Vertical padding")
                         .accessibilityValue("\(Int(paddingY.rounded())) points")

@@ -45,7 +45,7 @@ struct ComposerMenuButton: View {
     @State private var pendingModel: String?
 
     private var menu: ComposerMenu { composerMenu(options) }
-    private var icon: String { providers.first { $0.name == agent }?.icon ?? agent }
+    private var icon: String { providers.first { $0.name == agent }?.icon ?? AgentAccounts.harness(of: agent) }
     /// The account's label, said before the model in the pill.
     private var label: String? { ProviderIdentityStore.shared.identity(of: agent).label }
 

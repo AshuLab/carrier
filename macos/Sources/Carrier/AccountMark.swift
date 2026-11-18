@@ -56,7 +56,7 @@ extension AccountColor {
 struct AccountMark: View {
     /// The account, or the chat agent that runs on it.
     let account: String
-    /// What the tool's mark is looked up by when the account has no icon; the account's own name when not given.
+    /// What the tool's mark is looked up by when the account has no icon; the harness of the agent when not given (`AgentAccounts.harness`).
     var icon: String?
     var size: CGFloat = 14
     private let store = ProviderIdentityStore.shared
@@ -72,7 +72,7 @@ struct AccountMark: View {
         } else if identity.icon == .letter {
             Text(String(account.prefix(1)).uppercased()).font(.scaled(size * 0.8, weight: .bold)).frame(width: size, height: size)
         } else {
-            ProviderMark(name: icon ?? account, size: size)
+            ProviderMark(name: icon ?? AgentAccounts.harness(of: account), size: size)
         }
     }
 }

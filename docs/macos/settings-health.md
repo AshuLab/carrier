@@ -1,10 +1,10 @@
-# Settings: the Legacy group
+# Settings: the Health page
 
-The Legacy group of [Settings](settings.md) holds the Health tab.
+The Carrier group of [Settings](settings.md) ends with the Health tab.
 
 ## Health tab
 
-Settings has a Health tab (last of the Legacy group) that answers "is everything Carrier needs ready?".
+Settings has a Health tab (last of the Carrier group) that answers "is everything Carrier needs ready?".
 It has three layers, each row with a mark and a line saying what is wrong and what to do.
 
 - **This Mac**: `git` and `gh` (and whether it is signed in to GitHub).

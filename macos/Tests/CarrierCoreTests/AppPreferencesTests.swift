@@ -478,15 +478,15 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(relaunched.dictationCleanupPrompt == "Translate to English")
 }
 
-@Test func cleanupCannotBeOnWithoutAServerAndAModel() {
+@Test func theCleanupSwitchDoesNotDependOnTheServerOrTheModel() {
     let store = AppPreferences(defaults: dictationDefaults().defaults)
     store.dictationCleanupEnabled = true
-    #expect(store.dictationCleanupEnabled == false)
-    store.dictationCleanupServer = .lmStudio
-    #expect(store.dictationCleanupEnabled == false)
-    store.dictationCleanupModel = "qwen"
     #expect(store.dictationCleanupEnabled)
+    store.dictationCleanupServer = .lmStudio
+    store.dictationCleanupModel = "qwen"
     store.dictationCleanupModel = nil
+    #expect(store.dictationCleanupEnabled)
+    store.dictationCleanupEnabled = false
     #expect(store.dictationCleanupEnabled == false)
 }
 

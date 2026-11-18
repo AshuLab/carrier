@@ -43,6 +43,12 @@ public struct DictationWidgetBox: Equatable, Sendable {
     public func height(textSize: CGFloat) -> CGFloat { (CGFloat(lines) * lineHeight(textSize: textSize)).rounded(.up) + 52 }
 }
 
+/// The notices over a text that was only copied: why it was not pasted, and why it was not cleaned when Cleanup was on. The box is as tall as they
+/// are, for the widget lays them out where it sizes itself (`reasonLines` is what a box allows before it grows for them).
+public func dictationKeptNotices(reason: PasteReason, notCleaned: String?) -> [String] {
+    ["\(reason.explanation) It is on the clipboard."] + (notCleaned.map { ["It was not cleaned: \($0)"] } ?? [])
+}
+
 /// How a text of `textLines` sits in a box of `boxLines`: it starts at the top and fills lines down to the box's, and once it is longer the newest
 /// words are on the last line and the older lines fade out at the top.
 public struct DictationTextFit: Equatable, Sendable {

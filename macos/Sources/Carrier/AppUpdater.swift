@@ -8,6 +8,8 @@ import Sparkle
 @MainActor
 enum AppUpdater {
     private static var driver: UpdateDriver?
+    /// Sparkle holds its delegate weakly.
+    private static var delay: UpdateDelay?
     private(set) static var updater: SPUUpdater?
     /// What the pill draws and what its click does.
     static let model = UpdateModel()
@@ -22,7 +24,8 @@ enum AppUpdater {
         guard bundle.object(forInfoDictionaryKey: "SUFeedURL") != nil else { return }
         guard arguments.contains("--fixture") == false, arguments.contains("--selftest") == false else { return }
         let driver = UpdateDriver(model: model)
-        let updater = SPUUpdater(hostBundle: bundle, applicationBundle: bundle, userDriver: driver, delegate: nil)
+        let delay = UpdateDelay()
+        let updater = SPUUpdater(hostBundle: bundle, applicationBundle: bundle, userDriver: driver, delegate: delay)
         do {
             try updater.start()
         } catch {
@@ -33,6 +36,7 @@ enum AppUpdater {
         model.press = { driver.press() }
         updater.checkForUpdatesInBackground()
         self.driver = driver
+        self.delay = delay
         self.updater = updater
     }
 
@@ -60,6 +64,17 @@ enum AppUpdater {
             default: break
             }
         }
+    }
+}
+
+/// Holds back a release the person chose to wait for (Settings > About > Update delay): a check Sparkle makes by itself that finds one younger than
+/// the delay ends as "no update", which the driver takes as a quiet nothing, not as a failure. A check the person asks for and a critical update go through.
+final class UpdateDelay: NSObject, SPUUpdaterDelegate {
+    func updater(_ updater: SPUUpdater, shouldProceedWithUpdate updateItem: SUAppcastItem, updateCheck: SPUUpdateCheck) throws {
+        guard updateCheck == .updatesInBackground, updateItem.isCriticalUpdate == false else { return }
+        let days = AppPreferences().updateDelayDays
+        guard updateIsOldEnough(published: updateItem.date, now: Date(), delayDays: days) == false else { return }
+        throw NSError(domain: SUSparkleErrorDomain, code: Int(SUError.noUpdateError.rawValue), userInfo: [NSLocalizedDescriptionKey: "Version \(updateItem.displayVersionString) is under \(days) days old"])
     }
 }
 

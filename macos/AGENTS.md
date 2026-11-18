@@ -65,7 +65,7 @@ The functions are tested in `SessionAgesTests`; the view is untested.
 
 ### Health tab
 
-What the person sees: [settings-legacy](../docs/macos/settings-legacy.md#health-tab).
+What the person sees: [settings-health](../docs/macos/settings-health.md#health-tab).
 
 The rows are one pure function, `healthSections(host:facts:)` (`CarrierCore/HealthRows.swift`, `HealthRowsTests`); the view is untested.
 The decoding, outcomes, command and store are tested (`DoctorChecksTests`), not the process runner.

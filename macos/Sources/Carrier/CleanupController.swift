@@ -25,14 +25,11 @@ import SwiftUI
     var prompt: String { preferences.dictationCleanupPrompt }
     var canBeOn: Bool { cleanupCanBeOn(server: server, model: model) }
 
-    func setEnabled(_ on: Bool) { preferences.dictationCleanupEnabled = on && canBeOn }
+    func setEnabled(_ on: Bool) { preferences.dictationCleanupEnabled = on }
     func set(prompt: String) { preferences.dictationCleanupPrompt = prompt }
-    func choose(model: String?) {
-        preferences.dictationCleanupModel = model
-        if model == nil { preferences.dictationCleanupEnabled = false }
-    }
+    func choose(model: String?) { preferences.dictationCleanupModel = model }
 
-    /// A model belongs to its server, so a new server leaves no model and Cleanup off.
+    /// A model belongs to its server, so a new server leaves no model.
     func choose(server: CleanupServer?) {
         preferences.dictationCleanupServer = server
         choose(model: nil)

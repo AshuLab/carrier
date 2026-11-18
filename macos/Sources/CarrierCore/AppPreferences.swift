@@ -67,6 +67,7 @@ public struct AppPreferences {
     public static let dictationEndSoundOnKey = "dictation.sound.end.on"
     public static let dictationEndSoundKey = "dictation.sound.end"
     public static let dictationSoundVolumeKey = "dictation.sound.volume"
+    public static let updateDelayKey = "updates.delayDays"
     public static let terminalThemeKey = "terminal.theme"
     public static let terminalFontFamilyKey = "terminal.font.family"
     public static let terminalFontSizeKey = "terminal.font.size"
@@ -333,15 +334,21 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.workInKey) }
     }
 
+    /// The days the app waits after a release before it offers it by itself; none until the person chooses.
+    public var updateDelayDays: Int {
+        get { clampedUpdateDelay(defaults.integer(forKey: Self.updateDelayKey)) }
+        nonmutating set { defaults.set(clampedUpdateDelay(newValue), forKey: Self.updateDelayKey) }
+    }
+
     /// Whether the message box has a microphone: Dictation is on until the person turns it off.
     public var dictationEnabled: Bool {
         get { defaults.object(forKey: Self.dictationEnabledKey) as? Bool ?? Self.defaultDictationEnabled }
         nonmutating set { defaults.set(newValue, forKey: Self.dictationEnabledKey) }
     }
 
-    /// Whether Cleanup is on: off until the person turns it on, and never on without a server and a model.
+    /// Whether Cleanup is on: off until the person turns it on. It does not wait for a server and a model: the run needs them (`DictationController`).
     public var dictationCleanupEnabled: Bool {
-        get { defaults.bool(forKey: Self.dictationCleanupEnabledKey) && cleanupCanBeOn(server: dictationCleanupServer, model: dictationCleanupModel) }
+        get { defaults.bool(forKey: Self.dictationCleanupEnabledKey) }
         nonmutating set { defaults.set(newValue, forKey: Self.dictationCleanupEnabledKey) }
     }
 
@@ -610,8 +617,8 @@ public struct AppPreferences {
                 dictationSoundVolumeKey,
             ]
         case .keybindings: [ShortcutTable.key]
-        // the Providers page only reads, the Updates page writes Sparkle's own preferences, the Carrier pages write engine.json or (Engine) a few switches that have no Reset, and the Legacy page keeps its own settings
-        case .providers, .updates, .engine, .behavior, .repos, .agents, .health: []
+        // the Providers page only reads, the About page writes Sparkle's own preferences, the Carrier pages write engine.json or (Engine) a few switches that have no Reset, and the Health page keeps its own settings
+        case .providers, .about, .engine, .behavior, .repos, .agents, .health: []
         }
     }
 }

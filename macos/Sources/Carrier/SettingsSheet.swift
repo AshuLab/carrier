@@ -69,7 +69,7 @@ struct SettingsSheet: View {
             case .chat: ChatTabView()
             case .dictation: DictationTabView()
             case .keybindings: KeybindingsTabView()
-            case .updates: UpdatesTabView()
+            case .about: AboutTabView()
             case .providers: ProvidersTabView(openAgents: { tab = .agents })
             case .engine:
                 // one container, so the versions are read once and not once per group
@@ -167,24 +167,28 @@ struct SettingsRail: View {
     /// What the rail draws: each group with its pages.
     static let sections = SettingsPage.Group.allCases.map { (group: $0, pages: SettingsPage.pages(in: $0)) }
 
+    private func railRow(_ row: SettingsPage) -> some View {
+        RailRow(title: row.rawValue, detail: nil, icon: row.icon, selected: page == row) { page = row }.help(row.detail)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             RailHeader(title: "Settings", detail: "How Carrier runs here")
             // the pages scroll under the header, so the last ones stay in reach in a short window
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Self.sections, id: \.group) { section in
+                    ForEach(Self.sections.filter { $0.group != .about }, id: \.group) { section in
                         if let heading = section.group.heading {
                             Text(heading).sectionLabel()
                                 .padding(.leading, 8).padding(.top, 10).accessibilityAddTraits(.isHeader)
                         }
-                        ForEach(section.pages, id: \.self) { row in
-                            RailRow(title: row.rawValue, detail: nil, icon: row.icon, selected: page == row) { page = row }
-                                .help(row.detail)
-                        }
+                        ForEach(section.pages, id: \.self) { row in railRow(row) }
                     }
                 }
             }
+            // About stays at the foot, in view however short the window is
+            Divider().padding(.vertical, 4)
+            ForEach(SettingsPage.pages(in: .about), id: \.self) { row in railRow(row) }
         }
         // the header sits 24 from the top and 24 from the left (16 + the row's 8), as a page's header does on the right
         .padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 14).frame(width: 250)

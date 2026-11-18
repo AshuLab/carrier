@@ -56,7 +56,9 @@ struct ConversationView: View {
 
     var body: some View {
         conversation
-            // the conversation stays under the subagent view, so Back finds its feed and its place as they were; nothing under it takes keys or taps
+            // the conversation stays mounted under the subagent view, so Back finds its feed and its place as they were, but it is not drawn: the
+            // subagent view replaces it, and nothing of it shows through the window's translucent surfaces; nothing under it takes keys or taps
+            .opacity(subagents.isEmpty ? 1 : 0)
             .disabled(subagents.isEmpty == false)
             .accessibilityHidden(subagents.isEmpty == false)
             .overlay {
@@ -280,7 +282,7 @@ private struct ConversationBox: View {
                 focus: $boxFocused, commands: model.shownCommands, dictationOwner: "session:\(model.sessionId)", dictateRequest: dictations, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
                 ComposerMenuButton(
-                    providers: model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: model.agent)], agent: model.agent, locked: true,
+                    providers: model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: AgentAccounts.harness(of: model.agent))], agent: model.agent, locked: true,
                     options: model.shownOptions,
                     // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
                     // never saw running lists nothing, and the panel says so
@@ -408,7 +410,7 @@ extension FeedRowView {
     }
 
     private func summaryView(_ summary: TurnSummary) -> some View {
-        let numbers = [summary.duration, summary.context.map { "\(TurnSummary.tokens($0)) context" }, summary.output.map { "\(TurnSummary.tokens($0)) out" }]
+        let numbers = [summary.duration, summary.contextText, summary.output.map { "\(TurnSummary.tokens($0)) out" }]
             .compactMap { $0 }.joined(separator: " · ")
         return HStack(spacing: 10) {
             if let model = summary.shortModel {
@@ -434,10 +436,14 @@ extension FeedRowView {
         }
     }
 
-    /// What the context is made of, for the tooltip of the numbers.
+    /// The tooltip of the numbers: the context at the end of the turn, then what all its model calls read and wrote added up (each call reads the whole
+    /// context again, most of it from the cache, so these are many times the context).
     private func breakdown(_ summary: TurnSummary) -> String {
-        [("New input", summary.input), ("Read from the cache", summary.cacheRead), ("Written to the cache", summary.cacheWrite), ("Output", summary.output)]
-            .compactMap { name, count in count.map { "\(name): \(Int($0).formatted())" } }.joined(separator: "\n")
+        let total = [("New input", summary.input), ("Read from the cache", summary.cacheRead), ("Written to the cache", summary.cacheWrite), ("Output", summary.output)]
+            .compactMap { name, count in count.map { "\(name): \(Int($0).formatted())" } }
+        let context = summary.contextTokens.map { ["Context at the end: \(Int($0).formatted())"] } ?? []
+        let header = total.isEmpty ? [] : [context.isEmpty ? "All the turn's model calls:" : "\nAll the turn's model calls:"]
+        return (context + header + total).joined(separator: "\n")
     }
 
     /// Copies the message as it was written (its Markdown) and says so with a green tick for a moment. An agent message also offers its plain text, with the

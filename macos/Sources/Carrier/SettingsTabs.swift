@@ -271,8 +271,9 @@ struct NativePopUp: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSPopUpButton {
         let button = NSPopUpButton(frame: .zero, pullsDown: false)
-        // set, not left to automatic: inside a form AppKit draws an automatic pop-up as a bare circle, and the selects must look the same everywhere
-        button.bezelStyle = .rounded
+        // set, not left to automatic: inside a form AppKit draws an automatic (or rounded, or push) pop-up as a bare circle, and the selects must
+        // look the same everywhere, as they do in a card
+        button.bezelStyle = .flexiblePush
         button.target = context.coordinator
         button.action = #selector(Coordinator.changed(_:))
         button.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -419,23 +420,27 @@ struct SettingsGroup<Content: View, Accessory: View>: View {
             Section {
                 content.environment(\.settingsGroup, title)
             } header: {
-                HStack {
-                    Text(title)
-                    Spacer(minLength: 8)
-                    accessory
+                if title.isEmpty == false {
+                    HStack {
+                        Text(title)
+                        Spacer(minLength: 8)
+                        accessory
+                    }
+                    .settingsAnchored(title, group: title)
                 }
-                .settingsAnchored(title, group: title)
             } footer: {
                 if let footer { Text(footer) }
             }
         } else {
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(title).sectionLabel()
-                    Spacer(minLength: 8)
-                    accessory
+                if title.isEmpty == false {
+                    HStack {
+                        Text(title).sectionLabel()
+                        Spacer(minLength: 8)
+                        accessory
+                    }
+                    .padding(.leading, 14).padding(.top, 8)
                 }
-                .padding(.leading, 14).padding(.top, 8)
                 SettingsTabCard { content }.environment(\.settingsGroup, title)
                 if let footer { Text(footer).font(.scaled(11)).foregroundStyle(.secondary).padding(.horizontal, 14) }
             }
@@ -544,7 +549,7 @@ extension View {
 }
 
 /// How wide the select of a row is, the same on every page so the selects end and begin on one line down the card.
-let settingsSelectWidth: CGFloat = 180
+let settingsSelectWidth: CGFloat = 210
 
 /// `NativePopUp` over a value: the choices as (value, title) pairs, the one chosen bound as the value itself. A stored value that is not on the
 /// list shows the first choice, as the pages already read an unknown value as their default.

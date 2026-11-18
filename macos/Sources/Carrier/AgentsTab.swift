@@ -23,13 +23,14 @@ struct AgentsTabView: View {
     private let providers = AppHealth.providers
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        SettingsPageBody {
             if let page {
-                flow(page)
-                if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
-                ReloadNote().padding(.horizontal, 4)
-                if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.scaled(12)).foregroundStyle(.secondary).padding(.horizontal, 4) }
-                if let note = page.bots.note { Text(note).font(.scaled(12)).foregroundStyle(.secondary).padding(.horizontal, 4) }
+                // the roles are the cards of one row with no card behind them
+                SettingsGroup(title: "") { flow(page).listRowBackground(Color.clear).listRowInsets(EdgeInsets()) }
+                if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page) }
+                ReloadNote()
+                if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.scaled(12)).foregroundStyle(.secondary) }
+                if let note = page.bots.note { Text(note).font(.scaled(12)).foregroundStyle(.secondary) }
             } else {
                 Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
                     .font(.scaled(12)).foregroundStyle(.orange)
@@ -152,17 +153,17 @@ struct AgentsTabView: View {
     }
 
     private func detail(_ row: RoleRow, page: AgentsPage) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        // a Group and not a stack: the groups below are sections of the page's form
+        Group {
             if row.hasSwitch {
-                SettingsTabCard {
+                SettingsGroup(title: "", footer: turningOnLead ? leadDraft.hint : nil) {
                     SettingsTabRow(title: "Use a lead reviewer", detail: row.switchDetail, first: true) {
                         Toggle("Use a lead reviewer", isOn: Binding(get: { row.usable(turningOn: turningOnLead) }, set: { setLeadSwitch(on: $0, row: row) }))
                             .labelsHidden().toggleStyle(.switch)
                     }
                 }
-                if turningOnLead, let hint = leadDraft.hint { Text(hint).font(.scaled(12)).foregroundStyle(.secondary).padding(.horizontal, 4) }
             }
-            VStack(alignment: .leading, spacing: 14) {
+            Group {
                 SettingsGroup(title: "Who") {
                     SettingsTabRow(title: "Identity", detail: row.identityDetail, first: true) { identityPicker(row, page: page) }
                     CreateBotRow()
@@ -185,7 +186,7 @@ struct AgentsTabView: View {
                 }
                 SettingsGroup(title: "Details") {
                     SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
-                        CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: 220, mono: false, prompt: "None") {
+                        CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: "None") {
                             saveDetails(saveGlobalPersona(name: blankIsNil($0), prompt: row.fields.persona?.prompt, role: row.role, path: configFilePath()))
                         }
                         .id(row.role)

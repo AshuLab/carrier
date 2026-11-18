@@ -189,8 +189,9 @@ struct ModelPickerButton: View {
             Spacer(minLength: 6)
             Image(systemName: "chevron.up.chevron.down").font(.scaled(10, weight: .bold)).foregroundStyle(.primary.opacity(0.85))
         }
-        // a width of its own, as the pop-ups of the other rows have, and long words are cut; in a form it takes the room it is given
-        .frame(width: fill ? nil : 210, alignment: .leading).frame(maxWidth: fill ? .infinity : nil, alignment: .leading)
+        // the width of the pop-ups of the other rows with the button's own 12 pt at each side (`PopUpButtonStyle`), and long words are cut; in a form it
+        // takes the room it is given
+        .frame(width: fill ? nil : settingsSelectWidth - 24, alignment: .leading).frame(maxWidth: fill ? .infinity : nil, alignment: .leading)
     }
 
     // MARK: the panel

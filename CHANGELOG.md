@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The Carrier folder has a new layout ([ADR 0034](docs/adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)): the engine's config is `engine.json` (was `config.json`) and the chat's is `chat.json` at the top (was `chat/chat.json`), next to `providers.json`; the app keeps its terminals and dictation history in `app/state/`, its speech models and terminal shim in `app/cache/`. Old paths are not read: move or recreate the files.
+
 ## [0.11.0] - 2026-11-18
 
 Dictation that is live and fast: the microphone starts at the press, the words that will not change are drawn as normal text, and the speech model can stay loaded in the background so the first dictation does not wait for it.
@@ -24,7 +28,6 @@ Dictation that is live and fast: the microphone starts at the press, the words t
 - Dictation: only the words still forming are drawn as partial text (dotted underline, accent colour); the words that will not change are normal text, so the text no longer reads as a guess from the first word to the last.
 - Dictation: "Transcribing…" shows only when the final text takes more than a quarter of a second after the stop.
 - Dictation: Apple's recognizer no longer trades accuracy for speed, Whisper skips word timestamps when it gives its text at the end and cuts a recording longer than 30 seconds at its pauses, and Parakeet TDT v3 and Ultra warm up when they load, so the first dictation does not pay for the first pass.
-- The Carrier folder has a new layout ([ADR 0034](docs/adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)): the engine's config is `engine.json` (was `config.json`) and the chat's is `chat.json` at the top (was `chat/chat.json`), next to `providers.json`; the app keeps its terminals and dictation history in `app/state/`, its speech models and terminal shim in `app/cache/`. Old paths are not read: move or recreate the files.
 
 ## [0.10.0] - 2026-11-17
 

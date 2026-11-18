@@ -583,7 +583,7 @@ struct SettingsPageBody<Content: View>: View {
     var body: some View {
         Group {
             if form {
-                Form { content }.formStyle(.grouped)
+                Form { content }.formStyle(.grouped).scrollContentBackground(.hidden)
             } else {
                 VStack(alignment: .leading, spacing: 12) { content }.frame(maxWidth: .infinity, alignment: .leading)
             }

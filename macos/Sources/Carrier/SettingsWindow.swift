@@ -163,6 +163,8 @@ struct SettingsSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        // the theme's color, as the main window's sidebar has it, and not the system's material
+        .scrollContentBackground(.hidden).themedSidebarBackground()
     }
 
     /// What the search found, under the pages it is in; choosing one opens the page and shows the row.
@@ -195,6 +197,7 @@ struct SettingsSidebar: View {
                 }
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden).themedSidebarBackground()
         }
     }
 
@@ -301,6 +304,8 @@ struct SettingsPages: View {
                 }
             }
             .environment(\.settingsForm, page.usesForm)
+            // the theme's color under the page, as under the main window's views
+            .themedWindowBackground()
             .id(page)
             // the page is drawn a moment after it is chosen: scroll to the place, show it, and let it go
             .task(id: target?.id) {

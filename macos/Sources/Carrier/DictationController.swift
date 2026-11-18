@@ -38,6 +38,15 @@ import SwiftUI
     @ObservationIgnored private var prompting = false
     @ObservationIgnored private var waiting: String?
     @ObservationIgnored private var sweep: Task<Void, Never>?
+    @ObservationIgnored private let log: DictationLog?
+    @ObservationIgnored private let sleep: (Duration) async throws -> Void
+    @ObservationIgnored private let now: () -> Date
+    /// Whether a speech model may be in memory (asked to load, or used by a dictation), since when nobody has dictated, the timer that releases it and
+    /// the loads and releases in the order they were asked.
+    @ObservationIgnored private var loaded = false
+    @ObservationIgnored private var idleSince: Date
+    @ObservationIgnored private var releaseTimer: Task<Void, Never>?
+    @ObservationIgnored private var work: Task<Void, Never>?
 
     /// The defaults are a fixture build's: a capture that hears nothing, which the fixture recognizer does not need, and an allowed microphone.
     init(
@@ -48,8 +57,14 @@ import SwiftUI
         downloader: any ModelDownloader = FixtureModelDownloader(), cleanupClient: any TextModelClient = LocalModelClient(),
         // a fixture build, like a test, keeps its history in a temporary folder, never in the person's Carrier folder
         recordsFolder: String = NSTemporaryDirectory() + "carrier-fixture-dictations-\(UUID().uuidString)",
-        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: ((Duration) async throws -> Void)? = nil, now: @escaping () -> Date = Date.init
     ) {
+        // chosen here and not as the default of the argument, as `DictationSession` does: see the note there
+        let sleep = sleep ?? { try await Task.sleep(for: $0) }
+        self.log = log
+        self.sleep = sleep
+        self.now = now
+        idleSince = now()
         self.registry = registry
         self.access = access
         self.preferences = preferences
@@ -62,17 +77,20 @@ import SwiftUI
             log: { log?.append($0) }, announce: { AccessibilityNotification.Announcement($0).post() }
         )
         session = DictationSession(capture: capture, sleep: sleep, announce: { AccessibilityNotification.Announcement($0).post() }, log: { log?.append($0) },
-            keepAudio: { preferences.dictationKeepAudio })
+            timed: { log?.append($0) }, now: now, keepAudio: { preferences.dictationKeepAudio })
         records = DictationRecords(
             carrierFolder: recordsFolder, keep: { preferences.dictationKeepText }, keepAudio: { preferences.dictationKeepAudio },
             audioDays: { preferences.dictationDeleteAudioAfter })
         // the widget writes its own entries, which know where the text went; a message box's went into the box
-        session.onTake = { [records] take in
+        session.onTake = { [records, weak self] take in
+            self?.dictationEnded()
             guard take.owner != GlobalDictation.owner else { return }
             records.record(
                 DictationEntry(take, outcome: boxOutcome(take.ending), destination: DictationEntry.carrier, cleanupModel: preferences.dictationCleanupModel),
                 audio: take.clip)
         }
+        // a load or a release queued before the press is over before the recognizer prepares for it
+        session.beforePrepare = { [weak self] in await self?.work?.value }
         // sending the app to the background: nothing keeps listening unseen
         NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.stop() }
@@ -134,32 +152,127 @@ import SwiftUI
         NSWorkspace.shared.activateFileViewerSelecting([store.root])
     }
 
-    func choose(model: SpeechModel) { preferences.dictationModelID = model.id }
+    func choose(model: SpeechModel) {
+        preferences.dictationModelID = model.id
+        warmUp()
+    }
 
     /// The Language popup for the chosen model, over the languages of this Mac.
     var languages: LanguageChoices? {
         model.map { languageChoices(for: $0, macOSLanguages: Locale.preferredLanguages, saved: preferences.dictationLanguage) }
     }
 
-    func choose(language: String) { preferences.dictationLanguage = language }
+    func choose(language: String) {
+        preferences.dictationLanguage = language
+        warmUp()
+    }
 
     /// The switch of the page. Turning it off while a dictation listens stops it and keeps its text.
     func setEnabled(_ on: Bool) {
         preferences.dictationEnabled = on
         enabled = on
-        if on == false { stop() }
+        if on { warmUp() } else {
+            stop()
+            evaluate()
+        }
+    }
+
+    /// The switch Keep the speech model ready: turning it on loads the model now; turning it off leaves a loaded one to its release.
+    func setKeepReady(_ on: Bool) {
+        preferences.dictationKeepReady = on
+        if on { warmUp() }
+    }
+
+    /// The popup Release the model after: the new time counts from the last dictation, so a model idle for longer is released at once.
+    func setReleaseAfter(_ minutes: Int) {
+        preferences.dictationReleaseAfter = minutes
+        evaluate()
+    }
+
+    /// Loads the chosen model in the background when the rule says so, and lets go of what another model or Dictation off left in memory: when Carrier
+    /// opens (once the recognizers are registered) and when Dictation is turned on, Keep it ready is turned on or the model or language changes.
+    /// A dictation that runs is not disturbed: what it used is judged when it ends.
+    func warmUp() {
+        guard session.state == .idle else { return }
+        idleSince = now()
+        let load = speechModelStep(
+            dictation: enabled, keepReady: preferences.dictationKeepReady, releaseAfter: preferences.dictationReleaseAfter, loaded: false, idleSince: idleSince, now: idleSince
+        ) == .load
+        if load { loadChosenModel() } else if loaded { releaseAll() }
+        scheduleRelease()
+    }
+
+    /// Runs the rule now: the timer, a dictation that ended, Dictation turned off and a new time to release call it.
+    private func evaluate() {
+        guard session.state == .idle else { return }
+        let step = speechModelStep(
+            dictation: enabled, keepReady: preferences.dictationKeepReady, releaseAfter: preferences.dictationReleaseAfter, loaded: loaded, idleSince: idleSince, now: now()
+        )
+        if step == .release { releaseAll() }
+        scheduleRelease()
+    }
+
+    /// A dictation ended: what it used is in memory, and the time without dictating starts counting.
+    private func dictationEnded() {
+        loaded = true
+        idleSince = now()
+        evaluate()
+    }
+
+    private func scheduleRelease() {
+        releaseTimer?.cancel()
+        releaseTimer = nil
+        let minutes = preferences.dictationReleaseAfter
+        guard loaded, minutes > 0 else { return }
+        let wait = idleSince.addingTimeInterval(Double(minutes) * 60).timeIntervalSince(now())
+        let delay = Duration.seconds(max(wait, 0))
+        releaseTimer = Task { [weak self, sleep] in
+            guard (try? await sleep(delay)) != nil else { return }
+            self?.evaluate()
+        }
+    }
+
+    /// The loads and the releases run one after the other, in the order they were asked.
+    private func enqueue(_ operation: @escaping @Sendable () async -> Void) {
+        let before = work
+        work = Task {
+            await before?.value
+            await operation()
+        }
+    }
+
+    private func loadChosenModel() {
+        guard let (recognizer, model) = speechModel else { return }
+        loaded = true
+        let others = registry.recognizers.filter { $0.id != recognizer.id }, log = log
+        enqueue {
+            for other in others { await other.release() }
+            do { try await recognizer.prepare(model) } catch {
+                log?.append(error as? DictationFailure ?? DictationFailure(error.localizedDescription))
+            }
+        }
+    }
+
+    private func releaseAll() {
+        loaded = false
+        let all = registry.recognizers
+        enqueue { for recognizer in all { await recognizer.release() } }
     }
 
     /// Reset of the page: on, Apple's and the language of macOS. The downloaded models are not touched.
     func reset() {
         preferences.reset(.dictation)
         enabled = preferences.dictationEnabled
+        warmUp()
     }
 
     /// What `owner`'s box draws: nothing when Dictation is off or no recognizer is registered, and the state of the session only while that box is the one dictating.
     func presentation(for owner: String) -> DictationPresentation? {
         guard enabled else { return nil }
-        return dictationPresentation(session.owner == owner ? session.state : .idle, registered: registry.recognizers.isEmpty == false, microphone: microphone)
+        return dictationPresentation(
+            session.owner == owner ? session.state : .idle, registered: registry.recognizers.isEmpty == false, microphone: microphone, modelReady: session.modelReady,
+            answerIsSlow: session.answerIsSlow
+        )
     }
 
     /// A click on the microphone of a box: stops the dictation that box runs, or starts one into its field (stopping another box's first).

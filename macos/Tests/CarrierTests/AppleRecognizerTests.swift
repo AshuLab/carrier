@@ -84,3 +84,19 @@ private let convertible = CarrierCore.AudioBuffer(samples: Array(repeating: 0.1,
     let result = try await feed(few + [convertible])
     #expect(result.fed && result.delivered == 1)
 }
+
+@Test(arguments: [
+    // volatile words are tentative, after the firm ones and the space that sets them apart
+    ("", "hola", "", "hola"),
+    ("Hola. ", "como", "Hola. ", "como"),
+    ("Hola.", " como", "Hola. ", "como"),
+    // a final result is firm: nothing is tentative
+    ("Hola. ", "", "Hola.", ""),
+    ("Hola. Que tal. ", "", "Hola. Que tal.", ""),
+    // no whitespace at either end
+    (" Hola.", " como ", "Hola. ", "como"),
+    ("", " ", "", ""),
+])
+func applesFinalResultsAreFirmAndItsVolatileOnesTentative(settled: String, volatile: String, firm: String, tentative: String) {
+    #expect(AppleRecognizer.partial(settled: settled, volatile: volatile) == .partial(firm: firm, tentative: tentative))
+}

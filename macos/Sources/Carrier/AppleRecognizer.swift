@@ -43,12 +43,21 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
             locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: language))
         }
         guard let locale else { throw DictationFailure("Apple's speech recognition does not support any language of this Mac.") }
-        let transcriber = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
+        // the progressive preset without `fastResults`, which trades accuracy for speed
+        var preset = SpeechTranscriber.Preset.progressiveTranscription
+        preset.reportingOptions.remove(.fastResults)
+        let transcriber = SpeechTranscriber(locale: locale, preset: preset)
         // the system fetches the assets of the language when it has not: this is what "Getting the model ready…" waits for
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) { try await request.downloadAndInstall() }
-        let analyzer = SpeechAnalyzer(modules: [transcriber])
+        // the system keeps the model loaded while it is ready, and `release` lets it go
+        let analyzer = SpeechAnalyzer(modules: [transcriber], options: SpeechAnalyzer.Options(priority: .userInitiated, modelRetention: .processLifetime))
         try await analyzer.prepareToAnalyze(in: await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]))
         lock.withLock { prepared = (transcriber, analyzer) }
+    }
+
+    func release() async {
+        lock.withLock { prepared = nil }
+        await SpeechModels.endRetention()
     }
 
     func recognize(_ audio: AsyncStream<CarrierCore.AudioBuffer>) -> AsyncStream<DictationEvent> {
@@ -76,7 +85,7 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
                         for try await result in transcriber.results {
                             let words = String(result.text.characters)
                             if result.isFinal { settled += words }
-                            out.yield(.partial((settled + (result.isFinal ? "" : words)).trimmingCharacters(in: .whitespaces)))
+                            out.yield(Self.partial(settled: settled, volatile: result.isFinal ? "" : words))
                         }
                     } catch is CancellationError {}  // what cancelAndFinishNow ends the results with
                     return settled.trimmingCharacters(in: .whitespaces)
@@ -98,6 +107,14 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
             out.finish()
         }
         return events
+    }
+
+    /// The words so far: the final results are firm and the volatile ones tentative. The whitespace between them ends the firm part, so the
+    /// tentative words begin with a word, and the text has none at either end.
+    static func partial(settled: String, volatile: String) -> DictationEvent {
+        let firm = String(settled.drop(while: \.isWhitespace)), words = volatile.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard words.isEmpty == false else { return .partial(firm: firm.trimmingCharacters(in: .whitespacesAndNewlines), tentative: "") }
+        return .partial(firm: firm + String(volatile.prefix(while: \.isWhitespace)), tentative: words)
     }
 
     /// The capture's buffers in the analyzer's format; whether any was fed. A conversion that drops `droppedLimit` buffers in a row is a failure.

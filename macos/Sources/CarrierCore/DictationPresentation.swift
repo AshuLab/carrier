@@ -33,8 +33,11 @@ public struct DictationPresentation: Equatable, Sendable {
 }
 
 /// The microphone of the box for `state`; nil when no recognizer is registered, and then the box draws none. A blocked microphone shows
-/// `mic.slash` while the box is idle, and a click on it opens the popover.
-public func dictationPresentation(_ state: DictationSession.State, registered: Bool, microphone: MicrophonePermission = .allowed) -> DictationPresentation? {
+/// `mic.slash` while the box is idle, and a click on it opens the popover. A dictation that listens before its model is ready (`modelReady` false) is drawn
+/// as listening, with the caption of the model getting ready. A dictation that transcribes has no caption until its answer is slow (`answerIsSlow`).
+public func dictationPresentation(
+    _ state: DictationSession.State, registered: Bool, microphone: MicrophonePermission = .allowed, modelReady: Bool = true, answerIsSlow: Bool = false
+) -> DictationPresentation? {
     guard registered else { return nil }
     switch state {
     case .idle where microphone == .denied:
@@ -49,9 +52,11 @@ public func dictationPresentation(_ state: DictationSession.State, registered: B
             label: "Dictation is getting ready", help: "Getting the model ready…"
         )
     case .listening:
-        return DictationPresentation(icon: .mic, inAccent: true, pressable: true, caption: nil, sendEnabled: false, label: "Stop dictation", help: "Stop dictation")
+        return DictationPresentation(
+            icon: .mic, inAccent: true, pressable: true, caption: modelReady ? nil : "Getting the model ready…", sendEnabled: false, label: "Stop dictation", help: "Stop dictation"
+        )
     case .transcribing:
-        return DictationPresentation(icon: .spinner, inAccent: false, pressable: false, caption: "Transcribing…", sendEnabled: false, label: "Transcribing", help: "Transcribing…")
+        return DictationPresentation(icon: .spinner, inAccent: false, pressable: false, caption: answerIsSlow ? "Transcribing…" : nil, sendEnabled: false, label: "Transcribing", help: "Transcribing…")
     case .cleaning:
         // pressable: a click, like Esc, skips the cleanup and keeps the raw text
         return DictationPresentation(

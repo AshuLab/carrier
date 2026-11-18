@@ -18,8 +18,10 @@ private func heard(_ recognizer: FixtureRecognizer, stopAfterFinal: Bool) async 
     let events = try await heard(FixtureRecognizer(sleep: { _ in }), stopAfterFinal: true)
     let words = FixtureRecognizer.phrase.split(separator: " ")
     #expect(events.count == words.count + 1)
-    #expect(events.first == .partial(String(words[0])))
-    #expect(events[1] == .partial("\(words[0]) \(words[1])"))
+    // each word is firm as the next is given, and the last one given is tentative
+    #expect(events.first == .partial(firm: "", tentative: String(words[0])))
+    #expect(events[1] == .partial(firm: "\(words[0]) ", tentative: String(words[1])))
+    #expect(events[2] == .partial(firm: "\(words[0]) \(words[1]) ", tentative: String(words[2])))
     #expect(events.last == .final(FixtureRecognizer.phrase))
 }
 

@@ -256,14 +256,22 @@ private struct DictationWidgetView: View {
         }
     }
 
+    /// What was heard: the firm words as normal text and the tentative ones in the partial colour with the dotted underline, as the message box draws them.
+    private var heard: Text {
+        let (firm, tentative) = dictation.split
+        return Text("\(firm)\(Text(tentative).foregroundStyle(Color(nsColor: PillTextView.tentativeColor)).underline(pattern: .dot))")
+    }
+
     /// What the box says before the words come, and the cause when it cannot go on, over what was heard.
     @ViewBuilder private var shown: some View {
-        let caption = dictationPresentation(dictation.session.state, registered: true)?.caption
+        let caption = dictationPresentation(
+            dictation.session.state, registered: true, modelReady: dictation.session.modelReady, answerIsSlow: dictation.session.answerIsSlow
+        )?.caption
         VStack(alignment: .leading, spacing: 4) {
             if case .failed(let cause) = dictation.state { Text(cause).foregroundStyle(.red) }
             if dictation.text.isEmpty == false {
                 // the raw text shimmers while the model cleans it
-                Text(dictation.text).modifier(Shimmer(active: dictation.shown == .cleaning && reduceMotion == false))
+                heard.modifier(Shimmer(active: dictation.shown == .cleaning && reduceMotion == false))
             } else if dictation.state == .running, let caption {
                 Text(caption).foregroundStyle(.secondary)
             }

@@ -604,6 +604,23 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(store.dictationKeepAudio == false && store.dictationDeleteAudioAfter == 30)
 }
 
+@Test func theSpeechModelIsKeptReadyAndReleasedAfterFifteenMinutesByDefaultSurvivesARelaunchFallsBackAndResetsWithDictation() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    #expect(AppPreferences.dictationKeepReadyKey == "dictation.model.keepReady" && AppPreferences.dictationReleaseAfterKey == "dictation.model.releaseAfter")
+    #expect(store.dictationKeepReady && store.dictationReleaseAfter == 15)
+    store.dictationKeepReady = false
+    store.dictationReleaseAfter = 0
+    let again = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(again.dictationKeepReady == false && again.dictationReleaseAfter == 0)
+    store.dictationReleaseAfter = 12
+    #expect(store.dictationReleaseAfter == 15)
+    store.dictationReleaseAfter = 60
+    #expect(store.dictationReleaseAfter == 60)
+    store.reset(.dictation)
+    #expect(store.dictationKeepReady && store.dictationReleaseAfter == 15)
+}
+
 @Test func workInIsTheBaseFolderByDefaultSurvivesARelaunchFallsBackAndResetsWithSessionsOnly() {
     let name = "workin-\(UUID().uuidString)"
     let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)

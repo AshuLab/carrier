@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-18
+
+Settings gets a page of its own for About, with the update delay, and the app's rough edges after 0.12.0 are smoothed: subagent views, account marks, the dictation widget and the timeline's cards.
+
 ### Added
 
 - Settings › About, kept at the foot of the rail, replaces Updates: the app's icon and version, links to the release notes, the documentation and GitHub, a Star Carrier on GitHub row, and the updates with the engine's own.

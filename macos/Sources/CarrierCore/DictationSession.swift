@@ -270,12 +270,13 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         }
     }
 
-    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped. The floor is read before the
-    /// task: the runtime of the macos-26 runner aborts ("freed pointer was not the last allocation") when the task reads it as it sleeps.
+    /// A model that is not ready past the floor is a dictation that could not start, and what was heard is dropped. The task is never cancelled,
+    /// it only finds out when it wakes that the dictation is over or the model is ready: a model that is ready at once used to cancel it as it began
+    /// to sleep, and the runtime of the macos-26 runner aborts there ("freed pointer was not the last allocation").
     private func watchTheModel(_ mine: Int) {
         let floor = Self.answerFloor
-        watchdog = Task {
-            guard (try? await sleep(floor)) != nil, Task.isCancelled == false, generation == mine, modelReady == false else { return }
+        Task {
+            guard (try? await sleep(floor)) != nil, generation == mine, modelReady == false, state != .idle else { return }
             samples = []
             running?.cancel()
             fail(DictationFailure("The speech model did not get ready in time."))
@@ -326,8 +327,6 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         guard generation == mine else { return }
         timings.modelReady = milliseconds(since: began)
         modelReady = true
-        watchdog?.cancel()
-        watchdog = nil
         if stopped {
             // stopped while the model loaded: what was captured is read now, and the person already stopped, so it never looks like listening again
             transcribe()

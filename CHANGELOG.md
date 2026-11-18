@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-11-18
+
+Fixes after 0.13.0: starting from the app with a late PATH, pull requests of SSH-alias remotes, the draft's reasoning levels and choosing a repository to clone.
+
 ### Fixed
 
 - Carrier no longer fails to start from the app for a folder you added to your shell's PATH after the app first read it (pnpm's, where `agent-forge` lives): when a start ends with `spawn agent-forge ENOENT`, the app reads the PATH from your shell again and starts once more, and if the tool is still not there the alert says so.

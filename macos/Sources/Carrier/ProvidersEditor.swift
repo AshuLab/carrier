@@ -55,11 +55,11 @@ struct AccountEditor: View {
             } else {
                 SettingsGroup(title: "Name") {
                     field("Display name", "displayName", "What the app shows instead of \(account.name)", first: true) {
-                        TextField("", text: $draft.displayName, prompt: Text(account.name)).settingsField(width: Self.controlWidth).accessibilityLabel("Display name")
+                        TextField("", text: $draft.displayName, prompt: Text(account.name)).accessibilityLabel("Display name").settingsField(width: Self.controlWidth)
                     }
                     if store.identityEditable {
                         field("Label", "label", "Short, for tabs, chips and the message box. Empty uses the display name") {
-                            TextField("", text: $draft.label, prompt: Text(account.name)).settingsField(width: Self.controlWidth).accessibilityLabel("Label")
+                            TextField("", text: $draft.label, prompt: Text(account.name)).accessibilityLabel("Label").settingsField(width: Self.controlWidth)
                         }
                         field("Icon", "icon", "The tool's mark by default") { pickerButton(.icon) }
                         field("Color", "color", "Tints the mark wherever it shows") { pickerButton(.color) }
@@ -72,11 +72,11 @@ struct AccountEditor: View {
                 }
                 SettingsGroup(title: "Where it runs") {
                     field("Binary path", "command", "Empty runs \(harness) from the PATH", first: true) {
-                        TextField("", text: $draft.command, prompt: Text("/opt/homebrew/bin/\(harness)")).settingsField(width: Self.controlWidth).accessibilityLabel("Binary path")
+                        TextField("", text: $draft.command, prompt: Text("/opt/homebrew/bin/\(harness)")).accessibilityLabel("Binary path").settingsField(width: Self.controlWidth)
                     }
                     if harness != "agy" {
                         field("Config folder", "configDir", harness == "claude" ? "CLAUDE_CONFIG_DIR; empty is this Mac's login" : "CODEX_HOME; empty is this Mac's login", hint: "Any path; one that does not start with / or ~/ is taken from your home folder") {
-                            TextField("", text: $draft.configDir, prompt: Text("~/.\(harness)-work")).settingsField(width: Self.controlWidth).accessibilityLabel("Config folder")
+                            TextField("", text: $draft.configDir, prompt: Text("~/.\(harness)-work")).accessibilityLabel("Config folder").settingsField(width: Self.controlWidth)
                         }
                     }
                 }
@@ -269,13 +269,13 @@ struct AddAccountForm: View {
         Group {
             SettingsGroup(title: "Add account") {
                 SettingsTabRow(title: "Name", detail: "Lowercase letters, digits and hyphens", first: true) {
-                    TextField("", text: $name, prompt: Text("\(harness)-work")).settingsField(width: AccountEditor.controlWidth).accessibilityLabel("Name")
+                    TextField("", text: $name, prompt: Text("\(harness)-work")).accessibilityLabel("Name").settingsField(width: AccountEditor.controlWidth)
                 }
                 SettingsTabRow(
                     title: "Config folder",
                     detail: (harness == "claude" ? "CLAUDE_CONFIG_DIR of this login" : "CODEX_HOME of this login") + ". Any path; one that does not start with / or ~/ is taken from your home folder"
                 ) {
-                    TextField("", text: $folder, prompt: Text("~/.\(harness)-work")).settingsField(width: AccountEditor.controlWidth).accessibilityLabel("Config folder")
+                    TextField("", text: $folder, prompt: Text("~/.\(harness)-work")).accessibilityLabel("Config folder").settingsField(width: AccountEditor.controlWidth)
                 }
             }
             if let message = problem ?? store.editProblem { SettingsGroup(title: "") { ProblemLine(text: message) } }

@@ -89,8 +89,12 @@ private func quota(_ account: String, five: Double, provider: String = "claude")
     // the file names accounts, the host finds no binary: the list says what the provider's own screen says
     let text = try String(contentsOf: fixtures.appendingPathComponent("chat-providers.json"), encoding: .utf8).replacingOccurrences(of: "\"found\": true", with: "\"found\": false")
     let missing = providersPage(try JSONDecoder().decode(HostProviders.self, from: Data(text.utf8)), config: nil, chat: nil)
-    let claude = try #require(providersDirectory(missing, quotas: [], now: now).providers.first { $0.id == "claude" })
+    let directory = providersDirectory(missing, quotas: [], now: now)
+    let claude = try #require(directory.providers.first { $0.id == "claude" })
     #expect(claude.accounts == 2 && claude.summary == "Not installed" && claude.mark == .off)
+    // its accounts are not asked for either (there is nothing to sign in to), and the search says what the list says
+    #expect(directory.attention.isEmpty)
+    #expect(providersSearchEntries(missing).first { $0.title == "Claude Code" }?.detail == "Not installed")
 }
 
 @Test func theNextResetIsTheSoonestOneStillAheadAndTheSearchPoolsNothingByProvider() throws {

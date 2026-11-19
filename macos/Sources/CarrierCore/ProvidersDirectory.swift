@@ -95,7 +95,8 @@ public func providersDirectory(_ page: ProvidersPage, quotas: [UsageQuota], filt
     var providers: [DirectoryProvider] = []
     for tool in page.tools {
         let usages = tool.accounts.map { ($0, accountUsage($0.name, in: quotas, now: now)) }
-        let needing = usages.compactMap { account, usage in attentionReason(account, usage: usage).map { (account, usage, $0) } }
+        // a provider not on this Mac has nothing to sign in to: its screen shows no accounts, so none of them is asked for here
+        let needing = tool.status == .missing ? [] : usages.compactMap { account, usage in attentionReason(account, usage: usage).map { (account, usage, $0) } }
         let toolMatches = matches([tool.title, tool.id])
         for (account, usage, reason) in needing where toolMatches || matches([account.name, account.title]) {
             attention.append(DirectoryAccount(tool: tool.id, toolTitle: tool.title, icon: tool.icon, account: account, usage: usage, reason: reason))
@@ -113,7 +114,7 @@ public func providersSearchEntries(_ page: ProvidersPage) -> [SettingsEntry] {
     page.tools.flatMap { tool in
         [SettingsEntry(
             page: .providers, group: "AI providers", title: tool.title,
-            detail: tool.accounts.isEmpty ? tool.status.text : "\(tool.accounts.count) \(tool.accounts.count == 1 ? "account" : "accounts")", path: [tool.id]
+            detail: tool.accounts.isEmpty || tool.status == .missing ? tool.status.text : "\(tool.accounts.count) \(tool.accounts.count == 1 ? "account" : "accounts")", path: [tool.id]
         )]
             + tool.accounts.map {
                 SettingsEntry(

@@ -21,6 +21,8 @@ struct ProvidersTabView: View {
     @State private var failure: String?
     @State private var filter = ""
     @State private var showsAllAttention = false
+    /// A write closed the editor: what the engine says of it comes after, and must survive the move to the provider's screen.
+    @State private var keepsMessage = false
 
     /// The path of the form that adds an account to a provider: `[provider, "+"]`.
     static let addAccountPath = "+"
@@ -38,12 +40,12 @@ struct ProvidersTabView: View {
         }
         .preference(key: SettingsTitleKey.self, value: page.flatMap(title))
         .task { await look() }
-        // what the engine said to a save belongs to the provider it was made on: it does not follow the person to another or out of the page, but
-        // it stays when a save closes the account's editor onto its own provider
+        // what a screen said (a refusal of the editor, the engine's answer to a save) belongs to that screen: it does not follow the person to another or
+        // out of the page. Only the close after a successful write keeps it, since the engine answers after the editor is gone
         .onDisappear { store.dismissProblem() }
-        .onChange(of: place) { old, new in
+        .onChange(of: place) {
             failure = nil
-            if old.path.first != new.path.first { store.dismissProblem() }
+            if keepsMessage { keepsMessage = false } else { store.dismissProblem() }
         }
         // back from Terminal or an editor, where a login or a file may have changed
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await look() } }
@@ -74,12 +76,18 @@ struct ProvidersTabView: View {
 
     private func here(_ path: String...) -> SettingsPlace { SettingsPlace(.providers, path: path) }
 
+    /// What the editors call once their write went through: back to the provider, keeping what the engine will say of it.
+    private func leaveAfterWrite() {
+        keepsMessage = true
+        back()
+    }
+
     // MARK: which screen
 
     @ViewBuilder private func screen(_ page: ProvidersPage) -> some View {
         if let id = place.path.first, let tool = page.tools.first(where: { $0.id == id }) {
             if place.path.count > 1, place.path[1] == Self.addAccountPath {
-                AddAccountForm(harness: tool.id, store: store, close: back)
+                AddAccountForm(harness: tool.id, store: store, close: leaveAfterWrite)
             } else if place.path.count > 1, let account = tool.accounts.first(where: { $0.name == place.path[1] }) {
                 accountScreen(tool, account)
             } else {
@@ -110,7 +118,7 @@ struct ProvidersTabView: View {
     @ViewBuilder private func directory(_ page: ProvidersPage) -> some View {
         let list = providersDirectory(page, quotas: usage.quotas, filter: filter, now: Int(Date().timeIntervalSince1970 * 1000))
         SettingsGroup(title: "") {
-            TextField("", text: $filter, prompt: Text("Filter providers and accounts")).settingsField(icon: "magnifyingglass").accessibilityLabel("Filter providers and accounts").writingToolsBehavior(.disabled)
+            TextField("", text: $filter, prompt: Text("Filter providers and accounts")).accessibilityLabel("Filter providers and accounts").settingsField(icon: "magnifyingglass").writingToolsBehavior(.disabled)
         }
         if list.isEmpty {
             SettingsGroup(title: "") { Text("Nothing matches “\(filter)”").foregroundStyle(.secondary) }
@@ -240,7 +248,7 @@ struct ProvidersTabView: View {
                 }
             }
         }
-        AccountEditor(account: account, harness: tool.id, store: store, close: back).id(account.name)
+        AccountEditor(account: account, harness: tool.id, store: store, close: leaveAfterWrite).id(account.name)
     }
 
     // MARK: a local server

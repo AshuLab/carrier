@@ -11,6 +11,8 @@ public let nearLimitShare = 0.9
 public struct AccountUsage: Equatable {
     public var five: MeterShape?
     public var weekly: MeterShape?
+    /// Codex's free plan has only this one, of 30 days.
+    public var monthly: MeterShape?
     /// `Resets in 2h 14m`, or the provider's own words; nil when the time has passed or there is none.
     public var reset: String?
     /// The numbers are the last known ones: a later probe was refused.
@@ -19,7 +21,7 @@ public struct AccountUsage: Equatable {
     public var nearLimit: Bool { (five?.used ?? 0) >= nearLimitShare }
 }
 
-/// The 5h and Weekly meters of the account named `account` in `providers.json`, from the host's quotas (`now` in milliseconds). Nil when the
+/// The 5h, Weekly and Monthly meters of the account named `account` in `providers.json`, from the host's quotas (`now` in milliseconds). Nil when the
 /// quotas have nothing for it: signed out, not checked, or a provider with no such window. A window that is neither (Claude's `7d Opus`) is left
 /// to the Usage page.
 public func accountUsage(_ account: String, in quotas: [UsageQuota], now: Int) -> AccountUsage? {
@@ -28,12 +30,14 @@ public func accountUsage(_ account: String, in quotas: [UsageQuota], now: Int) -
     let main = quota.windows.filter { ($0.group == nil || quota.provider == "agy") && $0.group != "model_scoped" }
     let fives = main.filter { quotaKind($0) == .fiveHour }
     let weeks = main.filter { quotaKind($0) == .weekly }
-    guard fives.isEmpty == false || weeks.isEmpty == false else { return nil }
-    let timed = fives.isEmpty ? weeks : fives
+    let months = main.filter { quotaKind($0) == .monthly }
+    guard fives.isEmpty == false || weeks.isEmpty == false || months.isEmpty == false else { return nil }
+    let timed = fives.isEmpty ? (weeks.isEmpty ? months : weeks) : fives
     // the soonest reset still ahead (a pool whose reset has passed does not hide the countdown of another), or the provider's words when none has a time
     let next = timed.filter { ($0.resetsAt ?? 0) > now }.min { ($0.resetsAt ?? 0) < ($1.resetsAt ?? 0) } ?? timed.first { $0.resetsAt == nil }
     return AccountUsage(
         five: fives.isEmpty ? nil : meterShape(fives), weekly: weeks.isEmpty ? nil : meterShape(weeks),
+        monthly: months.isEmpty ? nil : meterShape(months),
         reset: next.flatMap { resetText(resetsAt: $0.resetsAt, label: $0.resetLabel, now: now) }, stale: quota.stale
     )
 }

@@ -10,9 +10,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Carrier no longer grows in memory while it sits open: about 1 MB a minute went to what the connection to the engine left behind, and it is freed on every poll now.
 
+## [0.14.1] - 2026-11-19
+
+Fixes after 0.14.0: the Settings window's first size, selects, buttons and badges that did not look like the rest, a bar for Codex's free plan, archiving the session on screen, and an update check every hour.
+
 ### Changed
 
 - Settings › Dictation › History shows the first 100 dictations and a Show 100 more button, so it opens at once with thousands of them.
+- Carrier looks for an update every hour, not once a day. An installed Carrier keeps the daily check until it updates to this version.
+
+### Fixed
+
+- Archiving (or deleting) the session on screen goes to a new session, so the next task starts there, and the conversation no longer stays on screen.
+- The Settings window opens at a readable size the first time, not as a strip with only the window buttons, and centered over the main window.
+- Hovering a link in a message no longer leaves dark rectangles over the rest of the text.
+- The provider's mark on the corner of an avatar (a role's, a session's) is on an opaque disc, so it is seen over a picture.
+- Usage and the Providers page of Settings show a bar for Codex on the free plan, whose only limit is 30 days (it showed none because the page only knew the 5h and weekly windows).
+- Cancel in the sheets of a new session (workspace, where it works, branches) and Change… under the workspaces are the grey capsule of the other secondary buttons.
+- In the workspace and branch sheets the Open and Select tags and the chevron of a row have contrast on a light accent, and the filter icon is the size and color of the search's.
+- The "Let Carrier watch" switch of the workspace sheet is the size of the ones in Settings.
+- The New session and New Terminal buttons of the empty sidebar are the glass pills of the title bar.
+- The controls of "Work in … on … from …" in a new session (workspace, where it works, branches) look like the selects of Settings, with a box under the pointer, and their icons and heights are aligned.
+- Selects outside a form (Usage's filters, the cards of Settings) look like the ones in Settings' forms, and Usage's search box is wider.
 
 ## [0.14.0] - 2026-11-19
 

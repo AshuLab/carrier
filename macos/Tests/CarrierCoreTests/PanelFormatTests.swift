@@ -108,8 +108,8 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
 }
 
 @Test func whatAPasteHoldsIsSaidInOneLine() {
-    #expect(pasteStats(String(repeating: "a", count: 3412)) == "3,412 chars · 1 line · ~853 tokens")
-    #expect(pasteStats(Array(repeating: "x", count: 87).joined(separator: "\n")).contains("87 lines"))
+    #expect(PasteSummary(String(repeating: "a", count: 3412)).stats == "3,412 chars · 1 line · ~853 tokens")
+    #expect(PasteSummary(Array(repeating: "x", count: 87).joined(separator: "\n")).stats.contains("87 lines"))
 }
 
 @Test func aQueuedMessageWithAPasteShowsWhatWasTypedAndOneLineForTheText() {
@@ -117,4 +117,17 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
     #expect(messagePreview(message) == "why?\nPasted text · 87 lines")
     #expect(messagePreview(messageWithPastes("", pastes: ["a\nb"])) == "Pasted text · 2 lines")
     #expect(messagePreview("plain") == "plain")
+}
+
+@Test func aPasteSummaryCountsEmptyLinesAsTheCardDid() {
+    #expect(PasteSummary("a\n\nb\n").lines == 4)
+    #expect(PasteSummary("").lines == 1)
+    #expect(PasteSummary("a\n\nb\n").stats == "5 chars · 4 lines · ~2 tokens")
+}
+
+@Test func aPastedEntryKeepsItsSummaryInStepWithItsText() {
+    var entry = PastedEntry(text: "one line")
+    #expect(entry.summary.lines == 1)
+    entry.text = "one\ntwo\nthree"
+    #expect(entry.summary == PasteSummary("one\ntwo\nthree") && entry.summary.lines == 3)
 }

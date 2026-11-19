@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Settings › Dictation › History shows the first 100 dictations and a Show 100 more button, so it opens at once with thousands of them.
+
 ## [0.14.0] - 2026-11-19
 
 Settings in a window of its own with search, Keep awake, a redrawn Providers, Dictation and Agents, a choice of icon sets, and a lighter app while it sits open.

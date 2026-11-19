@@ -4,19 +4,27 @@ import Observation
 import SwiftUI
 
 /// Plays the audio file of a dictation: a button that plays and pauses, the place it has got to and the time. It plays only while it is on screen.
-@MainActor @Observable private final class AudioPlayback {
+@MainActor @Observable final class AudioPlayback {
     private(set) var playing = false
     private(set) var position = 0.0
     private(set) var duration = 0.0
+    private var loaded = false
+    @ObservationIgnored private let url: URL
     @ObservationIgnored private var player: AVAudioPlayer?
     @ObservationIgnored private var ticker: Task<Void, Never>?
 
-    init(url: URL) {
+    init(url: URL) { self.url = url }
+
+    /// Opens the file, once: the view makes one of these at each of its inits, and only the one that appears reads the disk.
+    func load() {
+        guard loaded == false else { return }
+        loaded = true
         player = try? AVAudioPlayer(contentsOf: url)
         duration = player?.duration ?? 0
     }
 
-    var failed: Bool { player == nil }
+    /// The file could not be read; false until `load` has tried.
+    var failed: Bool { loaded && player == nil }
 
     func toggle() {
         guard let player else { return }
@@ -67,6 +75,7 @@ struct AudioPlayerView: View {
                 Text("\(dictationClock(playback.position)) / \(dictationClock(playback.duration))").font(.scaled(11)).monospacedDigit().foregroundStyle(.secondary)
             }
         }
+        .onAppear { playback.load() }
         .onDisappear { playback.stop() }
     }
 }

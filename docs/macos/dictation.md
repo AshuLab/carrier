@@ -137,6 +137,9 @@ The widget's entries are written by `GlobalDictation`, which knows how it ended,
 Under `--fixture` and in the tests the history is in a temporary folder, never in the Carrier folder.
 
 The list is grouped by day, newest first (Today, Yesterday, then the weekday and the date), under a search over the text, the cleaned text and the destination, and the filters All, Pasted, Copied, Cancelled and Failed (`dictationEntries`, `dictationDays`).
+It draws the first 100 entries that match (`dictationHistoryPage`) and, under them, a Show 100 more button; the line at the bottom says how many match of how many there are.
+A new search or filter goes back to the first 100; a new or a deleted dictation leaves the list at the page it was.
+The list is worked out when one of those changes and kept, not at each redraw (`dictationHistory`).
 A row shows the time, the text (two lines) and chips with the outcome, the destination, the model, the transcription time, the words and the length; a click opens its detail (the text as recognized and as cleaned, the model, the transcription time for the audio length, the cleanup and where it went).
 Copy puts the text on the clipboard (the cleaned text when there is one) and says Copied for a moment, and the trash asks Delete this dictation? first (its text and its audio go, the statistics stay), with the switch on or off; an empty list says No dictations yet, and a search or filter with no match says Nothing matches.
 

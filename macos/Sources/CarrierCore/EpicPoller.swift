@@ -68,7 +68,9 @@ public struct Transcript: Equatable {
 public struct EpicData: Equatable {
     public var sessions: SessionsReply?
     public var epic: EpicReply?
-    public var files: FilesReply?
+    public internal(set) var files: FilesReply?
+    /// What the Files changed tab draws, worked out when `files` changes so no `body` does it.
+    public internal(set) var filesChanged = FilesChangedModel.empty
     /// By execution id.
     public var transcripts: [String: Transcript] = [:]
     /// The fragment of each file row that was opened: a merged slice's and a fix round's asked once and kept, a lane's followed.
@@ -125,6 +127,8 @@ public final class EpicPoller {
     static let pagesPerPoll = 8
 
     public private(set) var data: [EpicRef: EpicData] = [:]
+    /// The times a `files` reply was turned into the model: once per reply that differs, however often it is asked.
+    public private(set) var filesModelsBuilt = 0
     private var focus: EpicFocus?
     private let lock = NSLock()
     private var requested: [EpicFocus?] = []
@@ -189,7 +193,14 @@ public final class EpicPoller {
                 switch kind {
                 case .epic: if let reply = try client.epic(repo: key.repo, issue: key.issue) { update(key) { $0.epic = reply } }
                 case .sessions: if let reply = try client.sessions(repo: key.repo, issue: key.issue) { update(key) { $0.sessions = reply } }
-                case .files: if let reply = try client.files(repo: key.repo, issue: key.issue) { update(key) { $0.files = reply } }
+                case .files:
+                    if let reply = try client.files(repo: key.repo, issue: key.issue) {
+                        update(key) {
+                            guard $0.files != reply else { return }
+                            filesModelsBuilt += 1
+                            ($0.files, $0.filesChanged) = (reply, filesChangedModel(reply))
+                        }
+                    }
                 case .events:
                     let id = focus.transcript ?? ""
                     let after = data[key]?.transcripts[id]?.next ?? 0

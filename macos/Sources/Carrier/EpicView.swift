@@ -14,8 +14,8 @@ struct EpicView: View {
     /// window's header says of it.
     @Binding var subagents: [String]
     @Binding var subagentHeader: SubagentHeader?
-    /// The `files` reply, once the window asks for it.
-    var files: FilesReply?
+    /// What the Files changed tab draws, once the window has the `files` reply.
+    var filesModel = FilesChangedModel.empty
     /// What a queued epic will do; nil for any other.
     var plan: QueuedPlan?
     /// The reason and the Resume button of a stopped epic, with the store that remembers a Resume in flight; nil for any other.
@@ -69,8 +69,7 @@ struct EpicView: View {
                 EpicHeaderView(header: epicHeader(subject, reply: reply))
                 UnderlineTabs(
                     items: EpicTab.allCases.map { item in
-                        let files = max(filesChanged, filesChangedCount(files))
-                        return UnderlineTabs.Item(id: item, title: item.title, icon: item.icon, count: item == .filesChanged && files > 0 ? "\(files)" : nil)
+                        UnderlineTabs.Item(id: item, title: item.title, icon: item.icon, count: item == .filesChanged && filesChanged > 0 ? "\(filesChanged)" : nil)
                     },
                     selection: $tab
                 )
@@ -95,7 +94,7 @@ struct EpicView: View {
             }
             .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
         case .filesChanged:
-            FilesChangedView(files: files, fileDiffs: fileDiffs)
+            FilesChangedView(model: filesModel, fileDiffs: fileDiffs)
         }
     }
 

@@ -40,17 +40,31 @@ struct HistoryGroup: View {
     }
 }
 
-/// The entries: a search over the text and the destination and a filter by outcome, then a group a day with the newest first. A row opens to its detail,
-/// copies its text and deletes its entry.
+/// The entries: a search over the text and the destination and a filter by outcome, then a group a day with the newest first, the first
+/// `dictationHistoryPage` and a "Show more" for the rest. A row opens to its detail, copies its text and deletes its entry.
 struct HistoryList: View {
     let records: DictationRecords
     @State private var query = ""
     @State private var outcome: DictationOutcome?
     @State private var open: UUID?
+    @State private var limit = dictationHistoryPage
+    /// What the list draws, worked out when the search, the filter, the entries or `limit` change, not at each `body`.
+    @State private var shown: (days: [DictationDay], matched: Int) = ([], 0)
+    /// False until the first `refresh`, so the empty states are not drawn for the pass before the list is worked out.
+    @State private var ready = false
+
+    private func refresh() {
+        shown = dictationHistory(records.entries, matching: query, outcome: outcome, limit: limit)
+        ready = true
+    }
+
+    /// A new search or filter starts from the first page; `limit` moving is what refreshes when it was further down.
+    private func startOver() {
+        if limit == dictationHistoryPage { refresh() } else { limit = dictationHistoryPage }
+    }
 
     var body: some View {
         let _ = Signposts.render.emitEvent("history body", "\(records.entries.count) entries")
-        let shown = dictationEntries(records.entries, matching: query, outcome: outcome)
         SettingsGroup(title: "") {
             TextField("", text: $query, prompt: Text("Search your dictations")).accessibilityLabel("Search your dictations").settingsField(icon: .search)
             HStack(spacing: 6) {
@@ -61,7 +75,13 @@ struct HistoryList: View {
             }
             .padding(.vertical, 4)
         }
-        if shown.isEmpty {
+        .onChange(of: query, initial: true) { startOver() }
+        .onChange(of: outcome) { startOver() }
+        .onChange(of: records.entries) { refresh() }
+        .onChange(of: limit) { refresh() }
+        if ready == false {
+            EmptyView()
+        } else if shown.matched == 0 {
             SettingsGroup(title: "") {
                 EmptyStateView(
                     icon: records.entries.isEmpty ? .waveform : .search, title: records.entries.isEmpty ? "No dictations yet" : "Nothing matches",
@@ -70,7 +90,7 @@ struct HistoryList: View {
                 .frame(minHeight: 220)
             }
         } else {
-            ForEach(dictationDays(shown)) { day in
+            ForEach(shown.days) { day in
                 SettingsGroup(title: dictationDayTitle(day.day, now: Date())) {
                     ForEach(day.entries) { entry in
                         HistoryRow(entry: entry, audio: records.audioURL(of: entry.id), open: open == entry.id, toggle: { open = open == entry.id ? nil : entry.id }, delete: { records.delete(entry.id) })
@@ -78,7 +98,11 @@ struct HistoryList: View {
                 }
             }
             SettingsGroup(title: "") {
-                Text("\(shown.count) of \(records.entries.count) dictations").font(.scaled(11)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                Text("\(shown.matched) of \(records.entries.count) dictations").font(.scaled(11)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                if shown.matched > limit {
+                    Button("Show \(min(dictationHistoryPage, shown.matched - limit)) more") { limit += dictationHistoryPage }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).frame(maxWidth: .infinity)
+                }
             }
         }
     }

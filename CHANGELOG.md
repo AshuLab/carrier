@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-19
+
+Settings in a window of its own with search, Keep awake, a redrawn Providers, Dictation and Agents, a choice of icon sets, and a lighter app while it sits open.
+
 ### Added
 
 - Settings is a window of its own and not a sheet: it does not stop you using the main window, it comes back where you left it, and it has a sidebar, a toolbar with the page's name, and ‹ › (⌘[ and ⌘]) to go back and forward through the pages you visited.
@@ -18,15 +22,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Carrier.app wakes the Mac less while it sits open: no hidden animation while an update waits, no tenth-of-a-second timer while the window is open, and no settings write at every read of an open session.
-
-### Fixed
-
-- A message could show twice in a conversation when it arrived while the app was already reading the session.
-- Opening Carrier before the chat host was up emptied the sessions list for a moment and lost which sessions were unread.
-- Dictating in another app with the shortcut no longer stops when Carrier's window is hidden, covered, minimized or closed.
-
-### Changed
-
 - Settings › Providers is a form of three screens (the providers, one provider, one account), with ‹ › to move between them, a filter, and the accounts that are signed out or near their 5h limit first. Each account shows its own 5h and Weekly usage, with when it resets; the editor of an account is a screen with Save in the toolbar, and its icon and color open from a button. The search finds the providers and accounts of this Mac.
 - Settings › Dictation is a form of seven screens: a first one with whether dictation works now (microphone, Accessibility and the speech model, with what to fix) and the switch, and Speech recognition, Global dictation, Cleanup, Sounds, History and Statistics one click away, each with ‹ ›. The Statistics screen has everything it had, one group under another; Reset is on the first screen.
 - Settings › Agents is a first screen and one screen for each role, with ‹ › between them: whether the roles are set up (and what to fix), the three roles of an epic joined by a rail that says what passes from one to the next, and for each role its picture, who it works as, its model, persona, the skill each stage runs and what happens when its tokens run out. A bot of Agent Forge shows the logo of its GitHub App, with the mark of its account on the corner, and its initials when it has none. The skills are shown and cannot be changed yet.
@@ -37,6 +32,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings pages that are rows (General, Appearance, Notifications, Keybindings, Keep awake, Chat, Sessions, Sidebar, Terminal, Agents, Behavior, Engine and About) are native grouped forms with the same rows, selects and switches, in one column of the same width, with shorter lines and the longer words under the group; Providers, Repos and Health keep their own layout.
 - Reset is in the ⋯ menu of Settings' toolbar ("Reset this page…") and asks first, on every page that has one (the menu is not drawn on the pages that have none); Sessions and Behavior no longer have a Reset card.
 - What Carrier is missing shows as a banner on the Engine and Health pages and as a badge on their rows, not over every page.
+
+### Fixed
+
+- A message could show twice in a conversation when it arrived while the app was already reading the session.
+- Opening Carrier before the chat host was up emptied the sessions list for a moment and lost which sessions were unread.
+- Dictating in another app with the shortcut no longer stops when Carrier's window is hidden, covered, minimized or closed.
 
 ## [0.13.1] - 2026-11-18
 

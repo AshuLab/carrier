@@ -35,6 +35,11 @@ public enum IconAsset: Equatable, Sendable {
     }
 }
 
+extension AppIcon {
+    /// The SF Symbol of the icon, for what the system draws (a menu, the toolbar) whatever the set is.
+    public var systemSymbolName: String { iconNames(self).symbol }
+}
+
 public func iconAsset(_ icon: AppIcon, in set: IconSet) -> IconAsset {
     let names = iconNames(icon)
     switch set {
@@ -143,7 +148,7 @@ private func iconNames(_ icon: AppIcon) -> (tabler: String, lucide: String, symb
     case .messageDots: ("outline/message-dots", "message-circle-more", "ellipsis.bubble")
     case .messages: ("outline/messages", "messages-square", "bubble.left.and.text.bubble.right")
     case .microphone: ("outline/microphone", "mic", "mic")
-    case .microphoneFilled: ("filled/microphone", "mic+fill", "mic.fill")
+    case .microphoneFilled: ("filled/microphone", "mic", "mic.fill")
     case .microphoneOff: ("outline/microphone-off", "mic-off", "mic.slash")
     case .minus: ("outline/minus", "minus", "minus")
     case .octagonWarning: ("filled/alert-octagon", "octagon-alert", "xmark.octagon.fill")

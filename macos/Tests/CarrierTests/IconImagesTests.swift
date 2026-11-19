@@ -18,8 +18,31 @@ func everyIconOfAnSVGSetComesAsATemplateImageWithASizeAtEveryWeight(set: IconSet
     for icon in AppIcon.allCases { #expect(IconImages.image(icon, set: .sfSymbols, weight: 1.5) == nil) }
 }
 
-@MainActor @Test func theImageForAppKitIsNeverEmptyWhateverTheSet() {
-    for icon in AppIcon.allCases { #expect(IconImages.image(icon).size.width > 0, Comment(rawValue: "\(icon)")) }
+@MainActor @Test(arguments: IconSet.allCases)
+func theImageForAppKitIsNeverEmptyAndATemplateInEverySetAtEveryWeight(set: IconSet) {
+    for icon in AppIcon.allCases {
+        for (weight, bold) in [(IconWeight.range.lowerBound, false), (IconWeight.defaultWeight, true), (IconWeight.range.upperBound, false)] {
+            let image = IconImages.image(icon, set: set, weight: weight, bold: bold)
+            #expect(image.size.width > 0 && image.size.height > 0 && image.isTemplate, Comment(rawValue: "\(set) \(icon) at \(weight)"))
+        }
+    }
+}
+
+@MainActor @Test(arguments: IconSet.allCases)
+func anInlineImageIsATemplateOfTheSizeOfTheTextForAnSVGAndOfItsPointSizeForASymbol(set: IconSet) {
+    for icon in AppIcon.allCases {
+        let image = IconImages.inline(icon, side: 11, set: set, weight: IconWeight.defaultWeight)
+        #expect(image.isTemplate && image.size.width > 0 && image.size.height > 0, Comment(rawValue: "\(set) \(icon)"))
+        if set != .sfSymbols { #expect(image.size == NSSize(width: 11, height: 11), Comment(rawValue: "\(set) \(icon)")) }
+    }
+}
+
+@Test func theSystemTakesTheSFSymbolOfEveryIconWhateverTheSetIs() {
+    for icon in AppIcon.allCases {
+        #expect(NSImage(systemSymbolName: icon.systemSymbolName, accessibilityDescription: nil) != nil, Comment(rawValue: "\(icon)"))
+        #expect(iconAsset(icon, in: .sfSymbols) == .symbol(icon.systemSymbolName))
+    }
+    #expect(AppIcon.folder.systemSymbolName == "folder")
 }
 
 @MainActor @Test func aTintedImageKeepsItsAspectInsideTheSquareItIsGiven() throws {
@@ -37,10 +60,4 @@ func everyIconOfAnSVGSetComesAsATemplateImageWithASizeAtEveryWeight(set: IconSet
     #expect(Font.Weight(strokeWeight: IconWeight.defaultWeight) == .regular)
     #expect(Font.Weight(strokeWeight: IconWeight.range.lowerBound) == .thin && Font.Weight(strokeWeight: IconWeight.range.upperBound) == .heavy)
     #expect(NSFont.Weight(strokeWeight: IconWeight.defaultWeight) == .regular)
-}
-
-@MainActor @Test func aLabelForTheSystemTakesTheSFSymbolOfTheIconAndAnInlineImageIsBuiltInEverySet() {
-    _ = Label("Reveal", systemIcon: .folder)
-    _ = Image(inline: .gitBranch)
-    #expect(iconAsset(.folder, in: .sfSymbols) == .symbol("folder"))
 }

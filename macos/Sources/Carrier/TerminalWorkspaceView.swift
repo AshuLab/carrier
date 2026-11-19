@@ -210,6 +210,8 @@ struct TerminalPaneHeaderView: View {
             .hoverCursor(.openHand) { dragHovered = $0 }
             .animation(.easeOut(duration: 0.12), value: dragHovered)
             .help("\(pane.displayTitle) (\(abbreviatedTerminalPath(pane.workingDirectory))) — Drag to move or swap pane")
+            // not a button, so the icon inside is its own element: one element, with the label
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Move pane \(pane.displayTitle)")
             .onDrag(onBeginDrag)
     }

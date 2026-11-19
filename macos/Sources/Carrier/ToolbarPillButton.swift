@@ -92,7 +92,6 @@ struct ToolbarGlassIconButton: View {
                 .padding(.horizontal, 10)
                 .frame(height: ToolbarPillButton.height)
                 .background(Capsule().fill(active ? Color.themeAccent.opacity(0.18) : Color.primary.opacity(hovered && enabled ? 0.1 : 0)))
-                .accessibilityAddTraits(active ? .isSelected : [])
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -101,6 +100,7 @@ struct ToolbarGlassIconButton: View {
         .animation(.easeOut(duration: 0.12), value: hovered)
         .help(name)
         .accessibilityLabel(name)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 }
 

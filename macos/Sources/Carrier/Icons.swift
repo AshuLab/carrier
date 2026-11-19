@@ -44,13 +44,26 @@ import SwiftUI
     /// Symbol comes at `pointSize` and the weight as the weight of its font, as `Glyph` draws it.
     static func image(_ icon: AppIcon, bold: Bool = false, pointSize: CGFloat = 24) -> NSImage {
         let style = IconAppearance.shared
-        let weight = style.weight + (bold ? 0.75 : 0)
-        if let image = image(icon, set: style.set, weight: weight) { return image }
-        guard case .symbol(let name) = iconAsset(icon, in: .sfSymbols),
-              let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil) else { return NSImage() }
+        return image(icon, set: style.set, weight: style.weight, bold: bold, pointSize: pointSize)
+    }
+
+    /// The same in the set and weight it is given: what a test, or a caller that holds the appearance itself, asks for.
+    static func image(_ icon: AppIcon, set: IconSet, weight: Double, bold: Bool, pointSize: CGFloat = 24) -> NSImage {
+        let weight = weight + (bold ? 0.75 : 0)
+        if let image = image(icon, set: set, weight: weight) { return image }
+        guard let symbol = NSImage(systemSymbolName: icon.systemSymbolName, accessibilityDescription: nil) else { return NSImage() }
         let configured = symbol.withSymbolConfiguration(.init(pointSize: pointSize * 0.9, weight: NSFont.Weight(strokeWeight: weight))) ?? symbol
         configured.isTemplate = true
         return configured
+    }
+
+    /// The image of an icon in a `Text`, `side` points square: an SVG is made that size, and a symbol, which comes at its own proportions, at that point size.
+    static func inline(_ icon: AppIcon, side: CGFloat, set: IconSet, weight: Double) -> NSImage {
+        let image = self.image(icon, set: set, weight: weight, bold: false, pointSize: side)
+        let own = (image.copy() as? NSImage) ?? image
+        if case .svg = iconAsset(icon, in: set) { own.size = NSSize(width: side, height: side) }
+        own.isTemplate = true
+        return own
     }
 }
 
@@ -86,8 +99,7 @@ extension Label where Title == Text, Icon == Image {
     /// A title and an icon for what the system draws: the item of a menu and of the window's toolbar. Its image stays an SF Symbol whatever the set is (an item
     /// whose icon is a view of ours would lose it, or sit badly in the toolbar).
     init<S: StringProtocol>(_ title: S, systemIcon: AppIcon) {
-        guard case .symbol(let name) = iconAsset(systemIcon, in: .sfSymbols) else { self.init(title, systemImage: "questionmark"); return }
-        self.init(title, systemImage: name)
+        self.init(title, systemImage: systemIcon.systemSymbolName)
     }
 }
 
@@ -210,12 +222,7 @@ extension Image {
     /// An icon of the interface to put inside a `Text` (`Text("\(Image(inline: .gitBranch)) main")`), where a view cannot go: sized in points to the text, in
     /// the set and weight now, and a template, so it takes the color of the text.
     @MainActor init(inline icon: AppIcon, size: CGFloat = 11) {
-        let side = TextSize.shared.scale.size(size)
-        let image = IconImages.image(icon, pointSize: side)
-        let own = (image.copy() as? NSImage) ?? image
-        // an SVG comes at 24 points and a symbol at its own: both are made the side of the text
-        if IconImages.image(icon, set: IconAppearance.shared.set, weight: IconAppearance.shared.weight) != nil { own.size = NSSize(width: side, height: side) }
-        own.isTemplate = true
-        self.init(nsImage: own)
+        let style = IconAppearance.shared
+        self.init(nsImage: IconImages.inline(icon, side: TextSize.shared.scale.size(size), set: style.set, weight: style.weight))
     }
 }

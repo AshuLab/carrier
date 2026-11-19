@@ -90,3 +90,10 @@ func everyIconIsInEverySetWithItsFileOrItsSymbol(set: IconSet) throws {
     let steps = stride(from: IconWeight.range.lowerBound, through: IconWeight.range.upperBound, by: IconWeight.step).map(IconWeight.symbolStep)
     #expect(steps == steps.sorted() && Set(steps).count == 7)
 }
+
+@Test func lucideFillsOnlyTheIconsWhoseOutlineIsAClosedShape() {
+    // filling a path that is open (the microphone's stand) closes it and swallows the shape: those stay outlines
+    let filled = AppIcon.allCases.filter { icon in if case .svg(_, _, true) = iconAsset(icon, in: .lucide) { true } else { false } }
+    #expect(Set(filled) == [.circleFilled, .pauseFilled, .pinFilled, .playFilled, .starFilled, .stopFilled])
+    #expect(iconAsset(.microphoneFilled, in: .lucide) == .svg(folder: "LucideIcons", name: "mic", fill: false))
+}

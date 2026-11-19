@@ -11,7 +11,7 @@ struct SoundsGroup: View {
     @AppStorage(AppPreferences.dictationSoundVolumeKey) private var volume = DictationSounds.defaultVolume
 
     var body: some View {
-        SettingsGroup(title: "Sounds") {
+        SettingsGroup(title: "Sounds", footer: "Tink, Pop or Glass. The play button always plays, at the volume set; the message boxes stay silent.") {
             soundRow("Start sound", detail: "Plays when it begins to listen", on: $startOn, name: $start, first: true)
             soundRow("End sound", detail: "Plays when it stops listening and goes on to clean and paste", on: $endOn, name: $end)
             SettingsTabRow(title: "Volume", detail: "For both sounds, in the global dictation only; \(volume)%") {

@@ -284,28 +284,6 @@ struct ProvidersTabView: View {
     }
 }
 
-/// A row of a form that opens a screen: the whole row is the button, with a chevron at its end and whatever else says its state before it.
-private struct NavigationRow<Leading: View, Trailing: View>: View {
-    let title: String
-    let detail: String
-    let leading: Leading
-    let action: () -> Void
-    @ViewBuilder let trailing: Trailing
-
-    var body: some View {
-        Button(action: action) {
-            SettingsTabRow(title: title, detail: detail, leading: AnyView(leading)) {
-                HStack(spacing: 10) {
-                    trailing
-                    Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).foregroundStyle(.tertiary).accessibilityHidden(true)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 /// An account of a provider, with its own usage: its name and state, who uses it and where its login lives and, at the right, its 5h and Weekly
 /// meters with when they reset (or Sign in, for a signed-out one). When that does not fit (a narrow window, the largest text) the meters go under
 /// the text. The whole row opens the account; the buttons inside keep their own clicks.

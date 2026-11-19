@@ -25,12 +25,11 @@ public struct SettingsEntry: Equatable, Sendable, Identifiable {
         self.path = path
     }
 
-    /// What a row of a list is known by: the same for a place of the page, and with its path for a screen (two accounts of one provider may share a name).
-    public var id: String {
-        if isPage { return settingsAnchor(page, group: "", title: "") }
-        let anchor = settingsAnchor(page, group: group, title: title)
-        return path.isEmpty ? anchor : ([anchor] + path).joined(separator: "/")
-    }
+    /// What the page scrolls to once the place is open: the row's own anchor (`settingsAnchor`), the page's name for a page.
+    public var anchor: String { isPage ? settingsAnchor(page, group: "", title: "") : settingsAnchor(page, group: group, title: title) }
+
+    /// What a row of a list is known by: the anchor, and with its path for a screen (two accounts of one provider may share a name).
+    public var id: String { path.isEmpty ? anchor : ([anchor] + path).joined(separator: "/") }
 }
 
 /// The id a row carries in its page, so the page can scroll to it: its page, its group and its title as slugs. A group is its own title with no
@@ -42,8 +41,8 @@ public func settingsAnchor(_ page: SettingsPage, group: String, title: String) -
     return [page.rawValue, group, title == group ? "" : title].map(slug).filter { $0.isEmpty == false }.joined(separator: ".")
 }
 
-private func page(_ page: SettingsPage, _ group: String, _ rows: [(String, String)]) -> [SettingsEntry] {
-    rows.map { SettingsEntry(page: page, group: group, title: $0.0, detail: $0.1) }
+private func page(_ page: SettingsPage, _ group: String, _ rows: [(String, String)], path: [String] = []) -> [SettingsEntry] {
+    rows.map { SettingsEntry(page: page, group: group, title: $0.0, detail: $0.1, path: path) }
 }
 
 /// Every searchable place, in the order of the sidebar and of each page, so a search lists its results as the pages are listed.
@@ -93,24 +92,36 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
             page(.keybindings, group.rawValue, ShortcutCommand.allCases.filter { $0.group == group }.map { ($0.title, "Default: \($0.defaultCombo?.text ?? "none")") })
         }
     case .dictation:
-        return page(.dictation, "Dictation", [
-            ("Dictation", "Speak instead of typing"), ("Keep the speech model ready", "Loads it when Carrier opens, so the first dictation does not wait"),
-            ("Release the model after", "Without dictating, to give its memory back"), ("Speech model", "The model that turns your voice into text"),
-            ("Language", "What you speak"), ("Microphone", "Whether Carrier may listen"),
-        ]) + page(.dictation, "Global dictation", [
-            ("Dictate in any app", "Opens a widget in any app, and pastes what you say"), ("Activation", "Toggle, or hold the keys while you speak"),
-            ("Widget style", "Pill, Small, Medium or Large"), ("Position", "Top or bottom centre, on the display of the window in front"),
-            ("Accessibility", "What lets Carrier paste into another app"), ("Shortcut", "With Carrier in front on a session it dictates into the message box"),
-        ]) + page(.dictation, "Cleanup", [
-            ("Clean the text with a model", "Runs on this Mac; nothing leaves it"), ("Server", "Where the local model runs"),
-            ("Model", "The model that cleans the text"), ("Prompt", "What you ask the model to do with every dictation"), ("Try it", "Runs the prompt on a sample"),
-        ]) + page(.dictation, "History", [
-            ("Keep the text of my dictations", "A list with search, copy and delete, on this Mac"), ("Keep the audio", "Each recorded dictation has its audio to play back"),
-            ("Delete audio older than", "The transcripts stay"), ("Audio on disk", "How much space the audio takes"),
-        ]) + page(.dictation, "Sounds", [("Volume", "For both sounds, in the global dictation only")])
-            + page(.dictation, "Speech models", [("Speech models", "The models you can download and use")])
-            + page(.dictation, "Statistics settings", [("Typing speed", "Used for the time saved"), ("Reset statistics", "Deletes the counters; the history stays")])
-            + page(.dictation, "Storage", [("Downloaded models", "How much space the models take")])
+        func screen(_ screen: DictationScreen, _ group: String, _ rows: [(String, String)]) -> [SettingsEntry] { page(.dictation, group, rows, path: [screen.rawValue]) }
+        // the rows of the first screen that open a screen are the way to it from a search
+        let opens = DictationScreen.allCases.map { SettingsEntry(page: .dictation, group: $0 == .history || $0 == .statistics ? "Your dictations" : "Set up", title: $0.title, detail: $0.detail, path: [$0.rawValue]) }
+        return opens + page(.dictation, "Dictation", [("Microphone", "Whether Carrier may listen, in the card at the top")])
+            + screen(.recognition, "Speech models", [("Speech models", "The models you can download, choose and delete")])
+            + screen(.recognition, "", [("Language", "What you speak")])
+            + screen(.recognition, "Memory", [
+                ("Keep the speech model ready", "Loads it when Carrier opens, so the first dictation does not wait"),
+                ("Release the model after", "Without dictating, to give its memory back"),
+            ])
+            + screen(.recognition, "Storage", [("Downloaded models", "How much space the models take")])
+            + screen(.global, "Global dictation", [
+                ("Dictate in any app", "Opens a widget in any app, and pastes what you say"), ("Accessibility", "What lets Carrier paste into another app"),
+                ("Shortcut", "With Carrier in front on a session it dictates into the message box"), ("Activation", "Toggle, or hold the keys while you speak"),
+            ])
+            + screen(.global, "Widget", [("Widget style", "Pill, Small, Medium or Large"), ("Position", "Top or bottom centre, on the display of the window in front")])
+            + screen(.cleanup, "Cleanup", [
+                ("Clean the text with a model", "Runs on this Mac; nothing leaves it"), ("Server", "Where the local model runs"),
+                ("Model", "The model that cleans the text"), ("Prompt", "What you ask the model to do with every dictation"), ("Try it", "Runs the prompt on a sample"),
+            ])
+            + screen(.sounds, "Sounds", [("Start sound", "Plays when it begins to listen"), ("End sound", "Plays when it stops listening"), ("Volume", "For both sounds, in the global dictation only")])
+            + screen(.history, "History", [
+                ("Keep the text of my dictations", "A list with search, copy and delete, on this Mac"), ("Keep the audio", "Each recorded dictation has its audio to play back"),
+                ("Delete audio older than", "The transcripts stay"), ("Audio on disk", "How much space the audio takes"),
+            ])
+            + screen(.statistics, "Overview", [("Overview", "Dictations, words, speaking time and time saved, by range")])
+            + screen(.statistics, "By hour of the day", [("By hour of the day", "When you dictate most")])
+            + screen(.statistics, "This week", [("This week", "The last 7 days against the 7 before")])
+            + screen(.statistics, "Records", [("Records", "Your best day, your longest dictation and your longest streak")])
+            + screen(.statistics, "Statistics settings", [("Typing speed", "Used for the time saved"), ("Reset statistics", "Deletes the counters; the history stays")])
     case .chat:
         return page(.chat, "Message box", [
             ("Send with", "The other key makes a new line"), ("While the agent works", "Hold the message, or stop the turn and send it"),

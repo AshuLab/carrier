@@ -7,7 +7,7 @@ import SwiftUI
 struct SpeechModelsTable: View {
     /// The widths of the columns, the same in the header and in every row; Model takes what is left.
     fileprivate enum Column {
-        static let radio: CGFloat = 20, size: CGFloat = 64, languages: CGFloat = 150, text: CGFloat = 104, action: CGFloat = 170
+        static let radio: CGFloat = 18, size: CGFloat = 58, languages: CGFloat = 138, text: CGFloat = 96, action: CGFloat = 164
     }
 
     let rows: [SpeechModelRow]
@@ -18,13 +18,14 @@ struct SpeechModelsTable: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Color.clear.frame(width: Column.radio)
+            HStack(spacing: 8) {
+                // a height too: a color with none takes all the row has, and in a form that is a tall blank over the header
+                Color.clear.frame(width: Column.radio, height: 1)
                 Text("Model").frame(maxWidth: .infinity, alignment: .leading)
                 Text("Size").frame(width: Column.size, alignment: .leading)
                 Text("Languages").frame(width: Column.languages, alignment: .leading)
                 Text("Text appears").frame(width: Column.text, alignment: .leading)
-                Color.clear.frame(width: Column.action)
+                Color.clear.frame(width: Column.action, height: 1)
             }
             .sectionLabel().padding(.vertical, 10)
             .accessibilityHidden(true)
@@ -44,10 +45,10 @@ private struct SpeechModelRowView: View {
     let delete: (String) -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             radio.frame(width: SpeechModelsTable.Column.radio)
             VStack(alignment: .leading, spacing: 1) {
-                Text(row.name).font(.scaled(13).weight(.medium))
+                Text(row.name).font(.scaled(13).weight(.medium)).lineLimit(2)
                 HStack(spacing: 0) {
                     Text("\(row.recognizer) · ").foregroundStyle(.secondary)
                     // underlined: the accent alone does not say it is a link when it is pale or gray
@@ -89,7 +90,7 @@ private struct SpeechModelRowView: View {
     @ViewBuilder private var action: some View {
         switch row.action {
         case .download(let size):
-            Button { download(row.id) } label: { Label("Download · \(size)", systemImage: "arrow.down.circle") }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+            Button { download(row.id) } label: { Label("Download · \(size)", systemImage: "arrow.down.circle").lineLimit(1).fixedSize() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
         case .downloading(let percent):
             HStack(spacing: 6) {
                 ProgressView(value: Double(percent), total: 100).tint(Color.themeAccent)

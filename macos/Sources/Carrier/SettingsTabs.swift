@@ -1292,3 +1292,41 @@ struct NotificationsTabView: View {
         }
     }
 }
+
+/// A row of a form that opens a screen: the whole row is the button, with a chevron at its end and whatever else says its state before it.
+struct NavigationRow<Trailing: View>: View {
+    let title: String
+    let detail: String
+    let leading: AnyView?
+    let action: () -> Void
+    @ViewBuilder let trailing: Trailing
+
+    init<Leading: View>(title: String, detail: String, leading: Leading, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+        self.title = title
+        self.detail = detail
+        self.leading = AnyView(leading)
+        self.action = action
+        self.trailing = trailing()
+    }
+
+    init(title: String, detail: String, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+        self.title = title
+        self.detail = detail
+        self.leading = nil
+        self.action = action
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        Button(action: action) {
+            SettingsTabRow(title: title, detail: detail, leading: leading) {
+                HStack(spacing: 10) {
+                    trailing
+                    Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).foregroundStyle(.tertiary).accessibilityHidden(true)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}

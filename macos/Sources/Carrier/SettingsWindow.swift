@@ -32,7 +32,8 @@ import SwiftUI
     func open(_ entry: SettingsEntry) {
         go(entry.page)
         for length in entry.path.indices { go(SettingsPlace(entry.page, path: Array(entry.path.prefix(length + 1)))) }
-        target = entry.isPage || entry.path.isEmpty == false ? nil : entry
+        // a provider or an account has no row of its own on the page to show; a row of a screen is scrolled to once that screen is open
+        target = entry.isPage ? nil : entry
     }
 
     func back() {
@@ -56,9 +57,9 @@ import SwiftUI
 
     var isShown: Bool { window?.isVisible == true }
 
-    /// `page` nil keeps the one it was left on.
-    func show(_ page: SettingsPage?, model: PanelModel) {
-        if let page { navigator.go(page) }
+    /// `page` nil keeps the one it was left on; `place` is a screen of a page.
+    func show(_ page: SettingsPage?, place: SettingsPlace? = nil, model: PanelModel) {
+        if let place { navigator.go(place) } else if let page { navigator.go(page) }
         let window = window ?? makeWindow(model: model)
         self.window = window
         NSApp.activate(ignoringOtherApps: true)
@@ -342,8 +343,8 @@ struct SettingsPages: View {
             .task(id: target?.id) {
                 guard let place = target, place.page == page else { return }
                 try? await Task.sleep(for: .milliseconds(200))
-                withAnimation { proxy.scrollTo(place.id, anchor: .center) }
-                highlight = place.id
+                withAnimation { proxy.scrollTo(place.anchor, anchor: .center) }
+                highlight = place.anchor
                 try? await Task.sleep(for: .seconds(1.8))
                 highlight = nil
                 target = nil
@@ -380,7 +381,7 @@ struct SettingsPages: View {
         case .terminal: TerminalTabView()
         case .sidebar: SidebarTabView()
         case .chat: ChatTabView()
-        case .dictation: DictationTabView()
+        case .dictation: DictationTabView(place: navigator.place, go: navigator.go)
         case .keybindings: KeybindingsTabView()
         case .about: AboutTabView()
         case .providers: ProvidersTabView(place: navigator.place, go: navigator.go, back: navigator.back, openAgents: { navigator.go(.agents) })

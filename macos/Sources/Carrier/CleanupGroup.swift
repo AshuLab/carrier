@@ -1,7 +1,8 @@
 import CarrierCore
 import SwiftUI
 
-/// The Cleanup group of the page: the switch, the server and its models, the prompt and the Try it box. With Dictation off the group is drawn at 40%; with the switch off the server, model, prompt and Try it box are too.
+/// The Cleanup group of the page: the switch, the server and its models, the prompt and the Try it box. With Dictation off the group is drawn at 40%; with the
+/// switch off only the switch shows, and the rest comes with it.
 struct CleanupGroup: View {
     var cleanup = CleanupController.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -12,7 +13,12 @@ struct CleanupGroup: View {
     @AppStorage(AppPreferences.dictationCleanupPromptKey) private var savedPrompt: String?
 
     var body: some View {
-        SettingsGroup(title: "Cleanup") {
+        SettingsGroup(
+            title: "Cleanup",
+            footer: cleanup.enabled
+                ? "In a message box and in the widget the raw text is used when the server is down, the model is missing or it does not answer in 30 seconds."
+                : "The server, the model, the prompt and the test appear when it is on."
+        ) {
             SettingsTabRow(
                 title: "Clean the text with a model",
                 detail: cleanup.enabled && cleanup.canBeOn == false ? "Choose a server and a model below; until then the text stays as dictated" : "After you dictate, a model on this Mac rewrites the text with your prompt",
@@ -21,8 +27,8 @@ struct CleanupGroup: View {
                 Toggle("Clean the text with a model", isOn: Binding(get: { cleanup.enabled }, set: { cleanup.setEnabled($0) }))
                     .labelsHidden().toggleStyle(.switch)
             }
-            // the switch is the whole group's: off, all of it is dimmed and takes no clicks
-            Group { serverRow; modelRow; promptRow; tryRow }.opacity(cleanup.enabled ? 1 : 0.4).disabled(cleanup.enabled == false)
+            // the switch is the whole group's: off, there is nothing else to set, so nothing else is drawn
+            if cleanup.enabled { serverRow; modelRow; promptRow; tryRow }
         }
         .task(id: savedServer) { await cleanup.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await cleanup.refresh() } }

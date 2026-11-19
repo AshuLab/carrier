@@ -147,9 +147,9 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     /// Opens Settings on a page (the one it was left on when none is asked for). The main window opens too when it was closed: the pages read
     /// what Carrier answers to it (its state, its repos), and Settings is a window of its own over it that does not stop it being used.
-    func showSettings(_ page: SettingsPage? = nil) {
+    func showSettings(_ page: SettingsPage? = nil, place: SettingsPlace? = nil) {
         open()
-        MainActor.assumeIsolated { SettingsWindowController.shared.show(page, model: model) }
+        MainActor.assumeIsolated { SettingsWindowController.shared.show(page, place: place, model: model) }
     }
 
     /// For the self-test.

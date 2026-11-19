@@ -65,7 +65,7 @@ private func theLanguagePageOffersAFunctionOfTheModelMacOSAndTheSavedChoice(c: C
 }
 
 @Test func theSwitchDimsEveryRowButItselfStorageAndReset() {
-    let rows: [DictationRow] = [.enabledSwitch, .speechModel, .language, .keepReady, .releaseAfter, .microphone, .modelsTable, .storage, .reset, .cleanup, .sounds]
+    let rows: [DictationRow] = [.enabledSwitch, .language, .keepReady, .releaseAfter, .modelsTable, .storage, .reset, .cleanup, .sounds]
     #expect(rows.filter { dictationRowIsLive($0, enabled: false) } == [.enabledSwitch, .storage, .reset])
     #expect(rows.allSatisfy { dictationRowIsLive($0, enabled: true) })
 }

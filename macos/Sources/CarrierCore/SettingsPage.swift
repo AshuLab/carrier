@@ -30,20 +30,20 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         }
     }
 
-    /// The page is a native `Form` of grouped sections. The others (the repos, the checks and the speech models) are lists and tables
-    /// of their own, which a form would not hold.
+    /// The page is a native `Form` of grouped sections. The others (the repos and the checks) are lists and tables of their own, which a form
+    /// would not hold.
     public var usesForm: Bool {
         switch self {
-        case .general, .providers, .appearance, .notifications, .keybindings, .chat, .sessions, .sidebar, .terminal, .agents, .behavior, .engine, .about: true
-        case .dictation, .repos, .health: false
+        case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .chat, .sessions, .sidebar, .terminal, .agents, .behavior, .engine, .about: true
+        case .repos, .health: false
         }
     }
 
-    /// The page is a column of the same width as the others (a readable line, centered). The lists that open an editor, the checks and the
-    /// tables take the whole width of the window instead.
+    /// The page is a column of the same width as the others (a readable line, centered). The lists of repos and the checks take the whole width
+    /// of the window instead.
     public var isColumn: Bool {
         switch self {
-        case .repos, .health, .dictation: false
+        case .repos, .health: false
         default: true
         }
     }

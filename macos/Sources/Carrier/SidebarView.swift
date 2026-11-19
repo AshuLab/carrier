@@ -436,8 +436,8 @@ struct IconButton: View {
         self.init(source: .symbol(icon), name: name, enabled: enabled, why: why, shortcut: shortcut, pressed: pressed, action: action)
     }
 
-    init(icon: TablerIcon, name: String, enabled: Bool = true, why: String? = nil, shortcut: String? = nil, pressed: Bool = false, action: @escaping () -> Void) {
-        self.init(source: .tabler(icon), name: name, enabled: enabled, why: why, shortcut: shortcut, pressed: pressed, action: action)
+    init(icon: AppIcon, name: String, enabled: Bool = true, why: String? = nil, shortcut: String? = nil, pressed: Bool = false, action: @escaping () -> Void) {
+        self.init(source: .icon(icon), name: name, enabled: enabled, why: why, shortcut: shortcut, pressed: pressed, action: action)
     }
 
     private init(source: IconSource, name: String, enabled: Bool, why: String?, shortcut: String?, pressed: Bool, action: @escaping () -> Void) {
@@ -455,7 +455,7 @@ struct IconButton: View {
             Group {
                 switch source {
                 case .symbol(let name): Image(systemName: name)
-                case .tabler(let icon): Glyph(icon, size: 14)
+                case .icon(let icon): Glyph(icon, size: 14)
                 }
             }
             .frame(width: 24, height: 24).contentShape(Rectangle())

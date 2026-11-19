@@ -115,7 +115,7 @@ private struct HealthCardView: View {
     }
 
     private var mark: some View {
-        let (symbol, color, label): (TablerIcon, Color, String) = switch row.mark {
+        let (symbol, color, label): (AppIcon, Color, String) = switch row.mark {
         case .ok: (.check, .green, "Ready")
         case .warning: (.exclamation, .yellow, "Warning")
         case .problem: (.exclamation, .orange, "Needs attention")

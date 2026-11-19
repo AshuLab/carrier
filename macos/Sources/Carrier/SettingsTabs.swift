@@ -86,13 +86,13 @@ extension EnvironmentValues {
 /// The save of the screen that is open (an account's editor): set by the screen while it has something to save, read by the toolbar's button.
 @MainActor @Observable final class SettingsSave {
     private(set) var title: String?
-    private(set) var icon = TablerIcon.check
+    private(set) var icon = AppIcon.check
     private(set) var enabled = false
     private(set) var run: (() -> Void)?
     @ObservationIgnored private var owner: UUID?
 
     /// `icon` is the verb's own (Save a check, Add a plus), as the guide gives each button.
-    func set(_ owner: UUID, title: String, icon: TablerIcon = .check, enabled: Bool, run: @escaping () -> Void) {
+    func set(_ owner: UUID, title: String, icon: AppIcon = .check, enabled: Bool, run: @escaping () -> Void) {
         self.owner = owner
         self.title = title
         self.icon = icon
@@ -167,7 +167,7 @@ struct SettingsDivider: View {
 /// while it has the focus. Put it on a `TextField`; a click anywhere in the box, padding included, puts the cursor in it.
 private struct SettingsFieldModifier: ViewModifier {
     let width: CGFloat?
-    let icon: TablerIcon?
+    let icon: AppIcon?
     @Environment(\.settingsInvalid) private var invalid
     /// The caller's own focus state, when it needs to know about the focus (to save as the person leaves the field); else the field keeps its own.
     let external: FocusState<Bool>.Binding?
@@ -199,7 +199,7 @@ private struct SettingsFieldModifier: ViewModifier {
 extension View {
     /// `icon` is an SF Symbol drawn inside the box before the text (a magnifying glass for a search).
     /// Inside a row with a `problem` the ring is orange and a warning mark sits in the box, the same size as without them: nothing moves.
-    func settingsField(width: CGFloat? = nil, icon: TablerIcon? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
+    func settingsField(width: CGFloat? = nil, icon: AppIcon? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
         modifier(SettingsFieldModifier(width: width, icon: icon, external: focused))
     }
 }
@@ -208,7 +208,7 @@ extension View {
 /// a set that excludes each other is "All".
 struct FilterChip: View {
     let title: String
-    var icon: TablerIcon?
+    var icon: AppIcon?
     let on: Bool
     let action: () -> Void
     @State private var hovered = false
@@ -233,7 +233,7 @@ struct FilterChip: View {
 /// A few choices that exclude each other, in one grey capsule: the chosen one is a lighter capsule inside it, never the accent. Every choice
 /// has the same type and padding whether chosen or not, so nothing changes size when the choice moves (Usage's metric and range).
 struct SegmentedChoice<Value: Hashable>: View {
-    let options: [(value: Value, title: String, icon: TablerIcon?)]
+    let options: [(value: Value, title: String, icon: AppIcon?)]
     @Binding var selection: Value
 
     var body: some View {
@@ -248,7 +248,7 @@ struct SegmentedChoice<Value: Hashable>: View {
 
     private struct Segment: View {
         let title: String
-        let icon: TablerIcon?
+        let icon: AppIcon?
         let on: Bool
         let action: () -> Void
         @State private var hovered = false
@@ -397,7 +397,7 @@ extension View {
 /// A state as a 16 pt round mark with a white symbol: `checkmark` green for ready, `exclamationmark` yellow for a warning, `xmark` orange for a
 /// failure. Next to a spinner (`ProgressView().controlSize(.mini)` in the same 16 pt) for what is still being looked at.
 struct StatusMark: View {
-    let symbol: TablerIcon
+    let symbol: AppIcon
     let color: Color
     let label: String
 
@@ -729,6 +729,7 @@ struct AppearanceTabView: View {
     @Environment(\.colorScheme) private var scheme
     @AppStorage(TypeScale.percentKey) private var textSize = 100
     @AppStorage(IconWeight.key) private var iconWeight = IconWeight.defaultWeight
+    @AppStorage(IconSet.key) private var iconSet = IconSet.defaultSet.rawValue
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     @AppStorage(AppPreferences.monospaceFamilyKey) private var family = MonospaceSettings.systemFamily
     @AppStorage(AppPreferences.monospaceSizeKey) private var codeSize = Double(MonospaceSettings.defaultSize)
@@ -753,7 +754,7 @@ struct AppearanceTabView: View {
     private var iconsPreview: some View {
         SettingsPreview {
             HStack(spacing: 22) {
-                ForEach([TablerIcon.search, .settings, .folder, .copy, .bell, .trash, .refresh, .lock, .microphone, .terminal], id: \.self) { Glyph($0, size: 22) }
+                ForEach([AppIcon.search, .settings, .folder, .copy, .bell, .trash, .refresh, .lock, .microphone, .terminal], id: \.self) { Glyph($0, size: 22) }
             }
             .foregroundStyle(.primary).frame(maxWidth: .infinity)
         }
@@ -798,6 +799,12 @@ struct AppearanceTabView: View {
                         in: Double(TypeScale.range.lowerBound)...Double(TypeScale.range.upperBound), step: 5
                     )
                     .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Text size").accessibilityValue("\(textSize) percent")
+                }
+                SettingsTabRow(title: "Icon set", detail: "The look of the icons of the app: SF Symbols are the Mac's own") {
+                    ChoicePopUp(
+                        label: "Icon set", options: IconSet.allCases.map { (value: $0.rawValue, title: $0.title) },
+                        selection: Binding(get: { IconSet(rawValue: iconSet)?.rawValue ?? IconSet.defaultSet.rawValue }, set: { iconSet = $0 })
+                    )
                 }
                 SettingsTabRow(title: "Icon weight", detail: "How thick the strokes of the icons are, \(iconWeight.formatted(.number.precision(.fractionLength(0...2))))") {
                     Slider(value: $iconWeight, in: IconWeight.range, step: IconWeight.step)

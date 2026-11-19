@@ -4,4 +4,4 @@ Pinned release: npm package @tabler/icons 3.34.1.
 Tarball: https://registry.npmjs.org/@tabler/icons/-/icons-3.34.1.tgz
 Integrity: sha512-9gTnUvd7Fd/DmQgr3MKY+oJLa1RfNsQo8c/ir3TJAWghOuZXodbtbVp0QBY2DxWuuvrSZFys0HEbv1CoiI5y6A==
 Files: the SVGs below, copied unchanged from the package's icons/outline and icons/filled folders. LICENSE is the package's LICENSE.
-To refresh: download the tarball, check the integrity above (or the new one from the npm registry), copy the SVGs that TablerIcon.swift names, and update this file and THIRD-PARTY-NOTICES.md.
+To refresh: download the tarball, check the integrity above (or the new one from the npm registry), copy the SVGs that IconSets.swift names, and update this file and THIRD-PARTY-NOTICES.md.

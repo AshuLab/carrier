@@ -11,7 +11,7 @@ public enum UpdatePhase: Equatable, Sendable {
 /// The button of Settings > Updates > This Carrier while an update is on its way: the pill's own step, drawn as a button.
 public struct UpdateAction: Equatable, Sendable {
     public let title: String
-    public let symbol: TablerIcon
+    public let symbol: AppIcon
     /// The step is running (a download, a restart): the button keeps its words, is dimmed and shows a spinner beside it.
     public let working: Bool
 }

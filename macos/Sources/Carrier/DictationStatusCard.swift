@@ -68,7 +68,7 @@ struct DictationStatusCard: View {
         }
     }
 
-    private func symbol(_ tone: DictationReadiness.Tone) -> TablerIcon {
+    private func symbol(_ tone: DictationReadiness.Tone) -> AppIcon {
         switch tone {
         case .off: .power
         case .ready: .check

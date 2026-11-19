@@ -44,7 +44,7 @@ struct ConsumptionSection: View {
     private var filters: some View {
         HStack(spacing: 8) {
             SegmentedChoice(
-                options: [(UsageMetric.cost, "Cost", TablerIcon.coin), (.tokens, "Tokens", .hash)], selection: $store.metric
+                options: [(UsageMetric.cost, "Cost", AppIcon.coin), (.tokens, "Tokens", .hash)], selection: $store.metric
             )
             .accessibilityLabel("Metric")
             SegmentedChoice(options: [7, 14, 30, 90].map { ($0, "\($0)d", nil) }, selection: $store.days).accessibilityLabel("Range")

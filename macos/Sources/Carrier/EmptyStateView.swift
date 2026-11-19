@@ -28,14 +28,14 @@ struct EmptyStateView: View {
     }
 
     init(
-        icon: TablerIcon,
+        icon: AppIcon,
         title: String,
         line: String,
         action: (title: String, run: () -> Void)? = nil,
         actionIcon: String? = nil,
         actionStyle: EmptyStateActionStyle = .secondary
     ) {
-        self.source = .tabler(icon)
+        self.source = .icon(icon)
         self.title = title
         self.line = line
         self.action = action

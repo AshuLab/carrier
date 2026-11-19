@@ -61,8 +61,8 @@ struct AccentGlassPillButton: View {
         self.init(title: title, source: icon.map(IconSource.symbol), action: action)
     }
 
-    init(title: String, icon: TablerIcon?, action: @escaping () -> Void) {
-        self.init(title: title, source: icon.map(IconSource.tabler), action: action)
+    init(title: String, icon: AppIcon?, action: @escaping () -> Void) {
+        self.init(title: title, source: icon.map(IconSource.icon), action: action)
     }
 
     private init(title: String, source: IconSource?, action: @escaping () -> Void) {

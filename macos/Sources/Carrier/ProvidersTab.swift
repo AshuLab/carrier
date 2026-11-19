@@ -415,7 +415,7 @@ private struct StateWords: View {
 /// A provider's avatar: its mark (or a symbol, for a local server) in a rounded square at the left of its row.
 private struct ProviderTile: View {
     let icon: String?
-    let symbol: TablerIcon?
+    let symbol: AppIcon?
 
     var body: some View {
         Group {

@@ -216,7 +216,7 @@ struct NumberField<Value: Equatable>: View {
             .accessibilityLabel(key)
     }
 
-    private func stepButton(_ symbol: TablerIcon, _ direction: Int) -> some View {
+    private func stepButton(_ symbol: AppIcon, _ direction: Int) -> some View {
         Button {
             guard let next = step(parse(text) ?? value, direction) else { return }
             unparsable.remove(key)

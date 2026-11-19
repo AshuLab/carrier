@@ -305,7 +305,7 @@ private struct RepoChecksCard: View {
         if status == .waiting && checking {
             return AnyView(ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Checking"))
         }
-        let (symbol, color, label): (TablerIcon, Color, String) = switch status {
+        let (symbol, color, label): (AppIcon, Color, String) = switch status {
         case .ok: (.check, .green, "Ready")
         case .warn: (.exclamation, .yellow, "Warning")
         case .fail: (.close, .orange, "Failed")

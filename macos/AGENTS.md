@@ -31,7 +31,7 @@ A dev build has no `SUFeedURL`, and `AppUpdater.start` does not start the update
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#resume-card).
 
-The words and the request are tested; the sheet, its "Resuming…" state and layout are not.
+The words and request are tested; the sheet, its "Resuming…" state and layout not.
 
 ### The epic's Agent output
 
@@ -46,7 +46,7 @@ What the person sees: [the app shell](../docs/macos/app-shell.md#file-icons).
 
 The SVGs and the upstream licence text are in `CarrierCore/Resources/FileIcons` (release pinned in `SOURCE.txt`, notice in `THIRD-PARTY-NOTICES.md`, line in About).
 `build-app.sh` copies SwiftPM's `Carrier_CarrierCore.bundle` into `Contents/Resources` and fails when an icon or the licence text is missing from it.
-The interface's icons are `TablerIcon` (`TablerIconsTests`), drawn by `Glyph`, checked the same.
+Interface icons: `AppIcon` in three sets (`IconSets.swift`, `IconsTests`), drawn by `Glyph`.
 
 ## Settings
 

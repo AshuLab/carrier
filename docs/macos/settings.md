@@ -16,7 +16,7 @@ What can be found is `settingsIndex` (`CarrierCore/SettingsIndex.swift`, `Settin
 ## Reset
 
 A page with many controls gives its Reset to the window (`SettingsPageBody(reset:)`), and the ⋯ menu of the toolbar asks "Reset <page>?" before it runs (an alert: Cancel, or Reset in red).
-The menu item is off while the open page has none (Providers, Agents, Repos, Health, Engine and About have nothing to reset).
+The menu item is off while the open page has none (Providers, Repos, Health, Engine and About have nothing to reset).
 Behavior and Sessions keep what a Reset did before (the engine's eight values back to `EngineConfig()`, the preferences and the two ages of `chat.json`), now from the same menu.
 
 ## Where something that needs fixing shows

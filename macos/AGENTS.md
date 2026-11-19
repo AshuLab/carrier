@@ -55,9 +55,7 @@ The window is `Carrier/SettingsWindow.swift`, a page's shared pieces `SettingsTa
 
 What the person sees: [settings-app](../docs/macos/settings-app.md#providers).
 
-The rows are one pure function, `providersPage(_:config:chat:)` (`CarrierCore/ProvidersPage.swift`, `ProvidersPageTests`); the view is untested.
-
-The Sign in and Update buttons and the account editor are untested; `providers.json` is tested in `ProvidersFileTests` and `FixtureServerTests`.
+The rows are `providersPage(_:config:chat:)` and the list's `providersDirectory` (`CarrierCore/ProvidersPage.swift`, `ProvidersDirectory.swift`; `ProvidersPageTests`, `ProvidersDirectoryTests`); the views are untested; `providers.json` is in `ProvidersFileTests` and `FixtureServerTests`.
 
 ### Sessions page
 

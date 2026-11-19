@@ -10,6 +10,7 @@ struct StatisticsGroup: View {
     @State private var range = StatisticsRange.month
     @State private var metric = StatisticsMetric.words
     @State private var confirmingReset = false
+    @State private var unparsable: Set<String> = []
 
     var body: some View {
         let records = dictation.records
@@ -112,10 +113,14 @@ struct StatisticsGroup: View {
     private var settings: some View {
         SettingsGroup(title: "Statistics settings") {
             SettingsTabRow(title: "Typing speed", detail: "Used for the time saved: words ÷ speed, minus the time you spent speaking", first: true) {
-                Stepper(value: $wpm, in: AppPreferences.dictationTypingSpeedRange, step: 5) {
-                    Text("\(wpm) words/min").monospacedDigit()
+                // the counter of Behavior's numbers: a number between the range's ends, − and + by 5; text that is not one keeps the last good value
+                HStack(spacing: 6) {
+                    NumberField(
+                        key: "Typing speed, words per minute", value: $wpm, unparsable: $unparsable,
+                        parse: { Int($0).flatMap { AppPreferences.dictationTypingSpeedRange.contains($0) ? $0 : nil } }, format: { String($0) },
+                        step: { AppPreferences.dictationTypingSpeedRange.contains($0 + $1 * 5) ? $0 + $1 * 5 : nil })
+                    Text("words/min").font(.scaled(11)).foregroundStyle(.secondary)
                 }
-                .accessibilityLabel("Typing speed, words per minute")
             }
             SettingsTabRow(title: "Reset statistics", detail: "Deletes the counters. The history stays, and deleting history never changes the statistics") {
                 Button(role: .destructive) { confirmingReset = true } label: { Label("Reset statistics…", systemImage: "trash") }

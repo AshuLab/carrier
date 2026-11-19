@@ -19,7 +19,7 @@ struct StatisticsGroup: View {
             if records.counts.isEmpty {
                 SettingsGroup(title: "") {
                     EmptyStateView(
-                        icon: "chart.bar", title: "No statistics yet",
+                        icon: .chartBar, title: "No statistics yet",
                         line: "Dictate with the microphone or the shortcut and finish with the text pasted or copied: the numbers start here."
                     )
                     .frame(minHeight: 220)
@@ -143,7 +143,7 @@ struct StatisticsGroup: View {
                 }
             }
             SettingsTabRow(title: "Reset statistics", detail: "Deletes the counters. The history stays, and deleting history never changes the statistics") {
-                Button(role: .destructive) { confirmingReset = true } label: { Label("Reset statistics…", systemImage: "trash") }
+                Button(role: .destructive) { confirmingReset = true } label: { Label("Reset statistics…", icon: .trash) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         }

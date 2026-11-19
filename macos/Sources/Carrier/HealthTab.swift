@@ -115,13 +115,13 @@ private struct HealthCardView: View {
     }
 
     private var mark: some View {
-        let (symbol, color, label): (String, Color, String) = switch row.mark {
-        case .ok: ("checkmark", .green, "Ready")
-        case .warning: ("exclamationmark", .yellow, "Warning")
-        case .problem: ("exclamationmark", .orange, "Needs attention")
-        case .neutral: ("questionmark", .gray, "Not known")
+        let (symbol, color, label): (TablerIcon, Color, String) = switch row.mark {
+        case .ok: (.check, .green, "Ready")
+        case .warning: (.exclamation, .yellow, "Warning")
+        case .problem: (.exclamation, .orange, "Needs attention")
+        case .neutral: (.question, .gray, "Not known")
         }
-        return Image(systemName: symbol).font(.scaled(10, weight: .heavy)).foregroundStyle(.white)
+        return Glyph(symbol, size: 11, bold: true).foregroundStyle(.white)
             .frame(width: 18, height: 18).background(Circle().fill(color)).accessibilityLabel(label)
     }
 }

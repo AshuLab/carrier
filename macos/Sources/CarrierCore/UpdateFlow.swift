@@ -11,7 +11,7 @@ public enum UpdatePhase: Equatable, Sendable {
 /// The button of Settings > Updates > This Carrier while an update is on its way: the pill's own step, drawn as a button.
 public struct UpdateAction: Equatable, Sendable {
     public let title: String
-    public let symbol: String
+    public let symbol: TablerIcon
     /// The step is running (a download, a restart): the button keeps its words, is dimmed and shows a spinner beside it.
     public let working: Bool
 }
@@ -33,11 +33,11 @@ extension UpdatePhase {
     public var settingsAction: UpdateAction? {
         switch self {
         case .none: nil
-        case .available: UpdateAction(title: "Update", symbol: "arrow.down.to.line", working: false)
-        case .downloading: UpdateAction(title: "Update", symbol: "arrow.down.to.line", working: true)
-        case .ready: UpdateAction(title: "Restart", symbol: "arrow.clockwise", working: false)
-        case .installing: UpdateAction(title: "Restart", symbol: "arrow.clockwise", working: true)
-        case .failed: UpdateAction(title: "Retry", symbol: "arrow.clockwise", working: false)
+        case .available: UpdateAction(title: "Update", symbol: .downloadTray, working: false)
+        case .downloading: UpdateAction(title: "Update", symbol: .downloadTray, working: true)
+        case .ready: UpdateAction(title: "Restart", symbol: .refresh, working: false)
+        case .installing: UpdateAction(title: "Restart", symbol: .refresh, working: true)
+        case .failed: UpdateAction(title: "Retry", symbol: .refresh, working: false)
         }
     }
 }

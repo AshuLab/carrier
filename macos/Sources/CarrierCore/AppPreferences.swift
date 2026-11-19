@@ -604,7 +604,7 @@ public struct AppPreferences {
             ]
         case .appearance:
             [
-                colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey,
+                colorSchemeKey, TypeScale.percentKey, IconWeight.key, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey,
                 monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
             ]
         case .terminal: terminalKeys

@@ -193,9 +193,9 @@ struct NumberField<Value: Equatable>: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            stepButton("minus", -1)
+            stepButton(.minus, -1)
             TextField("", text: $text).textFieldStyle(.plain).multilineTextAlignment(.center).frame(width: 42).focused($focused)
-            stepButton("plus", 1)
+            stepButton(.plus, 1)
         }
         .padding(2)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(focused ? 0.09 : 0.07)))
@@ -216,14 +216,14 @@ struct NumberField<Value: Equatable>: View {
             .accessibilityLabel(key)
     }
 
-    private func stepButton(_ symbol: String, _ direction: Int) -> some View {
+    private func stepButton(_ symbol: TablerIcon, _ direction: Int) -> some View {
         Button {
             guard let next = step(parse(text) ?? value, direction) else { return }
             unparsable.remove(key)
             value = next
             text = format(next)
         } label: {
-            Image(systemName: symbol).font(.scaled(11, weight: .semibold)).foregroundStyle(.secondary).frame(width: 24, height: 24).contentShape(Rectangle())
+            Glyph(symbol, size: 12).foregroundStyle(.secondary).frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(.plain).accessibilityLabel(direction < 0 ? "Less" : "More")
     }

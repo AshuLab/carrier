@@ -50,7 +50,7 @@ struct AccountEditor: View {
             if inFile == false {
                 // never a blank form that would write over an account it did not read
                 SettingsGroup(title: "") {
-                    Label("\(account.title) is not in providers.json, so there is nothing to edit.", systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange)
+                    Label("\(account.title) is not in providers.json, so there is nothing to edit.", icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange)
                 }
             } else {
                 SettingsGroup(title: "Name") {
@@ -66,7 +66,7 @@ struct AccountEditor: View {
                     } else {
                         // the installed carrier would refuse the whole file with these keys in it, so they are not offered until it is updated
                         SettingsTabRow(title: "Label, icon and color", detail: "The installed carrier does not know them yet. Update it (brew upgrade carrier) and restart the chat host to set them", roomy: true) {
-                            Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(.secondary).accessibilityHidden(true)
+                            Glyph(.refresh).foregroundStyle(.secondary).accessibilityHidden(true)
                         }
                     }
                 }
@@ -113,11 +113,11 @@ struct AccountEditor: View {
                 }
                 if let problem = store.editProblem { SettingsGroup(title: "") { ProblemLine(text: problem) } }
                 if problems["configDir"] == nil, draft.configDir != saved.configDir, let note = store.sharedFolderNote(configDir: draft.configDir, harness: harness, except: account.name) {
-                    SettingsGroup(title: "") { Label(note, systemImage: "info.circle").font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                    SettingsGroup(title: "") { Label(note, icon: .info).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 }
                 SettingsGroup(title: "") {
                     SettingsTabRow(title: "Remove account", detail: "Removes \(account.name) from providers.json; refused while a role or a chat names it", first: true) {
-                        Button(role: .destructive) { confirmingRemove = true } label: { Label("Remove…", systemImage: "trash") }
+                        Button(role: .destructive) { confirmingRemove = true } label: { Label("Remove…", icon: .trash) }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                     }
                 }
@@ -144,7 +144,7 @@ struct AccountEditor: View {
     private func publish() {
         guard inFile else { return saver?.clear(owner) ?? () }
         let draft = draft
-        saver?.set(owner, title: "Save", icon: "checkmark", enabled: canSave) {
+        saver?.set(owner, title: "Save", icon: .check, enabled: canSave) {
             Task { if await store.save(name: account.name, draft: draft) { ProviderIdentityStore.shared.reload(); close() } }
         }
     }
@@ -230,7 +230,7 @@ struct AccountEditor: View {
                 if let choice {
                     Circle().fill(choice.color)
                 } else {
-                    Circle().strokeBorder(Color.secondary, lineWidth: 1.5).overlay(Image(systemName: "slash.circle").font(.scaled(9)).foregroundStyle(.secondary))
+                    Circle().strokeBorder(Color.secondary, lineWidth: 1.5).overlay(Glyph(.ban, size: 9).foregroundStyle(.secondary))
                 }
             }
             .frame(width: 20, height: 20).padding(5)
@@ -280,7 +280,7 @@ struct AddAccountForm: View {
             }
             if let message = problem ?? store.editProblem { SettingsGroup(title: "") { ProblemLine(text: message) } }
             if let note = store.sharedFolderNote(configDir: folder, harness: harness) {
-                SettingsGroup(title: "") { Label(note, systemImage: "info.circle").font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                SettingsGroup(title: "") { Label(note, icon: .info).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }
         }
         .writingToolsBehavior(.disabled)
@@ -292,7 +292,7 @@ struct AddAccountForm: View {
 
     private func publish() {
         let (name, folder) = (name, folder)
-        saver?.set(owner, title: "Add", icon: "plus", enabled: name.isEmpty == false && problem == nil) {
+        saver?.set(owner, title: "Add", icon: .plus, enabled: name.isEmpty == false && problem == nil) {
             Task { if await store.addAccount(name: name, harness: harness, configDir: folder) { close() } }
         }
     }

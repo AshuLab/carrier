@@ -61,7 +61,7 @@ struct GlobalDictationGroup: View {
         ) {
             HStack(spacing: 8) {
                 StatusChip(text: trusted ? "Allowed" : "Not allowed", tint: trusted ? .green : .orange)
-                Button { FocusedField.openSettings() } label: { Label("Open System Settings", systemImage: "gearshape") }
+                Button { FocusedField.openSettings() } label: { Label("Open System Settings", icon: .settings) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         }
@@ -171,14 +171,14 @@ struct ShortcutRecorderRow: View {
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(recording ? 0.12 : 0.08)))
                     .overlay { if recording { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
                     .accessibilityLabel(name).accessibilityValue(recording ? "Listening for the new keys" : shown)
-                Button { recording ? stop() : start() } label: { Label(recording ? "Cancel" : "Record", systemImage: recording ? "xmark" : "record.circle") }
+                Button { recording ? stop() : start() } label: { Label(recording ? "Cancel" : "Record", icon: recording ? .close : .record) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 if emptyText != nil, current() != nil, recording == false {
                     Button {
                         refusal = nil
                         save(nil)
                         AccessibilityNotification.Announcement("\(name) cleared").post()
-                    } label: { Label("Clear", systemImage: "xmark") }
+                    } label: { Label("Clear", icon: .close) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).accessibilityLabel("Clear the \(name.lowercased())")
                 }
             }

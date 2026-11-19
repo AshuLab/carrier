@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// A word with its icon for a glass pill of the toolbar: 12 pt type, the pill's height, a quiet fill under the pointer, the count of what is
@@ -52,16 +53,28 @@ extension Color {
 /// Accent glass capsule pill button at `ToolbarPillButton.height` (28 pt), shared between headers and primary empty-state CTAs.
 struct AccentGlassPillButton: View {
     let title: String
-    var icon: String? = nil
+    let source: IconSource?
     let action: () -> Void
     @Environment(\.isEnabled) private var enabled
+
+    init(title: String, icon: String? = nil, action: @escaping () -> Void) {
+        self.init(title: title, source: icon.map(IconSource.symbol), action: action)
+    }
+
+    init(title: String, icon: TablerIcon?, action: @escaping () -> Void) {
+        self.init(title: title, source: icon.map(IconSource.tabler), action: action)
+    }
+
+    private init(title: String, source: IconSource?, action: @escaping () -> Void) {
+        self.title = title
+        self.source = source
+        self.action = action
+    }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                if let icon {
-                    Image(systemName: icon).font(.scaled(11, weight: .semibold))
-                }
+                if let source { source.view(size: 11) }
                 Text(title).font(.scaled(12, weight: .medium))
             }
             .foregroundStyle(.white)

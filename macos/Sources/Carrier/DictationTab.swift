@@ -77,7 +77,7 @@ struct DictationTabView: View {
         if dictation.enabled == false {
             SettingsGroup(title: "") {
                 HStack(spacing: 12) {
-                    Image(systemName: "power").font(.scaled(14, weight: .semibold)).foregroundStyle(.secondary).accessibilityHidden(true)
+                    Glyph(.power, size: 14).foregroundStyle(.secondary).accessibilityHidden(true)
                     Text("Dictation is off, so what is set here waits. Turn it on to change it.").font(.scaled(12)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)

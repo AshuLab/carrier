@@ -49,25 +49,25 @@ public enum SettingsPage: String, CaseIterable, Sendable {
     }
 
     /// The page's icon in the sidebar (an SF Symbol).
-    public var icon: String {
+    public var icon: TablerIcon {
         switch self {
-        case .general: "gearshape"
-        case .notifications: "bell"
-        case .appearance: "paintbrush"
-        case .terminal: "terminal"
-        case .sidebar: "sidebar.left"
-        case .chat: "bubble.left.and.text.bubble.right"
-        case .dictation: "mic"
-        case .keybindings: "keyboard"
-        case .keepAwake: "cup.and.saucer"
-        case .about: "info.circle"
-        case .providers: "brain"
-        case .engine: "cpu"
-        case .behavior: "slider.horizontal.3"
-        case .repos: "tray.full"
-        case .agents: "person.2"
-        case .sessions: "clock.arrow.circlepath"
-        case .health: "stethoscope"
+        case .general: .settings
+        case .notifications: .bell
+        case .appearance: .brush
+        case .terminal: .terminal
+        case .sidebar: .sidebar
+        case .chat: .messages
+        case .dictation: .microphone
+        case .keybindings: .keyboard
+        case .keepAwake: .cup
+        case .about: .info
+        case .providers: .brain
+        case .engine: .cpu
+        case .behavior: .sliders
+        case .repos: .inbox
+        case .agents: .users
+        case .sessions: .history
+        case .health: .stethoscope
         }
     }
 

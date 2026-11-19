@@ -17,7 +17,7 @@ struct DictationStatusCard: View {
             enabled: dictation.enabled, microphone: dictation.microphone, accessibilityTrusted: trusted, globalOn: global, model: modelReadiness
         )
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: symbol(readiness.tone)).font(.scaled(16, weight: .bold)).foregroundStyle(.white)
+            Glyph(symbol(readiness.tone), size: 18, bold: true).foregroundStyle(.white)
                 .frame(width: 34, height: 34).background(Circle().fill(tint(readiness.tone))).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 6) {
                 Text(readiness.title).font(.scaled(15).weight(.bold))
@@ -37,7 +37,7 @@ struct DictationStatusCard: View {
                 }
                 ForEach(readiness.items.compactMap(\.fix), id: \.self) { fix in
                     // each says what it opens, so two of them side by side are told apart and the spoken name is the one on the button
-                    Button { open(fix) } label: { Label(fix == .openMicrophoneSettings ? "Open Microphone Settings" : "Open Accessibility Settings", systemImage: "gearshape").labelStyle(.titleAndIcon) }
+                    Button { open(fix) } label: { Label(fix == .openMicrophoneSettings ? "Open Microphone Settings" : "Open Accessibility Settings", icon: .settings).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 }
             }
@@ -68,11 +68,11 @@ struct DictationStatusCard: View {
         }
     }
 
-    private func symbol(_ tone: DictationReadiness.Tone) -> String {
+    private func symbol(_ tone: DictationReadiness.Tone) -> TablerIcon {
         switch tone {
-        case .off: "power"
-        case .ready: "checkmark"
-        case .attention, .blocked: "exclamationmark"
+        case .off: .power
+        case .ready: .check
+        case .attention, .blocked: .exclamation
         }
     }
 

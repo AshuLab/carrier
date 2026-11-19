@@ -89,7 +89,7 @@ struct SessionsTabView: View {
                 if let line { SettingsTabRow(title: "A session you stop using today", detail: line, first: true) { EmptyView() } }
                 SettingsTabRow(title: "Left alone", detail: "A session that is working, waiting for you or open is looked at again later", first: line == nil) { EmptyView() }
             }
-            if let failure { Label(failure, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange) }
+            if let failure { Label(failure, icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange) }
         }
         .onAppear(perform: load)
         .onChange(of: draft) { save() }

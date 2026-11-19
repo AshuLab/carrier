@@ -9,7 +9,7 @@ enum EmptyStateActionStyle {
 
 /// Icon, title and one line, centred in the space it is given; neutral colours.
 struct EmptyStateView: View {
-    let icon: String
+    let source: IconSource
     let title: String
     let line: String
     /// An optional button under the line, for a state the person can get out of by themselves.
@@ -28,6 +28,22 @@ struct EmptyStateView: View {
     }
 
     init(
+        icon: TablerIcon,
+        title: String,
+        line: String,
+        action: (title: String, run: () -> Void)? = nil,
+        actionIcon: String? = nil,
+        actionStyle: EmptyStateActionStyle = .secondary
+    ) {
+        self.source = .tabler(icon)
+        self.title = title
+        self.line = line
+        self.action = action
+        self.actionIcon = actionIcon
+        self.actionStyle = actionStyle
+    }
+
+    init(
         icon: String,
         title: String,
         line: String,
@@ -35,7 +51,7 @@ struct EmptyStateView: View {
         actionIcon: String? = nil,
         actionStyle: EmptyStateActionStyle = .secondary
     ) {
-        self.icon = icon
+        self.source = .symbol(icon)
         self.title = title
         self.line = line
         self.action = action
@@ -45,8 +61,7 @@ struct EmptyStateView: View {
 
     var body: some View {
         VStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.scaled(26, weight: .regular))
+            source.view(size: 26)
                 .foregroundStyle(.secondary)
                 .frame(width: 54, height: 54)
                 .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))

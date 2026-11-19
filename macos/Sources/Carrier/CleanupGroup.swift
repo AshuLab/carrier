@@ -90,7 +90,7 @@ struct CleanupGroup: View {
                 testPanel("Dictated", text: cleanupSample, tint: .secondary)
                 HStack {
                     Spacer()
-                    Button { Task { await cleanup.runTest() } } label: { Label("Clean this sample", systemImage: "arrow.down") }
+                    Button { Task { await cleanup.runTest() } } label: { Label("Clean this sample", icon: .arrowDown) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(cleanup.test == .running)
                     Spacer()
                 }
@@ -149,7 +149,7 @@ struct CleanupGroup: View {
     /// The box of the answer when the model gave none: the same box in orange, with the cause as a sentence.
     private func testFailure(_ message: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label("Could not clean", systemImage: "exclamationmark.triangle.fill").sectionLabel().foregroundStyle(.orange)
+            Label("Could not clean", icon: .warningFilled).sectionLabel().foregroundStyle(.orange)
             Text(message).font(.scaled(13)).foregroundStyle(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(12)

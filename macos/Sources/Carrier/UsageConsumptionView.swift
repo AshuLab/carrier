@@ -44,7 +44,7 @@ struct ConsumptionSection: View {
     private var filters: some View {
         HStack(spacing: 8) {
             SegmentedChoice(
-                options: [(UsageMetric.cost, "Cost", "dollarsign.circle"), (.tokens, "Tokens", "number")], selection: $store.metric
+                options: [(UsageMetric.cost, "Cost", TablerIcon.coin), (.tokens, "Tokens", .hash)], selection: $store.metric
             )
             .accessibilityLabel("Metric")
             SegmentedChoice(options: [7, 14, 30, 90].map { ($0, "\($0)d", nil) }, selection: $store.days).accessibilityLabel("Range")
@@ -57,7 +57,7 @@ struct ConsumptionSection: View {
                 label: "Source", options: [(.all, "All sources"), (.epic, "Epic"), (.chat, "Chat"), (.external, "External")], selection: $store.sourceFilter
             )
             Spacer(minLength: 8)
-            TextField("Search model or workspace", text: $store.searchText).settingsField(width: 200, icon: "magnifyingglass")
+            TextField("Search model or workspace", text: $store.searchText).settingsField(width: 200, icon: .search)
         }
     }
 

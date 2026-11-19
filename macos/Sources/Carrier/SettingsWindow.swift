@@ -258,7 +258,7 @@ struct SettingsTile: View {
 
     var body: some View {
         // the system's colors are made for a light window: on a dark one they glow, so they are mixed with black there
-        Image(systemName: page.icon).font(.scaled(11, weight: .semibold)).foregroundStyle(.white.opacity(scheme == .dark ? 0.88 : 1))
+        Glyph(page.icon, size: 13, bold: true).foregroundStyle(.white.opacity(scheme == .dark ? 0.88 : 1))
             .frame(width: 22, height: 22)
             .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(page.tint.mix(with: .black, by: scheme == .dark ? 0.4 : 0.05)))
             .accessibilityHidden(true)
@@ -368,7 +368,7 @@ struct SettingsPages: View {
                     ReadinessBannerView(banner: banner, detecting: setup.detecting) { setup.detect() }
                 }
                 if let message = setup.message {
-                    Label(message, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange)
+                    Label(message, icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange)
                 }
             }
         }
@@ -408,7 +408,7 @@ struct SettingsPages: View {
 
     @ViewBuilder private func engine(notConfigured: String?) -> some View {
         if let notConfigured {
-            Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange)
+            Label(notConfigured, icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange)
         }
         let programs = EnginePrograms(
             carrier: setup.carrier, carrierIsOwn: setup.carrierIsOwn, carrierVersion: versions?.carrier, setup: setup.settings, nodeVersion: versions?.node,
@@ -435,7 +435,7 @@ struct SettingsPages: View {
                             HStack(spacing: 8) {
                                 // beside the button, so the button keeps its size and its name while it works
                                 if setup.detecting { ProgressView().controlSize(.small).accessibilityLabel("Detecting") }
-                                Button { setup.detect(); start.refreshConfig() } label: { Label("Detect", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
+                                Button { setup.detect(); start.refreshConfig() } label: { Label("Detect", icon: .refresh).labelStyle(.titleAndIcon) }
                                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(setup.detecting)
                             }
                             .onChange(of: setup.detecting) { _, detecting in
@@ -447,7 +447,7 @@ struct SettingsPages: View {
                                 Button {
                                     let url = URL(fileURLWithPath: file.path)
                                     if file.action == .reveal { NSWorkspace.shared.activateFileViewerSelecting([url]) } else { NSWorkspace.shared.open(url) }
-                                } label: { Label(file.buttonTitle, systemImage: file.exists ? (file.action == .reveal ? "folder" : "doc.text") : "questionmark.folder").labelStyle(.titleAndIcon) }
+                                } label: { Label(file.buttonTitle, icon: file.exists ? (file.action == .reveal ? .folder : .fileText) : .folderQuestion).labelStyle(.titleAndIcon) }
                                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(file.exists == false)
                                     .accessibilityLabel("\(file.buttonTitle): \(row.title)")
                             }
@@ -492,7 +492,7 @@ struct ReadinessBannerView: View {
                 Text(banner.detail).font(.scaled(11)).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-            Button(action: detectAgain) { Label("Detect", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
+            Button(action: detectAgain) { Label("Detect", icon: .refresh).labelStyle(.titleAndIcon) }
                 .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(detecting)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
@@ -506,8 +506,7 @@ struct StatusDot: View {
     let found: Bool
 
     var body: some View {
-        Image(systemName: found ? "checkmark" : "exclamationmark")
-            .font(.scaled(10, weight: .heavy)).foregroundStyle(.white)
+        Glyph(found ? .check : .exclamation, size: 11, bold: true).foregroundStyle(.white)
             .frame(width: 18, height: 18)
             .background(Circle().fill(found ? Color.green : Color.orange))
             .accessibilityLabel(found ? "Found" : "Not found")
@@ -522,10 +521,10 @@ struct CarrierChoice: View {
     var body: some View {
         HStack(spacing: 8) {
             if offersHomebrew {
-                Button { setup.carrierOverride = "" } label: { Label("Use the Homebrew one", systemImage: "arrow.uturn.backward").labelStyle(.titleAndIcon) }
+                Button { setup.carrierOverride = "" } label: { Label("Use the Homebrew one", icon: .undo).labelStyle(.titleAndIcon) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
-            Button { choose() } label: { Label("Use another…", systemImage: "folder.badge.plus").labelStyle(.titleAndIcon) }
+            Button { choose() } label: { Label("Use another…", icon: .folderPlus).labelStyle(.titleAndIcon) }
                 .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
         }
     }

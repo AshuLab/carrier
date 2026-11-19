@@ -29,10 +29,10 @@ struct AgentsTabView: View {
                 SettingsGroup(title: "") { flow(page).listRowBackground(Color.clear).listRowInsets(EdgeInsets()) }
                 if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page) }
                 ReloadNote()
-                if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.scaled(12)).foregroundStyle(.secondary) }
+                if let note = page.sharedNote { Label(note, icon: .info).font(.scaled(12)).foregroundStyle(.secondary) }
                 if let note = page.bots.note { Text(note).font(.scaled(12)).foregroundStyle(.secondary) }
             } else {
-                Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
+                Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", icon: .warningFilled)
                     .font(.scaled(12)).foregroundStyle(.orange)
             }
         }
@@ -108,7 +108,7 @@ struct AgentsTabView: View {
             ForEach(Array(page.rows.enumerated()), id: \.element.id) { index, row in
                 // the author and the reviewer go back and forth until the review passes: a double arrow; the lead reviewer comes after them
                 if index > 0 {
-                    Image(systemName: index == 1 ? "arrow.left.arrow.right" : "arrow.right").font(.scaled(12, weight: .semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)
+                    Glyph(index == 1 ? .exchange : .arrowRight, size: 14).foregroundStyle(.tertiary)
                 }
                 roleCard(row)
             }

@@ -130,9 +130,9 @@ private struct ProviderBlock: View {
 
 private func usageMark(_ mark: UsageMark, _ label: String) -> StatusMark {
     switch mark {
-    case .ok: StatusMark(symbol: "checkmark", color: .green, label: "\(label) is ready")
-    case .warning: StatusMark(symbol: "exclamationmark", color: .yellow, label: "\(label) needs a look")
-    case .failure: StatusMark(symbol: "xmark", color: .orange, label: "\(label) failed")
+    case .ok: StatusMark(symbol: .check, color: .green, label: "\(label) is ready")
+    case .warning: StatusMark(symbol: .exclamation, color: .yellow, label: "\(label) needs a look")
+    case .failure: StatusMark(symbol: .close, color: .orange, label: "\(label) failed")
     }
 }
 

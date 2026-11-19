@@ -4,8 +4,8 @@ import Testing
 @Test func theAppGroupHasNoHeadingAndHoldsWhatIsSharedAndWhatIsOfTheMac() {
     #expect(SettingsPage.Group.app.heading == nil)
     #expect(SettingsPage.pages(in: .app) == [.general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake])
-    #expect(SettingsPage.terminal.icon == "terminal" && SettingsPage.terminal.detail == "Theme, font, cursor, padding and shell behavior")
-    #expect(SettingsPage.dictation.icon == "mic" && SettingsPage.dictation.detail == "Speak instead of typing")
+    #expect(SettingsPage.terminal.icon == .terminal && SettingsPage.terminal.detail == "Theme, font, cursor, padding and shell behavior")
+    #expect(SettingsPage.dictation.icon == .microphone && SettingsPage.dictation.detail == "Speak instead of typing")
 }
 
 @Test func theWorkspaceGroupHoldsChatSessionsSidebarAndTerminal() {
@@ -33,7 +33,7 @@ import Testing
     #expect(SettingsPage.Group.allCases.map(\.heading) == [nil, "Workspace", "Carrier", "System"])
     #expect(SettingsPage.allCases == SettingsPage.Group.allCases.flatMap { SettingsPage.pages(in: $0) })
     #expect(SettingsPage.allCases.count == 17)
-    #expect(SettingsPage.allCases.allSatisfy { !$0.icon.isEmpty && !$0.detail.isEmpty })
+    #expect(SettingsPage.allCases.allSatisfy { !$0.detail.isEmpty })
 }
 
 @Test func thePagesOfSettingsThatAreSettingsFormsAreTheOnesMadeOfSimpleRows() {

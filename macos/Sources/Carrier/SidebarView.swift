@@ -422,7 +422,7 @@ struct HoverFillButtonStyle: ButtonStyle {
 /// A 24-point button with an accessible name and a tooltip, drawn in `HoverFillButtonStyle`; `why` is the tooltip and the hint while it is
 /// disabled. In a list row it runs its action and does not select the row.
 struct IconButton: View {
-    let icon: String
+    let source: IconSource
     let name: String
     var enabled = true
     var why: String?
@@ -432,9 +432,33 @@ struct IconButton: View {
     var pressed = false
     let action: () -> Void
 
+    init(icon: String, name: String, enabled: Bool = true, why: String? = nil, shortcut: String? = nil, pressed: Bool = false, action: @escaping () -> Void) {
+        self.init(source: .symbol(icon), name: name, enabled: enabled, why: why, shortcut: shortcut, pressed: pressed, action: action)
+    }
+
+    init(icon: TablerIcon, name: String, enabled: Bool = true, why: String? = nil, shortcut: String? = nil, pressed: Bool = false, action: @escaping () -> Void) {
+        self.init(source: .tabler(icon), name: name, enabled: enabled, why: why, shortcut: shortcut, pressed: pressed, action: action)
+    }
+
+    private init(source: IconSource, name: String, enabled: Bool, why: String?, shortcut: String?, pressed: Bool, action: @escaping () -> Void) {
+        self.source = source
+        self.name = name
+        self.enabled = enabled
+        self.why = why
+        self.shortcut = shortcut
+        self.pressed = pressed
+        self.action = action
+    }
+
     var body: some View {
         Button(action: action) {
-            Image(systemName: icon).frame(width: 24, height: 24).contentShape(Rectangle())
+            Group {
+                switch source {
+                case .symbol(let name): Image(systemName: name)
+                case .tabler(let icon): Glyph(icon, size: 14)
+                }
+            }
+            .frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(HoverFillButtonStyle(open: pressed))
         .disabled(enabled == false)

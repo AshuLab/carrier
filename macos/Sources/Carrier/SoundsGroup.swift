@@ -24,7 +24,7 @@ struct SoundsGroup: View {
     private func soundRow(_ title: String, detail: String, on: Binding<Bool>, name: Binding<String>, first: Bool = false) -> some View {
         SettingsTabRow(title: title, detail: detail, first: first) {
             HStack(spacing: 8) {
-                IconButton(icon: "play.fill", name: "Play \(title)") { DictationSoundPlayer.play(SoundToPlay(name: name.wrappedValue, volume: Double(volume) / 100)) }
+                IconButton(icon: .playFilled, name: "Play \(title)") { DictationSoundPlayer.play(SoundToPlay(name: name.wrappedValue, volume: Double(volume) / 100)) }
                 ChoicePopUp(label: title, options: dictationSoundChoices.map { (value: $0, title: $0) }, selection: name)
                 Toggle(title, isOn: on).labelsHidden().toggleStyle(.switch)
             }

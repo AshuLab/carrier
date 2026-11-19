@@ -139,6 +139,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             WindowController.shared.open()
             Signposts.launch.endInterval("open window", opening)
         }
+        // the reports belong to the real app: a fixture, a self-test and a smoke run leave none
+        if Self.fixturesPath() == nil, Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false {
+            let metrics = Signposts.launch.beginInterval("metrics")
+            MetricsSink.shared.start()
+            Signposts.launch.endInterval("metrics", metrics)
+        }
     }
 
     /// A click on the Dock icon with no window open opens it.

@@ -133,6 +133,9 @@ xcrun xctrace export --input s.trace --toc
 `scripts/perf-sample.sh <app-pid> [chat-host-pid] [seconds]` samples a running app: CPU, idle wake-ups and energy, the footprint and, with a chat host's pid, its process tree with the memory of each process.
 It only reads, and it takes pids you captured or were given, never a name.
 
+The system's own reports on hangs, CPU and disk use, crashes and the daily metrics reach the app through MetricKit (`Carrier/MetricsSink.swift`) and are kept as JSON in `<Carrier folder>/app/logs/metrics/`, the newest 30.
+macOS decides when to deliver them, up to a day later, and may deliver none to an app signed ad hoc; a fixture, a self-test and a smoke run do not subscribe.
+
 A performance test counts work, never time, so it gives the same answer in CI: `ConversationModel.feedWork` (the events a feed was built from), `dictationDays(_:calendar:work:)`, `filesChangedModel(_:lookups:)` and the `publishes(_:over:)` seam.
 Where a finding is not fixed yet, the test says so with `withKnownIssue("what is missing")`: it passes today and the failed expectation shows the real number.
 The day the fix lands, Swift Testing reports that the known issue did not happen, and whoever fixes it takes the `withKnownIssue` out.

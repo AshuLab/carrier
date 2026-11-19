@@ -50,6 +50,8 @@ public struct CarrierPlaces: Sendable, Equatable {
     public var app: String { folder + "/app" }
     public var appState: String { app + "/state" }
     public var appLogs: String { app + "/logs" }
+    /// The system's reports on how the app ran (`MetricsSink`), newest 30 kept.
+    public var appMetrics: String { appLogs + "/metrics" }
     /// Kept out of Time Machine (`prepareAppCache`).
     public var appCache: String { app + "/cache" }
     public var terminals: String { appState + "/terminals.json" }

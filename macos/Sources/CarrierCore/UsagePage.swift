@@ -3,14 +3,15 @@ import Foundation
 // The live quota list of the Usage page (docs/specs/usage-and-limits.md): the host's quotas pooled by provider, each with its meters, its
 // earliest reset and the rows of its drawer. Everything the view draws is decided here, from the quotas and a clock, so it can be tested.
 
-public enum QuotaKind: String, Equatable { case fiveHour = "5h", weekly = "Weekly" }
+public enum QuotaKind: String, Equatable { case fiveHour = "5h", weekly = "Weekly", monthly = "Monthly" }
 
-/// Which of the two rolling windows a window is. The providers name them differently (`5h` and `7d`, `Five Hour Limit Remaining`); a window of
-/// neither (Claude's `7d Opus`) is nil.
+/// Which of the rolling windows a window is. The providers name them differently (`5h` and `7d`, `Five Hour Limit Remaining`); a window of
+/// none (Claude's `7d Opus`) is nil. The monthly one is Codex's free plan, whose only window is 30 days.
 public func quotaKind(_ window: UsageWindow) -> QuotaKind? {
     let text = window.label.lowercased()
     if text.hasSuffix("5h") || text.contains("five hour") { return .fiveHour }
     if text.hasSuffix("7d") || text.contains("week") { return .weekly }
+    if text.hasSuffix("30d") || text.contains("month") { return .monthly }
     return nil
 }
 
@@ -198,7 +199,7 @@ public func usageProviders(_ quotas: [UsageQuota], now: Int) -> [UsageProviderRo
         }
         // the 5h and Weekly of every account (every pool, for Antigravity) pooled; a window of a model or a limit id has its own row below
         let pooled = own.flatMap(\.windows).filter { ($0.group == nil || id == "agy") && $0.group != "model_scoped" }
-        let meters = [QuotaKind.fiveHour, .weekly].compactMap { kind -> UsageMeter? in
+        let meters = [QuotaKind.fiveHour, .weekly, .monthly].compactMap { kind -> UsageMeter? in
             let windows = pooled.filter { quotaKind($0) == kind }
             return windows.isEmpty ? nil : UsageMeter(kind: kind, shape: meterShape(windows))
         }

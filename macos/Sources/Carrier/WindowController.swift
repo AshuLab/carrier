@@ -564,7 +564,7 @@ final class WindowController: NSObject, NSWindowDelegate {
             wait: sleep,
             tick: { try poller.poll($0) },
             onChange: { state in
-                DispatchQueue.main.async { if stop.isSet == false { model.state = state } }
+                DispatchQueue.main.async { if stop.isSet == false, publishes(state, over: model.state) { model.state = state } }
             }
         )
         Thread.detachNewThread { monitor.run() }

@@ -132,6 +132,17 @@ xcrun xctrace export --input s.trace --toc
 `scripts/perf-sample.sh <app-pid> [chat-host-pid] [seconds]` samples a running app: CPU, idle wake-ups and energy, the footprint and, with a chat host's pid, its process tree with the memory of each process.
 It only reads, and it takes pids you captured or were given, never a name.
 
+A performance test counts work, never time, so it gives the same answer in CI: `ConversationModel.feedWork` (the events a feed was built from), `dictationDays(_:calendar:work:)`, `filesChangedModel(_:lookups:)` and the `publishes(_:over:)` seam.
+Where a finding is not fixed yet, the test says so with `withKnownIssue("<id>: what is missing (<brief>)")`: it passes today and the failed expectation shows the real number.
+The day the fix lands, Swift Testing reports that the known issue did not happen, and whoever fixes it takes the `withKnownIssue` out.
+
+For a measurement by hand, `CARRIER_PERF_FIXTURES=<folder> swift test --filter writesTheLargeFixtures` writes:
+
+- `<folder>/fixtures`: the golden files with a `files` reply of 2,000 paths and a diff of 1,000 rows, to run with `--fixture <folder>/fixtures`.
+- `<folder>/home/app/state/dictations.jsonl`: 10,000 dictations, to run with `CARRIER_HOME=<folder>/home`.
+
+The generators are in `CarrierCore/LongTranscript.swift`, next to the long transcript's.
+
 ## What the app does
 
 How the app looks is in [macos-ui](../docs/macos-ui.md); what it does, area by area, is in `docs/macos/`; where each area lives in the code is in [AGENTS.md](AGENTS.md).

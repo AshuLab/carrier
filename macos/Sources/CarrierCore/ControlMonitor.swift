@@ -1,5 +1,8 @@
 import Foundation
 
+/// Whether a new state is worth publishing to the window over the one it shows. Today any difference is, `now` included; IPC-6 narrows it.
+public func publishes(_ new: ConnectionState, over old: ConnectionState?) -> Bool { new != old }
+
 public enum ConnectionState: Equatable {
     case stopped
     /// `update` says which side to update when the cause is the protocol; nil for a snapshot this app cannot read.

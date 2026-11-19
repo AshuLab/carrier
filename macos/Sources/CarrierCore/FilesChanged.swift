@@ -109,6 +109,12 @@ public func diffSquares(added: Int, removed: Int) -> (green: Int, red: Int) {
 }
 
 public func filesChangedModel(_ reply: FilesReply?) -> FilesChangedModel {
+    var lookups = 0
+    return filesChangedModel(reply, lookups: &lookups)
+}
+
+/// `lookups` adds up the times the bundle was asked for an icon, one per row today.
+func filesChangedModel(_ reply: FilesReply?, lookups: inout Int) -> FilesChangedModel {
     let source = reply?.sections ?? []
     let working = Set(source.filter { $0.kind != "merged" }.map(\.id))
     let titles = Dictionary(source.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
@@ -122,7 +128,7 @@ public func filesChangedModel(_ reply: FilesReply?) -> FilesChangedModel {
                 directory: String(file.path[..<slash]),
                 name: String(file.path[slash...]),
                 category: fileCategory(file.path),
-                icon: fileIcon(file.path),
+                icon: fileIcon(file.path, lookups: &lookups),
                 added: file.added,
                 removed: file.removed,
                 alsoIn: isWorking ? file.alsoIn.filter { working.contains($0) }.map { titles[$0] ?? $0 } : []

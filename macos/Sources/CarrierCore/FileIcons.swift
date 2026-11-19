@@ -37,10 +37,17 @@ public func bundledIconName(_ path: String) -> String? {
 
 /// The icon of a path: the bundled one when there is one, else its category's symbol.
 public func fileIcon(_ path: String) -> FileIcon {
-    if let name = bundledIconName(path),
-        let url = carrierResources.url(forResource: name, withExtension: "svg", subdirectory: "FileIcons")
-    {
-        return .bundled(name: name, url: url)
+    var lookups = 0
+    return fileIcon(path, lookups: &lookups)
+}
+
+/// `lookups` counts the times the bundle was asked for an icon.
+func fileIcon(_ path: String, lookups: inout Int) -> FileIcon {
+    if let name = bundledIconName(path) {
+        lookups += 1
+        if let url = carrierResources.url(forResource: name, withExtension: "svg", subdirectory: "FileIcons") {
+            return .bundled(name: name, url: url)
+        }
     }
     return .symbol(fileCategory(path).symbol)
 }

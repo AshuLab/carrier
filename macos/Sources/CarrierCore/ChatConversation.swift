@@ -609,6 +609,9 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var asleep = false
     /// Whether a send is waking the session.
     public private(set) var waking = false
+    /// The events the feed was built from, added up over every rebuild: a test tells a rebuild (all the events) from an append (one), as
+    /// `Transcript.work` does for an epic.
+    @ObservationIgnored private(set) var feedWork = 0
     @ObservationIgnored private var closedSince: Date?
     @ObservationIgnored private var known = true
     @ObservationIgnored private var preparingSession = false
@@ -883,6 +886,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     private func feed() -> [FeedRow] {
         let signpost = Signposts.feed.beginInterval("chat feed")
         defer { Signposts.feed.endInterval("chat feed", signpost, "\(self.events.count) events") }
+        feedWork += events.count
         let rows = chatFeed(events, streaming: streaming, pending: pending, working: busy)
         guard let firstMessage, events.contains(where: { $0.kind == "user" }) == false else { return rows }
         return [.user(id: "first-message", text: firstMessage)] + rows

@@ -396,16 +396,18 @@ private struct CleaningClient: TextModelClient {
 
 @MainActor @Test func aBoxWaitingBehindTheWidgetDoesNotOpenTheMicrophoneWhenTheWindowHides() async {
     let registry = RecognizerRegistry()
-    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    let capture = ScriptedCapture()
+    let dictation = DictationController(registry: registry, capture: capture)
     let recognizer = ScriptedRecognizer(atAudioEnd: [.final("")])
     registry.register(recognizer)
     dictation.session.start(recognizer: recognizer, model: recognizer.models[0], into: field(GlobalDictation.owner))
-    await until { dictation.session.state == .listening }
+    // ready, so a click in a box queues behind the widget's dictation and does not end it as one with nothing captured
+    await until { dictation.session.state == .listening && dictation.session.modelReady }
     // a click in a box while the widget listens: its dictation waits for the widget's to end
     dictation.toggle(into: field("session:s"))
+    #expect(dictation.session.owner == GlobalDictation.owner)
     dictation.stopBoxDictation()
-    dictation.stop(ownedBy: GlobalDictation.owner)
     await until { dictation.session.state == .idle }
     try? await Task.sleep(for: .milliseconds(30))
-    #expect(dictation.session.state == .idle && dictation.session.owner == nil)
+    #expect(dictation.session.state == .idle && dictation.session.owner == nil && capture.startCount == 1)
 }

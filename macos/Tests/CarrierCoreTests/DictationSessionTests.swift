@@ -886,7 +886,22 @@ private func aCleanupThatFailsLeavesTheRawTextTellsTheCauseAndLogsItAlone(failur
 
 // MARK: stopping everything but one owner (the window hides or the app leaves)
 
-@MainActor @Test func stoppingAllButOneOwnerStopsTheBoxThatListensAndDropsTheBoxThatWaits() async {
+@MainActor @Test func stoppingAllButOneOwnerStopsTheCaptureOfABoxAndNotOfTheOneItKeeps() async {
+    // nothing waits: it is `stop(except:)` itself that stops the box that listens
+    let box = Rig()
+    box.dictate(with: ScriptedRecognizer())
+    await box.reaches(.listening)
+    #expect(box.capture.isRunning)
+    box.session.stop(except: "global")
+    #expect(box.capture.isRunning == false)
+    let kept = Rig()
+    kept.dictate(with: ScriptedRecognizer(), owner: "global")
+    await kept.reaches(.listening)
+    kept.session.stop(except: "global")
+    #expect(kept.capture.isRunning && kept.session.owner == "global" && kept.session.state == .listening)
+}
+
+@MainActor @Test func stoppingAllButOneOwnerDropsTheBoxThatWaitsBehindAnotherBox() async {
     let rig = Rig()
     let first = ScriptedRecognizer()
     rig.dictate(with: first)
@@ -900,16 +915,17 @@ private func aCleanupThatFailsLeavesTheRawTextTellsTheCauseAndLogsItAlone(failur
     #expect(rig.session.state == .idle && rig.session.owner == nil && rig.capture.startCount == 1)
 }
 
-@MainActor @Test func stoppingAllButOneOwnerDropsABoxThatWaitsBehindTheOneItKeeps() async {
+@MainActor @Test func stoppingAllButOneOwnerDropsABoxThatWaitsBehindTheOneItKeepsWhileItTranscribes() async {
     let rig = Rig()
-    let kept = ScriptedRecognizer()
+    let kept = ScriptedRecognizer(partial: .atTheEnd)
     rig.dictate(with: kept, owner: "global")
     await rig.reaches(.listening)
+    // stopped, its text still to come: a dictation that starts now waits and does not stop it
+    rig.session.stop(ownedBy: "global")
+    await rig.reaches(.transcribing)
     rig.dictate(with: ScriptedRecognizer(), owner: "box")
     rig.session.stop(except: "global")
-    // the dictation of the kept owner goes on
-    #expect(rig.session.owner == "global" && rig.session.state == .listening)
-    rig.session.stop(ownedBy: "global")
+    #expect(rig.session.owner == "global" && rig.session.state == .transcribing)
     kept.finish()
     await rig.reaches(.idle)
     try? await Task.sleep(for: .milliseconds(20))

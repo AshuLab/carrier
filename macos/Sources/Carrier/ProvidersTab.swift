@@ -353,7 +353,7 @@ private struct AccountRow: View {
     }
 }
 
-/// An account's quotas: 5h and Weekly, each a bar with its percent, and under them when the 5h resets and whether the numbers are the last known.
+/// An account's quotas: 5h, Weekly and Monthly, each a bar with its percent, and under them when the 5h resets and whether the numbers are the last known.
 private struct AccountUsageMeters: View {
     let usage: AccountUsage
 
@@ -361,6 +361,7 @@ private struct AccountUsageMeters: View {
         VStack(alignment: .trailing, spacing: 4) {
             if let five = usage.five { UsageMeterLine(label: "5h", shape: five) }
             if let weekly = usage.weekly { UsageMeterLine(label: "Weekly", shape: weekly) }
+            if let monthly = usage.monthly { UsageMeterLine(label: "Monthly", shape: monthly) }
             if usage.stale || usage.reset != nil {
                 HStack(spacing: 6) {
                     if usage.stale { StatusChip(text: "Stale", tint: .orange) }

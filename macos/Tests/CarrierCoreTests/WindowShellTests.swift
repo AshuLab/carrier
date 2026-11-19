@@ -129,6 +129,19 @@ import Testing
     #expect(shell.newSessionOpened == 2)
 }
 
+@Test func aSessionRemovedWhileItIsOnScreenGivesWayToANewSession() {
+    let shell = WindowShell()
+    shell.selection = .session(id: "a")
+    shell.sessionRemoved("b")
+    #expect(shell.selection == .session(id: "a"))
+    shell.sessionRemoved("a")
+    #expect(shell.selection == .newSession && shell.open == .sessions && shell.newSessionOpened == 1)
+    // what is on screen and is not that session stays
+    shell.selection = .usage
+    shell.sessionRemoved("a")
+    #expect(shell.selection == .usage)
+}
+
 private func freshTable() -> ShortcutTable {
     let suite = "shortcuts-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!

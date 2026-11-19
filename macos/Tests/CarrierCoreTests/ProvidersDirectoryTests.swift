@@ -33,6 +33,13 @@ private func quota(_ account: String, five: Double, provider: String = "claude")
     #expect(accountUsage("claude-work", in: quotas, now: now) == nil && accountUsage("nobody", in: quotas, now: now) == nil)
 }
 
+@Test func aCodexFreeAccountHasOnlyAMonthlyWindowAndItIsMetered() throws {
+    let json = #"{"account":"codex-free","provider":"codex","status":"ok","windows":[{"id":"codex:primary","label":"30d","usedPercent":100,"resetsAt":\#(now + 3_600_000)}]}"#
+    let free = try JSONDecoder().decode(UsageQuota.self, from: Data(json.utf8))
+    let usage = try #require(accountUsage("codex-free", in: [free], now: now))
+    #expect(usage.five == nil && usage.weekly == nil && usage.monthly?.used == 1 && usage.reset == "Resets in 1h 00m")
+}
+
 @Test func anAccountNeedsSomeoneWhenItIsSignedOutOrNearTheEndOfItsFiveHours() throws {
     let accounts = try page().tools.flatMap(\.accounts)
     let work = try #require(accounts.first { $0.name == "claude-work" }), claude = try #require(accounts.first { $0.name == "claude" })

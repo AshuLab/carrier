@@ -84,9 +84,9 @@ struct WorkspaceSheet: View {
                     Text((model.projectsPath as NSString).abbreviatingWithTildeInPath)
                         .font(.callout.monospaced()).lineLimit(1).truncationMode(.head).textSelection(.enabled)
                 }
-                Button("Change…", action: changeProjectsFolder).controlSize(.small).help("Where repositories are cloned and new projects are made")
+                Button("Change…", action: changeProjectsFolder).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Where repositories are cloned and new projects are made")
                 Spacer(minLength: 16)
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
             }
             if let problem = model.projectsFolderProblem {
                 notice(problem, .warningFilled, .red)
@@ -249,11 +249,12 @@ struct WorkspaceSheet: View {
             } label: {
                 HStack(spacing: 4) {
                     if visibility != .all { Text(visibility.rawValue).font(.subheadline.weight(.semibold)) }
-                    Glyph(.filter)
+                    Glyph(.filter, size: 13)
                 }
                 .foregroundStyle(visibility == .all ? Color.secondary : Color.themeAccent)
             }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Show all, public or private repositories")
+            // not `.borderlessButton`: that one draws the icon in the system's black and larger than asked
+            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().help("Show all, public or private repositories")
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(RoundedRectangle(cornerRadius: radius).fill(Color.secondary.opacity(0.12)))
@@ -351,7 +352,8 @@ struct WorkspaceSheet: View {
                     .font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
-            Toggle("Let Carrier watch \(what)", isOn: on).labelsHidden().toggleStyle(.switch)
+            // outside a form the system draws its switch at the full size, bigger than the ones of Settings' forms
+            Toggle("Let Carrier watch \(what)", isOn: on).labelsHidden().toggleStyle(.switch).controlSize(.small)
         }
         .padding(12).background(RoundedRectangle(cornerRadius: radius).fill(Color.secondary.opacity(0.08)))
         .disabled(reason != nil)

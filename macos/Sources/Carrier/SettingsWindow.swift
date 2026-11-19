@@ -57,10 +57,10 @@ import SwiftUI
 
     var isShown: Bool { window?.isVisible == true }
 
-    /// `page` nil keeps the one it was left on; `place` is a screen of a page.
-    func show(_ page: SettingsPage?, place: SettingsPlace? = nil, model: PanelModel) {
+    /// `page` nil keeps the one it was left on; `place` is a screen of a page; `parent` is the main window, which a first Settings window centers over.
+    func show(_ page: SettingsPage?, place: SettingsPlace? = nil, model: PanelModel, over parent: NSWindow? = nil) {
         if let place { navigator.go(place) } else if let page { navigator.go(page) }
-        let window = window ?? makeWindow(model: model)
+        let window = window ?? makeWindow(model: model, over: parent)
         self.window = window
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
@@ -68,7 +68,7 @@ import SwiftUI
 
     func close() { window?.close() }
 
-    private func makeWindow(model: PanelModel) -> NSWindow {
+    private func makeWindow(model: PanelModel, over parent: NSWindow?) -> NSWindow {
         let host = NSHostingController(rootView: SettingsRoot(model: model, navigator: navigator).themed())
         // the split view's title and toolbar go to the window, and its content does not size it (as the main window's)
         host.sceneBridgingOptions = .all
@@ -79,10 +79,17 @@ import SwiftUI
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 760, height: 480)
         window.delegate = self
-        // where it was and how big; the first time, the size of a page that does not need a scroll to be read
-        if window.setFrameAutosaveName("CarrierSettingsWindow") == false {
+        // where it was and how big; the first time, the size of a page that does not need a scroll to be read.
+        // The name is accepted even when nothing was saved under it, so a frame too small to be a Settings window (the first time, the host
+        // gives it none) or on no screen any more is not used, as the main window's
+        _ = window.setFrameAutosaveName("CarrierSettingsWindow")
+        let kept = window.contentRect(forFrameRect: window.frame).size
+        let usable = kept.width >= window.contentMinSize.width && kept.height >= window.contentMinSize.height
+            && NSScreen.screens.contains { $0.visibleFrame.intersects(window.frame) }
+        if usable == false {
             window.setContentSize(NSSize(width: 940, height: 660))
-            window.center()
+            // over the main window, so on the screen the person is using; centered on the main screen when that one is not there to look at
+            if let parent, parent.isVisible { window.setFrameOrigin(NSPoint(x: parent.frame.midX - window.frame.width / 2, y: parent.frame.midY - window.frame.height / 2)) } else { window.center() }
         }
         return window
     }

@@ -110,7 +110,8 @@ struct SessionsRows: View {
                 case .empty where ChatHostStarter.shared.missing.isEmpty:
                     let empty = EmptyState.noSessions
                     SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
-                        Button("New session", action: newSession).help("New session")
+                        // the pill of the title bar's New session
+                        AccentGlassPillButton(title: "New session", icon: .plus, action: newSession).help("New session")
                     }
                 case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
                 case .rows, .empty: EmptyView()

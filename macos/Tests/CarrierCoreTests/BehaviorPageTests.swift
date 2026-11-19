@@ -25,7 +25,3 @@ import Testing
     #expect(keys.count == 8)
     #expect(behaviorGroups.flatMap(\.rows).map(\.key).sorted() == keys.sorted())
 }
-
-@Test func theResetCardSaysWhatItAlwaysSaid() {
-    #expect(behaviorReset == (group: "Reset", title: "Restore the defaults", detail: "Everything on this page goes back to how it came", button: "Reset"))
-}

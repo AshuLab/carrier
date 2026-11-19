@@ -10,17 +10,17 @@ public enum FileCategory: CaseIterable {
     case code, data, text, image, style, shell, lock, test, other
 
     /// The one place that says which symbol each category gets, so the source can be replaced later (story 45).
-    public var symbol: String {
+    public var symbol: AppIcon {
         switch self {
-        case .code: "chevron.left.forwardslash.chevron.right"
-        case .data: "curlybraces"
-        case .text: "doc.text"
-        case .image: "photo"
-        case .style: "paintbrush"
-        case .shell: "terminal"
-        case .lock: "lock"
-        case .test: "checkmark.seal"
-        case .other: "doc"
+        case .code: .code
+        case .data: .braces
+        case .text: .fileText
+        case .image: .photo
+        case .style: .brush
+        case .shell: .terminal
+        case .lock: .lock
+        case .test: .sealCheck
+        case .other: .file
         }
     }
 }
@@ -108,7 +108,18 @@ public func diffSquares(added: Int, removed: Int) -> (green: Int, red: Int) {
     return (green, 5 - green)
 }
 
+extension FilesChangedModel {
+    /// What a tab with no reply yet draws.
+    public static let empty = filesChangedModel(nil)
+}
+
 public func filesChangedModel(_ reply: FilesReply?) -> FilesChangedModel {
+    var lookups = 0
+    return filesChangedModel(reply, lookups: &lookups)
+}
+
+/// `lookups` adds up the times the bundle was asked for an icon, one per row today.
+func filesChangedModel(_ reply: FilesReply?, lookups: inout Int) -> FilesChangedModel {
     let source = reply?.sections ?? []
     let working = Set(source.filter { $0.kind != "merged" }.map(\.id))
     let titles = Dictionary(source.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
@@ -122,7 +133,7 @@ public func filesChangedModel(_ reply: FilesReply?) -> FilesChangedModel {
                 directory: String(file.path[..<slash]),
                 name: String(file.path[slash...]),
                 category: fileCategory(file.path),
-                icon: fileIcon(file.path),
+                icon: fileIcon(file.path, lookups: &lookups),
                 added: file.added,
                 removed: file.removed,
                 alsoIn: isWorking ? file.alsoIn.filter { working.contains($0) }.map { titles[$0] ?? $0 } : []

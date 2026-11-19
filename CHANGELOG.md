@@ -6,9 +6,80 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The app drops the separate agent output window and its watcher, which nothing opened since an epic's output moved to its Agent output tab; the tab reads the same lines through the monitor, so nothing you see changes.
+
 ### Fixed
 
+- Carrier no longer grows in memory while it sits open: about 1 MB a minute went to what the connection to the engine left behind, and it is freed on every poll now.
+
+## [0.14.1] - 2026-11-19
+
+Fixes after 0.14.0: the Settings window's first size, selects, buttons and badges that did not look like the rest, a bar for Codex's free plan, archiving the session on screen, and an update check every hour.
+
+### Changed
+
+- Settings › Dictation › History shows the first 100 dictations and a Show 100 more button, so it opens at once with thousands of them.
+- Carrier looks for an update every hour, not once a day. An installed Carrier keeps the daily check until it updates to this version.
+
+### Fixed
+
+- Archiving (or deleting) the session on screen goes to a new session, so the next task starts there, and the conversation no longer stays on screen.
+- The Settings window opens at a readable size the first time, not as a strip with only the window buttons, and centered over the main window.
+- Hovering a link in a message no longer leaves dark rectangles over the rest of the text.
+- The provider's mark on the corner of an avatar (a role's, a session's) is on an opaque disc, so it is seen over a picture.
+- Usage and the Providers page of Settings show a bar for Codex on the free plan, whose only limit is 30 days (it showed none because the page only knew the 5h and weekly windows).
+- Cancel in the sheets of a new session (workspace, where it works, branches) and Change… under the workspaces are the grey capsule of the other secondary buttons.
+- In the workspace and branch sheets the Open and Select tags and the chevron of a row have contrast on a light accent, and the filter icon is the size and color of the search's.
+- The "Let Carrier watch" switch of the workspace sheet is the size of the ones in Settings.
+- The New session and New Terminal buttons of the empty sidebar are the glass pills of the title bar.
+- The controls of "Work in … on … from …" in a new session (workspace, where it works, branches) look like the selects of Settings, with a box under the pointer, and their icons and heights are aligned.
+- Selects outside a form (Usage's filters, the cards of Settings) look like the ones in Settings' forms, and Usage's search box is wider.
+
+## [0.14.0] - 2026-11-19
+
+Settings in a window of its own with search, Keep awake, a redrawn Providers, Dictation and Agents, a choice of icon sets, and a lighter app while it sits open.
+
+### Added
+
+- Settings is a window of its own and not a sheet: it does not stop you using the main window, it comes back where you left it, and it has a sidebar, a toolbar with the page's name, and ‹ › (⌘[ and ⌘]) to go back and forward through the pages you visited.
+- Settings has a search field at the top of the sidebar (⌘F): it finds a page, a group or a row by what it says, lists the results under their pages and, when you choose one, opens the page and shows the row.
+- Keep awake: stop the Mac from sleeping from the menu bar (30 min to 5 hours, or until you turn it off), with a small cup on the icon while it holds.
+  It can also stay on while agents work and for a few minutes after, pauses on a low battery and tells you when it stops by itself.
+  Set it on the new Keep awake page of Settings, with an optional shortcut for any app.
+- The app keeps the system's reports on hangs and CPU use in `app/logs/metrics/` of the Carrier folder, to attach to a bug report; nothing leaves the Mac.
+
+### Changed
+
+- Carrier.app wakes the Mac less while it sits open: no hidden animation while an update waits, no tenth-of-a-second timer while the window is open, and no settings write at every read of an open session.
+- Settings › Providers is a form of three screens (the providers, one provider, one account), with ‹ › to move between them, a filter, and the accounts that are signed out or near their 5h limit first. Each account shows its own 5h and Weekly usage, with when it resets; the editor of an account is a screen with Save in the toolbar, and its icon and color open from a button. The search finds the providers and accounts of this Mac.
+- Settings › Dictation is a form of seven screens: a first one with whether dictation works now (microphone, Accessibility and the speech model, with what to fix) and the switch, and Speech recognition, Global dictation, Cleanup, Sounds, History and Statistics one click away, each with ‹ ›. The Statistics screen has everything it had, one group under another; Reset is on the first screen.
+- Settings › Agents is a first screen and one screen for each role, with ‹ › between them: whether the roles are set up (and what to fix), the three roles of an epic joined by a rail that says what passes from one to the next, and for each role its picture, who it works as, its model, persona, the skill each stage runs and what happens when its tokens run out. A bot of Agent Forge shows the logo of its GitHub App, with the mark of its account on the corner, and its initials when it has none. The skills are shown and cannot be changed yet.
+- Settings has four groups: App (with Providers), Workspace (Chat, Sessions, Sidebar and Terminal), Carrier (Agents, Repos and Behavior) and System (Engine, Health and About).
+- The font of code and output is back under Settings › Appearance (and its Reset), and the Terminal page says "Same as Appearance". Notifications has four groups instead of eight.
+- The app draws its own icons in the set you choose in Settings › Appearance › Icon set (Tabler, the default, Lucide or SF Symbols), with Icon weight to make the strokes thinner or thicker (1.5 by default). The window's toolbar, the menus and the menu bar icon, and the selects keep the Mac's.
+- Every select in Settings is the Mac's own pop-up as a form draws it (the chosen word at the right with up and down chevrons in a small circle, and the system menu with its check), the model picker's button included.
+- Settings pages that are rows (General, Appearance, Notifications, Keybindings, Keep awake, Chat, Sessions, Sidebar, Terminal, Agents, Behavior, Engine and About) are native grouped forms with the same rows, selects and switches, in one column of the same width, with shorter lines and the longer words under the group; Providers, Repos and Health keep their own layout.
+- Reset is in the ⋯ menu of Settings' toolbar ("Reset this page…") and asks first, on every page that has one (the menu is not drawn on the pages that have none); Sessions and Behavior no longer have a Reset card.
+- What Carrier is missing shows as a banner on the Engine and Health pages and as a badge on their rows, not over every page.
+
+### Fixed
+
+- A message could show twice in a conversation when it arrived while the app was already reading the session.
+- Opening Carrier before the chat host was up emptied the sessions list for a moment and lost which sessions were unread.
+- Dictating in another app with the shortcut no longer stops when Carrier's window is hidden, covered, minimized or closed.
+
+## [0.13.1] - 2026-11-18
+
+Fixes after 0.13.0: starting from the app with a late PATH, pull requests of SSH-alias remotes, the draft's reasoning levels and choosing a repository to clone.
+
+### Fixed
+
+- Carrier no longer fails to start from the app for a folder you added to your shell's PATH after the app first read it (pnpm's, where `agent-forge` lives): when a start ends with `spawn agent-forge ENOENT`, the app reads the PATH from your shell again and starts once more, and if the tool is still not there the alert says so.
+- A session whose `origin` is an SSH alias of GitHub (`git@github.com-work:owner/repo.git`) shows its pull request and its changed lines again, and the worktrees you make from it go under its `owner/repo`, like any GitHub repository.
 - In a new session, the Reasoning slider lists the levels of the model you chose and not those of the agent's default one, and the reasoning set in Settings is kept when that model takes it (a draft on GPT-6.1 Terra showed only Low and dropped High).
+- Choosing a GitHub repository to clone no longer fails when only your GitHub login could not be read, a `gh` that is too slow to answer is no longer reported as signed out, a folder that cannot be made is no longer called "already there", and a cancelled clone leaves no empty owner folder behind.
 
 ## [0.13.0] - 2026-11-18
 

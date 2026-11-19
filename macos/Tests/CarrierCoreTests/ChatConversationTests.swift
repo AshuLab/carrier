@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Testing
 @testable import CarrierCore
 
@@ -499,6 +500,13 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     /// The state the host reports with its events; nil leaves the model's as it was (idle).
     var state: ChatSession.State?
     var interrupts = 0
+    /// Set, the next `events` waits on it before it reads the page: a test holds a round in flight while another starts.
+    var hold: (@Sendable () async -> Void)?
+    /// Set, the next `events` answers the whole list from the start with a cursor of 0, as a reader that was behind would.
+    var rewind = false
+    /// Set, every `events` answers the first page from the start with a cursor of 0, whatever was asked; it gives up after 20 asks, so a
+    /// reader that never stops fails a test instead of hanging it.
+    var stale = false
 
     func agents() async throws -> [ChatAgent] { [] }
     func open(plan: SessionPlan) async throws -> String { "" }
@@ -535,13 +543,23 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
         stopped.append("\(id) \(task)")
         if let refusingStopTask { throw refusingStopTask }
     }
-    func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
-    func createProject(_ name: String) async throws -> String { throw ControlError.closed }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         asked.append((after, limit))
         if let failing { throw failing }
+        if let wait = hold {
+            hold = nil
+            await wait()
+        }
+        if stale {
+            if asked.count > 20 { throw ControlError.closed }
+            return ChatEvents(events: Array(events.prefix(limit)), cursor: 0, streaming: streaming, state: state, preparation: preparation, progress: progress)
+        }
+        if rewind {
+            rewind = false
+            return ChatEvents(events: Array(events.prefix(limit)), cursor: 0, streaming: streaming, state: state, preparation: preparation, progress: progress)
+        }
         let page = Array(events.filter { $0.id > after }.prefix(limit))
         return ChatEvents(events: page, cursor: page.last?.id ?? after, streaming: streaming, state: state, preparation: preparation, progress: progress)
     }
@@ -1132,16 +1150,16 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
 }
 
 @Test func everyKindChipHasItsLabelTintAndIcon() {
-    let cases: [(KindChip, String, ChipTint, String?)] = [
+    let cases: [(KindChip, String, ChipTint, AppIcon?)] = [
         (.thinking, "Thinking", .thought, nil),
-        (.read, "Read", .files, "doc.text"),
-        (.search, "Search", .files, "magnifyingglass"),
-        (.edit, "Edit", .files, "pencil"),
-        (.shell, "Shell", .shell, "terminal"),
-        (.mcp(server: "linear"), "linear", .mcp, "powerplug"),
-        (.subagents(1), "1 subagent", .subagents, "person.2"),
-        (.subagents(3), "3 subagents", .subagents, "person.2"),
-        (.subagent(type: "Explore"), "Explore", .subagents, "person.2"),
+        (.read, "Read", .files, .fileText),
+        (.search, "Search", .files, .search),
+        (.edit, "Edit", .files, .pencil),
+        (.shell, "Shell", .shell, .terminal),
+        (.mcp(server: "linear"), "linear", .mcp, .plug),
+        (.subagents(1), "1 subagent", .subagents, .users),
+        (.subagents(3), "3 subagents", .subagents, .users),
+        (.subagent(type: "Explore"), "Explore", .subagents, .users),
         (.needsYou, "Needs you", .attention, nil),
     ]
     for (chip, label, tint, icon) in cases {
@@ -1637,4 +1655,106 @@ private func launched(_ call: String, at: Int, id: Int) -> [ChatEvent] {
     let asked = try golden("question")
     let cards = chatFeed(asked.events, pending: ["q1"]).compactMap { row -> ApprovalCard? in if case .approval(_, let card) = row { card } else { nil } }
     #expect(cards.count == 1 && cards[0].questions.map(\.multiSelect) == [false, true])
+}
+
+// MARK: the work of the feed
+
+private final class Flag: @unchecked Sendable { var raised = false }
+
+/// A model that has read a session of 5,005 events.
+@MainActor private func modelOfALongSession() async -> (model: ConversationModel, host: ScriptedHost) {
+    let host = ScriptedHost()
+    host.events = longChatEvents(rounds: 715)
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    return (model, host)
+}
+
+@MainActor @Test func anIdlePollDoesNoFeedWorkAndDoesNotTouchTheRows() async {
+    let (model, _) = await modelOfALongSession()
+    #expect(model.cursor == 5005 && model.rows.isEmpty == false)
+    let before = model.feedWork
+    let touched = Flag()
+    withObservationTracking { _ = model.rows } onChange: { touched.raised = true }
+    await model.poll()
+    #expect(model.feedWork == before && touched.raised == false)
+}
+
+@MainActor @Test func aNewEventCostsOneUnitOfFeedWork() async {
+    let (model, host) = await modelOfALongSession()
+    let before = model.feedWork
+    host.events.append(say(5006))
+    await model.poll()
+    #expect(model.cursor == 5006)
+    withKnownIssue("the feed is rebuilt from every event") { #expect(model.feedWork - before == 1) }
+}
+
+@MainActor @Test func aStreamingTokenCostsAtMostOneUnitOfFeedWork() async {
+    let (model, host) = await modelOfALongSession()
+    let before = model.feedWork
+    host.streaming = "Module 715 has"
+    await model.poll()
+    withKnownIssue("the feed is rebuilt from every event") { #expect(model.feedWork - before <= 1) }
+}
+
+@MainActor @Test func aPollAskedWhileAnotherIsInFlightNeverRepeatsAnEvent() async {
+    let host = ScriptedHost()
+    let (gate, open) = AsyncStream<Void>.makeStream()
+    host.hold = { for await _ in gate {} }
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    // the round `run()` starts, held inside `events` with the cursor at 0
+    let first = Task { await model.poll() }
+    while host.asked.isEmpty { await Task.yield() }
+    host.events = [say(1), say(2)]
+    // an action's poll while the first waits: it does not read, the one under way goes round again when it ends
+    await model.poll()
+    #expect(host.asked.map(\.after) == [0])
+    open.finish()
+    await first.value
+    #expect(host.asked.map(\.after) == [0, 2])
+    #expect(model.rows.map(\.id) == ["e1", "e2"] && model.cursor == 2)
+}
+
+@MainActor @Test func aReplyBehindTheCursorNeitherMovesItBackNorAddsOldEvents() async {
+    let host = ScriptedHost()
+    host.events = (1...3).map(say)
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.cursor == 3 && model.rows.count == 3)
+    host.rewind = true
+    await model.poll()
+    #expect(model.cursor == 3 && model.rows.count == 3)
+}
+
+@MainActor @Test func aHostThatKeepsAnsweringAFullPageOfOldEventsDoesNotKeepTheRoundReading() async {
+    let host = ScriptedHost()
+    host.events = (1...200).map(say)
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.cursor == 200)
+    let before = host.asked.count
+    // a full page with nothing new is not a reason to ask again: the cursor would not move
+    host.stale = true
+    await model.poll()
+    #expect(host.asked.count - before == 1)
+    #expect(model.cursor == 200 && model.rows.count == 200)
+}
+
+@MainActor @Test func aQueuedMessageIsStillDeliveredAndReadAgainWhenTheRoundThatSeesTheAgentIdleEnds() async {
+    let host = ScriptedHost()
+    host.state = .working
+    host.events = [say(1)]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    model.draft = "next"
+    await model.submit()
+    #expect(model.queued == "next" && host.sent.isEmpty)
+    host.state = .idle
+    host.events.append(say(2))
+    let before = host.asked.count
+    await model.poll()
+    // the round delivers it, and the poll `deliver` asks from inside the round is not lost: one more pass reads what the send caused
+    #expect(host.sent == ["next"])
+    #expect(host.asked.count - before == 2)
+    #expect(model.rows.map(\.id).contains("e2"))
 }

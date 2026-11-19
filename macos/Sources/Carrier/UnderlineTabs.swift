@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// A row of tabs with no box: the words, a hairline across and a line under the chosen one that slides to the next. The quiet
@@ -6,8 +7,8 @@ struct UnderlineTabs<ID: Hashable>: View {
     struct Item: Identifiable {
         let id: ID
         let title: String
-        /// An SF Symbol before the title.
-        var icon: String?
+        /// An icon before the title.
+        var icon: AppIcon?
         var count: String?
         var countColor: Color = .secondary
     }
@@ -24,7 +25,7 @@ struct UnderlineTabs<ID: Hashable>: View {
                 let chosen = item.id == selection
                 Button { withAnimation(.smooth(duration: 0.22)) { selection = item.id } } label: {
                     HStack(spacing: 5) {
-                        if let icon = item.icon { Image(systemName: icon).font(.scaled(11, weight: .medium)) }
+                        if let icon = item.icon { Glyph(icon, size: 11) }
                         Text(item.title).fontWeight(chosen ? .semibold : .regular)
                         if let count = item.count { Text(count).foregroundStyle(item.countColor) }
                     }

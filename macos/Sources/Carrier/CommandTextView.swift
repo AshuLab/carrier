@@ -499,11 +499,9 @@ final class PillAttachment: NSTextAttachment {
             shape.fill()
             tint.withAlphaComponent(0.5).setStroke()
             shape.stroke()
-            let configuration = NSImage.SymbolConfiguration(pointSize: 10.5, weight: .semibold).applying(.init(paletteColors: [tint]))
-            if let symbol = NSImage(systemSymbolName: command.kind.symbol, accessibilityDescription: nil)?.withSymbolConfiguration(configuration) {
-                let fit = symbol.size
-                symbol.draw(in: NSRect(x: padding + (icon - fit.width) / 2, y: (height - fit.height) / 2, width: fit.width, height: fit.height))
-            }
+            let symbol = MainActor.assumeIsolated { IconImages.image(command.kind.symbol, bold: true).tinted(tint) }
+            let fit = NSSize(width: 12, height: 12)
+            symbol.draw(in: NSRect(x: padding + (icon - fit.width) / 2, y: (height - fit.height) / 2, width: fit.width, height: fit.height))
             name.draw(at: NSPoint(x: padding + icon + gap, y: (height - nameSize.height) / 2))
             return true
         }
@@ -514,6 +512,8 @@ final class PillAttachment: NSTextAttachment {
 
 /// A sent message: its text, with each command it names as the pill it was in the box.
 func messageText(_ text: String, commands: [ChatCommand]) -> Text {
+    // read before the pills are made, so the text is drawn again when the set or the weight of the icons changes
+    _ = (IconAppearance.shared.set, IconAppearance.shared.weight)
     let ns = text as NSString
     var result = Text("")
     var from = 0

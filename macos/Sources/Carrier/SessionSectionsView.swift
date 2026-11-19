@@ -71,7 +71,7 @@ struct SessionSectionsView: View {
 /// The arrow between two sessions, in the gap above the lower one: the agents run one after the other, top to bottom.
 struct SessionFlowArrow: View {
     var body: some View {
-        Image(systemName: "arrow.down").font(.scaled(10, weight: .semibold)).foregroundStyle(.quaternary)
+        Glyph(.arrowDown, size: 10).foregroundStyle(.quaternary)
             .frame(maxWidth: .infinity).accessibilityHidden(true)
     }
 }
@@ -141,7 +141,7 @@ struct ResultCardView: View {
     /// there is evidence to open.
     private var line: some View {
         HStack(spacing: 8) {
-            Image(systemName: icon).font(.scaled(13)).foregroundStyle(tint).frame(width: 16, height: 16)
+            Glyph(icon, size: 13).foregroundStyle(tint).frame(width: 16, height: 16)
             Text(card.outcome).fontWeight(.semibold)
             if let ci = card.ci { Text("· \(ciVerdictText(ci.verdict))").foregroundStyle(verdictColor(ci.verdict)) }
             Spacer(minLength: 8)
@@ -159,11 +159,11 @@ struct ResultCardView: View {
         }
     }
 
-    private var icon: String {
+    private var icon: AppIcon {
         switch card.tone {
-        case .good: "checkmark.circle"
-        case .warning: "exclamationmark.triangle"
-        case .stop: "person"
+        case .good: .checkCircle
+        case .warning: .warning
+        case .stop: .user
         }
     }
 
@@ -282,7 +282,7 @@ private struct FoldChevron: View {
     let hovered: Bool
 
     var body: some View {
-        Image(systemName: "chevron.right").font(.scaled(10, weight: .bold))
+        Glyph(.chevronRight, size: 10)
             .foregroundStyle(hovered ? Color.primary : Color.secondary)
             .rotationEffect(.degrees(open ? 90 : 0))
             .animation(.easeOut(duration: 0.2), value: open)
@@ -372,8 +372,7 @@ struct AgentAvatar: View {
         }
         .foregroundStyle(.primary)
         .frame(width: 16, height: 16)
-        .background(Circle().fill(Color.themeWindow))
-        .overlay(Circle().strokeBorder(Color.primary.opacity(0.14), lineWidth: 1))
+        .avatarCornerDisc()
     }
 
     @MainActor static func mark(_ harness: String) -> NSImage? {

@@ -609,6 +609,9 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var asleep = false
     /// Whether a send is waking the session.
     public private(set) var waking = false
+    /// The events the feed was built from, added up over every rebuild: a test tells a rebuild (all the events) from an append (one), as
+    /// `Transcript.work` does for an epic.
+    @ObservationIgnored private(set) var feedWork = 0
     @ObservationIgnored private var closedSince: Date?
     @ObservationIgnored private var known = true
     @ObservationIgnored private var preparingSession = false
@@ -631,6 +634,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var commands: [ChatCommand] = []
     /// What a closed session could invoke the last time it was seen running, kept like `remembered`.
     public private(set) var rememberedCommands: [ChatCommand] = []
+    /// The agent last written to `memory`, so a poll writes it only when it changed: a write to the defaults wakes every observer of them.
+    @ObservationIgnored private var savedAgent = ""
     /// What the box lists to invoke: the running agent's, else what it listed when it last ran; that too until the first answer, so the box
     /// does not fill in after the view appears.
     public var shownCommands: [ChatCommand] { commands.isEmpty ? rememberedCommands : commands }
@@ -690,6 +695,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         remembered = memory.load(sessionId)
         rememberedCommands = memory.loadCommands(sessionId)
         agent = memory.loadAgent(sessionId)
+        savedAgent = agent
         draft = memory.loadDraft(sessionId)
     }
 
@@ -698,20 +704,47 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         repeat { await poll() } while (try? await sleep(Self.interval)) != nil
     }
 
-    /// One round: reads pages until one is not full, then rebuilds the feed when something changed.
+    /// Whether a round is under way, and whether another was asked for meanwhile.
+    @ObservationIgnored private var polling = false
+    @ObservationIgnored private var again = false
+
+    /// One round: reads pages until one is not full, then rebuilds the feed when something changed. A round asked for while one is under
+    /// way (an action's, or the one `deliver` asks from inside a round) is not a second reader of the same cursor: the one under way goes
+    /// round once more when it ends.
     public func poll() async {
+        guard polling == false else {
+            again = true
+            return
+        }
+        polling = true
+        defer { polling = false }
+        repeat {
+            again = false
+            await round()
+        } while again
+    }
+
+    private func round() async {
+        // a round can be asked for from an action while another ends, so each interval has its own id
+        let signpost = Signposts.poll.beginInterval("conversation poll", id: Signposts.poll.makeSignpostID())
+        let eventsBefore = events.count
         var changed = loaded == false
+        defer { Signposts.poll.endInterval("conversation poll", signpost, "\(self.events.count - eventsBefore) new events, changed \(changed)") }
         let sendsBefore = sends
         do {
             var reply: ChatEvents
+            var fresh: [ChatEvent]
             repeat {
                 reply = try await host.events(sessionId, after: cursor, limit: Self.page)
+                // ids only grow (the host reads after the cursor, in order): one already here is never added twice
+                fresh = reply.events.filter { $0.id > (events.last?.id ?? 0) }
                 // kept as each page comes, so a later page that fails does not lose the cursor's progress
-                events += reply.events
-                if let last = reply.events.last(where: { $0.kind == "user" }) { lastUserText = last.text }
-                cursor = reply.cursor
-                changed = changed || reply.events.isEmpty == false
-            } while reply.events.count >= Self.page
+                events += fresh
+                if let last = fresh.last(where: { $0.kind == "user" }) { lastUserText = last.text }
+                cursor = max(cursor, reply.cursor)
+                changed = changed || fresh.isEmpty == false
+            // a full page that brought nothing new does not move the cursor: asking again would only get the same page
+            } while reply.events.count >= Self.page && fresh.isEmpty == false
             let first = loaded == false
             if hostStops == nil, let listed = try? await host.capabilities() {
                 hostStops = listed.contains(.stopTask)
@@ -750,7 +783,10 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             failure = nil
             options = reply.options
             commands = reply.commands
-            if agent.isEmpty == false { memory.saveAgent(sessionId, agent) }
+            if agent.isEmpty == false, agent != savedAgent {
+                memory.saveAgent(sessionId, agent)
+                savedAgent = agent
+            }
             if reply.commands.isEmpty == false, reply.commands != rememberedCommands {
                 rememberedCommands = reply.commands
                 memory.saveCommands(sessionId, reply.commands)
@@ -877,6 +913,9 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     }
 
     private func feed() -> [FeedRow] {
+        let signpost = Signposts.feed.beginInterval("chat feed")
+        defer { Signposts.feed.endInterval("chat feed", signpost, "\(self.events.count) events") }
+        feedWork += events.count
         let rows = chatFeed(events, streaming: streaming, pending: pending, working: busy)
         guard let firstMessage, events.contains(where: { $0.kind == "user" }) == false else { return rows }
         return [.user(id: "first-message", text: firstMessage)] + rows

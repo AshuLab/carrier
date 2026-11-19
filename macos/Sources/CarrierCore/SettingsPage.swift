@@ -1,58 +1,73 @@
-/// A page of the Settings rail: its title is the raw value, and it carries its group and its row of the rail. The rail is built from
-/// these, in the order of the cases.
-public enum SettingsPage: String, CaseIterable {
-    case general = "General", providers = "Providers", notifications = "Notifications", appearance = "Appearance", terminal = "Terminal"
-    case keybindings = "Keybindings", dictation = "Dictation"
-    case chat = "Chat", sidebar = "Sidebar", sessions = "Sessions"
-    case repos = "Repos"
-    case agents = "Agents"
-    case behavior = "Behavior"
-    case engine = "Engine"
-    case health = "Health"
-    case about = "About"
+/// A page of Settings: its title is the raw value, and it carries its group and its row of the sidebar. The sidebar is built from these, in
+/// the order of the cases.
+public enum SettingsPage: String, CaseIterable, Sendable {
+    case general = "General", providers = "Providers", appearance = "Appearance", notifications = "Notifications"
+    case keybindings = "Keybindings", dictation = "Dictation", keepAwake = "Keep awake"
+    case chat = "Chat", sessions = "Sessions", sidebar = "Sidebar", terminal = "Terminal"
+    case agents = "Agents", repos = "Repos", behavior = "Behavior"
+    case engine = "Engine", health = "Health", about = "About"
 
-    /// A group of the rail: the App one has no heading, Chat and Carrier have their own, and About is last, kept at the foot of the rail.
-    public enum Group: CaseIterable {
-        case app, chat, carrier, about
+    /// A group of the sidebar: the App one has no heading, the others have their own.
+    public enum Group: CaseIterable, Sendable {
+        case app, workspace, carrier, system
 
         public var heading: String? {
             switch self {
             case .app: nil
-            case .chat: "Chat"
+            case .workspace: "Workspace"
             case .carrier: "Carrier"
-            case .about: nil
+            case .system: "System"
             }
         }
     }
 
     public var group: Group {
         switch self {
-        case .general, .providers, .notifications, .appearance, .terminal, .keybindings, .dictation: .app
-        case .chat, .sidebar, .sessions: .chat
-        case .repos, .agents, .behavior, .engine, .health: .carrier
-        case .about: .about
+        case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake: .app
+        case .chat, .sessions, .sidebar, .terminal: .workspace
+        case .agents, .repos, .behavior: .carrier
+        case .engine, .health, .about: .system
         }
     }
 
-    /// The page's icon in the rail and in its header (an SF Symbol).
-    public var icon: String {
+    /// The page is a native `Form` of grouped sections. The others (the repos and the checks) are lists and tables of their own, which a form
+    /// would not hold.
+    public var usesForm: Bool {
         switch self {
-        case .general: "gearshape"
-        case .notifications: "bell"
-        case .appearance: "paintbrush"
-        case .terminal: "terminal"
-        case .sidebar: "sidebar.left"
-        case .chat: "bubble.left.and.text.bubble.right"
-        case .dictation: "mic"
-        case .keybindings: "keyboard"
-        case .about: "info.circle"
-        case .providers: "brain"
-        case .engine: "cpu"
-        case .behavior: "slider.horizontal.3"
-        case .repos: "tray.full"
-        case .agents: "person.2"
-        case .sessions: "clock.arrow.circlepath"
-        case .health: "stethoscope"
+        case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .agents, .behavior, .engine, .about: true
+        case .repos, .health: false
+        }
+    }
+
+    /// The page is a column of the same width as the others (a readable line, centered). The lists of repos and the checks take the whole width
+    /// of the window instead.
+    public var isColumn: Bool {
+        switch self {
+        case .repos, .health: false
+        default: true
+        }
+    }
+
+    /// The page's icon in the sidebar.
+    public var icon: AppIcon {
+        switch self {
+        case .general: .settings
+        case .notifications: .bell
+        case .appearance: .brush
+        case .terminal: .terminal
+        case .sidebar: .sidebar
+        case .chat: .messages
+        case .dictation: .microphone
+        case .keybindings: .keyboard
+        case .keepAwake: .cup
+        case .about: .info
+        case .providers: .brain
+        case .engine: .cpu
+        case .behavior: .sliders
+        case .repos: .inbox
+        case .agents: .users
+        case .sessions: .history
+        case .health: .stethoscope
         }
     }
 
@@ -67,8 +82,9 @@ public enum SettingsPage: String, CaseIterable {
         case .chat: "The message box and the conversation"
         case .dictation: "Speak instead of typing"
         case .keybindings: "The keys that run the app's actions"
+        case .keepAwake: "Keep the Mac from sleeping, by hand or while agents work"
         case .about: "This version, its links and whether Carrier updates by itself"
-        case .providers: "The AI tools on this Mac and their accounts"
+        case .providers: "The AI providers on this Mac and their accounts"
         case .engine: "How the app runs Carrier"
         case .behavior: "How Carrier runs epics"
         case .repos: "What Carrier watches"

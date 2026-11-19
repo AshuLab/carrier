@@ -12,8 +12,7 @@ public enum FixtureError: Error, Equatable {
 /// asked and not answered as pending, `answer`, which records the answer as an event, `archive` and `delete` on the listed sessions
 /// (kept in memory, refused for a working or waiting one as the host does), `deletePreview`, which says what `chat-delete-preview.json`
 /// holds for the sessions it names and `worktree: null` for the other listed ones, and the worktree requests from `chat-workspace.json`
-/// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder), `chat-clone.json` (`cloneRepo`, by
-/// `owner/repo`; one not listed is refused as the host does for a repository it cannot see), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see), `chat-providers.json` (`providers`), `chat-usage.json` (`usage`, the same sample for any filter; `usageOverride` is accepted and changes nothing), `chat-names.json` (`suggestName`,
+/// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see), `chat-providers.json` (`providers`), `chat-usage.json` (`usage`, the same sample for any filter; `usageOverride` is accepted and changes nothing), `chat-names.json` (`suggestName`,
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; `switchAgent` gives an idle session another listed agent and a notice that says so; anything else is an error.
@@ -50,7 +49,7 @@ public let fixtureConfig = """
 /// The Agent Forge registry of the fixture home (`AGENT_FORGE_CONFIG` points at it under `--fixture`): the three bots of the roles and a spare one.
 /// A key would never be in a file the app reads, so none is here either.
 public let fixtureForgeRegistry = """
-{"agents": [{"name": "acme-author"}, {"name": "acme-reviewer"}, {"name": "acme-lead"}, {"name": "acme-spare", "label": "A bot no role uses"}]}
+{"agents": [{"name": "acme-author", "appId": "1000001"}, {"name": "acme-reviewer", "appId": "1000002"}, {"name": "acme-lead"}, {"name": "acme-spare", "label": "A bot no role uses"}]}
 """
 
 /// The golden doctor output the fixture home holds, for the app to answer its doctor run with in `--fixture` mode.
@@ -70,8 +69,6 @@ public final class FixtureServer {
     /// The golden replies of the worktree requests, and which of the suggested names `suggestName` answers next.
     private let chatWorkspaces: [String: [String: Any]]
     private let chatFetches: [String: [String: Any]]
-    private let chatClones: [String: [String: Any]]
-    private let chatProjects: [String: [String: Any]]
     private let chatGithubRepos: [String: [String: Any]]
     private let chatBranches: [String: [String: Any]]
     private let chatProviders: [String: Any]
@@ -152,8 +149,6 @@ public final class FixtureServer {
         }
         chatWorkspaces = try golden("chat-workspace.json", as: [String: [String: Any]].self)
         chatFetches = try golden("chat-fetch.json", as: [String: [String: Any]].self)
-        chatClones = try golden("chat-clone.json", as: [String: [String: Any]].self)
-        chatProjects = try golden("chat-project.json", as: [String: [String: Any]].self)
         chatGithubRepos = try golden("chat-github-repos.json", as: [String: [String: Any]].self)
         chatBranches = try golden("chat-branches.json", as: [String: [String: Any]].self)
         chatProviders = try golden("chat-providers.json", as: [String: Any].self)
@@ -269,7 +264,9 @@ public final class FixtureServer {
             while let end = pending.firstIndex(of: 0x0A) {
                 let line = pending[pending.startIndex..<end]
                 pending.removeSubrange(pending.startIndex...end)
-                guard send(chat ? chatReply(to: Data(line)) : reply(to: Data(line)), to: fd) else { return }
+                // this thread lives as long as the connection, so each request frees what it autoreleases (the JSON of the request)
+                let sent = autoreleasepool { send(chat ? chatReply(to: Data(line)) : reply(to: Data(line)), to: fd) }
+                guard sent else { return }
             }
         }
     }
@@ -324,12 +321,6 @@ public final class FixtureServer {
             if let fetched = chatFetches[folder] { return Self.answer(id, fetched) }
             let git = chatWorkspaces[folder]?["git"] as? Bool ?? false
             return Self.refused(id, git ? "The fetch of origin failed" : "That folder is not a git repository")
-        case "cloneRepo":
-            guard let repo = request?["repo"] as? String else { break }
-            return chatClones[repo].map { Self.answer(id, $0) } ?? Self.refused(id, "\(repo) was not found, or your GitHub login cannot see it")
-        case "createProject":
-            guard let name = request?["name"] as? String else { break }
-            return chatProjects[name].map { Self.answer(id, $0) } ?? Self.refused(id, "\(name) is already a project; choose another name")
         case "githubRepos":
             guard let page = request?["page"] as? Int else { break }
             return chatGithubRepos[String(page)].map { Self.answer(id, $0) } ?? Self.refused(id, "GitHub did not answer; check \"gh auth status\"")

@@ -17,7 +17,6 @@ struct BehaviorTabView: View {
     @State private var note: String?
     /// the ask of the engine that waits for the person to stop typing; the file is already written
     @State private var askLater: Task<Void, Never>?
-    @State private var confirmingReset = false
     /// what the engine answered to the last save, from any tab
     private let engine = ReloadStatus.shared
 
@@ -41,7 +40,7 @@ struct BehaviorTabView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        SettingsPageBody(reset: { if unreadable == false { draft = EngineConfig(); unparsable = [] } }) {
             ForEach(behaviorGroups, id: \.title) { page in
                 SettingsGroup(title: page.title) {
                     ForEach(Array(page.rows.enumerated()), id: \.element.key) { index, item in
@@ -49,19 +48,6 @@ struct BehaviorTabView: View {
                     }
                 }
             }
-            SettingsGroup(title: behaviorReset.group) {
-                SettingsTabRow(title: behaviorReset.title, detail: behaviorReset.detail, first: true) {
-                    Button { confirmingReset = true } label: { Label(behaviorReset.button, systemImage: "arrow.counterclockwise") }
-                        .disabled(draft == EngineConfig() && unparsable.isEmpty)
-                }
-            }
-        }
-        // it rewrites all eight values, and a running Carrier applies them
-        .alert(behaviorReset.title + "?", isPresented: $confirmingReset) {
-            Button("Cancel", role: .cancel) {}
-            Button(behaviorReset.button, role: .destructive) { draft = EngineConfig(); unparsable = [] }
-        } message: {
-            Text(behaviorReset.detail)
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
@@ -105,12 +91,11 @@ struct BehaviorTabView: View {
                     selection: Binding(get: { draft.maxExecutionHours == nil }, set: { unlimited in
                         unparsable.remove(item.key)
                         draft.maxExecutionHours = unlimited ? nil : 4
-                    }),
-                    width: 120
+                    })
                 )
             }
         case .logLevel:
-            ChoicePopUp(label: item.title, options: EngineConfig.logLevels.map { (value: $0, title: $0) }, selection: $draft.logLevel, width: 100)
+            ChoicePopUp(label: item.title, options: EngineConfig.logLevels.map { (value: $0, title: $0) }, selection: $draft.logLevel)
         }
     }
 
@@ -208,9 +193,9 @@ struct NumberField<Value: Equatable>: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            stepButton("minus", -1)
+            stepButton(.minus, -1)
             TextField("", text: $text).textFieldStyle(.plain).multilineTextAlignment(.center).frame(width: 42).focused($focused)
-            stepButton("plus", 1)
+            stepButton(.plus, 1)
         }
         .padding(2)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(focused ? 0.09 : 0.07)))
@@ -231,14 +216,14 @@ struct NumberField<Value: Equatable>: View {
             .accessibilityLabel(key)
     }
 
-    private func stepButton(_ symbol: String, _ direction: Int) -> some View {
+    private func stepButton(_ symbol: AppIcon, _ direction: Int) -> some View {
         Button {
             guard let next = step(parse(text) ?? value, direction) else { return }
             unparsable.remove(key)
             value = next
             text = format(next)
         } label: {
-            Image(systemName: symbol).font(.scaled(11, weight: .semibold)).foregroundStyle(.secondary).frame(width: 24, height: 24).contentShape(Rectangle())
+            Glyph(symbol, size: 12).foregroundStyle(.secondary).frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(.plain).accessibilityLabel(direction < 0 ? "Less" : "More")
     }

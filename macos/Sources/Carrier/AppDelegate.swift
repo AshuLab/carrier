@@ -12,8 +12,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isConfirmingTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let launching = Signposts.launch.beginInterval("didFinishLaunching")
+        defer { Signposts.launch.endInterval("didFinishLaunching", launching) }
+        // once, the first time the main run loop is about to sleep: after Core Animation's commit observer (order 2_000_000), so close to the
+        // first frame handed to the window server; compares the work deferred with main.async against it
+        let firstCommit = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, false, CFIndex.max) { _, _ in
+            Signposts.launch.emitEvent("first commit")
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), firstCommit, .commonModes)
         // before the menu, whose "Check for Updates…" item is the updater controller's
+        let updating = Signposts.launch.beginInterval("updater")
         AppUpdater.start()
+        Signposts.launch.endInterval("updater", updating)
         installMainMenu()
         followColorScheme()
         // before anything reads the socket path: the fake engine's home becomes CARRIER_HOME
@@ -22,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             prepareAppCache(CarrierPlaces())
             // Apple's recognizer, which the box's microphone needs: it appears once the system has said which languages it supports; FluidAudio's and Whisper's follow
             Task {
+                Signposts.launch.emitEvent("recognizers task")
                 if let apple = await AppleRecognizer.make() { RecognizerRegistry.shared.register(apple) }
                 RecognizerRegistry.shared.register(FluidAudioRecognizer(modelsRoot: dictationModelsRoot()))
                 RecognizerRegistry.shared.register(WhisperKitRecognizer(modelsRoot: dictationModelsRoot()))
@@ -31,6 +42,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         IconController.install(on: item)
+        // a self-test or a smoke run keeps nothing awake and takes no key of the Mac
+        if Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false {
+            KeepAwakeController.shared.onChange = { IconController.shared?.setAwake($0.holds) }
+            KeepAwakeController.shared.start()
+        }
         if isDevBuild { NSApp.dockTile.badgeLabel = "DEV" }
 
         UserDefaults.standard.register(defaults: [showEpicsKey: true])
@@ -44,7 +60,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         MenuControls.shared.install(in: menu)
         menu.addItem(.separator())
+        KeepAwakeMenu.shared.install(in: menu)
+        menu.addItem(.separator())
+        // the first touch of the window controller builds the panel's model, the epic store and the agent offers
+        let windowController = Signposts.launch.beginInterval("window controller")
         WindowController.shared.addMenuItem(to: menu)
+        Signposts.launch.endInterval("window controller", windowController)
         if fixtureServer != nil { EmptyStatesWindowController.shared.addMenuItem(to: menu) }
         WindowController.shared.addSettingsItem(to: menu)
         WindowController.shared.addAboutItem(to: menu)
@@ -56,11 +77,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SystemNotificationCentre.shared.attachDelegate()
         // the shortcut of the global dictation; a self-test or a smoke run takes no key of the Mac
         if Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false {
+            let dictation = Signposts.launch.beginInterval("dictation")
             GlobalDictationController.shared.start()
             DictationController.shared.startAudioSweep()
+            Signposts.launch.endInterval("dictation", dictation)
         }
         // the Notifications page writes user defaults: the badge follows its switch at once
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            // every write to user defaults lands here: the events count them
+            Signposts.render.emitEvent("defaults changed")
             NotificationWatcher.app.refreshBadge()
             // the Keybindings page writes user defaults: the menu carries the new keys at once
             self?.rebuildMainMenuIfShortcutsChanged()
@@ -71,6 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard underSelfTest == false else { return }
             // once the host answers (or was just started), ask how the machine is
             ChatHostStarter.shared.checkAtOpen { answers in
+                WindowController.shared.chatHostChecked()
                 // what each provider offers is read and kept now, so the first draft lists it at once
                 if answers { Task { @MainActor in await AgentOfferStore.shared.warm(host: SocketChatHost()) } }
                 Task { @MainActor in
@@ -110,7 +136,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             selfTest(logPath: path)
         } else if CommandLine.arguments.contains("--smoke-window") == false {
             // an app opens on its window
+            let opening = Signposts.launch.beginInterval("open window")
             WindowController.shared.open()
+            Signposts.launch.endInterval("open window", opening)
+        }
+        // the reports belong to the real app: a fixture, a self-test and a smoke run leave none
+        if Self.fixturesPath() == nil, Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false {
+            let metrics = Signposts.launch.beginInterval("metrics")
+            MetricsSink.shared.start()
+            Signposts.launch.endInterval("metrics", metrics)
         }
     }
 
@@ -127,6 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let monitor = ControlMonitor(socketPath: { controlSocketPath() }, pollEvery: { PollPace.shared.seconds }) { state in
             DispatchQueue.main.async {
                 IconController.shared?.show(state)
+                MainActor.assumeIsolated { KeepAwakeController.shared.epics(working: IconState(state).working) }
                 line.title = state.menuLine
                 self.header.show(state.menuStatus)
                 MenuControls.shared.react(to: state)
@@ -138,7 +173,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Thread.detachNewThread { monitor.run() }
         watchChatSessions()
         // the app lives on with its window closed, so a timer here is enough for the reminders
-        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in NotificationWatcher.app.remind() }
+        let reminders = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in NotificationWatcher.app.remind() }
+        // a reminder is not due to the second: the system may fold this wake-up into others
+        reminders.tolerance = 10
         // the pace of the asks follows whether someone is looking: the app active with its window on screen
         for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
@@ -158,11 +195,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             while true {
                 do {
                     let rows = sessionRows(try await host.list(archived: false))
-                    await MainActor.run { NotificationWatcher.app.react(toSessions: rows) }
+                    await MainActor.run {
+                        NotificationWatcher.app.react(toSessions: rows)
+                        KeepAwakeController.shared.sessions(working: rows.filter(\.isWorking).count)
+                    }
                     wait = PollPace.shared.seconds
                     answering = true
                 } catch {
                     if answering { NSLog("Carrier: the chat host does not answer, asking again in a while: %@", String(describing: error)) }
+                    // a host that is not there works on nothing: its last list must not keep the Mac awake
+                    await MainActor.run { KeepAwakeController.shared.sessions(working: 0) }
                     answering = false
                     wait = min(wait * 2, 30)
                 }
@@ -240,7 +282,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let server = try FixtureServer(fixtures: fixtures, longTranscript: CommandLine.arguments.contains("--fixture-long-transcript"))
             setenv("CARRIER_HOME", server.home, 1)
-            // the Agents page lists the bots of this registry, names only
+            // the Agents page lists the bots of this registry: names and GitHub App ids, never a key (no picture is fetched under --fixture)
             setenv("AGENT_FORGE_CONFIG", server.home + "/agent-forge.json", 1)
             fixtureServer = server
             // what the person has seen and pinned is the app's own: the sessions the list marks start unread (never seen) and pinned
@@ -284,7 +326,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 FileHandle.standardError.write(Data("carrier: selftest log failed: \(error)\n".utf8))
             }
         }
-        let steps: [(String, () -> String)] = [
+        var steps: [(String, () -> String)] = [
             ("icon state", { IconController.shared?.summary ?? "no icon" }),
             ("icon hit test passes clicks", { "\(IconController.shared.map { $0.host.hitTest(NSPoint(x: 2, y: 2)) == nil } ?? false)" }),
             ("status item present", { "\(self.statusItem != nil)" }),
@@ -328,6 +370,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("choose About Carrier", { self.chooseAbout() }),
             ("notifications", { SystemNotificationCentre.selfTestSummary }),
         ]
+        // every page of Settings is drawn, a second each: a page that cannot be drawn (a missing environment object) ends the process here
+        if let opened = steps.firstIndex(where: { $0.0 == "open settings" }) {
+            let pages: [(String, () -> String)] = SettingsPage.allCases.map { page in
+                ("settings page \(page.rawValue)", { WindowController.shared.showSettings(page); return WindowController.shared.settingsStatus })
+            }
+            // and every screen of the Dictation page, which is a place of its own
+            let screens: [(String, () -> String)] = DictationScreen.allCases.map { screen in
+                ("settings dictation \(screen.rawValue)", {
+                    WindowController.shared.showSettings(place: SettingsPlace(.dictation, path: [screen.rawValue])); return WindowController.shared.settingsStatus
+                })
+            }
+            // and the screen of each role of the Agents page
+            let roles: [(String, () -> String)] = AgentRole.allCases.map { role in
+                ("settings agents \(role.rawValue)", {
+                    WindowController.shared.showSettings(place: SettingsPlace(.agents, path: [role.rawValue])); return WindowController.shared.settingsStatus
+                })
+            }
+            steps.insert(contentsOf: pages + screens + roles, at: opened + 1)
+        }
         write("start")
         for (index, step) in steps.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1 + Double(index)) {

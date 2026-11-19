@@ -3,7 +3,8 @@ import ApplicationServices
 import CarrierCore
 import SwiftUI
 
-/// The Global dictation group of the page: Dictate in any app, the switch of the shortcut that opens the widget in any app. With Dictation off the group is drawn at 40%.
+/// The Global dictation group of the page: Dictate in any app (the switch of the shortcut that opens the widget in any app), Accessibility, the Shortcut
+/// and how it starts. With Dictation off the group is drawn at 40%. The widget's own settings are the next group (`WidgetGroup`).
 struct GlobalDictationGroup: View {
     var dictation = DictationController.shared
     // the preference is read and written by the switch; this makes the group redraw when Reset changes it
@@ -11,14 +12,12 @@ struct GlobalDictationGroup: View {
     @AppStorage(AppPreferences.dictationAccessibilityExplainedKey) private var explained = false
     @AppStorage(AppPreferences.dictationShortcutKey) private var shortcutText = ""
     @AppStorage(AppPreferences.dictationActivationKey) private var activation = DictationActivation.toggle
-    @AppStorage(AppPreferences.dictationWidgetStyleKey) private var widgetStyle = DictationWidgetStyle.medium
-    @AppStorage(AppPreferences.dictationWidgetPositionKey) private var widgetPosition = DictationWidgetPosition.bottom
     @State private var explaining = false
     /// What macOS says now; it is asked again each time Carrier comes back to the front, since the person allows it in System Settings.
     @State private var trusted = AXIsProcessTrusted()
 
     var body: some View {
-        SettingsGroup(title: "Global dictation") {
+        SettingsGroup(title: "Global dictation", footer: "The first time you turn it on, Carrier explains what Accessibility is for before macOS asks.") {
             SettingsTabRow(
                 title: "Dictate in any app",
                 detail: "\(AppPreferences().dictationShortcut.text) opens a widget in any app, and pastes what you said at the cursor",
@@ -27,23 +26,20 @@ struct GlobalDictationGroup: View {
                 Toggle("Dictate in any app", isOn: switchBinding).labelsHidden().toggleStyle(.switch)
             }
             .live(.globalSwitch, enabled: dictation.enabled)
-            accessibilityRow.live(.globalSwitch, enabled: dictation.enabled)
             Group {
-                ShortcutRecorderRow(shortcutText: shortcutText)
+                accessibilityRow
+                ShortcutRecorderRow(
+                    shortcutText: shortcutText, title: "Shortcut", detail: "With Carrier in front on a session it dictates into the message box, with no widget",
+                    name: "Dictation shortcut",
+                    current: { AppPreferences().dictationShortcut }, save: { AppPreferences().dictationShortcut = $0 ?? .standard },
+                    taken: { $0 == AppPreferences().awakeShortcut ? "Keep awake uses these keys" : nil })
                 SettingsTabRow(title: "Activation", detail: "Toggle: press to start, press again to finish. Hold: speak while the keys are down") {
                     SegmentedChoice(options: [(DictationActivation.toggle, "Toggle", nil), (.hold, "Hold", nil)], selection: $activation).accessibilityLabel("Activation")
                 }
-                SettingsTabRow(title: "Widget style", detail: "Pill is a badge with a microphone and no text; Small, Medium and Large are a box of 2, 3 and 4 lines") {
-                    SegmentedChoice(options: DictationWidgetStyle.allCases.map { ($0, $0.title, nil) }, selection: $widgetStyle).accessibilityLabel("Widget style")
-                }
-                SettingsTabRow(title: "Position", detail: "Top centre under the menu bar or bottom centre above the Dock, on the display of the window in front") {
-                    SegmentedChoice(options: DictationWidgetPosition.allCases.map { ($0, $0.title, nil) }, selection: $widgetPosition).accessibilityLabel("Widget position")
-                }
-                SettingsPreview { DictationWidgetPreview(style: widgetStyle, hint: dictationHint(shortcut: AppPreferences().dictationShortcut, activation: activation)) }
             }
             .live(.globalSwitch, enabled: dictation.enabled && global)
         }
-.onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in trusted = AXIsProcessTrusted() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in trusted = AXIsProcessTrusted() }
         .alert("Carrier needs Accessibility", isPresented: $explaining) {
             Button("Continue") {
                 explained = true
@@ -65,7 +61,7 @@ struct GlobalDictationGroup: View {
         ) {
             HStack(spacing: 8) {
                 StatusChip(text: trusted ? "Allowed" : "Not allowed", tint: trusted ? .green : .orange)
-                Button { FocusedField.openSettings() } label: { Label("Open System Settings", systemImage: "gearshape") }
+                Button { FocusedField.openSettings() } label: { Label("Open System Settings", icon: .settings) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         }
@@ -82,26 +78,109 @@ struct GlobalDictationGroup: View {
     }
 }
 
-/// The Shortcut row: the keys shown, Record to press new ones (Esc or Cancel keeps the old) and, when a combination is refused, the reason. While it listens the
-/// controller lets go of the registered shortcut, so pressing it records it. `shortcutText` makes the row draw again when the saved shortcut changes.
-private struct ShortcutRecorderRow: View {
+/// The Widget group: how the widget looks (its style, seen as a small drawing of each) and where it opens, with a preview of the chosen style listening to a
+/// sample, right under what changes it. Drawn at 40% while Dictation or Dictate in any app is off.
+struct WidgetGroup: View {
+    var dictation = DictationController.shared
+    @AppStorage(AppPreferences.dictationGlobalKey) private var global = AppPreferences.defaultDictationGlobal
+    @AppStorage(AppPreferences.dictationActivationKey) private var activation = DictationActivation.toggle
+    @AppStorage(AppPreferences.dictationWidgetStyleKey) private var widgetStyle = DictationWidgetStyle.medium
+    @AppStorage(AppPreferences.dictationWidgetPositionKey) private var widgetPosition = DictationWidgetPosition.bottom
+    @AppStorage(AppPreferences.dictationShortcutKey) private var shortcutText = ""
+
+    var body: some View {
+        SettingsGroup(title: "Widget") {
+            SettingsStackedRow(title: "Widget style", detail: "Pill is a badge with a microphone and no text; Small, Medium and Large are a box of 2, 3 and 4 lines", first: true) {
+                WidgetStylePicker(selection: $widgetStyle)
+            }
+            SettingsTabRow(title: "Position", detail: "Top centre under the menu bar or bottom centre above the Dock, on the display of the window in front") {
+                SegmentedChoice(options: DictationWidgetPosition.allCases.map { ($0, $0.title, nil) }, selection: $widgetPosition).accessibilityLabel("Widget position")
+            }
+            SettingsPreview { DictationWidgetPreview(style: widgetStyle, hint: dictationHint(shortcut: AppPreferences().dictationShortcut, activation: activation)) }
+        }
+        .live(.globalSwitch, enabled: dictation.enabled && global)
+    }
+}
+
+/// The four styles of the widget as four small drawings, the chosen one with the accent's edge: the words of the style under each, and the drawing says
+/// what the words only count (a badge, then a box of two, three and four lines).
+private struct WidgetStylePicker: View {
+    @Binding var selection: DictationWidgetStyle
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ForEach(DictationWidgetStyle.allCases, id: \.self) { style in
+                let on = style == selection
+                Button { selection = style } label: {
+                    VStack(spacing: 8) {
+                        drawing(style).frame(height: 44)
+                        Text(style.title).font(.scaled(12, weight: .medium))
+                    }
+                    .padding(.vertical, 10).frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Color.themeAccent.opacity(0.16) : Color.primary.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: on ? 1.5 : 0))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).accessibilityLabel(style.title).accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .accessibilityElement(children: .contain).accessibilityLabel("Widget style")
+    }
+
+    @ViewBuilder private func drawing(_ style: DictationWidgetStyle) -> some View {
+        let lines = dictationWidgetLook(.listening, style: style).box?.lines
+        if let lines {
+            VStack(spacing: 4) {
+                ForEach(0..<lines, id: \.self) { _ in Capsule().fill(Color.white.opacity(0.6)).frame(height: 3) }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 7).frame(width: 74)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.themeAccent.opacity(0.75)))
+        } else {
+            Capsule().fill(Color.themeAccent.opacity(0.75)).frame(width: 36, height: 18)
+        }
+    }
+}
+
+/// The row that records a global shortcut, the same for Dictation's and Keep awake's: the keys shown, Record to press new ones (Esc or Cancel keeps the old),
+/// the reason when a combination is refused, and, with `emptyText`, Clear for a shortcut that may be none. While it listens both global shortcuts are let go,
+/// so pressing either records it instead of running it. `shortcutText` makes the row draw again when the saved shortcut changes; `problem` is why a recorded
+/// shortcut is not registered; `taken` says why a combination is refused because another feature has it.
+struct ShortcutRecorderRow: View {
     let shortcutText: String
+    let title: String
+    let detail: String
+    let name: String
+    /// What is shown when nothing is recorded; nil for a shortcut that always has keys (the dictation's).
+    var emptyText: String?
+    var problem: String?
+    let current: () -> DictationShortcut?
+    let save: (DictationShortcut?) -> Void
+    let taken: (DictationShortcut) -> String?
     @State private var recording = false
     @State private var monitor: Any?
     @State private var refusal: String?
 
     var body: some View {
-        SettingsTabRow(title: "Shortcut", detail: "With Carrier in front on a session it dictates into the message box, with no widget", problem: refusal) {
+        let shown = current()?.text ?? emptyText ?? ""
+        SettingsTabRow(title: title, detail: detail, problem: refusal ?? problem) {
             HStack(spacing: 8) {
-                Text(recording ? "Press the keys…" : AppPreferences().dictationShortcut.text)
+                Text(recording ? "Press the keys…" : shown)
                     .font(.scaled(12, weight: .semibold, design: .monospaced))
                     .foregroundStyle(recording ? Color.themeAccent : Color.primary)
                     .frame(minWidth: 96).padding(.horizontal, 10).padding(.vertical, 5)
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(recording ? 0.12 : 0.08)))
                     .overlay { if recording { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
-                    .accessibilityLabel("Dictation shortcut").accessibilityValue(recording ? "Listening for the new keys" : AppPreferences().dictationShortcut.text)
-                Button { recording ? stop() : start() } label: { Label(recording ? "Cancel" : "Record", systemImage: recording ? "xmark" : "record.circle") }
+                    .accessibilityLabel(name).accessibilityValue(recording ? "Listening for the new keys" : shown)
+                Button { recording ? stop() : start() } label: { Label(recording ? "Cancel" : "Record", icon: recording ? .close : .record) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                if emptyText != nil, current() != nil, recording == false {
+                    Button {
+                        refusal = nil
+                        save(nil)
+                        AccessibilityNotification.Announcement("\(name) cleared").post()
+                    } label: { Label("Clear", icon: .close) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).accessibilityLabel("Clear the \(name.lowercased())")
+                }
             }
         }
         .onDisappear(perform: stop)
@@ -111,14 +190,20 @@ private struct ShortcutRecorderRow: View {
         refusal = nil
         recording = true
         AccessibilityNotification.Announcement("Press the new keys, or Escape to cancel").post()
-        GlobalDictationController.shared.recording = true
+        Self.listening(true)
         // the next key comes here and not to the window's shortcuts: this monitor sees it first, and it is not passed on
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             // Esc cancels, and a combination with no modifier is told why it was refused and the recorder keeps listening
             guard event.keyCode != 53 else { stop(); return nil }
             switch recordShortcut(keyCode: Int(event.keyCode), characters: event.charactersIgnoringModifiers ?? "", modifiers: .init(event.modifierFlags)) {
             case .accepted(let shortcut):
-                AppPreferences().dictationShortcut = shortcut
+                // the other feature's keys are refused: two shortcuts on one combination would run only one of them
+                if let reason = taken(shortcut) {
+                    refusal = reason
+                    AccessibilityNotification.Announcement(reason).post()
+                    return nil
+                }
+                save(shortcut)
                 stop()
                 AccessibilityNotification.Announcement("Shortcut set to \(shortcut.text)").post()
             case .refused(let reason):
@@ -131,9 +216,18 @@ private struct ShortcutRecorderRow: View {
     }
 
     private func stop() {
+        // the row going off screen calls this too: with nothing recorded there is nothing to let go or to forget
+        guard recording || monitor != nil else { return }
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
         recording = false
-        GlobalDictationController.shared.recording = false
+        refusal = nil
+        Self.listening(false)
+    }
+
+    /// Both global shortcuts are let go while a row listens, so the keys of either can be recorded in either row.
+    private static func listening(_ on: Bool) {
+        GlobalDictationController.shared.recording = on
+        KeepAwakeController.shared.recordingShortcut = on
     }
 }

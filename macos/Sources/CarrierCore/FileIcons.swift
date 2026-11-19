@@ -7,7 +7,7 @@ import Foundation
 public enum FileIcon: Equatable {
     /// An SVG inside the bundle, by the name Material Icon Theme gives it.
     case bundled(name: String, url: URL)
-    case symbol(String)
+    case symbol(AppIcon)
 }
 
 private let iconByExtension: [String: String] = {
@@ -37,12 +37,34 @@ public func bundledIconName(_ path: String) -> String? {
 
 /// The icon of a path: the bundled one when there is one, else its category's symbol.
 public func fileIcon(_ path: String) -> FileIcon {
-    if let name = bundledIconName(path),
-        let url = carrierResources.url(forResource: name, withExtension: "svg", subdirectory: "FileIcons")
-    {
-        return .bundled(name: name, url: url)
+    var lookups = 0
+    return fileIcon(path, lookups: &lookups)
+}
+
+/// `lookups` counts the times the bundle was asked for an icon: once per icon, however many files use it.
+func fileIcon(_ path: String, lookups: inout Int) -> FileIcon {
+    if let name = bundledIconName(path) {
+        if let url = bundledIconURL(name, lookups: &lookups) { return .bundled(name: name, url: url) }
     }
     return .symbol(fileCategory(path).symbol)
+}
+
+/// The bundle is asked for an icon's file the first time only; a name it does not have is remembered too.
+private func bundledIconURL(_ name: String, lookups: inout Int) -> URL? {
+    iconURLs.lock.lock()
+    defer { iconURLs.lock.unlock() }
+    if let known = iconURLs.byName[name] { return known }
+    lookups += 1
+    let url = carrierResources.url(forResource: name, withExtension: "svg", subdirectory: "FileIcons")
+    iconURLs.byName[name] = .some(url)
+    return url
+}
+
+private let iconURLs = IconURLs()
+
+private final class IconURLs: @unchecked Sendable {
+    let lock = NSLock()
+    var byName: [String: URL?] = [:]
 }
 
 /// The upstream licence text that ships with the icons, inside the app bundle.

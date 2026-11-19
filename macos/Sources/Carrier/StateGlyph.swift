@@ -9,7 +9,7 @@ struct StateGlyph: View {
     var attention: Attention?
 
     var body: some View {
-        glyph.frame(width: 20, height: 20).accessibilityLabel(state.label)
+        glyph.frame(width: 20, height: 20).accessibilityElement(children: .ignore).accessibilityLabel(state.label)
     }
 
     @ViewBuilder private var glyph: some View {
@@ -41,7 +41,7 @@ struct Disc: View {
 
     var body: some View {
         if byShape, let shape {
-            Image(systemName: stateSymbol(shape)).resizable().scaledToFit().foregroundStyle(color).frame(width: size, height: size)
+            Glyph(stateSymbol(shape), size: size).foregroundStyle(color)
         } else {
             Circle().fill(color).frame(width: size, height: size)
                 .overlay { Text(mark).font(.scaled(size * 0.55, weight: .heavy)).foregroundStyle(.white) }
@@ -60,7 +60,7 @@ struct StateMark: View {
 
     @ViewBuilder var body: some View {
         if byShape, let shape {
-            Image(systemName: stateSymbol(shape)).font(.scaled(size, weight: weight))
+            Glyph(stateSymbol(shape), size: size, bold: true)
         } else if text.isEmpty == false {
             Text(text).font(.scaled(size, weight: weight))
         }

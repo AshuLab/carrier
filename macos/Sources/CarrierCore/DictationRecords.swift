@@ -99,6 +99,7 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         carrierFolder: String, keep: @escaping () -> Bool, keepAudio: @escaping () -> Bool = { false }, audioDays: @escaping () -> Int = { 0 },
         now: @escaping () -> Date = Date.init, calendar: Calendar = .current
     ) {
+        let signpost = Signposts.launch.beginInterval("dictation records")
         let places = CarrierPlaces(folder: carrierFolder)
         path = places.dictations
         statisticsPath = places.dictationStatistics
@@ -110,6 +111,7 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         self.calendar = calendar
         if let data = FileManager.default.contents(atPath: statisticsPath) { counts = (try? JSONDecoder().decode([DictationCount].self, from: data)) ?? [] }
         scanAudio()
+        defer { Signposts.launch.endInterval("dictation records", signpost, "\(self.entries.count) entries") }
         guard let file = try? String(contentsOfFile: path, encoding: .utf8) else { return }
         let decoder = Self.decoder
         // a line that does not read (the last one, cut by a crash) is left out, and goes when the next delete rewrites the file
@@ -286,22 +288,40 @@ public func dictationEntries(_ entries: [DictationEntry], matching query: String
 /// The entries of one day, newest first.
 public struct DictationDay: Identifiable, Equatable, Sendable {
     public let day: Date
-    public let entries: [DictationEntry]
+    public internal(set) var entries: [DictationEntry]
     public var id: Date { day }
 }
 
 /// `entries` (newest first) grouped by the day they started.
 public func dictationDays(_ entries: [DictationEntry], calendar: Calendar = .current) -> [DictationDay] {
+    var work = 0
+    return dictationDays(entries, calendar: calendar, work: &work)
+}
+
+/// `work` adds up the entries written into the days, so a test tells copying a day for each entry from adding to it.
+func dictationDays(_ entries: [DictationEntry], calendar: Calendar, work: inout Int) -> [DictationDay] {
     var days: [DictationDay] = []
     for entry in entries {
         let day = calendar.startOfDay(for: entry.started)
-        if let last = days.last, last.day == day {
-            days[days.count - 1] = DictationDay(day: day, entries: last.entries + [entry])
+        work += 1
+        if days.last?.day == day {
+            days[days.count - 1].entries.append(entry)
         } else {
             days.append(DictationDay(day: day, entries: [entry]))
         }
     }
     return days
+}
+
+/// How many entries the History list draws before "Show more", and how many more each press adds.
+public let dictationHistoryPage = 100
+
+/// What the History list draws: the first `limit` entries that match, grouped by day, and how many match in all.
+public func dictationHistory(
+    _ entries: [DictationEntry], matching query: String, outcome: DictationOutcome?, limit: Int, calendar: Calendar = .current
+) -> (days: [DictationDay], matched: Int) {
+    let matched = dictationEntries(entries, matching: query, outcome: outcome)
+    return (dictationDays(Array(matched.prefix(limit)), calendar: calendar), matched.count)
 }
 
 /// "Today", "Yesterday", or the weekday and date, as the day's heading.

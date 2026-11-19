@@ -340,3 +340,74 @@ private struct CleaningClient: TextModelClient {
     try? await Task.sleep(for: .milliseconds(50))
     #expect(dictation.session.state == .idle && capture.startCount == 0)
 }
+
+// MARK: leaving the window
+
+@MainActor private func field(_ owner: String) -> DictationField { DictationField(owner: owner, text: { "" }, caret: { 0 }, put: { _, _, _ in }) }
+
+@MainActor private func until(_ condition: () -> Bool) async { for _ in 0..<2000 where condition() == false { try? await Task.sleep(for: .milliseconds(1)) } }
+
+@MainActor @Test func leavingTheWindowStopsABoxDictationAndLeavesTheWidgetsListening() async {
+    let registry = RecognizerRegistry()
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    // the audio ending ends it, so a stop reaches idle
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("")])
+    registry.register(recognizer)
+    // the widget's, started as the machine starts it
+    dictation.session.start(recognizer: recognizer, model: recognizer.models[0], into: field(GlobalDictation.owner))
+    await until { dictation.session.state == .listening }
+    dictation.stopBoxDictation()
+    try? await Task.sleep(for: .milliseconds(30))
+    #expect(dictation.session.owner == GlobalDictation.owner && dictation.session.state == .listening)
+    dictation.stop(ownedBy: GlobalDictation.owner)
+    await until { dictation.session.state == .idle }
+    // a message box's does stop
+    dictation.toggle(into: field("session:s"))
+    await until { dictation.session.state == .listening && dictation.session.modelReady }
+    #expect(dictation.session.owner == "session:s")
+    dictation.stopBoxDictation()
+    await until { dictation.session.state == .idle }
+    #expect(dictation.session.state == .idle)
+}
+
+@MainActor @Test func leavingTheWindowWithNothingDictatingDoesNothing() {
+    let registry = RecognizerRegistry()
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    registry.register(ScriptedRecognizer(atAudioEnd: [.final("")]))
+    dictation.stopBoxDictation()
+    #expect(dictation.session.state == .idle && dictation.session.owner == nil)
+    #expect(dictation.session.failure(for: "box") == nil && dictation.session.failure(for: GlobalDictation.owner) == nil)
+}
+
+@MainActor @Test func theWidgetWaitingBehindABoxStartsWhenLeavingStopsTheBox() async {
+    let registry = RecognizerRegistry()
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    // the audio ending ends it, so a stop reaches idle
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("")])
+    registry.register(recognizer)
+    dictation.toggle(into: field("session:s"))
+    await until { dictation.session.state == .listening && dictation.session.modelReady }
+    // the shortcut pressed with the box listening: the widget's dictation waits its turn
+    dictation.session.start(recognizer: recognizer, model: recognizer.models[0], into: field(GlobalDictation.owner))
+    dictation.stopBoxDictation()
+    await until { dictation.session.owner == GlobalDictation.owner && dictation.session.state == .listening }
+    #expect(dictation.session.owner == GlobalDictation.owner && dictation.session.state == .listening)
+}
+
+@MainActor @Test func aBoxWaitingBehindTheWidgetDoesNotOpenTheMicrophoneWhenTheWindowHides() async {
+    let registry = RecognizerRegistry()
+    let capture = ScriptedCapture()
+    let dictation = DictationController(registry: registry, capture: capture)
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("")])
+    registry.register(recognizer)
+    dictation.session.start(recognizer: recognizer, model: recognizer.models[0], into: field(GlobalDictation.owner))
+    // ready, so a click in a box queues behind the widget's dictation and does not end it as one with nothing captured
+    await until { dictation.session.state == .listening && dictation.session.modelReady }
+    // a click in a box while the widget listens: its dictation waits for the widget's to end
+    dictation.toggle(into: field("session:s"))
+    #expect(dictation.session.owner == GlobalDictation.owner)
+    dictation.stopBoxDictation()
+    await until { dictation.session.state == .idle }
+    try? await Task.sleep(for: .milliseconds(30))
+    #expect(dictation.session.state == .idle && dictation.session.owner == nil && capture.startCount == 1)
+}

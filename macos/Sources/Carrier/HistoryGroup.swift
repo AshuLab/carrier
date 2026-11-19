@@ -23,10 +23,10 @@ struct HistoryGroup: View {
                 Toggle("Keep the audio", isOn: $keepAudio).labelsHidden().toggleStyle(.switch)
             }
             SettingsTabRow(title: "Delete audio older than", detail: "The transcripts stay") {
-                ChoicePopUp(label: "Delete audio older than", options: dictationAudioLimits.map { (value: $0.days, title: $0.title) }, selection: $days, width: 110)
+                ChoicePopUp(label: "Delete audio older than", options: dictationAudioLimits.map { (value: $0.days, title: $0.title) }, selection: $days)
             }
             SettingsTabRow(title: "Audio on disk", detail: formatAudioOnDisk(bytes: dictation.records.audioBytes, files: dictation.records.audioIDs.count)) {
-                Button(role: .destructive) { confirmingDelete = true } label: { Label("Delete all audio", systemImage: "trash") }
+                Button(role: .destructive) { confirmingDelete = true } label: { Label("Delete all audio", icon: .trash) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(dictation.records.audioIDs.isEmpty)
             }
         }
@@ -40,43 +40,69 @@ struct HistoryGroup: View {
     }
 }
 
-/// The entries, grouped by day with the newest first, with a search over the text and the destination and a filter by outcome. A row opens to its
-/// detail, copies its text and deletes its entry.
+/// The entries: a search over the text and the destination and a filter by outcome, then a group a day with the newest first, the first
+/// `dictationHistoryPage` and a "Show more" for the rest. A row opens to its detail, copies its text and deletes its entry.
 struct HistoryList: View {
     let records: DictationRecords
     @State private var query = ""
     @State private var outcome: DictationOutcome?
     @State private var open: UUID?
+    @State private var limit = dictationHistoryPage
+    /// What the list draws, worked out when the search, the filter, the entries or `limit` change, not at each `body`.
+    @State private var shown: (days: [DictationDay], matched: Int) = ([], 0)
+    /// False until the first `refresh`, so the empty states are not drawn for the pass before the list is worked out.
+    @State private var ready = false
+
+    private func refresh() {
+        shown = dictationHistory(records.entries, matching: query, outcome: outcome, limit: limit)
+        ready = true
+    }
+
+    /// A new search or filter starts from the first page; `limit` moving is what refreshes when it was further down.
+    private func startOver() {
+        if limit == dictationHistoryPage { refresh() } else { limit = dictationHistoryPage }
+    }
 
     var body: some View {
-        let shown = dictationEntries(records.entries, matching: query, outcome: outcome)
-        VStack(alignment: .leading, spacing: 10) {
-            TextField("Search your dictations", text: $query).settingsField(icon: "magnifyingglass")
+        let _ = Signposts.render.emitEvent("history body", "\(records.entries.count) entries")
+        SettingsGroup(title: "") {
+            TextField("", text: $query, prompt: Text("Search your dictations")).accessibilityLabel("Search your dictations").settingsField(icon: .search)
             HStack(spacing: 6) {
                 FilterChip(title: "All", on: outcome == nil) { outcome = nil }
                 ForEach(DictationOutcome.allCases, id: \.self) { choice in
                     FilterChip(title: choice.title, on: outcome == choice) { outcome = choice }
                 }
             }
-            if shown.isEmpty {
+            .padding(.vertical, 4)
+        }
+        .onChange(of: query, initial: true) { startOver() }
+        .onChange(of: outcome) { startOver() }
+        .onChange(of: records.entries) { refresh() }
+        .onChange(of: limit) { refresh() }
+        if ready == false {
+            EmptyView()
+        } else if shown.matched == 0 {
+            SettingsGroup(title: "") {
                 EmptyStateView(
-                    icon: records.entries.isEmpty ? "waveform" : "magnifyingglass", title: records.entries.isEmpty ? "No dictations yet" : "Nothing matches",
+                    icon: records.entries.isEmpty ? .waveform : .search, title: records.entries.isEmpty ? "No dictations yet" : "Nothing matches",
                     line: records.entries.isEmpty ? "What you dictate shows up here." : "Try another word or filter."
                 )
                 .frame(minHeight: 220)
-            } else {
-                ForEach(dictationDays(shown)) { day in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(dictationDayTitle(day.day, now: Date())).sectionLabel().padding(.leading, 14).padding(.top, 8)
-                        SettingsTabCard {
-                            ForEach(Array(day.entries.enumerated()), id: \.element.id) { index, entry in
-                                if index > 0 { SettingsDivider() }
-                                HistoryRow(entry: entry, audio: records.audioURL(of: entry.id), open: open == entry.id, toggle: { open = open == entry.id ? nil : entry.id }, delete: { records.delete(entry.id) })
-                            }
-                        }
+            }
+        } else {
+            ForEach(shown.days) { day in
+                SettingsGroup(title: dictationDayTitle(day.day, now: Date())) {
+                    ForEach(day.entries) { entry in
+                        HistoryRow(entry: entry, audio: records.audioURL(of: entry.id), open: open == entry.id, toggle: { open = open == entry.id ? nil : entry.id }, delete: { records.delete(entry.id) })
                     }
                 }
-                Text("\(shown.count) of \(records.entries.count) dictations").font(.scaled(11)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+            }
+            SettingsGroup(title: "") {
+                Text("\(shown.matched) of \(records.entries.count) dictations").font(.scaled(11)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                if shown.matched > limit {
+                    Button("Show \(min(dictationHistoryPage, shown.matched - limit)) more") { limit += dictationHistoryPage }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).frame(maxWidth: .infinity)
+                }
             }
         }
     }
@@ -113,8 +139,8 @@ private struct HistoryRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityValue(open ? "Expanded" : "Collapsed").accessibilityHint("Shows the details")
-                IconButton(icon: copied ? "checkmark" : "doc.on.doc", name: copied ? "Copied" : "Copy text") { copy(entry.shown) }
-                IconButton(icon: "trash", name: "Delete dictation") { confirmingDelete = true }
+                IconButton(icon: copied ? .check : .copy, name: copied ? "Copied" : "Copy text") { copy(entry.shown) }
+                IconButton(icon: .trash, name: "Delete dictation") { confirmingDelete = true }
             }
             FlowLayout(spacing: 6) {
                 StatusChip(text: entry.outcome.title, tint: tint)

@@ -39,6 +39,7 @@ public struct LeadReviewerDraft: Equatable {
     /// `row` as the page shows it while the draft is being filled in: the draft's choices in place of the empty role.
     public func shown(in row: RoleRow) -> RoleRow {
         var row = row
+        row.drafting = true
         row.fields = RoleFields(profile: nil, provider: provider, model: model.isEmpty ? nil : model, effort: effort)
         switch identity {
         case .bot(let name)?: row.identity = .forge(name); row.fields.profile = name

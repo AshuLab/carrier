@@ -382,7 +382,7 @@ private struct LeadView: View {
             case .ring: SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor)
             case .waiting: Circle().fill(Color.attention).frame(width: 8, height: 8).shadow(color: Color.attention.opacity(0.6), radius: 3)
             case .done: DoneMark()
-            case .stopped: Image(systemName: "stop.fill").font(.scaled(8)).foregroundStyle(.secondary)
+            case .stopped: Glyph(.stopFilled, size: 8).foregroundStyle(.secondary)
             case .failed: StateMark(shape: .problem, size: 12).foregroundStyle(.red)
             case .none: EmptyView()
             }
@@ -407,7 +407,7 @@ private struct Twinkle: View {
     }
 
     private func spark(_ degrees: Double, _ opacity: Double) -> some View {
-        Image(systemName: "sparkle").font(.scaled(11, weight: .semibold)).foregroundStyle(Color.thought).rotationEffect(.degrees(degrees)).opacity(opacity)
+        Glyph(.sparkles, size: 11).foregroundStyle(Color.thought).rotationEffect(.degrees(degrees)).opacity(opacity)
     }
 }
 
@@ -416,8 +416,8 @@ private struct DoneMark: View {
     @State private var ticks = 0
 
     var body: some View {
-        Image(systemName: "checkmark.circle.fill").font(.scaled(12)).foregroundStyle(.green)
-            .symbolEffect(.bounce, options: .nonRepeating, value: ticks)
+        Glyph(.checkCircleFilled, size: 12).foregroundStyle(.green)
+            .glyphKick(ticks)
             .onAppear { ticks += 1 }
     }
 }
@@ -486,7 +486,7 @@ private struct ThoughtRowView: View {
     var body: some View {
         let whole = flipped.contains(key)
         HStack(alignment: .top, spacing: 9) {
-            Image(systemName: "sparkle").font(.scaled(8, weight: .bold)).foregroundStyle(Color.thought)
+            Glyph(.sparkles, size: 8).foregroundStyle(Color.thought)
                 .frame(width: 16, height: 16).background(Circle().fill(Color.thought.opacity(0.2)))
             // as tall as the icon at least, so the first line is level with it
             Text(thought.text).font(.scaled(12.5)).lineSpacing(2).foregroundStyle(.secondary).lineLimit(whole ? nil : 2).multilineTextAlignment(.leading)
@@ -544,7 +544,7 @@ private struct CallRowView: View {
             if call.status == .running {
                 SpinningRing(diameter: 9, lineWidth: 1.3, color: .secondaryLabelColor)
             } else {
-                Image(systemName: call.kind.icon).font(.scaled(8, weight: .semibold)).foregroundStyle(call.status == .failed ? Color.red : .secondary)
+                Glyph(call.kind.icon, size: 8).foregroundStyle(call.status == .failed ? Color.red : .secondary)
             }
         }
         .frame(width: 16, height: 16)
@@ -588,7 +588,7 @@ struct KindChipView: View {
         CappedWidth(maxWidth: 160) {
             HStack(spacing: 4) {
                 if let icon = chip.icon {
-                    Image(systemName: icon).font(.scaled(9.5, weight: .semibold))
+                    Glyph(icon, size: 9.5)
                 }
                 Text(chip.label).font(.scaled(11, weight: .semibold)).lineLimit(1).truncationMode(.tail)
             }

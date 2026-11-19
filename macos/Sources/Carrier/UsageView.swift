@@ -30,7 +30,7 @@ struct UsageView: View {
                         if store.isLoading {
                             LoadingStateView(title: "Loading usage", line: "Checking your limits and what you have spent.").frame(minHeight: 240)
                         } else {
-                            EmptyStateView(icon: "chart.bar", title: "No accounts to show", line: "Limits show here once a provider is set up.").frame(minHeight: 240)
+                            EmptyStateView(icon: .chartBar, title: "No accounts to show", line: "Limits show here once a provider is set up.").frame(minHeight: 240)
                         }
                     }
                 } else {
@@ -107,7 +107,7 @@ private struct ProviderBlock: View {
                         Text(reset).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
                     }
                     usageMark(provider.mark, provider.title)
-                    Image(systemName: "chevron.right").font(.scaled(10, weight: .bold)).foregroundStyle(.secondary)
+                    Glyph(.chevronRight, size: 10).foregroundStyle(.secondary)
                         .rotationEffect(.degrees(open ? 90 : 0))
                         .frame(width: 24, height: 24).background(Circle().fill(Color.primary.opacity(0.08)))
                 }
@@ -130,9 +130,9 @@ private struct ProviderBlock: View {
 
 private func usageMark(_ mark: UsageMark, _ label: String) -> StatusMark {
     switch mark {
-    case .ok: StatusMark(symbol: "checkmark", color: .green, label: "\(label) is ready")
-    case .warning: StatusMark(symbol: "exclamationmark", color: .yellow, label: "\(label) needs a look")
-    case .failure: StatusMark(symbol: "xmark", color: .orange, label: "\(label) failed")
+    case .ok: StatusMark(symbol: .check, color: .green, label: "\(label) is ready")
+    case .warning: StatusMark(symbol: .exclamation, color: .yellow, label: "\(label) needs a look")
+    case .failure: StatusMark(symbol: .close, color: .orange, label: "\(label) failed")
     }
 }
 

@@ -258,8 +258,6 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     var previewError: Error?
     var previewed: [[String]] = []
     func capabilities() async throws -> Set<ControlClient.Capability> { [] }
-    func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
-    func createProject(_ name: String) async throws -> String { throw ControlError.closed }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] {
         previewed.append(ids)
@@ -305,24 +303,29 @@ private func rig(_ host: FakeHost) -> (ChatSessionsPoller, Clock, () -> [Session
     #expect(archivedCount(rows()) == 2)
 }
 
-@Test func aHostThatDoesNotAnswerGivesNoRowsAndTheArchivedListIsReadAgainWhenItComesBack() async throws {
+@Test func aHostThatDoesNotAnswerKeepsTheLastRowsAndTheArchivedListIsReadAgainWhenItComesBack() async throws {
     let host = FakeHost()
     host.active = [try session("a")]
     host.archived = [try session("x", archived: true)]
-    let (poller, clock, rows) = rig(host)
+    let clock = Clock()
+    var published: [[String]] = []
+    let poller = ChatSessionsPoller(host: host, archivedEvery: 5, now: { clock.now }) { published.append($0.map(\.id)) }
     await poller.poll()
-    #expect(rows().count == 2)
+    #expect(published == [["a", "x"]])
     host.active = nil
     clock.now.addTimeInterval(1)
     await poller.poll()
-    #expect(rows().isEmpty)
+    // the failure published nothing, not even an empty list: what the person has seen is compared with the last good one
+    #expect(published == [["a", "x"]])
     host.active = [try session("a")]
     clock.now.addTimeInterval(1)
     await poller.poll()
-    #expect(rows().map(\.id) == ["a", "x"])
+    // the archived list is read again as soon as the host answers
+    #expect(host.calls.suffix(2) == [false, true])
+    #expect(published.last == ["a", "x"])
 }
 
-@Test func aHostThatDoesNotAnswerGivesNoRowsAndDoesNotEmitAuthoritativeSessionIds() async throws {
+@Test func aHostThatDoesNotAnswerKeepsTheRowsAndDoesNotEmitAuthoritativeSessionIds() async throws {
     let host = FakeHost()
     host.active = [try session("a")]
     host.archived = [try session("x", archived: true)]
@@ -339,11 +342,11 @@ private func rig(_ host: FakeHost) -> (ChatSessionsPoller, Clock, () -> [Session
     await poller.poll()
     #expect(authoritativeSnapshots == [Set(["a", "x"])])
 
-    // Active failure clears UI rows but must not trigger session terminal pruning.
+    // Active failure keeps the rows and must not trigger session terminal pruning.
     host.active = nil
     clock.now.addTimeInterval(1)
     await poller.poll()
-    #expect(rows.isEmpty)
+    #expect(rows.map(\.id) == ["a", "x"])
     #expect(authoritativeSnapshots.count == 1)
 
     // Recovery emits authoritative session IDs once both active and archived succeed again.
@@ -381,6 +384,17 @@ private func rig(_ host: FakeHost) -> (ChatSessionsPoller, Clock, () -> [Session
     )
     await partialPoller.poll()
     #expect(partialSnapshots.isEmpty)
+}
+
+@Test func aHostThatFailsOnTheFirstListPublishesNothing() async throws {
+    // the first list of a window opened before the host is up (a cold start)
+    let host = FakeHost()
+    host.active = nil
+    var publications = 0
+    let clock = Clock()
+    let poller = ChatSessionsPoller(host: host, archivedEvery: 5, now: { clock.now }) { _ in publications += 1 }
+    await poller.poll()
+    #expect(publications == 0)
 }
 
 @Test func anArchivedListThatFailsKeepsTheLastOneAndTriesAgainNextPoll() async throws {

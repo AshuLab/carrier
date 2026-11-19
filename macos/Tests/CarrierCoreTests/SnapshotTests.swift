@@ -131,3 +131,14 @@ private let agents = PanelSnapshot.Agents(
 @Test func textThatIsNotJSONIsMalformed() {
     #expect(throws: SnapshotError.malformed) { try decodeSnapshot(Data("nope".utf8)) }
 }
+
+// MARK: what is published
+
+@Test func aSnapshotThatOnlyMovesItsClockIsNotPublished() throws {
+    let snapshot = try decodeSnapshot(fixtureData())
+    #expect(publishes(.running(snapshot), over: .running(snapshot)) == false)
+    #expect(publishes(.running(snapshot), over: nil) && publishes(.stopped, over: .running(snapshot)))
+    var later = snapshot
+    later.now += 2_000
+    withKnownIssue("now changes at every poll, so every snapshot is published") { #expect(publishes(.running(later), over: .running(snapshot)) == false) }
+}

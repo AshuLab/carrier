@@ -30,7 +30,7 @@ struct CardFactsGrid<Extra: View>: View {
             Text(fact.value).font(.scaled(10.5, design: .monospaced)).lineLimit(1).truncationMode(.middle).help(fact.value).textSelection(.enabled)
         case .branch:
             HStack(spacing: 5) {
-                Image(systemName: "arrow.triangle.branch").font(.scaled(10)).foregroundStyle(.secondary).accessibilityHidden(true)
+                Glyph(.gitBranch, size: 10).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text(fact.value).font(.scaled(10.5, design: .monospaced)).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
             }
             .help(fact.value)

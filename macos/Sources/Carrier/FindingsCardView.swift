@@ -163,7 +163,7 @@ private struct HoverArrow: View {
     @Environment(\.rowHovered) private var hovered
 
     var body: some View {
-        Image(systemName: "arrow.up.right").font(.scaled(10, weight: .semibold)).foregroundStyle(.tertiary).opacity(hovered ? 1 : 0).accessibilityHidden(true)
+        Glyph(.arrowUpRight, size: 10).foregroundStyle(.tertiary).opacity(hovered ? 1 : 0).accessibilityHidden(true)
     }
 }
 

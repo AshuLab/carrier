@@ -14,8 +14,8 @@ struct EpicView: View {
     /// window's header says of it.
     @Binding var subagents: [String]
     @Binding var subagentHeader: SubagentHeader?
-    /// The `files` reply, once the window asks for it.
-    var files: FilesReply?
+    /// What the Files changed tab draws, once the window has the `files` reply.
+    var filesModel = FilesChangedModel.empty
     /// What a queued epic will do; nil for any other.
     var plan: QueuedPlan?
     /// The reason and the Resume button of a stopped epic, with the store that remembers a Resume in flight; nil for any other.
@@ -69,8 +69,7 @@ struct EpicView: View {
                 EpicHeaderView(header: epicHeader(subject, reply: reply))
                 UnderlineTabs(
                     items: EpicTab.allCases.map { item in
-                        let files = max(filesChanged, filesChangedCount(files))
-                        return UnderlineTabs.Item(id: item, title: item.title, icon: item.icon, count: item == .filesChanged && files > 0 ? "\(files)" : nil)
+                        UnderlineTabs.Item(id: item, title: item.title, icon: item.icon, count: item == .filesChanged && filesChanged > 0 ? "\(filesChanged)" : nil)
                     },
                     selection: $tab
                 )
@@ -95,7 +94,7 @@ struct EpicView: View {
             }
             .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
         case .filesChanged:
-            FilesChangedView(files: files, fileDiffs: fileDiffs)
+            FilesChangedView(model: filesModel, fileDiffs: fileDiffs)
         }
     }
 
@@ -192,7 +191,7 @@ private struct StatePill: View {
         }
         HStack(spacing: 6) {
             if byShape, let shape = state.shape() {
-                Image(systemName: stateSymbol(shape)).font(.scaled(11, weight: .bold))
+                Glyph(stateSymbol(shape), size: 11)
             } else {
                 Circle().fill(color).frame(width: 6, height: 6)
             }
@@ -215,7 +214,7 @@ private struct Chip: View {
         HStack(spacing: 5) {
             if let mark { mark.renderingMode(.template).resizable().scaledToFit().frame(width: 13, height: 13) }
             Text(text).lineLimit(1)
-            if opens { Image(systemName: "arrow.up.right").font(.scaled(9, weight: .bold)).foregroundStyle(.tertiary) }
+            if opens { Glyph(.arrowUpRight, size: 9).foregroundStyle(.tertiary) }
         }
         .font(.scaled(12, weight: .medium)).foregroundStyle(.secondary)
         .padding(.horizontal, 10).padding(.vertical, 4)
@@ -248,7 +247,7 @@ struct PipelineStepView: View {
         HStack(spacing: 5) {
             Group {
                 if step.loops {
-                    SpinningGlyph(symbol: "arrow.triangle.2.circlepath", diameter: 10)
+                    SpinningGlyph(symbol: .refresh, diameter: 10)
                 } else {
                     StateMark(text: mark, shape: step.state.shape, size: 10, weight: .bold).foregroundStyle(fill == nil ? Color.secondary : .white)
                 }
@@ -298,10 +297,10 @@ struct PipelineStepView: View {
 }
 
 private extension EpicTab {
-    var icon: String {
+    var icon: AppIcon {
         switch self {
-        case .agentOutput: "terminal"
-        case .filesChanged: "doc.text"
+        case .agentOutput: .terminal
+        case .filesChanged: .fileText
         }
     }
 }
@@ -316,7 +315,7 @@ struct EpicLinks: View {
         let pr = prURL.flatMap(browserURL), issue = issueURL.flatMap(browserURL)
         HStack(spacing: 0) {
             if let pr { ToolbarPillButton(title: "Open PR", mark: GitHubMark.image) { NSWorkspace.shared.open(pr) }.help("Open the pull request") }
-            if let issue { ToolbarPillButton(title: "Open issue", icon: "number") { NSWorkspace.shared.open(issue) }.help("Open the issue") }
+            if let issue { ToolbarPillButton(title: "Open issue", icon: .hash) { NSWorkspace.shared.open(issue) }.help("Open the issue") }
         }
         .glassEffect(.regular, in: .capsule)
     }

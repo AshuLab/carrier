@@ -88,7 +88,7 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
             content.body = notification.body
             content.sound = notification.sound ? .default : nil
             if notification.quiet { content.interruptionLevel = .passive }
-            var info: [String: Any] = ["test": notification.isTest, "quiet": notification.quiet]
+            var info: [String: Any] = ["test": notification.isTest, "quiet": notification.quiet, "always": notification.always]
             if let epic = notification.epic { info["repo"] = epic.repo; info["issue"] = epic.issue }
             if let session = notification.session { info["session"] = session }
             content.userInfo = info
@@ -114,7 +114,8 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
         // a quiet one goes straight to the Notification Center, with no banner, even while the app is in front
         if info["quiet"] as? Bool == true { return done([.list]) }
         let isTest = info["test"] as? Bool ?? false
-        let show = shouldPresent(onlyWhenAway: UserDefaults.standard.notifiesOnlyWhenAway, appIsActive: NSApp.isActive, isTest: isTest)
+        let always = info["always"] as? Bool ?? false
+        let show = shouldPresent(onlyWhenAway: UserDefaults.standard.notifiesOnlyWhenAway, appIsActive: NSApp.isActive, isTest: isTest, always: always)
         done(show ? [.banner, .sound] : [])
     }
 

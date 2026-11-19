@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -361,4 +361,47 @@ test('no progress callback is asked of git for a fetch', async () => {
   mkdirSync(join(dest, '.git'), { recursive: true });
   git.repos.set(dest, { head: 'main', branches: ['main'], origin: 'https://github.com/acme/app.git' });
   expect(await fakeProjects(git).cloneRepo({ repo: 'acme/app' }, new AbortController().signal)).toMatchObject({ fetched: true });
+});
+
+test('the owner folder a failed or cancelled clone made goes with it, and one that holds another repository stays', async () => {
+  const owner = join(projects(), 'acme');
+  git.clonePending = new Promise(() => {});
+  const abort = new AbortController();
+  const cloning = fakeProjects(git).cloneRepo({ repo: 'acme/app' }, abort.signal);
+  await vi.waitFor(() => expect(existsSync(join(owner, 'app'))).toBe(true));
+  abort.abort();
+  await expect(cloning).rejects.toThrow('The clone was cancelled');
+  expect(existsSync(owner)).toBe(false);
+
+  git.clonePending = undefined;
+  mkdirSync(join(owner, 'other'), { recursive: true });
+  git.failures.set(`clone -- https://github.com/acme/app.git ${join(owner, 'app')}`, { ok: false, code: 128, stderr: 'remote: Repository not found.' });
+  await expect(fakeProjects(git).cloneRepo({ repo: 'acme/app' }, new AbortController().signal)).rejects.toThrow(ChatRefused);
+  expect(existsSync(join(owner, 'other'))).toBe(true);
+});
+
+test('a clone the person cancels is not logged as a failure of git', async () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  git.clonePending = new Promise(() => {});
+  const abort = new AbortController();
+  const cloning = fakeProjects(git).cloneRepo({ repo: 'acme/app' }, abort.signal);
+  await vi.waitFor(() => expect(existsSync(join(projects(), 'acme', 'app'))).toBe(true));
+  abort.abort();
+  await expect(cloning).rejects.toThrow('The clone was cancelled');
+  expect(errors.mock.calls.flat().join('\n')).not.toContain('git clone failed');
+  errors.mockRestore();
+});
+
+test('a folder that cannot be made is not reported as one that is already there', async () => {
+  const owner = join(projects(), 'acme');
+  mkdirSync(owner, { recursive: true });
+  chmodSync(owner, 0o555); // the destination cannot be made inside it
+  try {
+    const error = await fakeProjects(git).cloneRepo({ repo: 'acme/app' }, new AbortController().signal).catch((e: Error) => e.message);
+    expect(error).toContain('could not be made');
+    expect(error).not.toContain('already there');
+    expect(clones()).toHaveLength(0);
+  } finally {
+    chmodSync(owner, 0o755);
+  }
 });

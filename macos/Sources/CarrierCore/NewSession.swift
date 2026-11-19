@@ -579,19 +579,19 @@ public struct WatchNote: Equatable {
         if let repo, let folder {
             if toClone {
                 let projects = (projectsPath as NSString).abbreviatingWithTildeInPath
-                steps.append(SendStep(icon: "arrow.down.circle", title: "Download the repository", parts: [.text("When you send, Carrier downloads "), .code(repo), .text(" from GitHub into "), .code(projects), .text(". Only this first time: later sessions reuse that copy.")], help: folder))
+                steps.append(SendStep(icon: .download, title: "Download the repository", parts: [.text("When you send, Carrier downloads "), .code(repo), .text(" from GitHub into "), .code(projects), .text(". Only this first time: later sessions reuse that copy.")], help: folder))
             } else {
-                steps.append(SendStep(icon: "arrow.triangle.2.circlepath", title: "Update the repository", parts: [.text("Updates "), .code(repo), .text(" from GitHub first")], help: folder))
+                steps.append(SendStep(icon: .refresh, title: "Update the repository", parts: [.text("Updates "), .code(repo), .text(" from GitHub first")], help: folder))
             }
         }
         // a fresh clone follows the pick, so only a folder that is already there is switched
         if toClone == false, let change = branchChange {
-            steps.append(SendStep(icon: "arrow.triangle.swap", title: "Change the folder's branch", parts: [.text("Switches the folder from "), .code(change.from), .text(" to "), .code(change.to), .text(" when you send.")], help: folder))
+            steps.append(SendStep(icon: .exchange, title: "Change the folder's branch", parts: [.text("Switches the folder from "), .code(change.from), .text(" to "), .code(change.to), .text(" when you send.")], help: folder))
         }
         if worktree, let branch = startBranch {
             let name = worktreeBranchPrefix + (worktreeName.isEmpty ? "<name>" : worktreeName)
             let tail = toClone ? " in a separate folder." : " in a separate folder. Your current folder is not touched."
-            steps.append(SendStep(icon: "arrow.triangle.branch", title: "Create a branch of its own", parts: [.text("Creates the branch "), .code(name), .text(" from "), .code(branch), .text(tail)], help: nil))
+            steps.append(SendStep(icon: .gitBranch, title: "Create a branch of its own", parts: [.text("Creates the branch "), .code(name), .text(" from "), .code(branch), .text(tail)], help: nil))
         }
         return steps
     }
@@ -848,7 +848,7 @@ public struct WatchNote: Equatable {
 /// One thing sending will do, as a line of text with the names set apart; `help` is the detail for a tooltip.
 public struct SendStep: Equatable {
     public enum Part: Hashable { case text(String), code(String) }
-    public let icon: String
+    public let icon: AppIcon
     /// What the step does in a few words, over the sentence that tells it.
     public let title: String
     public let parts: [Part]

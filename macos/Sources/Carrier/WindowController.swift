@@ -7,7 +7,11 @@ import SwiftUI
 @Observable final class PanelModel {
     var state: ConnectionState? {
         // an epic that stops on a usage limit has used up a quota: the Usage page's numbers are asked again
-        didSet { if usageLimitEntered(from: oldValue, to: state) { MainActor.assumeIsolated { _ = AppUsage.refresher.limitHit() } } }
+        didSet {
+            // counts what the window is handed: a clock that moved is one more
+            Signposts.render.emitEvent("panel state")
+            if usageLimitEntered(from: oldValue, to: state) { MainActor.assumeIsolated { _ = AppUsage.refresher.limitHit() } }
+        }
     }
     let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
@@ -30,12 +34,22 @@ import SwiftUI
         }
         return actions
     }()
+    init() {
+        // after the terminals of the session are closed, the window leaves it if it is the one on screen
+        let closeTerminals = actions.didRemoveSession
+        actions.didRemoveSession = { [shell] sessionId in
+            closeTerminals(sessionId)
+            shell.sessionRemoved(sessionId)
+        }
+    }
+
     var collapse = SidebarCollapse()
     /// The chat host's sessions (`ChatSessionsPoller`), with which of them are unread.
     var sessions = Sessions()
-    /// When the person last saw each session (`SessionSeen`), and the list as the host gave it, before `unread`.
+    /// When the person last saw each session (`SessionSeen`), and the list as the host gave it, before `unread`; nil until the host
+    /// answered a list once.
     @ObservationIgnored private var seen = SessionSeen.stored()
-    @ObservationIgnored private var hostRows: [SessionRow] = []
+    @ObservationIgnored private var hostRows: [SessionRow]?
     /// Holds the place of the sessions that work, so the lists do not move them with each event of their agents (`WorkingOrder`).
     @ObservationIgnored private var workOrder = WorkingOrder()
 
@@ -54,13 +68,15 @@ import SwiftUI
 
     /// Sets `unread` again: when the list changes and when the open session does. The session on screen is seen as it moves.
     func refreshUnread() {
-        var rows = hostRows
+        // before the host answered a list there is nothing to compare with: what was seen is neither pruned nor stored
+        guard let listed = hostRows else { return }
+        var rows = listed
         var viewing: String?
         if case .session(let id) = shell.selection { viewing = id }
         if seen.apply(to: &rows, viewing: viewing) { seen.store() }
         workOrder.apply(to: &rows)
         // a session the person just archived is drawn archived before the host's list says so
-        actions.settle(hostRows)
+        actions.settle(listed)
         let leaving = actions.archiving
         for index in rows.indices where leaving.contains(rows[index].id) { rows[index].archived = true }
         if sessions.rows != rows { sessions.rows = rows }
@@ -68,7 +84,7 @@ import SwiftUI
 
     /// The person leaves a session: what it did up to now is seen.
     func leave(_ id: String) {
-        seen.markSeen(id, in: hostRows)
+        seen.markSeen(id, in: hostRows ?? [])
         refreshUnread()
     }
     /// The draft of a new session; it starts the chat host when it is not running (#503) before it opens the session.
@@ -100,14 +116,6 @@ extension ShortcutModifiers {
     }
 }
 
-/// Set from the main thread, read from the monitor's.
-private final class StopFlag {
-    private let lock = NSLock()
-    private var stopped = false
-    var isSet: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
-    func set() { lock.lock(); stopped = true; lock.unlock() }
-}
-
 /// The window: a plain NSWindow kept for the life of the app, with the SwiftUI panel inside. It has its own monitor of
 /// Carrier, started when the window opens and stopped when it closes, so a closed window costs nothing.
 final class WindowController: NSObject, NSWindowDelegate {
@@ -119,6 +127,8 @@ final class WindowController: NSObject, NSWindowDelegate {
     private let model = PanelModel()
     private var window: NSWindow?
     private var stop: StopFlag?
+    /// Cuts short the wait of the window's session list, while its monitor runs.
+    private var sessionsNap: PollNap?
 
     /// Adds the "Open window" item at the end of the menu.
     func addMenuItem(to menu: NSMenu) {
@@ -134,7 +144,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         showIcon("info.circle", on: item)
     }
 
-    /// Adds the "Settings…" item: it opens the window if it was closed, then shows the Settings sheet over it.
+    /// Adds the "Settings…" item: it opens Settings in its window.
     func addSettingsItem(to menu: NSMenu) {
         let item = menu.addItem(withTitle: "Settings…", action: #selector(settingsFromMenu), keyEquivalent: ",")
         item.target = self
@@ -145,14 +155,16 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     @objc private func settingsFromMenu() { showSettings() }
 
-    func showSettings() {
+    /// Opens Settings on a page (the one it was left on when none is asked for). The main window opens too when it was closed: the pages read
+    /// what Carrier answers to it (its state, its repos), and Settings is a window of its own over it that does not stop it being used.
+    func showSettings(_ page: SettingsPage? = nil, place: SettingsPlace? = nil) {
         open()
-        model.shell.showSettings()
+        MainActor.assumeIsolated { SettingsWindowController.shared.show(page, place: place, model: model, over: window) }
     }
 
     /// For the self-test.
-    func closeSettings() { model.shell.settingsShown = false }
-    var settingsStatus: String { "settings sheet \(model.shell.settingsShown ? "shown" : "hidden")" }
+    func closeSettings() { MainActor.assumeIsolated { SettingsWindowController.shared.close() } }
+    var settingsStatus: String { MainActor.assumeIsolated { "settings window \(SettingsWindowController.shared.isShown ? "shown" : "hidden")" } }
 
     @objc private func aboutFromMenu() { showAbout() }
 
@@ -185,16 +197,17 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// For the Conversation menu: acts only while a conversation is open.
     func conversation(_ action: ConversationAction) { model.shell.perform(.conversation(action)) }
 
-    /// What is in front, for the global dictation (`dictationFront`): Carrier's main window, or the sheet over it, must be the key window.
+    /// What is in front, for the global dictation (`dictationFront`): Carrier's main window (or a sheet over it) or its Settings window must be the key window.
     @MainActor
     var dictationFront: DictationFront {
         let key = NSApp.keyWindow
         let shell = model.shell
+        let settingsKey = key != nil && key === SettingsWindowController.shared.window
         var hasBox = false
         if case .session(let id) = shell.selection { hasBox = model.sessions.rows.first { $0.id == id }.map { $0.archived == false } ?? false }
         return CarrierCore.dictationFront(
-            carrierIsFront: NSApp.isActive && key != nil && (key === window || key?.sheetParent === window),
-            settingsShown: shell.settingsShown, selection: shell.selection, sessionHasBox: hasBox)
+            carrierIsFront: NSApp.isActive && key != nil && (key === window || key?.sheetParent === window || settingsKey),
+            settingsShown: settingsKey, selection: shell.selection, sessionHasBox: hasBox)
     }
 
     /// The global shortcut in a session: the open conversation focuses its message box and starts its dictation, or stops it.
@@ -295,6 +308,12 @@ final class WindowController: NSObject, NSWindowDelegate {
     func open(session id: String) {
         open(epic: nil)
         model.shell.selection = .session(id: id)
+    }
+
+    /// Opens the Usage page of the main window (the history of tokens and cost, which Settings only points to).
+    func showUsage() {
+        open()
+        model.shell.selection = .usage
     }
 
     func close() { window?.close() }
@@ -463,6 +482,8 @@ final class WindowController: NSObject, NSWindowDelegate {
     }
 
     private func makeWindow() -> NSWindow {
+        let signpost = Signposts.launch.beginInterval("make window")
+        defer { Signposts.launch.endInterval("make window", signpost) }
         let host = NSHostingController(rootView: PanelView(model: model))
         // the split view's title and toolbar (the sidebar toggle) go to the window
         host.sceneBridgingOptions = .all
@@ -521,44 +542,45 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     @objc private func windowShownOrHidden() {
         refreshPace()
-        // hiding the window (minimized, or no pixel of it on screen: another Space, a full-screen app over it) ends the dictation as closing it and leaving
-        // the app do: nothing listens and writes unseen. A window that other windows only partly cover is still `.visible`, so it keeps listening.
-        if windowIsShown == false { MainActor.assumeIsolated { DictationController.shared.stop() } }
+        // hiding the window (minimized, or no pixel of it on screen: another Space, a full-screen app over it) ends a message box's dictation as
+        // closing it and leaving the app do: nothing listens and writes unseen. The widget's goes on: it is on screen over the other app.
+        // A window that other windows only partly cover is still `.visible`, so it keeps listening.
+        if windowIsShown == false { MainActor.assumeIsolated { DictationController.shared.stopBoxDictation() } }
     }
 
     @objc private func windowClosed() {
         PollPace.shared.set(attentive: false)
         MainActor.assumeIsolated {
             AppUsage.refresher.setAttentive(false)
-            DictationController.shared.stop()
+            DictationController.shared.stopBoxDictation()
         }
         // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()
         stop = nil
+        sessionsNap = nil
         model.state = nil
         if case .session(let id) = model.shell.selection { model.leave(id) }
         model.sessions = Sessions()
         model.shell.reset(open: SidebarStore().open)
     }
 
+    /// The check at open answered, so a host that was starting is up: the window's session list is read now and not at the next tick.
+    func chatHostChecked() { sessionsNap?.wake() }
+
     private func startMonitor() {
         let stop = StopFlag()
         self.stop = stop
         let model = model
         let poller = model.epics.poller!
-        // sleeps in short steps so closing the window ends the thread within a tenth of a second
-        let sleep: (TimeInterval) -> Bool = { seconds in
-            let end = Date().addingTimeInterval(seconds)
-            while Date() < end && stop.isSet == false { Thread.sleep(forTimeInterval: 0.1) }
-            return stop.isSet == false
-        }
         let monitor = ControlMonitor(
             socketPath: { controlSocketPath() },
             pollEvery: { PollPace.shared.seconds },
-            wait: sleep,
+            // closing the window cuts the wait short at once
+            wait: stop.wait,
             tick: { try poller.poll($0) },
             onChange: { state in
-                DispatchQueue.main.async { if stop.isSet == false { model.state = state } }
+                // an equal state is not assigned: the observer ignores it anyway, and the "panel state" signpost counts only what differs
+                DispatchQueue.main.async { if stop.isSet == false, publishes(state, over: model.state) { model.state = state } }
             }
         )
         Thread.detachNewThread { monitor.run() }
@@ -576,6 +598,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         )
         // what changes the list is read at once: the wait is cut short, and the archived ones are read again
         let nap = PollNap()
+        sessionsNap = nap
         DispatchQueue.main.async {
             model.actions.changed = {
                 sessions.invalidateArchived()

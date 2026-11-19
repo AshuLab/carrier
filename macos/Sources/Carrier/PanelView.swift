@@ -184,6 +184,7 @@ struct PanelView: View {
     }
 
     var body: some View {
+        let _ = Signposts.render.emitEvent("PanelView body")
         @Bindable var shell = model.shell
         @Bindable var epics = model.epics
         let collapse = Binding(get: { model.collapse }, set: { model.collapse = $0 })
@@ -191,7 +192,7 @@ struct PanelView: View {
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, terminalStore: terminalStore, selection: $shell.selection, open: $shell.open, groupBy: $groupBy, sessionSort: $sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() }, newSessionIn: { path in
+            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, terminalStore: terminalStore, selection: $shell.selection, open: $shell.open, groupBy: $groupBy, sessionSort: $sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { WindowController.shared.showSettings() }, newSessionIn: { path in
                 model.newSession.start(in: path)
                 shell.selection = .newSession
             }, newTerminal: createNewTerminal, closeTerminal: closeStandaloneTerminal)
@@ -215,8 +216,8 @@ struct PanelView: View {
                             let data = model.epics.data[ref]
                             let over: Bool = if case .ended = epic.subject { true } else { false }
                             EpicView(
-                                subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files),
-                                sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, subagents: $shell.subagents, subagentHeader: $shell.subagentHeader, files: data?.files,
+                                subject: epic.subject, reply: data?.epic, filesChanged: data?.filesChanged.fileCount ?? 0,
+                                sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, subagents: $shell.subagents, subagentHeader: $shell.subagentHeader, filesModel: data?.filesChanged ?? .empty,
                                 plan: queuedPlan(epic.subject), resume: resumeCard(epic.subject).map { ($0, model.epics) },
                                 fileDiffs: epics.canOpenFiles ? FileDiffs(open: Binding(get: { epics.openFiles[ref] ?? [] }, set: { epics.openFiles[ref] = $0 }), shown: $epics.filesTabShown, fragments: data?.fragments ?? [:]) : nil,
                                 onContinueInTerminal: { section, resume in
@@ -245,7 +246,7 @@ struct PanelView: View {
                         } else if shell.selection == .usage {
                             UsageView(store: AppUsage.store)
                         } else if shell.selection == .newSession {
-                            NewSessionView(model: model.newSession, openHealth: shell.openHealth) { shell.selection = .session(id: $0) }
+                            NewSessionView(model: model.newSession, openHealth: { WindowController.shared.showSettings(.health) }) { shell.selection = .session(id: $0) }
                         } else if let emptyPage {
                             EmptyStateView(state: emptyPage)
                         } else if case .session(let id) = shell.selection {
@@ -263,7 +264,7 @@ struct PanelView: View {
                             }
                         } else {
                             // Carrier is not answering (or has not yet): what to do about it
-                            StoppedView(state: model.state, openSettings: { shell.showSettings(.engine) })
+                            StoppedView(state: model.state, openSettings: { WindowController.shared.showSettings(.engine) })
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -275,7 +276,7 @@ struct PanelView: View {
                             owner: target.owner,
                             defaultDirectory: target.defaultDirectory,
                             openDefaultTabIfEmpty: target.isSessionDrawer,
-                            dismissIcon: target.isSessionDrawer ? "chevron.down" : "xmark",
+                            dismissIcon: target.isSessionDrawer ? .chevronDown : .close,
                             dismissLabel: target.isSessionDrawer ? "Hide terminal" : "Close terminal",
                             height: Binding(
                                 get: { CGFloat(terminalDrawerHeight) },
@@ -332,7 +333,7 @@ struct PanelView: View {
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemImage: "sidebar.leading") }
+                Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemIcon: .sidebar) }
                     .help("Show or hide the sidebar")
             }
             if isDevBuild {
@@ -346,7 +347,7 @@ struct PanelView: View {
                 if let open = shell.subagentHeader {
                     // a slice card's subagent view wears the same header as a conversation's, with the epic in its subtitle and no Stop
                     ToolbarItem(placement: .navigation) {
-                        Button { shell.leaveSubagent() } label: { Label("Back", systemImage: "chevron.left") }
+                        Button { shell.leaveSubagent() } label: { Label("Back", systemIcon: .chevronLeft) }
                             .help("Back to Agent output")
                     }
                     ToolbarItem(placement: .navigation) {
@@ -362,7 +363,7 @@ struct PanelView: View {
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
-                    Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                    Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemIcon: .sidebarRight) }
                         .help("Show or hide the inspector")
                 }
                 if shell.inspectorShown {
@@ -377,7 +378,7 @@ struct PanelView: View {
                 if let open = shell.subagentHeader {
                     // a subagent view wears the window's header: Back next to the sidebar's button, its title, and its state where the worktree pill is
                     ToolbarItem(placement: .navigation) {
-                        Button { shell.leaveSubagent() } label: { Label("Back", systemImage: "chevron.left") }
+                        Button { shell.leaveSubagent() } label: { Label("Back", systemIcon: .chevronLeft) }
                             .help(shell.subagents.count > 1 ? "Back to the subagent that launched this one" : "Back to the conversation")
                     }
                     ToolbarItem(placement: .navigation) {
@@ -389,7 +390,7 @@ struct PanelView: View {
                         .sharedBackgroundVisibility(.hidden)
                     if open.canStop {
                         ToolbarItem(placement: .primaryAction) {
-                            ToolbarPillButton(title: "Stop", icon: "stop.fill", iconTint: .red) { shell.perform(.conversation(.stopSubagent)) }
+                            ToolbarPillButton(title: "Stop", icon: .stopFilled, iconTint: .red) { shell.perform(.conversation(.stopSubagent)) }
                                 .glassEffect(.regular, in: .capsule)
                                 .help("Stop this subagent; the main agent goes on")
                         }
@@ -401,7 +402,7 @@ struct PanelView: View {
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
-                    ToolbarGlassIconButton(icon: drawerOpen ? "terminal.fill" : "terminal", name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {
+                    ToolbarGlassIconButton(icon: .terminal, active: drawerOpen, name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {
                         toggleSessionTerminal(for: session)
                     }
                     .glassEffect(.regular, in: .capsule)
@@ -412,7 +413,7 @@ struct PanelView: View {
             if shell.selection == .usage {
                 ToolbarItem(placement: .primaryAction) {
                     let checking = AppUsage.store.isRefreshing
-                    ToolbarPillButton(title: checking ? "Checking…" : "Check again", icon: "arrow.clockwise", spinning: checking) { AppUsage.refresher.checkAgain() }
+                    ToolbarPillButton(title: checking ? "Checking…" : "Check again", icon: .refresh, spinning: checking) { AppUsage.refresher.checkAgain() }
                         .glassEffect(.regular, in: .capsule)
                         .padding(.trailing, 10)
                         .disabled(checking)
@@ -425,7 +426,7 @@ struct PanelView: View {
                 ToolbarItem(placement: .primaryAction) {
                     // the engine polls on its own after the answer: the button says so until the next check is scheduled again
                     let checking = isChecking(snapshot, asked: checkAsked, now: Date())
-                    ToolbarPillButton(title: checking ? "Checking…" : "Check now", icon: "arrow.clockwise", spinning: checking) {
+                    ToolbarPillButton(title: checking ? "Checking…" : "Check now", icon: .refresh, spinning: checking) {
                         checkAsked = CheckAsked(at: Date(), nextCheckAt: snapshot.nextCheckAt)
                         MenuControls.shared.checkNow()
                     }
@@ -437,9 +438,9 @@ struct PanelView: View {
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
                     HStack(spacing: 0) {
-                        ToolbarPillButton(title: snapshot.paused ? "Resume" : "Pause", icon: snapshot.paused ? "play.fill" : "pause.fill") { MenuControls.shared.pauseOrResume() }
+                        ToolbarPillButton(title: snapshot.paused ? "Resume" : "Pause", icon: snapshot.paused ? .playFilled : .pauseFilled) { MenuControls.shared.pauseOrResume() }
                             .help(snapshot.paused ? "Resume intake" : "Pause intake")
-                        ToolbarPillButton(title: "Stop", icon: "stop.fill", iconTint: .red) { MenuControls.shared.stopCarrier() }
+                        ToolbarPillButton(title: "Stop", icon: .stopFilled, iconTint: .red) { MenuControls.shared.stopCarrier() }
                             .help("Stop Carrier")
                     }
                     .glassEffect(.regular, in: .capsule)
@@ -451,7 +452,6 @@ struct PanelView: View {
         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
         // what the engine answered to a save belongs to the engine that answered: another one, or none, starts clean
         .onChange(of: engineRunning) { ReloadStatus.shared.reset() }
-        .sheet(isPresented: $shell.settingsShown) { SettingsSheet(state: model.state, canReload: model.epics.canReload, tab: $shell.settingsTab).themed() }
         .frame(minWidth: 1100, minHeight: 600)
         .themed()
         .environment(model.actions)

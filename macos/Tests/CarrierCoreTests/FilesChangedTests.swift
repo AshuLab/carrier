@@ -32,10 +32,8 @@ func eachPathGetsItsCategory(path: String, category: FileCategory) {
     #expect(fileCategory("Tests/CarrierTests/X.swift") == .test)
 }
 
-@MainActor @Test func everyCategoryHasItsOwnRealSymbol() {
-    let symbols = FileCategory.allCases.map(\.symbol)
-    #expect(Set(symbols).count == FileCategory.allCases.count)
-    for symbol in symbols { #expect(NSImage(systemSymbolName: symbol, accessibilityDescription: nil) != nil, "\(symbol)") }
+@Test func everyCategoryHasItsOwnIcon() {
+    #expect(Set(FileCategory.allCases.map(\.symbol)).count == FileCategory.allCases.count)
 }
 
 // MARK: model
@@ -146,4 +144,18 @@ private func section(_ id: String, _ kind: String, _ files: [FilesReply.File]) -
     #expect(note("no-changes") == .note("No changes: the file is as it was"))
     #expect(note("something-new") == .note("No preview"))
     #expect(note(nil) == .note("No changes: the file is as it was"))
+}
+
+// MARK: the work of the model
+
+@Test func twoThousandFilesAskTheBundleOncePerIcon() {
+    let reply = largeFilesReply(paths: 2000)
+    #expect(reply.sections.map(\.files.count) == [500, 500, 500, 500])
+    let icons = Set(reply.sections.flatMap(\.files).compactMap { bundledIconName($0.path) })
+    #expect(icons.isEmpty == false)
+    var lookups = 0
+    let model = filesChangedModel(reply, lookups: &lookups)
+    #expect(model.sections.map(\.files.count) == [500, 500, 500, 500])
+    #expect(lookups <= icons.count)
+    #expect(model.sections.flatMap(\.files).allSatisfy { $0.icon == fileIcon($0.path) })
 }

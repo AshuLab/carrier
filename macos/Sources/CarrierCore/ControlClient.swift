@@ -73,13 +73,6 @@ public final class ControlClient {
         Darwin.close(fd)
     }
 
-    /// Ends the conversation from another thread: the read that is waiting in this one gets EOF and throws `closed`. The descriptor
-    /// stays this client's until `close()`, which is still the owner's to call.
-    public func abort() {
-        guard isOpen else { return }
-        shutdown(fd, SHUT_RDWR)
-    }
-
     /// What Carrier says about itself on connect. An engine older than the version and capabilities has neither: `version` is nil and `capabilities` empty.
     public struct Hello: Equatable {
         public let protocolVersion: Int
@@ -122,10 +115,16 @@ public final class ControlClient {
     /// Sends the command with the next id and waits for its reply; returns the reply's `data`, as JSON bytes, `null` when it has none.
     /// `fields` is more of the request object, already JSON (`,"lines":60`); only this file's callers build it, from checked values.
     public func request(_ command: String, fields: String = "") throws -> Data {
+        // requests come from several threads at once, so each interval has its own id
+        let signpost = Signposts.poll.beginInterval("request", id: Signposts.poll.makeSignpostID(), "\(command, privacy: .public)")
+        var bytes = 0
+        defer { Signposts.poll.endInterval("request", signpost, "\(bytes) bytes") }
         lastId += 1
         try write(Data("{\"id\":\(lastId),\"cmd\":\"\(command)\"\(fields)}\n".utf8))
         while true {
-            let reply = try json(readLine())
+            let line = try readLine()
+            bytes += line.count
+            let reply = try json(line)
             let id = reply["id"] as? Int
             // a reply to an earlier request that gave up is skipped; an error with no id can only be about this one
             guard id == lastId || (id == nil && reply["ok"] as? Bool == false) else { continue }

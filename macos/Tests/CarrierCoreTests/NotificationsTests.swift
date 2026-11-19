@@ -235,6 +235,9 @@ private let both = snapshot([epic(7, .needsHuman, reason: "x")], done: [ready(9,
     #expect(shouldPresent(onlyWhenAway: true, appIsActive: false, isTest: false))
     #expect(shouldPresent(onlyWhenAway: false, appIsActive: true, isTest: false))
     #expect(shouldPresent(onlyWhenAway: true, appIsActive: true, isTest: true))
+    // a notice marked always shows with the app in front too, as the keep awake's end does
+    #expect(shouldPresent(onlyWhenAway: true, appIsActive: true, isTest: false, always: true))
+    #expect(EpicNotification(title: "t", body: "b").always == false)
 }
 
 // problems

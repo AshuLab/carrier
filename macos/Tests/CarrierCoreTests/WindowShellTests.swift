@@ -129,6 +129,19 @@ import Testing
     #expect(shell.newSessionOpened == 2)
 }
 
+@Test func aSessionRemovedWhileItIsOnScreenGivesWayToANewSession() {
+    let shell = WindowShell()
+    shell.selection = .session(id: "a")
+    shell.sessionRemoved("b")
+    #expect(shell.selection == .session(id: "a"))
+    shell.sessionRemoved("a")
+    #expect(shell.selection == .newSession && shell.open == .sessions && shell.newSessionOpened == 1)
+    // what is on screen and is not that session stays
+    shell.selection = .usage
+    shell.sessionRemoved("a")
+    #expect(shell.selection == .usage)
+}
+
 private func freshTable() -> ShortcutTable {
     let suite = "shortcuts-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
@@ -270,28 +283,6 @@ private let fakeSessions = [
     #expect(shell.searchRequest?.section == .carrier)
     shell.reset()
     #expect(shell.searchRequest == nil)
-}
-
-@Test func settingsIsASheetOverTheSelectionThatOpensOnTheFirstPageUnlessAskedOtherwise() {
-    let shell = WindowShell()
-    shell.selection = .sessions
-    shell.showSettings()
-    #expect(shell.settingsShown && shell.settingsTab == .general && shell.selection == .sessions)
-    shell.settingsShown = false
-    shell.openHealth()
-    #expect(shell.settingsShown && shell.settingsTab == .health && shell.selection == .sessions)
-    shell.showSettings()
-    #expect(shell.settingsTab == .general)
-    shell.reset()
-    #expect(shell.settingsShown == false)
-}
-
-@Test func settingsOpensOnAskedPage() {
-    let shell = WindowShell()
-    shell.showSettings(.sessions)
-    #expect(shell.settingsShown && shell.settingsTab == .sessions)
-    shell.showSettings(.engine)
-    #expect(shell.settingsTab == .engine)
 }
 
 @Test func aSubagentViewIsLeftOneLevelAtATimeAndWithTheSession() {

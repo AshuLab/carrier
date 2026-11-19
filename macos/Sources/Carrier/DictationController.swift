@@ -91,9 +91,9 @@ import SwiftUI
         }
         // a load or a release queued before the press is over before the recognizer prepares for it
         session.beforePrepare = { [weak self] in await self?.work?.value }
-        // sending the app to the background: nothing keeps listening unseen
+        // sending the app to the background: a box's dictation does not keep listening unseen (the widget's is seen)
         NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.stop() }
+            MainActor.assumeIsolated { self?.stopBoxDictation() }
         }
         // the person may have allowed the microphone in System Settings and come back
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
@@ -172,7 +172,7 @@ import SwiftUI
         preferences.dictationEnabled = on
         enabled = on
         if on { warmUp() } else {
-            stop()
+            session.stop()
             evaluate()
         }
     }
@@ -329,9 +329,12 @@ import SwiftUI
         session.stop()
     }
 
-    /// Stops the dictation of `owner`, or whichever runs when nil: a typed key, Enter and leaving (a session, the window, the app).
-    func stop(ownedBy owner: String? = nil) {
-        guard let owner else { return session.stop() }
+    /// Hiding or closing the window, or leaving the app: a message box's dictation stops, as nothing would listen and write unseen; the
+    /// widget's goes on, since it floats over the app the person is in.
+    func stopBoxDictation() { session.stop(except: GlobalDictation.owner) }
+
+    /// Stops the dictation of `owner`: a typed key, Enter and leaving a session.
+    func stop(ownedBy owner: String) {
         if waiting == owner { waiting = nil }
         session.stop(ownedBy: owner)
     }

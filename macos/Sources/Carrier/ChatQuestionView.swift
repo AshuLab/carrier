@@ -28,7 +28,7 @@ struct QuestionCardView: View {
 
     var body: some View {
         NoticeCard(
-            symbol: "questionmark", tint: .attention, title: question.question,
+            symbol: .question, tint: .attention, title: question.question,
             detail: [question.multiSelect ? "Choose any that apply" : "Choose one", behind > 0 ? "\(behind) more waiting" : nil].compactMap { $0 }.joined(separator: " · "),
             tag: question.header
         ) {
@@ -63,7 +63,7 @@ struct QuestionCardView: View {
                 if step > 0 || needsButton {
                     HStack(spacing: 4) {
                         Spacer(minLength: 0)
-                        if step > 0 { Button { go(step - 1) } label: { Label("Back", systemImage: "chevron.left") }.buttonStyle(HoverTextButtonStyle(tint: nil)) }
+                        if step > 0 { Button { go(step - 1) } label: { Label("Back", icon: .chevronLeft) }.buttonStyle(HoverTextButtonStyle(tint: nil)) }
                         if needsButton {
                             // ⌘↩ and not a plain Return: the message box under the card would lose its Return
                             Button(last ? "Send" : "Next") { next() }.buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).disabled(complete == false)
@@ -162,7 +162,7 @@ struct QuestionCardView: View {
                 ZStack {
                     // a circle takes one pick, a square takes several; it is filled only when picked
                     RoundedRectangle(cornerRadius: question.multiSelect ? 5 : 9, style: .continuous).fill(chosen ? Color.themeAccent : Color.primary.opacity(0.09))
-                    if chosen { Image(systemName: "checkmark").font(.scaled(9, weight: .bold)).foregroundStyle(.white) } else {
+                    if chosen { Glyph(.check, size: 9, bold: true).foregroundStyle(.white) } else {
                         Text("\(index + 1)").font(.scaled(10.5, weight: .semibold, design: .monospaced)).foregroundStyle(.secondary)
                     }
                 }

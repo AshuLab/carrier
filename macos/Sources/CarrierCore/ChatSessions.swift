@@ -59,8 +59,9 @@ public func openMenuItems(_ row: SessionRow) -> [OpenItem] {
 }
 
 /// Asks the host for the sessions: `poll()` is called at the pace of `PollPace` and lists the active ones every time and the archived ones
-/// when `archivedEvery` seconds have passed since they were last read. A host that does not answer the list gives no rows; one that
-/// fails only on the archived list keeps the last archived rows it had.
+/// when `archivedEvery` seconds have passed since they were last read. A host that does not answer the list changes nothing: the rows stay
+/// as they were and the archived list is read again when it answers; one that fails only on the archived list keeps the last archived
+/// rows it had.
 public final class ChatSessionsPoller {
     private let host: ChatHost
     private let archivedEvery: TimeInterval
@@ -90,10 +91,14 @@ public final class ChatSessionsPoller {
     public func invalidateArchived() { stale.withLock { $0 = true } }
 
     public func poll() async {
+        let signpost = Signposts.poll.beginInterval("sessions poll", id: Signposts.poll.makeSignpostID())
+        var outcome = "failed"
+        defer { Signposts.poll.endInterval("sessions poll", signpost, "\(outcome, privacy: .public)") }
         guard let active = try? await host.list(archived: false) else {
-            archived = []
+            // a host that does not answer (not started yet, being replaced, restarted) is not an empty list: the rows stay as they were, and
+            // with them what the person has seen; the archived list is read again once it answers
             archivedAt = nil
-            return onChange([])
+            return
         }
         let invalidated = stale.withLock { flag in
             defer { flag = false }
@@ -108,6 +113,7 @@ public final class ChatSessionsPoller {
             }
         }
         let combined = active + archived
+        outcome = "ok"
         onChange(sessionRows(combined))
         if archivedRefreshedThisPoll {
             onAuthoritativeSessionIds(Set(combined.map(\.id)))

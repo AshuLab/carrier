@@ -28,7 +28,7 @@ struct CardChevron: View {
     var width: CGFloat = 16
 
     var body: some View {
-        Image(systemName: "chevron.right").font(.scaled(9, weight: .bold)).foregroundStyle(.tertiary)
+        Glyph(.chevronRight, size: 9).foregroundStyle(.tertiary)
             .rotationEffect(.degrees(open ? 90 : 0)).frame(width: width).accessibilityHidden(true)
     }
 }
@@ -51,7 +51,7 @@ struct PullRequestChip: View {
         HStack(spacing: 5) {
             if let dot { Circle().fill(dot).frame(width: 7, height: 7) }
             Text("PR #\(number)").monospacedDigit()
-            if url != nil { Image(systemName: "arrow.up.right").font(.scaled(9, weight: .semibold)).foregroundStyle(.tertiary) }
+            if url != nil { Glyph(.arrowUpRight, size: 9).foregroundStyle(.tertiary) }
         }
         .font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
     }

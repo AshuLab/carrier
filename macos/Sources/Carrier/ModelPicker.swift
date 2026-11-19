@@ -143,7 +143,7 @@ struct ModelPickerButton: View {
             query = ""
             open.toggle()
         } label: { pill }
-            .buttonStyle(PopUpButtonStyle())
+            .buttonStyle(SelectButtonStyle())
             .popover(isPresented: $open, arrowEdge: .bottom) { panel }
             .help("Provider, model and reasoning").accessibilityLabel("Provider, model and reasoning")
             .accessibilityValue([shownProvider, modelText, effortText].compactMap { $0 }.joined(separator: ", "))
@@ -185,12 +185,11 @@ struct ModelPickerButton: View {
                     Text(effortText).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
-            // the chevrons at the right edge, as the Mac's pop-up has them, whatever the words take
-            Spacer(minLength: 6)
-            Image(systemName: "chevron.up.chevron.down").font(.scaled(10, weight: .bold)).foregroundStyle(.primary.opacity(0.85))
+            // the chevrons after the words, as the Mac's pop-up has them
+            SelectChevron()
         }
-        // a width of its own, as the pop-ups of the other rows have, and long words are cut; in a form it takes the room it is given
-        .frame(width: fill ? nil : 210, alignment: .leading).frame(maxWidth: fill ? .infinity : nil, alignment: .leading)
+        // in a form the words end at the right edge of the row, where the other selects do; long ones are cut
+        .frame(maxWidth: fill ? .infinity : nil, alignment: .trailing)
     }
 
     // MARK: the panel
@@ -217,7 +216,7 @@ struct ModelPickerButton: View {
                 }
             }
             if let noneTitle, shownProvider != nil {
-                Button { pick(.none); open = false } label: { Label(noneTitle, systemImage: "xmark").labelStyle(.titleAndIcon).frame(maxWidth: .infinity, alignment: .leading) }
+                Button { pick(.none); open = false } label: { Label(noneTitle, icon: .close).labelStyle(.titleAndIcon).frame(maxWidth: .infinity, alignment: .leading) }
                     .buttonStyle(HoverTextButtonStyle(tint: nil)).padding(.horizontal, 12).padding(.vertical, 10)
                     .overlay(alignment: .top) { Divider() }
             }
@@ -275,7 +274,7 @@ struct ModelPickerButton: View {
     }
 
     private var search: some View {
-        TextField("Search models", text: $query).settingsField(icon: "magnifyingglass")
+        TextField("Search models", text: $query).settingsField(icon: .search)
             .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 2)
     }
 
@@ -352,7 +351,7 @@ struct ModelPickerButton: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("ACCESS").font(.scaled(11, weight: .semibold)).tracking(0.6).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
-                Label("Full access", systemImage: "lock.open").labelStyle(.titleAndIcon).font(.scaled(13, weight: .semibold)).foregroundStyle(.orange)
+                Label("Full access", icon: .lockOpen).labelStyle(.titleAndIcon).font(.scaled(13, weight: .semibold)).foregroundStyle(.orange)
             }
             Text("Epics run on their own, so a role never waits for someone to approve a change: it can edit files and run commands.")
                 .font(.scaled(12)).foregroundStyle(.primary.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
@@ -362,24 +361,3 @@ struct ModelPickerButton: View {
     }
 }
 
-/// A button drawn like the pop-up of the other rows (`NativePopUp`): a small rounded rectangle on a quiet fill, not a capsule, so it sits with them.
-/// Only the picker uses it: the chat's message box keeps its own pill.
-private struct PopUpButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
-
-    private struct Face: View {
-        let configuration: ButtonStyleConfiguration
-        @Environment(\.isEnabled) private var enabled
-        @State private var hovered = false
-
-        var body: some View {
-            configuration.label
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.16 : 0.12)))
-                .opacity(enabled ? 1 : 0.5)
-                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .onHover { hovered = $0 }
-                .animation(.easeOut(duration: 0.12), value: hovered)
-        }
-    }
-}

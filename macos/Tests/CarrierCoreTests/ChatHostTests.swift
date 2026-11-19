@@ -157,46 +157,18 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     await #expect(throws: ControlError.badLine) { try await SocketChatHost(socketPath: { server.path }).agents() }
 }
 
-@Test func theFixtureHostAnswersCloneRepoFromTheGoldenFileAndRefusesWhatItDoesNotList() async throws {
-    let server = try FixtureServer(fixtures: fixtures)
-    defer { server.stop() }
-    let host = SocketChatHost(socketPath: { server.chatSocketPath })
-    #expect(try await host.capabilities().contains(.cloneRepo))
-    #expect(try await host.cloneRepo("AshuLab/web") == ClonedRepo(folder: "/Users/dev/web", repo: "AshuLab/web", fetched: false))
-    #expect(try await host.cloneRepo("AshuLab/carrier") == ClonedRepo(folder: "/Users/dev/carrier", repo: "AshuLab/carrier", fetched: true))
-    await #expect(throws: ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")) { try await host.cloneRepo("AshuLab/nope") }
-}
-
-@Test func theFixtureHostAnswersCreateProjectFromTheGoldenFileAndRefusesAnotherName() async throws {
-    let server = try FixtureServer(fixtures: fixtures)
-    defer { server.stop() }
-    let host = SocketChatHost(socketPath: { server.chatSocketPath })
-    #expect(try await host.capabilities().contains(.createProject))
-    #expect(try await host.createProject("my-idea") == "/Users/dev/projects/local/my-idea")
-    await #expect(throws: ControlError.remote("web is already a project; choose another name")) { try await host.createProject("web") }
-}
-
-@Test func aHostWithoutTheCreateProjectCapabilityIsNotAskedToCreate() async {
-    var asked = false
-    let server = TestServer { connection in
-        connection.send(hello("\"agents\""))
-        asked = connection.readRequestId() != nil
+@Test func theAppSendsNoCloneRepoOrCreateProjectRequest() throws {
+    // a plan replaced both (#668); a host keeps them only for apps older than this one
+    let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Sources")
+    let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+    var scanned = 0
+    for case let file as URL in files where file.pathExtension == "swift" {
+        scanned += 1
+        let text = try String(contentsOf: file, encoding: .utf8)
+        #expect(text.contains("\"cloneRepo\"") == false && text.contains("\"createProject\"") == false, "\(file.lastPathComponent) sends a request the plan replaced")
     }
-    defer { server.stop() }
-    await #expect(throws: ControlError.remote("the chat host does not support createProject")) { try await SocketChatHost(socketPath: { server.path }).createProject("x") }
-    #expect(asked == false)
-}
-
-@Test func aHostWithoutTheCloneCapabilityIsNotAskedToClone() async {
-    var asked = false
-    let server = TestServer { connection in
-        connection.send(hello("\"agents\""))
-        asked = connection.readRequestId() != nil
-    }
-    defer { server.stop() }
-    let host = SocketChatHost(socketPath: { server.path })
-    await #expect(throws: ControlError.remote("the chat host does not support cloneRepo")) { try await host.cloneRepo("AshuLab/carrier") }
-    #expect(asked == false)
+    // a wrong path would scan nothing and pass
+    #expect(scanned > 50)
 }
 
 @Test func theFixtureHostAnswersGithubReposByPageFromTheGoldenFileWithTheLoginOnPageOneOnly() async throws {

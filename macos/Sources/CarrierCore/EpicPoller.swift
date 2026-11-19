@@ -34,6 +34,9 @@ public struct Transcript: Equatable {
     public init() {}
 
     public mutating func apply(_ reply: EventsReply) {
+        // runs on the monitor's thread, next to a rebuild on another
+        let signpost = Signposts.feed.beginInterval("transcript apply", id: Signposts.feed.makeSignpostID())
+        defer { Signposts.feed.endInterval("transcript apply", signpost, "\(reply.events.count) events") }
         let fresh = reply.events.filter { seen.insert($0.id).inserted }.sorted { $0.id < $1.id }
         if let first = fresh.first {
             if let last = events.last, first.id < last.id {
@@ -65,7 +68,9 @@ public struct Transcript: Equatable {
 public struct EpicData: Equatable {
     public var sessions: SessionsReply?
     public var epic: EpicReply?
-    public var files: FilesReply?
+    public internal(set) var files: FilesReply?
+    /// What the Files changed tab draws, worked out when `files` changes so no `body` does it.
+    public internal(set) var filesChanged = FilesChangedModel.empty
     /// By execution id.
     public var transcripts: [String: Transcript] = [:]
     /// The fragment of each file row that was opened: a merged slice's and a fix round's asked once and kept, a lane's followed.
@@ -122,6 +127,8 @@ public final class EpicPoller {
     static let pagesPerPoll = 8
 
     public private(set) var data: [EpicRef: EpicData] = [:]
+    /// The times a `files` reply was turned into the model: once per reply that differs, however often it is asked.
+    public private(set) var filesModelsBuilt = 0
     private var focus: EpicFocus?
     private let lock = NSLock()
     private var requested: [EpicFocus?] = []
@@ -164,6 +171,9 @@ public final class EpicPoller {
 
     /// Sends what is due. A request the engine refuses is dropped until the next hello; a dead connection is thrown.
     public func poll(_ client: ControlClient) throws {
+        let signpost = Signposts.poll.beginInterval("epic poll", id: Signposts.poll.makeSignpostID())
+        var asked = 0
+        defer { Signposts.poll.endInterval("epic poll", signpost, "\(asked) resources") }
         lock.lock()
         let pending = requested
         requested = []
@@ -178,11 +188,19 @@ public final class EpicPoller {
         let moment = now()
         for kind in Kind.allCases where isDue(kind, focus, moment) {
             lastAsked[kind] = moment
+            asked += 1
             do {
                 switch kind {
                 case .epic: if let reply = try client.epic(repo: key.repo, issue: key.issue) { update(key) { $0.epic = reply } }
                 case .sessions: if let reply = try client.sessions(repo: key.repo, issue: key.issue) { update(key) { $0.sessions = reply } }
-                case .files: if let reply = try client.files(repo: key.repo, issue: key.issue) { update(key) { $0.files = reply } }
+                case .files:
+                    if let reply = try client.files(repo: key.repo, issue: key.issue) {
+                        update(key) {
+                            guard $0.files != reply else { return }
+                            filesModelsBuilt += 1
+                            ($0.files, $0.filesChanged) = (reply, filesChangedModel(reply))
+                        }
+                    }
                 case .events:
                     let id = focus.transcript ?? ""
                     let after = data[key]?.transcripts[id]?.next ?? 0

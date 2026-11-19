@@ -17,7 +17,8 @@ if [ "$GIVEN" = true ]; then
   # the updater starts only from a bundle with a feed (AppUpdater.start), so a dev build has none
   UPDATER="<key>SUFeedURL</key><string>https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml</string>
 <key>SUPublicEDKey</key><string>$(tr -d '[:space:]' < update-key.pub)</string>
-<key>SUEnableAutomaticChecks</key><true/>"
+<key>SUEnableAutomaticChecks</key><true/>
+<key>SUScheduledCheckInterval</key><integer>3600</integer>"
 else
   CHANNEL=dev; NAME="Carrier Dev"; BUNDLE_ID=dev.ashulab.carrier.dev; UPDATER=""
 fi
@@ -102,6 +103,19 @@ for svg in Sources/CarrierCore/Resources/FileIcons/*.svg; do
   [ -f "$ICONS/$(basename "$svg")" ] || { echo "error: $APP lacks the icon $(basename "$svg")" >&2; exit 1; }
 done
 grep -q "Permission is hereby granted" "$ICONS/LICENSE" || { echo "error: $APP lacks the Material Icon Theme licence text" >&2; exit 1; }
+# the same for the interface's own icon sets: Tabler (an outline and a filled folder, MIT) and Lucide (ISC), each with its upstream licence text
+TABLER="$(find "$APP/Contents/Resources/Carrier_CarrierCore.bundle" -type d -name TablerIcons | head -n 1)"
+[ -n "$TABLER" ] || { echo "error: $APP has no TablerIcons folder" >&2; exit 1; }
+for svg in Sources/CarrierCore/Resources/TablerIcons/*/*.svg; do
+  [ -f "$TABLER/$(basename "$(dirname "$svg")")/$(basename "$svg")" ] || { echo "error: $APP lacks the icon $(basename "$svg")" >&2; exit 1; }
+done
+grep -q "Permission is hereby granted" "$TABLER/LICENSE" || { echo "error: $APP lacks the Tabler Icons licence text" >&2; exit 1; }
+LUCIDE="$(find "$APP/Contents/Resources/Carrier_CarrierCore.bundle" -type d -name LucideIcons | head -n 1)"
+[ -n "$LUCIDE" ] || { echo "error: $APP has no LucideIcons folder" >&2; exit 1; }
+for svg in Sources/CarrierCore/Resources/LucideIcons/*.svg; do
+  [ -f "$LUCIDE/$(basename "$svg")" ] || { echo "error: $APP lacks the icon $(basename "$svg")" >&2; exit 1; }
+done
+grep -q "Permission to use, copy, modify" "$LUCIDE/LICENSE" || { echo "error: $APP lacks the Lucide licence text" >&2; exit 1; }
 # the licence texts must be in the app: the ones the libraries ask to be kept with a binary distribution
 grep -q "Apache License" "$LICENSES/FluidAudio/LICENSE" || { echo "error: $APP lacks the FluidAudio licence text" >&2; exit 1; }
 grep -q "Redistributions in binary form must reproduce" "$LICENSES/FluidAudio/ThirdPartyLicenses/fastcluster-LICENSE.md" || { echo "error: $APP lacks the fastcluster licence text" >&2; exit 1; }

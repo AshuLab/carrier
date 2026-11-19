@@ -41,7 +41,7 @@ import CarrierCore
 }
 
 @MainActor @Test func theGlyphHostFollowsTheSameGating() {
-    let host = RingHostView(symbol: "arrow.triangle.2.circlepath", diameter: 10)
+    let host = RingHostView(symbol: .refresh, diameter: 10)
     #expect(host.layer?.sublayers?.first?.contents != nil)
     #expect(host.animating == false)
     host.windowVisible = true

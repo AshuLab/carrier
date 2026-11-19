@@ -168,25 +168,25 @@ struct TerminalTabView: View {
             installed: MonospaceStyle.installedFamilies,
             currentOverride: fontFamilyOverride
         )
-        return [(value: nil, title: "Same as Chat (\(appFontDisplayName))")]
+        return [(value: nil, title: "Same as Appearance (\(appFontDisplayName))")]
             + families.map { (value: $0, title: $0) }
     }
 
     private var fontSizeOptions: [(value: Int?, title: String)] {
         let sizes = TerminalSettings.availableFontSizes(currentOverride: fontSizeOverride)
-        return [(value: nil, title: "Same as Chat (\(Int(appFontSize.rounded())) pt)")]
+        return [(value: nil, title: "Same as Appearance (\(Int(appFontSize.rounded())) pt)")]
             + sizes.map { (value: $0, title: "\($0) pt") }
     }
 
     private var ligaturesOptions: [(value: Bool?, title: String)] {
         [
-            (value: nil, title: "Same as Chat (\(appLigatures ? "On" : "Off"))"),
+            (value: nil, title: "Same as Appearance (\(appLigatures ? "On" : "Off"))"),
             (value: true, title: "On"),
             (value: false, title: "Off"),
         ]
     }
 
-    private var cursorStyleOptions: [(value: TerminalCursorStyleChoice, title: String, icon: String?)] {
+    private var cursorStyleOptions: [(value: TerminalCursorStyleChoice, title: String, icon: AppIcon?)] {
         TerminalCursorStyleChoice.allCases.map { (value: $0, title: $0.title, icon: nil) }
     }
 
@@ -202,14 +202,14 @@ struct TerminalTabView: View {
         SettingsPageBody(reset: resetTerminalSettings) {
             SettingsGroup(title: "Appearance") {
                 SettingsTabRow(title: "Theme", detail: "Color palette for panes; inherits the app theme by default", first: true) {
-                    ChoicePopUp(label: "Theme", options: themeOptions, selection: themeSelection, width: 200)
+                    ChoicePopUp(label: "Theme", options: themeOptions, selection: themeSelection)
                 }
                 SettingsTabRow(
                     title: "Minimum contrast",
                     detail: "Raises low-contrast ANSI text · \(TerminalSettings.minimumContrastLabel(minimumContrast))"
                 ) {
                     Slider(value: minimumContrastSelection, in: TerminalSettings.minimumContrastRange)
-                        .frame(width: 160)
+                        .labelsHidden().frame(width: settingsSliderWidth)
                         .accessibilityLabel("Minimum contrast")
                         .accessibilityValue(TerminalSettings.minimumContrastLabel(minimumContrast))
                 }
@@ -218,7 +218,7 @@ struct TerminalTabView: View {
                     detail: "Left and right margin inside each pane · \(Int(paddingX.rounded())) pt"
                 ) {
                     Slider(value: paddingXSelection, in: TerminalSettings.paddingRange)
-                        .frame(width: 160)
+                        .labelsHidden().frame(width: settingsSliderWidth)
                         .accessibilityLabel("Horizontal padding")
                         .accessibilityValue("\(Int(paddingX.rounded())) points")
                 }
@@ -227,7 +227,7 @@ struct TerminalTabView: View {
                     detail: "Top and bottom margin inside each pane · \(Int(paddingY.rounded())) pt"
                 ) {
                     Slider(value: paddingYSelection, in: TerminalSettings.paddingRange)
-                        .frame(width: 160)
+                        .labelsHidden().frame(width: settingsSliderWidth)
                         .accessibilityLabel("Vertical padding")
                         .accessibilityValue("\(Int(paddingY.rounded())) points")
                 }
@@ -239,16 +239,16 @@ struct TerminalTabView: View {
             SettingsGroup(title: "Typography") {
                 SettingsTabRow(
                     title: "Font",
-                    detail: "Monospaced font used in panes; inherits Chat › Code and output",
+                    detail: "Monospaced font used in panes; inherits Appearance › Code and output",
                     first: true
                 ) {
-                    ChoicePopUp(label: "Font", options: fontFamilyOptions, selection: fontFamilySelection, width: 200)
+                    ChoicePopUp(label: "Font", options: fontFamilyOptions, selection: fontFamilySelection)
                 }
                 SettingsTabRow(title: "Size", detail: "Text size in points for terminal output") {
-                    ChoicePopUp(label: "Size", options: fontSizeOptions, selection: fontSizeSelection, width: 200)
+                    ChoicePopUp(label: "Size", options: fontSizeOptions, selection: fontSizeSelection)
                 }
                 SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
-                    ChoicePopUp(label: "Ligatures", options: ligaturesOptions, selection: $fontLigaturesOverride, width: 200)
+                    ChoicePopUp(label: "Ligatures", options: ligaturesOptions, selection: $fontLigaturesOverride)
                 }
                 SettingsTabRow(title: "Thicken font", detail: "Renders glyphs slightly heavier on Retina displays") {
                     Toggle("Thicken font", isOn: $fontThicken).labelsHidden().toggleStyle(.switch)
@@ -286,7 +286,7 @@ struct TerminalTabView: View {
                     detail: "Sends Option key presses as Meta/Alt escape sequences in shells",
                     first: true
                 ) {
-                    ChoicePopUp(label: "Option as Alt", options: optionAsAltOptions, selection: optionAsAltSelection, width: 160)
+                    ChoicePopUp(label: "Option as Alt", options: optionAsAltOptions, selection: optionAsAltSelection)
                 }
                 SettingsTabRow(
                     title: "Copy on select",
@@ -298,7 +298,7 @@ struct TerminalTabView: View {
                     title: "Scrollback limit",
                     detail: "Memory reserved per pane for scrollback output history"
                 ) {
-                    ChoicePopUp(label: "Scrollback limit", options: scrollbackLimitOptions, selection: scrollbackLimitSelection, width: 160)
+                    ChoicePopUp(label: "Scrollback limit", options: scrollbackLimitOptions, selection: scrollbackLimitSelection)
                 }
             }
 

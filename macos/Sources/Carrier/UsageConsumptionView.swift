@@ -44,20 +44,20 @@ struct ConsumptionSection: View {
     private var filters: some View {
         HStack(spacing: 8) {
             SegmentedChoice(
-                options: [(UsageMetric.cost, "Cost", "dollarsign.circle"), (.tokens, "Tokens", "number")], selection: $store.metric
+                options: [(UsageMetric.cost, "Cost", AppIcon.coin), (.tokens, "Tokens", .hash)], selection: $store.metric
             )
             .accessibilityLabel("Metric")
             SegmentedChoice(options: [7, 14, 30, 90].map { ($0, "\($0)d", nil) }, selection: $store.days).accessibilityLabel("Range")
             ChoicePopUp(
                 label: "Provider",
                 options: [(.all, "All providers"), (.claude, "Claude"), (.codex, "Codex"), (.agy, "Antigravity"), (.local, "Local")],
-                selection: $store.providerFilter, width: 130
+                selection: $store.providerFilter
             )
             ChoicePopUp(
-                label: "Source", options: [(.all, "All sources"), (.epic, "Epic"), (.chat, "Chat"), (.external, "External")], selection: $store.sourceFilter, width: 120
+                label: "Source", options: [(.all, "All sources"), (.epic, "Epic"), (.chat, "Chat"), (.external, "External")], selection: $store.sourceFilter
             )
             Spacer(minLength: 8)
-            TextField("Search model or workspace", text: $store.searchText).settingsField(width: 200, icon: "magnifyingglass")
+            TextField("Search model or workspace", text: $store.searchText).settingsField(width: 300, icon: .search)
         }
     }
 
@@ -94,12 +94,12 @@ struct ConsumptionSection: View {
                 if usageIsEmpty(snapshot) {
                     if store.hasActiveFilters {
                         EmptyStateView(
-                            icon: "chart.bar", title: "Nothing matches these filters", line: "Clear them to see all of the last \(store.days) days.",
-                            action: ("Clear filters", { store.clearFilters(); reload() }), actionIcon: "xmark"
+                            icon: .chartBar, title: "Nothing matches these filters", line: "Clear them to see all of the last \(store.days) days.",
+                            action: ("Clear filters", { store.clearFilters(); reload() }), actionIcon: .close
                         )
                         .frame(minHeight: 220)
                     } else {
-                        EmptyStateView(icon: "chart.bar", title: "No usage in the last \(store.days) days", line: "Epics, chats and terminal sessions show here once they run.")
+                        EmptyStateView(icon: .chartBar, title: "No usage in the last \(store.days) days", line: "Epics, chats and terminal sessions show here once they run.")
                             .frame(minHeight: 220)
                     }
                 } else if bars.contains(where: { $0.total > 0 }) {
@@ -107,9 +107,9 @@ struct ConsumptionSection: View {
                 } else {
                     // every bar is zero (all the models are unpriced): a chart of zeros draws nothing and looks broken
                     EmptyStateView(
-                        icon: "chart.bar", title: "No cost to chart",
+                        icon: .chartBar, title: "No cost to chart",
                         line: "The models used have no price yet, so no cost is counted. Map them below, or look at the tokens.",
-                        action: ("Show tokens", { store.metric = .tokens }), actionIcon: "number"
+                        action: ("Show tokens", { store.metric = .tokens }), actionIcon: .hash
                     )
                     .frame(minHeight: 220)
                 }
@@ -152,11 +152,11 @@ struct ConsumptionSection: View {
         HStack(spacing: 6) {
             if let cost = row.cost { Text(cost).font(.scaled(12, weight: .medium)).monospacedDigit() }
             if row.unpriced {
-                Button { mapping = row } label: { Badge(text: "Unpriced · Map", icon: "exclamationmark.triangle.fill", tint: .orange) }
+                Button { mapping = row } label: { Badge(text: "Unpriced · Map", icon: .warningFilled, tint: .orange) }
                     .buttonStyle(.plain).accessibilityLabel("Unpriced. Map \(row.model) to a price")
                     .help("This model is not in the price table: its cost is missing, not zero. Map it to a price.")
             } else if row.overridden {
-                Button { mapping = row } label: { Badge(text: "Custom", icon: "pencil", tint: .secondary) }
+                Button { mapping = row } label: { Badge(text: "Custom", icon: .pencil, tint: .secondary) }
                     .buttonStyle(.plain).accessibilityLabel("Custom price. Edit the price of \(row.model)")
                     .help("You set this model's price. Edit or clear it.")
             }
@@ -172,7 +172,7 @@ struct ConsumptionSection: View {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 { SettingsDivider() }
                     HStack(spacing: 12) {
-                        Image(systemName: sourceSymbol(row.source)).font(.scaled(13)).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
+                        Glyph(sourceSymbol(row.source), size: 13).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(row.name).font(.scaled(12, weight: .medium)).lineLimit(1).truncationMode(.middle).help(row.path)
                             Text(row.source).font(.scaled(11)).foregroundStyle(.secondary)
@@ -192,11 +192,11 @@ struct ConsumptionSection: View {
     }
 
     /// The sidebar's own symbols: Carrier's epics, the chat's bubbles, a terminal for what ran outside both.
-    private func sourceSymbol(_ source: String) -> String {
+    private func sourceSymbol(_ source: String) -> AppIcon {
         switch source {
-        case "Epic": "paperplane"
-        case "Chat": "bubble.left.and.bubble.right"
-        default: "terminal"
+        case "Epic": .send
+        case "Chat": .messages
+        default: .terminal
         }
     }
 
@@ -213,7 +213,7 @@ private struct UsageFooter: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "sum").font(.scaled(13, weight: .semibold)).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
+            Glyph(.sum, size: 13).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
             Text(title).font(.scaled(12, weight: .semibold)).lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 8)
             Text(detail).font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
@@ -236,7 +236,7 @@ struct UsageProviderMark: View {
         if AgentAvatar.mark(title.lowercased()) != nil {
             ProviderMark(name: title.lowercased(), size: size).foregroundStyle(.primary).accessibilityHidden(true)
         } else {
-            Image(systemName: "desktopcomputer").font(.scaled(size - 3)).foregroundStyle(.secondary).accessibilityHidden(true)
+            Glyph(.desktop, size: size - 3).foregroundStyle(.secondary).accessibilityHidden(true)
         }
     }
 }
@@ -459,7 +459,7 @@ private struct MapSheet: View {
         case .alias:
             VStack(alignment: .leading, spacing: 4) {
                 Text("Uses the rates of").font(.scaled(12)).foregroundStyle(.secondary)
-                ChoicePopUp(label: "Catalog model", options: [("", "Choose a model")] + catalog.map { ($0, $0) }, selection: $draft.alias, width: 280)
+                ChoicePopUp(label: "Catalog model", options: [("", "Choose a model")] + catalog.map { ($0, $0) }, selection: $draft.alias)
                 problem(errors[.alias])
             }
         case .custom:

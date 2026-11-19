@@ -32,8 +32,12 @@ struct UpdatePill: View {
                 .buttonStyle(.plain)
                 .glassEffect(.regular, in: .capsule)
                 .overlay {
-                    GlowEdge(color: .thought, waiting: false, moves: reduceMotion == false, cornerRadius: ToolbarPillButton.height / 2)
-                        .opacity(downloading ? 1 : 0).allowsHitTesting(false)
+                    // mounted only while it shows: at opacity 0 its timeline still ran at the display's rate, for as long as an update waited
+                    if downloading {
+                        GlowEdge(color: .thought, waiting: false, moves: reduceMotion == false, cornerRadius: ToolbarPillButton.height / 2)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
+                    }
                 }
                 .help(help)
                 .accessibilityLabel(help)
@@ -57,17 +61,16 @@ struct UpdatePill: View {
     }
 
     private var icon: some View {
-        let (name, tint): (String, Color) = switch phase {
-        case .none, .available: ("arrow.down.to.line", .themeAccent)
-        case .downloading: ("arrow.down.to.line", .primary)
-        case .ready: justDownloaded ? ("checkmark", .primary) : ("arrow.clockwise", .themeAccent)
-        case .installing: ("arrow.clockwise", .themeAccent)
-        case .failed: ("exclamationmark.triangle", .orange)
+        let (name, tint): (AppIcon, Color) = switch phase {
+        case .none, .available: (.downloadTray, .themeAccent)
+        case .downloading: (.downloadTray, .primary)
+        case .ready: justDownloaded ? (.check, .primary) : (.refresh, .themeAccent)
+        case .installing: (.refresh, .themeAccent)
+        case .failed: (.warning, .orange)
         }
-        return Image(systemName: name).font(.scaled(11, weight: .medium)).foregroundStyle(tint)
-            .contentTransition(.symbolEffect(.replace))
-            .symbolEffect(.bounce.down, options: .repeating, isActive: downloading && reduceMotion == false)
-            .symbolEffect(.rotate, options: .repeating, isActive: phase == .installing && reduceMotion == false)
+        return Glyph(name, size: 11).foregroundStyle(tint)
+            .glyphBouncing(downloading && reduceMotion == false)
+            .glyphSpinning(phase == .installing && reduceMotion == false)
     }
 
     /// Each kind of words rolls in from below; the percent only turns its digits.

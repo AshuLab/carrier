@@ -39,7 +39,7 @@ struct MessageBox<Selects: View>: View {
     /// The attachment being looked at in the preview.
     @State private var previewing: AttachedFile?
     /// The long texts pasted into the box, which go with the next message in fenced blocks under what is typed.
-    @State private var pastes: [Pasted] = []
+    @State private var pastes: [PastedEntry] = []
     /// Whether files are being dragged over the box.
     @State private var dropping = false
     /// Where the text a dictation is still hearing is; it is drawn in a colour with a touch of the accent and with a dotted underline.
@@ -56,11 +56,6 @@ struct MessageBox<Selects: View>: View {
     /// The message `fire` wrote into the box to send it, so that the box does not take its pasted blocks for a message that came back and turn
     /// them into cards again before the send has read it (the card stayed and nothing was sent).
     @State private var fired: String?
-
-    private struct Pasted: Identifiable, Equatable {
-        let id = UUID()
-        var text: String
-    }
 
     /// Whether there is something to send: a text, or a pasted text when the session would take one.
     private var ready: Bool { canSend || (pastes.contains { $0.text.allSatisfy(\.isWhitespace) == false } && canSendWithText == true) }
@@ -90,7 +85,7 @@ struct MessageBox<Selects: View>: View {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(pastes) { pasted in
                             PastedTextCard(
-                                text: pasted.text,
+                                text: pasted.text, summary: pasted.summary,
                                 edit: { edited in if let at = pastes.firstIndex(where: { $0.id == pasted.id }) { pastes[at].text = edited } },
                                 remove: { withAnimation(.smooth(duration: 0.2)) { pastes.removeAll { $0.id == pasted.id } } }
                             )
@@ -124,7 +119,7 @@ struct MessageBox<Selects: View>: View {
                     guard now.contains("```pasted") else { return }
                     let split = splitPastes(now)
                     guard split.pastes.isEmpty == false else { return }
-                    withAnimation(.smooth(duration: 0.2)) { pastes += split.pastes.map { Pasted(text: $0) } }
+                    withAnimation(.smooth(duration: 0.2)) { pastes += split.pastes.map { PastedEntry(text: $0) } }
                     text = split.text
                 }
                 HStack(spacing: 8) {
@@ -216,7 +211,7 @@ struct MessageBox<Selects: View>: View {
 
     /// A long pasted text waits beside the box as a card instead of filling it.
     private func keep(_ pasted: String) -> Bool {
-        withAnimation(.smooth(duration: 0.2)) { pastes.append(Pasted(text: pasted)) }
+        withAnimation(.smooth(duration: 0.2)) { pastes.append(PastedEntry(text: pasted)) }
         focus.wrappedValue = true
         return true
     }
@@ -297,7 +292,7 @@ struct MessageBox<Selects: View>: View {
     private func sectionHeader(_ kind: ChatCommand.Kind, count: Int) -> some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                Image(systemName: kind.symbol).font(.scaled(11, weight: .semibold)).foregroundStyle(kind.color)
+                Glyph(kind.symbol, size: 11).foregroundStyle(kind.color)
                 Text(kind.plural).font(.scaled(12, weight: .semibold))
                 Text("\(count)").font(.scaled(11, weight: .medium)).foregroundStyle(.secondary)
             }
@@ -313,8 +308,7 @@ struct MessageBox<Selects: View>: View {
     private func row(_ command: ChatCommand, marked: Bool) -> some View {
         HoverRow(action: { take(command) }, fill: marked ? Color.primary.opacity(0.1) : nil) { _ in
             HStack(spacing: 10) {
-                Image(systemName: command.kind.symbol)
-                    .font(.scaled(13, weight: .semibold)).foregroundStyle(command.kind.color)
+                Glyph(command.kind.symbol, size: 13).foregroundStyle(command.kind.color)
                     .frame(width: 32, height: 32)
                     .background(RoundedRectangle(cornerRadius: 9).fill(command.kind.color.opacity(marked ? 0.24 : 0.14)))
                     .accessibilityHidden(true)
@@ -370,14 +364,11 @@ struct MessageBox<Selects: View>: View {
     }
 
     /// A round glass button, tinted like the New session pill when there is something to send and plain when there is not; it gives under the
-    /// finger and springs back. The arrow becomes the Stop square while the agent answers, bounces up on a send and pulses while it works.
+    /// finger and springs back. The arrow becomes the Stop square while the agent answers and bounces up on a send.
     @ViewBuilder private var button: some View {
         let active = (ready && sendAllowed) || busy
-        let label = Image(systemName: busy ? "stop.fill" : "arrow.up")
-            .font(.scaled(busy ? 12 : 14, weight: .bold)).foregroundStyle(active ? .white : .secondary)
-            .contentTransition(.symbolEffect(.replace))
-            .symbolEffect(.bounce.up, value: sent)
-            .symbolEffect(.pulse, isActive: busy)
+        let label = Glyph(busy ? .stopFilled : .arrowUp, size: busy ? 12 : 14, bold: true).foregroundStyle(active ? .white : .secondary)
+            .glyphKick(sent)
             .frame(width: 32, height: 32)
             .contentShape(Circle())
         Button(action: busy ? stop : fire) { label }

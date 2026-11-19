@@ -176,19 +176,6 @@ public struct SessionDeletePreview: Decodable, Equatable {
     }
 }
 
-/// The reply of `cloneRepo`: where the repository is, and whether it was already there (and so fetched, not cloned).
-public struct ClonedRepo: Decodable, Equatable {
-    public let folder: String
-    public let repo: String
-    public let fetched: Bool
-
-    public init(folder: String, repo: String, fetched: Bool) {
-        self.folder = folder
-        self.repo = repo
-        self.fetched = fetched
-    }
-}
-
 /// The reply of `githubRepos`: one page of the repositories the person's `gh` login can read, whether the host has another, and (page 1
 /// only) the login.
 public struct GithubReposPage: Decodable, Equatable {
@@ -246,13 +233,6 @@ public protocol ChatHost {
     func checkName(_ folder: String, _ name: String) async throws -> NameCheck
     /// The optional requests this host answers, from its hello.
     func capabilities() async throws -> Set<ControlClient.Capability>
-    /// Clones `owner/repo` into the host's projects folder, or fetches it when it is already there. It can take minutes; cancelling the
-    /// task closes the request's connection, which makes the host stop and remove the half-made clone. Refused in words (not found
-    /// or not visible to the person's `gh` login, `gh` missing or signed out, no network, too slow).
-    func cloneRepo(_ repo: String) async throws -> ClonedRepo
-    /// Makes `<projects folder>/local/<name>` with `git init -b main` and answers its path. Refused in words for a name that is taken
-    /// or not a plain folder name.
-    func createProject(_ name: String) async throws -> String
     /// One page (1 to 100) of the repositories the person's `gh` login can read, thirty at a time, newest push first. Refused in words
     /// (`gh` missing or signed out, no network, too slow). Gh can take seconds.
     func githubRepos(page: Int) async throws -> GithubReposPage
@@ -436,24 +416,6 @@ public struct SocketChatHost: ChatHost {
             _ = try client.supportedHello()
             return client.capabilities
         }.value
-    }
-
-    /// A git command has ten minutes on the host, so the wait for the reply is longer than the 5 seconds of the other requests.
-    public func cloneRepo(_ repo: String) async throws -> ClonedRepo {
-        let fields = ",\"repo\":\(jsonString(repo))"
-        let path = socketPath()
-        let connection = Abortable()
-        return try await withTaskCancellationHandler {
-            try await Task.detached { try chatRequest(path, "cloneRepo", requires: .cloneRepo, fields: fields, timeout: 11 * 60, abortable: connection) }.value
-        } onCancel: { connection.abort() }
-    }
-
-    public func createProject(_ name: String) async throws -> String {
-        struct Created: Decodable { let folder: String }
-        let fields = ",\"name\":\(jsonString(name))"
-        let path = socketPath()
-        let reply: Created = try await Task.detached { try chatRequest(path, "createProject", requires: .createProject, fields: fields) }.value
-        return reply.folder
     }
 
     /// A page has the host's 30 seconds for `gh`, so the wait for the reply is longer than the 5 seconds of the other requests.
@@ -751,44 +713,15 @@ private struct DeletePreviewReply: Decodable { let sessions: [SessionDeletePrevi
 
 private struct ChatSessionsReply: Decodable { let sessions: [ChatSession] }
 
-/// The connection of a request that can be cancelled from another thread, for as long as the request lasts.
-private final class Abortable: @unchecked Sendable {
-    private let lock = NSLock()
-    private var client: ControlClient?
-    private var aborted = false
-
-    func attach(_ client: ControlClient) {
-        lock.lock()
-        defer { lock.unlock() }
-        self.client = client
-        if aborted { client.abort() }
-    }
-
-    func detach() {
-        lock.lock()
-        defer { lock.unlock() }
-        client = nil
-    }
-
-    func abort() {
-        lock.lock()
-        defer { lock.unlock() }
-        aborted = true
-        client?.abort()
-    }
-}
-
 /// Connects, reads the hello, makes one request the host said it can answer and decodes its reply.
 fileprivate func chatRequest<Reply: Decodable>(
     _ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String = "", also: (capability: ControlClient.Capability, fields: String)? = nil,
-    timeout: TimeInterval = 5, abortable: Abortable? = nil
+    timeout: TimeInterval = 5
 ) throws -> Reply {
+    let signpost = Signposts.poll.beginInterval("chat request", id: Signposts.poll.makeSignpostID(), "\(command, privacy: .public)")
+    defer { Signposts.poll.endInterval("chat request", signpost) }
     guard let client = ControlClient.connect(path: path, timeout: timeout) else { throw ControlError.closed }
-    abortable?.attach(client)
-    defer {
-        abortable?.detach()
-        client.close()
-    }
+    defer { client.close() }
     _ = try client.supportedHello()
     // fields only a host that lists their capability understands: an older one is not sent them
     let sent = fields + (also.flatMap { client.capabilities.contains($0.capability) ? $0.fields : nil } ?? "")

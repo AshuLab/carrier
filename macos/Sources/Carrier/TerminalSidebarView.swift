@@ -42,7 +42,7 @@ struct TerminalRows: View {
     @ViewBuilder private var header: some View {
         SidebarSectionRow(
             title: "Terminal",
-            icon: "terminal",
+            icon: .terminal,
             selected: selected,
             keepActions: query != nil,
             action: select,
@@ -59,7 +59,7 @@ struct TerminalRows: View {
             },
             hoverActions: {
                 IconButton(
-                    icon: "magnifyingglass",
+                    icon: .search,
                     name: "Search terminals",
                     enabled: terminals.isEmpty == false,
                     why: "No terminals to search",
@@ -68,7 +68,7 @@ struct TerminalRows: View {
                 ) {
                     if query == nil { openSearch() } else { query = nil }
                 }
-                IconButton(icon: "plus", name: "New terminal", action: newTerminal)
+                IconButton(icon: .plus, name: "New terminal", action: newTerminal)
             }
         )
         .help("Terminal")
@@ -92,7 +92,8 @@ struct TerminalRows: View {
                 case .empty:
                     let empty = EmptyState.noTerminals
                     SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
-                        Button("New Terminal Session", action: newTerminal)
+                        // the pill of the title bar's New Terminal
+                        AccentGlassPillButton(title: "New Terminal", icon: .plus, action: newTerminal)
                             .help("New terminal session")
                     }
                 case .noMatch(let typed):
@@ -114,19 +115,19 @@ struct TerminalRows: View {
                         Button {
                             selection = .terminal(id: summary.id)
                         } label: {
-                            Label("Open", systemImage: "terminal").labelStyle(.titleAndIcon)
+                            Label("Open", systemIcon: .terminal).labelStyle(.titleAndIcon)
                         }
                         Button {
                             _ = store.openTab(for: .terminal(summary.id), workingDirectory: summary.workingDirectory)
                             selection = .terminal(id: summary.id)
                         } label: {
-                            Label("New Tab", systemImage: "plus.rectangle.on.rectangle").labelStyle(.titleAndIcon)
+                            Label("New Tab", systemIcon: .copyPlus).labelStyle(.titleAndIcon)
                         }
                         Divider()
                         Button(role: .destructive) {
                             closeTerminal(summary.id)
                         } label: {
-                            Label("Close", systemImage: "xmark").labelStyle(.titleAndIcon)
+                            Label("Close", systemIcon: .close).labelStyle(.titleAndIcon)
                         }
                     }
                 }
@@ -151,8 +152,7 @@ private struct TerminalSidebarRowView: View {
                 RoundedRectangle(cornerRadius: 9)
                     .fill(Color.secondary.opacity(0.14))
                     .frame(width: 32, height: 32)
-                Image(systemName: "terminal")
-                    .font(.scaled(14, weight: .medium))
+                Glyph(.terminal, size: 14)
                     .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
@@ -170,7 +170,7 @@ private struct TerminalSidebarRowView: View {
             }
             Spacer(minLength: 4)
             if hovered || rowActive {
-                IconButton(icon: "xmark", name: "Close terminal", action: close)
+                IconButton(icon: .close, name: "Close terminal", action: close)
                     .opacity(hovered ? 1 : 0)
             }
         }

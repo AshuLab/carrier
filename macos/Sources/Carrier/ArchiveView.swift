@@ -65,7 +65,7 @@ struct ArchiveView: View {
         ToolbarItem(placement: .primaryAction) {
             HStack(spacing: 0) {
                 searchHalf
-                ToolbarPillButton(title: "Filter", icon: "line.3.horizontal.decrease") { sortOpen.toggle() }
+                ToolbarPillButton(title: "Filter", icon: .filter) { sortOpen.toggle() }
                     .popover(isPresented: $sortOpen, arrowEdge: .bottom) { sortPopover }
             }
             .glassEffect(.regular, in: .capsule)
@@ -73,7 +73,7 @@ struct ArchiveView: View {
         .sharedBackgroundVisibility(.hidden)
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
-            ToolbarPillButton(title: "Clear sessions…", icon: "trash", action: clear)
+            ToolbarPillButton(title: "Clear sessions…", icon: .trash, action: clear)
                 .glassEffect(.regular, in: .capsule)
                 .padding(.trailing, 10)
                 .disabled(canClear == false)
@@ -96,7 +96,7 @@ struct ArchiveView: View {
                     HStack {
                         Text(option.title)
                         Spacer(minLength: 0)
-                        if sort == option { Image(systemName: "checkmark") }
+                        if sort == option { Glyph(.check) }
                     }
                     .contentShape(Rectangle())
                 }
@@ -153,7 +153,7 @@ private struct ArchiveRow: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 6) {
-                Text(timeText(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                Text(timeText(row.updatedAt, now: Date(), format: timeChanges.format)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     .accessibilityLabel(spokenAge(row.updatedAt, now: Date()))
                 ProviderMarks(names: row.providers)
             }
@@ -162,9 +162,9 @@ private struct ArchiveRow: View {
         // faded out, not removed or made untouchable, so they stay in the keyboard's and VoiceOver's reach
         .overlay(alignment: .trailing) {
             HStack(spacing: 4) {
-                RowIconButton(symbol: "doc.text", title: "Open", action: open)
-                RowIconButton(symbol: "arrow.uturn.backward", title: "Resume", action: resume)
-                RowIconButton(symbol: "trash", title: "Delete", action: delete)
+                RowIconButton(symbol: .fileText, title: "Open", action: open)
+                RowIconButton(symbol: .undo, title: "Resume", action: resume)
+                RowIconButton(symbol: .trash, title: "Delete", action: delete)
             }
             .focused($actionsFocused)
             .opacity(active ? 1 : 0)
@@ -185,7 +185,7 @@ private struct ArchiveRow: View {
     /// Where it worked, how many turns it took and the model of the last.
     private var meta: some View {
         HStack(spacing: 6) {
-            Label(row.branch ?? "Base folder", systemImage: row.branch == nil ? "folder" : "arrow.triangle.branch")
+            Label(row.branch ?? "Base folder", icon: row.branch == nil ? .folder : .gitBranch)
                 .labelStyle(.titleAndIcon).lineLimit(1).truncationMode(.middle)
             if row.turns > 0 { Text("·"); Text(row.turns == 1 ? "1 turn" : "\(row.turns) turns") }
             if let model = TurnSummary(model: row.model).shortModel { Text("·"); Text(model) }

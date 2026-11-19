@@ -511,10 +511,10 @@ extension SettingsGroup where Accessory == EmptyView {
     }
 }
 
-/// A line a page puts at the right of its own header, only when there is something to say (the Behavior page's "Saved", or why it cannot save).
+/// A line a page puts at the right of its own header, only when there is something to say (why the Behavior page cannot save).
 struct SettingsHeaderNote: Equatable {
     /// `plain`: a fact that is no one's fault, said quietly
-    enum Tone { case saved, problem, plain }
+    enum Tone { case problem, plain }
     let text: String
     let tone: Tone
     /// A problem is said to VoiceOver when it appears; one whose page says it itself (once, when the answer comes) leaves it to the page.
@@ -539,7 +539,7 @@ struct SettingsHeaderNoteKey: PreferenceKey {
     static func reduce(value: inout SettingsHeaderNote?, nextValue: () -> SettingsHeaderNote?) { value = nextValue() ?? value }
 }
 
-/// A page's note as the toolbar shows it, at its right: the Behavior page's "Saved", or why it cannot save, with a way to ask Carrier again.
+/// A page's note as the toolbar shows it, at its right: why the Behavior page cannot save, with a way to ask Carrier again.
 struct SettingsNoteView: View {
     let note: SettingsHeaderNote
 
@@ -547,7 +547,6 @@ struct SettingsNoteView: View {
         HStack(spacing: 10) {
             Group {
                 switch note.tone {
-                case .saved: Label(note.text, icon: .checkCircleFilled).foregroundStyle(.green)
                 case .problem: Label(note.text, icon: .warningFilled).foregroundStyle(.orange)
                 case .plain: Label(note.text, icon: .info).foregroundStyle(.secondary)
                 }

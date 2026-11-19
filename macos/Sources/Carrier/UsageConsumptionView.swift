@@ -51,10 +51,10 @@ struct ConsumptionSection: View {
             ChoicePopUp(
                 label: "Provider",
                 options: [(.all, "All providers"), (.claude, "Claude"), (.codex, "Codex"), (.agy, "Antigravity"), (.local, "Local")],
-                selection: $store.providerFilter, width: 130
+                selection: $store.providerFilter
             )
             ChoicePopUp(
-                label: "Source", options: [(.all, "All sources"), (.epic, "Epic"), (.chat, "Chat"), (.external, "External")], selection: $store.sourceFilter, width: 120
+                label: "Source", options: [(.all, "All sources"), (.epic, "Epic"), (.chat, "Chat"), (.external, "External")], selection: $store.sourceFilter
             )
             Spacer(minLength: 8)
             TextField("Search model or workspace", text: $store.searchText).settingsField(width: 200, icon: "magnifyingglass")
@@ -459,7 +459,7 @@ private struct MapSheet: View {
         case .alias:
             VStack(alignment: .leading, spacing: 4) {
                 Text("Uses the rates of").font(.scaled(12)).foregroundStyle(.secondary)
-                ChoicePopUp(label: "Catalog model", options: [("", "Choose a model")] + catalog.map { ($0, $0) }, selection: $draft.alias, width: 280)
+                ChoicePopUp(label: "Catalog model", options: [("", "Choose a model")] + catalog.map { ($0, $0) }, selection: $draft.alias)
                 problem(errors[.alias])
             }
         case .custom:

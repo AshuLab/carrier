@@ -293,45 +293,31 @@ struct SettingsStackedRow<Control: View>: View {
     }
 }
 
-/// A choice among a few words, the one select of the app's rows: a rounded rectangle on a quiet fill with the up and down chevrons at its
-/// right, which opens the menu of the choices (`SelectButtonStyle`, the same face the model picker's button has). It fills the width it is given;
-/// rows give it `settingsSelectWidth`. A SwiftUI menu in this style and not AppKit's pop-up: inside a form that one is drawn as a bare circle, and
-/// the two kinds of select never looked alike.
+/// A choice among a few words, the one select of the app's rows: the system's own pop-up menu (a `Picker` in the menu style), which in a form is drawn as
+/// the Mac draws it, the chosen word at the right with the up and down chevrons in a small circle, and opens the system's menu with its own check. It takes
+/// the room of its word: rows no longer give it a width. (AppKit's `NSPopUpButton` in its place drew badly in a form; the SwiftUI picker does not.)
 struct SelectMenu: View {
     let items: [String]
     @Binding var selection: Int
 
-    private var shown: String { items.indices.contains(selection) ? items[selection] : "" }
-
     var body: some View {
-        Menu {
-            ForEach(items.indices, id: \.self) { index in
-                Button { selection = index } label: {
-                    if index == selection { Label(items[index], systemImage: "checkmark").labelStyle(.titleAndIcon) } else { Text(items[index]) }
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text(shown).lineLimit(1)
-                Spacer(minLength: 6)
-                SelectChevron()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .menuStyle(.button).buttonStyle(SelectButtonStyle()).menuIndicator(.hidden)
-        .accessibilityValue(shown)
+        Picker(selection: $selection) {
+            ForEach(items.indices, id: \.self) { Text(items[$0]).tag($0) }
+        } label: { EmptyView() }
+        .pickerStyle(.menu).labelsHidden().fixedSize()
     }
 }
 
-/// The chevrons at the right edge of a select, as the Mac's pop-up has them.
+/// The chevrons of a select in their small circle, as the Mac's pop-up draws them in a form.
 struct SelectChevron: View {
     var body: some View {
-        Image(systemName: "chevron.up.chevron.down").font(.scaled(10, weight: .bold)).foregroundStyle(.primary.opacity(0.85)).accessibilityHidden(true)
+        Image(systemName: "chevron.up.chevron.down").font(.scaled(8, weight: .bold)).foregroundStyle(.primary.opacity(0.85))
+            .frame(width: 18, height: 18).background(Circle().fill(Color.primary.opacity(0.12))).accessibilityHidden(true)
     }
 }
 
-/// The face of a select: a small rounded rectangle on a quiet fill (not a capsule), a little lighter under the pointer, dimmed when it is off.
-/// The label brings its own width; this adds 12 pt at each side and 6 above and below.
+/// The face of a button that opens a choice (the model picker's): no box, its words and `SelectChevron` after them as a system pop-up in a form has them,
+/// a little dimmer under the pointer and when pressed.
 struct SelectButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
 
@@ -342,10 +328,9 @@ struct SelectButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.16 : 0.12)))
-                .opacity(enabled ? 1 : 0.5)
-                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .padding(.vertical, 4)
+                .opacity(enabled ? (configuration.isPressed ? 0.55 : hovered ? 0.8 : 1) : 0.5)
+                .contentShape(Rectangle())
                 .onHover { hovered = $0 }
                 .animation(.easeOut(duration: 0.12), value: hovered)
         }
@@ -607,7 +592,7 @@ extension View {
     }
 }
 
-/// How wide the select of a row is, the same on every page so the selects end and begin on one line down the card.
+/// How wide a field or a slider of a row is, the same on every page so they end and begin on one line down the card.
 let settingsSelectWidth: CGFloat = 210
 
 /// How wide a slider of a row is: the width of the selects, which is at least 200 pt, so the track is long enough to aim at.
@@ -619,7 +604,6 @@ struct ChoicePopUp<Value: Hashable>: View {
     let label: String
     let options: [(value: Value, title: String)]
     @Binding var selection: Value
-    var width: CGFloat = settingsSelectWidth
 
     var body: some View {
         SelectMenu(
@@ -629,7 +613,7 @@ struct ChoicePopUp<Value: Hashable>: View {
                 set: { selection = options[$0].value }
             )
         )
-        .accessibilityLabel(label).frame(width: width)
+        .accessibilityLabel(label)
     }
 }
 
@@ -833,8 +817,7 @@ struct AppearanceTabView: View {
                         selection: Binding(
                             get: { MonospaceStyle.installedFamilies.contains(family) ? family : MonospaceSettings.systemFamily },
                             set: { family = $0 }
-                        ),
-                        width: 200
+                        )
                     )
                 }
                 SettingsTabRow(title: "Size", detail: "In points, before the text size of the whole app") {

@@ -49,8 +49,7 @@ struct KeepAwakeTabView: View {
                 SettingsTabRow(title: "On battery", detail: "It goes on by itself when the Mac is plugged in or charged again", first: true) {
                     ChoicePopUp(
                         label: "On battery", options: BatteryRule.allCases.map { (value: $0.rawValue, title: $0.title) },
-                        selection: Binding(get: { BatteryRule(rawValue: battery)?.rawValue ?? BatteryRule.standard.rawValue }, set: { battery = $0 }),
-                        width: 210
+                        selection: Binding(get: { BatteryRule(rawValue: battery)?.rawValue ?? BatteryRule.standard.rawValue }, set: { battery = $0 })
                     )
                 }
                 SettingsTabRow(title: "Tell me when it stops by itself", detail: "A notification when the time runs out or the battery ends it. Not when you turn it off") {

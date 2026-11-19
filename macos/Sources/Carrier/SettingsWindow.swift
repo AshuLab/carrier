@@ -465,8 +465,7 @@ struct SettingsPages: View {
         return ChoicePopUp(
             label: title,
             options: EngineIdentity.options(identity),
-            selection: Binding(get: { identity?.current }, set: { if $0 != identity?.current { github.choose($0) } }),
-            width: 180
+            selection: Binding(get: { identity?.current }, set: { if $0 != identity?.current { github.choose($0) } })
         )
         .disabled(identity == nil)
         .onAppear { github.load() }

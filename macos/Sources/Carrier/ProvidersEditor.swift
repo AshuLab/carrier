@@ -90,7 +90,7 @@ struct AccountEditor: View {
                                 items: values.map { $0.isEmpty ? "Use default" : Int($0).map { $0.formatted() } ?? $0 },
                                 selection: Binding(get: { values.firstIndex(of: draft.autoCompact) ?? 0 }, set: { draft.autoCompact = values[$0] })
                             )
-                            .accessibilityLabel("Auto-compact after").frame(width: Self.controlWidth)
+                            .accessibilityLabel("Auto-compact after")
                         }
                         field("Launch arguments", "launchArgs", "One per line, added to the ones Carrier passes") {
                             TextEditor(text: $draft.launchArgs).font(.scaled(11.5, design: .monospaced))
@@ -106,7 +106,7 @@ struct AccountEditor: View {
                                     items: cases.map(\.title),
                                     selection: Binding(get: { cases.firstIndex(of: draft.idle) ?? 0 }, set: { draft.idle = cases[$0] })
                                 )
-                                .accessibilityLabel("Compact idle threads").frame(width: Self.controlWidth)
+                                .accessibilityLabel("Compact idle threads")
                             }
                         }
                     }

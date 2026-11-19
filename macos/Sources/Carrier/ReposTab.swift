@@ -687,7 +687,7 @@ private struct AddReposSheet: View {
                     items: ["All owners"] + owners,
                     selection: Binding(get: { owner.flatMap { owners.firstIndex(of: $0) }.map { $0 + 1 } ?? 0 }, set: { owner = $0 == 0 ? nil : owners[$0 - 1] })
                 )
-                .accessibilityLabel("Owner").frame(width: 130)
+                .accessibilityLabel("Owner")
             }
             FilterChip(title: "Hide watched", icon: hideWatched ? "eye.slash" : "eye", on: hideWatched) { hideWatched.toggle() }
         }

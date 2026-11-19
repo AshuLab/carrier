@@ -109,8 +109,7 @@ struct SessionsTabView: View {
                     selection: Binding(get: { age.wrappedValue == .never }, set: { never in
                         unparsable.remove(key)
                         age.wrappedValue = never ? .never : .days(fallback)
-                    }),
-                    width: 110
+                    })
                 )
             }
             .disabled(off != nil || unreadable)

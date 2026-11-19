@@ -91,8 +91,7 @@ struct BehaviorTabView: View {
                     selection: Binding(get: { draft.maxExecutionHours == nil }, set: { unlimited in
                         unparsable.remove(item.key)
                         draft.maxExecutionHours = unlimited ? nil : 4
-                    }),
-                    width: 120
+                    })
                 )
             }
         case .logLevel:

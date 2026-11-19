@@ -185,13 +185,11 @@ struct ModelPickerButton: View {
                     Text(effortText).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
-            // the chevrons at the right edge, as the Mac's pop-up has them, whatever the words take
-            Spacer(minLength: 6)
+            // the chevrons after the words, as the Mac's pop-up has them
             SelectChevron()
         }
-        // the width of the pop-ups of the other rows with the button's own 12 pt at each side (`SelectButtonStyle`), and long words are cut; in a form it
-        // takes the room it is given
-        .frame(width: fill ? nil : settingsSelectWidth - 24, alignment: .leading).frame(maxWidth: fill ? .infinity : nil, alignment: .leading)
+        // in a form the words end at the right edge of the row, where the other selects do; long ones are cut
+        .frame(maxWidth: fill ? .infinity : nil, alignment: .trailing)
     }
 
     // MARK: the panel

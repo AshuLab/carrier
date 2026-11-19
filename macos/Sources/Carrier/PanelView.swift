@@ -216,8 +216,8 @@ struct PanelView: View {
                             let data = model.epics.data[ref]
                             let over: Bool = if case .ended = epic.subject { true } else { false }
                             EpicView(
-                                subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files),
-                                sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, subagents: $shell.subagents, subagentHeader: $shell.subagentHeader, files: data?.files,
+                                subject: epic.subject, reply: data?.epic, filesChanged: data?.filesChanged.fileCount ?? 0,
+                                sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, subagents: $shell.subagents, subagentHeader: $shell.subagentHeader, filesModel: data?.filesChanged ?? .empty,
                                 plan: queuedPlan(epic.subject), resume: resumeCard(epic.subject).map { ($0, model.epics) },
                                 fileDiffs: epics.canOpenFiles ? FileDiffs(open: Binding(get: { epics.openFiles[ref] ?? [] }, set: { epics.openFiles[ref] = $0 }), shown: $epics.filesTabShown, fragments: data?.fragments ?? [:]) : nil,
                                 onContinueInTerminal: { section, resume in

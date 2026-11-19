@@ -17,6 +17,8 @@ struct ReposTabView: View {
     @State private var unreadable = false
     /// the file as `load` read it, for the roles on a repo's page
     @State private var configData: Data?
+    /// `providers.json`, for the account menus of the roles.
+    @State private var providersData: Data?
     @State private var failure: String?
     /// what the engine answered to the last save, from any tab: a refusal means a repo of the list is not in use, whatever the engine can do
     private let reloaded = ReloadStatus.shared
@@ -81,7 +83,10 @@ struct ReposTabView: View {
         .task { runDoctor() }
         .onChange(of: start.configExists) { load() }
         // a file that is there but unreadable may be fixed in another app: look again when Carrier is back in front (only then, so no edit is lost)
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if unreadable { load() } }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            providersData = readProviders()
+            if unreadable { load() }
+        }
         .onChange(of: draft) {
             autosave()
         }
@@ -156,7 +161,8 @@ struct ReposTabView: View {
         }
     }
 
-    private var providersData: Data? {
+    /// The accounts file, read when the page opens and when Carrier comes back to the front, not at each body.
+    private func readProviders() -> Data? {
         try? Data(contentsOf: URL(fileURLWithPath: CarrierPlaces().providers))
     }
 
@@ -167,7 +173,7 @@ struct ReposTabView: View {
 
     /// Writes the role, then reads the file back and asks the doctor, whose reason is shown when the engine refuses what was written.
     private func saveRole(_ fields: RoleFields?, role: AgentRole, repo: String) -> RoleSave {
-        let result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: declaredAccounts(providersJSON: providersData))
+        let result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: declaredAccounts(providersJSON: readProviders()))
         if result == .saved {
             failure = nil
             load()
@@ -177,6 +183,7 @@ struct ReposTabView: View {
     }
 
     private func load() {
+        providersData = readProviders()
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)), let names = configRepoNames(json: data) else {
             unreadable = true
             configData = nil

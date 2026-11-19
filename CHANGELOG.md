@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Settings › Dictation › History shows the first 100 dictations and a Show 100 more button, so it opens at once with thousands of them.
 - Carrier looks for an update every hour, not once a day. An installed Carrier keeps the daily check until it updates to this version.
 
 ### Fixed

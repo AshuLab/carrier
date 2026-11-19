@@ -12,15 +12,12 @@ struct FileDiffs {
 /// The Files changed tab: the total as pills, then one card per agent session. Working sessions open, merged ones folded.
 /// With `fileDiffs`, a file row opens to its fragment.
 struct FilesChangedView: View {
-    let files: FilesReply?
+    let model: FilesChangedModel
     var fileDiffs: FileDiffs?
     /// Sections the person flipped from their default.
     @State private var flipped: Set<String> = []
 
     var body: some View {
-        let signpost = Signposts.render.beginInterval("files model")
-        let model = filesChangedModel(files)
-        let _ = Signposts.render.endInterval("files model", signpost)
         if model.isEmpty {
             EmptyStateView(state: .noFilesChanged).frame(minHeight: 260)
         } else {
@@ -74,7 +71,7 @@ private struct FileSectionView: View {
     let toggle: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        LazyVStack(alignment: .leading, spacing: 0) {
             Button(action: toggle) {
                 HStack(spacing: 11) {
                     VStack(alignment: .leading, spacing: 4) {

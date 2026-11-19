@@ -342,7 +342,8 @@ struct FeedRowView: View {
         case .user(_, let text):
             // the files that came with it are chips over the bubble, and the bubble is what the person wrote
             let attached = splitAttachments(text)
-            let sent = (paths: attached.paths, text: splitPastes(attached.text).text, pastes: splitPastes(attached.text).pastes)
+            let split = splitPastes(attached.text)
+            let sent = (paths: attached.paths, text: split.text, pastes: split.pastes)
             VStack(alignment: .trailing, spacing: 8) {
                 if sent.paths.isEmpty == false { SentAttachments(paths: sent.paths).padding(.bottom, 3) }
                 if sent.pastes.isEmpty == false {

@@ -115,7 +115,7 @@ They are declared in `CarrierCore/Signposts.swift`, in four categories:
 - `launch`: what `applicationDidFinishLaunching` does, the first commit of the run loop, the dictation history, the model store, the terminal store and the window.
 - `poll`: each request on a socket (`request` for either socket, with its command and the bytes read; `chat request` for a chat host call), and each poll of the epic, the sessions list and a conversation.
 - `feed`: each rebuild of the chat feed and each transcript merge, with the events they took.
-- `render`: the views that recompute in `body` (`PanelView body`, `ConversationModel init`, `files model`, `history body`, `markdown`), the window's state publishes and the writes to user defaults.
+- `render`: the views that recompute in `body` (`PanelView body`, `ConversationModel init`, `history body`, `markdown`), the window's state publishes and the writes to user defaults.
 
 A signpost costs next to nothing while nobody records.
 Messages carry command names and counts, never what a request or a session holds.

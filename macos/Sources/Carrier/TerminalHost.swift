@@ -591,20 +591,22 @@ final class CarrierTerminalStore {
 
     func syncAppearance(preferences customPreferences: AppPreferences? = nil, scheme: ThemeScheme? = nil) {
         let prefs = customPreferences ?? preferences
-        let appearance = Self.makeAppearanceState(preferences: prefs, scheme: scheme)
-        guard appearance.profile != lastAppliedAppearance else { return }
-        lastAppliedAppearance = appearance.profile
-        appearanceProfile = appearance.profile
+        let look = Self.appearanceLook(preferences: prefs, scheme: scheme)
+        // most changes to the defaults are not the terminal's: they stop here, before the theme and the configuration are built
+        guard look.profile != lastAppliedAppearance else { return }
+        lastAppliedAppearance = look.profile
+        appearanceProfile = look.profile
 
-        controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(appearance.scheme))
-        _ = controller.setTheme(appearance.theme)
-        _ = controller.setTerminalConfiguration(appearance.configuration)
+        controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(look.scheme))
+        _ = controller.setTheme(TerminalAppearanceMapper.ghosttyTheme(for: look.profile.theme, preferences: prefs, translucent: look.translucent))
+        _ = controller.setTerminalConfiguration(TerminalAppearanceMapper.ghosttyBaseConfiguration(for: look.profile))
     }
 
-    private static func makeAppearanceState(
+    /// The scheme, the profile and whether the terminal is translucent: what decides whether anything changed.
+    private static func appearanceLook(
         preferences: AppPreferences,
         scheme: ThemeScheme?
-    ) -> (scheme: ThemeScheme, profile: TerminalAppearanceProfile, theme: TerminalTheme, configuration: TerminalConfiguration) {
+    ) -> (scheme: ThemeScheme, profile: TerminalAppearanceProfile, translucent: Bool) {
         let resolvedScheme = scheme ?? TerminalAppearanceMapper.resolveScheme(preferences.colorScheme)
         let translucent = TerminalAppearanceMapper.resolveTranslucent(preferences)
         let profile = TerminalAppearanceMapper.makeProfile(
@@ -613,13 +615,17 @@ final class CarrierTerminalStore {
             preferences: preferences,
             translucent: translucent
         )
-        let theme = TerminalAppearanceMapper.ghosttyTheme(
-            for: profile.theme,
-            preferences: preferences,
-            translucent: translucent
-        )
-        let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: profile)
-        return (resolvedScheme, profile, theme, config)
+        return (resolvedScheme, profile, translucent)
+    }
+
+    private static func makeAppearanceState(
+        preferences: AppPreferences,
+        scheme: ThemeScheme?
+    ) -> (scheme: ThemeScheme, profile: TerminalAppearanceProfile, theme: TerminalTheme, configuration: TerminalConfiguration) {
+        let look = appearanceLook(preferences: preferences, scheme: scheme)
+        let theme = TerminalAppearanceMapper.ghosttyTheme(for: look.profile.theme, preferences: preferences, translucent: look.translucent)
+        let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: look.profile)
+        return (look.scheme, look.profile, theme, config)
     }
 
     // MARK: - Process Confirmation & Lifecycle Teardown

@@ -114,19 +114,19 @@ struct TerminalRows: View {
                         Button {
                             selection = .terminal(id: summary.id)
                         } label: {
-                            Label("Open", menuIcon: .terminal).labelStyle(.titleAndIcon)
+                            Label("Open", systemIcon: .terminal).labelStyle(.titleAndIcon)
                         }
                         Button {
                             _ = store.openTab(for: .terminal(summary.id), workingDirectory: summary.workingDirectory)
                             selection = .terminal(id: summary.id)
                         } label: {
-                            Label("New Tab", menuIcon: .copyPlus).labelStyle(.titleAndIcon)
+                            Label("New Tab", systemIcon: .copyPlus).labelStyle(.titleAndIcon)
                         }
                         Divider()
                         Button(role: .destructive) {
                             closeTerminal(summary.id)
                         } label: {
-                            Label("Close", menuIcon: .close).labelStyle(.titleAndIcon)
+                            Label("Close", systemIcon: .close).labelStyle(.titleAndIcon)
                         }
                     }
                 }
@@ -151,8 +151,7 @@ private struct TerminalSidebarRowView: View {
                 RoundedRectangle(cornerRadius: 9)
                     .fill(Color.secondary.opacity(0.14))
                     .frame(width: 32, height: 32)
-                Glyph(.terminal)
-                    .font(.scaled(14, weight: .medium))
+                Glyph(.terminal, size: 14)
                     .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {

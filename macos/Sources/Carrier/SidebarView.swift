@@ -145,7 +145,7 @@ struct SidebarView: View {
                                 Text(group.title)
                                 Spacer(minLength: 0)
                                 Text("\(group.count)").monospacedDigit()
-                                Glyph(.chevronRight).imageScale(.small).rotationEffect(.degrees(expanded ? 90 : 0))
+                                Glyph(.chevronRight, size: 11).rotationEffect(.degrees(expanded ? 90 : 0))
                                     .opacity(queried ? 0 : 1)
                             }
                             .font(SidebarMetrics.group).foregroundStyle(.secondary)

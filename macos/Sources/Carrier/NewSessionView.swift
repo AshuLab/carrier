@@ -155,8 +155,7 @@ struct NewSessionView: View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(model.sendSteps, id: \.parts) { step in
                 HStack(spacing: 12) {
-                    Glyph(step.icon)
-                        .font(.scaled(14, weight: .medium)).foregroundStyle(.white)
+                    Glyph(step.icon, size: 14, bold: true).foregroundStyle(.white)
                         .frame(width: 30, height: 30)
                         // the accent a little deepened, with a faint rim of light: the badge of the closed-session notice
                         .background {

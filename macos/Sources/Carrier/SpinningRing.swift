@@ -80,13 +80,29 @@ final class RingHostView: NSView {
     init(symbol: AppIcon, diameter: CGFloat) {
         let glyph = CALayer()
         glyph.bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
-        // white because a layer gets no tint from the system, and at twice the size for retina
-        let white = MainActor.assumeIsolated { IconImages.image(symbol, bold: true).tinted(.white) }
-        glyph.contents = white.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        glyph.contents = Self.whiteImage(symbol, diameter: diameter)
         glyph.contentsGravity = .resizeAspect
         (ring, root, spinner, tint) = (nil, glyph, glyph, .white)
         super.init(frame: NSRect(x: 0, y: 0, width: diameter, height: diameter))
         setUp(diameter)
+    }
+
+    /// White because a layer gets no tint from the system, and at twice the size for retina.
+    private static func whiteImage(_ icon: AppIcon, diameter: CGFloat) -> CGImage? {
+        MainActor.assumeIsolated {
+            IconImages.image(icon, bold: true, pointSize: 2 * diameter).tinted(.white, size: NSSize(width: 2 * diameter, height: 2 * diameter))
+                .cgImage(forProposedRect: nil, context: nil, hints: nil)
+        }
+    }
+
+    private var glyphShown: String?
+
+    /// Draws the glyph again when the set or the weight changed since it was last drawn.
+    func setGlyph(_ icon: AppIcon, diameter: CGFloat, set: IconSet, weight: Double) {
+        let key = "\(icon.rawValue)/\(set.rawValue)/\(weight)"
+        guard ring == nil, glyphShown != key else { return }
+        glyphShown = key
+        root.contents = Self.whiteImage(icon, diameter: diameter)
     }
 
     private func setUp(_ diameter: CGFloat) {
@@ -178,7 +194,12 @@ struct SpinningGlyph: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ view: RingHostView, context: Context) { view.reduceMotion = reduceMotion }
+    func updateNSView(_ view: RingHostView, context: Context) {
+        view.reduceMotion = reduceMotion
+        // read here, so the glyph is drawn again in the set and weight the person moves to
+        let style = IconAppearance.shared
+        view.setGlyph(symbol, diameter: diameter, set: style.set, weight: style.weight)
+    }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: RingHostView, context: Context) -> CGSize? {
         CGSize(width: diameter, height: diameter)

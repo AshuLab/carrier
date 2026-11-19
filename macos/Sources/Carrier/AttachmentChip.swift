@@ -55,7 +55,7 @@ struct AttachmentChip: View {
             if let thumbnail {
                 Image(nsImage: thumbnail).resizable().scaledToFill()
             } else {
-                Glyph(symbol, size: 15).foregroundStyle(.white)
+                Glyph(symbol, size: 15, bold: true).foregroundStyle(.white)
             }
         }
         .frame(width: 32, height: 32)

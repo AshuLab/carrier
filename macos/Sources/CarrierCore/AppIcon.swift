@@ -93,6 +93,7 @@ public enum AppIcon: String, CaseIterable, Sendable {
     case messageDots
     case messages
     case microphone
+    case microphoneFilled
     case microphoneOff
     case minus
     case octagonWarning
@@ -147,7 +148,4 @@ public enum AppIcon: String, CaseIterable, Sendable {
     case warningFilled
     case waveform
     case world
-
-    /// An icon whose look is a solid shape (a warning, a ready mark, play, stop): a set that has it filled draws it so, and one that has not draws it as it can.
-    public var isSolid: Bool { [.warningFilled, .checkCircleFilled, .playFilled, .stopFilled, .starFilled, .circleFilled, .pauseFilled, .pinFilled, .closeCircleFilled, .sealCheck, .octagonWarning].contains(self) }
 }

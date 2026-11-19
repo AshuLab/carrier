@@ -15,6 +15,19 @@ public enum IconWeight {
 
     public static func clamped(_ weight: Double) -> Double { min(max(weight, range.lowerBound), range.upperBound) }
 
+    /// Which of the seven font weights, thin (0) to heavy (6), an SF Symbol takes for a stroke of `weight`: 1.5, the app's default, is the regular one (2).
+    public static func symbolStep(_ weight: Double) -> Int {
+        switch weight {
+        case ..<1.125: 0
+        case ..<1.375: 1
+        case ..<1.625: 2
+        case ..<1.875: 3
+        case ..<2.125: 4
+        case ..<2.375: 5
+        default: 6
+        }
+    }
+
     /// The SVG text with the stroke of its outline at `weight`, and, with `fill`, the outline filled (the shape is drawn solid, its strokes in the same color).
     /// A file that is already filled has no `stroke-width` of 2 and comes back as it was.
     public static func svg(_ text: String, weight: Double, fill: Bool = false) -> String {

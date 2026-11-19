@@ -251,7 +251,7 @@ private struct SessionHomeRow: View {
                 .environment(\.rowActive, active)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    if pinned { Glyph(.pinFilled, size: 10).foregroundStyle(.secondary).accessibilityLabel("Pinned") }
+                    if pinned { Glyph(.pinFilled, size: 10, label: "Pinned").foregroundStyle(.secondary) }
                     Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
                     if showsWorkspace { RowTag(text: row.workspace) }
                     if row.archived { RowTag(text: "Archived") }

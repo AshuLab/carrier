@@ -16,7 +16,7 @@ struct PastedTextCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 9) {
-                Glyph(.fileText, size: 15).foregroundStyle(.white)
+                Glyph(.fileText, size: 15, bold: true).foregroundStyle(.white)
                     .frame(width: 32, height: 32)
                     .background(Color(red: 0.42, green: 0.47, blue: 0.58))
                     .clipShape(RoundedRectangle(cornerRadius: 9))

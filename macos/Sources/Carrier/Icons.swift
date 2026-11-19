@@ -21,7 +21,7 @@ import SwiftUI
     }
 }
 
-/// The image of an icon in a set at a weight: the SVG with its stroke rewritten, as a template image so it takes the color of its text. Kept by all four.
+/// The image of an icon in a set at a weight: the SVG with its stroke rewritten, as a template image so it takes the color of its text. Kept by set, icon and weight.
 @MainActor enum IconImages {
     private static var cache: [String: NSImage] = [:]
 
@@ -40,47 +40,53 @@ import SwiftUI
         return image
     }
 
-    /// For the AppKit that draws an icon itself (an attachment, a layer): the icon in the set and at the weight now, with `bold` as `Glyph` has it.
-    static func image(_ icon: AppIcon, bold: Bool = false) -> NSImage {
+    /// For the AppKit that draws an icon itself (an attachment, a layer): the icon in the set and at the weight now, with `bold` as `Glyph` has it. An SF
+    /// Symbol comes at `pointSize` and the weight as the weight of its font, as `Glyph` draws it.
+    static func image(_ icon: AppIcon, bold: Bool = false, pointSize: CGFloat = 24) -> NSImage {
         let style = IconAppearance.shared
-        if let image = image(icon, set: style.set, weight: style.weight + (bold ? 0.75 : 0)) { return image }
-        guard case .symbol(let name) = iconAsset(icon, in: .sfSymbols) else { return NSImage() }
-        return NSImage(systemSymbolName: name, accessibilityDescription: nil) ?? NSImage()
+        let weight = style.weight + (bold ? 0.75 : 0)
+        if let image = image(icon, set: style.set, weight: weight) { return image }
+        guard case .symbol(let name) = iconAsset(icon, in: .sfSymbols),
+              let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil) else { return NSImage() }
+        let configured = symbol.withSymbolConfiguration(.init(pointSize: pointSize * 0.9, weight: NSFont.Weight(strokeWeight: weight))) ?? symbol
+        configured.isTemplate = true
+        return configured
     }
 }
 
 extension NSImage {
-    /// A template image drawn in `color`: a text attachment or a layer gets no tint from the system.
+    /// A template image drawn in `color` and fitted in `size` without stretching it: a text attachment or a layer gets no tint from the system.
     func tinted(_ color: NSColor, size: NSSize = NSSize(width: 24, height: 24)) -> NSImage {
         NSImage(size: size, flipped: false) { rect in
-            self.draw(in: rect)
+            let ratio = min(rect.width / max(self.size.width, 1), rect.height / max(self.size.height, 1))
+            let fit = NSSize(width: self.size.width * ratio, height: self.size.height * ratio)
+            let target = NSRect(x: rect.midX - fit.width / 2, y: rect.midY - fit.height / 2, width: fit.width, height: fit.height)
+            self.draw(in: target)
             color.set()
-            rect.fill(using: .sourceAtop)
+            target.fill(using: .sourceAtop)
             return true
         }
     }
 }
 
 extension Font.Weight {
-    /// The font weight an SF Symbol takes for a stroke of `weight` in the grid of the SVGs: 1.5, the app's default, is the regular one.
+    /// The font weight an SF Symbol takes for a stroke of `weight` in the grid of the SVGs.
     init(strokeWeight weight: Double) {
-        switch weight {
-        case ..<1.125: self = .thin
-        case ..<1.375: self = .light
-        case ..<1.625: self = .regular
-        case ..<1.875: self = .medium
-        case ..<2.125: self = .semibold
-        case ..<2.375: self = .bold
-        default: self = .heavy
-        }
+        self = [Font.Weight.thin, .light, .regular, .medium, .semibold, .bold, .heavy][IconWeight.symbolStep(weight)]
+    }
+}
+
+extension NSFont.Weight {
+    init(strokeWeight weight: Double) {
+        self = [NSFont.Weight.thin, .light, .regular, .medium, .semibold, .bold, .heavy][IconWeight.symbolStep(weight)]
     }
 }
 
 extension Label where Title == Text, Icon == Image {
-    /// A title and an icon for the item of a menu: the system draws a menu's images, so they stay SF Symbols whatever the set is (an item whose icon is a
-    /// view of ours would lose it).
-    init<S: StringProtocol>(_ title: S, menuIcon: AppIcon) {
-        guard case .symbol(let name) = iconAsset(menuIcon, in: .sfSymbols) else { self.init(title, systemImage: "questionmark"); return }
+    /// A title and an icon for what the system draws: the item of a menu and of the window's toolbar. Its image stays an SF Symbol whatever the set is (an item
+    /// whose icon is a view of ours would lose it, or sit badly in the toolbar).
+    init<S: StringProtocol>(_ title: S, systemIcon: AppIcon) {
+        guard case .symbol(let name) = iconAsset(systemIcon, in: .sfSymbols) else { self.init(title, systemImage: "questionmark"); return }
         self.init(title, systemImage: name)
     }
 }
@@ -92,11 +98,14 @@ struct Glyph: View {
     let icon: AppIcon
     var size: CGFloat = 14
     var bold = false
+    /// What VoiceOver says of an icon that is a state on its own (a tick that says "Pasted"); an icon beside words is decoration and says nothing.
+    var label: String?
 
-    init(_ icon: AppIcon, size: CGFloat = 14, bold: Bool = false) {
+    init(_ icon: AppIcon, size: CGFloat = 14, bold: Bool = false, label: String? = nil) {
         self.icon = icon
         self.size = size
         self.bold = bold
+        self.label = label
     }
 
     var body: some View {
@@ -111,7 +120,9 @@ struct Glyph: View {
                 Image(systemName: name).font(.scaled(size * 0.9, weight: Font.Weight(strokeWeight: weight)))
             }
         }
-        .frame(width: side, height: side).accessibilityHidden(true)
+        .frame(width: side, height: side)
+        .accessibilityHidden(label == nil)
+        .accessibilityLabel(label ?? "")
     }
 }
 
@@ -123,64 +134,74 @@ extension Label where Title == Text, Icon == Glyph {
 }
 
 extension View {
-    /// An icon that turns while `on`, as the SF Symbols' rotate effect did: a SVG has no symbol effects of its own.
+    /// An icon that turns while `on`, as the SF Symbols' rotate effect did: an SVG has no symbol effects of its own. None of the four moves with Reduce Motion on.
     func glyphSpinning(_ on: Bool) -> some View { modifier(GlyphSpin(on: on)) }
     /// An icon that bounces down while `on`.
     func glyphBouncing(_ on: Bool) -> some View { modifier(GlyphBounce(on: on)) }
     /// An icon that gives a little kick each time `trigger` changes, as the SF Symbols' bounce did.
     func glyphKick(_ trigger: some Equatable) -> some View { modifier(GlyphKick(trigger: trigger)) }
-    /// An icon that fades in and out while `on`.
+    /// An icon that fades in and out while `on`. Only for something that lasts a moment: the animation does not stop while the window is hidden.
     func glyphPulsing(_ on: Bool) -> some View { modifier(GlyphPulse(on: on)) }
 }
 
 private struct GlyphSpin: ViewModifier {
     let on: Bool
     @State private var turned = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        content.rotationEffect(.degrees(on && turned ? 360 : 0))
-            .animation(on ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: turned)
-            .onAppear { if on { turned = true } }
-            .onChange(of: on) { _, now in turned = now }
+        let active = on && reduceMotion == false
+        content.rotationEffect(.degrees(active && turned ? 360 : 0))
+            .animation(active ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: turned)
+            .onAppear { if active { turned = true } }
+            .onChange(of: active) { _, now in turned = now }
     }
 }
 
 private struct GlyphBounce: ViewModifier {
     let on: Bool
     @State private var down = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        content.offset(y: on && down ? 2 : 0)
-            .animation(on ? .easeInOut(duration: 0.5).repeatForever(autoreverses: true) : .default, value: down)
-            .onAppear { if on { down = true } }
-            .onChange(of: on) { _, now in down = now }
+        let active = on && reduceMotion == false
+        content.offset(y: active && down ? 2 : 0)
+            .animation(active ? .easeInOut(duration: 0.5).repeatForever(autoreverses: true) : .default, value: down)
+            .onAppear { if active { down = true } }
+            .onChange(of: active) { _, now in down = now }
     }
 }
 
 private struct GlyphPulse: ViewModifier {
     let on: Bool
     @State private var dim = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        content.opacity(on && dim ? 0.35 : 1)
-            .animation(on ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default, value: dim)
-            .onAppear { if on { dim = true } }
-            .onChange(of: on) { _, now in dim = now }
+        let active = on && reduceMotion == false
+        content.opacity(active && dim ? 0.35 : 1)
+            .animation(active ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default, value: dim)
+            .onAppear { if active { dim = true } }
+            .onChange(of: active) { _, now in dim = now }
     }
 }
 
 private struct GlyphKick<Trigger: Equatable>: ViewModifier {
     let trigger: Trigger
     @State private var up = false
+    @State private var kicks = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content.scaleEffect(up ? 1.3 : 1)
-            .onChange(of: trigger) {
+            .onChange(of: trigger) { kicks += 1 }
+            // one task per kick, which a quicker one replaces, so two never fight over the scale
+            .task(id: kicks) {
+                guard kicks > 0, reduceMotion == false else { return }
                 withAnimation(.spring(duration: 0.15)) { up = true }
-                Task {
-                    try? await Task.sleep(for: .milliseconds(150))
-                    withAnimation(.spring(duration: 0.3, bounce: 0.5)) { up = false }
-                }
+                try? await Task.sleep(for: .milliseconds(150))
+                guard Task.isCancelled == false else { return }
+                withAnimation(.spring(duration: 0.3, bounce: 0.5)) { up = false }
             }
     }
 }
@@ -190,14 +211,11 @@ extension Image {
     /// the set and weight now, and a template, so it takes the color of the text.
     @MainActor init(inline icon: AppIcon, size: CGFloat = 11) {
         let side = TextSize.shared.scale.size(size)
-        let style = IconAppearance.shared
-        if let image = IconImages.image(icon, set: style.set, weight: style.weight), let own = image.copy() as? NSImage {
-            own.size = NSSize(width: side, height: side)
-            own.isTemplate = true
-            self.init(nsImage: own)
-            return
-        }
-        guard case .symbol(let name) = iconAsset(icon, in: .sfSymbols) else { self.init(nsImage: NSImage()); return }
-        self.init(systemName: name)
+        let image = IconImages.image(icon, pointSize: side)
+        let own = (image.copy() as? NSImage) ?? image
+        // an SVG comes at 24 points and a symbol at its own: both are made the side of the text
+        if IconImages.image(icon, set: IconAppearance.shared.set, weight: IconAppearance.shared.weight) != nil { own.size = NSSize(width: side, height: side) }
+        own.isTemplate = true
+        self.init(nsImage: own)
     }
 }

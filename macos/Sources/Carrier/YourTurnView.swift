@@ -24,8 +24,7 @@ struct YourTurnView: View {
 
     private func row(_ item: YourTurnItem) -> some View {
         OverviewLinkRow(action: item.selection.map { target in { selection = target } }) {
-            Glyph(item.kind == .ready ? .check : .exclamation)
-                .font(.scaled(11, weight: .heavy)).foregroundStyle(.white)
+            Glyph(item.kind == .ready ? .check : .exclamation, size: 11, bold: true).foregroundStyle(.white)
                 .frame(width: 22, height: 22)
                 .background(Circle().fill(item.kind == .ready ? Color.blue : Color.orange))
             VStack(alignment: .leading, spacing: 1) {

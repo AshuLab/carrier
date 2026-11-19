@@ -474,7 +474,7 @@ struct SkillRowView: View {
 
     var body: some View {
         HStack(spacing: LogMetrics.gap) {
-            Glyph(call.kind.icon, size: 9).foregroundStyle(.white)
+            Glyph(call.kind.icon, size: 9, bold: true).foregroundStyle(.white)
                 .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth).background(RoundedRectangle(cornerRadius: 5).fill(call.kind.color))
             Text("Skill").fontWeight(.semibold).foregroundStyle(failed ? Color.red : .primary)
             Text(call.arg).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)

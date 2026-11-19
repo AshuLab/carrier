@@ -333,7 +333,7 @@ struct PanelView: View {
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", icon: .sidebar) }
+                Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemIcon: .sidebar) }
                     .help("Show or hide the sidebar")
             }
             if isDevBuild {
@@ -347,7 +347,7 @@ struct PanelView: View {
                 if let open = shell.subagentHeader {
                     // a slice card's subagent view wears the same header as a conversation's, with the epic in its subtitle and no Stop
                     ToolbarItem(placement: .navigation) {
-                        Button { shell.leaveSubagent() } label: { Label("Back", icon: .chevronLeft) }
+                        Button { shell.leaveSubagent() } label: { Label("Back", systemIcon: .chevronLeft) }
                             .help("Back to Agent output")
                     }
                     ToolbarItem(placement: .navigation) {
@@ -363,7 +363,7 @@ struct PanelView: View {
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
-                    Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", icon: .sidebarRight) }
+                    Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemIcon: .sidebarRight) }
                         .help("Show or hide the inspector")
                 }
                 if shell.inspectorShown {
@@ -378,7 +378,7 @@ struct PanelView: View {
                 if let open = shell.subagentHeader {
                     // a subagent view wears the window's header: Back next to the sidebar's button, its title, and its state where the worktree pill is
                     ToolbarItem(placement: .navigation) {
-                        Button { shell.leaveSubagent() } label: { Label("Back", icon: .chevronLeft) }
+                        Button { shell.leaveSubagent() } label: { Label("Back", systemIcon: .chevronLeft) }
                             .help(shell.subagents.count > 1 ? "Back to the subagent that launched this one" : "Back to the conversation")
                     }
                     ToolbarItem(placement: .navigation) {
@@ -402,7 +402,7 @@ struct PanelView: View {
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
-                    ToolbarGlassIconButton(icon: .terminal, name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {
+                    ToolbarGlassIconButton(icon: .terminal, active: drawerOpen, name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {
                         toggleSessionTerminal(for: session)
                     }
                     .glassEffect(.regular, in: .capsule)

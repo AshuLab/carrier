@@ -512,6 +512,8 @@ final class PillAttachment: NSTextAttachment {
 
 /// A sent message: its text, with each command it names as the pill it was in the box.
 func messageText(_ text: String, commands: [ChatCommand]) -> Text {
+    // read before the pills are made, so the text is drawn again when the set or the weight of the icons changes
+    _ = (IconAppearance.shared.set, IconAppearance.shared.weight)
     let ns = text as NSString
     var result = Text("")
     var from = 0

@@ -44,10 +44,9 @@ extension View {
 /// The mark of the chosen row of a list: a white tick on a disc of the accent colour, so the tick reads on it.
 struct ChosenMark: View {
     var body: some View {
-        Glyph(.check)
-            .font(.scaled(9, weight: .bold)).foregroundStyle(.white)
+        Glyph(.check, size: 9, bold: true).foregroundStyle(.white)
             .frame(width: 18, height: 18).background(Circle().fill(Color.themeAccent))
-            .accessibilityLabel("Chosen")
+            .accessibilityElement(children: .ignore).accessibilityLabel("Chosen")
     }
 }
 
@@ -85,8 +84,7 @@ struct RailHeader: View {
     var body: some View {
         HStack(spacing: 10) {
             if let icon {
-                Glyph(icon)
-                    .font(.scaled(15, weight: .medium)).foregroundStyle(.white)
+                Glyph(icon, size: 15, bold: true).foregroundStyle(.white)
                     .frame(width: 36, height: 36)
                     .background(Circle().fill(LinearGradient(colors: [.themeAccent, .themeAccent.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
                     .accessibilityHidden(true)
@@ -114,8 +112,7 @@ struct RailRow: View {
     var body: some View {
         HoverRow(action: action, fill: selected ? Color.themeAccent.opacity(0.22) : nil) { _ in
             HStack(spacing: 10) {
-                Glyph(icon)
-                    .font(.scaled(13, weight: .medium)).foregroundStyle(selected ? Color.themeAccent : .secondary)
+                Glyph(icon, size: 13).foregroundStyle(selected ? Color.themeAccent : .secondary)
                     .frame(width: 28, height: 28)
                     .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.themeAccent.opacity(0.18) : Color.secondary.opacity(0.12)))
                 VStack(alignment: .leading, spacing: 1) {

@@ -358,13 +358,13 @@ private struct PillIcon: View {
     var body: some View {
         switch icon {
         case .sparkle:
-            Glyph(.sparkles).foregroundStyle(Color.themeAccent).glyphPulsing(reduceMotion == false).accessibilityLabel("Cleaning")
+            Glyph(.sparkles, label: "Cleaning").foregroundStyle(Color.themeAccent).glyphPulsing(reduceMotion == false)
         case .warning:
-            Glyph(.warningFilled).foregroundStyle(.orange).accessibilityLabel("Pasted without cleaning: \(cause ?? "")")
-        case .mic: Glyph(.microphone).foregroundStyle(Color.themeAccent).accessibilityLabel("Listening")
+            Glyph(.warningFilled, label: "Pasted without cleaning: \(cause ?? "")").foregroundStyle(.orange)
+        case .mic: Glyph(.microphone, label: "Listening").foregroundStyle(Color.themeAccent)
         case .spinner: ProgressView().controlSize(.small).accessibilityLabel("Working")
-        case .check: Glyph(.check).foregroundStyle(.green).accessibilityLabel("Pasted")
-        case .xmark: Glyph(.close).foregroundStyle(.secondary).accessibilityLabel("Cancelled")
+        case .check: Glyph(.check, label: "Pasted").foregroundStyle(.green)
+        case .xmark: Glyph(.close, label: "Cancelled").foregroundStyle(.secondary)
         }
     }
 }

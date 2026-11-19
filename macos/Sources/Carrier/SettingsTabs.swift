@@ -197,7 +197,7 @@ private struct SettingsFieldModifier: ViewModifier {
 }
 
 extension View {
-    /// `icon` is an SF Symbol drawn inside the box before the text (a magnifying glass for a search).
+    /// `icon` is drawn inside the box before the text (a magnifying glass for a search).
     /// Inside a row with a `problem` the ring is orange and a warning mark sits in the box, the same size as without them: nothing moves.
     func settingsField(width: CGFloat? = nil, icon: AppIcon? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
         modifier(SettingsFieldModifier(width: width, icon: icon, external: focused))
@@ -403,7 +403,7 @@ struct StatusMark: View {
 
     var body: some View {
         Glyph(symbol, size: 10, bold: true).foregroundStyle(.white)
-            .frame(width: 16, height: 16).background(Circle().fill(color)).accessibilityLabel(label)
+            .frame(width: 16, height: 16).background(Circle().fill(color)).accessibilityElement(children: .ignore).accessibilityLabel(label)
     }
 }
 
@@ -753,7 +753,8 @@ struct AppearanceTabView: View {
     /// A few of the icons as they are drawn now, larger than in a row so the stroke the weight sets can be seen.
     private var iconsPreview: some View {
         SettingsPreview {
-            HStack(spacing: 22) {
+            // wraps when the text size and the window leave less than the ten icons need in a row
+            FlowLayout(spacing: 22) {
                 ForEach([AppIcon.search, .settings, .folder, .copy, .bell, .trash, .refresh, .lock, .microphone, .terminal], id: \.self) { Glyph($0, size: 22) }
             }
             .foregroundStyle(.primary).frame(maxWidth: .infinity)

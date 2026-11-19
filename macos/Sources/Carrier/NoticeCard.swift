@@ -34,7 +34,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 13) {
-                Glyph(symbol, size: 13).foregroundStyle(.white)
+                Glyph(symbol, size: 13, bold: true).foregroundStyle(.white)
                     .frame(width: 30, height: 30).background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(tint.opacity(0.85)))
                     .accessibilityHidden(true)
                 if let onTap { Button(action: onTap) { text }.buttonStyle(.plain) } else { text }

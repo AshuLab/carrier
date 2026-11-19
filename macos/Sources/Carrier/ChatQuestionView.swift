@@ -162,7 +162,7 @@ struct QuestionCardView: View {
                 ZStack {
                     // a circle takes one pick, a square takes several; it is filled only when picked
                     RoundedRectangle(cornerRadius: question.multiSelect ? 5 : 9, style: .continuous).fill(chosen ? Color.themeAccent : Color.primary.opacity(0.09))
-                    if chosen { Glyph(.check, size: 9).foregroundStyle(.white) } else {
+                    if chosen { Glyph(.check, size: 9, bold: true).foregroundStyle(.white) } else {
                         Text("\(index + 1)").font(.scaled(10.5, weight: .semibold, design: .monospaced)).foregroundStyle(.secondary)
                     }
                 }

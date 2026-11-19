@@ -48,7 +48,7 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         }
     }
 
-    /// The page's icon in the sidebar (an SF Symbol).
+    /// The page's icon in the sidebar.
     public var icon: AppIcon {
         switch self {
         case .general: .settings

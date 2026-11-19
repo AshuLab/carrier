@@ -110,8 +110,7 @@ struct WorkspaceSheet: View {
     private func stepPage<Body: View>(_ title: String, _ detail: String, icon: AppIcon, @ViewBuilder _ body: () -> Body) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .center, spacing: 12) {
-                Glyph(icon)
-                    .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
+                Glyph(icon, size: 16).foregroundStyle(Color.themeAccent)
                     .frame(width: 36, height: 36)
                     .background(RoundedRectangle(cornerRadius: radius).fill(Color.themeAccent.opacity(0.16)))
                     .accessibilityHidden(true)

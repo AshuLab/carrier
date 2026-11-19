@@ -9,7 +9,7 @@ struct StateGlyph: View {
     var attention: Attention?
 
     var body: some View {
-        glyph.frame(width: 20, height: 20).accessibilityLabel(state.label)
+        glyph.frame(width: 20, height: 20).accessibilityElement(children: .ignore).accessibilityLabel(state.label)
     }
 
     @ViewBuilder private var glyph: some View {

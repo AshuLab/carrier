@@ -174,20 +174,20 @@ struct TerminalPaneHeaderView: View {
         .glassEffect(.regular, in: .capsule)
         .contextMenu {
             Button(action: splitRight) {
-                Label("Split Right", menuIcon: .layoutColumns).labelStyle(.titleAndIcon)
+                Label("Split Right", systemIcon: .layoutColumns).labelStyle(.titleAndIcon)
             }
             Button(action: splitDown) {
-                Label("Split Down", menuIcon: .layoutRows).labelStyle(.titleAndIcon)
+                Label("Split Down", systemIcon: .layoutRows).labelStyle(.titleAndIcon)
             }
             if isSplit {
                 Button(action: toggleZoom) {
                     Label(
                         isZoomed ? "Restore Split View" : "Zoom Pane",
-                        icon: isZoomed ? .arrowsMinimize : .arrowsMaximize
+                        systemIcon: isZoomed ? .arrowsMinimize : .arrowsMaximize
                     ).labelStyle(.titleAndIcon)
                 }
                 Button(action: equalizeSplits) {
-                    Label("Equalize Splits", menuIcon: .columns3).labelStyle(.titleAndIcon)
+                    Label("Equalize Splits", systemIcon: .columns3).labelStyle(.titleAndIcon)
                 }
                 Button(action: moveToNewTab) {
                     Label("Move Pane to New Tab", systemImage: "macwindow.badge.plus").labelStyle(.titleAndIcon)
@@ -195,14 +195,13 @@ struct TerminalPaneHeaderView: View {
             }
             Divider()
             Button(role: .destructive, action: close) {
-                Label(isSplit ? "Close Pane" : "Close Terminal", menuIcon: .close).labelStyle(.titleAndIcon)
+                Label(isSplit ? "Close Pane" : "Close Terminal", systemIcon: .close).labelStyle(.titleAndIcon)
             }
         }
     }
 
     private func dragHandle(onBeginDrag: @escaping () -> NSItemProvider) -> some View {
-        Glyph(.arrowsMove)
-            .font(.scaled(11, weight: .medium))
+        Glyph(.arrowsMove, size: 11)
             .foregroundStyle(.primary)
             .padding(.horizontal, 10)
             .frame(height: ToolbarPillButton.height)

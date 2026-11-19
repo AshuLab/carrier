@@ -142,7 +142,7 @@ struct SliceRowView: View {
         switch group {
         case .inProgress: SpinningRing(diameter: 18, lineWidth: 2.5, color: .systemBlue)
         case .merged:
-            Glyph(.check, size: 9).foregroundStyle(.white)
+            Glyph(.check, size: 9, bold: true).foregroundStyle(.white)
                 .frame(width: 16, height: 16).background(Circle().fill(Color.green))
         case .pending: Circle().strokeBorder(Color.secondary.opacity(0.6), lineWidth: 2).frame(width: 12, height: 12)
         }

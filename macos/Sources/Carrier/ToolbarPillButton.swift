@@ -78,6 +78,8 @@ struct AccentGlassPillButton: View {
 /// Compact icon-only button sized to `ToolbarPillButton.height` (28 pt) for grouped `.glassEffect(.regular, in: .capsule)` toolbars.
 struct ToolbarGlassIconButton: View {
     let icon: AppIcon
+    /// What the button opened is open: a fill of the accent under the icon, so the state is not the color of the icon alone.
+    var active = false
     let name: String
     let action: () -> Void
     @State private var hovered = false
@@ -86,10 +88,11 @@ struct ToolbarGlassIconButton: View {
     var body: some View {
         Button(action: action) {
             Glyph(icon, size: 12)
-                .foregroundStyle(.primary)
+                .foregroundStyle(active ? Color.themeAccent : .primary)
                 .padding(.horizontal, 10)
                 .frame(height: ToolbarPillButton.height)
-                .background(Capsule().fill(Color.primary.opacity(hovered && enabled ? 0.1 : 0)))
+                .background(Capsule().fill(active ? Color.themeAccent.opacity(0.18) : Color.primary.opacity(hovered && enabled ? 0.1 : 0)))
+                .accessibilityAddTraits(active ? .isSelected : [])
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -111,8 +114,7 @@ struct ToolbarSearchField: View {
     var body: some View {
         if query != nil {
             HStack(spacing: 6) {
-                Glyph(.search)
-                    .font(.scaled(11, weight: .medium))
+                Glyph(.search, size: 11)
                     .foregroundStyle(.secondary)
                     .frame(width: 16, height: 16)
                     .accessibilityHidden(true)
@@ -125,8 +127,7 @@ struct ToolbarSearchField: View {
                         return .handled
                     }
                 Button(action: dismiss) {
-                    Glyph(.closeCircleFilled)
-                        .font(.scaled(11))
+                    Glyph(.closeCircleFilled, size: 11)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)

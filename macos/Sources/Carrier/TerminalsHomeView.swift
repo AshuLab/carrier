@@ -129,8 +129,7 @@ private struct TerminalHomeRow: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Color.secondary.opacity(0.14))
                     .frame(width: 36, height: 36)
-                Glyph(.terminal)
-                    .font(.scaled(16, weight: .medium))
+                Glyph(.terminal, size: 16)
                     .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 3) {
@@ -166,14 +165,14 @@ private struct TerminalHomeRow: View {
         .onHover { hovered = $0 }
         .contextMenu {
             Button(action: open) {
-                Label("Open", menuIcon: .terminal).labelStyle(.titleAndIcon)
+                Label("Open", systemIcon: .terminal).labelStyle(.titleAndIcon)
             }
             Button(action: newTab) {
-                Label("New Tab", menuIcon: .copyPlus).labelStyle(.titleAndIcon)
+                Label("New Tab", systemIcon: .copyPlus).labelStyle(.titleAndIcon)
             }
             Divider()
             Button(role: .destructive, action: close) {
-                Label("Close", menuIcon: .close).labelStyle(.titleAndIcon)
+                Label("Close", systemIcon: .close).labelStyle(.titleAndIcon)
             }
         }
         .help("\(summary.title)\n\(summary.workingDirectory)")

@@ -35,8 +35,7 @@ struct BranchSheet: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Glyph(.gitBranch)
-                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
+            Glyph(.gitBranch, size: 16).foregroundStyle(Color.themeAccent)
                 .frame(width: 36, height: 36)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
                 .accessibilityHidden(true)
@@ -52,8 +51,7 @@ struct BranchSheet: View {
         let remote = picker?.remote ?? []
         if local.isEmpty && remote.isEmpty {
             VStack(spacing: 8) {
-                Glyph(query.isEmpty ? .gitBranch : .search)
-                    .font(.scaled(32, weight: .light)).foregroundStyle(.secondary).accessibilityHidden(true)
+                Glyph(query.isEmpty ? .gitBranch : .search, size: 32).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text(query.isEmpty ? "No branches" : "No branch matches “\(query)”").font(.headline)
                 Text(query.isEmpty ? "This repository has no branch to start from yet." : "Search looks at the local and the remote branches. Fetch to see new ones.")
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 360)
@@ -107,7 +105,7 @@ struct BranchSheet: View {
             if row.isDefault { Badge(text: "default", icon: .starFilled, tint: .themeAccent) }
             if row.checkedOut { Badge(text: browsing ? "current" : "checked out", icon: .checkCircle, tint: browsing ? .themeAccent : .secondary) }
             Spacer(minLength: 8)
-            if chosen { Glyph(.check).foregroundStyle(Color.themeAccent).accessibilityLabel("Chosen") }
+            if chosen { Glyph(.check, label: "Chosen").foregroundStyle(Color.themeAccent) }
             else { RowHint(text: "Select", shown: hovering) }
         }
         .frame(minHeight: 20).padding(.horizontal, 10).padding(.vertical, 8)
@@ -134,7 +132,7 @@ struct BranchSheet: View {
             Glyph(.circlePlus).foregroundStyle(.secondary).accessibilityHidden(true)
             Text("New branch").font(.subheadline).foregroundStyle(.secondary)
             Text(model.worktreeName.isEmpty ? "\(worktreeBranchPrefix)<generated when sent>" : "\(worktreeBranchPrefix)\(model.worktreeName)").font(.subheadline.monospaced()).lineLimit(1).truncationMode(.middle)
-            Glyph(.arrowLeft, size: 11).foregroundStyle(.secondary).accessibilityLabel("from")
+            Glyph(.arrowLeft, size: 11, label: "from").foregroundStyle(.secondary)
             Text(model.startBranch ?? "…").font(.subheadline.monospaced().weight(.semibold)).lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 0)
         }

@@ -206,7 +206,7 @@ private struct ReviewStepRow: View {
     @ViewBuilder private var marker: some View {
         Group {
             switch step.state {
-            case .done: Glyph(.check).foregroundStyle(.white).background(Circle().fill(Color.green).frame(width: 18, height: 18))
+            case .done: Glyph(.check, size: 10, bold: true).foregroundStyle(.white).background(Circle().fill(Color.green).frame(width: 18, height: 18))
             case .current: ProgressView().controlSize(.mini).frame(width: 18, height: 18)
             case .waiting: Text("\(step.number)").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
                     .frame(width: 18, height: 18).background(Circle().fill(Color.secondary.opacity(0.16)))

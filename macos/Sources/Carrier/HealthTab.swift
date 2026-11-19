@@ -122,6 +122,6 @@ private struct HealthCardView: View {
         case .neutral: (.question, .gray, "Not known")
         }
         return Glyph(symbol, size: 11, bold: true).foregroundStyle(.white)
-            .frame(width: 18, height: 18).background(Circle().fill(color)).accessibilityLabel(label)
+            .frame(width: 18, height: 18).background(Circle().fill(color)).accessibilityElement(children: .ignore).accessibilityLabel(label)
     }
 }

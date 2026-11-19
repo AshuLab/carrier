@@ -7,7 +7,7 @@ struct UnderlineTabs<ID: Hashable>: View {
     struct Item: Identifiable {
         let id: ID
         let title: String
-        /// An SF Symbol before the title.
+        /// An icon before the title.
         var icon: AppIcon?
         var count: String?
         var countColor: Color = .secondary

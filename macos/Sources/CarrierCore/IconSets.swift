@@ -143,6 +143,7 @@ private func iconNames(_ icon: AppIcon) -> (tabler: String, lucide: String, symb
     case .messageDots: ("outline/message-dots", "message-circle-more", "ellipsis.bubble")
     case .messages: ("outline/messages", "messages-square", "bubble.left.and.text.bubble.right")
     case .microphone: ("outline/microphone", "mic", "mic")
+    case .microphoneFilled: ("filled/microphone", "mic+fill", "mic.fill")
     case .microphoneOff: ("outline/microphone-off", "mic-off", "mic.slash")
     case .minus: ("outline/minus", "minus", "minus")
     case .octagonWarning: ("filled/alert-octagon", "octagon-alert", "xmark.octagon.fill")

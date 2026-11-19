@@ -509,7 +509,7 @@ struct StatusDot: View {
         Glyph(found ? .check : .exclamation, size: 11, bold: true).foregroundStyle(.white)
             .frame(width: 18, height: 18)
             .background(Circle().fill(found ? Color.green : Color.orange))
-            .accessibilityLabel(found ? "Found" : "Not found")
+            .accessibilityElement(children: .ignore).accessibilityLabel(found ? "Found" : "Not found")
     }
 }
 

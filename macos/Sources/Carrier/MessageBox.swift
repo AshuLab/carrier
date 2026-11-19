@@ -313,8 +313,7 @@ struct MessageBox<Selects: View>: View {
     private func row(_ command: ChatCommand, marked: Bool) -> some View {
         HoverRow(action: { take(command) }, fill: marked ? Color.primary.opacity(0.1) : nil) { _ in
             HStack(spacing: 10) {
-                Glyph(command.kind.symbol)
-                    .font(.scaled(13, weight: .semibold)).foregroundStyle(command.kind.color)
+                Glyph(command.kind.symbol, size: 13).foregroundStyle(command.kind.color)
                     .frame(width: 32, height: 32)
                     .background(RoundedRectangle(cornerRadius: 9).fill(command.kind.color.opacity(marked ? 0.24 : 0.14)))
                     .accessibilityHidden(true)
@@ -370,12 +369,11 @@ struct MessageBox<Selects: View>: View {
     }
 
     /// A round glass button, tinted like the New session pill when there is something to send and plain when there is not; it gives under the
-    /// finger and springs back. The arrow becomes the Stop square while the agent answers, bounces up on a send and pulses while it works.
+    /// finger and springs back. The arrow becomes the Stop square while the agent answers and bounces up on a send.
     @ViewBuilder private var button: some View {
         let active = (ready && sendAllowed) || busy
         let label = Glyph(busy ? .stopFilled : .arrowUp, size: busy ? 12 : 14, bold: true).foregroundStyle(active ? .white : .secondary)
             .glyphKick(sent)
-            .glyphPulsing(busy)
             .frame(width: 32, height: 32)
             .contentShape(Circle())
         Button(action: busy ? stop : fire) { label }

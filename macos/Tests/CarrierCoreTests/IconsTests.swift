@@ -28,7 +28,6 @@ func everyIconIsInEverySetWithItsFileOrItsSymbol(set: IconSet) throws {
 }
 
 @Test func aSolidIconIsFilledWhereTheSetHasItFilledAndOtherwiseDrawnFilledOrAsAnOutline() {
-    #expect(AppIcon.allCases.filter(\.isSolid).count == 11)
     // Tabler has a filled file of each; Lucide fills the shapes that stay readable filled and keeps the others as outlines
     #expect(iconAsset(.playFilled, in: .tabler) == .svg(folder: "TablerIcons/filled", name: "player-play", fill: false))
     #expect(iconAsset(.playFilled, in: .lucide) == .svg(folder: "LucideIcons", name: "play", fill: true))
@@ -70,4 +69,24 @@ func everyIconIsInEverySetWithItsFileOrItsSymbol(set: IconSet) throws {
     defaults.set(2.0, forKey: IconWeight.key)
     AppPreferences(defaults: defaults).reset(.appearance)
     #expect(IconSet.stored(in: defaults) == IconSet.defaultSet && IconWeight.stored(in: defaults) == IconWeight.defaultWeight)
+}
+
+@Test func everyBundledSVGStillDecodesAtEveryWeightAfterItsRewrite() throws {
+    for set in [IconSet.tabler, .lucide] {
+        for icon in AppIcon.allCases {
+            guard case .svg(_, _, let fill) = iconAsset(icon, in: set), let url = iconAsset(icon, in: set).url else { Issue.record("\(set) \(icon)"); continue }
+            let svg = try String(contentsOf: url, encoding: .utf8)
+            for weight in [IconWeight.range.lowerBound, IconWeight.defaultWeight, IconWeight.range.upperBound] {
+                let image = NSImage(data: Data(IconWeight.svg(svg, weight: weight, fill: fill).utf8))
+                #expect(image != nil && (image?.size.width ?? 0) > 0, Comment(rawValue: "\(set) \(icon) at \(weight)"))
+            }
+        }
+    }
+}
+
+@Test func theWeightPicksTheFontWeightOfASymbolSevenWaysAndTheDefaultIsTheRegularOne() {
+    #expect(IconWeight.symbolStep(IconWeight.range.lowerBound) == 0 && IconWeight.symbolStep(IconWeight.range.upperBound) == 6)
+    #expect(IconWeight.symbolStep(IconWeight.defaultWeight) == 2)
+    let steps = stride(from: IconWeight.range.lowerBound, through: IconWeight.range.upperBound, by: IconWeight.step).map(IconWeight.symbolStep)
+    #expect(steps == steps.sorted() && Set(steps).count == 7)
 }

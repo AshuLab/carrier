@@ -31,17 +31,19 @@ Anthropic, OpenAI and Google. The pinned release and its integrity hash are in
 
 ## Tabler Icons
 
-One of the icon sets of the app's own interface in `Carrier.app` (`macos/Sources/CarrierCore/Resources/TablerIcons`, the icons `AppIcon` names) is copied
-unchanged from the npm package `@tabler/icons` 3.34.1 of [Tabler Icons](https://github.com/tabler/tabler-icons). Copyright (c) 2020-2024 Paweł Kuna,
-under the MIT licence; the text ships inside the app, next to the icons. The pinned release and its integrity hash are in
-`macos/Sources/CarrierCore/Resources/TablerIcons/SOURCE.txt`.
+One of the icon sets of the app's own interface in `Carrier.app` is a subset of [Tabler Icons](https://github.com/tabler/tabler-icons).
+It is in `macos/Sources/CarrierCore/Resources/TablerIcons` (the icons `AppIcon` names) and copied unchanged from the npm package `@tabler/icons` 3.34.1.
+Copyright (c) 2020-2024 Paweł Kuna, under the MIT licence; the text ships inside the app, next to the icons.
+The pinned release and its integrity hash are in `macos/Sources/CarrierCore/Resources/TablerIcons/SOURCE.txt`.
 
 ## Lucide
 
-The other bundled icon set of the app's own interface (`macos/Sources/CarrierCore/Resources/LucideIcons`, the icons `AppIcon` names) is copied unchanged
-from the npm package `lucide-static` 1.76.0 of [Lucide](https://github.com/lucide-icons/lucide). Copyright (c) 2026 Lucide Icons and Contributors, under the
-ISC licence, and, for the icons derived from Feather, Copyright (c) 2013-present Cole Bemis under the MIT licence; both texts ship inside the app, next to the
-icons. The pinned release and its integrity hash are in `macos/Sources/CarrierCore/Resources/LucideIcons/SOURCE.txt`.
+The other bundled icon set of the app's own interface is a subset of [Lucide](https://github.com/lucide-icons/lucide).
+It is in `macos/Sources/CarrierCore/Resources/LucideIcons` (the icons `AppIcon` names) and copied unchanged from the npm package `lucide-static` 1.76.0.
+Copyright (c) 2026 Lucide Icons and Contributors, under the ISC licence.
+The icons derived from Feather are Copyright (c) 2013-present Cole Bemis, under the MIT licence.
+Both texts ship inside the app, next to the icons.
+The pinned release and its integrity hash are in `macos/Sources/CarrierCore/Resources/LucideIcons/SOURCE.txt`.
 
 ## Claude Agent SDK
 

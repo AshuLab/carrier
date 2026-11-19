@@ -34,8 +34,7 @@ struct WhereItWorksSheet: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Glyph(.gitBranch)
-                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
+            Glyph(.gitBranch, size: 16).foregroundStyle(Color.themeAccent)
                 .frame(width: 36, height: 36)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
                 .accessibilityHidden(true)
@@ -49,8 +48,7 @@ struct WhereItWorksSheet: View {
     private func option(_ title: String, _ icon: AppIcon, chosen: Bool, worktree: Bool, _ detail: String) -> some View {
         HoverRow(action: { Task { await model.useWorktree(worktree) }; dismiss() }, fill: chosen ? Color.themeAccent.opacity(0.14) : nil) { _ in
             HStack(alignment: .top, spacing: 12) {
-                Glyph(icon)
-                    .font(.scaled(14, weight: .medium)).foregroundStyle(chosen ? Color.themeAccent : .secondary)
+                Glyph(icon, size: 14).foregroundStyle(chosen ? Color.themeAccent : .secondary)
                     .frame(width: 30, height: 30)
                     .background(RoundedRectangle(cornerRadius: 8).fill(chosen ? Color.themeAccent.opacity(0.18) : Color.secondary.opacity(0.12)))
                     .accessibilityHidden(true)
@@ -62,7 +60,7 @@ struct WhereItWorksSheet: View {
                 if chosen {
                     ChosenMark()
                 } else {
-                    Glyph(.circle, size: 16).foregroundStyle(.secondary.opacity(0.5)).accessibilityLabel("Not chosen")
+                    Glyph(.circle, size: 16, label: "Not chosen").foregroundStyle(.secondary.opacity(0.5))
                 }
             }
             .padding(12)

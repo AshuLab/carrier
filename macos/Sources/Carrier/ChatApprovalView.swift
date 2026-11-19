@@ -15,7 +15,7 @@ struct ApprovalCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Glyph(.exclamation, size: 12).foregroundStyle(.white)
+                Glyph(.exclamation, size: 12, bold: true).foregroundStyle(.white)
                     .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.attention))
                 Text(card.question).font(.scaled(14, weight: .semibold))
                 Spacer(minLength: 0)

@@ -451,8 +451,7 @@ extension FeedRowView {
     /// Copies the message as it was written (its Markdown) and says so with a green tick for a moment. An agent message also offers its plain text, with the
     /// Markdown marks taken out, from the menu next to the button.
     @ViewBuilder private func copyControl(_ text: String, asks: Bool) -> some View {
-        let label = Glyph(copied ? .check : .copy)
-            .font(.scaled(12)).foregroundStyle(copied ? Color.green : Color.secondary)
+        let label = Glyph(copied ? .check : .copy, size: 12).foregroundStyle(copied ? Color.green : Color.secondary)
             .frame(width: 26, height: 22)
         .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(overCopy ? 0.16 : 0)))
         .contentShape(RoundedRectangle(cornerRadius: 6))

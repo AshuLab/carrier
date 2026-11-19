@@ -191,6 +191,8 @@ public enum ModelState: Equatable, Sendable {
     }
 
     private func refresh() {
+        let signpost = Signposts.launch.beginInterval("model store refresh")
+        defer { Signposts.launch.endInterval("model store refresh", signpost) }
         let fileManager = FileManager.default
         revision += 1
         let files = fileManager.enumerator(at: root, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey])

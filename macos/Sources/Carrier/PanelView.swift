@@ -184,6 +184,7 @@ struct PanelView: View {
     }
 
     var body: some View {
+        let _ = Signposts.render.emitEvent("PanelView body")
         @Bindable var shell = model.shell
         @Bindable var epics = model.epics
         let collapse = Binding(get: { model.collapse }, set: { model.collapse = $0 })

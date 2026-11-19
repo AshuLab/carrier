@@ -19,6 +19,8 @@ final class CarrierTerminalStore {
 
     static var shared: CarrierTerminalStore {
         if let existing = _shared { return existing }
+        let signpost = Signposts.launch.beginInterval("terminal store")
+        defer { Signposts.launch.endInterval("terminal store", signpost) }
         let isSelfTest = CommandLine.arguments.contains("--selftest")
         let store = CarrierTerminalStore(
             observesSystemAppearance: true,

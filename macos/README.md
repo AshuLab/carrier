@@ -106,6 +106,44 @@ It needs a screen and combines with `--fixture`.
 ./Carrier.app/Contents/MacOS/Carrier --smoke-window --fixture
 ```
 
+## Measuring performance
+
+The app marks its work with signposts, in the subsystem of its bundle id (`dev.ashulab.carrier`, or `dev.ashulab.carrier.dev` for the dev build).
+They are declared in `CarrierCore/Signposts.swift`, in four categories:
+
+- `launch`: what `applicationDidFinishLaunching` does, the first commit of the run loop, the dictation history, the model store, the terminal store and the window.
+- `poll`: each request on a socket (`request` for either socket, with its command and the bytes read; `chat request` for a chat host call), and each poll of the epic, the sessions list and a conversation.
+- `feed`: each rebuild of the chat feed and each transcript merge, with the events they took.
+- `render`: the views that recompute in `body` (`PanelView body`, `ConversationModel init`, `files model`, `history body`, `markdown`), the window's state publishes and the writes to user defaults.
+
+A signpost costs next to nothing while nobody records.
+Messages carry command names and counts, never what a request or a session holds.
+
+To see them without the full template, start the recording, then run the dev build (`./build-app.sh`, no version) and filter by the subsystem in Instruments or in the export.
+`--launch` does not work here: with a Carrier installed, `xctrace` finds the name ambiguous.
+`--fixture` runs on a temporary Carrier folder of its own, so `CARRIER_HOME` has no effect there.
+
+```sh
+xcrun xctrace record --instrument os_signpost --all-processes --time-limit 25s --output s.trace &
+sleep 4
+(trap '' PIPE; exec ./Carrier.app/Contents/MacOS/Carrier --fixture)
+xcrun xctrace export --input s.trace --toc
+```
+
+`scripts/perf-sample.sh <app-pid> [chat-host-pid] [seconds]` samples a running app: CPU, idle wake-ups and energy, the footprint and, with a chat host's pid, its process tree with the memory of each process.
+It only reads, and it takes pids you captured or were given, never a name.
+
+A performance test counts work, never time, so it gives the same answer in CI: `ConversationModel.feedWork` (the events a feed was built from), `dictationDays(_:calendar:work:)`, `filesChangedModel(_:lookups:)` and the `publishes(_:over:)` seam.
+Where a finding is not fixed yet, the test says so with `withKnownIssue("what is missing")`: it passes today and the failed expectation shows the real number.
+The day the fix lands, Swift Testing reports that the known issue did not happen, and whoever fixes it takes the `withKnownIssue` out.
+
+For a measurement by hand, `CARRIER_PERF_FIXTURES=<folder> swift test --filter writesTheLargeFixtures` writes:
+
+- `<folder>/fixtures`: the golden files with a `files` reply of 2,000 paths and a diff of 1,000 rows, to run with `--fixture <folder>/fixtures`.
+- `<folder>/home/app/state/dictations.jsonl`: 10,000 dictations, to run with `CARRIER_HOME=<folder>/home`.
+
+The generators are in `Tests/CarrierCoreTests/LargeFixtures.swift`; the long transcript's are in `CarrierCore/LongTranscript.swift`.
+
 ## What the app does
 
 How the app looks is in [macos-ui](../docs/macos-ui.md); what it does, area by area, is in `docs/macos/`; where each area lives in the code is in [AGENTS.md](AGENTS.md).

@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Testing
 @testable import CarrierCore
 
@@ -1635,4 +1636,44 @@ private func launched(_ call: String, at: Int, id: Int) -> [ChatEvent] {
     let asked = try golden("question")
     let cards = chatFeed(asked.events, pending: ["q1"]).compactMap { row -> ApprovalCard? in if case .approval(_, let card) = row { card } else { nil } }
     #expect(cards.count == 1 && cards[0].questions.map(\.multiSelect) == [false, true])
+}
+
+// MARK: the work of the feed
+
+private final class Flag: @unchecked Sendable { var raised = false }
+
+/// A model that has read a session of 5,005 events.
+@MainActor private func modelOfALongSession() async -> (model: ConversationModel, host: ScriptedHost) {
+    let host = ScriptedHost()
+    host.events = longChatEvents(rounds: 715)
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    return (model, host)
+}
+
+@MainActor @Test func anIdlePollDoesNoFeedWorkAndDoesNotTouchTheRows() async {
+    let (model, _) = await modelOfALongSession()
+    #expect(model.cursor == 5005 && model.rows.isEmpty == false)
+    let before = model.feedWork
+    let touched = Flag()
+    withObservationTracking { _ = model.rows } onChange: { touched.raised = true }
+    await model.poll()
+    #expect(model.feedWork == before && touched.raised == false)
+}
+
+@MainActor @Test func aNewEventCostsOneUnitOfFeedWork() async {
+    let (model, host) = await modelOfALongSession()
+    let before = model.feedWork
+    host.events.append(say(5006))
+    await model.poll()
+    #expect(model.cursor == 5006)
+    withKnownIssue("the feed is rebuilt from every event") { #expect(model.feedWork - before == 1) }
+}
+
+@MainActor @Test func aStreamingTokenCostsAtMostOneUnitOfFeedWork() async {
+    let (model, host) = await modelOfALongSession()
+    let before = model.feedWork
+    host.streaming = "Module 715 has"
+    await model.poll()
+    withKnownIssue("the feed is rebuilt from every event") { #expect(model.feedWork - before <= 1) }
 }

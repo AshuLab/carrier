@@ -27,6 +27,9 @@ A "Base folder" session says it with a folder mark, as a worktree's branch has i
 A session whose turn ended and that the person has not opened since (`SessionRow.unread`, `SessionStatus.unread`) says "Done" in green, with how long ago it ended beside it in the colour of a time, in the place of the time (on the second line, as the word alone, when the time is switched off), as "Needs you" does in orange; opening it brings the time back.
 "Needs you" is for a permission or a question the agent is blocked on, "Done" for a turn that simply ended.
 When the turn ends while the row is on screen, the icon's glow turns green and goes once round, fast, from where the arc was (`WorkingRing`, `finished`); with Reduce Motion the lap is skipped and the word still appears.
+What was seen is kept in `sessions.seen`.
+A list the host does not answer (not started yet, being replaced) changes nothing: the lists keep the last rows and no mark is lost, and before the first list that answered nothing is pruned or stored.
+The window's first list waits for the check of the chat host at open, for 15 seconds at most.
 
 A row of the sidebar's list has room around its lines (`Density.sessionRowPadding`: 12 points, 7 compact) and the branch in monospace.
 A session that has a pull request, or lines it changed, has a third line: the pull request's chip (`SessionPullRequestChip`: "#412 · ✓", "#979 · CI ✕", "#983 · draft", "#88 · merged", tinted green, red, grey or purple, and a click opens it), the lines it changed as "+86 −12" and the providers, which go down from the second line with it; with only one of the two, the line has only that one.
@@ -67,6 +70,7 @@ It keeps the changes in memory and refuses to archive or delete a working or wai
 
 Selecting a session (`.session(id:)`) shows its conversation (`Carrier/ConversationView.swift`; the logic is in `CarrierCore/ChatConversation.swift`).
 While the view is on screen a task runs `ConversationModel.run()`, which asks the chat host for `events` by cursor about every 250 ms, in pages of at most 200 (a full page is followed at once by the next), and ends with the task when the person selects something else.
+Two rounds never read at once: a poll asked for while another is under way (a send, an answer) makes that one go round again when it ends, and an event the cursor has passed is never added twice (`ConversationModel.poll`).
 `chatFeed` turns the events into rows: the person's messages (a bubble on the right), the agent's (markdown), a closing line per turn (model, how long, the context at the turn's end and the output tokens, each only when there: the context is the size of the turn's last model call that the host reports as `context_tokens`/`contextTokens`; for a turn with none it shows what the turn's calls read added up as `N in`, since that sum, which the tooltip breaks down, is many times the context: each call reads it all again), the agent's calls and thoughts in order as one work card per run (`ChatToolGroupView`: "Ran 3 commands", a node per call that opens to its output or its diff, "N failed"), an approval as one plain line completed by its answer, an error in red and, last, the `streaming` text as the message in progress.
 An event the host stored with a `parentCallId` was made inside a subagent: `chatFeed` does not draw it and no group counts it, and a `task` event is not drawn either.
 The launching `Agent` call is drawn as any other call until the subagent rows replace it, and a session stored before the change has no such events and looks as it did.

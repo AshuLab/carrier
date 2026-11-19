@@ -500,6 +500,10 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     /// The state the host reports with its events; nil leaves the model's as it was (idle).
     var state: ChatSession.State?
     var interrupts = 0
+    /// Set, the next `events` waits on it before it reads the page: a test holds a round in flight while another starts.
+    var hold: (@Sendable () async -> Void)?
+    /// Set, the next `events` answers the whole list from the start with a cursor of 0, as a reader that was behind would.
+    var rewind = false
 
     func agents() async throws -> [ChatAgent] { [] }
     func open(plan: SessionPlan) async throws -> String { "" }
@@ -541,6 +545,14 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         asked.append((after, limit))
         if let failing { throw failing }
+        if let wait = hold {
+            hold = nil
+            await wait()
+        }
+        if rewind {
+            rewind = false
+            return ChatEvents(events: Array(events.prefix(limit)), cursor: 0, streaming: streaming, state: state, preparation: preparation, progress: progress)
+        }
         let page = Array(events.filter { $0.id > after }.prefix(limit))
         return ChatEvents(events: page, cursor: page.last?.id ?? after, streaming: streaming, state: state, preparation: preparation, progress: progress)
     }
@@ -1676,4 +1688,50 @@ private final class Flag: @unchecked Sendable { var raised = false }
     host.streaming = "Module 715 has"
     await model.poll()
     withKnownIssue("the feed is rebuilt from every event") { #expect(model.feedWork - before <= 1) }
+}
+
+@MainActor @Test func aPollAskedWhileAnotherIsInFlightNeverRepeatsAnEvent() async {
+    let host = ScriptedHost()
+    let (gate, open) = AsyncStream<Void>.makeStream()
+    host.hold = { for await _ in gate {} }
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    // the round `run()` starts, held inside `events` with the cursor at 0
+    let first = Task { await model.poll() }
+    while host.asked.isEmpty { await Task.yield() }
+    host.events = [say(1), say(2)]
+    // an action's poll while the first waits
+    await model.poll()
+    open.finish()
+    await first.value
+    #expect(model.rows.map(\.id) == ["e1", "e2"] && model.cursor == 2)
+}
+
+@MainActor @Test func aReplyBehindTheCursorNeitherMovesItBackNorAddsOldEvents() async {
+    let host = ScriptedHost()
+    host.events = (1...3).map(say)
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.cursor == 3 && model.rows.count == 3)
+    host.rewind = true
+    await model.poll()
+    #expect(model.cursor == 3 && model.rows.count == 3)
+}
+
+@MainActor @Test func aQueuedMessageIsStillDeliveredAndReadAgainWhenTheRoundThatSeesTheAgentIdleEnds() async {
+    let host = ScriptedHost()
+    host.state = .working
+    host.events = [say(1)]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    model.draft = "next"
+    await model.submit()
+    #expect(model.queued == "next" && host.sent.isEmpty)
+    host.state = .idle
+    host.events.append(say(2))
+    let before = host.asked.count
+    await model.poll()
+    // the round delivers it, and the poll `deliver` asks from inside the round is not lost: one more pass reads what the send caused
+    #expect(host.sent == ["next"])
+    #expect(host.asked.count - before == 2)
+    #expect(model.rows.map(\.id).contains("e2"))
 }

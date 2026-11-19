@@ -37,9 +37,10 @@ import SwiftUI
     var collapse = SidebarCollapse()
     /// The chat host's sessions (`ChatSessionsPoller`), with which of them are unread.
     var sessions = Sessions()
-    /// When the person last saw each session (`SessionSeen`), and the list as the host gave it, before `unread`.
+    /// When the person last saw each session (`SessionSeen`), and the list as the host gave it, before `unread`; nil until the host
+    /// answered a list once.
     @ObservationIgnored private var seen = SessionSeen.stored()
-    @ObservationIgnored private var hostRows: [SessionRow] = []
+    @ObservationIgnored private var hostRows: [SessionRow]?
     /// Holds the place of the sessions that work, so the lists do not move them with each event of their agents (`WorkingOrder`).
     @ObservationIgnored private var workOrder = WorkingOrder()
 
@@ -58,13 +59,15 @@ import SwiftUI
 
     /// Sets `unread` again: when the list changes and when the open session does. The session on screen is seen as it moves.
     func refreshUnread() {
-        var rows = hostRows
+        // before the host answered a list there is nothing to compare with: what was seen is neither pruned nor stored
+        guard let listed = hostRows else { return }
+        var rows = listed
         var viewing: String?
         if case .session(let id) = shell.selection { viewing = id }
         if seen.apply(to: &rows, viewing: viewing) { seen.store() }
         workOrder.apply(to: &rows)
         // a session the person just archived is drawn archived before the host's list says so
-        actions.settle(hostRows)
+        actions.settle(listed)
         let leaving = actions.archiving
         for index in rows.indices where leaving.contains(rows[index].id) { rows[index].archived = true }
         if sessions.rows != rows { sessions.rows = rows }
@@ -72,7 +75,7 @@ import SwiftUI
 
     /// The person leaves a session: what it did up to now is seen.
     func leave(_ id: String) {
-        seen.markSeen(id, in: hostRows)
+        seen.markSeen(id, in: hostRows ?? [])
         refreshUnread()
     }
     /// The draft of a new session; it starts the chat host when it is not running (#503) before it opens the session.
@@ -123,6 +126,10 @@ final class WindowController: NSObject, NSWindowDelegate {
     private let model = PanelModel()
     private var window: NSWindow?
     private var stop: StopFlag?
+    /// Cuts short the wait of the window's session list, while its monitor runs.
+    private var sessionsNap: PollNap?
+    /// Whether the check of the chat host at open has answered (it was there, it was started, or it cannot be).
+    private var hostChecked = false
 
     /// Adds the "Open window" item at the end of the menu.
     func addMenuItem(to menu: NSMenu) {
@@ -547,6 +554,12 @@ final class WindowController: NSObject, NSWindowDelegate {
         model.shell.reset(open: SidebarStore().open)
     }
 
+    /// The check at open answered: the window's first list goes now instead of meeting a host that is still starting.
+    func chatHostChecked() {
+        hostChecked = true
+        sessionsNap?.wake()
+    }
+
     private func startMonitor() {
         let stop = StopFlag()
         self.stop = stop
@@ -583,6 +596,10 @@ final class WindowController: NSObject, NSWindowDelegate {
         )
         // what changes the list is read at once: the wait is cut short, and the archived ones are read again
         let nap = PollNap()
+        sessionsNap = nap
+        // at launch the host may still be starting and a list asked before it answers fails: the first one waits for the check at open,
+        // never longer than the 15 s a start waits; a window opened later does not wait
+        let waitsForHost = hostChecked == false
         DispatchQueue.main.async {
             model.actions.changed = {
                 sessions.invalidateArchived()
@@ -591,6 +608,7 @@ final class WindowController: NSObject, NSWindowDelegate {
             model.actions.archivingChanged = { DispatchQueue.main.async { model.refreshUnread() } }
         }
         Task.detached {
+            if waitsForHost { await nap.sleep(seconds: 15) }
             repeat {
                 await sessions.poll()
                 await nap.sleep(seconds: PollPace.shared.seconds)

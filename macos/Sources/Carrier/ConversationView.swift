@@ -503,7 +503,7 @@ struct MessageTimeLabel: View {
         if mode != .never {
             // a relative time ages while the row stays on screen
             TimelineView(.everyMinute) { context in
-                Text(timeText(Date(ms: ms), now: context.date)).font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary)
+                Text(timeText(Date(ms: ms), now: context.date, format: timeChanges.format)).font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary)
                     .opacity(mode.shows(hovering: hovering) ? 1 : 0)
             }
         }

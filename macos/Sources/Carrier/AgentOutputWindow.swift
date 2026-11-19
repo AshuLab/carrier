@@ -9,14 +9,6 @@ final class OutputModel: ObservableObject {
     @Published var carrierStopped = false
 }
 
-/// Set from the main thread, read from the watcher's.
-private final class StopFlag {
-    private let lock = NSLock()
-    private var stopped = false
-    var isSet: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
-    func set() { lock.lock(); stopped = true; lock.unlock() }
-}
-
 /// One window per execution, opened from an epic's card. Its watcher asks for the lines while the window is open and ends
 /// with it. A window of its own rather than a sheet of the panel: the panel is replaced by a message when Carrier stops,
 /// and this view has to stay and say so.
@@ -51,12 +43,8 @@ final class AgentOutputWindow: NSObject, NSWindowDelegate {
         let watcher = OutputWatcher(
             executionId: executionId,
             connect: { connectForTail(socketPath: controlSocketPath()) },
-            // sleeps in short steps so closing the window ends the thread within a tenth of a second
-            wait: { seconds in
-                let end = Date().addingTimeInterval(seconds)
-                while Date() < end && stop.isSet == false { Thread.sleep(forTimeInterval: 0.1) }
-                return stop.isSet == false
-            },
+            // closing the window cuts the wait short at once
+            wait: stop.wait,
             onUpdate: { update in
                 DispatchQueue.main.async {
                     guard stop.isSet == false else { return }

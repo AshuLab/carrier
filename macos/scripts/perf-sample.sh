@@ -1,15 +1,28 @@
 #!/usr/bin/env bash
-# Samples one running Carrier app and, when given, a chat host and its children: CPU, idle wake-ups and energy from `top`, the app's
-# footprint, and the host's process tree with its RSS. It only reads: it never signals a process. Pass PIDs you captured or the person
-# gave you; never look one up by name (the installed Carrier's processes have the same names).
+# Samples one running Carrier app and, when given, a chat host and its children: CPU and energy from `top`, the idle wake-ups and the
+# context switches a second, the app's footprint, and the host's process tree with its RSS. It only reads: it never signals a process.
+# Pass PIDs you captured or the person gave you; never look one up by name (the installed Carrier's processes have the same names).
 # usage: perf-sample.sh <app-pid> [chat-host-pid] [seconds=30]
 set -euo pipefail
 app=${1:?usage: perf-sample.sh <app-pid> [chat-host-pid] [seconds]}
 host=${2:-}
 seconds=${3:-30}
+[[ "$seconds" =~ ^[1-9][0-9]*$ ]] || { echo "error: seconds must be a whole number above 0" >&2; exit 1; }
 echo "## app $app over ${seconds}s"
-# the first sample of top has no deltas: take two and keep the last line
-top -l 2 -s "$seconds" -pid "$app" -stats pid,command,cpu,idlew,power | tail -n 1
+# the first sample of top has no deltas for the CPU: take two and keep the last line. `idlew` and `csw` are totals since the process
+# started, so what the window sampled is the difference between the two samples (none when the process ended before the second)
+samples=$(top -l 2 -s "$seconds" -pid "$app" -stats pid,command,cpu,idlew,power,csw | grep -E "^$app " || true)
+if [[ $(echo "$samples" | grep -c .) -eq 2 ]]; then
+  echo "$samples" | tail -n 1 | awk '{print "cpu " $3 "%, energy impact " $5}'
+  echo "$samples" | awk -v seconds="$seconds" '
+    { gsub(/[+-]/, "", $4); gsub(/[+-]/, "", $6); idle[NR] = $4; csw[NR] = $6 }
+    END {
+      printf "idle wake-ups per second over the window: %.1f\n", (idle[2] - idle[1]) / seconds
+      printf "context switches per second over the window: %.1f\n", (csw[2] - csw[1]) / seconds
+    }'
+else
+  echo "no figures: process $app ended before the second sample"
+fi
 footprint "$app" 2>/dev/null | grep -m 1 "Footprint" || echo "footprint: not available"
 if [[ -n "$host" ]]; then
   echo "## chat host $host and its children"

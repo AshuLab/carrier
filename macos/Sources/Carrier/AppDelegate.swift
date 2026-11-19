@@ -173,7 +173,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Thread.detachNewThread { monitor.run() }
         watchChatSessions()
         // the app lives on with its window closed, so a timer here is enough for the reminders
-        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in NotificationWatcher.app.remind() }
+        let reminders = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in NotificationWatcher.app.remind() }
+        // a reminder is not due to the second: the system may fold this wake-up into others
+        reminders.tolerance = 10
         // the pace of the asks follows whether someone is looking: the app active with its window on screen
         for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in

@@ -634,6 +634,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var commands: [ChatCommand] = []
     /// What a closed session could invoke the last time it was seen running, kept like `remembered`.
     public private(set) var rememberedCommands: [ChatCommand] = []
+    /// The agent last written to `memory`, so a poll writes it only when it changed: a write to the defaults wakes every observer of them.
+    @ObservationIgnored private var savedAgent = ""
     /// What the box lists to invoke: the running agent's, else what it listed when it last ran; that too until the first answer, so the box
     /// does not fill in after the view appears.
     public var shownCommands: [ChatCommand] { commands.isEmpty ? rememberedCommands : commands }
@@ -693,6 +695,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         remembered = memory.load(sessionId)
         rememberedCommands = memory.loadCommands(sessionId)
         agent = memory.loadAgent(sessionId)
+        savedAgent = agent
         draft = memory.loadDraft(sessionId)
     }
 
@@ -780,7 +783,10 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             failure = nil
             options = reply.options
             commands = reply.commands
-            if agent.isEmpty == false { memory.saveAgent(sessionId, agent) }
+            if agent.isEmpty == false, agent != savedAgent {
+                memory.saveAgent(sessionId, agent)
+                savedAgent = agent
+            }
             if reply.commands.isEmpty == false, reply.commands != rememberedCommands {
                 rememberedCommands = reply.commands
                 memory.saveCommands(sessionId, reply.commands)

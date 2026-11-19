@@ -131,7 +131,7 @@ sleep 4
 xcrun xctrace export --input s.trace --toc
 ```
 
-`scripts/perf-sample.sh <app-pid> [chat-host-pid] [seconds]` samples a running app: CPU, idle wake-ups and energy, the footprint and, with a chat host's pid, its process tree with the memory of each process.
+`scripts/perf-sample.sh <app-pid> [chat-host-pid] [seconds]` samples a running app: CPU and energy, the idle wake-ups and context switches a second, the footprint and, with a chat host's pid, its process tree with the memory of each process.
 It only reads, and it takes pids you captured or were given, never a name.
 
 The system's own reports on hangs, CPU and disk use, crashes and the daily metrics reach the app through MetricKit (`Carrier/MetricsSink.swift`) and are kept as JSON in `<Carrier folder>/app/logs/metrics/`, the newest 30.

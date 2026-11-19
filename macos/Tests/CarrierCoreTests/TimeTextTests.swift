@@ -86,3 +86,21 @@ private func text(_ date: Date, _ style: TimeStyle, _ hours: ClockHours = .h24, 
     #expect(updateCheckedText(today, now: now, format: format) == "14:32")
     #expect(updateCheckedText(yesterday, now: now, format: format) == "Yesterday 14:32")
 }
+
+@Test func aClockTimeKeepsItsFormatWhateverWasAskedBetween() {
+    let buenosAires = TimeZone(identifier: "America/Argentina/Buenos_Aires")!
+    let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+    // the formatters are kept per clock, locale and zone: asking for another one in between never changes the next answer
+    for _ in 0..<2 {
+        #expect(text(today, .clock, .h24) == "14:32")
+        #expect(text(today, .clock, .h12) == "2:32 PM")
+        #expect(text(today, .clock, .h24) == "14:32")
+        #expect(timeText(today, now: now, style: .clock, hours: .h24, locale: en, timeZone: buenosAires) == "11:32")
+        #expect(timeText(older, now: now, style: .clock, hours: .h24, locale: en, timeZone: buenosAires) == "Jan 10 11:32")
+        #expect(timeText(today, now: now, style: .clock, hours: .h24, locale: en, timeZone: tokyo) == "Yesterday 23:32")
+        #expect(text(older, .clock, .h24) == "Jan 10 14:32")
+        #expect(text(today, .clock, .system, locale: Locale(identifier: "de_DE")) == "14:32")
+        let american = text(today, .clock, .system, locale: en)
+        #expect(american.hasPrefix("2:32") && american.hasSuffix("PM"))
+    }
+}

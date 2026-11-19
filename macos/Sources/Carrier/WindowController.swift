@@ -107,14 +107,6 @@ extension ShortcutModifiers {
     }
 }
 
-/// Set from the main thread, read from the monitor's.
-private final class StopFlag {
-    private let lock = NSLock()
-    private var stopped = false
-    var isSet: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
-    func set() { lock.lock(); stopped = true; lock.unlock() }
-}
-
 /// The window: a plain NSWindow kept for the life of the app, with the SwiftUI panel inside. It has its own monitor of
 /// Carrier, started when the window opens and stopped when it closes, so a closed window costs nothing.
 final class WindowController: NSObject, NSWindowDelegate {
@@ -571,16 +563,11 @@ final class WindowController: NSObject, NSWindowDelegate {
         self.stop = stop
         let model = model
         let poller = model.epics.poller!
-        // sleeps in short steps so closing the window ends the thread within a tenth of a second
-        let sleep: (TimeInterval) -> Bool = { seconds in
-            let end = Date().addingTimeInterval(seconds)
-            while Date() < end && stop.isSet == false { Thread.sleep(forTimeInterval: 0.1) }
-            return stop.isSet == false
-        }
         let monitor = ControlMonitor(
             socketPath: { controlSocketPath() },
             pollEvery: { PollPace.shared.seconds },
-            wait: sleep,
+            // closing the window cuts the wait short at once
+            wait: stop.wait,
             tick: { try poller.poll($0) },
             onChange: { state in
                 // an equal state is not assigned: the observer ignores it anyway, and the "panel state" signpost counts only what differs

@@ -153,7 +153,7 @@ private struct ArchiveRow: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 6) {
-                Text(timeText(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                Text(timeText(row.updatedAt, now: Date(), format: timeChanges.format)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     .accessibilityLabel(spokenAge(row.updatedAt, now: Date()))
                 ProviderMarks(names: row.providers)
             }

@@ -205,7 +205,10 @@ private final class CommandsBox: @unchecked Sendable { var stored: [String: [Cha
     #expect(closed.commands.isEmpty && closed.shownCommands.map(\.name) == ["review"])
 }
 
-private final class AgentBox: @unchecked Sendable { var stored: [String: String] = [:] }
+private final class AgentBox: @unchecked Sendable {
+    var stored: [String: String] = [:]
+    var writes = 0
+}
 
 @MainActor @Test func aSessionTheAppSawKeepsItsProviderFromTheFirstFrame() async {
     let box = AgentBox()
@@ -218,6 +221,31 @@ private final class AgentBox: @unchecked Sendable { var stored: [String: String]
     await first.poll()
     #expect(box.stored["s"] == first.agent && first.agent.isEmpty == false)
     #expect(ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory).agent == first.agent)
+}
+
+@MainActor @Test func theAgentIsWrittenOnlyWhenItChanges() async {
+    let box = AgentBox()
+    let memory = OptionsMemory(
+        load: { _ in [] }, save: { _, _ in }, loadAgent: { box.stored[$0] ?? "" }, saveAgent: { box.writes += 1; box.stored[$0] = $1 }
+    )
+    func session(_ agent: String) -> ChatSession {
+        let json = #"{"id":"s","agent":"\#(agent)","harness":"claude","folder":"/x","state":"idle","createdAt":1,"lastActiveAt":1,"archived":false,"live":true}"#
+        return try! JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
+    }
+    let host = OptionsHost()
+    host.sessions = [session("claude")]
+    // a write to the defaults wakes every observer of them, and the poll runs four times a second
+    let first = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+    for _ in 0..<3 { await first.poll() }
+    #expect(box.writes == 1)
+    // a model for a session the app already saw starts from what was written, so it writes nothing new
+    let second = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+    for _ in 0..<2 { await second.poll() }
+    #expect(box.writes == 1)
+    // the host says another agent: that is written
+    host.sessions = [session("codex")]
+    await second.poll()
+    #expect(box.writes == 2 && box.stored["s"] == "codex")
 }
 
 @MainActor @Test func whatIsTypedInTheBoxIsStillThereWhenThePersonComesBackToTheSession() {

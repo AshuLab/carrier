@@ -54,6 +54,7 @@ struct AccentGlassPillButton: View {
     let title: String
     var icon: String? = nil
     let action: () -> Void
+    @Environment(\.isEnabled) private var enabled
 
     var body: some View {
         Button(action: action) {
@@ -69,7 +70,9 @@ struct AccentGlassPillButton: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.tint(Color.accentGlass).interactive(), in: .capsule)
+        // off: dimmed, and the glass does not answer the pointer, as the other toolbar pills do
+        .glassEffect(.regular.tint(Color.accentGlass).interactive(enabled), in: .capsule)
+        .opacity(enabled ? 1 : 0.45)
     }
 }
 

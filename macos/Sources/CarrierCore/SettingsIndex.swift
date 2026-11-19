@@ -25,7 +25,12 @@ public struct SettingsEntry: Equatable, Sendable, Identifiable {
         self.path = path
     }
 
-    public var id: String { isPage ? settingsAnchor(page, group: "", title: "") : settingsAnchor(page, group: group, title: title) }
+    /// What a row of a list is known by: the same for a place of the page, and with its path for a screen (two accounts of one provider may share a name).
+    public var id: String {
+        if isPage { return settingsAnchor(page, group: "", title: "") }
+        let anchor = settingsAnchor(page, group: group, title: title)
+        return path.isEmpty ? anchor : ([anchor] + path).joined(separator: "/")
+    }
 }
 
 /// The id a row carries in its page, so the page can scroll to it: its page, its group and its title as slugs. A group is its own title with no

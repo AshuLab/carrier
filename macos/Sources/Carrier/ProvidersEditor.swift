@@ -14,6 +14,7 @@ struct AccountEditor: View {
     @State private var owner = UUID()
     /// Which of the two pickers that open in a popover is open.
     @State private var picking: Picking?
+    @State private var confirmingRemove = false
     @State private var draft: AccountDraft
     @State private var saved: AccountDraft
     private enum Picking { case icon, color }
@@ -54,11 +55,11 @@ struct AccountEditor: View {
             } else {
                 SettingsGroup(title: "Name") {
                     field("Display name", "displayName", "What the app shows instead of \(account.name)", first: true) {
-                        TextField("", text: $draft.displayName, prompt: Text(account.name)).settingsField(width: Self.controlWidth)
+                        TextField("", text: $draft.displayName, prompt: Text(account.name)).settingsField(width: Self.controlWidth).accessibilityLabel("Display name")
                     }
                     if store.identityEditable {
                         field("Label", "label", "Short, for tabs, chips and the message box. Empty uses the display name") {
-                            TextField("", text: $draft.label, prompt: Text(account.name)).settingsField(width: Self.controlWidth)
+                            TextField("", text: $draft.label, prompt: Text(account.name)).settingsField(width: Self.controlWidth).accessibilityLabel("Label")
                         }
                         field("Icon", "icon", "The tool's mark by default") { pickerButton(.icon) }
                         field("Color", "color", "Tints the mark wherever it shows") { pickerButton(.color) }
@@ -71,11 +72,11 @@ struct AccountEditor: View {
                 }
                 SettingsGroup(title: "Where it runs") {
                     field("Binary path", "command", "Empty runs \(harness) from the PATH", first: true) {
-                        TextField("", text: $draft.command, prompt: Text("/opt/homebrew/bin/\(harness)")).settingsField(width: Self.controlWidth)
+                        TextField("", text: $draft.command, prompt: Text("/opt/homebrew/bin/\(harness)")).settingsField(width: Self.controlWidth).accessibilityLabel("Binary path")
                     }
                     if harness != "agy" {
                         field("Config folder", "configDir", harness == "claude" ? "CLAUDE_CONFIG_DIR; empty is this Mac's login" : "CODEX_HOME; empty is this Mac's login", hint: "Any path; one that does not start with / or ~/ is taken from your home folder") {
-                            TextField("", text: $draft.configDir, prompt: Text("~/.\(harness)-work")).settingsField(width: Self.controlWidth)
+                            TextField("", text: $draft.configDir, prompt: Text("~/.\(harness)-work")).settingsField(width: Self.controlWidth).accessibilityLabel("Config folder")
                         }
                     }
                 }
@@ -116,10 +117,8 @@ struct AccountEditor: View {
                 }
                 SettingsGroup(title: "") {
                     SettingsTabRow(title: "Remove account", detail: "Removes \(account.name) from providers.json; refused while a role or a chat names it", first: true) {
-                        Button(role: .destructive) {
-                            Task { if await store.remove(name: account.name) { ProviderIdentityStore.shared.reload(); close() } }
-                        } label: { Label("Remove…", systemImage: "trash") }
-                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                        Button(role: .destructive) { confirmingRemove = true } label: { Label("Remove…", systemImage: "trash") }
+                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                     }
                 }
             }
@@ -130,13 +129,22 @@ struct AccountEditor: View {
         .onChange(of: draft) { publish() }
         .onChange(of: saved) { publish() }
         .onDisappear { saver?.clear(owner) }
+        // the ellipsis of Remove… is this question: there is no undoing a removal
+        .alert("Remove \(account.title)?", isPresented: $confirmingRemove) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove", role: .destructive) {
+                Task { if await store.remove(name: account.name) { ProviderIdentityStore.shared.reload(); close() } }
+            }
+        } message: {
+            Text("It is taken out of providers.json. A role or a chat that names it keeps it from going.")
+        }
     }
 
     /// Save is the toolbar's: on while something changed and nothing is wrong, and it writes what the fields hold now.
     private func publish() {
         guard inFile else { return saver?.clear(owner) ?? () }
         let draft = draft
-        saver?.set(owner, title: "Save", enabled: canSave) {
+        saver?.set(owner, title: "Save", icon: "checkmark", enabled: canSave) {
             Task { if await store.save(name: account.name, draft: draft) { ProviderIdentityStore.shared.reload(); close() } }
         }
     }
@@ -154,6 +162,7 @@ struct AccountEditor: View {
             }
             Button("Change…") { picking = kind }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 .accessibilityLabel(kind == .icon ? "Change the icon" : "Change the color")
+                .accessibilityValue(kind == .icon ? iconName(draft.icon) : draft.color?.rawValue.capitalized ?? "None")
                 .popover(isPresented: Binding(get: { picking == kind }, set: { if $0 == false { picking = nil } }), arrowEdge: .bottom) {
                     Group { if kind == .icon { iconPicker } else { colorPicker } }.padding(14)
                 }
@@ -260,13 +269,13 @@ struct AddAccountForm: View {
         Group {
             SettingsGroup(title: "Add account") {
                 SettingsTabRow(title: "Name", detail: "Lowercase letters, digits and hyphens", first: true) {
-                    TextField("", text: $name, prompt: Text("\(harness)-work")).settingsField(width: AccountEditor.controlWidth)
+                    TextField("", text: $name, prompt: Text("\(harness)-work")).settingsField(width: AccountEditor.controlWidth).accessibilityLabel("Name")
                 }
                 SettingsTabRow(
                     title: "Config folder",
                     detail: (harness == "claude" ? "CLAUDE_CONFIG_DIR of this login" : "CODEX_HOME of this login") + ". Any path; one that does not start with / or ~/ is taken from your home folder"
                 ) {
-                    TextField("", text: $folder, prompt: Text("~/.\(harness)-work")).settingsField(width: AccountEditor.controlWidth)
+                    TextField("", text: $folder, prompt: Text("~/.\(harness)-work")).settingsField(width: AccountEditor.controlWidth).accessibilityLabel("Config folder")
                 }
             }
             if let message = problem ?? store.editProblem { SettingsGroup(title: "") { ProblemLine(text: message) } }
@@ -283,7 +292,7 @@ struct AddAccountForm: View {
 
     private func publish() {
         let (name, folder) = (name, folder)
-        saver?.set(owner, title: "Add", enabled: name.isEmpty == false && problem == nil) {
+        saver?.set(owner, title: "Add", icon: "plus", enabled: name.isEmpty == false && problem == nil) {
             Task { if await store.addAccount(name: name, harness: harness, configDir: folder) { close() } }
         }
     }

@@ -124,7 +124,7 @@ struct SettingsRoot: View {
                     // the save of a screen that edits something (an account): on its own glass pill, as the window's other actions
                     if let saveTitle = saver.title {
                         ToolbarItem(placement: .primaryAction) {
-                            AccentGlassPillButton(title: saveTitle, icon: "checkmark") { saver.run?() }.disabled(saver.enabled == false)
+                            AccentGlassPillButton(title: saveTitle, icon: saver.icon) { saver.run?() }.disabled(saver.enabled == false)
                         }
                         .sharedBackgroundVisibility(.hidden)
                     }

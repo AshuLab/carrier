@@ -86,13 +86,16 @@ extension EnvironmentValues {
 /// The save of the screen that is open (an account's editor): set by the screen while it has something to save, read by the toolbar's button.
 @MainActor @Observable final class SettingsSave {
     private(set) var title: String?
+    private(set) var icon = "checkmark"
     private(set) var enabled = false
     private(set) var run: (() -> Void)?
     @ObservationIgnored private var owner: UUID?
 
-    func set(_ owner: UUID, title: String, enabled: Bool, run: @escaping () -> Void) {
+    /// `icon` is the verb's own (Save a check, Add a plus), as the guide gives each button.
+    func set(_ owner: UUID, title: String, icon: String = "checkmark", enabled: Bool, run: @escaping () -> Void) {
         self.owner = owner
         self.title = title
+        self.icon = icon
         self.enabled = enabled
         self.run = run
     }

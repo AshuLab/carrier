@@ -30,10 +30,11 @@ public func accountUsage(_ account: String, in quotas: [UsageQuota], now: Int) -
     let weeks = main.filter { quotaKind($0) == .weekly }
     guard fives.isEmpty == false || weeks.isEmpty == false else { return nil }
     let timed = fives.isEmpty ? weeks : fives
-    let soonest = timed.filter { $0.resetsAt != nil }.min { ($0.resetsAt ?? 0) < ($1.resetsAt ?? 0) } ?? timed.first
+    // the soonest reset still ahead (a pool whose reset has passed does not hide the countdown of another), or the provider's words when none has a time
+    let next = timed.filter { ($0.resetsAt ?? 0) > now }.min { ($0.resetsAt ?? 0) < ($1.resetsAt ?? 0) } ?? timed.first { $0.resetsAt == nil }
     return AccountUsage(
         five: fives.isEmpty ? nil : meterShape(fives), weekly: weeks.isEmpty ? nil : meterShape(weeks),
-        reset: soonest.flatMap { resetText(resetsAt: $0.resetsAt, label: $0.resetLabel, now: now) }, stale: quota.stale
+        reset: next.flatMap { resetText(resetsAt: $0.resetsAt, label: $0.resetLabel, now: now) }, stale: quota.stale
     )
 }
 
@@ -78,7 +79,8 @@ public struct ProvidersDirectory: Equatable {
 
 /// `1 account needs attention`, `All signed in`, or the provider's own state when it has no account.
 private func providerSummary(_ tool: ProviderTool, attention: Int) -> (String, DirectoryProvider.Mark) {
-    guard tool.accounts.isEmpty == false else { return (tool.status.text, .off) }
+    // not on this Mac is what its screen says too, even with accounts in the file
+    guard tool.accounts.isEmpty == false, tool.status != .missing else { return (tool.status.text, .off) }
     if attention > 0 { return ("\(attention) \(attention == 1 ? "account needs" : "accounts need") attention", .attention) }
     if tool.accounts.allSatisfy({ $0.state == .ready }) { return ("All signed in", .ok) }
     return ("Could not check", .off)
@@ -109,7 +111,15 @@ public func providersDirectory(_ page: ProvidersPage, quotas: [UsageQuota], filt
 /// Every provider, account and server of this Mac as a place the Settings search can open (the static index cannot know them).
 public func providersSearchEntries(_ page: ProvidersPage) -> [SettingsEntry] {
     page.tools.flatMap { tool in
-        [SettingsEntry(page: .providers, group: "AI providers", title: tool.title, detail: tool.status.text, path: [tool.id])]
-            + tool.accounts.map { SettingsEntry(page: .providers, group: tool.title, title: $0.title, detail: "Account of \(tool.title)", path: [tool.id, $0.name]) }
+        [SettingsEntry(
+            page: .providers, group: "AI providers", title: tool.title,
+            detail: tool.accounts.isEmpty ? tool.status.text : "\(tool.accounts.count) \(tool.accounts.count == 1 ? "account" : "accounts")", path: [tool.id]
+        )]
+            + tool.accounts.map {
+                SettingsEntry(
+                    page: .providers, group: tool.title, title: $0.title,
+                    detail: "Account of \(tool.title)" + ($0.name == $0.title ? "" : " · \($0.name)"), path: [tool.id, $0.name]
+                )
+            }
     } + page.servers.map { SettingsEntry(page: .providers, group: "Local servers", title: $0.title, detail: $0.status, path: [$0.id]) }
 }

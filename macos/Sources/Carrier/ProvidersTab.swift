@@ -32,25 +32,44 @@ struct ProvidersTabView: View {
             if let note = store.outcome.note {
                 SettingsGroup(title: "") { Text(note).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }
+            // Sign in opens Terminal from a provider's screen and from an account's: what went wrong is said where it was asked
+            if let failure { SettingsGroup(title: "") { ProblemLine(text: failure, font: .scaled(11)) } }
             if let page { screen(page) }
         }
         .preference(key: SettingsTitleKey.self, value: page.flatMap(title))
         .task { await look() }
-        // what the engine said to a save belongs to the screen it was made on: it does not follow the person to another or out of the page
+        // what the engine said to a save belongs to the provider it was made on: it does not follow the person to another or out of the page, but
+        // it stays when a save closes the account's editor onto its own provider
         .onDisappear { store.dismissProblem() }
-        .onChange(of: place) { store.dismissProblem() }
+        .onChange(of: place) { old, new in
+            failure = nil
+            if old.path.first != new.path.first { store.dismissProblem() }
+        }
         // back from Terminal or an editor, where a login or a file may have changed
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await look() } }
     }
 
-    private func look() async {
+    /// `refresh` skips the host's minute of cache for the quotas (Check again); otherwise the page takes what it has.
+    private func look(refresh: Bool = false) async {
         looking = true
         config = currentConfig()
         chat = try? currentChatConfig()
         await store.load()
-        // the quotas belong to the accounts the page lists: asked with them, from the host's own minute of cache
-        await usage.load()
+        // the quotas belong to the accounts the page lists: asked with them, once
+        await usage.load(refresh: refresh)
         looking = false
+    }
+
+    /// Check again, on every screen that has none of its own: after Carrier starts a server or a CLI is installed, the page can be asked to look.
+    private var checkButton: some View {
+        Button { Task { await look(refresh: true) } } label: { Label(looking ? "Checking…" : "Check again", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
+            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(looking).fixedSize()
+    }
+
+    private var checkGroup: some View {
+        SettingsGroup(title: "") {
+            SettingsTabRow(title: "Look at this Mac again", detail: "Providers, sign-ins and each account's quota", first: true) { checkButton }
+        }
     }
 
     private func here(_ path: String...) -> SettingsPlace { SettingsPlace(.providers, path: path) }
@@ -91,7 +110,7 @@ struct ProvidersTabView: View {
     @ViewBuilder private func directory(_ page: ProvidersPage) -> some View {
         let list = providersDirectory(page, quotas: usage.quotas, filter: filter, now: Int(Date().timeIntervalSince1970 * 1000))
         SettingsGroup(title: "") {
-            TextField("", text: $filter, prompt: Text("Filter providers and accounts")).settingsField(icon: "magnifyingglass").writingToolsBehavior(.disabled)
+            TextField("", text: $filter, prompt: Text("Filter providers and accounts")).settingsField(icon: "magnifyingglass").accessibilityLabel("Filter providers and accounts").writingToolsBehavior(.disabled)
         }
         if list.isEmpty {
             SettingsGroup(title: "") { Text("Nothing matches “\(filter)”").foregroundStyle(.secondary) }
@@ -140,12 +159,12 @@ struct ProvidersTabView: View {
                 }
             }
         }
+        checkGroup
     }
 
     // MARK: a provider
 
     @ViewBuilder private func providerScreen(_ tool: ProviderTool) -> some View {
-        if let failure { SettingsGroup(title: "") { ProblemLine(text: failure, font: .scaled(11)) } }
         // an editor that closed after a save the engine did not apply leaves its words here
         if let problem = store.editProblem { SettingsGroup(title: "") { ProblemLine(text: problem, font: .scaled(11)) } }
         // not a problem: said quietly, as the other pages say that Carrier reads it when it starts
@@ -155,6 +174,7 @@ struct ProvidersTabView: View {
         switch tool.status {
         case .missing:
             SettingsGroup(title: "") { EmptyStateView(icon: "arrow.down.circle", title: "\(tool.title) is not installed", line: "Not found on this Mac, so there are no accounts to show.").frame(minHeight: 260) }
+            checkGroup
         case .foundNotAdded:
             SettingsGroup(title: "") {
                 SettingsTabRow(title: "Found on this Mac", detail: "Not added as an account yet", first: true) {
@@ -175,7 +195,7 @@ struct ProvidersTabView: View {
                     )
                 }
                 if tool.id != "agy" {
-                    Button { store.dismissProblem(); go(here(tool.id, Self.addAccountPath)) } label: { Label("Add account", systemImage: "plus") }
+                    Button { store.dismissProblem(); go(here(tool.id, Self.addAccountPath)) } label: { Label("Add account", systemImage: "plus").labelStyle(.titleAndIcon) }
                         .buttonStyle(HoverTextButtonStyle(tint: nil)).help("Another login of \(tool.title)")
                 }
             }
@@ -193,11 +213,10 @@ struct ProvidersTabView: View {
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and runs \(tool.id) update")
                 }
             }
-            SettingsTabRow(title: "Sign-ins and quotas", detail: "Look at this Mac again; tokens and cost are on the Usage page") {
+            SettingsTabRow(title: "Sign-ins and quotas", detail: "Tokens and cost are on the Usage page") {
                 HStack(spacing: 8) {
-                    Button(looking ? "Checking…" : "Check again") { Task { await look(); AppUsage.refresher.checkAgain() } }
-                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(looking)
-                    Button("Open Usage") { WindowController.shared.showUsage() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    checkButton
+                    Button("Open Usage") { WindowController.shared.showUsage() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
                 }
             }
         }
@@ -238,6 +257,7 @@ struct ProvidersTabView: View {
                 }
             }
         }
+        checkGroup
     }
 
     /// Terminal's script and opener are Continue in Terminal's; under `--fixture` the opener only says what it would have run.
@@ -278,8 +298,9 @@ private struct NavigationRow<Leading: View, Trailing: View>: View {
     }
 }
 
-/// An account of a provider, with its own usage: its name and state, who uses it and where its login lives, and at the right its 5h and Weekly
-/// meters with when they reset (or Sign in, for a signed-out one). The whole row opens the account; the buttons inside keep their own clicks.
+/// An account of a provider, with its own usage: its name and state, who uses it and where its login lives and, at the right, its 5h and Weekly
+/// meters with when they reset (or Sign in, for a signed-out one). When that does not fit (a narrow window, the largest text) the meters go under
+/// the text. The whole row opens the account; the buttons inside keep their own clicks.
 private struct AccountRow: View {
     let tool: ProviderTool
     let account: ProviderAccount
@@ -288,33 +309,55 @@ private struct AccountRow: View {
     let edit: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            AccountTile(account: account.name, icon: tool.icon)
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
-                    Circle().fill(account.state.color).frame(width: 7, height: 7).accessibilityHidden(true)
-                    Text(account.title).fontWeight(.medium)
-                }
-                // one line, with the whole of it as a tooltip: who uses the account is on its own screen too
-                Text(account.usedBy).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail).help(account.usedBy)
-                if tool.id != "agy" {
-                    Text(account.configDir ?? "This Mac's login").font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                AccountTile(account: account.name, icon: tool.icon)
+                text.frame(maxWidth: 300, alignment: .leading)
+                Spacer(minLength: 8)
+                trailing
+                chevron
             }
-            Spacer(minLength: 8)
-            trailing
-            Button(action: edit) { Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).foregroundStyle(.tertiary) }
-                .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel("Edit \(account.name)").help("Edit \(account.name)")
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    AccountTile(account: account.name, icon: tool.icon)
+                    text
+                    Spacer(minLength: 8)
+                    chevron
+                }
+                trailing
+            }
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle()).onTapGesture(perform: edit)
+    }
+
+    private var chevron: some View {
+        Button(action: edit) { Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).foregroundStyle(.tertiary) }
+            .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel("Edit \(account.name)").help("Edit \(account.name)")
+    }
+
+    private var text: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 6) {
+                // the state is told to VoiceOver here too: with cached quotas the row shows their bars and not the state's words
+                Circle().fill(account.state.color).frame(width: 7, height: 7).accessibilityLabel(account.state.words)
+                Text(account.title).fontWeight(.medium)
+            }
+            // one line, with the whole of it as a tooltip: who uses the account is on its own screen too
+            Text(account.usedBy).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail).help(account.usedBy)
+            if tool.id != "agy" {
+                let folder = account.configDir ?? "This Mac's login"
+                Text(folder).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    .help(folder).textSelection(.enabled)
+            }
+        }
     }
 
     @ViewBuilder private var trailing: some View {
         if account.state == .signedOut {
             HStack(spacing: 10) {
                 AccountStateLabel(state: account.state)
-                Button("Sign in", action: signIn).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and signs this account in")
+                Button("Sign in", action: signIn).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize().help("Opens Terminal and signs this account in")
             }
         } else if let usage {
             AccountUsageMeters(usage: usage)
@@ -335,12 +378,13 @@ private struct AccountUsageMeters: View {
             if usage.stale || usage.reset != nil {
                 HStack(spacing: 6) {
                     if usage.stale { StatusChip(text: "Stale", tint: .orange) }
-                    if let reset = usage.reset { Text(reset) }
+                    if let reset = usage.reset { Text(reset).lineLimit(1) }
                 }
-                .font(.scaled(10.5)).foregroundStyle(.secondary)
+                .font(.scaled(10.5)).foregroundStyle(.secondary).fixedSize()
             }
         }
-        .frame(width: 236)
+        // room for the words and the percent at the largest text, and no more than the bars need
+        .frame(minWidth: 220, maxWidth: 280)
         .accessibilityElement(children: .combine)
     }
 }
@@ -352,9 +396,9 @@ private struct UsageMeterLine: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(label).font(.scaled(11)).foregroundStyle(.secondary).frame(width: 46, alignment: .leading)
-            QuotaBar(shape: shape, height: 5).frame(maxWidth: .infinity)
-            QuotaPercent(shape: shape).frame(width: 36, alignment: .trailing)
+            Text(label).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).fixedSize().frame(minWidth: 46, alignment: .leading)
+            QuotaBar(shape: shape, height: 5).frame(minWidth: 60, maxWidth: .infinity)
+            QuotaPercent(shape: shape).lineLimit(1).fixedSize().frame(minWidth: 36, alignment: .trailing)
         }
     }
 }
@@ -367,8 +411,9 @@ private struct StateWords: View {
     var body: some View {
         HStack(spacing: 6) {
             Circle().fill(color).frame(width: 7, height: 7).accessibilityHidden(true)
-            Text(text).font(.scaled(12)).foregroundStyle(mark == .attention ? SessionRowView.attention : Color.secondary)
+            Text(text).font(.scaled(12)).foregroundStyle(mark == .attention ? SessionRowView.attention : Color.secondary).lineLimit(1)
         }
+        .fixedSize()
         .accessibilityElement(children: .combine)
     }
 
@@ -411,16 +456,18 @@ private struct AccountTile: View {
 private struct AccountStateLabel: View {
     let state: ToolState
 
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle().fill(state.color).frame(width: 7, height: 7).accessibilityHidden(true)
-            Text(state.words).font(.scaled(12)).foregroundStyle(state == .signedOut || state == .missing ? SessionRowView.attention : Color.secondary)
-        }
-        .accessibilityElement(children: .combine)
-    }
+    var body: some View { StateWords(text: state.words, mark: state.mark) }
 }
 
 private extension ToolState {
+    var mark: DirectoryProvider.Mark {
+        switch self {
+        case .ready: .ok
+        case .signedOut, .missing: .attention
+        case .unknown: .off
+        }
+    }
+
     var color: Color {
         switch self {
         case .ready: .green

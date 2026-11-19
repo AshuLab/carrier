@@ -80,7 +80,34 @@ private func quota(_ account: String, five: Double, provider: String = "claude")
 @Test func theSearchCanOpenEveryProviderAccountAndServerOfThisMac() throws {
     let entries = providersSearchEntries(try page())
     let account = try #require(entries.first { $0.title == "Work" })
-    #expect(account.page == .providers && account.path == ["claude", "claude-work"] && account.detail == "Account of Claude Code")
+    #expect(account.page == .providers && account.path == ["claude", "claude-work"] && account.detail == "Account of Claude Code · claude-work")
     #expect(entries.first { $0.title == "Ollama" }?.path == ["ollama"] && entries.first { $0.title == "Claude Code" }?.path == ["claude"])
     #expect(settingsResults("work", in: entries).first?.path == ["claude", "claude-work"])
+}
+
+@Test func aProviderNotOnThisMacSaysSoEvenWithAccountsInTheFile() throws {
+    // the file names accounts, the host finds no binary: the list says what the provider's own screen says
+    let text = try String(contentsOf: fixtures.appendingPathComponent("chat-providers.json"), encoding: .utf8).replacingOccurrences(of: "\"found\": true", with: "\"found\": false")
+    let missing = providersPage(try JSONDecoder().decode(HostProviders.self, from: Data(text.utf8)), config: nil, chat: nil)
+    let claude = try #require(providersDirectory(missing, quotas: [], now: now).providers.first { $0.id == "claude" })
+    #expect(claude.accounts == 2 && claude.summary == "Not installed" && claude.mark == .off)
+}
+
+@Test func theNextResetIsTheSoonestOneStillAheadAndTheSearchPoolsNothingByProvider() throws {
+    // two pools of one Antigravity account: one reset has passed, the other is an hour away
+    let json = #"{"account":"agy","provider":"agy","status":"ok","windows":[{"id":"a","label":"5h","group":"G1","usedPercent":20,"resetsAt":\#(now - 1000)},{"id":"b","label":"5h","group":"G2","usedPercent":40,"resetsAt":\#(now + 3_600_000)}]}"#
+    let mixed = try JSONDecoder().decode(UsageQuota.self, from: Data(json.utf8))
+    #expect(accountUsage("agy", in: [mixed], now: now)?.reset == "Resets in 1h 00m")
+    // the provider's own state is only its state when it has no account; with accounts it says how many, and a renamed account is found by its key too
+    let entries = providersSearchEntries(try page())
+    #expect(entries.first { $0.title == "Claude Code" }?.detail == "2 accounts" && entries.first { $0.title == "Antigravity" }?.detail == "Found, not added")
+    #expect(settingsResults("claude-work", in: entries).first?.path == ["claude", "claude-work"])
+}
+
+@Test func twoAccountsThatShareATitleAreTwoEntriesOfTheList() {
+    let one = SettingsEntry(page: .providers, group: "Claude Code", title: "Work", path: ["claude", "work-1"])
+    let two = SettingsEntry(page: .providers, group: "Claude Code", title: "Work", path: ["claude", "work-2"])
+    #expect(one.id != two.id)
+    // a row of the page keeps its anchor, and a path does not change what the page scrolls to
+    #expect(SettingsEntry(page: .general, group: "Display", title: "Clock").id == "general.display.clock")
 }

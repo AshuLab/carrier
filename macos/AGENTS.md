@@ -57,6 +57,12 @@ What the person sees: [settings-app](../docs/macos/settings-app.md#providers).
 
 The rows are `providersPage(_:config:chat:)` and the list's `providersDirectory` (`CarrierCore/ProvidersPage.swift`, `ProvidersDirectory.swift`; `ProvidersPageTests`, `ProvidersDirectoryTests`); the views are untested; `providers.json` is in `ProvidersFileTests` and `FixtureServerTests`.
 
+### Agents page
+
+What the person sees: [settings-carrier](../docs/macos/settings-carrier.md#agents).
+
+`agentsPage`, `agentsReadiness`, `AgentRole.stages` (`CarrierCore/AgentsPage.swift`, `AgentsReadiness.swift`; `AgentsPageTests`, `AgentsReadinessTests`); views untested.
+
 ### Sessions page
 
 What the person sees: [settings](../docs/macos/settings.md#sessions-page).
@@ -75,8 +81,8 @@ The decoding, outcomes, command and store are tested (`DoctorChecksTests`), not 
 What the person sees: [new session](../docs/macos/new-session.md).
 
 The logic is `NewSessionModel` (`showRepos`, `loadRepos`, `repoRows`, `choose(repo:)`) and `githubRepoRows`, tested with a fake host in `NewSessionTests`.
-The rule, the host client's decoding and the draft are tested (`HealthTests`, `ChatHostTests`, `NewSessionTests`); the `AppDelegate` wiring is not.
-The list, the script and the opener are tested in `HealthFixTests` (replaceable opener, hostile values that run nothing); the button is untested.
+The rule, the host client's decoding and the draft are tested (`HealthTests`, `ChatHostTests`, `NewSessionTests`); `AppDelegate`'s wiring is not.
+The list, the script and the opener are tested in `HealthFixTests` (hostile values run nothing); the button is untested.
 The logic is `CarrierCore/WorktreeChoice.swift` (pure values over the `workspace` reply, tested on golden files in `WorktreeChoiceTests`) and `NewSessionModel` (tested with a fake host).
 
 ## Conversation
@@ -94,7 +100,7 @@ What the person sees: [usage](../docs/macos/usage.md).
 
 What the person sees: [dictation](../docs/macos/dictation.md).
 
-The logic is `CarrierCore/Dictation.swift` (boundary and registry), `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read.
+The logic is `CarrierCore/Dictation.swift`, `DictationSession.swift`, `TentativeText.swift` and `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read.
 Readiness: `speechModelStep`, `ModelSlot`, run by `DictationController.warmUp` (`DictationReadinessTests`); `DictationSession.run` captures before `prepare`.
 Firm and tentative: `DictationEvent.partial`, `TentativeText.tentativeRange`, `GlobalDictation.split` (`TentativeTextTests`).
 The page is `Carrier/DictationTab.swift` (a first screen, six `DictationScreen`s); `dictationReadiness` words its card (`DictationReadinessModelTests`); `reset(.dictation)` restores `AppPreferences.keys(of:)`; views untested.
@@ -102,18 +108,17 @@ The page is `Carrier/DictationTab.swift` (a first screen, six `DictationScreen`s
 ### Global dictation
 
 See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, scripted recognizer; Hold is `.up`).
-Shortcut and activation: `CarrierCore/DictationShortcut.swift` (`recordShortcut`, `DictationShortcutTests`) and the recorder row in `GlobalDictationGroup`, untested.
-`CarrierCore/PasteDecision.swift` (`pasteDecision`, `PasteDecisionTests`) picks paste or copy from `Carrier/FocusedField.swift`, which reads the focus (untested).
-`Carrier/GlobalDictationController.swift` wires it to `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`, own pasteboard); the rest untested.
+Shortcut: `CarrierCore/DictationShortcut.swift` (`recordShortcut`, `DictationShortcutTests`); the recorder row is untested.
+`CarrierCore/PasteDecision.swift` (`PasteDecisionTests`) picks paste or copy from `Carrier/FocusedField.swift` (untested).
+`Carrier/GlobalDictationController.swift` wires `GlobalHotKey`, `DictationWidget` and `ClipboardPaste` (`ClipboardPasteTests`); the rest untested.
 Box or widget: `CarrierCore/DictationRoute.swift` (`DictationRouteTests`); the box side is `MessageBox.dictateRequest`.
-Sounds: `CarrierCore/DictationSounds.swift` (`DictationSoundsTests`); the group and player untested.
-Widget look and place: `CarrierCore/DictationWidgetLook.swift` (`DictationPresentationTests`); `DictationWidget` untested.
+Sounds: `DictationSounds.swift` (`DictationSoundsTests`); widget look: `DictationWidgetLook.swift` (`DictationPresentationTests`); their views untested.
 
 ### History
 
 See [dictation](../docs/macos/dictation.md#history).
 `CarrierCore/DictationRecords.swift` (`DictationRecordsTests`), fed by `DictationSession.take`.
-Audio: `DictationRecords` (fake clock), `DictationAudio.swift`; `AudioPlayerView` untested.
+Audio: `DictationRecords` (fake clock), `DictationAudio.swift`; the player is untested.
 
 ### Statistics
 
@@ -121,7 +126,7 @@ See [dictation](../docs/macos/dictation.md#statistics). Counters: `DictationReco
 
 ### Cleanup
 
-`CarrierCore/DictationCleanup.swift` (the `TextModelClient` port, `CleanupRun`; `CleanupRunTests`, scripted client) and `LocalModelClient.swift` (`LocalModelClientTests`, stub socket); the group is `Carrier/CleanupController.swift` and `CleanupGroup.swift`, untested.
+`CarrierCore/DictationCleanup.swift` (`TextModelClient`, `CleanupRun`; `CleanupRunTests`) and `LocalModelClient.swift` (`LocalModelClientTests`); `CleanupController.swift` and `CleanupGroup.swift` are untested.
 In the boxes and the widget: the `.cleaning` state of `DictationSession` (`DictationSessionTests`, `GlobalDictationTests`).
 
 ## Embedded terminal

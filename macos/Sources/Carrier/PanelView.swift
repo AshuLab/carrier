@@ -402,7 +402,7 @@ struct PanelView: View {
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
-                    ToolbarGlassIconButton(icon: drawerOpen ? .terminal : .terminal, name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {
+                    ToolbarGlassIconButton(icon: .terminal, name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {
                         toggleSessionTerminal(for: session)
                     }
                     .glassEffect(.regular, in: .capsule)

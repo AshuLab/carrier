@@ -67,8 +67,8 @@ struct SessionRowView: View {
 
     private func place(_ place: SessionPlace) -> Text {
         switch place {
-        case .branch(let name): Text("\(Glyph(.gitBranch)) \(Text(name).font(.scaled(11, design: .monospaced)))")
-        case .baseFolder: Text("\(Glyph(.folder)) Base folder")
+        case .branch(let name): Text("\(Image(inline: .gitBranch)) \(Text(name).font(.scaled(11, design: .monospaced)))")
+        case .baseFolder: Text("\(Image(inline: .folder)) Base folder")
         }
     }
 

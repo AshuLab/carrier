@@ -135,7 +135,7 @@ struct RowChevron: View {
     let shown: Bool
 
     var body: some View {
-        Glyph(.chevronRight).font(.caption.weight(.bold)).foregroundStyle(.white)
+        Glyph(.chevronRight, size: 11, bold: true).foregroundStyle(.white)
             .frame(width: 26, height: 26).glassEffect(.regular.tint(Color.themeAccent), in: .circle)
             .opacity(shown ? 1 : 0).accessibilityHidden(true)
     }

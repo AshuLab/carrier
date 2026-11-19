@@ -62,7 +62,7 @@ struct WhereItWorksSheet: View {
                 if chosen {
                     ChosenMark()
                 } else {
-                    Glyph(.circle).foregroundStyle(.secondary.opacity(0.5)).font(.scaled(16)).accessibilityLabel("Not chosen")
+                    Glyph(.circle, size: 16).foregroundStyle(.secondary.opacity(0.5)).accessibilityLabel("Not chosen")
                 }
             }
             .padding(12)

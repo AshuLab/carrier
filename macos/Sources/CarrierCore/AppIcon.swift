@@ -6,7 +6,6 @@ import Foundation
 public enum AppIcon: String, CaseIterable, Sendable {
     case activity
     case alignLeft
-    case appWindow
     case archive
     case arrowDown
     case arrowLeft
@@ -33,7 +32,6 @@ public enum AppIcon: String, CaseIterable, Sendable {
     case chevronRight
     case chevronUp
     case circle
-    case circleDashed
     case circleFilled
     case circlePlus
     case clipboard

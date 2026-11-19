@@ -117,7 +117,7 @@ private struct ReviewHistoryRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Button(action: toggle) {
                 HStack(spacing: 8) {
-                    Glyph(.chevronRight).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Glyph(.chevronRight, size: 11, bold: true).foregroundStyle(.secondary)
                         .rotationEffect(.degrees(open ? 90 : 0))
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Round \(round.round)").font(.body.weight(.semibold))

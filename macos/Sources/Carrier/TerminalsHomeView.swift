@@ -166,14 +166,14 @@ private struct TerminalHomeRow: View {
         .onHover { hovered = $0 }
         .contextMenu {
             Button(action: open) {
-                Label("Open", icon: .terminal).labelStyle(.titleAndIcon)
+                Label("Open", menuIcon: .terminal).labelStyle(.titleAndIcon)
             }
             Button(action: newTab) {
-                Label("New Tab", icon: .copyPlus).labelStyle(.titleAndIcon)
+                Label("New Tab", menuIcon: .copyPlus).labelStyle(.titleAndIcon)
             }
             Divider()
             Button(role: .destructive, action: close) {
-                Label("Close", icon: .close).labelStyle(.titleAndIcon)
+                Label("Close", menuIcon: .close).labelStyle(.titleAndIcon)
             }
         }
         .help("\(summary.title)\n\(summary.workingDirectory)")

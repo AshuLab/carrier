@@ -305,7 +305,7 @@ private struct SessionHomeRow: View {
         HStack(spacing: 6) {
             Group {
                 if let branch = row.branch {
-                    Text("\(Glyph(.gitBranch)) \(Text(branch).font(.scaled(11, design: .monospaced)))").lineLimit(1).truncationMode(.middle)
+                    Text("\(Image(inline: .gitBranch)) \(Text(branch).font(.scaled(11, design: .monospaced)))").lineLimit(1).truncationMode(.middle)
                 } else {
                     Label("Base folder", icon: .folder).labelStyle(.titleAndIcon).lineLimit(1)
                 }

@@ -56,7 +56,6 @@ private func iconNames(_ icon: AppIcon) -> (tabler: String, lucide: String, symb
     switch icon {
     case .activity: ("outline/activity", "activity", "waveform.path.ecg")
     case .alignLeft: ("outline/align-left", "align-left", "text.alignleft")
-    case .appWindow: ("outline/app-window", "app-window", "macwindow")
     case .archive: ("outline/archive", "archive", "archivebox")
     case .arrowDown: ("outline/arrow-down", "arrow-down", "arrow.down")
     case .arrowLeft: ("outline/arrow-left", "arrow-left", "arrow.left")
@@ -83,7 +82,6 @@ private func iconNames(_ icon: AppIcon) -> (tabler: String, lucide: String, symb
     case .chevronRight: ("outline/chevron-right", "chevron-right", "chevron.right")
     case .chevronUp: ("outline/chevron-up", "chevron-up", "chevron.up")
     case .circle: ("outline/circle", "circle", "circle")
-    case .circleDashed: ("outline/circle-dashed", "circle-dashed", "circle.dotted")
     case .circleFilled: ("filled/circle", "circle+fill", "circle.fill")
     case .circlePlus: ("outline/circle-plus", "circle-plus", "plus.circle")
     case .clipboard: ("outline/clipboard", "clipboard", "clipboard")

@@ -76,6 +76,15 @@ extension Font.Weight {
     }
 }
 
+extension Label where Title == Text, Icon == Image {
+    /// A title and an icon for the item of a menu: the system draws a menu's images, so they stay SF Symbols whatever the set is (an item whose icon is a
+    /// view of ours would lose it).
+    init<S: StringProtocol>(_ title: S, menuIcon: AppIcon) {
+        guard case .symbol(let name) = iconAsset(menuIcon, in: .sfSymbols) else { self.init(title, systemImage: "questionmark"); return }
+        self.init(title, systemImage: name)
+    }
+}
+
 /// An icon of the interface in the set the person chose, at `size` points (scaled by the person's text size), in the color of its text. The icons the system
 /// draws keep SF Symbols whatever the set is; this is for the app's own. `bold` is for a small white mark on a color (a state's check), where the weight the
 /// person chose would be too thin to read: a stroke three quarters thicker.
@@ -173,5 +182,22 @@ private struct GlyphKick<Trigger: Equatable>: ViewModifier {
                     withAnimation(.spring(duration: 0.3, bounce: 0.5)) { up = false }
                 }
             }
+    }
+}
+
+extension Image {
+    /// An icon of the interface to put inside a `Text` (`Text("\(Image(inline: .gitBranch)) main")`), where a view cannot go: sized in points to the text, in
+    /// the set and weight now, and a template, so it takes the color of the text.
+    @MainActor init(inline icon: AppIcon, size: CGFloat = 11) {
+        let side = TextSize.shared.scale.size(size)
+        let style = IconAppearance.shared
+        if let image = IconImages.image(icon, set: style.set, weight: style.weight), let own = image.copy() as? NSImage {
+            own.size = NSSize(width: side, height: side)
+            own.isTemplate = true
+            self.init(nsImage: own)
+            return
+        }
+        guard case .symbol(let name) = iconAsset(icon, in: .sfSymbols) else { self.init(nsImage: NSImage()); return }
+        self.init(systemName: name)
     }
 }

@@ -546,17 +546,17 @@ private struct RepoRowView: View {
 
     /// The same items in the row's menu and in its right-click menu.
     @ViewBuilder private func actions(clone: String, cloned: Bool) -> some View {
-        Button { if let url = row.gitHubURL { NSWorkspace.shared.open(url) } } label: { Label("Open on GitHub", icon: .externalLink).labelStyle(.titleAndIcon) }
+        Button { if let url = row.gitHubURL { NSWorkspace.shared.open(url) } } label: { Label("Open on GitHub", menuIcon: .externalLink).labelStyle(.titleAndIcon) }
         Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: clone)]) } label: {
-            Label(cloned ? "Reveal clone in Finder" : "Reveal clone in Finder (not cloned yet)", icon: .folder).labelStyle(.titleAndIcon)
+            Label(cloned ? "Reveal clone in Finder" : "Reveal clone in Finder (not cloned yet)", menuIcon: .folder).labelStyle(.titleAndIcon)
         }
         .disabled(cloned == false)
         Button {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(row.name, forType: .string)
-        } label: { Label("Copy owner/name", icon: .copy).labelStyle(.titleAndIcon) }
+        } label: { Label("Copy owner/name", menuIcon: .copy).labelStyle(.titleAndIcon) }
         Divider()
-        Button(role: .destructive, action: remove) { Label("Stop watching…", icon: .trash).labelStyle(.titleAndIcon) }
+        Button(role: .destructive, action: remove) { Label("Stop watching…", menuIcon: .trash).labelStyle(.titleAndIcon) }
     }
 
     /// The owner dim, the name in bold.

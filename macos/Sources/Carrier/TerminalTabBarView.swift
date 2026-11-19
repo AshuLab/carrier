@@ -188,28 +188,28 @@ struct TerminalTabChip: View {
                 draftTitle = tab.customTitle ?? tab.title
                 renaming = true
             } label: {
-                Label("Rename Tab…", icon: .pencil).labelStyle(.titleAndIcon)
+                Label("Rename Tab…", menuIcon: .pencil).labelStyle(.titleAndIcon)
             }
             if canMoveLeft || canMoveRight {
                 Divider()
                 if canMoveLeft {
                     Button(action: moveLeft) {
-                        Label("Move Tab Left", icon: .arrowLeft).labelStyle(.titleAndIcon)
+                        Label("Move Tab Left", menuIcon: .arrowLeft).labelStyle(.titleAndIcon)
                     }
                 }
                 if canMoveRight {
                     Button(action: moveRight) {
-                        Label("Move Tab Right", icon: .arrowRight).labelStyle(.titleAndIcon)
+                        Label("Move Tab Right", menuIcon: .arrowRight).labelStyle(.titleAndIcon)
                     }
                 }
             }
             Divider()
             Button(action: close) {
-                Label("Close Tab", icon: .close).labelStyle(.titleAndIcon)
+                Label("Close Tab", menuIcon: .close).labelStyle(.titleAndIcon)
             }
             if canCloseOthers {
                 Button(action: closeOthers) {
-                    Label("Close Other Tabs", icon: .closeCircle).labelStyle(.titleAndIcon)
+                    Label("Close Other Tabs", menuIcon: .closeCircle).labelStyle(.titleAndIcon)
                 }
             }
         }

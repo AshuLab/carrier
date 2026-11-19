@@ -236,7 +236,7 @@ struct UsageProviderMark: View {
         if AgentAvatar.mark(title.lowercased()) != nil {
             ProviderMark(name: title.lowercased(), size: size).foregroundStyle(.primary).accessibilityHidden(true)
         } else {
-            Glyph(.desktop).font(.scaled(size - 3)).foregroundStyle(.secondary).accessibilityHidden(true)
+            Glyph(.desktop, size: size - 3).foregroundStyle(.secondary).accessibilityHidden(true)
         }
     }
 }

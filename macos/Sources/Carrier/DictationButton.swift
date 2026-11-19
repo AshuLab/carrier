@@ -38,7 +38,7 @@ private struct DictationButtonStyle: ButtonStyle {
                 switch presentation.icon {
                 case .mic, .micSlash:
                     // listening is not told by the accent alone (a pale or gray accent reads weakly): the glyph turns from an outline to a dim solid
-                    Glyph(presentation.icon == .micSlash ? .microphoneOff : presentation.inAccent ? .microphone : .microphone, size: 16)
+                    Glyph(presentation.icon == .micSlash ? .microphoneOff : .microphone, size: 16)
                         .foregroundStyle(presentation.inAccent ? Color.themeAccent : lit ? Color.primary : Color.secondary)
                         .opacity(presentation.inAccent ? Self.listeningBase : 1)
                         .overlay {

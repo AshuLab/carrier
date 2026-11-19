@@ -174,10 +174,10 @@ struct TerminalPaneHeaderView: View {
         .glassEffect(.regular, in: .capsule)
         .contextMenu {
             Button(action: splitRight) {
-                Label("Split Right", icon: .layoutColumns).labelStyle(.titleAndIcon)
+                Label("Split Right", menuIcon: .layoutColumns).labelStyle(.titleAndIcon)
             }
             Button(action: splitDown) {
-                Label("Split Down", icon: .layoutRows).labelStyle(.titleAndIcon)
+                Label("Split Down", menuIcon: .layoutRows).labelStyle(.titleAndIcon)
             }
             if isSplit {
                 Button(action: toggleZoom) {
@@ -187,7 +187,7 @@ struct TerminalPaneHeaderView: View {
                     ).labelStyle(.titleAndIcon)
                 }
                 Button(action: equalizeSplits) {
-                    Label("Equalize Splits", icon: .columns3).labelStyle(.titleAndIcon)
+                    Label("Equalize Splits", menuIcon: .columns3).labelStyle(.titleAndIcon)
                 }
                 Button(action: moveToNewTab) {
                     Label("Move Pane to New Tab", systemImage: "macwindow.badge.plus").labelStyle(.titleAndIcon)
@@ -195,7 +195,7 @@ struct TerminalPaneHeaderView: View {
             }
             Divider()
             Button(role: .destructive, action: close) {
-                Label(isSplit ? "Close Pane" : "Close Terminal", icon: .close).labelStyle(.titleAndIcon)
+                Label(isSplit ? "Close Pane" : "Close Terminal", menuIcon: .close).labelStyle(.titleAndIcon)
             }
         }
     }

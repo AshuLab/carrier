@@ -134,7 +134,7 @@ struct BranchSheet: View {
             Glyph(.circlePlus).foregroundStyle(.secondary).accessibilityHidden(true)
             Text("New branch").font(.subheadline).foregroundStyle(.secondary)
             Text(model.worktreeName.isEmpty ? "\(worktreeBranchPrefix)<generated when sent>" : "\(worktreeBranchPrefix)\(model.worktreeName)").font(.subheadline.monospaced()).lineLimit(1).truncationMode(.middle)
-            Glyph(.arrowLeft).font(.caption).foregroundStyle(.secondary).accessibilityLabel("from")
+            Glyph(.arrowLeft, size: 11).foregroundStyle(.secondary).accessibilityLabel("from")
             Text(model.startBranch ?? "…").font(.subheadline.monospaced().weight(.semibold)).lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 0)
         }

@@ -114,19 +114,19 @@ struct TerminalRows: View {
                         Button {
                             selection = .terminal(id: summary.id)
                         } label: {
-                            Label("Open", icon: .terminal).labelStyle(.titleAndIcon)
+                            Label("Open", menuIcon: .terminal).labelStyle(.titleAndIcon)
                         }
                         Button {
                             _ = store.openTab(for: .terminal(summary.id), workingDirectory: summary.workingDirectory)
                             selection = .terminal(id: summary.id)
                         } label: {
-                            Label("New Tab", icon: .copyPlus).labelStyle(.titleAndIcon)
+                            Label("New Tab", menuIcon: .copyPlus).labelStyle(.titleAndIcon)
                         }
                         Divider()
                         Button(role: .destructive) {
                             closeTerminal(summary.id)
                         } label: {
-                            Label("Close", icon: .close).labelStyle(.titleAndIcon)
+                            Label("Close", menuIcon: .close).labelStyle(.titleAndIcon)
                         }
                     }
                 }

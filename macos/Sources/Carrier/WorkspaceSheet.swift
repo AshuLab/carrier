@@ -250,7 +250,7 @@ struct WorkspaceSheet: View {
             } label: {
                 HStack(spacing: 4) {
                     if visibility != .all { Text(visibility.rawValue).font(.subheadline.weight(.semibold)) }
-                    Glyph(visibility == .all ? .filter : .filter)
+                    Glyph(.filter)
                 }
                 .foregroundStyle(visibility == .all ? Color.secondary : Color.themeAccent)
             }

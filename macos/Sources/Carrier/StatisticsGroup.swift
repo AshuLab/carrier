@@ -11,6 +11,7 @@ struct StatisticsGroup: View {
     @State private var metric = StatisticsMetric.words
     @State private var confirmingReset = false
     @State private var unparsable: Set<String> = []
+    @State private var cardsWidth = CGFloat.infinity
 
     var body: some View {
         let records = dictation.records
@@ -55,14 +56,19 @@ struct StatisticsGroup: View {
         let saved = StatisticsCard(
             title: "Time saved", value: statisticsDuration(now.saved(wpm: wpm).inSeconds),
             line: statisticsChange(now.saved(wpm: wpm).inSeconds, from: before.map { $0.saved(wpm: wpm).inSeconds }), highlighted: true)
-        // four in a row while they fit, two by two when the window is narrow
-        return ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 10) { dictations; words; speaking; saved }
-            VStack(spacing: 10) {
-                HStack(alignment: .top, spacing: 10) { dictations; words }
-                HStack(alignment: .top, spacing: 10) { speaking; saved }
+        // four in a row while each has the room its longest title and value need (equal shares, at the person's text size), two by two when the window is narrow
+        let four = cardsWidth >= 4 * 130 * CGFloat(TextSize.shared.percent) / 100 + 30
+        return Group {
+            if four {
+                HStack(alignment: .top, spacing: 10) { dictations; words; speaking; saved }
+            } else {
+                VStack(spacing: 10) {
+                    HStack(alignment: .top, spacing: 10) { dictations; words }
+                    HStack(alignment: .top, spacing: 10) { speaking; saved }
+                }
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { cardsWidth = $0 }
         .padding(.vertical, 6)
     }
 

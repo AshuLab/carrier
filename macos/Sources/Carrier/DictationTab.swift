@@ -79,8 +79,9 @@ struct DictationTabView: View {
                 HStack(spacing: 12) {
                     Image(systemName: "power").font(.scaled(14, weight: .semibold)).foregroundStyle(.secondary).accessibilityHidden(true)
                     Text("Dictation is off, so what is set here waits. Turn it on to change it.").font(.scaled(12)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
-                    Button("Turn on") { dictation.setEnabled(true) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    Button("Turn on") { dictation.setEnabled(true) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
                 }
                 .accessibilityElement(children: .contain)
             }

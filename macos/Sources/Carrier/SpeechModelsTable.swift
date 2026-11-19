@@ -92,7 +92,17 @@ private struct SpeechModelRowView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            action.fixedSize()
+            narrowAction
+        }
+    }
+
+    /// The action at the end of a narrow row: each takes what it needs and no more, and the cause of a failure wraps instead of pushing the name away.
+    @ViewBuilder private var narrowAction: some View {
+        switch row.action {
+        case .none: EmptyView()
+        case .download, .delete: action.fixedSize()
+        case .downloading: action.frame(width: SpeechModelsTable.Column.action - 24)
+        case .failed: action.frame(maxWidth: SpeechModelsTable.Column.action, alignment: .trailing)
         }
     }
 
@@ -138,6 +148,7 @@ private struct SpeechModelRowView: View {
         case .failed(let cause):
             VStack(alignment: .trailing, spacing: 2) {
                 Label(cause, systemImage: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange).multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
                 Button { download(row.id) } label: { Label("Retry", systemImage: "arrow.clockwise") }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         case .delete:

@@ -176,16 +176,16 @@ public enum KindChip: Equatable {
         }
     }
 
-    /// An SF Symbol name; Thinking has none, it is the spark of the line's lead.
-    public var icon: String? {
+    /// The icon of the kind of call; Thinking has none, it is the spark of the line's lead.
+    public var icon: AppIcon? {
         switch self {
         case .thinking, .needsYou: nil
-        case .read: "doc.text"
-        case .search: "magnifyingglass"
-        case .edit: "pencil"
-        case .shell: "terminal"
-        case .mcp: "powerplug"
-        case .subagents, .subagent: "person.2"
+        case .read: .fileText
+        case .search: .search
+        case .edit: .pencil
+        case .shell: .terminal
+        case .mcp: .plug
+        case .subagents, .subagent: .users
         }
     }
 }

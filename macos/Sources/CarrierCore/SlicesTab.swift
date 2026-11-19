@@ -41,10 +41,10 @@ public enum SlicesUnavailable: Equatable {
     /// The engine answered with an empty list: it has not read the epic's slices from GitHub yet, or the last read failed.
     case notReadYet
 
-    public var icon: String {
+    public var icon: AppIcon {
         switch self {
-        case .notShared: "text.badge.xmark"
-        case .notReadYet: "arrow.triangle.2.circlepath"
+        case .notShared: .fileOff
+        case .notReadYet: .refresh
         }
     }
 

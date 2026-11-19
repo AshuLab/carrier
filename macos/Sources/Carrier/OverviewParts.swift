@@ -47,7 +47,7 @@ struct OverviewLinkRow<Content: View>: View {
         HStack(spacing: 12) {
             content
             if action != nil {
-                Image(systemName: "chevron.right").font(.scaled(11, weight: .semibold)).foregroundStyle(.tertiary)
+                Glyph(.chevronRight, size: 11).foregroundStyle(.tertiary)
             }
         }
         .padding(.vertical, 11)

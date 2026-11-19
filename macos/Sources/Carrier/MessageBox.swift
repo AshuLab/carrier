@@ -297,7 +297,7 @@ struct MessageBox<Selects: View>: View {
     private func sectionHeader(_ kind: ChatCommand.Kind, count: Int) -> some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                Image(systemName: kind.symbol).font(.scaled(11, weight: .semibold)).foregroundStyle(kind.color)
+                Glyph(kind.symbol, size: 11).foregroundStyle(kind.color)
                 Text(kind.plural).font(.scaled(12, weight: .semibold))
                 Text("\(count)").font(.scaled(11, weight: .medium)).foregroundStyle(.secondary)
             }
@@ -313,7 +313,7 @@ struct MessageBox<Selects: View>: View {
     private func row(_ command: ChatCommand, marked: Bool) -> some View {
         HoverRow(action: { take(command) }, fill: marked ? Color.primary.opacity(0.1) : nil) { _ in
             HStack(spacing: 10) {
-                Image(systemName: command.kind.symbol)
+                Glyph(command.kind.symbol)
                     .font(.scaled(13, weight: .semibold)).foregroundStyle(command.kind.color)
                     .frame(width: 32, height: 32)
                     .background(RoundedRectangle(cornerRadius: 9).fill(command.kind.color.opacity(marked ? 0.24 : 0.14)))
@@ -373,11 +373,9 @@ struct MessageBox<Selects: View>: View {
     /// finger and springs back. The arrow becomes the Stop square while the agent answers, bounces up on a send and pulses while it works.
     @ViewBuilder private var button: some View {
         let active = (ready && sendAllowed) || busy
-        let label = Image(systemName: busy ? "stop.fill" : "arrow.up")
-            .font(.scaled(busy ? 12 : 14, weight: .bold)).foregroundStyle(active ? .white : .secondary)
-            .contentTransition(.symbolEffect(.replace))
-            .symbolEffect(.bounce.up, value: sent)
-            .symbolEffect(.pulse, isActive: busy)
+        let label = Glyph(busy ? .stopFilled : .arrowUp, size: busy ? 12 : 14, bold: true).foregroundStyle(active ? .white : .secondary)
+            .glyphKick(sent)
+            .glyphPulsing(busy)
             .frame(width: 32, height: 32)
             .contentShape(Circle())
         Button(action: busy ? stop : fire) { label }

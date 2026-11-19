@@ -40,12 +40,24 @@ import SwiftUI
         return image
     }
 
-    /// For the AppKit that draws an icon itself (a menu, the menu bar): the icon in the set and at the weight now.
-    static func image(_ icon: AppIcon) -> NSImage {
+    /// For the AppKit that draws an icon itself (an attachment, a layer): the icon in the set and at the weight now, with `bold` as `Glyph` has it.
+    static func image(_ icon: AppIcon, bold: Bool = false) -> NSImage {
         let style = IconAppearance.shared
-        if let image = image(icon, set: style.set, weight: style.weight) { return image }
+        if let image = image(icon, set: style.set, weight: style.weight + (bold ? 0.75 : 0)) { return image }
         guard case .symbol(let name) = iconAsset(icon, in: .sfSymbols) else { return NSImage() }
         return NSImage(systemSymbolName: name, accessibilityDescription: nil) ?? NSImage()
+    }
+}
+
+extension NSImage {
+    /// A template image drawn in `color`: a text attachment or a layer gets no tint from the system.
+    func tinted(_ color: NSColor, size: NSSize = NSSize(width: 24, height: 24)) -> NSImage {
+        NSImage(size: size, flipped: false) { rect in
+            self.draw(in: rect)
+            color.set()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
     }
 }
 
@@ -101,16 +113,65 @@ extension Label where Title == Text, Icon == Glyph {
     }
 }
 
-/// An icon of a shared component while the app moves from SF Symbols to the interface's own icons: the symbol it had or the icon it has now. The components
-/// keep both ways in until every place that draws them has moved, and then this goes.
-enum IconSource {
-    case symbol(String)
-    case icon(AppIcon)
+extension View {
+    /// An icon that turns while `on`, as the SF Symbols' rotate effect did: a SVG has no symbol effects of its own.
+    func glyphSpinning(_ on: Bool) -> some View { modifier(GlyphSpin(on: on)) }
+    /// An icon that bounces down while `on`.
+    func glyphBouncing(_ on: Bool) -> some View { modifier(GlyphBounce(on: on)) }
+    /// An icon that gives a little kick each time `trigger` changes, as the SF Symbols' bounce did.
+    func glyphKick(_ trigger: some Equatable) -> some View { modifier(GlyphKick(trigger: trigger)) }
+    /// An icon that fades in and out while `on`.
+    func glyphPulsing(_ on: Bool) -> some View { modifier(GlyphPulse(on: on)) }
+}
 
-    @ViewBuilder func view(size: CGFloat) -> some View {
-        switch self {
-        case .symbol(let name): Image(systemName: name).font(.scaled(size))
-        case .icon(let icon): Glyph(icon, size: size)
-        }
+private struct GlyphSpin: ViewModifier {
+    let on: Bool
+    @State private var turned = false
+
+    func body(content: Content) -> some View {
+        content.rotationEffect(.degrees(on && turned ? 360 : 0))
+            .animation(on ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: turned)
+            .onAppear { if on { turned = true } }
+            .onChange(of: on) { _, now in turned = now }
+    }
+}
+
+private struct GlyphBounce: ViewModifier {
+    let on: Bool
+    @State private var down = false
+
+    func body(content: Content) -> some View {
+        content.offset(y: on && down ? 2 : 0)
+            .animation(on ? .easeInOut(duration: 0.5).repeatForever(autoreverses: true) : .default, value: down)
+            .onAppear { if on { down = true } }
+            .onChange(of: on) { _, now in down = now }
+    }
+}
+
+private struct GlyphPulse: ViewModifier {
+    let on: Bool
+    @State private var dim = false
+
+    func body(content: Content) -> some View {
+        content.opacity(on && dim ? 0.35 : 1)
+            .animation(on ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default, value: dim)
+            .onAppear { if on { dim = true } }
+            .onChange(of: on) { _, now in dim = now }
+    }
+}
+
+private struct GlyphKick<Trigger: Equatable>: ViewModifier {
+    let trigger: Trigger
+    @State private var up = false
+
+    func body(content: Content) -> some View {
+        content.scaleEffect(up ? 1.3 : 1)
+            .onChange(of: trigger) {
+                withAnimation(.spring(duration: 0.15)) { up = true }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(150))
+                    withAnimation(.spring(duration: 0.3, bounce: 0.5)) { up = false }
+                }
+            }
     }
 }

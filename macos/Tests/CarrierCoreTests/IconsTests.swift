@@ -28,7 +28,7 @@ func everyIconIsInEverySetWithItsFileOrItsSymbol(set: IconSet) throws {
 }
 
 @Test func aSolidIconIsFilledWhereTheSetHasItFilledAndOtherwiseDrawnFilledOrAsAnOutline() {
-    #expect(AppIcon.allCases.filter(\.isSolid).count == 4)
+    #expect(AppIcon.allCases.filter(\.isSolid).count == 11)
     // Tabler has a filled file of each; Lucide fills the shapes that stay readable filled and keeps the others as outlines
     #expect(iconAsset(.playFilled, in: .tabler) == .svg(folder: "TablerIcons/filled", name: "player-play", fill: false))
     #expect(iconAsset(.playFilled, in: .lucide) == .svg(folder: "LucideIcons", name: "play", fill: true))

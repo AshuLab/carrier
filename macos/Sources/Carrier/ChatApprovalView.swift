@@ -15,7 +15,7 @@ struct ApprovalCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Image(systemName: "exclamationmark").font(.scaled(12, weight: .bold)).foregroundStyle(.white)
+                Glyph(.exclamation, size: 12).foregroundStyle(.white)
                     .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.attention))
                 Text(card.question).font(.scaled(14, weight: .semibold))
                 Spacer(minLength: 0)
@@ -72,7 +72,7 @@ struct ApprovalDecidedView: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: allow ? "checkmark" : "xmark").foregroundStyle(allow ? Color.green : Color.red)
+            Glyph(allow ? .check : .close).foregroundStyle(allow ? Color.green : Color.red)
             Text(text).foregroundStyle(.secondary).lineLimit(8).textSelection(.enabled)
         }
         .codeFont(12)

@@ -234,9 +234,9 @@ private struct DictationWidgetView: View {
         } else if look.fades {
             WidgetBox(box: box) { Text(dictation.text) } foot: {
                 switch dictation.farewell {
-                case .pasted: Label("Pasted", systemImage: "checkmark")
-                case .pastedRaw: Label("Pasted without cleaning: \(dictation.notCleaned ?? "")", systemImage: "exclamationmark.triangle").foregroundStyle(.orange).lineLimit(1)
-                default: Label("Cancelled", systemImage: "xmark")
+                case .pasted: Label("Pasted", icon: .check)
+                case .pastedRaw: Label("Pasted without cleaning: \(dictation.notCleaned ?? "")", icon: .warning).foregroundStyle(.orange).lineLimit(1)
+                default: Label("Cancelled", icon: .close)
                 }
             }
         } else {
@@ -247,7 +247,7 @@ private struct DictationWidgetView: View {
                     }
                 }
                 Spacer()
-                if dictation.shown == .cleaning { Label("Cleaning… Esc to skip", systemImage: "sparkles") } else { Text(hint()) }
+                if dictation.shown == .cleaning { Label("Cleaning… Esc to skip", icon: .sparkles) } else { Text(hint()) }
             }
         }
     }
@@ -267,15 +267,15 @@ private struct DictationWidgetView: View {
     private func keptRow(_ reason: PasteReason) -> some View {
         HStack {
             if reason == .noPermission {
-                Button { FocusedField.openSettings() } label: { Label("Open System Settings", systemImage: "gearshape") }
+                Button { FocusedField.openSettings() } label: { Label("Open System Settings", icon: .settings) }
             }
             Spacer()
             Button {
                 dictation.copyAgain()
                 copied = true
-            } label: { Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc") }
+            } label: { Label(copied ? "Copied" : "Copy", icon: copied ? .check : .copy) }
             .keyboardShortcut(.defaultAction)
-            Button { dictation.dismissCopied() } label: { Label("Dismiss", systemImage: "xmark") }
+            Button { dictation.dismissCopied() } label: { Label("Dismiss", icon: .close) }
         }
     }
 
@@ -358,13 +358,13 @@ private struct PillIcon: View {
     var body: some View {
         switch icon {
         case .sparkle:
-            Image(systemName: "sparkles").foregroundStyle(Color.themeAccent).symbolEffect(.pulse, isActive: reduceMotion == false).accessibilityLabel("Cleaning")
+            Glyph(.sparkles).foregroundStyle(Color.themeAccent).glyphPulsing(reduceMotion == false).accessibilityLabel("Cleaning")
         case .warning:
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).accessibilityLabel("Pasted without cleaning: \(cause ?? "")")
-        case .mic: Image(systemName: "mic.fill").foregroundStyle(Color.themeAccent).accessibilityLabel("Listening")
+            Glyph(.warningFilled).foregroundStyle(.orange).accessibilityLabel("Pasted without cleaning: \(cause ?? "")")
+        case .mic: Glyph(.microphone).foregroundStyle(Color.themeAccent).accessibilityLabel("Listening")
         case .spinner: ProgressView().controlSize(.small).accessibilityLabel("Working")
-        case .check: Image(systemName: "checkmark").foregroundStyle(.green).accessibilityLabel("Pasted")
-        case .xmark: Image(systemName: "xmark").foregroundStyle(.secondary).accessibilityLabel("Cancelled")
+        case .check: Glyph(.check).foregroundStyle(.green).accessibilityLabel("Pasted")
+        case .xmark: Glyph(.close).foregroundStyle(.secondary).accessibilityLabel("Cancelled")
         }
     }
 }

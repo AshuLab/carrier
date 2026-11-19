@@ -721,7 +721,7 @@ private struct AddReposSheet: View {
             let groups = repoGroups(list.repos, watched: watched, selected: selected, query: query, visibility: visibility, owner: owner, hideWatched: hideWatched)
             if groups.isEmpty {
                 message(
-                    "magnifyingglass", query.isEmpty ? "No repo matches the filters" : "No repo matches “\(query)”",
+                    .search, query.isEmpty ? "No repo matches the filters" : "No repo matches “\(query)”",
                     "Only repos your gh login can push to are listed, and the filters narrow them."
                 )
             } else {
@@ -738,7 +738,7 @@ private struct AddReposSheet: View {
             }
         case let list?:
             let text = list.problem.flatMap(availableReposMessage)
-            message("exclamationmark.triangle", text?.title ?? "", text?.detail ?? "")
+            message(.warning, text?.title ?? "", text?.detail ?? "")
         }
     }
 
@@ -773,7 +773,7 @@ private struct AddReposSheet: View {
         .accessibilityElement(children: .combine).accessibilityValue(on ? "selected" : "not selected")
     }
 
-    private func message(_ icon: String, _ title: String, _ detail: String) -> some View {
+    private func message(_ icon: AppIcon, _ title: String, _ detail: String) -> some View {
         EmptyStateView(icon: icon, title: title, line: detail)
             .settingsCard()
     }

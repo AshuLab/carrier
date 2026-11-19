@@ -38,13 +38,13 @@ private struct DictationButtonStyle: ButtonStyle {
                 switch presentation.icon {
                 case .mic, .micSlash:
                     // listening is not told by the accent alone (a pale or gray accent reads weakly): the glyph turns from an outline to a dim solid
-                    Image(systemName: presentation.icon == .micSlash ? "mic.slash" : presentation.inAccent ? "mic.fill" : "mic").font(.scaled(16))
+                    Glyph(presentation.icon == .micSlash ? .microphoneOff : presentation.inAccent ? .microphone : .microphone, size: 16)
                         .foregroundStyle(presentation.inAccent ? Color.themeAccent : lit ? Color.primary : Color.secondary)
                         .opacity(presentation.inAccent ? Self.listeningBase : 1)
                         .overlay {
                             // the capsule fills from the bottom with the level, like the Mac's own Dictation
                             if presentation.inAccent {
-                                Image(systemName: "mic.fill").font(.scaled(16)).foregroundStyle(Color.themeAccent)
+                                Glyph(.microphone, size: 16).foregroundStyle(Color.themeAccent)
                                     .mask { Rectangle().scaleEffect(y: CGFloat(level), anchor: .bottom) }
                             }
                         }

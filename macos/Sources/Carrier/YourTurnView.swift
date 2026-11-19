@@ -24,7 +24,7 @@ struct YourTurnView: View {
 
     private func row(_ item: YourTurnItem) -> some View {
         OverviewLinkRow(action: item.selection.map { target in { selection = target } }) {
-            Image(systemName: item.kind == .ready ? "checkmark" : "exclamationmark")
+            Glyph(item.kind == .ready ? .check : .exclamation)
                 .font(.scaled(11, weight: .heavy)).foregroundStyle(.white)
                 .frame(width: 22, height: 22)
                 .background(Circle().fill(item.kind == .ready ? Color.blue : Color.orange))

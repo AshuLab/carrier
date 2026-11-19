@@ -51,9 +51,9 @@ struct SubagentRowView: View {
     @ViewBuilder private var lead: some View {
         switch subagent.status {
         case .running: SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor)
-        case .completed: Image(systemName: "checkmark.circle.fill").font(.scaled(12)).foregroundStyle(.green)
+        case .completed: Glyph(.checkCircleFilled, size: 12).foregroundStyle(.green)
         case .failed: StateMark(shape: .problem, size: 12).foregroundStyle(.red)
-        case .stopped: Image(systemName: "stop.fill").font(.scaled(8)).foregroundStyle(.secondary)
+        case .stopped: Glyph(.stopFilled, size: 8).foregroundStyle(.secondary)
         }
     }
 

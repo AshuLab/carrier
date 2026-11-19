@@ -276,7 +276,7 @@ struct PanelView: View {
                             owner: target.owner,
                             defaultDirectory: target.defaultDirectory,
                             openDefaultTabIfEmpty: target.isSessionDrawer,
-                            dismissIcon: target.isSessionDrawer ? "chevron.down" : "xmark",
+                            dismissIcon: target.isSessionDrawer ? .chevronDown : .close,
                             dismissLabel: target.isSessionDrawer ? "Hide terminal" : "Close terminal",
                             height: Binding(
                                 get: { CGFloat(terminalDrawerHeight) },
@@ -333,7 +333,7 @@ struct PanelView: View {
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemImage: "sidebar.leading") }
+                Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", icon: .sidebar) }
                     .help("Show or hide the sidebar")
             }
             if isDevBuild {
@@ -347,7 +347,7 @@ struct PanelView: View {
                 if let open = shell.subagentHeader {
                     // a slice card's subagent view wears the same header as a conversation's, with the epic in its subtitle and no Stop
                     ToolbarItem(placement: .navigation) {
-                        Button { shell.leaveSubagent() } label: { Label("Back", systemImage: "chevron.left") }
+                        Button { shell.leaveSubagent() } label: { Label("Back", icon: .chevronLeft) }
                             .help("Back to Agent output")
                     }
                     ToolbarItem(placement: .navigation) {
@@ -363,7 +363,7 @@ struct PanelView: View {
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
-                    Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                    Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", icon: .sidebarRight) }
                         .help("Show or hide the inspector")
                 }
                 if shell.inspectorShown {
@@ -378,7 +378,7 @@ struct PanelView: View {
                 if let open = shell.subagentHeader {
                     // a subagent view wears the window's header: Back next to the sidebar's button, its title, and its state where the worktree pill is
                     ToolbarItem(placement: .navigation) {
-                        Button { shell.leaveSubagent() } label: { Label("Back", systemImage: "chevron.left") }
+                        Button { shell.leaveSubagent() } label: { Label("Back", icon: .chevronLeft) }
                             .help(shell.subagents.count > 1 ? "Back to the subagent that launched this one" : "Back to the conversation")
                     }
                     ToolbarItem(placement: .navigation) {
@@ -390,7 +390,7 @@ struct PanelView: View {
                         .sharedBackgroundVisibility(.hidden)
                     if open.canStop {
                         ToolbarItem(placement: .primaryAction) {
-                            ToolbarPillButton(title: "Stop", icon: "stop.fill", iconTint: .red) { shell.perform(.conversation(.stopSubagent)) }
+                            ToolbarPillButton(title: "Stop", icon: .stopFilled, iconTint: .red) { shell.perform(.conversation(.stopSubagent)) }
                                 .glassEffect(.regular, in: .capsule)
                                 .help("Stop this subagent; the main agent goes on")
                         }
@@ -402,7 +402,7 @@ struct PanelView: View {
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
-                    ToolbarGlassIconButton(icon: drawerOpen ? "terminal.fill" : "terminal", name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {
+                    ToolbarGlassIconButton(icon: drawerOpen ? .terminal : .terminal, name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {
                         toggleSessionTerminal(for: session)
                     }
                     .glassEffect(.regular, in: .capsule)
@@ -413,7 +413,7 @@ struct PanelView: View {
             if shell.selection == .usage {
                 ToolbarItem(placement: .primaryAction) {
                     let checking = AppUsage.store.isRefreshing
-                    ToolbarPillButton(title: checking ? "Checking…" : "Check again", icon: "arrow.clockwise", spinning: checking) { AppUsage.refresher.checkAgain() }
+                    ToolbarPillButton(title: checking ? "Checking…" : "Check again", icon: .refresh, spinning: checking) { AppUsage.refresher.checkAgain() }
                         .glassEffect(.regular, in: .capsule)
                         .padding(.trailing, 10)
                         .disabled(checking)
@@ -426,7 +426,7 @@ struct PanelView: View {
                 ToolbarItem(placement: .primaryAction) {
                     // the engine polls on its own after the answer: the button says so until the next check is scheduled again
                     let checking = isChecking(snapshot, asked: checkAsked, now: Date())
-                    ToolbarPillButton(title: checking ? "Checking…" : "Check now", icon: "arrow.clockwise", spinning: checking) {
+                    ToolbarPillButton(title: checking ? "Checking…" : "Check now", icon: .refresh, spinning: checking) {
                         checkAsked = CheckAsked(at: Date(), nextCheckAt: snapshot.nextCheckAt)
                         MenuControls.shared.checkNow()
                     }
@@ -438,9 +438,9 @@ struct PanelView: View {
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
                     HStack(spacing: 0) {
-                        ToolbarPillButton(title: snapshot.paused ? "Resume" : "Pause", icon: snapshot.paused ? "play.fill" : "pause.fill") { MenuControls.shared.pauseOrResume() }
+                        ToolbarPillButton(title: snapshot.paused ? "Resume" : "Pause", icon: snapshot.paused ? .playFilled : .pauseFilled) { MenuControls.shared.pauseOrResume() }
                             .help(snapshot.paused ? "Resume intake" : "Pause intake")
-                        ToolbarPillButton(title: "Stop", icon: "stop.fill", iconTint: .red) { MenuControls.shared.stopCarrier() }
+                        ToolbarPillButton(title: "Stop", icon: .stopFilled, iconTint: .red) { MenuControls.shared.stopCarrier() }
                             .help("Stop Carrier")
                     }
                     .glassEffect(.regular, in: .capsule)

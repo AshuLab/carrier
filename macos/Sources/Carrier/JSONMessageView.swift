@@ -28,13 +28,13 @@ private struct SliceReportView: View {
                 Spacer(minLength: 8)
                 if let pull = report.pull {
                     Link(destination: pull.url) {
-                        Label(pull.label, systemImage: "arrow.triangle.pull").font(.scaled(10, weight: .semibold))
+                        Label(pull.label, icon: .gitPullRequest).font(.scaled(10, weight: .semibold))
                     }
                     .buttonStyle(.plain).foregroundStyle(.blue)
                 }
             }
             if let branch = report.branch {
-                Label(branch, systemImage: "arrow.triangle.branch")
+                Label(branch, icon: .gitBranch)
                     .codeFont(11.5).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .padding(.horizontal, 8).padding(.vertical, 3).background(Capsule().fill(Color.secondary.opacity(0.14)))
             }
@@ -49,18 +49,18 @@ private struct SliceReportView: View {
 
     private var pill: some View {
         HStack(spacing: 5) {
-            Image(systemName: icon).font(.scaled(10, weight: .semibold))
+            Glyph(icon, size: 10)
             Text(report.outcome)
         }
         .font(.scaled(10, weight: .semibold)).foregroundStyle(tint)
         .padding(.horizontal, 10).padding(.vertical, 3).background(Capsule().fill(tint.opacity(0.18)))
     }
 
-    private var icon: String {
+    private var icon: AppIcon {
         switch report.tone {
-        case .good: "checkmark.circle"
-        case .warning: "exclamationmark.triangle"
-        case .stop: "person"
+        case .good: .checkCircle
+        case .warning: .warning
+        case .stop: .user
         }
     }
 
@@ -80,7 +80,7 @@ private struct ChecklistView: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(Array(checks.enumerated()), id: \.offset) { _, check in
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
-                    Image(systemName: check.passed ? "checkmark.circle" : "xmark.circle")
+                    Glyph(check.passed ? .checkCircle : .closeCircle)
                         .foregroundStyle(check.passed ? Color.green : Color.red)
                     Text(check.name).foregroundStyle(check.passed ? .secondary : .primary)
                 }
@@ -107,7 +107,7 @@ private struct FieldsView: View {
     @ViewBuilder private func value(_ value: JSONField.Value) -> some View {
         switch value {
         case .flag(let on):
-            Label(on ? "yes" : "no", systemImage: on ? "checkmark.circle" : "xmark.circle")
+            Label(on ? "yes" : "no", icon: on ? .checkCircle : .closeCircle)
                 .font(.scaled(10, weight: .semibold)).foregroundStyle(on ? Color.green : Color.red)
         case .number(let text): Text(text).fontWeight(.semibold)
         case .text(let text): Text(text).foregroundStyle(.secondary).textSelection(.enabled)

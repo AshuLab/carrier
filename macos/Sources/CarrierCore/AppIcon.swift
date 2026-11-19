@@ -4,21 +4,52 @@ import Foundation
 // (SF Symbols, Tabler, Lucide). An icon is added here and in all three sets; `IconsTests` fails when a set lacks one or its file.
 
 public enum AppIcon: String, CaseIterable, Sendable {
+    case activity
+    case alignLeft
+    case appWindow
+    case archive
     case arrowDown
+    case arrowLeft
     case arrowRight
+    case arrowUp
     case arrowUpRight
+    case arrowsMaximize
+    case arrowsMinimize
+    case arrowsMove
     case ban
     case bell
+    case bolt
+    case book
+    case braces
     case brain
     case brush
+    case calendar
     case chartBar
     case check
+    case checkCircle
     case checkCircleFilled
+    case chevronDown
+    case chevronLeft
     case chevronRight
+    case chevronUp
     case circle
+    case circleDashed
+    case circleFilled
+    case circlePlus
+    case clipboard
+    case clock
     case close
+    case closeCircle
+    case closeCircleFilled
+    case cloud
+    case cloudOff
+    case cloudWarning
+    case code
     case coin
+    case columns3
+    case command
     case copy
+    case copyPlus
     case cpu
     case cube
     case cup
@@ -31,45 +62,94 @@ public enum AppIcon: String, CaseIterable, Sendable {
     case externalLink
     case eye
     case eyeOff
+    case file
+    case fileDescription
+    case fileOff
     case fileText
+    case filter
+    case flag
     case folder
+    case folderCog
     case folderPlus
     case folderQuestion
+    case gitBranch
+    case gitMerge
+    case gitPullRequest
+    case hand
+    case harddrive
     case hash
     case help
     case history
+    case home
     case inbox
     case info
     case keyboard
+    case layoutColumns
+    case layoutGrid
+    case layoutRows
+    case link
+    case list
     case lock
     case lockOpen
+    case message
+    case messageDots
     case messages
     case microphone
+    case microphoneOff
     case minus
+    case octagonWarning
+    case package
+    case pause
+    case pauseFilled
+    case pencil
+    case percent
+    case photo
+    case pin
+    case pinFilled
+    case pinOff
     case playFilled
+    case plug
     case plus
+    case pointer
     case power
     case question
     case radioOn
     case record
     case refresh
     case rotate
+    case sealCheck
     case search
+    case searchOff
     case send
     case server
     case settings
+    case shieldCheck
     case sidebar
+    case sidebarRight
+    case sleep
     case sliders
+    case sparkles
+    case stack
     case star
+    case starFilled
     case stethoscope
+    case stopCircle
     case stopFilled
+    case sum
+    case table
     case terminal
+    case timer
+    case tool
     case trash
+    case typography
     case undo
+    case user
     case users
+    case warning
     case warningFilled
+    case waveform
     case world
 
     /// An icon whose look is a solid shape (a warning, a ready mark, play, stop): a set that has it filled draws it so, and one that has not draws it as it can.
-    public var isSolid: Bool { [.warningFilled, .checkCircleFilled, .playFilled, .stopFilled].contains(self) }
+    public var isSolid: Bool { [.warningFilled, .checkCircleFilled, .playFilled, .stopFilled, .starFilled, .circleFilled, .pauseFilled, .pinFilled, .closeCircleFilled, .sealCheck, .octagonWarning].contains(self) }
 }

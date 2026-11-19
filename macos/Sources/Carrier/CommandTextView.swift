@@ -499,11 +499,9 @@ final class PillAttachment: NSTextAttachment {
             shape.fill()
             tint.withAlphaComponent(0.5).setStroke()
             shape.stroke()
-            let configuration = NSImage.SymbolConfiguration(pointSize: 10.5, weight: .semibold).applying(.init(paletteColors: [tint]))
-            if let symbol = NSImage(systemSymbolName: command.kind.symbol, accessibilityDescription: nil)?.withSymbolConfiguration(configuration) {
-                let fit = symbol.size
-                symbol.draw(in: NSRect(x: padding + (icon - fit.width) / 2, y: (height - fit.height) / 2, width: fit.width, height: fit.height))
-            }
+            let symbol = MainActor.assumeIsolated { IconImages.image(command.kind.symbol, bold: true).tinted(tint) }
+            let fit = NSSize(width: 12, height: 12)
+            symbol.draw(in: NSRect(x: padding + (icon - fit.width) / 2, y: (height - fit.height) / 2, width: fit.width, height: fit.height))
             name.draw(at: NSPoint(x: padding + icon + gap, y: (height - nameSize.height) / 2))
             return true
         }

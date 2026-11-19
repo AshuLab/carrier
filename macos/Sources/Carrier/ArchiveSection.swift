@@ -39,7 +39,7 @@ struct ArchiveSection: View {
         let archived = archivedCount(sessions.rows)
         VStack(spacing: 2) {
             SidebarSectionRow(
-                title: "Archive", icon: "archivebox", selected: selection == .archive, keepActions: sortOpen || query != nil,
+                title: "Archive", icon: .archive, selected: selection == .archive, keepActions: sortOpen || query != nil,
                 action: { selection = .archive }, actions: {
                     if archived > 0 {
                         Text("\(archived)").font(SidebarMetrics.detail.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
@@ -49,18 +49,18 @@ struct ArchiveSection: View {
                     }
                 }, hoverActions: {
                     IconButton(
-                        icon: "magnifyingglass", name: "Search archive", enabled: archived > 0, why: "Nothing archived to search", shortcut: "⌘F",
+                        icon: .search, name: "Search archive", enabled: archived > 0, why: "Nothing archived to search", shortcut: "⌘F",
                         pressed: query != nil
                     ) {
                         if query == nil { openSearch() } else { query = nil }
                     }
-                    IconButton(icon: "ellipsis", name: "Sort archive") { sortOpen.toggle() }
+                    IconButton(icon: .dots, name: "Sort archive") { sortOpen.toggle() }
                         .popover(isPresented: $sortOpen, arrowEdge: .bottom) {
                             ChoiceMenu(
                                 title: "Sort archive", options: Self.sorts.map { ($0.menuTitle, $0) }, selection: $sort, close: { sortOpen = false }
                             )
                         }
-                    IconButton(icon: open ? "chevron.down" : "chevron.right", name: open ? "Fold archive" : "Unfold archive", action: toggle)
+                    IconButton(icon: open ? .chevronDown : .chevronRight, name: open ? "Fold archive" : "Unfold archive", action: toggle)
                 }
             )
             .help("Archive")

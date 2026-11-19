@@ -67,8 +67,8 @@ struct SessionRowView: View {
 
     private func place(_ place: SessionPlace) -> Text {
         switch place {
-        case .branch(let name): Text("\(Image(systemName: "arrow.triangle.branch")) \(Text(name).font(.scaled(11, design: .monospaced)))")
-        case .baseFolder: Text("\(Image(systemName: "folder")) Base folder")
+        case .branch(let name): Text("\(Glyph(.gitBranch)) \(Text(name).font(.scaled(11, design: .monospaced)))")
+        case .baseFolder: Text("\(Glyph(.folder)) Base folder")
         }
     }
 
@@ -103,8 +103,8 @@ struct SessionRowView: View {
             ageOrStopwatch(content).opacity(hoverActions && hovered ? 0 : 1)
             if hoverActions && hovered {
                 HStack(spacing: 2) {
-                    hoverButton(pinned ? "pin.slash" : "pin", pinned ? "Unpin" : "Pin", togglePin)
-                    hoverButton("archivebox", "Archive", why: archiveBlock(row), archive)
+                    hoverButton(pinned ? .pinOff : .pin, pinned ? "Unpin" : "Pin", togglePin)
+                    hoverButton(.archive, "Archive", why: archiveBlock(row), archive)
                 }
                 .transition(.opacity)
             }
@@ -170,9 +170,9 @@ struct SessionRowView: View {
     }
 
     /// `why` is what keeps the button off: it is the tooltip then, and what VoiceOver reads after the name.
-    private func hoverButton(_ symbol: String, _ title: String, why: String? = nil, _ action: @escaping () -> Void) -> some View {
+    private func hoverButton(_ symbol: AppIcon, _ title: String, why: String? = nil, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.scaled(11)).foregroundStyle(.secondary).frame(width: 22, height: 20).contentShape(Rectangle())
+            Glyph(symbol, size: 11).foregroundStyle(.secondary).frame(width: 22, height: 20).contentShape(Rectangle())
         }
         .buttonStyle(HoverFillButtonStyle(radius: 5)).disabled(why != nil).help(why ?? title).accessibilityLabel(title).accessibilityHint(why ?? "")
     }

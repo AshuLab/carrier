@@ -9,11 +9,11 @@ public enum ToolStatus: Equatable {
     /// Started and not ended yet.
     case pending
 
-    /// An SF Symbol name; nil for pending, which is a spinner.
-    public var icon: String? {
+    /// The status mark; nil for pending, which is a spinner.
+    public var icon: AppIcon? {
         switch self {
-        case .ok: "checkmark.circle.fill"
-        case .error: "xmark.circle.fill"
+        case .ok: .checkCircleFilled
+        case .error: .closeCircleFilled
         case .pending: nil
         }
     }
@@ -42,15 +42,15 @@ public enum ToolKind: Hashable {
         }
     }
 
-    /// An SF Symbol name.
-    public var icon: String {
+    /// The icon of the kind of call.
+    public var icon: AppIcon {
         switch self {
-        case .read: "doc.text"
-        case .search: "magnifyingglass"
-        case .edit: "pencil"
-        case .shell: "terminal"
-        case .other: "wrench.and.screwdriver"
-        case .mcp: "powerplug"
+        case .read: .fileText
+        case .search: .search
+        case .edit: .pencil
+        case .shell: .terminal
+        case .other: .tool
+        case .mcp: .plug
         }
     }
 }

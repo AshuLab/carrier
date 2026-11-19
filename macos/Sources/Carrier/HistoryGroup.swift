@@ -64,7 +64,7 @@ struct HistoryList: View {
         if shown.isEmpty {
             SettingsGroup(title: "") {
                 EmptyStateView(
-                    icon: records.entries.isEmpty ? "waveform" : "magnifyingglass", title: records.entries.isEmpty ? "No dictations yet" : "Nothing matches",
+                    icon: records.entries.isEmpty ? .waveform : .search, title: records.entries.isEmpty ? "No dictations yet" : "Nothing matches",
                     line: records.entries.isEmpty ? "What you dictate shows up here." : "Try another word or filter."
                 )
                 .frame(minHeight: 220)
@@ -115,7 +115,7 @@ private struct HistoryRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityValue(open ? "Expanded" : "Collapsed").accessibilityHint("Shows the details")
-                IconButton(icon: copied ? "checkmark" : "doc.on.doc", name: copied ? "Copied" : "Copy text") { copy(entry.shown) }
+                IconButton(icon: copied ? .check : .copy, name: copied ? "Copied" : "Copy text") { copy(entry.shown) }
                 IconButton(icon: .trash, name: "Delete dictation") { confirmingDelete = true }
             }
             FlowLayout(spacing: 6) {

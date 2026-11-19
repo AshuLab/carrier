@@ -9,19 +9,19 @@ enum EmptyStateActionStyle {
 
 /// Icon, title and one line, centred in the space it is given; neutral colours.
 struct EmptyStateView: View {
-    let source: IconSource
+    let icon: AppIcon
     let title: String
     let line: String
     /// An optional button under the line, for a state the person can get out of by themselves.
     let action: (title: String, run: () -> Void)?
-    /// The symbol before the button's words.
-    let actionIcon: String?
+    /// The icon before the button's words.
+    let actionIcon: AppIcon?
     let actionStyle: EmptyStateActionStyle
 
     init(
         state: EmptyState,
         action: (title: String, run: () -> Void)? = nil,
-        actionIcon: String? = nil,
+        actionIcon: AppIcon? = nil,
         actionStyle: EmptyStateActionStyle = .secondary
     ) {
         self.init(icon: state.icon, title: state.title, line: state.line, action: action, actionIcon: actionIcon, actionStyle: actionStyle)
@@ -32,26 +32,10 @@ struct EmptyStateView: View {
         title: String,
         line: String,
         action: (title: String, run: () -> Void)? = nil,
-        actionIcon: String? = nil,
+        actionIcon: AppIcon? = nil,
         actionStyle: EmptyStateActionStyle = .secondary
     ) {
-        self.source = .icon(icon)
-        self.title = title
-        self.line = line
-        self.action = action
-        self.actionIcon = actionIcon
-        self.actionStyle = actionStyle
-    }
-
-    init(
-        icon: String,
-        title: String,
-        line: String,
-        action: (title: String, run: () -> Void)? = nil,
-        actionIcon: String? = nil,
-        actionStyle: EmptyStateActionStyle = .secondary
-    ) {
-        self.source = .symbol(icon)
+        self.icon = icon
         self.title = title
         self.line = line
         self.action = action
@@ -61,7 +45,7 @@ struct EmptyStateView: View {
 
     var body: some View {
         VStack(spacing: 5) {
-            source.view(size: 26)
+            Glyph(icon, size: 26)
                 .foregroundStyle(.secondary)
                 .frame(width: 54, height: 54)
                 .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
@@ -75,7 +59,7 @@ struct EmptyStateView: View {
                 switch actionStyle {
                 case .secondary:
                     Button(action: action.run) {
-                        if let actionIcon { Label(action.title, systemImage: actionIcon).labelStyle(.titleAndIcon) } else { Text(action.title) }
+                        if let actionIcon { Label(action.title, icon: actionIcon).labelStyle(.titleAndIcon) } else { Text(action.title) }
                     }
                     .buttonStyle(SecondaryCapsuleButtonStyle())
                     .padding(.top, 8)

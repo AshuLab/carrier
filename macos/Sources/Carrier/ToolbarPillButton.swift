@@ -9,7 +9,7 @@ struct ToolbarPillButton: View {
     static let height: CGFloat = 28
 
     let title: String
-    var icon = ""
+    var icon: AppIcon?
     /// An image in the place of the symbol (the GitHub mark).
     var mark: Image?
     var badge = 0
@@ -25,8 +25,8 @@ struct ToolbarPillButton: View {
             HStack(spacing: 5) {
                 if let mark {
                     mark.renderingMode(.template).resizable().scaledToFit().frame(width: 12, height: 12)
-                } else {
-                    Image(systemName: icon).font(.scaled(11, weight: .medium)).foregroundStyle(iconTint ?? .primary).symbolEffect(.rotate, options: .repeating, isActive: spinning)
+                } else if let icon {
+                    Glyph(icon, size: 12).foregroundStyle(iconTint ?? .primary).glyphSpinning(spinning)
                 }
                 Text(title).font(.scaled(12, weight: .medium))
                 if badge > 0 {
@@ -53,28 +53,14 @@ extension Color {
 /// Accent glass capsule pill button at `ToolbarPillButton.height` (28 pt), shared between headers and primary empty-state CTAs.
 struct AccentGlassPillButton: View {
     let title: String
-    let source: IconSource?
+    var icon: AppIcon? = nil
     let action: () -> Void
     @Environment(\.isEnabled) private var enabled
-
-    init(title: String, icon: String? = nil, action: @escaping () -> Void) {
-        self.init(title: title, source: icon.map(IconSource.symbol), action: action)
-    }
-
-    init(title: String, icon: AppIcon?, action: @escaping () -> Void) {
-        self.init(title: title, source: icon.map(IconSource.icon), action: action)
-    }
-
-    private init(title: String, source: IconSource?, action: @escaping () -> Void) {
-        self.title = title
-        self.source = source
-        self.action = action
-    }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                if let source { source.view(size: 11) }
+                if let icon { Glyph(icon, size: 11) }
                 Text(title).font(.scaled(12, weight: .medium))
             }
             .foregroundStyle(.white)
@@ -91,7 +77,7 @@ struct AccentGlassPillButton: View {
 
 /// Compact icon-only button sized to `ToolbarPillButton.height` (28 pt) for grouped `.glassEffect(.regular, in: .capsule)` toolbars.
 struct ToolbarGlassIconButton: View {
-    let icon: String
+    let icon: AppIcon
     let name: String
     let action: () -> Void
     @State private var hovered = false
@@ -99,8 +85,7 @@ struct ToolbarGlassIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.scaled(11, weight: .medium))
+            Glyph(icon, size: 12)
                 .foregroundStyle(.primary)
                 .padding(.horizontal, 10)
                 .frame(height: ToolbarPillButton.height)
@@ -126,7 +111,7 @@ struct ToolbarSearchField: View {
     var body: some View {
         if query != nil {
             HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
+                Glyph(.search)
                     .font(.scaled(11, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(width: 16, height: 16)
@@ -140,7 +125,7 @@ struct ToolbarSearchField: View {
                         return .handled
                     }
                 Button(action: dismiss) {
-                    Image(systemName: "xmark.circle.fill")
+                    Glyph(.closeCircleFilled)
                         .font(.scaled(11))
                         .foregroundStyle(.secondary)
                 }
@@ -151,7 +136,7 @@ struct ToolbarSearchField: View {
             .padding(.horizontal, 11)
             .frame(width: 220, height: ToolbarPillButton.height)
         } else {
-            ToolbarPillButton(title: "Search", icon: "magnifyingglass") {
+            ToolbarPillButton(title: "Search", icon: .search) {
                 query = ""
                 focused.wrappedValue = true
             }

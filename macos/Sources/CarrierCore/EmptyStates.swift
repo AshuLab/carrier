@@ -5,25 +5,25 @@ public enum EmptyState: CaseIterable {
     case reviewNotStarted, noFilesChanged, noSlices, waitingForSlot, nothingWaiting, nothingNeedsYou, idle, nothingToTest, noActivity
     case welcome, noSessions, noSessionsMatch, nothingArchived, noResults, noEpics, noTerminals
 
-    public var icon: String {
+    public var icon: AppIcon {
         switch self {
-        case .reviewNotStarted: "clock.arrow.circlepath"
-        case .noFilesChanged: "doc.text"
-        case .noSlices: "square.stack.3d.up"
-        case .waitingForSlot: "bubble.left"
-        case .nothingWaiting: "tray"
-        case .nothingNeedsYou: "checkmark.circle"
-        case .idle: "pause.circle"
-        case .nothingToTest: "folder"
-        case .noActivity: "ellipsis.bubble"
-        case .welcome: "house"
-        case .noSessions: "bubble.left.and.bubble.right"
-        case .noSessionsMatch: "magnifyingglass"
-        case .nothingArchived: "archivebox"
-        // the nearest SF Symbol to the exploration's struck magnifier
-        case .noResults: "minus.magnifyingglass"
-        case .noEpics: "paperplane"
-        case .noTerminals: "terminal"
+        case .reviewNotStarted: .history
+        case .noFilesChanged: .fileText
+        case .noSlices: .stack
+        case .waitingForSlot: .message
+        case .nothingWaiting: .inbox
+        case .nothingNeedsYou: .checkCircle
+        case .idle: .pause
+        case .nothingToTest: .folder
+        case .noActivity: .messageDots
+        case .welcome: .home
+        case .noSessions: .messages
+        case .noSessionsMatch: .search
+        case .nothingArchived: .archive
+        // the struck magnifier
+        case .noResults: .searchOff
+        case .noEpics: .send
+        case .noTerminals: .terminal
         }
     }
 

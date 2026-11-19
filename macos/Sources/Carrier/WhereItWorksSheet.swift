@@ -12,11 +12,11 @@ struct WhereItWorksSheet: View {
                 header
                 VStack(spacing: 10) {
                     option(
-                        "Current folder", "folder", chosen: model.worktree == false, worktree: false,
+                        "Current folder", .folder, chosen: model.worktree == false, worktree: false,
                         "Works in the folder itself, on the branch that is checked out (\(model.workspace?.branch ?? "detached HEAD")). What the agent changes lands in your working tree."
                     )
                     option(
-                        "New worktree", "square.on.square", chosen: model.worktree, worktree: true,
+                        "New worktree", .copy, chosen: model.worktree, worktree: true,
                         "Works in a copy of the folder, on a new branch cut from the branch you pick. Your folder stays as it is."
                     )
                 }
@@ -34,7 +34,7 @@ struct WhereItWorksSheet: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: "arrow.triangle.branch")
+            Glyph(.gitBranch)
                 .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
                 .frame(width: 36, height: 36)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
@@ -46,10 +46,10 @@ struct WhereItWorksSheet: View {
         }
     }
 
-    private func option(_ title: String, _ icon: String, chosen: Bool, worktree: Bool, _ detail: String) -> some View {
+    private func option(_ title: String, _ icon: AppIcon, chosen: Bool, worktree: Bool, _ detail: String) -> some View {
         HoverRow(action: { Task { await model.useWorktree(worktree) }; dismiss() }, fill: chosen ? Color.themeAccent.opacity(0.14) : nil) { _ in
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: icon)
+                Glyph(icon)
                     .font(.scaled(14, weight: .medium)).foregroundStyle(chosen ? Color.themeAccent : .secondary)
                     .frame(width: 30, height: 30)
                     .background(RoundedRectangle(cornerRadius: 8).fill(chosen ? Color.themeAccent.opacity(0.18) : Color.secondary.opacity(0.12)))
@@ -62,7 +62,7 @@ struct WhereItWorksSheet: View {
                 if chosen {
                     ChosenMark()
                 } else {
-                    Image(systemName: "circle").foregroundStyle(.secondary.opacity(0.5)).font(.scaled(16)).accessibilityLabel("Not chosen")
+                    Glyph(.circle).foregroundStyle(.secondary.opacity(0.5)).font(.scaled(16)).accessibilityLabel("Not chosen")
                 }
             }
             .padding(12)

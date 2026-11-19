@@ -123,7 +123,7 @@ struct TerminalTabChip: View {
         HStack(spacing: showsClose ? 2 : 0) {
             Button(action: select) {
                 HStack(spacing: 5) {
-                    Image(systemName: "terminal")
+                    Glyph(.terminal)
                         .font(.scaled(10.5, weight: .medium))
                         .foregroundStyle(selected ? Color.themeAccent : .secondary)
                     Text(tab.title)
@@ -156,7 +156,7 @@ struct TerminalTabChip: View {
 
             if showsClose {
                 Button(action: close) {
-                    Image(systemName: "xmark")
+                    Glyph(.close)
                         .font(.scaled(8.5, weight: .bold))
                         .foregroundStyle(closeHovered ? .primary : .secondary)
                         .frame(width: 16, height: 16)
@@ -188,28 +188,28 @@ struct TerminalTabChip: View {
                 draftTitle = tab.customTitle ?? tab.title
                 renaming = true
             } label: {
-                Label("Rename Tab…", systemImage: "pencil").labelStyle(.titleAndIcon)
+                Label("Rename Tab…", icon: .pencil).labelStyle(.titleAndIcon)
             }
             if canMoveLeft || canMoveRight {
                 Divider()
                 if canMoveLeft {
                     Button(action: moveLeft) {
-                        Label("Move Tab Left", systemImage: "arrow.left").labelStyle(.titleAndIcon)
+                        Label("Move Tab Left", icon: .arrowLeft).labelStyle(.titleAndIcon)
                     }
                 }
                 if canMoveRight {
                     Button(action: moveRight) {
-                        Label("Move Tab Right", systemImage: "arrow.right").labelStyle(.titleAndIcon)
+                        Label("Move Tab Right", icon: .arrowRight).labelStyle(.titleAndIcon)
                     }
                 }
             }
             Divider()
             Button(action: close) {
-                Label("Close Tab", systemImage: "xmark").labelStyle(.titleAndIcon)
+                Label("Close Tab", icon: .close).labelStyle(.titleAndIcon)
             }
             if canCloseOthers {
                 Button(action: closeOthers) {
-                    Label("Close Other Tabs", systemImage: "xmark.circle").labelStyle(.titleAndIcon)
+                    Label("Close Other Tabs", icon: .closeCircle).labelStyle(.titleAndIcon)
                 }
             }
         }
@@ -297,7 +297,7 @@ private struct TerminalAddTabButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "plus")
+            Glyph(.plus)
                 .font(.scaled(11, weight: .medium))
                 .foregroundStyle(hovered ? .primary : .secondary)
                 .frame(width: TerminalTabChip.height, height: TerminalTabChip.height)
@@ -334,20 +334,20 @@ private struct TabRenamePopover: View {
             HStack(spacing: 8) {
                 if hasCustomTitle {
                     Button(action: reset) {
-                        Label("Reset", systemImage: "arrow.counterclockwise")
+                        Label("Reset", icon: .rotate)
                     }
                     .buttonStyle(SecondaryCapsuleButtonStyle())
                     .controlSize(.small)
                 }
                 Spacer(minLength: 0)
                 Button(action: cancel) {
-                    Label("Cancel", systemImage: "xmark")
+                    Label("Cancel", icon: .close)
                 }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
                 .controlSize(.small)
                 .keyboardShortcut(.cancelAction)
                 Button(action: save) {
-                    Label("Save", systemImage: "checkmark")
+                    Label("Save", icon: .check)
                 }
                 .buttonStyle(PrimaryCapsuleButtonStyle())
                 .controlSize(.small)

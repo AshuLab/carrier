@@ -76,14 +76,13 @@ final class RingHostView: NSView {
         setUp(diameter)
     }
 
-    /// A white SF Symbol, `diameter` points square.
-    init(symbol: String, diameter: CGFloat) {
+    /// A white icon, `diameter` points square.
+    init(symbol: AppIcon, diameter: CGFloat) {
         let glyph = CALayer()
         glyph.bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
-        // drawn at twice the size for retina, and white because a layer gets no tint from the system
-        let configuration = NSImage.SymbolConfiguration(pointSize: 2 * diameter, weight: .bold).applying(.init(paletteColors: [.white]))
-        glyph.contents = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
-            .withSymbolConfiguration(configuration)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        // white because a layer gets no tint from the system, and at twice the size for retina
+        let white = MainActor.assumeIsolated { IconImages.image(symbol, bold: true).tinted(.white) }
+        glyph.contents = white.cgImage(forProposedRect: nil, context: nil, hints: nil)
         glyph.contentsGravity = .resizeAspect
         (ring, root, spinner, tint) = (nil, glyph, glyph, .white)
         super.init(frame: NSRect(x: 0, y: 0, width: diameter, height: diameter))
@@ -169,7 +168,7 @@ struct SpinningRing: NSViewRepresentable {
 
 /// A glyph that turns by the ring's rule: the same animation, and the same window-visibility and Reduce Motion gating.
 struct SpinningGlyph: NSViewRepresentable {
-    var symbol: String
+    var symbol: AppIcon
     var diameter: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

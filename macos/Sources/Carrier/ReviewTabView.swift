@@ -117,7 +117,7 @@ private struct ReviewHistoryRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Button(action: toggle) {
                 HStack(spacing: 8) {
-                    Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Glyph(.chevronRight).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                         .rotationEffect(.degrees(open ? 90 : 0))
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Round \(round.round)").font(.body.weight(.semibold))
@@ -206,7 +206,7 @@ private struct ReviewStepRow: View {
     @ViewBuilder private var marker: some View {
         Group {
             switch step.state {
-            case .done: Image(systemName: "checkmark").foregroundStyle(.white).background(Circle().fill(Color.green).frame(width: 18, height: 18))
+            case .done: Glyph(.check).foregroundStyle(.white).background(Circle().fill(Color.green).frame(width: 18, height: 18))
             case .current: ProgressView().controlSize(.mini).frame(width: 18, height: 18)
             case .waiting: Text("\(step.number)").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
                     .frame(width: 18, height: 18).background(Circle().fill(Color.secondary.opacity(0.16)))

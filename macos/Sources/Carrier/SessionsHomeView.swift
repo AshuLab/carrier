@@ -29,7 +29,7 @@ struct SessionsHomeView: View {
                         Text(chatHostRestartNotice.title).bold()
                         Text(chatHostRestartNotice.line).foregroundStyle(.secondary)
                     }
-                } icon: { Image(systemName: "arrow.clockwise") }
+                } icon: { Glyph(.refresh) }
                     .padding(.horizontal, 20).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
             }
             if let notice = ChatHostStarter.shared.upgradeNotice {
@@ -38,7 +38,7 @@ struct SessionsHomeView: View {
                         Text(notice.title).bold()
                         Text(notice.line).foregroundStyle(.secondary).textSelection(.enabled)
                     }
-                } icon: { Image(systemName: "exclamationmark.triangle") }
+                } icon: { Glyph(.warning) }
                     .padding(.horizontal, 20).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
             }
             sessionsContent(page: page, searched: searched)
@@ -50,7 +50,7 @@ struct SessionsHomeView: View {
     @ViewBuilder private func sessionsContent(page: SessionsPage, searched: Bool) -> some View {
         Group {
             if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
-                EmptyStateView(icon: "exclamationmark.triangle", title: notice.title, line: notice.line)
+                EmptyStateView(icon: .warning, title: notice.title, line: notice.line)
             } else if let empty = page.emptyState {
                 VStack(alignment: .leading, spacing: 0) {
                     if filter.chips.isEmpty == false { chips.padding(.horizontal, 20).padding(.vertical, 8) }
@@ -121,7 +121,7 @@ struct SessionsHomeView: View {
         .sharedBackgroundVisibility(.hidden)
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
-            AccentGlassPillButton(title: "New session", icon: "plus", action: newSession)
+            AccentGlassPillButton(title: "New session", icon: .plus, action: newSession)
                 .padding(.trailing, 10)
                 .help("New session")
         }
@@ -133,7 +133,7 @@ struct SessionsHomeView: View {
     }
 
     private var filterItem: some View {
-        ToolbarPillButton(title: "Filter", icon: "line.3.horizontal.decrease", badge: filter.count) { filterOpen.toggle() }
+        ToolbarPillButton(title: "Filter", icon: .filter, badge: filter.count) { filterOpen.toggle() }
             .popover(isPresented: $filterOpen, arrowEdge: .bottom) {
                 SessionFilterPopover(sort: $sort, filter: $filter, agents: Set(sessions.rows.map(\.agent)).sorted())
             }
@@ -145,7 +145,7 @@ struct SessionsHomeView: View {
                 Button { filter.remove(chip) } label: {
                     HStack(spacing: 4) {
                         Text(chip.title)
-                        Image(systemName: "xmark").font(.scaled(8, weight: .bold))
+                        Glyph(.close, size: 8)
                     }
                     .font(.caption.weight(.medium)).foregroundStyle(.white)
                     .padding(.horizontal, 9).padding(.vertical, 3).background(Capsule().fill(Color.themeAccent))
@@ -188,7 +188,7 @@ private struct SessionFilterPopover: View {
                     HStack {
                         Text(option.title)
                         Spacer(minLength: 0)
-                        if sort == option { Image(systemName: "checkmark") }
+                        if sort == option { Glyph(.check) }
                     }
                     .contentShape(Rectangle())
                 }
@@ -251,7 +251,7 @@ private struct SessionHomeRow: View {
                 .environment(\.rowActive, active)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    if pinned { Image(systemName: "pin.fill").font(.scaled(10)).foregroundStyle(.secondary).accessibilityLabel("Pinned") }
+                    if pinned { Glyph(.pinFilled, size: 10).foregroundStyle(.secondary).accessibilityLabel("Pinned") }
                     Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
                     if showsWorkspace { RowTag(text: row.workspace) }
                     if row.archived { RowTag(text: "Archived") }
@@ -305,9 +305,9 @@ private struct SessionHomeRow: View {
         HStack(spacing: 6) {
             Group {
                 if let branch = row.branch {
-                    Text("\(Image(systemName: "arrow.triangle.branch")) \(Text(branch).font(.scaled(11, design: .monospaced)))").lineLimit(1).truncationMode(.middle)
+                    Text("\(Glyph(.gitBranch)) \(Text(branch).font(.scaled(11, design: .monospaced)))").lineLimit(1).truncationMode(.middle)
                 } else {
-                    Label("Base folder", systemImage: "folder").labelStyle(.titleAndIcon).lineLimit(1)
+                    Label("Base folder", icon: .folder).labelStyle(.titleAndIcon).lineLimit(1)
                 }
                 if row.turns > 0 { Text("·"); Text(row.turns == 1 ? "1 turn" : "\(row.turns) turns") }
                 if let model = TurnSummary(model: row.model).shortModel { Text("·"); Text(model) }
@@ -321,14 +321,14 @@ private struct SessionHomeRow: View {
 
     private var actionButtons: some View {
         HStack(spacing: 4) {
-            RowIconButton(symbol: pinned ? "pin.slash" : "pin", title: pinned ? "Unpin" : "Pin", selected: pinned) {
+            RowIconButton(symbol: pinned ? .pinOff : .pin, title: pinned ? "Unpin" : "Pin", selected: pinned) {
                 let ids = pinnedIds(pinnedStored)
                 pinnedStored = storedPins(pinned ? ids.subtracting([row.id]) : ids.union([row.id]))
             }
             if row.archived {
-                RowIconButton(symbol: "arrow.uturn.backward", title: "Restore") { Task { if let refusal = await actions.restore(row.id) { tell(refusal) } } }
+                RowIconButton(symbol: .undo, title: "Restore") { Task { if let refusal = await actions.restore(row.id) { tell(refusal) } } }
             } else {
-                RowIconButton(symbol: "archivebox", title: "Archive", why: archiveBlock(row)) { Task { if let refusal = await actions.archive(row.id) { tell(refusal) } } }
+                RowIconButton(symbol: .archive, title: "Archive", why: archiveBlock(row)) { Task { if let refusal = await actions.archive(row.id) { tell(refusal) } } }
             }
         }
     }

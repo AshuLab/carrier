@@ -24,7 +24,7 @@ struct SidebarSearchField: View {
                         text = ""
                         focus.wrappedValue = true
                     } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(clearHovered ? .primary : .secondary).padding(.trailing, 5)
+                        Glyph(.closeCircleFilled).foregroundStyle(clearHovered ? .primary : .secondary).padding(.trailing, 5)
                     }
                     .buttonStyle(.plain)
                     .onHover { clearHovered = $0 }
@@ -37,14 +37,14 @@ struct SidebarSearchField: View {
 
 /// What a section's list says when it has nothing to show: the state's icon and title, a line and, when there is one, a button under them.
 struct SidebarEmptyBlock<Action: View>: View {
-    let icon: String
+    let icon: AppIcon
     let title: String
     let line: String
     @ViewBuilder let action: Action
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(systemName: icon).font(.scaled(26)).foregroundStyle(.secondary).padding(.bottom, 4)
+            Glyph(icon, size: 26).foregroundStyle(.secondary).padding(.bottom, 4)
             Text(title).font(.headline)
             Text(line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).lineLimit(3)
             action.padding(.top, 4)

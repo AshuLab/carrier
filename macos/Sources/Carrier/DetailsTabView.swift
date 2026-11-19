@@ -37,7 +37,7 @@ struct DetailsRowView: View {
     var body: some View {
         let stacked = row.value.count > Self.longValue
         HStack(alignment: stacked ? .top : .firstTextBaseline, spacing: 10) {
-            Image(systemName: row.icon).font(.scaled(12, weight: .medium)).foregroundStyle(.secondary).frame(width: 18)
+            Glyph(row.icon, size: 12).foregroundStyle(.secondary).frame(width: 18)
             if stacked {
                 VStack(alignment: .leading, spacing: 3) {
                     label
@@ -93,7 +93,7 @@ private struct DetailsBadge: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(text).lineLimit(1).truncationMode(.middle)
-            if linked { Image(systemName: "arrow.up.right").font(.scaled(9, weight: .bold)) }
+            if linked { Glyph(.arrowUpRight, size: 9) }
         }
         .font(.caption.weight(.semibold).monospacedDigit())
         .foregroundStyle(color)
@@ -104,22 +104,22 @@ private struct DetailsBadge: View {
 
 private extension DetailsRow {
     /// An SF Symbol for the row, by its label; a plain dot for one this app does not know.
-    var icon: String {
+    var icon: AppIcon {
         switch label {
-        case "Stage": "flag"
-        case "Last activity": "waveform.path.ecg"
-        case "Started": "calendar"
-        case "Total time": "timer"
-        case "Slices": "square.stack.3d.up"
-        case "Review round": "arrow.triangle.2.circlepath"
-        case "Blockers": "hand.raised"
-        case "Pull request": "arrow.triangle.pull"
-        case "Checks": "checkmark.shield"
-        case "Branch": "arrow.triangle.branch"
-        case "Agent": "cpu"
-        case "Lanes": "rectangle.3.group"
-        case "Repository": "shippingbox"
-        default: "circle.fill"
+        case "Stage": .flag
+        case "Last activity": .activity
+        case "Started": .calendar
+        case "Total time": .timer
+        case "Slices": .stack
+        case "Review round": .refresh
+        case "Blockers": .hand
+        case "Pull request": .gitPullRequest
+        case "Checks": .shieldCheck
+        case "Branch": .gitBranch
+        case "Agent": .cpu
+        case "Lanes": .layoutGrid
+        case "Repository": .package
+        default: .circleFilled
         }
     }
 }

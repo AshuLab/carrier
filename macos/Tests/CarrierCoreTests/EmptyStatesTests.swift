@@ -4,8 +4,7 @@ import Testing
 @Test func thereAreSixteenEmptyStatesEachWithAnIconATitleAndOneLine() {
     #expect(EmptyState.allCases.count == 16)
     for state in EmptyState.allCases {
-        #expect(state.icon.isEmpty == false)
-        #expect(state.title.isEmpty == false)
+                #expect(state.title.isEmpty == false)
         #expect(state.line.isEmpty == false)
         #expect(state.line.contains("\n") == false)
     }
@@ -35,7 +34,7 @@ import Testing
 
 @Test func noTerminalsHasItsOwnIconTitleAndLine() {
     #expect((EmptyState.noTerminals.icon, EmptyState.noTerminals.title, EmptyState.noTerminals.line) == (
-        "terminal",
+        .terminal,
         "No terminals yet",
         "Terminal sessions you start are listed here."
     ))

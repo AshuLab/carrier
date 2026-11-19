@@ -1,10 +1,11 @@
+import CarrierCore
 import SwiftUI
 
 /// The card the app uses to tell the person something over the message box: a badge, a title, what it means and the actions on the right,
 /// in glass. The errors, the notice of a session that is asleep or archived and the message held while the agent answers are all this
 /// card; each says its own colour, which fills the glass.
 struct NoticeCard<Actions: View, Below: View>: View {
-    let symbol: String
+    let symbol: AppIcon
     let tint: Color
     let title: String
     var detail: String?
@@ -22,7 +23,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
     /// Under the header, starting where the title does less 10 points: its rows carry their own inset, so a fill under the pointer lines up.
     @ViewBuilder var below: () -> Below
     init(
-        symbol: String, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
+        symbol: AppIcon, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
         edge: Bool = false, account: String? = nil, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions,
         @ViewBuilder below: @escaping () -> Below
     ) {
@@ -33,7 +34,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 13) {
-                Image(systemName: symbol).font(.scaled(13, weight: .bold)).foregroundStyle(.white)
+                Glyph(symbol, size: 13).foregroundStyle(.white)
                     .frame(width: 30, height: 30).background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(tint.opacity(0.85)))
                     .accessibilityHidden(true)
                 if let onTap { Button(action: onTap) { text }.buttonStyle(.plain) } else { text }
@@ -75,7 +76,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
 
 extension NoticeCard where Below == EmptyView {
     init(
-        symbol: String, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
+        symbol: AppIcon, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
         edge: Bool = false, account: String? = nil, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions
     ) {
         self.init(

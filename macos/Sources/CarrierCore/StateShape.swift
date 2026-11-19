@@ -4,13 +4,13 @@ public enum StateShape: CaseIterable {
     case working, needsAttention, ready, problem
 }
 
-/// The SF Symbol of a state, a different one for each.
-public func stateSymbol(_ shape: StateShape) -> String {
+/// The icon of a state, a different one for each.
+public func stateSymbol(_ shape: StateShape) -> AppIcon {
     switch shape {
-    case .working: "arrow.triangle.2.circlepath"
-    case .needsAttention: "exclamationmark.triangle.fill"
-    case .ready: "checkmark.seal.fill"
-    case .problem: "xmark.octagon.fill"
+    case .working: .refresh
+    case .needsAttention: .warningFilled
+    case .ready: .sealCheck
+    case .problem: .octagonWarning
     }
 }
 

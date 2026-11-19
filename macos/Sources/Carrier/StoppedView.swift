@@ -15,7 +15,7 @@ struct StoppedView: View {
             ScrollView {
                 VStack(spacing: 22) {
                     VStack(spacing: 6) {
-                        Image(systemName: icon).font(.scaled(26)).foregroundStyle(.secondary)
+                        Glyph(icon, size: 26).foregroundStyle(.secondary)
                             .frame(width: 54, height: 54)
                             .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
                             .padding(.bottom, 9)
@@ -33,7 +33,7 @@ struct StoppedView: View {
         }
     }
 
-    private var icon: String { state == nil ? "bolt.horizontal.circle" : state == .stopped ? "power.circle" : "exclamationmark.triangle" }
+    private var icon: AppIcon { state == nil ? .bolt : state == .stopped ? .power : .warning }
 
     private var title: String { state == nil ? "Connecting…" : state?.menuLine ?? "" }
 
@@ -50,11 +50,11 @@ struct StoppedView: View {
     @ViewBuilder private var missing: some View {
         let banner = readinessBanner(missing: setup.missing, detecting: setup.detecting)
         if let notice = engineNotConfiguredNotice(configExists: start.configExists) {
-            Label(notice, systemImage: "exclamationmark.triangle.fill")
+            Label(notice, icon: .warningFilled)
                 .font(.callout).foregroundStyle(.orange).multilineTextAlignment(.center).frame(maxWidth: 340)
         } else if banner.state != .ready {
             VStack(spacing: 8) {
-                Label(banner.title, systemImage: banner.state == .detecting ? "magnifyingglass" : "exclamationmark.triangle.fill")
+                Label(banner.title, icon: banner.state == .detecting ? .search : .warningFilled)
                     .font(.callout).foregroundStyle(.orange)
                 if banner.state == .missing {
                     Button("Open Settings", action: openSettings).buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(.small)

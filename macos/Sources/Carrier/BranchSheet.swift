@@ -35,7 +35,7 @@ struct BranchSheet: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: "arrow.triangle.branch")
+            Glyph(.gitBranch)
                 .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
                 .frame(width: 36, height: 36)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
@@ -52,7 +52,7 @@ struct BranchSheet: View {
         let remote = picker?.remote ?? []
         if local.isEmpty && remote.isEmpty {
             VStack(spacing: 8) {
-                Image(systemName: query.isEmpty ? "arrow.triangle.branch" : "magnifyingglass")
+                Glyph(query.isEmpty ? .gitBranch : .search)
                     .font(.scaled(32, weight: .light)).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text(query.isEmpty ? "No branches" : "No branch matches “\(query)”").font(.headline)
                 Text(query.isEmpty ? "This repository has no branch to start from yet." : "Search looks at the local and the remote branches. Fetch to see new ones.")
@@ -62,8 +62,8 @@ struct BranchSheet: View {
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24) {
-                    section("Local", "internaldrive", local, empty: "No local branches.")
-                    section("Remote", "cloud", remote, empty: "No remote branches yet. Fetch to look for them.")
+                    section("Local", .harddrive, local, empty: "No local branches.")
+                    section("Remote", .cloud, remote, empty: "No remote branches yet. Fetch to look for them.")
                 }
                 .padding(.horizontal, 16).padding(.vertical, 16)
             }
@@ -72,11 +72,11 @@ struct BranchSheet: View {
 
     /// A section: its name and how many branches it holds, then the rows. With a search the section that matches nothing is left out; without
     /// one it says it is empty.
-    @ViewBuilder private func section(_ title: String, _ icon: String, _ rows: [BranchRow], empty: String) -> some View {
+    @ViewBuilder private func section(_ title: String, _ icon: AppIcon, _ rows: [BranchRow], empty: String) -> some View {
         if rows.isEmpty == false || query.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Label(title, systemImage: icon).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                    Label(title, icon: icon).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                     Text("\(rows.count)").font(.caption.weight(.medium)).foregroundStyle(.secondary)
                         .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.secondary.opacity(0.15)))
                     Spacer(minLength: 0)
@@ -101,13 +101,13 @@ struct BranchSheet: View {
     private func rowContent(_ row: BranchRow, chosen: Bool, hovering: Bool) -> some View {
         let cut = row.name.lastIndex(of: "/").map { row.name.index(after: $0) } ?? row.name.startIndex
         return HStack(spacing: 10) {
-            Image(systemName: "arrow.triangle.branch").foregroundStyle(chosen ? Color.themeAccent : .secondary).frame(width: 18).accessibilityHidden(true)
+            Glyph(.gitBranch).foregroundStyle(chosen ? Color.themeAccent : .secondary).frame(width: 18).accessibilityHidden(true)
             Text("\(Text(row.name[..<cut]).foregroundStyle(.secondary))\(Text(row.name[cut...]).fontWeight(chosen ? .semibold : .medium))")
                 .lineLimit(1).truncationMode(.middle)
-            if row.isDefault { Badge(text: "default", icon: "star.fill", tint: .themeAccent) }
-            if row.checkedOut { Badge(text: browsing ? "current" : "checked out", icon: "checkmark.circle", tint: browsing ? .themeAccent : .secondary) }
+            if row.isDefault { Badge(text: "default", icon: .starFilled, tint: .themeAccent) }
+            if row.checkedOut { Badge(text: browsing ? "current" : "checked out", icon: .checkCircle, tint: browsing ? .themeAccent : .secondary) }
             Spacer(minLength: 8)
-            if chosen { Image(systemName: "checkmark").foregroundStyle(Color.themeAccent).accessibilityLabel("Chosen") }
+            if chosen { Glyph(.check).foregroundStyle(Color.themeAccent).accessibilityLabel("Chosen") }
             else { RowHint(text: "Select", shown: hovering) }
         }
         .frame(minHeight: 20).padding(.horizontal, 10).padding(.vertical, 8)
@@ -117,7 +117,7 @@ struct BranchSheet: View {
     @ViewBuilder private var summary: some View {
         if browsing {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: "info.circle").foregroundStyle(.secondary).accessibilityHidden(true)
+                Glyph(.info).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text("Picking another branch switches this folder to it when the message is sent, unless it has uncommitted changes. To keep the folder as it is, start a new worktree from it.")
                     .font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
@@ -131,10 +131,10 @@ struct BranchSheet: View {
 
     private var newBranch: some View {
         HStack(spacing: 8) {
-            Image(systemName: "plus.circle").foregroundStyle(.secondary).accessibilityHidden(true)
+            Glyph(.circlePlus).foregroundStyle(.secondary).accessibilityHidden(true)
             Text("New branch").font(.subheadline).foregroundStyle(.secondary)
             Text(model.worktreeName.isEmpty ? "\(worktreeBranchPrefix)<generated when sent>" : "\(worktreeBranchPrefix)\(model.worktreeName)").font(.subheadline.monospaced()).lineLimit(1).truncationMode(.middle)
-            Image(systemName: "arrow.left").font(.caption).foregroundStyle(.secondary).accessibilityLabel("from")
+            Glyph(.arrowLeft).font(.caption).foregroundStyle(.secondary).accessibilityLabel("from")
             Text(model.startBranch ?? "…").font(.subheadline.monospaced().weight(.semibold)).lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 0)
         }
@@ -145,7 +145,7 @@ struct BranchSheet: View {
     @ViewBuilder private func footer(_ picker: BranchPicker?) -> some View {
         if model.toClone {
             HStack(spacing: 10) {
-                Image(systemName: "icloud").foregroundStyle(.secondary).accessibilityHidden(true)
+                Glyph(.cloud).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text("Branches as GitHub lists them now. The repository is cloned when the message is sent.").font(.subheadline)
                 Spacer(minLength: 16)
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
@@ -161,7 +161,7 @@ struct BranchSheet: View {
         let stale = at.map { Date().timeIntervalSince1970 - Double($0) / 1000 > staleAfter } ?? true
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: stale ? "exclamationmark.triangle.fill" : "clock.arrow.circlepath")
+                Glyph(stale ? .warningFilled : .history)
                     .foregroundStyle(stale ? Color.orange : .secondary).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(picker?.fetched ?? "").font(.subheadline)
@@ -170,7 +170,7 @@ struct BranchSheet: View {
                 Button { Task { await model.fetchNow() } } label: {
                     Label { Text(model.fetching ? "Fetching…" : "Fetch now") } icon: {
                         // turns for as long as the fetch takes
-                        Image(systemName: "arrow.clockwise").symbolEffect(.rotate, options: .repeating, isActive: model.fetching)
+                        Glyph(.refresh).glyphSpinning(model.fetching)
                     }
                 }
                     .controlSize(.small).disabled(model.fetching).help("Ask the remote for its latest branches")
@@ -179,7 +179,7 @@ struct BranchSheet: View {
             }
             if let problem = model.fetchProblem {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red).accessibilityHidden(true)
+                    Glyph(.warningFilled).foregroundStyle(.red).accessibilityHidden(true)
                     Text(problem).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                     Spacer(minLength: 0)
                 }

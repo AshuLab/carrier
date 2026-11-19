@@ -145,7 +145,7 @@ struct SidebarView: View {
                                 Text(group.title)
                                 Spacer(minLength: 0)
                                 Text("\(group.count)").monospacedDigit()
-                                Image(systemName: "chevron.right").imageScale(.small).rotationEffect(.degrees(expanded ? 90 : 0))
+                                Glyph(.chevronRight).imageScale(.small).rotationEffect(.degrees(expanded ? 90 : 0))
                                     .opacity(queried ? 0 : 1)
                             }
                             .font(SidebarMetrics.group).foregroundStyle(.secondary)
@@ -171,7 +171,7 @@ struct SidebarView: View {
         let epicCount = sidebarEpicCount
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
-                SidebarSectionRow(title: "Home", icon: "house", selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
+                SidebarSectionRow(title: "Home", icon: .home, selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
                 ForEach(above, id: \.self) { slot($0, epicCount: epicCount) }
             }
             .padding(.horizontal, SidebarMetrics.edge).padding(.top, 8)
@@ -203,8 +203,8 @@ struct SidebarView: View {
             .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
             Divider()
             VStack(spacing: SidebarMetrics.rowGap) {
-                SidebarSectionRow(title: "Settings", icon: "gearshape", selected: false, action: openSettings)
-                SidebarSectionRow(title: "Usage", icon: "chart.bar", selected: selection == .usage, action: { selection = .usage })
+                SidebarSectionRow(title: "Settings", icon: .settings, selected: false, action: openSettings)
+                SidebarSectionRow(title: "Usage", icon: .chartBar, selected: selection == .usage, action: { selection = .usage })
             }
             .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
         }
@@ -334,7 +334,7 @@ private struct CarrierRow: View {
         let snapshot: PanelSnapshot? = if case .running(let snapshot)? = state { snapshot } else { nil }
         // the hover: running says when the next check is, uptime and rate limit; an incompatible engine says why
         let detail: String? = if let snapshot { Self.hover(snapshot) } else if case .incompatible(let update)? = state { update ?? state?.menuLine } else { nil }
-        SidebarSectionRow(title: "Carrier", icon: "paperplane", selected: selected, keepActions: groupMenu || searching, action: select, actions: {
+        SidebarSectionRow(title: "Carrier", icon: .send, selected: selected, keepActions: groupMenu || searching, action: select, actions: {
             Text(card.title)
                 .font(SidebarMetrics.detail.weight(.semibold))
                 .foregroundStyle(Self.tint(card.kind))
@@ -344,12 +344,12 @@ private struct CarrierRow: View {
             // the epics exist only while Carrier answers, so there is nothing to search or group before
             if snapshot != nil && unfolded {
                 IconButton(
-                    icon: "magnifyingglass", name: searching ? "Close epic search" : "Search epics", enabled: hasEpics, why: "No epics to search",
+                    icon: .search, name: searching ? "Close epic search" : "Search epics", enabled: hasEpics, why: "No epics to search",
                     shortcut: "⌘F", pressed: searching
                 ) {
                     searching.toggle()
                 }
-                IconButton(icon: "ellipsis", name: "Group epics by") { groupMenu = true }
+                IconButton(icon: .dots, name: "Group epics by") { groupMenu = true }
                     .popover(isPresented: $groupMenu, arrowEdge: .trailing) {
                         ChoiceMenu(
                             title: "Group by", options: GroupBy.allCases.map { ($0.title, $0) }, selection: $groupBy,
@@ -422,7 +422,7 @@ struct HoverFillButtonStyle: ButtonStyle {
 /// A 24-point button with an accessible name and a tooltip, drawn in `HoverFillButtonStyle`; `why` is the tooltip and the hint while it is
 /// disabled. In a list row it runs its action and does not select the row.
 struct IconButton: View {
-    let source: IconSource
+    let icon: AppIcon
     let name: String
     var enabled = true
     var why: String?
@@ -432,33 +432,9 @@ struct IconButton: View {
     var pressed = false
     let action: () -> Void
 
-    init(icon: String, name: String, enabled: Bool = true, why: String? = nil, shortcut: String? = nil, pressed: Bool = false, action: @escaping () -> Void) {
-        self.init(source: .symbol(icon), name: name, enabled: enabled, why: why, shortcut: shortcut, pressed: pressed, action: action)
-    }
-
-    init(icon: AppIcon, name: String, enabled: Bool = true, why: String? = nil, shortcut: String? = nil, pressed: Bool = false, action: @escaping () -> Void) {
-        self.init(source: .icon(icon), name: name, enabled: enabled, why: why, shortcut: shortcut, pressed: pressed, action: action)
-    }
-
-    private init(source: IconSource, name: String, enabled: Bool, why: String?, shortcut: String?, pressed: Bool, action: @escaping () -> Void) {
-        self.source = source
-        self.name = name
-        self.enabled = enabled
-        self.why = why
-        self.shortcut = shortcut
-        self.pressed = pressed
-        self.action = action
-    }
-
     var body: some View {
         Button(action: action) {
-            Group {
-                switch source {
-                case .symbol(let name): Image(systemName: name)
-                case .icon(let icon): Glyph(icon, size: 14)
-                }
-            }
-            .frame(width: 24, height: 24).contentShape(Rectangle())
+            Glyph(icon, size: 14).frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(HoverFillButtonStyle(open: pressed))
         .disabled(enabled == false)
@@ -492,7 +468,7 @@ struct ChoiceMenu<Value: Hashable>: View {
                     HStack {
                         Text(option.title)
                         Spacer(minLength: 0)
-                        if selection == option.value { Image(systemName: "checkmark") }
+                        if selection == option.value { Glyph(.check) }
                     }
                     .padding(.horizontal, 8).padding(.vertical, 4)
                     .contentShape(Rectangle())
@@ -522,7 +498,7 @@ extension View {
 /// is over the row and stay while `keepActions` (a menu they opened is open, a search they started is on), left of `actions`.
 struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
     let title: String
-    let icon: String
+    let icon: AppIcon
     let selected: Bool
     var keepActions = false
     let action: () -> Void
@@ -533,7 +509,7 @@ struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
     @Environment(\.colorScheme) private var scheme
 
     init(
-        title: String, icon: String, selected: Bool, keepActions: Bool = false, action: @escaping () -> Void,
+        title: String, icon: AppIcon, selected: Bool, keepActions: Bool = false, action: @escaping () -> Void,
         @ViewBuilder actions: () -> Actions = { EmptyView() }, @ViewBuilder hoverActions: () -> HoverActions = { EmptyView() },
         @ViewBuilder below: () -> Below = { EmptyView() }
     ) {
@@ -556,7 +532,7 @@ struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
                 // row, but on its actions, still does through the tap below
                 Button(action: action) {
                     HStack(spacing: 8) {
-                        Image(systemName: icon).resizable().scaledToFit().frame(width: 18, height: 18)
+                        Glyph(icon, size: 18)
                             .foregroundStyle(selected ? .primary : .secondary)
                         Text(title).font(SidebarMetrics.section)
                         Spacer(minLength: 0)

@@ -37,20 +37,20 @@ struct WorkspaceSheet: View {
     /// The sheet's name, then where the workspace can come from: a step each, and the folder panel, which is not a step.
     private var rail: some View {
         VStack(alignment: .leading, spacing: 4) {
-            RailHeader(title: "Choose a workspace", detail: "Where the agent works", icon: "folder.fill")
-            railRow("Recent", "Folders you used lately", "clock", selected: model.step == .menu) { model.show(.menu) }
+            RailHeader(title: "Choose a workspace", detail: "Where the agent works", icon: .folder)
+            railRow("Recent", "Folders you used lately", .clock, selected: model.step == .menu) { model.show(.menu) }
             if model.sources.contains(.githubURL) {
-                railRow("From a GitHub URL", model.sourceReason(.githubURL) ?? "Clone owner/repo", "link", selected: model.step == .url, off: model.sourceReason(.githubURL) != nil) { model.show(.url) }
+                railRow("From a GitHub URL", model.sourceReason(.githubURL) ?? "Clone owner/repo", .link, selected: model.step == .url, off: model.sourceReason(.githubURL) != nil) { model.show(.url) }
             }
             if model.sources.contains(.githubRepos) {
-                railRow("My repositories", model.sourceReason(.githubRepos) ?? "Browse yours and clone one", "list.bullet", selected: model.step == .repos, off: model.sourceReason(.githubRepos) != nil) { Task { await model.showRepos() } }
+                railRow("My repositories", model.sourceReason(.githubRepos) ?? "Browse yours and clone one", .list, selected: model.step == .repos, off: model.sourceReason(.githubRepos) != nil) { Task { await model.showRepos() } }
             }
             if model.sources.contains(.newProject) {
-                railRow("New project", "Start from an empty folder", "folder.badge.gearshape", selected: model.step == .project) { model.show(.project) }
+                railRow("New project", "Start from an empty folder", .folderCog, selected: model.step == .project) { model.show(.project) }
             }
             if model.sources.contains(.localFolder) {
                 Divider().padding(.vertical, 8)
-                railRow("Open a folder…", "Any folder on this Mac", "folder.badge.plus", selected: false, action: openFolder)
+                railRow("Open a folder…", "Any folder on this Mac", .folderPlus, selected: false, action: openFolder)
             }
             if let gh = model.ghState {
                 HealthFixButton(tool: .gh, state: gh).padding(.horizontal, 8).padding(.top, 8)
@@ -69,7 +69,7 @@ struct WorkspaceSheet: View {
         .background(Color.secondary.opacity(0.06))
     }
 
-    private func railRow(_ title: String, _ detail: String, _ icon: String, selected: Bool, off: Bool = false, action: @escaping () -> Void) -> some View {
+    private func railRow(_ title: String, _ detail: String, _ icon: AppIcon, selected: Bool, off: Bool = false, action: @escaping () -> Void) -> some View {
         RailRow(title: title, detail: detail, icon: icon, selected: selected, off: off, action: action)
     }
 
@@ -78,7 +78,7 @@ struct WorkspaceSheet: View {
     private var footer: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
-                Image(systemName: "externaldrive").foregroundStyle(.secondary).accessibilityHidden(true)
+                Glyph(.harddrive).foregroundStyle(.secondary).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Projects folder").font(.subheadline).foregroundStyle(.secondary)
                     Text((model.projectsPath as NSString).abbreviatingWithTildeInPath)
@@ -89,7 +89,7 @@ struct WorkspaceSheet: View {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
             }
             if let problem = model.projectsFolderProblem {
-                notice(problem, "exclamationmark.triangle.fill", .red)
+                notice(problem, .warningFilled, .red)
             }
         }
         .padding(.horizontal, 20).padding(.vertical, 12)
@@ -107,10 +107,10 @@ struct WorkspaceSheet: View {
     }
 
     /// A step's title and what it does, then its body.
-    private func stepPage<Body: View>(_ title: String, _ detail: String, icon: String, @ViewBuilder _ body: () -> Body) -> some View {
+    private func stepPage<Body: View>(_ title: String, _ detail: String, icon: AppIcon, @ViewBuilder _ body: () -> Body) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .center, spacing: 12) {
-                Image(systemName: icon)
+                Glyph(icon)
                     .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
                     .frame(width: 36, height: 36)
                     .background(RoundedRectangle(cornerRadius: radius).fill(Color.themeAccent.opacity(0.16)))
@@ -127,9 +127,9 @@ struct WorkspaceSheet: View {
 
     /// The recent folders, then the ones already in the projects folder; with none of either, how to get a first one.
     private var recentStep: some View {
-        stepPage("Recent", "Folders you have worked in. Pick one to start there.", icon: "clock") {
+        stepPage("Recent", "Folders you have worked in. Pick one to start there.", icon: .clock) {
             if model.recent.isEmpty && model.projects.isEmpty {
-                emptyState("clock", "No folders yet", "Folders you work in show up here. Open one, clone a repository or start a new project.") {
+                emptyState(.clock, "No folders yet", "Folders you work in show up here. Open one, clone a repository or start a new project.") {
                     Button("Open a folder…", action: openFolder).buttonStyle(.borderedProminent)
                 }
             } else {
@@ -152,7 +152,7 @@ struct WorkspaceSheet: View {
     private func folderRow(_ name: String, _ path: String) -> some View {
         HoverRow(action: { dismiss(); Task { await model.choose(folder: path) } }) { hovering in
             HStack(spacing: 10) {
-                Image(systemName: "folder.fill").foregroundStyle(Color.themeAccent.opacity(0.8)).accessibilityHidden(true)
+                Glyph(.folder).foregroundStyle(Color.themeAccent.opacity(0.8)).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(name).fontWeight(.medium)
                     Text((path as NSString).abbreviatingWithTildeInPath).font(.subheadline).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
@@ -166,29 +166,29 @@ struct WorkspaceSheet: View {
 
     /// From a GitHub URL: the text and what will happen to it when the message is sent.
     private var urlStep: some View {
-        stepPage("From a GitHub URL", "Bring in any repository you can read, by its name or address.", icon: "link") {
+        stepPage("From a GitHub URL", "Bring in any repository you can read, by its name or address.", icon: .link) {
             VStack(alignment: .leading, spacing: 8) {
-                fieldLabel("Repository", "magnifyingglass")
+                fieldLabel("Repository", .search)
                 TextField("owner/repo or https://github.com/owner/repo", text: $model.urlText)
                     .textFieldStyle(.roundedBorder).controlSize(.large).autocorrectionDisabled()
                     .focused($focused, equals: .url).onSubmit(useRepo)
                 if model.urlText.isEmpty == false && model.reference == nil {
-                    notice("That does not look like a GitHub repository. Use owner/repo, or paste its github.com link.", "exclamationmark.triangle.fill", .orange)
+                    notice("That does not look like a GitHub repository. Use owner/repo, or paste its github.com link.", .warningFilled, .orange)
                 } else if model.alreadyThere {
-                    notice("Already in your projects folder. It will be updated (fetch) when the message is sent, not cloned again.", "arrow.triangle.2.circlepath", .orange)
+                    notice("Already in your projects folder. It will be updated (fetch) when the message is sent, not cloned again.", .refresh, .orange)
                 } else if let reference = model.reference {
                     pathLine("Will be cloned when the message is sent, to", "\(model.projectsPath)/\(reference)")
                 }
             }
             watchCard(for: "this repo", on: Binding(get: { model.watching }, set: { model.watch = $0 }), reason: model.watchProblem)
             howItWorks([
-                ("person.badge.key", "Private repositories work too: Carrier uses your own GitHub sign-in (gh), never the engine's."),
-                ("arrow.down.circle", "Nothing is cloned until you send the first message. A repository is cloned once; next time it is only fetched, and nothing in it is deleted."),
+                (.user, "Private repositories work too: Carrier uses your own GitHub sign-in (gh), never the engine's."),
+                (.download, "Nothing is cloned until you send the first message. A repository is cloned once; next time it is only fetched, and nothing in it is deleted."),
             ])
             Spacer(minLength: 0)
             HStack {
                 Spacer(minLength: 0)
-                Button(action: useRepo) { Label(model.repoButton, systemImage: model.alreadyThere ? "arrow.triangle.2.circlepath" : "arrow.down.circle") }
+                Button(action: useRepo) { Label(model.repoButton, icon: model.alreadyThere ? .refresh : .download) }
                     .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction).disabled(model.canUseRepo == false)
             }
         }
@@ -198,10 +198,10 @@ struct WorkspaceSheet: View {
     /// My repositories: a search and a filter over what is loaded, the rows (each says whether it is private and whether Carrier watches
     /// it), a notice while the list is partial with Load more, and the watch box under the list; choosing a row fills the plan with it.
     private var reposStep: some View {
-        stepPage("My repositories", model.login.map { "Signed in to GitHub as \($0)." } ?? "The repositories your GitHub account can read.", icon: "list.bullet") {
+        stepPage("My repositories", model.login.map { "Signed in to GitHub as \($0)." } ?? "The repositories your GitHub account can read.", icon: .list) {
             if model.repoList.blocked {
-                emptyState("exclamationmark.icloud", "GitHub did not answer", model.reposReason ?? "Check your connection and sign-in, then try again.", tint: .orange) {
-                    Button { Task { await model.loadRepos() } } label: { Label("Try again", systemImage: "arrow.clockwise") }.disabled(model.loadingRepos)
+                emptyState(.cloudWarning, "GitHub did not answer", model.reposReason ?? "Check your connection and sign-in, then try again.", tint: .orange) {
+                    Button { Task { await model.loadRepos() } } label: { Label("Try again", icon: .refresh) }.disabled(model.loadingRepos)
                 }
             } else if model.repoList.repos.isEmpty && model.loadingRepos {
                 VStack(spacing: 10) {
@@ -223,7 +223,7 @@ struct WorkspaceSheet: View {
                                     Text("\(model.repoList.repos.count) loaded, there are more. Search and the filter only look at these.").font(.subheadline).foregroundStyle(.secondary)
                                     loadMoreButton
                                     if model.repoList.problem != nil, let reason = model.reposReason {
-                                        notice(reason, "exclamationmark.triangle.fill", .red)
+                                        notice(reason, .warningFilled, .red)
                                     }
                                 }
                                 .frame(maxWidth: .infinity).padding(.vertical, 12)
@@ -232,7 +232,7 @@ struct WorkspaceSheet: View {
                     }
                 }
                 watchCard(for: "the repo I choose", on: $model.watch, reason: nil)
-                Label("Click a repository to work there. It is cloned when you send the first message.", systemImage: "cursorarrow.click").font(.subheadline).foregroundStyle(.secondary)
+                Label("Click a repository to work there. It is cloned when you send the first message.", icon: .pointer).font(.subheadline).foregroundStyle(.secondary)
             }
         }
     }
@@ -240,7 +240,7 @@ struct WorkspaceSheet: View {
     /// One field: a magnifier, the text, and the visibility filter as a menu at its end (it shows its choice while it is not All).
     private var searchField: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+            Glyph(.search).foregroundStyle(.secondary).accessibilityHidden(true)
             TextField("Search the loaded repositories", text: $model.reposQuery).textFieldStyle(.plain).autocorrectionDisabled()
             Menu {
                 Picker("Show", selection: $visibility) {
@@ -250,7 +250,7 @@ struct WorkspaceSheet: View {
             } label: {
                 HStack(spacing: 4) {
                     if visibility != .all { Text(visibility.rawValue).font(.subheadline.weight(.semibold)) }
-                    Image(systemName: visibility == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                    Glyph(visibility == .all ? .filter : .filter)
                 }
                 .foregroundStyle(visibility == .all ? Color.secondary : Color.themeAccent)
             }
@@ -264,15 +264,15 @@ struct WorkspaceSheet: View {
     @ViewBuilder private var reposEmpty: some View {
         let more = model.repoList.hasMore
         if model.reposQuery.isEmpty && visibility == .all {
-            emptyState("tray", "No repositories", "Your account has none Carrier can list. Use From a GitHub URL for one by name.") {
-                Button { model.show(.url) } label: { Label("From a GitHub URL", systemImage: "link") }
+            emptyState(.inbox, "No repositories", "Your account has none Carrier can list. Use From a GitHub URL for one by name.") {
+                Button { model.show(.url) } label: { Label("From a GitHub URL", icon: .link) }
             }
         } else if model.reposQuery.isEmpty {
-            emptyState(visibility == .private ? "lock.slash" : "globe", "No \(visibility.rawValue.lowercased()) repositories loaded", more ? "Load more to look further." : "Your account has none.") {
+            emptyState(visibility == .private ? .lock : .world, "No \(visibility.rawValue.lowercased()) repositories loaded", more ? "Load more to look further." : "Your account has none.") {
                 if more { loadMoreButton }
             }
         } else {
-            emptyState("magnifyingglass", "No match for “\(model.reposQuery)”", more ? "Search only looks at the \(model.repoList.repos.count) loaded. Load more, or use the URL." : "Nothing loaded matches.") {
+            emptyState(.search, "No match for “\(model.reposQuery)”", more ? "Search only looks at the \(model.repoList.repos.count) loaded. Load more, or use the URL." : "Nothing loaded matches.") {
                 if more { loadMoreButton }
             }
         }
@@ -280,7 +280,7 @@ struct WorkspaceSheet: View {
 
     private var loadMoreButton: some View {
         Button { Task { await model.loadRepos() } } label: {
-            Label(model.loadingRepos ? "Loading…" : model.repoList.problem != nil ? "Try again" : "Load more", systemImage: "arrow.down")
+            Label(model.loadingRepos ? "Loading…" : model.repoList.problem != nil ? "Try again" : "Load more", icon: .arrowDown)
         }
         .disabled(model.loadingRepos)
     }
@@ -289,21 +289,21 @@ struct WorkspaceSheet: View {
         HoverRow(action: { dismiss(); Task { await model.choose(repo: row.name) } }) { hovering in
             HStack(alignment: .center, spacing: 10) {
                 HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "book.closed").foregroundStyle(.secondary).frame(width: 18).padding(.top, 2).accessibilityHidden(true)
+                    Glyph(.book).foregroundStyle(.secondary).frame(width: 18).padding(.top, 2).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 3) {
                         let parts = row.name.split(separator: "/", maxSplits: 1).map(String.init)
                         Text("\(Text(parts[0] + "/").foregroundStyle(.secondary))\(Text(parts[1]).fontWeight(.semibold))").lineLimit(1).truncationMode(.middle)
                         HStack(spacing: 6) {
-                            if row.isPrivate { badge("Private", "lock.fill", .indigo) } else { badge("Public", "globe", .secondary) }
+                            if row.isPrivate { badge("Private", .lock, .indigo) } else { badge("Public", .world, .secondary) }
                             Text(row.pushed).font(.subheadline).foregroundStyle(.secondary)
                         }
                         if let reason = row.cannotWatch {
-                            Label("Carrier will not watch it: \(reason)", systemImage: "eye.slash").font(.subheadline).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                            Label("Carrier will not watch it: \(reason)", icon: .eyeOff).font(.subheadline).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
                 Spacer(minLength: 8)
-                if row.watched { badge("Watched", "eye.fill", .green) }
+                if row.watched { badge("Watched", .eye, .green) }
                 RowChevron(shown: hovering)
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
@@ -313,26 +313,26 @@ struct WorkspaceSheet: View {
 
     /// New project: a name, the path it will make, and the button; no watch box, a new project has no GitHub repository.
     private var projectStep: some View {
-        stepPage("New project", "Start from nothing: an empty folder with git ready.", icon: "folder.badge.gearshape") {
+        stepPage("New project", "Start from nothing: an empty folder with git ready.", icon: .folderCog) {
             VStack(alignment: .leading, spacing: 8) {
-                fieldLabel("Name", "textformat")
+                fieldLabel("Name", .typography)
                 TextField("my-project", text: $model.projectName)
                     .textFieldStyle(.roundedBorder).controlSize(.large).autocorrectionDisabled()
                     .focused($focused, equals: .project).onSubmit(create)
                 if let warning = model.projectNameWarning {
-                    notice(warning, "exclamationmark.triangle.fill", .orange)
+                    notice(warning, .warningFilled, .orange)
                 } else {
                     pathLine("Will be created when the message is sent, at", model.projectPath)
                 }
             }
             howItWorks([
-                ("terminal", "When you send the first message, Carrier makes the folder and runs git init on main."),
-                ("icloud.slash", "It stays on this Mac. It has no GitHub repository, so Carrier does not watch it."),
+                (.terminal, "When you send the first message, Carrier makes the folder and runs git init on main."),
+                (.cloudOff, "It stays on this Mac. It has no GitHub repository, so Carrier does not watch it."),
             ])
             Spacer(minLength: 0)
             HStack {
                 Spacer(minLength: 0)
-                Button(action: create) { Label("Use this project", systemImage: "plus.circle") }
+                Button(action: create) { Label("Use this project", icon: .circlePlus) }
                     .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction).disabled(model.canUseNow == false)
             }
         }
@@ -344,7 +344,7 @@ struct WorkspaceSheet: View {
     /// The watch box, with what watching means: it is a choice made now and acted on once the agent has answered the first message, and the engine is then asked to reload.
     private func watchCard(for what: String, on: Binding<Bool>, reason: String?) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: on.wrappedValue && reason == nil ? "eye.fill" : "eye.slash")
+            Glyph(on.wrappedValue && reason == nil ? .eye : .eyeOff)
                 .foregroundStyle(on.wrappedValue && reason == nil ? Color.green : .secondary).frame(width: 18).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Let Carrier watch \(what)")
@@ -359,13 +359,12 @@ struct WorkspaceSheet: View {
     }
 
     /// A few lines on how the step works, each with its icon.
-    private func howItWorks(_ points: [(String, String)]) -> some View {
+    private func howItWorks(_ points: [(AppIcon, String)]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("How it works").font(.callout.weight(.semibold)).foregroundStyle(.secondary)
             ForEach(points, id: \.1) { icon, text in
                 HStack(spacing: 12) {
-                    Image(systemName: icon)
-                        .font(.scaled(13, weight: .medium)).foregroundStyle(Color.themeAccent)
+                    Glyph(icon, size: 13).foregroundStyle(Color.themeAccent)
                         .frame(width: 30, height: 30)
                         .background(RoundedRectangle(cornerRadius: radius).fill(Color.themeAccent.opacity(0.16)))
                         .accessibilityHidden(true)
@@ -381,7 +380,7 @@ struct WorkspaceSheet: View {
     /// A path and what it is, on a faint fill.
     private func pathLine(_ label: String, _ path: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "folder").foregroundStyle(.secondary).accessibilityHidden(true)
+            Glyph(.folder).foregroundStyle(.secondary).accessibilityHidden(true)
             Text(label).font(.subheadline).foregroundStyle(.secondary)
             Text((path as NSString).abbreviatingWithTildeInPath).font(.subheadline.monospaced()).lineLimit(1).truncationMode(.head).textSelection(.enabled)
             Spacer(minLength: 0)
@@ -389,14 +388,14 @@ struct WorkspaceSheet: View {
         .padding(10).background(RoundedRectangle(cornerRadius: radius).fill(Color.secondary.opacity(0.08)))
     }
 
-    private func fieldLabel(_ title: String, _ icon: String) -> some View {
-        Label(title, systemImage: icon).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+    private func fieldLabel(_ title: String, _ icon: AppIcon) -> some View {
+        Label(title, icon: icon).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
     }
 
     /// Nothing to show, said once: an icon, what it is, what to do, and the button that does it.
-    private func emptyState<Action: View>(_ icon: String, _ title: String, _ detail: String, tint: Color = .secondary, @ViewBuilder action: () -> Action) -> some View {
+    private func emptyState<Action: View>(_ icon: AppIcon, _ title: String, _ detail: String, tint: Color = .secondary, @ViewBuilder action: () -> Action) -> some View {
         VStack(spacing: 8) {
-            Image(systemName: icon).font(.scaled(32, weight: .light)).foregroundStyle(tint).accessibilityHidden(true)
+            Glyph(icon, size: 32).foregroundStyle(tint).accessibilityHidden(true)
             Text(title).font(.headline)
             Text(detail).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).textSelection(.enabled)
                 .frame(maxWidth: 380)
@@ -406,9 +405,9 @@ struct WorkspaceSheet: View {
     }
 
     /// A message with its icon on a faint fill of its colour.
-    private func notice(_ text: String, _ icon: String, _ tint: Color) -> some View {
+    private func notice(_ text: String, _ icon: AppIcon, _ tint: Color) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: icon).foregroundStyle(tint).accessibilityHidden(true)
+            Glyph(icon).foregroundStyle(tint).accessibilityHidden(true)
             Text(text).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
             Spacer(minLength: 0)
         }
@@ -420,7 +419,7 @@ struct WorkspaceSheet: View {
         Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.bottom, 2)
     }
 
-    private func badge(_ text: String, _ icon: String, _ tint: Color) -> some View { Badge(text: text, icon: icon, tint: tint) }
+    private func badge(_ text: String, _ icon: AppIcon, _ tint: Color) -> some View { Badge(text: text, icon: icon, tint: tint) }
 
     // MARK: Actions
 

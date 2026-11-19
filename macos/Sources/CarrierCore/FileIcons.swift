@@ -7,7 +7,7 @@ import Foundation
 public enum FileIcon: Equatable {
     /// An SVG inside the bundle, by the name Material Icon Theme gives it.
     case bundled(name: String, url: URL)
-    case symbol(String)
+    case symbol(AppIcon)
 }
 
 private let iconByExtension: [String: String] = {

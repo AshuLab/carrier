@@ -396,7 +396,7 @@ struct SettingsPages: View {
                 }
         case .behavior: BehaviorTabView()
         case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { navigator.go(.agents) })
-        case .agents: AgentsTabView()
+        case .agents: AgentsTabView(place: navigator.place, go: navigator.go)
         case .sessions: SessionsTabView()
         case .notifications: NotificationsTabView()
         case .health: HealthTabView(state: state)

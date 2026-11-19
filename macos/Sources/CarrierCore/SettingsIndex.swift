@@ -180,10 +180,20 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
                 ("Confirm before closing running commands", "Asks before closing a tab, split, or drawer with an active process"),
             ])
     case .agents:
-        return page(.agents, "", [("Use a lead reviewer", "A second reviewer checks the first")])
-            + page(.agents, "Who", [("Identity", "The GitHub identity an agent acts as"), ("Model", "The model and reasoning of the role")])
-            + page(.agents, "Details", [("Persona name", "Optional, one line up to 40 characters"), ("Persona prompt", "Optional instructions")])
-            + page(.agents, "When it runs out of tokens", [("Switch automatically", "Usage limit, rate limit or service down")])
+        // the rows of a role's screen are the same for the three roles: the search opens the Author's, and the Lead reviewer's switch opens its own
+        let role = [AgentRole.author.rawValue]
+        var entries = page(.agents, "How an epic runs", AgentRole.allCases.map { ($0.title, $0.purpose) })
+        entries += page(.agents, "Identities", [("Create a bot…", "Opens Terminal on agent-forge add, to make a GitHub identity for a role")])
+        entries += page(.agents, "", [("Use a lead reviewer", "A second reviewer checks the first")], path: [AgentRole.leadReviewer.rawValue])
+        entries += page(.agents, "Who", [("Identity", "The GitHub identity an agent acts as"), ("Model", "The model and reasoning of the role")], path: role)
+        entries += page(.agents, "Persona", [("Persona name", "Optional, one line up to 40 characters"), ("Persona prompt", "Optional instructions")], path: role)
+        for skillRole in AgentRole.allCases {
+            var rows = skillRole.stages.map { ($0.title, "\($0.detail). Runs the skill \($0.skill)") }
+            if skillRole.stages.isEmpty { rows.append(("Not used by the engine yet", "The Lead reviewer has no stage, so no skill")) }
+            entries += page(.agents, "Skills", rows, path: [skillRole.rawValue])
+        }
+        entries += page(.agents, "When it runs out of tokens", [("Switch automatically", "Usage limit, rate limit or service down")], path: role)
+        return entries
     case .repos:
         return page(.repos, "Status", [("Status", "What Carrier watches in each repo")])
             + page(.repos, "Who works here", [("Defaults", "Every repo follows the roles of Agents unless it has its own")])

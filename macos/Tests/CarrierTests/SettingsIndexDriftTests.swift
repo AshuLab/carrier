@@ -17,7 +17,7 @@ import Testing
     /// Rows the pages draw that a search has no use for: a title that is a value (a model's name, an account), or one that exists only while a
     /// form is open.
     private static let notSearched: Set<String> = [
-        "Create a bot…", "Label, icon and color", "Name", "Config folder", "Days", "Add account", "Carrier \\(version)",
+        "Details", "Label, icon and color", "Name", "Config folder", "Days", "Add account", "Carrier \\(version)",
         "Where it runs", "Advanced", "Remove account", "Accounts", "Models", "Version", "Signed out", "Use in an agent", "Found on this Mac", "Sign-ins and quotas", "Look at this Mac again",
         "A session you stop using today", "Left alone", "Most dictations in a day", "Most words in a day", "Longest dictation", "Longest streak", "\\(metric.title) per day",
     ]

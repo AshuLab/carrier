@@ -9,7 +9,7 @@ Every figure is one machine and one run unless it says three; read them as order
 - **The pending-update pill costs about 38 points of CPU.**
   With `--fixture-update` the app with its window visible and in the background uses 40.6% CPU, against 2.8% without the pill.
 - **Listening for global dictation costs about 40 points of CPU.**
-  The app listening in front of another app uses 42.2% CPU and 215 idle wake-ups, against 2.8% and 28 with its window open and nothing else on.
+  The app listening in front of another app uses 42.2% CPU, against 2.8% with its window open and nothing else on.
 - **The app's memory grows by itself.**
   Idle under `--fixture`, with nobody touching it, the footprint went from 53 MB to 118 MB in one hour, about 1.1 MB a minute, in a straight line.
 - **Opening the window is most of the launch.**
@@ -28,7 +28,8 @@ Every figure is one machine and one run unless it says three; read them as order
 - Machine: Mac14,13 (Apple M2 Max), macOS 27.0.
 - App: `main` at `0e4952ee` (0.13.1), built with `./build-app.sh` and no version, so "Carrier Dev".
   One event, `main.async after open`, was added to the launch for the last row of the launch table and is not in `main`.
-- CPU, idle wake-ups and energy: `macos/scripts/perf-sample.sh`, that is `top` over 30 s of one process, as `cpu`, `idlew` and `power`; the footprint is `footprint`'s.
+- CPU, idle wake-ups, context switches and energy: `macos/scripts/perf-sample.sh`, that is `top` over 30 s of one process, as `cpu`, `power`, and `idlew` and `csw`; the footprint is `footprint`'s.
+  `idlew` and `csw` are totals since the process started, so a window's wake-ups are the difference between two samples; the first version of this document and of the script printed the totals, which grew from row to row only because each sample was later in the process's life, and the wake-up figures of that version are gone.
 - Launch: three recordings of 14 s each with `xctrace record --instrument os_signpost --all-processes`, and the intervals of the `launch` category read from the exported table.
   The times are the median of the three; the first commit and `main.async` are measured from the start of `didFinishLaunching`.
 - The Mac was in use: another Carrier (the installed one) was running at about 26% CPU while the rest was measured.
@@ -39,11 +40,11 @@ Every figure is one machine and one run unless it says three; read them as order
 
 | Measure | Scenario | Result |
 |---|---|---|
-| Idle CPU and wake-ups | `--fixture`, window visible, app in the background | 2.8% CPU, 28 idlew, power 2.9, footprint 51 MB |
-| | window minimized | 2.2% CPU, 64 idlew, power 2.3 |
-| | window closed, app in the background | 0.2% CPU, 73 idlew, power 0.2 |
-| Pending update | `--fixture --fixture-update`, window visible | **40.6% CPU**, 82 idlew, power 40.7 |
-| Global dictation | `--fixture --fixture-dictation-at-the-end`, shortcut pressed in TextEdit, listening | **42.2% CPU**, 215 idlew, power 42.4 |
+| Idle CPU and wake-ups | `--fixture`, window visible, app in the background | 2.8% CPU, power 2.9, footprint 51 MB; 1.6 to 1.9 idle wake-ups and about 145 context switches a second (second measurement) |
+| | window minimized | 2.2% CPU, power 2.3; 1.1 wake-ups and about 138 context switches a second |
+| | window closed, app in the background | 0.2% CPU, power 0.2; 0.6 wake-ups and about 69 context switches a second |
+| Pending update | `--fixture --fixture-update`, window visible | **40.6% CPU**, power 40.7 (42.5% and about 890 context switches a second in a second measurement) |
+| Global dictation | `--fixture --fixture-dictation-at-the-end`, shortcut pressed in TextEdit, listening | **42.2% CPU**, power 42.4 |
 | Footprint over time | `--fixture`, idle, an hour | 53 MB, 56 at 5 min, 75 at 10, 95 at 35, 118 at 60 |
 | Feed work | a session of 5,005 events, one new event | 5,006 (the least is 1) |
 | Work of the other counters | 5,000 dictations of one day; 2,000 files | 12,502,500 units to group the day; 2,000 icon lookups for 10 icons |
@@ -73,9 +74,9 @@ The updater, the window controller and the model store take 1 ms or less in ever
 - **The update pill and the dictation widget burn CPU for as long as they are on screen.**
   The pill stays until the update is installed.
   The numbers are those of the fixture's pill and widget; Instruments' SwiftUI "View Body" would say which view is behind them and was not run.
-- **A window that is closed or minimized has more idle wake-ups than one that is visible.**
-  The CPU is lower, 0.2% and 2.2% against 2.8%, but the wake-ups are 73 and 64 against 28.
-  With one 30 s sample each, the cause is not known.
+- **A window that is closed or minimized has fewer wake-ups and context switches than one that is visible.**
+  About 69 and 138 context switches a second against 145, and 0.6 and 1.1 wake-ups against 1.6 to 1.9, with the CPU at 0.2% and 2.2% against 2.8%.
+  An earlier version of this document said the opposite, from totals that had been read as rates.
 - **Memory grows with nobody using the app.**
   The fixture's engine answers its polls with the same data, so the growth is in the app or its polling and not in what it is shown.
   Visiting epics in a cycle was not done: it needs clicks on the sidebar, so this is the idle figure and the least.

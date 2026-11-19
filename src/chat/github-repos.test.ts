@@ -16,6 +16,7 @@ let stop: (() => Promise<void>) | undefined;
 let asked: number[];
 let pages: Record<number, { repos: AvailableRepo[]; hasMore: boolean }>;
 let failure: Error | undefined;
+let loginFailure: Error | undefined;
 let logins: number;
 let askedBranches: string[];
 const repo = (name: string, isPrivate = false): AvailableRepo => ({ name, private: isPrivate, pushedAt: '2026-10-20T10:00:00Z' });
@@ -27,6 +28,7 @@ beforeEach(async () => {
   logins = 0;
   askedBranches = [];
   failure = undefined;
+  loginFailure = undefined;
   pages = { 1: { repos: [repo('acme/app', true), repo('org/lib')], hasMore: true }, 2: { repos: [repo('me/old')], hasMore: false } };
   const github = {
     repos: async (page: number) => {
@@ -36,6 +38,7 @@ beforeEach(async () => {
     },
     login: async () => {
       logins++;
+      if (loginFailure !== undefined) throw loginFailure;
       return 'vemec';
     },
     branches: async (name: string) => {
@@ -58,6 +61,13 @@ test('the hello lists githubRepos, and page 1 answers the repositories, hasMore 
   const client = await connect();
   expect(client.hello.capabilities).toContain('githubRepos');
   expect(await client.request('githubRepos', { page: 1 })).toEqual({ repos: pages[1]!.repos, hasMore: true, login: 'vemec' });
+  client.close();
+});
+
+test('page 1 still answers the repositories when only the login could not be read', async () => {
+  loginFailure = new ChatRefused('GitHub took too long to answer');
+  const client = await connect();
+  expect(await client.request('githubRepos', { page: 1 })).toEqual({ repos: pages[1]!.repos, hasMore: true });
   client.close();
 });
 

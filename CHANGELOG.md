@@ -12,11 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   It can also stay on while agents work and for a few minutes after, pauses on a low battery and tells you when it stops by itself.
   Set it on the new Keep awake page of Settings, with an optional shortcut for any app.
 
+## [0.13.1] - 2026-11-18
+
+Fixes after 0.13.0: starting from the app with a late PATH, pull requests of SSH-alias remotes, the draft's reasoning levels and choosing a repository to clone.
+
 ### Fixed
 
 - Carrier no longer fails to start from the app for a folder you added to your shell's PATH after the app first read it (pnpm's, where `agent-forge` lives): when a start ends with `spawn agent-forge ENOENT`, the app reads the PATH from your shell again and starts once more, and if the tool is still not there the alert says so.
 - A session whose `origin` is an SSH alias of GitHub (`git@github.com-work:owner/repo.git`) shows its pull request and its changed lines again, and the worktrees you make from it go under its `owner/repo`, like any GitHub repository.
 - In a new session, the Reasoning slider lists the levels of the model you chose and not those of the agent's default one, and the reasoning set in Settings is kept when that model takes it (a draft on GPT-6.1 Terra showed only Low and dropped High).
+- Choosing a GitHub repository to clone no longer fails when only your GitHub login could not be read, a `gh` that is too slow to answer is no longer reported as signed out, a folder that cannot be made is no longer called "already there", and a cancelled clone leaves no empty owner folder behind.
 
 ## [0.13.0] - 2026-11-18
 

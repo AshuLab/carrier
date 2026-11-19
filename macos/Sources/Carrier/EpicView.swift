@@ -15,7 +15,7 @@ struct EpicView: View {
     @Binding var subagents: [String]
     @Binding var subagentHeader: SubagentHeader?
     /// What the Files changed tab draws, once the window has the `files` reply.
-    var filesModel = filesChangedModel(nil)
+    var filesModel = FilesChangedModel.empty
     /// What a queued epic will do; nil for any other.
     var plan: QueuedPlan?
     /// The reason and the Resume button of a stopped epic, with the store that remembers a Resume in flight; nil for any other.

@@ -39,7 +39,7 @@ struct MessageBox<Selects: View>: View {
     /// The attachment being looked at in the preview.
     @State private var previewing: AttachedFile?
     /// The long texts pasted into the box, which go with the next message in fenced blocks under what is typed.
-    @State private var pastes: [Pasted] = []
+    @State private var pastes: [PastedEntry] = []
     /// Whether files are being dragged over the box.
     @State private var dropping = false
     /// Where the text a dictation is still hearing is; it is drawn in a colour with a touch of the accent and with a dotted underline.
@@ -56,17 +56,6 @@ struct MessageBox<Selects: View>: View {
     /// The message `fire` wrote into the box to send it, so that the box does not take its pasted blocks for a message that came back and turn
     /// them into cards again before the send has read it (the card stayed and nothing was sent).
     @State private var fired: String?
-
-    private struct Pasted: Identifiable, Equatable {
-        let id = UUID()
-        var text: String { didSet { summary = PasteSummary(text) } }
-        private(set) var summary: PasteSummary
-
-        init(text: String) {
-            self.text = text
-            summary = PasteSummary(text)
-        }
-    }
 
     /// Whether there is something to send: a text, or a pasted text when the session would take one.
     private var ready: Bool { canSend || (pastes.contains { $0.text.allSatisfy(\.isWhitespace) == false } && canSendWithText == true) }
@@ -130,7 +119,7 @@ struct MessageBox<Selects: View>: View {
                     guard now.contains("```pasted") else { return }
                     let split = splitPastes(now)
                     guard split.pastes.isEmpty == false else { return }
-                    withAnimation(.smooth(duration: 0.2)) { pastes += split.pastes.map { Pasted(text: $0) } }
+                    withAnimation(.smooth(duration: 0.2)) { pastes += split.pastes.map { PastedEntry(text: $0) } }
                     text = split.text
                 }
                 HStack(spacing: 8) {
@@ -222,7 +211,7 @@ struct MessageBox<Selects: View>: View {
 
     /// A long pasted text waits beside the box as a card instead of filling it.
     private func keep(_ pasted: String) -> Bool {
-        withAnimation(.smooth(duration: 0.2)) { pastes.append(Pasted(text: pasted)) }
+        withAnimation(.smooth(duration: 0.2)) { pastes.append(PastedEntry(text: pasted)) }
         focus.wrappedValue = true
         return true
     }

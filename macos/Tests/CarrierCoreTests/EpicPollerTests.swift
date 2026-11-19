@@ -483,6 +483,8 @@ private func diffClient(_ engine: FixtureEngine) throws -> ControlClient {
     #expect(data.files != nil && data.filesChanged.isEmpty == false)
     #expect(data.filesChanged == filesChangedModel(data.files))
     let published = rig.changed.count
+    #expect(rig.poller.filesModelsBuilt == 1)
     #expect(try rig.tick(at: 10).contains("files"))
     #expect(rig.changed.count == published)
+    #expect(rig.poller.filesModelsBuilt == 1)
 }

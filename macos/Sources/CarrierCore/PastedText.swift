@@ -7,7 +7,17 @@ import Foundation
 public let pastedTextThreshold = 2000
 
 /// What a pasted text holds, in one line: "3,412 chars · 87 lines · ~850 tokens" (a token is about four characters).
-public func pasteStats(_ text: String) -> String { PasteSummary(text).stats }
+/// One text pasted into the message box, with what its card says of it kept in step with the text when it is edited.
+public struct PastedEntry: Identifiable, Equatable {
+    public let id = UUID()
+    public var text: String { didSet { summary = PasteSummary(text) } }
+    public private(set) var summary: PasteSummary
+
+    public init(text: String) {
+        self.text = text
+        summary = PasteSummary(text)
+    }
+}
 
 /// What a paste's card says of it, worked out once per text: the stats line and the number of lines, so a long paste is not split again at each draw.
 public struct PasteSummary: Equatable {

@@ -108,6 +108,11 @@ public func diffSquares(added: Int, removed: Int) -> (green: Int, red: Int) {
     return (green, 5 - green)
 }
 
+extension FilesChangedModel {
+    /// What a tab with no reply yet draws.
+    public static let empty = filesChangedModel(nil)
+}
+
 public func filesChangedModel(_ reply: FilesReply?) -> FilesChangedModel {
     var lookups = 0
     return filesChangedModel(reply, lookups: &lookups)

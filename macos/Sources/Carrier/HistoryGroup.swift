@@ -50,10 +50,15 @@ struct HistoryList: View {
     @State private var limit = dictationHistoryPage
     /// What the list draws, worked out when the search, the filter, the entries or `limit` change, not at each `body`.
     @State private var shown: (days: [DictationDay], matched: Int) = ([], 0)
+    /// False until the first `refresh`, so the empty states are not drawn for the pass before the list is worked out.
+    @State private var ready = false
 
-    private func refresh() { shown = dictationHistory(records.entries, matching: query, outcome: outcome, limit: limit) }
+    private func refresh() {
+        shown = dictationHistory(records.entries, matching: query, outcome: outcome, limit: limit)
+        ready = true
+    }
 
-    /// A new search, filter or list starts from the first page; `limit` moving is what refreshes when it was further down.
+    /// A new search or filter starts from the first page; `limit` moving is what refreshes when it was further down.
     private func startOver() {
         if limit == dictationHistoryPage { refresh() } else { limit = dictationHistoryPage }
     }
@@ -72,9 +77,11 @@ struct HistoryList: View {
         }
         .onChange(of: query, initial: true) { startOver() }
         .onChange(of: outcome) { startOver() }
-        .onChange(of: records.entries) { startOver() }
+        .onChange(of: records.entries) { refresh() }
         .onChange(of: limit) { refresh() }
-        if shown.matched == 0 {
+        if ready == false {
+            EmptyView()
+        } else if shown.matched == 0 {
             SettingsGroup(title: "") {
                 EmptyStateView(
                     icon: records.entries.isEmpty ? .waveform : .search, title: records.entries.isEmpty ? "No dictations yet" : "Nothing matches",

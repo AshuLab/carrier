@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-11-19
+
+Fixes after 0.14.0: the Settings window's first size, selects, buttons and badges that did not look like the rest, a bar for Codex's free plan, archiving the session on screen, and an update check every hour.
+
 ### Changed
 
 - Settings › Dictation › History shows the first 100 dictations and a Show 100 more button, so it opens at once with thousands of them.

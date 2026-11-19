@@ -73,7 +73,7 @@ public final class ControlMonitor {
 
     public func run() {
         repeat {
-            guard let client = ControlClient.connect(path: socketPath()) else {
+            guard let client = autoreleasepool(invoking: { ControlClient.connect(path: socketPath()) }) else {
                 onChange(.stopped)
                 continue
             }
@@ -92,8 +92,12 @@ public final class ControlMonitor {
                 return true
             }
             while true {
-                onChange(.running(try decodeSnapshot(client.request("snapshot"))))
-                try tick(client)
+                // This thread lives as long as the app, and its own pool drains when it ends: each pass frees what Foundation autoreleased in it
+                // (the JSON writer, its buffer, the strings of the reply), or the app grows about 1 MB a minute while idle.
+                try autoreleasepool {
+                    onChange(.running(try decodeSnapshot(client.request("snapshot"))))
+                    try tick(client)
+                }
                 if wait(pollEvery?() ?? pollInterval) == false { return false }
             }
         } catch let error as SnapshotError {

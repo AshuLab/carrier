@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Carrier no longer grows in memory while it sits open: about 1 MB a minute went to what the connection to the engine left behind, and it is freed on every poll now.
+
 ### Changed
 
 - Settings › Dictation › History shows the first 100 dictations and a Show 100 more button, so it opens at once with thousands of them.

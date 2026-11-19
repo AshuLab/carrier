@@ -147,3 +147,18 @@ private let hello = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\
 @Test func noCarrierMeansNoTailClient() {
     #expect(connectForTail(socketPath: "/tmp/cc-missing-\(UUID().uuidString.prefix(8)).sock") == nil)
 }
+
+@Test func whatAPassOfTheWatcherAutoreleasesIsFreedBeforeTheNextWait() {
+    let box = FreedBox()
+    var freedAtEachWait: [Int] = []
+    let client = FakeClient([.success(["a"]), .success(["b"]), .success(["c"])])
+    OutputWatcher(
+        executionId: executionId,
+        connect: { client },
+        wait: { _ in freedAtEachWait.append(box.freed); return freedAtEachWait.count < 3 },
+        log: { _ in },
+        onUpdate: { _ in Freeable.autoreleaseOne(into: box) }
+    ).run()
+    // the thread of a watcher lives as long as its window: each pass cleans up after itself
+    #expect(freedAtEachWait == [1, 2, 3])
+}

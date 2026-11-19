@@ -304,7 +304,8 @@ struct SelectMenu: View {
         Picker(selection: $selection) {
             ForEach(items.indices, id: \.self) { Text(items[$0]).tag($0) }
         } label: { EmptyView() }
-        .pickerStyle(.menu).labelsHidden().fixedSize()
+        // no tint of the theme's: the window's own tint reaches the picker and colors it, and the system's is neutral
+        .pickerStyle(.menu).labelsHidden().fixedSize().tint(nil)
     }
 }
 

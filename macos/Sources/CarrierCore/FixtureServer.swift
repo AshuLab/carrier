@@ -49,7 +49,7 @@ public let fixtureConfig = """
 /// The Agent Forge registry of the fixture home (`AGENT_FORGE_CONFIG` points at it under `--fixture`): the three bots of the roles and a spare one.
 /// A key would never be in a file the app reads, so none is here either.
 public let fixtureForgeRegistry = """
-{"agents": [{"name": "acme-author"}, {"name": "acme-reviewer"}, {"name": "acme-lead"}, {"name": "acme-spare", "label": "A bot no role uses"}]}
+{"agents": [{"name": "acme-author", "appId": "1000001"}, {"name": "acme-reviewer", "appId": "1000002"}, {"name": "acme-lead"}, {"name": "acme-spare", "label": "A bot no role uses"}]}
 """
 
 /// The golden doctor output the fixture home holds, for the app to answer its doctor run with in `--fixture` mode.

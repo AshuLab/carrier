@@ -273,7 +273,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let server = try FixtureServer(fixtures: fixtures, longTranscript: CommandLine.arguments.contains("--fixture-long-transcript"))
             setenv("CARRIER_HOME", server.home, 1)
-            // the Agents page lists the bots of this registry, names only
+            // the Agents page lists the bots of this registry: names and GitHub App ids, never a key (no picture is fetched under --fixture)
             setenv("AGENT_FORGE_CONFIG", server.home + "/agent-forge.json", 1)
             fixtureServer = server
             // what the person has seen and pinned is the app's own: the sessions the list marks start unread (never seen) and pinned
@@ -372,7 +372,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     WindowController.shared.showSettings(place: SettingsPlace(.dictation, path: [screen.rawValue])); return WindowController.shared.settingsStatus
                 })
             }
-            steps.insert(contentsOf: pages + screens, at: opened + 1)
+            // and the screen of each role of the Agents page
+            let roles: [(String, () -> String)] = AgentRole.allCases.map { role in
+                ("settings agents \(role.rawValue)", {
+                    WindowController.shared.showSettings(place: SettingsPlace(.agents, path: [role.rawValue])); return WindowController.shared.settingsStatus
+                })
+            }
+            steps.insert(contentsOf: pages + screens + roles, at: opened + 1)
         }
         write("start")
         for (index, step) in steps.enumerated() {

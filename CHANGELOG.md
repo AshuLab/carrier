@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Keep awake: stop the Mac from sleeping from the menu bar (30 min to 5 hours, or until you turn it off), with a small cup on the icon while it holds.
   It can also stay on while agents work and for a few minutes after, pauses on a low battery and tells you when it stops by itself.
   Set it on the new Keep awake page of Settings, with an optional shortcut for any app.
+- The app keeps the system's reports on hangs and CPU use in `app/logs/metrics/` of the Carrier folder, to attach to a bug report; nothing leaves the Mac.
 
 ## [0.13.1] - 2026-11-18
 

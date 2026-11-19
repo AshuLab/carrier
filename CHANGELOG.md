@@ -13,6 +13,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Set it on the new Keep awake page of Settings, with an optional shortcut for any app.
 - The app keeps the system's reports on hangs and CPU use in `app/logs/metrics/` of the Carrier folder, to attach to a bug report; nothing leaves the Mac.
 
+### Fixed
+
+- A message could show twice in a conversation when it arrived while the app was already reading the session.
+- Opening Carrier before the chat host was up emptied the sessions list for a moment and lost which sessions were unread.
+
 ## [0.13.1] - 2026-11-18
 
 Fixes after 0.13.0: starting from the app with a late PATH, pull requests of SSH-alias remotes, the draft's reasoning levels and choosing a repository to clone.

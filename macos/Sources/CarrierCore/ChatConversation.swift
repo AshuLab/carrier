@@ -701,9 +701,28 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         repeat { await poll() } while (try? await sleep(Self.interval)) != nil
     }
 
-    /// One round: reads pages until one is not full, then rebuilds the feed when something changed.
+    /// Whether a round is under way, and whether another was asked for meanwhile.
+    @ObservationIgnored private var polling = false
+    @ObservationIgnored private var again = false
+
+    /// One round: reads pages until one is not full, then rebuilds the feed when something changed. A round asked for while one is under
+    /// way (an action's, or the one `deliver` asks from inside a round) is not a second reader of the same cursor: the one under way goes
+    /// round once more when it ends.
     public func poll() async {
-        // two polls can overlap, so each interval has its own id
+        guard polling == false else {
+            again = true
+            return
+        }
+        polling = true
+        defer { polling = false }
+        repeat {
+            again = false
+            await round()
+        } while again
+    }
+
+    private func round() async {
+        // a round can be asked for from an action while another ends, so each interval has its own id
         let signpost = Signposts.poll.beginInterval("conversation poll", id: Signposts.poll.makeSignpostID())
         let eventsBefore = events.count
         var changed = loaded == false
@@ -711,14 +730,18 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         let sendsBefore = sends
         do {
             var reply: ChatEvents
+            var fresh: [ChatEvent]
             repeat {
                 reply = try await host.events(sessionId, after: cursor, limit: Self.page)
+                // ids only grow (the host reads after the cursor, in order): one already here is never added twice
+                fresh = reply.events.filter { $0.id > (events.last?.id ?? 0) }
                 // kept as each page comes, so a later page that fails does not lose the cursor's progress
-                events += reply.events
-                if let last = reply.events.last(where: { $0.kind == "user" }) { lastUserText = last.text }
-                cursor = reply.cursor
-                changed = changed || reply.events.isEmpty == false
-            } while reply.events.count >= Self.page
+                events += fresh
+                if let last = fresh.last(where: { $0.kind == "user" }) { lastUserText = last.text }
+                cursor = max(cursor, reply.cursor)
+                changed = changed || fresh.isEmpty == false
+            // a full page that brought nothing new does not move the cursor: asking again would only get the same page
+            } while reply.events.count >= Self.page && fresh.isEmpty == false
             let first = loaded == false
             if hostStops == nil, let listed = try? await host.capabilities() {
                 hostStops = listed.contains(.stopTask)

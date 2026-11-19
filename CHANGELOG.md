@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The Settings window opens at a readable size the first time, not as a strip with only the window buttons, and centered over the main window.
 - Usage and the Providers page of Settings show a bar for Codex on the free plan, whose only limit is 30 days (it showed none because the page only knew the 5h and weekly windows).
+- The controls of "Work in … on … from …" in a new session (workspace, where it works, branches) look like the selects of Settings.
 - Selects outside a form (Usage's filters, the cards of Settings) look like the ones in Settings' forms, and Usage's search box is wider.
 
 ## [0.14.0] - 2026-11-19

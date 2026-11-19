@@ -32,8 +32,12 @@ struct UpdatePill: View {
                 .buttonStyle(.plain)
                 .glassEffect(.regular, in: .capsule)
                 .overlay {
-                    GlowEdge(color: .thought, waiting: false, moves: reduceMotion == false, cornerRadius: ToolbarPillButton.height / 2)
-                        .opacity(downloading ? 1 : 0).allowsHitTesting(false)
+                    // mounted only while it shows: at opacity 0 its timeline still ran at the display's rate, for as long as an update waited
+                    if downloading {
+                        GlowEdge(color: .thought, waiting: false, moves: reduceMotion == false, cornerRadius: ToolbarPillButton.height / 2)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
+                    }
                 }
                 .help(help)
                 .accessibilityLabel(help)

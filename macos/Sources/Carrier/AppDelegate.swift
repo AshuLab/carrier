@@ -333,7 +333,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let pages: [(String, () -> String)] = SettingsPage.allCases.map { page in
                 ("settings page \(page.rawValue)", { WindowController.shared.showSettings(page); return WindowController.shared.settingsStatus })
             }
-            steps.insert(contentsOf: pages, at: opened + 1)
+            // and every screen of the Dictation page, which is a place of its own
+            let screens: [(String, () -> String)] = DictationScreen.allCases.map { screen in
+                ("settings dictation \(screen.rawValue)", {
+                    WindowController.shared.showSettings(place: SettingsPlace(.dictation, path: [screen.rawValue])); return WindowController.shared.settingsStatus
+                })
+            }
+            steps.insert(contentsOf: pages + screens, at: opened + 1)
         }
         write("start")
         for (index, step) in steps.enumerated() {

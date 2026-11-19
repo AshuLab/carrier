@@ -3,7 +3,8 @@ import ApplicationServices
 import CarrierCore
 import SwiftUI
 
-/// The Global dictation group of the page: Dictate in any app, the switch of the shortcut that opens the widget in any app. With Dictation off the group is drawn at 40%.
+/// The Global dictation group of the page: Dictate in any app (the switch of the shortcut that opens the widget in any app), Accessibility, the Shortcut
+/// and how it starts. With Dictation off the group is drawn at 40%. The widget's own settings are the next group (`WidgetGroup`).
 struct GlobalDictationGroup: View {
     var dictation = DictationController.shared
     // the preference is read and written by the switch; this makes the group redraw when Reset changes it
@@ -11,14 +12,12 @@ struct GlobalDictationGroup: View {
     @AppStorage(AppPreferences.dictationAccessibilityExplainedKey) private var explained = false
     @AppStorage(AppPreferences.dictationShortcutKey) private var shortcutText = ""
     @AppStorage(AppPreferences.dictationActivationKey) private var activation = DictationActivation.toggle
-    @AppStorage(AppPreferences.dictationWidgetStyleKey) private var widgetStyle = DictationWidgetStyle.medium
-    @AppStorage(AppPreferences.dictationWidgetPositionKey) private var widgetPosition = DictationWidgetPosition.bottom
     @State private var explaining = false
     /// What macOS says now; it is asked again each time Carrier comes back to the front, since the person allows it in System Settings.
     @State private var trusted = AXIsProcessTrusted()
 
     var body: some View {
-        SettingsGroup(title: "Global dictation") {
+        SettingsGroup(title: "Global dictation", footer: "The first time you turn it on, Carrier explains what Accessibility is for before macOS asks.") {
             SettingsTabRow(
                 title: "Dictate in any app",
                 detail: "\(AppPreferences().dictationShortcut.text) opens a widget in any app, and pastes what you said at the cursor",
@@ -27,23 +26,16 @@ struct GlobalDictationGroup: View {
                 Toggle("Dictate in any app", isOn: switchBinding).labelsHidden().toggleStyle(.switch)
             }
             .live(.globalSwitch, enabled: dictation.enabled)
-            accessibilityRow.live(.globalSwitch, enabled: dictation.enabled)
             Group {
+                accessibilityRow
                 ShortcutRecorderRow(shortcutText: shortcutText)
                 SettingsTabRow(title: "Activation", detail: "Toggle: press to start, press again to finish. Hold: speak while the keys are down") {
                     SegmentedChoice(options: [(DictationActivation.toggle, "Toggle", nil), (.hold, "Hold", nil)], selection: $activation).accessibilityLabel("Activation")
                 }
-                SettingsTabRow(title: "Widget style", detail: "Pill is a badge with a microphone and no text; Small, Medium and Large are a box of 2, 3 and 4 lines") {
-                    SegmentedChoice(options: DictationWidgetStyle.allCases.map { ($0, $0.title, nil) }, selection: $widgetStyle).accessibilityLabel("Widget style")
-                }
-                SettingsTabRow(title: "Position", detail: "Top centre under the menu bar or bottom centre above the Dock, on the display of the window in front") {
-                    SegmentedChoice(options: DictationWidgetPosition.allCases.map { ($0, $0.title, nil) }, selection: $widgetPosition).accessibilityLabel("Widget position")
-                }
-                SettingsPreview { DictationWidgetPreview(style: widgetStyle, hint: dictationHint(shortcut: AppPreferences().dictationShortcut, activation: activation)) }
             }
             .live(.globalSwitch, enabled: dictation.enabled && global)
         }
-.onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in trusted = AXIsProcessTrusted() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in trusted = AXIsProcessTrusted() }
         .alert("Carrier needs Accessibility", isPresented: $explaining) {
             Button("Continue") {
                 explained = true
@@ -79,6 +71,69 @@ struct GlobalDictationGroup: View {
                 global = $0
                 explaining = $0 && shouldExplainAccessibility(explained: explained, trusted: AXIsProcessTrusted())
             })
+    }
+}
+
+/// The Widget group: how the widget looks (its style, seen as a small drawing of each) and where it opens, with a preview of the chosen style listening to a
+/// sample, right under what changes it. Drawn at 40% while Dictation or Dictate in any app is off.
+struct WidgetGroup: View {
+    var dictation = DictationController.shared
+    @AppStorage(AppPreferences.dictationGlobalKey) private var global = AppPreferences.defaultDictationGlobal
+    @AppStorage(AppPreferences.dictationActivationKey) private var activation = DictationActivation.toggle
+    @AppStorage(AppPreferences.dictationWidgetStyleKey) private var widgetStyle = DictationWidgetStyle.medium
+    @AppStorage(AppPreferences.dictationWidgetPositionKey) private var widgetPosition = DictationWidgetPosition.bottom
+    @AppStorage(AppPreferences.dictationShortcutKey) private var shortcutText = ""
+
+    var body: some View {
+        SettingsGroup(title: "Widget") {
+            SettingsStackedRow(title: "Widget style", detail: "Pill is a badge with a microphone and no text; Small, Medium and Large are a box of 2, 3 and 4 lines", first: true) {
+                WidgetStylePicker(selection: $widgetStyle)
+            }
+            SettingsTabRow(title: "Position", detail: "Top centre under the menu bar or bottom centre above the Dock, on the display of the window in front") {
+                SegmentedChoice(options: DictationWidgetPosition.allCases.map { ($0, $0.title, nil) }, selection: $widgetPosition).accessibilityLabel("Widget position")
+            }
+            SettingsPreview { DictationWidgetPreview(style: widgetStyle, hint: dictationHint(shortcut: AppPreferences().dictationShortcut, activation: activation)) }
+        }
+        .live(.globalSwitch, enabled: dictation.enabled && global)
+    }
+}
+
+/// The four styles of the widget as four small drawings, the chosen one with the accent's edge: the words of the style under each, and the drawing says
+/// what the words only count (a badge, then a box of two, three and four lines).
+private struct WidgetStylePicker: View {
+    @Binding var selection: DictationWidgetStyle
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ForEach(DictationWidgetStyle.allCases, id: \.self) { style in
+                let on = style == selection
+                Button { selection = style } label: {
+                    VStack(spacing: 8) {
+                        drawing(style).frame(height: 44)
+                        Text(style.title).font(.scaled(12, weight: .medium))
+                    }
+                    .padding(.vertical, 10).frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Color.themeAccent.opacity(0.16) : Color.primary.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: on ? 1.5 : 0))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).accessibilityLabel(style.title).accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .accessibilityElement(children: .contain).accessibilityLabel("Widget style")
+    }
+
+    @ViewBuilder private func drawing(_ style: DictationWidgetStyle) -> some View {
+        let lines = dictationWidgetLook(.listening, style: style).box?.lines
+        if let lines {
+            VStack(spacing: 4) {
+                ForEach(0..<lines, id: \.self) { _ in Capsule().fill(Color.white.opacity(0.6)).frame(height: 3) }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 7).frame(width: 74)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.themeAccent.opacity(0.75)))
+        } else {
+            Capsule().fill(Color.themeAccent.opacity(0.75)).frame(width: 36, height: 18)
+        }
     }
 }
 

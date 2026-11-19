@@ -38,3 +38,18 @@ import Testing
     for group in behaviorGroups { for row in group.rows { #expect(settingsIndex.contains { $0.page == .behavior && $0.group == group.title && $0.title == row.title }) } }
     for command in ShortcutCommand.allCases { #expect(settingsIndex.contains { $0.page == .keybindings && $0.group == command.group.rawValue && $0.title == command.title }) }
 }
+
+@Test func everyDictationScreenIsOpenedByAnEntryAndItsRowsKeepTheirAnchorUnderThePath() {
+    let dictation = settingsIndex.filter { $0.page == .dictation && $0.isPage == false }
+    // each screen has the row that opens it, and every other row names the screen that draws it
+    for screen in DictationScreen.allCases { #expect(dictation.contains { $0.title == screen.title && $0.path == [screen.rawValue] }) }
+    #expect(dictation.allSatisfy { $0.path.count <= 1 && ($0.path.first.map { DictationScreen(rawValue: $0) != nil } ?? true) })
+    // the status card is the first screen's: no path; Typing speed is Statistics'
+    #expect(dictation.first { $0.title == "Microphone" }?.path == [])
+    let typing = dictation.first { $0.title == "Typing speed" }
+    #expect(typing?.path == ["statistics"])
+    // the anchor is what the row is called on its page; the id adds the screen, so the same row is one place and a screen another
+    #expect(typing?.anchor == settingsAnchor(.dictation, group: "Statistics settings", title: "Typing speed"))
+    #expect(typing?.id == "\(typing?.anchor ?? "")/statistics")
+    #expect(dictation.first { $0.title == "Microphone" }.map { $0.id == $0.anchor } == true)
+}

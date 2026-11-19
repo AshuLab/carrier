@@ -14,10 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Settings › Providers is a form of three screens (the providers, one provider, one account), with ‹ › to move between them, a filter, and the accounts that are signed out or near their 5h limit first. Each account shows its own 5h and Weekly usage, with when it resets; the editor of an account is a screen with Save in the toolbar, and its icon and color open from a button. The search finds the providers and accounts of this Mac.
+- Settings › Dictation is a form of seven screens: a first one with whether dictation works now (microphone, Accessibility and the speech model, with what to fix) and the switch, and Speech recognition, Global dictation, Cleanup, Sounds, History and Statistics one click away, each with ‹ ›. The Statistics screen has everything it had, one group under another; Reset is on the first screen.
 - Settings has four groups: App (with Providers), Workspace (Chat, Sessions, Sidebar and Terminal), Carrier (Agents, Repos and Behavior) and System (Engine, Health and About).
 - The font of code and output is back under Settings › Appearance (and its Reset), and the Terminal page says "Same as Appearance". Notifications has four groups instead of eight.
 - Every select in Settings is the same one (a rounded rectangle with up and down chevrons that opens a menu), the model picker's button included.
-- Settings pages that are rows (General, Appearance, Notifications, Keybindings, Chat, Sessions, Sidebar, Terminal, Agents, Behavior, Engine and About) are native grouped forms with the same rows, selects and switches, in one column of the same width, with shorter lines and the longer words under the group; Providers, Repos, Dictation and Health keep their own layout.
+- Settings pages that are rows (General, Appearance, Notifications, Keybindings, Chat, Sessions, Sidebar, Terminal, Agents, Behavior, Engine and About) are native grouped forms with the same rows, selects and switches, in one column of the same width, with shorter lines and the longer words under the group; Providers, Repos and Health keep their own layout.
 - Reset is in the ⋯ menu of Settings' toolbar ("Reset this page…") and asks first, on every page that has one (the menu is not drawn on the pages that have none); Sessions and Behavior no longer have a Reset card.
 - What Carrier is missing shows as a banner on the Engine and Health pages and as a badge on their rows, not over every page.
 

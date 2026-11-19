@@ -195,7 +195,7 @@ struct StartCarrierButton: View {
             HStack {
                 let blocked = missing.isEmpty == false || start.configExists == false || start.starting
                 Button { start.start() } label: {
-                    Label("Start Carrier", systemImage: "play.fill").labelStyle(.titleAndIcon).font(.scaled(14, weight: .semibold))
+                    Label("Start Carrier", icon: .playFilled).labelStyle(.titleAndIcon).font(.scaled(14, weight: .semibold))
                         .foregroundStyle(blocked ? Color.secondary : .white)
                         .padding(.horizontal, 22).padding(.vertical, 10).contentShape(Capsule())
                 }

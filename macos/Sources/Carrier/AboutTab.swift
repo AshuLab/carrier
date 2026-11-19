@@ -62,7 +62,7 @@ struct AboutTabView: View {
                 }
                 HStack(spacing: 8) {
                     ForEach(aboutLinks, id: \.title) { link in
-                        Button { NSWorkspace.shared.open(link.url) } label: { Label(link.title, systemImage: "arrow.up.right") }
+                        Button { NSWorkspace.shared.open(link.url) } label: { Label(link.title, icon: .arrowUpRight) }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                     }
                 }
@@ -81,11 +81,11 @@ struct AboutTabView: View {
         if let action = model.flow.phase.settingsAction {
             HStack(spacing: 10) {
                 if action.working { ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Updating") }
-                Button { model.press() } label: { Label(action.title, systemImage: action.symbol) }
+                Button { model.press() } label: { Label(action.title, icon: action.symbol) }
                     .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(action.working)
             }
         } else {
-            Button { prefs.checkNow() } label: { Label("Check now", systemImage: "arrow.clockwise") }
+            Button { prefs.checkNow() } label: { Label("Check now", icon: .refresh) }
                 .buttonStyle(SecondaryCapsuleButtonStyle()).disabled(prefs.canCheck == false)
         }
     }
@@ -95,7 +95,7 @@ struct AboutTabView: View {
             SettingsGroup(title: "About") {
                 identity
                 SettingsTabRow(title: "Star Carrier on GitHub", detail: "A star helps other people find it") {
-                    Button { if let url = browserURL(repositoryURL) { NSWorkspace.shared.open(url) } } label: { Label("Star on GitHub", systemImage: "star") }
+                    Button { if let url = browserURL(repositoryURL) { NSWorkspace.shared.open(url) } } label: { Label("Star on GitHub", icon: .star) }
                         .buttonStyle(SecondaryCapsuleButtonStyle())
                 }
             }
@@ -122,12 +122,12 @@ struct AboutTabView: View {
                     HStack(spacing: 10) {
                         switch engine {
                         case .running: ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Updating")
-                        case .upToDate, .updated: StatusMark(symbol: "checkmark", color: .green, label: "Up to date")
-                        case .failed: StatusMark(symbol: "xmark", color: .orange, label: "Failed")
+                        case .upToDate, .updated: StatusMark(symbol: .check, color: .green, label: "Up to date")
+                        case .failed: StatusMark(symbol: .close, color: .orange, label: "Failed")
                         case .unknown: EmptyView()
                         }
                         if engine.canRetry {
-                            Button { ChatHostStarter.shared.retryUpgrade() } label: { Label("Try again", systemImage: "arrow.clockwise") }
+                            Button { ChatHostStarter.shared.retryUpgrade() } label: { Label("Try again", icon: .refresh) }
                                 .buttonStyle(SecondaryCapsuleButtonStyle())
                         }
                     }

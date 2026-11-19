@@ -8,7 +8,7 @@ struct StorageGroup: View {
     var body: some View {
         SettingsGroup(title: "Storage") {
             SettingsTabRow(title: "Downloaded models", detail: "\(formatModelSize(dictation.store.usedBytes)) in the Carrier folder", first: true) {
-                Button { dictation.showModelsInFinder() } label: { Label("Show in Finder", systemImage: "folder") }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                Button { dictation.showModelsInFinder() } label: { Label("Show in Finder", icon: .folder) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         }
     }

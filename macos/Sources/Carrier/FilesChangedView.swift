@@ -81,7 +81,7 @@ private struct FileSectionView: View {
                         Text(section.title).fontWeight(.semibold).lineLimit(1)
                         HStack(spacing: 5) {
                             Pill {
-                                Image(systemName: "doc.text").font(.scaled(10, weight: .semibold))
+                                Glyph(.fileText, size: 10)
                                 Text("\(section.files.count)").fontWeight(.semibold).foregroundStyle(.primary)
                                 Text(section.files.count == 1 ? "file" : "files")
                             }
@@ -91,14 +91,14 @@ private struct FileSectionView: View {
                     }
                     Spacer(minLength: 8)
                     HStack(spacing: 4) {
-                        if section.working == false { Image(systemName: "arrow.triangle.merge").font(.scaled(9, weight: .bold)) }
+                        if section.working == false { Glyph(.gitMerge, size: 9) }
                         Text(section.working ? "not merged yet" : "merged")
                     }
                     .font(.caption.weight(.medium)).foregroundStyle(section.working ? Color.blue : .purple)
                     .padding(.horizontal, 8).padding(.vertical, 2)
                     .background(Capsule().fill((section.working ? Color.blue : .purple).opacity(0.18)))
                     // a round button, as in the session headers: it says the whole header folds
-                    Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).foregroundStyle(.secondary)
+                    Glyph(.chevronRight, size: 11).foregroundStyle(.secondary)
                         .rotationEffect(.degrees(open ? 90 : 0))
                         .frame(width: 26, height: 26)
                         .background(Circle().fill(Color.secondary.opacity(0.16)))
@@ -139,7 +139,7 @@ private struct OpeningFileRow: View {
         } label: {
             HStack(spacing: 0) {
                 FileRowView(row: row)
-                Image(systemName: "chevron.right").font(.scaled(10, weight: .bold)).foregroundStyle(.secondary)
+                Glyph(.chevronRight, size: 10).foregroundStyle(.secondary)
                     .rotationEffect(.degrees(open ? 90 : 0))
                     .padding(.trailing, 12)
             }
@@ -180,7 +180,7 @@ struct FileIconView: View {
                 Image(nsImage: image).resizable().scaledToFit().frame(width: 18, height: 18)
             }
         case .symbol(let name):
-            Image(systemName: name).font(.scaled(15)).foregroundStyle(.secondary)
+            Glyph(name, size: 15).foregroundStyle(.secondary)
         }
     }
 

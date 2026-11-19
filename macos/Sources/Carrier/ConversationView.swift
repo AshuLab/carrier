@@ -109,7 +109,7 @@ struct ConversationView: View {
                         if note.failed {
                             ProblemLine(text: note.text, font: .scaled(11)).textSelection(.enabled)
                         } else {
-                            Label(note.text, systemImage: "eye.fill").font(.scaled(11)).foregroundStyle(.secondary).textSelection(.enabled)
+                            Label(note.text, icon: .eye).font(.scaled(11)).foregroundStyle(.secondary).textSelection(.enabled)
                         }
                     }
                     let open = openOutcome(model.rows)
@@ -230,7 +230,7 @@ struct ConversationView: View {
     /// An archived session is read only: a notice with Resume, which takes it out of the archive (the next poll gives the box back).
     private var archivedBox: some View {
         // two lines at most: with no limit this detail made the whole window lay out taller than it is, the notice below its edge
-        NoticeCard(symbol: "archivebox.fill", tint: .gray, title: archivedSessionNotice.title, detail: archivedSessionNotice.detail, detailLines: 2) {
+        NoticeCard(symbol: .archive, tint: .gray, title: archivedSessionNotice.title, detail: archivedSessionNotice.detail, detailLines: 2) {
             Button("Resume") { Task { if let refusal = await actions.restore(model.sessionId) { tell(refusal) } } }
                 .buttonStyle(HoverTextButtonStyle(tint: .themeAccent))
         }
@@ -451,8 +451,7 @@ extension FeedRowView {
     /// Copies the message as it was written (its Markdown) and says so with a green tick for a moment. An agent message also offers its plain text, with the
     /// Markdown marks taken out, from the menu next to the button.
     @ViewBuilder private func copyControl(_ text: String, asks: Bool) -> some View {
-        let label = Image(systemName: copied ? "checkmark" : "doc.on.doc")
-            .font(.scaled(12)).foregroundStyle(copied ? Color.green : Color.secondary)
+        let label = Glyph(copied ? .check : .copy, size: 12).foregroundStyle(copied ? Color.green : Color.secondary)
             .frame(width: 26, height: 22)
         .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(overCopy ? 0.16 : 0)))
         .contentShape(RoundedRectangle(cornerRadius: 6))
@@ -532,7 +531,7 @@ struct BannerView: View {
     }
 
     var body: some View {
-        NoticeCard(symbol: "exclamationmark", tint: tint, title: banner.title, detail: banner.detail, hint: banner.hint, edge: true, account: markedAccount) {
+        NoticeCard(symbol: .exclamation, tint: tint, title: banner.title, detail: banner.detail, hint: banner.hint, edge: true, account: markedAccount) {
             if copyDetails {
                 Button {
                     NSPasteboard.general.clearContents()
@@ -542,10 +541,10 @@ struct BannerView: View {
                         try? await Task.sleep(for: .seconds(1.3))
                         copied = false
                     }
-                } label: { Label(copied ? "Copied" : "Copy details", systemImage: copied ? "checkmark" : "doc.on.doc") }
+                } label: { Label(copied ? "Copied" : "Copy details", icon: copied ? .check : .copy) }
                     .buttonStyle(HoverTextButtonStyle(tint: copied ? .green : nil))
             }
-            if let retry { Button(action: retry) { Label("Try again", systemImage: "arrow.clockwise") }.buttonStyle(HoverTextButtonStyle(tint: tint)) }
+            if let retry { Button(action: retry) { Label("Try again", icon: .refresh) }.buttonStyle(HoverTextButtonStyle(tint: tint)) }
         }
     }
 }
@@ -569,13 +568,13 @@ private struct QueuedMessageCard: View {
 
     var body: some View {
         NoticeCard(
-            symbol: "clock.fill", tint: .gray, title: interrupts ? "Sends when the agent stops" : "Sends when the agent finishes",
+            symbol: .clock, tint: .gray, title: interrupts ? "Sends when the agent stops" : "Sends when the agent finishes",
             detail: messagePreview(text), detailLines: 2, onTap: edit
         ) {
             if interrupts == false {
                 Button("Send now", action: sendNow).buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).help("Stop the agent and send it now")
             }
-            Button(action: cancel) { Image(systemName: "xmark").font(.scaled(10, weight: .bold)) }
+            Button(action: cancel) { Glyph(.close, size: 10) }
                 .buttonStyle(HoverTextButtonStyle(tint: nil)).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
         }
         .help("Click the message to edit it")
@@ -588,6 +587,6 @@ private struct ClosedSessionNotice: View {
     let chosen: Bool
 
     var body: some View {
-        NoticeCard(symbol: "moon.zzz.fill", tint: .indigo, title: closedSessionNotice.title, detail: chosen ? closedSessionNotice.chosen : closedSessionNotice.detail) {}
+        NoticeCard(symbol: .sleep, tint: .indigo, title: closedSessionNotice.title, detail: chosen ? closedSessionNotice.chosen : closedSessionNotice.detail) {}
     }
 }

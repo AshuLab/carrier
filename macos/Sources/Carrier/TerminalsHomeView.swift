@@ -28,7 +28,7 @@ struct TerminalsHomeView: View {
             EmptyStateView(
                 state: .noTerminals,
                 action: ("New Terminal Session", newTerminal),
-                actionIcon: "plus",
+                actionIcon: .plus,
                 actionStyle: .accentGlass
             )
         } else if shown.isEmpty {
@@ -100,7 +100,7 @@ struct TerminalsHomeView: View {
             ToolbarSpacer(.fixed, placement: .primaryAction)
         }
         ToolbarItem(placement: .primaryAction) {
-            AccentGlassPillButton(title: "New Terminal", icon: "plus", action: newTerminal)
+            AccentGlassPillButton(title: "New Terminal", icon: .plus, action: newTerminal)
                 .padding(.trailing, 10)
                 .help("New terminal")
         }
@@ -129,8 +129,7 @@ private struct TerminalHomeRow: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Color.secondary.opacity(0.14))
                     .frame(width: 36, height: 36)
-                Image(systemName: "terminal")
-                    .font(.scaled(16, weight: .medium))
+                Glyph(.terminal, size: 16)
                     .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 3) {
@@ -139,7 +138,7 @@ private struct TerminalHomeRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 HStack(spacing: 6) {
-                    Label(abbreviatedTerminalPath(summary.workingDirectory), systemImage: "folder")
+                    Label(abbreviatedTerminalPath(summary.workingDirectory), icon: .folder)
                         .labelStyle(.titleAndIcon)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -154,7 +153,7 @@ private struct TerminalHomeRow: View {
             }
             Spacer(minLength: 8)
             if active {
-                IconButton(icon: "xmark", name: "Close \(summary.title)", action: close)
+                IconButton(icon: .close, name: "Close \(summary.title)", action: close)
             }
         }
         .padding(.horizontal, 10)
@@ -166,14 +165,14 @@ private struct TerminalHomeRow: View {
         .onHover { hovered = $0 }
         .contextMenu {
             Button(action: open) {
-                Label("Open", systemImage: "terminal").labelStyle(.titleAndIcon)
+                Label("Open", systemIcon: .terminal).labelStyle(.titleAndIcon)
             }
             Button(action: newTab) {
-                Label("New Tab", systemImage: "plus.rectangle.on.rectangle").labelStyle(.titleAndIcon)
+                Label("New Tab", systemIcon: .copyPlus).labelStyle(.titleAndIcon)
             }
             Divider()
             Button(role: .destructive, action: close) {
-                Label("Close", systemImage: "xmark").labelStyle(.titleAndIcon)
+                Label("Close", systemIcon: .close).labelStyle(.titleAndIcon)
             }
         }
         .help("\(summary.title)\n\(summary.workingDirectory)")

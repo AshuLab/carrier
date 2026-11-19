@@ -30,7 +30,7 @@ struct AttachmentChip: View {
             }
             if let remove {
                 Button(action: remove) {
-                    Image(systemName: "xmark").font(.scaled(9, weight: .bold)).foregroundStyle(.secondary)
+                    Glyph(.close, size: 9).foregroundStyle(.secondary)
                         .frame(width: 18, height: 18).background(Circle().fill(Color.primary.opacity(0.14))).contentShape(Circle())
                 }
                 .buttonStyle(.plain).help("Take it out").accessibilityLabel("Remove \(file.name)")
@@ -55,7 +55,7 @@ struct AttachmentChip: View {
             if let thumbnail {
                 Image(nsImage: thumbnail).resizable().scaledToFill()
             } else {
-                Image(systemName: symbol).font(.scaled(15, weight: .medium)).foregroundStyle(.white)
+                Glyph(symbol, size: 15, bold: true).foregroundStyle(.white)
             }
         }
         .frame(width: 32, height: 32)
@@ -66,17 +66,17 @@ struct AttachmentChip: View {
         .accessibilityHidden(true)
     }
 
-    private var symbol: String {
-        if file.problem != nil { return "exclamationmark" }
+    private var symbol: AppIcon {
+        if file.problem != nil { return .exclamation }
         return switch file.kind {
-        case .image: "photo"
-        case .pdf: "doc.richtext"
-        case .folder: "folder.fill"
-        case .log: "text.alignleft"
-        case .code: "chevron.left.forwardslash.chevron.right"
-        case .data: "tablecells"
-        case .archive: "archivebox"
-        case .other: "doc"
+        case .image: .photo
+        case .pdf: .fileDescription
+        case .folder: .folder
+        case .log: .alignLeft
+        case .code: .code
+        case .data: .table
+        case .archive: .archive
+        case .other: .file
         }
     }
 

@@ -6,6 +6,8 @@ import Foundation
 /// The bots of the Agent Forge registry: names only, never a key.
 public struct ForgeBots: Equatable {
     public var names: [String]
+    /// The GitHub App id of each bot that has a valid one (digits only), by the bot's name: where its picture is (`forgeAvatarURL`).
+    public var appIds: [String: String] = [:]
     /// said on the page when the list is empty because the registry is not there or does not read
     public var note: String?
 }
@@ -32,8 +34,26 @@ public func forgeBots(registry: Data?) -> ForgeBots {
     guard let file = (try? JSONSerialization.jsonObject(with: registry)) as? [String: Any] else {
         return ForgeBots(names: [], note: "The Agent Forge registry could not be read, so only your gh login is offered.")
     }
-    let names = (file["agents"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
-    return ForgeBots(names: names, note: nil)
+    let entries = file["agents"] as? [[String: Any]] ?? []
+    let names = entries.compactMap { $0["name"] as? String }
+    var appIds: [String: String] = [:]
+    for entry in entries {
+        if let name = entry["name"] as? String, let id = entry["appId"] as? String, isGitHubAppId(id) { appIds[name] = id }
+    }
+    return ForgeBots(names: names, appIds: appIds, note: nil)
+}
+
+/// A GitHub App id as the registry stores it: digits only, since it goes into a URL.
+func isGitHubAppId(_ id: String) -> Bool {
+    // bytes and not characters: a digit with a combining mark is one character and must not pass
+    (1...12).contains(id.utf8.count) && id.utf8.allSatisfy { (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) }
+}
+
+/// Where the picture of a bot is: Agent Forge's registry has no avatar of its own, but every bot is a GitHub App, whose logo is public at
+/// `avatars.githubusercontent.com/in/<appId>`. nil for an id that is not digits. `pixels` is the side asked for.
+public func forgeAvatarURL(appId: String, pixels: Int) -> URL? {
+    guard isGitHubAppId(appId), (16...512).contains(pixels) else { return nil }
+    return URL(string: "https://avatars.githubusercontent.com/in/\(appId)?s=\(pixels)")
 }
 
 /// What a role's profile is, by `profiles` and the registry.
@@ -75,6 +95,9 @@ public struct RoleRow: Equatable, Identifiable {
     public var steps: [FailoverStep]
     /// the Lead reviewer while the file has no `agents.leadReviewer`: its page is shown dimmed and not usable
     public var off: Bool
+    /// The page shows this row with what the person is choosing for a Lead reviewer they are turning on (`LeadReviewerDraft.shown`): `off` stays, since
+    /// the switch still has to say the file has no role, but it is drawn and worded as a role that is on.
+    public var drafting = false
     public var id: String { role.rawValue }
     public var title: String { role.title }
     /// the Lead reviewer has the switch row on top
@@ -82,6 +105,13 @@ public struct RoleRow: Equatable, Identifiable {
 
     /// The line under the role in the list.
     public var summary: String { off ? "Off" : fields.text }
+
+    /// What the toolbar says under the role's name on its screen: the model, how hard it thinks and who it works as.
+    public var headline: String {
+        if off, drafting == false { return "Off" }
+        let parts = [fields.model, fields.effort, fields.profile].compactMap { $0 }.filter { $0.isEmpty == false }
+        return parts.isEmpty ? "Not set" : parts.joined(separator: " · ")
+    }
 
     public var identityDetail: String {
         switch identity {

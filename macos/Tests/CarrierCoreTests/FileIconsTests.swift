@@ -21,10 +21,10 @@ func eachCoveredNameAndExtensionGetsItsBundledIcon(path: String, name: String) t
 }
 
 @Test(arguments: [
-    ("archive.xyz", "doc"), ("LICENSE", "doc"), (".gitignore", "doc"), ("", "doc"),
-    ("notes.txt", "doc.text"), ("Makefile", "terminal"), ("data.toml", "curlybraces"), ("theme.scss", "paintbrush"),
+    ("archive.xyz", AppIcon.file), ("LICENSE", .file), (".gitignore", .file), ("", .file),
+    ("notes.txt", .fileText), ("Makefile", .terminal), ("data.toml", .braces), ("theme.scss", .brush),
 ])
-func anythingElseGetsTheSymbolOfItsCategory(path: String, symbol: String) {
+func anythingElseGetsTheSymbolOfItsCategory(path: String, symbol: AppIcon) {
     #expect(fileIcon(path) == .symbol(symbol))
 }
 

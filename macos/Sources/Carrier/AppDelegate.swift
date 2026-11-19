@@ -282,7 +282,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let server = try FixtureServer(fixtures: fixtures, longTranscript: CommandLine.arguments.contains("--fixture-long-transcript"))
             setenv("CARRIER_HOME", server.home, 1)
-            // the Agents page lists the bots of this registry, names only
+            // the Agents page lists the bots of this registry: names and GitHub App ids, never a key (no picture is fetched under --fixture)
             setenv("AGENT_FORGE_CONFIG", server.home + "/agent-forge.json", 1)
             fixtureServer = server
             // what the person has seen and pinned is the app's own: the sessions the list marks start unread (never seen) and pinned
@@ -326,7 +326,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 FileHandle.standardError.write(Data("carrier: selftest log failed: \(error)\n".utf8))
             }
         }
-        let steps: [(String, () -> String)] = [
+        var steps: [(String, () -> String)] = [
             ("icon state", { IconController.shared?.summary ?? "no icon" }),
             ("icon hit test passes clicks", { "\(IconController.shared.map { $0.host.hitTest(NSPoint(x: 2, y: 2)) == nil } ?? false)" }),
             ("status item present", { "\(self.statusItem != nil)" }),
@@ -370,6 +370,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("choose About Carrier", { self.chooseAbout() }),
             ("notifications", { SystemNotificationCentre.selfTestSummary }),
         ]
+        // every page of Settings is drawn, a second each: a page that cannot be drawn (a missing environment object) ends the process here
+        if let opened = steps.firstIndex(where: { $0.0 == "open settings" }) {
+            let pages: [(String, () -> String)] = SettingsPage.allCases.map { page in
+                ("settings page \(page.rawValue)", { WindowController.shared.showSettings(page); return WindowController.shared.settingsStatus })
+            }
+            // and every screen of the Dictation page, which is a place of its own
+            let screens: [(String, () -> String)] = DictationScreen.allCases.map { screen in
+                ("settings dictation \(screen.rawValue)", {
+                    WindowController.shared.showSettings(place: SettingsPlace(.dictation, path: [screen.rawValue])); return WindowController.shared.settingsStatus
+                })
+            }
+            // and the screen of each role of the Agents page
+            let roles: [(String, () -> String)] = AgentRole.allCases.map { role in
+                ("settings agents \(role.rawValue)", {
+                    WindowController.shared.showSettings(place: SettingsPlace(.agents, path: [role.rawValue])); return WindowController.shared.settingsStatus
+                })
+            }
+            steps.insert(contentsOf: pages + screens + roles, at: opened + 1)
+        }
         write("start")
         for (index, step) in steps.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1 + Double(index)) {

@@ -199,7 +199,7 @@ private struct MarkdownTableView: View {
     /// Copy over the table's corner, shown while the pointer is over it: as tabs for a spreadsheet, or as the pipes it was written with.
     private var copyMenu: some View {
         Menu { copyButtons } label: {
-            Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.scaled(11, weight: .medium)).foregroundStyle(copied ? Color.green : .secondary)
+            Glyph(copied ? .check : .copy, size: 11).foregroundStyle(copied ? Color.green : .secondary)
                 .frame(width: 24, height: 22)
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
@@ -411,7 +411,7 @@ struct LogChevron: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Image(systemName: "chevron.right").font(.scaled(9, weight: .bold)).foregroundStyle(.tertiary)
+        Glyph(.chevronRight, size: 9).foregroundStyle(.tertiary)
             .rotationEffect(.degrees(open ? 90 : 0))
             .animation(LogMetrics.chevronTurn(reduceMotion: reduceMotion).map { .easeOut(duration: $0) }, value: open)
             .frame(width: LogMetrics.chevronColumn)
@@ -447,7 +447,7 @@ struct PublishedNoteRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "arrow.triangle.pull").font(.scaled(10, weight: .semibold)).foregroundStyle(.tertiary)
+            Glyph(.gitPullRequest, size: 10).foregroundStyle(.tertiary)
             Text(note.verb).foregroundStyle(.secondary)
             if let number = note.number {
                 PullRequestChip(number: number, dot: nil, url: repo.map { "https://github.com/\($0)/pull/\(number)" })
@@ -474,7 +474,7 @@ struct SkillRowView: View {
 
     var body: some View {
         HStack(spacing: LogMetrics.gap) {
-            Image(systemName: call.kind.icon).font(.scaled(9, weight: .bold)).foregroundStyle(.white)
+            Glyph(call.kind.icon, size: 9, bold: true).foregroundStyle(.white)
                 .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth).background(RoundedRectangle(cornerRadius: 5).fill(call.kind.color))
             Text("Skill").fontWeight(.semibold).foregroundStyle(failed ? Color.red : .primary)
             Text(call.arg).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
@@ -501,7 +501,7 @@ struct ToolStatusView: View {
             if status == .pending {
                 SpinningRing(diameter: 12, lineWidth: 1.5, color: .secondaryLabelColor)
             } else if status == .error, let icon = status.icon {
-                Image(systemName: icon).symbolRenderingMode(.palette).foregroundStyle(.white, Color.red)
+                Glyph(icon, size: 12).foregroundStyle(Color.red)
             }
         }
         .accessibilityHidden(true)
@@ -526,7 +526,7 @@ struct CopyButton: View {
         } label: {
             // the icon and the word keep their size when they swap, so the button does not move
             HStack(spacing: 5) {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc").frame(width: 12, height: 14)
+                Glyph(copied ? .check : .copy).frame(width: 12, height: 14)
                 Text(copied ? "Copied" : "Copy").frame(width: 40, alignment: .leading)
             }
             .font(.scaled(11)).foregroundStyle(.secondary).contentShape(Rectangle())

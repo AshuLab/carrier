@@ -103,9 +103,6 @@ public struct ArchiveRequest: Equatable {
     public var subagentHeader: SubagentHeader?
     /// Counts the times New session was asked for, the + while its draft is already open included: the draft starts blank each time.
     public private(set) var newSessionOpened = 0
-    /// The Settings sheet is over the window, on this section; the selection underneath stays.
-    public var settingsShown = false
-    public var settingsTab = SettingsPage.general
     /// The unfolded section; nil when all are folded.
     public var open: OpenSection?
     public var sidebarShown = true
@@ -126,15 +123,6 @@ public struct ArchiveRequest: Equatable {
         selection = .session(id: id)
         open = .archive
     }
-
-    /// Opens the Settings sheet on a page; it starts on the first one unless something asks for another.
-    public func showSettings(_ tab: SettingsPage = .general) {
-        settingsTab = tab
-        settingsShown = true
-    }
-
-    /// A reason that points to the Health tab (a provider, `gh` or `git` that cannot be used) opens it.
-    public func openHealth() { showSettings(.health) }
 
     public func openSubagent(_ call: String) { subagents.append(call) }
     /// Back: one level up, to the subagent that launched this one or to the conversation.
@@ -189,7 +177,6 @@ public struct ArchiveRequest: Equatable {
         sidebarShown = true
         inspectorShown = true
         terminalDrawerOwners = []
-        settingsShown = false
         searchRequest = nil
         conversationRequest = nil
         archiveRequest = nil

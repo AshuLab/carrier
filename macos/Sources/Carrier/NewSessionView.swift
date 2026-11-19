@@ -81,14 +81,14 @@ struct NewSessionView: View {
                 .buttonStyle(.plain).accessibilityLabel("Workspace")
                 .sheet(isPresented: $foldersOpen) { WorkspaceSheet(model: model, openHealth: openHealth).themed() }
                 if model.folder != nil {
-                    Button { model.clearWorkspace() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    Button { model.clearWorkspace() } label: { Glyph(.closeCircleFilled).foregroundStyle(.secondary) }
                         .buttonStyle(.plain).accessibilityLabel("Clear workspace").help("Clear the workspace")
                 }
                 if model.loadingBranches { ProgressView().controlSize(.small) }
                 if model.folder != nil {
                     if model.offersWorktree {
                         Text("on")
-                        Button { whereOpen.toggle() } label: { chip(model.worktree ? "New worktree" : "Current folder", icon: model.worktree ? "square.on.square" : "folder") }
+                        Button { whereOpen.toggle() } label: { chip(model.worktree ? "New worktree" : "Current folder", icon: model.worktree ? .copy : .folder) }
                             .buttonStyle(.plain).accessibilityLabel("Where it works")
                             .sheet(isPresented: $whereOpen) { WhereItWorksSheet(model: model).themed() }
                         if model.worktree { worktreeControls } else { currentBranch }
@@ -100,7 +100,7 @@ struct NewSessionView: View {
             .font(.body).foregroundStyle(.secondary)
             .accessibilityElement(children: .contain)
             if model.branchesPartial { Text("Only the first branches GitHub lists are offered; the others can be checked out once the repository is on this Mac.").font(.subheadline).foregroundStyle(.secondary) }
-            if let note = model.projectNote { Label(note, systemImage: "folder.badge.plus").font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
+            if let note = model.projectNote { Label(note, icon: .folderPlus).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
             if case .problem(let reason) = model.nameState, model.worktree {
                 Text(reason).font(.callout).foregroundStyle(.red).textSelection(.enabled)
             }
@@ -114,7 +114,7 @@ struct NewSessionView: View {
         let split = warning.range(of: ". ")
         let title = split.map { String(warning[..<$0.lowerBound]) } ?? warning
         let detail = split.map { String(warning[$0.upperBound...]) }
-        return NoticeCard(symbol: "exclamationmark", tint: .orange, title: title, detail: detail) {
+        return NoticeCard(symbol: .exclamation, tint: .orange, title: title, detail: detail) {
             if model.offersWorktree, model.worktree == false {
                 Button("Use a worktree") { Task { await model.useWorktree(true) } }.buttonStyle(HoverTextButtonStyle(tint: .primary))
             }
@@ -123,7 +123,7 @@ struct NewSessionView: View {
 
     /// The branch the chosen folder is on: a chip that opens its local branches, like the other controls.
     private var currentBranch: some View {
-        Button { currentBranchOpen.toggle() } label: { chip(model.picked ?? model.workspace?.branch ?? "detached HEAD", icon: "arrow.triangle.branch") }
+        Button { currentBranchOpen.toggle() } label: { chip(model.picked ?? model.workspace?.branch ?? "detached HEAD", icon: .gitBranch) }
             .buttonStyle(.plain).accessibilityLabel("Branch of the folder")
             .sheet(isPresented: $currentBranchOpen) { BranchSheet(model: model, browsing: true).themed() }
     }
@@ -136,13 +136,13 @@ struct NewSessionView: View {
 
     /// A control of the sentence: its value and a chevron. The icon and the chevron are drawn over the text and not beside it: a `Menu`
     /// takes a label that is a text and an image apart and puts the image first, which sent the chevron to the left.
-    private func chip(_ title: String, tint: Color = .primary, icon: String? = nil) -> some View {
+    private func chip(_ title: String, tint: Color = .primary, icon: AppIcon? = nil) -> some View {
         Text(title).fontWeight(.medium)
             .padding(.leading, icon == nil ? 0 : 17).padding(.trailing, 15)
             .overlay(alignment: .leading) {
-                if let icon { Image(systemName: icon).font(.scaled(11, weight: .medium)).foregroundStyle(.secondary) }
+                if let icon { Glyph(icon, size: 11).foregroundStyle(.secondary) }
             }
-            .overlay(alignment: .trailing) { Image(systemName: "chevron.down").font(.scaled(9, weight: .bold)).foregroundStyle(.secondary) }
+            .overlay(alignment: .trailing) { Glyph(.chevronDown, size: 9).foregroundStyle(.secondary) }
             .foregroundStyle(tint)
             .padding(.horizontal, 10).frame(height: controlHeight)
             .controlSurface(tint: tint)
@@ -155,8 +155,7 @@ struct NewSessionView: View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(model.sendSteps, id: \.parts) { step in
                 HStack(spacing: 12) {
-                    Image(systemName: step.icon)
-                        .font(.scaled(14, weight: .medium)).foregroundStyle(.white)
+                    Glyph(step.icon, size: 14, bold: true).foregroundStyle(.white)
                         .frame(width: 30, height: 30)
                         // the accent a little deepened, with a faint rim of light: the badge of the closed-session notice
                         .background {
@@ -195,7 +194,7 @@ struct NewSessionView: View {
                     .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
                     .foregroundStyle(nameColor).accessibilityLabel("Worktree name")
             }
-            Button { Task { await model.rollName() } } label: { Image(systemName: "arrow.clockwise") }
+            Button { Task { await model.rollName() } } label: { Glyph(.refresh) }
                 .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
         }
         .font(.callout.monospaced())
@@ -205,7 +204,7 @@ struct NewSessionView: View {
         // the name is checked a moment after typing; typing again cancels the check that was waiting
         .task(id: model.worktreeName) { await model.verifyName() }
         Text("from")
-        Button { branchesOpen.toggle() } label: { chip(model.startBranch ?? "Choose a branch…", icon: "arrow.triangle.branch") }
+        Button { branchesOpen.toggle() } label: { chip(model.startBranch ?? "Choose a branch…", icon: .gitBranch) }
             .buttonStyle(.plain)
             .sheet(isPresented: $branchesOpen) { BranchSheet(model: model).themed() }
     }

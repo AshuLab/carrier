@@ -2,14 +2,17 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The Agents page of Settings (docs/specs/agents-in-settings.md): the three roles of every epic in a list, and for the chosen one its Who,
-/// Details and When it runs out of tokens cards. It reads `engine.json`, `providers.json` and the Agent Forge registry (`agentsPage`, tested
-/// in `AgentsPageTests`); the Who card writes one field of one role as it changes (`saveGlobalRole`, tested in `GlobalRoleSaveTests`). The page has no
+/// The Agents page of Settings (docs/specs/agents-in-settings.md), two kinds of screen, each a place of the window's history (‹ ›) as the Providers and
+/// Dictation pages have: the first (whether the roles are set up, and the three roles of an epic joined by a rail) and one for each role, with its
+/// Who, Persona, Skills and When it runs out of tokens groups. It reads `engine.json`, `providers.json` and the Agent Forge registry (`agentsPage`, tested
+/// in `AgentsPageTests`); a role's screen writes one field of one role as it changes (`saveGlobalRole`, tested in `GlobalRoleSaveTests`). The page has no
 /// automated test.
 struct AgentsTabView: View {
+    /// Where the page is: nothing for the first screen, or the path of a role (`AgentRole.rawValue`).
+    var place = SettingsPlace(.agents)
+    var go: (SettingsPlace) -> Void = { _ in }
     @ObservedObject private var start = StartController.shared
     @State private var page: AgentsPage?
-    @State private var selection: AgentRole = .author
     /// why the last change was refused, in words; nothing was written
     @State private var problem: String?
     /// Switch automatically turned on for a role that has no first step yet: nothing is written until it has one
@@ -22,27 +25,46 @@ struct AgentsTabView: View {
     private let catalog = ModelCatalog.shared
     private let providers = AppHealth.providers
 
+    private var role: AgentRole? { place.path.first.flatMap(AgentRole.init(rawValue:)) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        SettingsPageBody {
             if let page {
-                flow(page)
-                if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
-                ReloadNote().padding(.horizontal, 4)
-                if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.scaled(12)).foregroundStyle(.secondary).padding(.horizontal, 4) }
-                if let note = page.bots.note { Text(note).font(.scaled(12)).foregroundStyle(.secondary).padding(.horizontal, 4) }
+                if let role, let row = page.rows.first(where: { $0.role == role }) {
+                    detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page)
+                } else {
+                    first(page)
+                }
+                ReloadNote()
             } else {
-                Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
+                Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", icon: .warningFilled)
                     .font(.scaled(12)).foregroundStyle(.orange)
             }
         }
+        .id(role)
+        .preference(key: SettingsTitleKey.self, value: title)
         .writingToolsBehavior(.disabled)
         .onAppear(perform: load)
         // which accounts can work now is the Providers page's answer, asked again here so the picker does not offer one that was signed out
         .task { await providers.load() }
         .onChange(of: start.configExists) { load() }
+        // what a screen said or was waiting for (a refusal, the lead reviewer being turned on) belongs to that screen
+        .onChange(of: place) {
+            problem = nil
+            turningOnLead = false
+            leadDraft = LeadReviewerDraft()
+        }
         // back from Terminal or an editor, where the config or the registry may have changed
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in load() }
     }
+
+    /// What the toolbar says of a role's screen: its name and, under it, the model, the effort and who it works as.
+    private var title: SettingsTitle? {
+        guard let role, let row = page?.rows.first(where: { $0.role == role }) else { return nil }
+        return SettingsTitle(text: row.title, subtitle: (turningOnLead && role == .leadReviewer ? leadDraft.shown(in: row) : row).headline)
+    }
+
+    private func open(_ role: AgentRole) { go(SettingsPlace(.agents, path: [role.rawValue])) }
 
     private func load() {
         let providers = try? Data(contentsOf: URL(fileURLWithPath: CarrierPlaces().providers))
@@ -65,7 +87,7 @@ struct AgentsTabView: View {
         return result
     }
 
-    /// The Details and failover cards write through here (`saveGlobalPersona`, `saveGlobalFailover`; tested in `RoleDetailsSaveTests`), then read the file back.
+    /// The Persona and failover groups write through here (`saveGlobalPersona`, `saveGlobalFailover`; tested in `RoleDetailsSaveTests`), then read the file back.
     private func saveDetails(_ result: RoleSave) -> Bool {
         load()
         problem = result.problem
@@ -101,71 +123,34 @@ struct AgentsTabView: View {
         }
     }
 
-    /// The three roles side by side in the order an epic goes through them, an arrow between each pair, and the chosen one is the page below.
-    private func flow(_ page: AgentsPage) -> some View {
-        HStack(spacing: 8) {
-            ForEach(Array(page.rows.enumerated()), id: \.element.id) { index, row in
-                // the author and the reviewer go back and forth until the review passes: a double arrow; the lead reviewer comes after them
-                if index > 0 {
-                    Image(systemName: index == 1 ? "arrow.left.arrow.right" : "arrow.right").font(.scaled(12, weight: .semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)
-                }
-                roleCard(row)
-            }
-        }
-    }
-
-    private func roleCard(_ row: RoleRow) -> some View {
-        let chosen = row.role == selection
-        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
-        return Button { selection = row.role } label: {
-            HStack(spacing: 10) {
-                RoleTile(provider: row.fields.provider, icons: icons, off: row.off)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(row.title).fontWeight(.medium)
-                    listLines(row)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-            .background(shape.fill(Color.secondary.opacity(chosen ? 0.18 : 0.07)))
-            .overlay { if chosen { shape.strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
-            .contentShape(shape)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(chosen ? .isSelected : [])
-    }
-
-    /// Under a role's name in the list, what answers the question the list is for: the model and how hard it thinks, in the text colour, and under it
-    /// the account and the identity it works as.
-    @ViewBuilder private func listLines(_ row: RoleRow) -> some View {
-        if row.off {
-            Text("Off").font(.scaled(11)).foregroundStyle(.secondary)
-        } else {
-            let model = row.fields.model.flatMap { $0.isEmpty ? nil : $0 }
-            let effort = row.fields.effort.flatMap { $0.isEmpty ? nil : $0 }
-            (Text(model ?? "No model").fontWeight(.medium).foregroundStyle(model == nil ? Color.secondary : Color.primary)
-                + Text(effort.map { "  \u{00b7}  \($0)" } ?? "").foregroundStyle(.secondary))
-                .font(.scaled(11)).lineLimit(1)
-            Text([row.fields.provider, row.fields.profile].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: "  \u{00b7}  "))
-                .font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+    /// The first screen: whether the roles are set up, the three roles of an epic, and the bots they work as.
+    @ViewBuilder private func first(_ page: AgentsPage) -> some View {
+        let readiness = agentsReadiness(page)
+        SettingsGroup(title: "") { AgentsStatusCard(readiness: readiness, open: open) }
+        SettingsGroup(title: EpicRail.group) { EpicRail(page: page, readiness: readiness, icons: icons, open: open) }
+        SettingsGroup(title: "Identities", footer: page.bots.note ?? "A bot is the GitHub account a role works as. Every role can pick one.") {
+            CreateBotRow()
         }
     }
 
     private func detail(_ row: RoleRow, page: AgentsPage) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        // a Group and not a stack: the groups below are sections of the page's form
+        Group {
             if row.hasSwitch {
-                SettingsTabCard {
+                SettingsGroup(title: "", footer: turningOnLead ? leadDraft.hint : nil) {
                     SettingsTabRow(title: "Use a lead reviewer", detail: row.switchDetail, first: true) {
                         Toggle("Use a lead reviewer", isOn: Binding(get: { row.usable(turningOn: turningOnLead) }, set: { setLeadSwitch(on: $0, row: row) }))
                             .labelsHidden().toggleStyle(.switch)
                     }
                 }
-                if turningOnLead, let hint = leadDraft.hint { Text(hint).font(.scaled(12)).foregroundStyle(.secondary).padding(.horizontal, 4) }
             }
-            VStack(alignment: .leading, spacing: 14) {
-                SettingsGroup(title: "Who") {
+            SettingsGroup(title: "") {
+                RoleHero(row: row, page: page, icons: icons)
+                RoleFlowStrip(current: row.role, rows: page.rows, open: open)
+            }
+            Group {
+                SettingsGroup(title: "Who", footer: identityFooter(row, page: page)) {
                     SettingsTabRow(title: "Identity", detail: row.identityDetail, first: true) { identityPicker(row, page: page) }
-                    CreateBotRow()
                     SettingsTabRow(title: "Model", detail: row.providerMissing ? "Not an account of providers.json" : "Provider, model and how hard it thinks") {
                         ModelPickerButton(
                             provider: row.fields.provider, model: row.fields.model, effort: row.fields.effort,
@@ -183,9 +168,9 @@ struct AgentsTabView: View {
                     }
                     if let problem { ProblemLine(text: problem, font: .scaled(11)).textSelection(.enabled).padding(.vertical, 8) }
                 }
-                SettingsGroup(title: "Details") {
+                SettingsGroup(title: "Persona") {
                     SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
-                        CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: 220, mono: false, prompt: "None") {
+                        CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: "None") {
                             saveDetails(saveGlobalPersona(name: blankIsNil($0), prompt: row.fields.persona?.prompt, role: row.role, path: configFilePath()))
                         }
                         .id(row.role)
@@ -197,6 +182,7 @@ struct AgentsTabView: View {
                         .id(row.role)
                     }
                 }
+                skills(row)
                 SettingsGroup(title: "When it runs out of tokens") {
                     let on = row.steps.isEmpty == false || switchedOn.contains(row.role)
                     SettingsTabRow(title: "Switch automatically", detail: "Usage limit, rate limit or service down", first: true) {
@@ -208,8 +194,8 @@ struct AgentsTabView: View {
                         })).labelsHidden().toggleStyle(.switch)
                     }
                     if on {
-                        stepRow("First", detail: "Provider, model and reasoning", step: row.steps.first, row: row, page: page, index: 0)
-                        stepRow("Then", detail: "Optional", step: row.steps.dropFirst().first, row: row, page: page, index: 1)
+                        stepRow("Try first", detail: "Provider, model and reasoning", step: row.steps.first, row: row, page: page, index: 0)
+                        stepRow("Then try", detail: "Optional", step: row.steps.dropFirst().first, row: row, page: page, index: 1)
                     }
                     if row.steps.count > 2 {
                         Text("The file has \(row.steps.count - 2) more step\(row.steps.count == 3 ? "" : "s"), kept and tried in order.")
@@ -220,6 +206,37 @@ struct AgentsTabView: View {
             // while the lead reviewer is off the rest of its page is shown, dimmed and not usable
             .opacity(row.usable(turningOn: turningOnLead) ? 1 : 0.4).disabled(row.usable(turningOn: turningOnLead) == false)
         }
+    }
+
+    /// What the engine runs in each stage of the role, as the engine has it today: shown and not changeable yet (a later version of the engine reads
+    /// it from the config). `AgentsReadinessTests` keeps `AgentRole.stages` equal to what `src/prompts` invokes.
+    @ViewBuilder private func skills(_ row: RoleRow) -> some View {
+        if row.role.stages.isEmpty {
+            SettingsGroup(title: "Skills") {
+                SettingsTabRow(title: "Not used by the engine yet", detail: "The Lead reviewer has no stage today, so there is no skill to choose.", first: true) {
+                    StatusChip(text: "Soon", tint: .secondary)
+                }
+            }
+        } else {
+            SettingsGroup(title: "Skills", footer: "Each stage runs the skill shown. Choosing another one comes with a later version of the engine.") {
+                ForEach(row.role.stages) { stage in
+                    SettingsTabRow(
+                        title: stage.title, detail: stage.detail,
+                        note: "Runs as \(skillInvocation(stage.skill, icon: row.fields.provider.flatMap { icons[$0] }))"
+                    ) {
+                        SkillValue(skill: stage.skill)
+                    }
+                }
+            }
+        }
+    }
+
+    /// What is said under Identity where the person chooses it, not only on the first screen: that Author and Reviewer sign as one account, and why the
+    /// list of bots is empty (no registry, or one that does not read).
+    private func identityFooter(_ row: RoleRow, page: AgentsPage) -> String? {
+        let shared = row.role == .leadReviewer ? nil : page.sharedNote
+        let lines = [shared, page.bots.note].compactMap { $0 }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     private func blankIsNil(_ text: String) -> String? {
@@ -281,7 +298,24 @@ struct AgentsTabView: View {
                 else if choice.hasPrefix("bot:") { _ = save(.bot(String(choice.dropFirst(4))), role: row.role, page: page) }
             }
         )
-        return NativePopUp(items: items, selection: index).accessibilityLabel("Identity").frame(width: 220)
+        return SelectMenu(items: items, selection: index).accessibilityLabel("Identity")
+    }
+}
+
+/// The skill of a stage as a value that is not editable yet: its name in the box of a field, with "Default" before it.
+private struct SkillValue: View {
+    let skill: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            StatusChip(text: "Default", tint: .secondary)
+            Text(skill).font(.scaled(11.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+                .padding(.horizontal, 9).padding(.vertical, 5).frame(width: 150, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.06)))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Skill")
+        .accessibilityValue("\(skill), the default; it cannot be changed yet")
     }
 }
 

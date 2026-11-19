@@ -32,10 +32,8 @@ func eachPathGetsItsCategory(path: String, category: FileCategory) {
     #expect(fileCategory("Tests/CarrierTests/X.swift") == .test)
 }
 
-@MainActor @Test func everyCategoryHasItsOwnRealSymbol() {
-    let symbols = FileCategory.allCases.map(\.symbol)
-    #expect(Set(symbols).count == FileCategory.allCases.count)
-    for symbol in symbols { #expect(NSImage(systemSymbolName: symbol, accessibilityDescription: nil) != nil, "\(symbol)") }
+@Test func everyCategoryHasItsOwnIcon() {
+    #expect(Set(FileCategory.allCases.map(\.symbol)).count == FileCategory.allCases.count)
 }
 
 // MARK: model

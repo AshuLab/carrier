@@ -15,8 +15,8 @@ public enum DictationFront: Equatable, Sendable {
 
 public enum DictationRoute: Equatable, Sendable { case messageBox, widget }
 
-/// What is in front, from what the window knows: whether Carrier's main window (or its sheet) is the one in front, whether Settings is open
-/// over it, what the sidebar selects and whether the open session has a message box (an archived one does not).
+/// What is in front, from what the app knows: whether one of Carrier's windows is the one in front, whether that one is the Settings window,
+/// what the sidebar selects and whether the open session has a message box (an archived one does not).
 public func dictationFront(carrierIsFront: Bool, settingsShown: Bool, selection: Selection, sessionHasBox: Bool) -> DictationFront {
     guard carrierIsFront else { return .otherApp }
     guard settingsShown == false else { return .settings }

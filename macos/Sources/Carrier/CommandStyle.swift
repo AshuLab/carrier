@@ -7,7 +7,7 @@ import SwiftUI
 extension ChatCommand.Kind {
     var title: String { self == .skill ? "Skill" : "Command" }
     var plural: String { self == .skill ? "Skills" : "Commands" }
-    var symbol: String { self == .skill ? "sparkles" : "command" }
+    var symbol: AppIcon { self == .skill ? .sparkles : .command }
     var nsColor: NSColor { self == .skill ? .systemPurple : .systemTeal }
     var color: Color { Color(nsColor: nsColor) }
 }

@@ -96,9 +96,9 @@ struct PreparationStepsView: View {
         let fill: Color = failed ? Color.red.mix(with: .black, by: 0.2) : slow ? Color.orange.mix(with: .black, by: 0.15) : Color.themeAccent.mix(with: .black, by: 0.18)
         return Group {
             if failed {
-                Image(systemName: "exclamationmark").font(.scaled(14, weight: .bold))
+                Glyph(.exclamation, size: 14)
             } else if slow {
-                Image(systemName: "clock").font(.scaled(14, weight: .medium))
+                Glyph(.clock, size: 14)
             } else {
                 ProgressView().controlSize(.small).colorScheme(.dark)
             }
@@ -156,9 +156,9 @@ struct PreparationStepsView: View {
     @ViewBuilder private func mark(_ status: StepRow.Status?) -> some View {
         switch status {
         case .running: ProgressView().controlSize(.mini)
-        case .done: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-        case .failed: Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-        case nil: Image(systemName: "circle").foregroundStyle(.tertiary)
+        case .done: Glyph(.checkCircleFilled).foregroundStyle(.green)
+        case .failed: Glyph(.closeCircleFilled).foregroundStyle(.red)
+        case nil: Glyph(.circle).foregroundStyle(.tertiary)
         }
     }
 }

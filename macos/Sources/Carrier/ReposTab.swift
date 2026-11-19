@@ -45,7 +45,7 @@ struct ReposTabView: View {
         let chosen = rows.first { $0.name == selection } ?? rows.first
         VStack(alignment: .leading, spacing: 14) {
             if unreadable {
-                Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
+                Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", icon: .warningFilled)
                     .font(.scaled(12)).foregroundStyle(.orange)
             }
             HStack(alignment: .top, spacing: 14) {
@@ -127,14 +127,14 @@ struct ReposTabView: View {
                     }
                     Spacer(minLength: 8)
                     if let url = status.gitHubURL {
-                        Button { NSWorkspace.shared.open(url) } label: { Label("Open on GitHub", systemImage: "arrow.up.right.square").labelStyle(.titleAndIcon) }
+                        Button { NSWorkspace.shared.open(url) } label: { Label("Open on GitHub", icon: .externalLink).labelStyle(.titleAndIcon) }
                             .buttonStyle(HoverTextButtonStyle(tint: nil))
                     }
                     if status.canRevealClone {
-                        Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: status.clonePath)]) } label: { Label("Reveal clone", systemImage: "folder").labelStyle(.titleAndIcon) }
+                        Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: status.clonePath)]) } label: { Label("Reveal clone", icon: .folder).labelStyle(.titleAndIcon) }
                             .buttonStyle(HoverTextButtonStyle(tint: nil))
                     }
-                    Button(action: runDoctor) { Label(doctor.state == .running ? "Checking…" : "Check again", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
+                    Button(action: runDoctor) { Label(doctor.state == .running ? "Checking…" : "Check again", icon: .refresh).labelStyle(.titleAndIcon) }
                         .buttonStyle(HoverTextButtonStyle(tint: nil)).disabled(doctor.state == .running)
                 }
                 RepoStatusCard(row: row, status: status)
@@ -305,11 +305,11 @@ private struct RepoChecksCard: View {
         if status == .waiting && checking {
             return AnyView(ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Checking"))
         }
-        let (symbol, color, label): (String, Color, String) = switch status {
-        case .ok: ("checkmark", .green, "Ready")
-        case .warn: ("exclamationmark", .yellow, "Warning")
-        case .fail: ("xmark", .orange, "Failed")
-        case .waiting: ("ellipsis", .gray, "Waiting")
+        let (symbol, color, label): (AppIcon, Color, String) = switch status {
+        case .ok: (.check, .green, "Ready")
+        case .warn: (.exclamation, .yellow, "Warning")
+        case .fail: (.close, .orange, "Failed")
+        case .waiting: (.dots, .gray, "Waiting")
         }
         return AnyView(StatusMark(symbol: symbol, color: color, label: label))
     }
@@ -373,7 +373,7 @@ private struct RepoRolesCard: View {
             Text(row.isOwn ? "Own settings" : "Same as everywhere").font(.scaled(11)).foregroundStyle(row.isOwn ? Color.themeAccent : Color.secondary)
             if row.isOwn { Button("Reset") { finish(save(row.role, nil)) }.controlSize(.small) }
             Button { editing = row.role } label: {
-                Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).rotationEffect(.degrees(open ? 90 : 0))
+                Glyph(.chevronRight, size: 13, bold: true).rotationEffect(.degrees(open ? 90 : 0))
                     .frame(width: 26, height: 26)
             }
             .buttonStyle(HoverTextButtonStyle(tint: nil)).disabled(open)
@@ -409,8 +409,8 @@ private struct RepoRolesCard: View {
             if let problem { ProblemLine(text: problem, font: .scaled(11)) }
             HStack(spacing: 8) {
                 Spacer()
-                Button { editing = nil } label: { Label("Cancel", systemImage: "xmark") }
-                Button { finish(save(row.role, draft)) } label: { Label("Save", systemImage: "checkmark") }.buttonStyle(PrimaryCapsuleButtonStyle())
+                Button { editing = nil } label: { Label("Cancel", icon: .close) }
+                Button { finish(save(row.role, draft)) } label: { Label("Save", icon: .check) }.buttonStyle(PrimaryCapsuleButtonStyle())
             }
             .padding(.top, 10)
         }
@@ -464,7 +464,7 @@ private struct RepoRolesCard: View {
             get: { value.wrappedValue.flatMap { own in options.firstIndex(of: own).map { $0 + 1 } ?? items.count - 1 } ?? 0 },
             set: { next in value.wrappedValue = next == 0 ? nil : (options.indices.contains(next - 1) ? options[next - 1] : value.wrappedValue) }
         )
-        return field(title) { NativePopUp(items: items, selection: index).accessibilityLabel(title) }
+        return field(title) { SelectMenu(items: items, selection: index).accessibilityLabel(title) }
     }
 
     private func persona(_ field: WritableKeyPath<RolePersona, String?>) -> Binding<String> {
@@ -487,7 +487,7 @@ private struct AddRepoRow: View {
     var body: some View {
         Button(action: add) {
             HStack(spacing: 10) {
-                Image(systemName: "plus").font(.scaled(13, weight: .semibold))
+                Glyph(.plus, size: 13)
                     .frame(width: ProjectIcon.size, height: ProjectIcon.size)
                     .overlay(RoundedRectangle(cornerRadius: ProjectIcon.radius, style: .continuous).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 3])).opacity(0.5))
                 Text("Add repo…")
@@ -523,7 +523,7 @@ private struct RepoRowView: View {
             if row.isNew { RepoChip(text: "new", tint: .green) }
             if let needs = row.epics?.needsYou, needs > 0 { RepoChip(text: "\(needs)", tint: .orange).accessibilityLabel("\(needs) need you") }
             Menu { actions(clone: clone, cloned: cloned) } label: {
-                Image(systemName: "ellipsis").font(.scaled(14, weight: .semibold))
+                Glyph(.dots, size: 14)
                     .foregroundStyle(hovering ? Color.primary : Color.secondary)
                     .frame(width: 26, height: 26)
                     .background(Circle().fill(Color.primary.opacity(hovering ? 0.12 : 0)))
@@ -546,17 +546,17 @@ private struct RepoRowView: View {
 
     /// The same items in the row's menu and in its right-click menu.
     @ViewBuilder private func actions(clone: String, cloned: Bool) -> some View {
-        Button { if let url = row.gitHubURL { NSWorkspace.shared.open(url) } } label: { Label("Open on GitHub", systemImage: "arrow.up.right.square").labelStyle(.titleAndIcon) }
+        Button { if let url = row.gitHubURL { NSWorkspace.shared.open(url) } } label: { Label("Open on GitHub", systemIcon: .externalLink).labelStyle(.titleAndIcon) }
         Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: clone)]) } label: {
-            Label(cloned ? "Reveal clone in Finder" : "Reveal clone in Finder (not cloned yet)", systemImage: "folder").labelStyle(.titleAndIcon)
+            Label(cloned ? "Reveal clone in Finder" : "Reveal clone in Finder (not cloned yet)", systemIcon: .folder).labelStyle(.titleAndIcon)
         }
         .disabled(cloned == false)
         Button {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(row.name, forType: .string)
-        } label: { Label("Copy owner/name", systemImage: "doc.on.doc").labelStyle(.titleAndIcon) }
+        } label: { Label("Copy owner/name", systemIcon: .copy).labelStyle(.titleAndIcon) }
         Divider()
-        Button(role: .destructive, action: remove) { Label("Stop watching…", systemImage: "trash").labelStyle(.titleAndIcon) }
+        Button(role: .destructive, action: remove) { Label("Stop watching…", systemIcon: .trash).labelStyle(.titleAndIcon) }
     }
 
     /// The owner dim, the name in bold.
@@ -632,7 +632,7 @@ private struct AddReposSheet: View {
             .padding(.bottom, 2)
             if let list, list.blocked == false {
                 VStack(alignment: .leading, spacing: 10) {
-                    TextField("Search repos", text: $query).settingsField(icon: "magnifyingglass")
+                    TextField("Search repos", text: $query).settingsField(icon: .search)
                     filters(list)
                 }
             }
@@ -641,9 +641,9 @@ private struct AddReposSheet: View {
             HStack {
                 Text(selected.isEmpty ? "" : "\(selected.count) selected").font(.scaled(11)).foregroundStyle(.secondary)
                 Spacer()
-                Button { dismiss() } label: { Label("Cancel", systemImage: "xmark") }
+                Button { dismiss() } label: { Label("Cancel", icon: .close) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
-                Button { add(chosen) } label: { Label(selected.count > 1 ? "Add \(selected.count) repos" : "Add repo", systemImage: "plus") }
+                Button { add(chosen) } label: { Label(selected.count > 1 ? "Add \(selected.count) repos" : "Add repo", icon: .plus) }
                     .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(selected.isEmpty).keyboardShortcut(.defaultAction)
             }
         }
@@ -679,17 +679,17 @@ private struct AddReposSheet: View {
         }
         return HStack(spacing: 6) {
             FilterChip(title: "All", on: visibility == .all) { visibility = .all }
-            FilterChip(title: "Private", icon: "lock", on: visibility == .onlyPrivate) { visibility = visibility == .onlyPrivate ? .all : .onlyPrivate }
-            FilterChip(title: "Public", icon: "globe", on: visibility == .onlyPublic) { visibility = visibility == .onlyPublic ? .all : .onlyPublic }
+            FilterChip(title: "Private", icon: .lock, on: visibility == .onlyPrivate) { visibility = visibility == .onlyPrivate ? .all : .onlyPrivate }
+            FilterChip(title: "Public", icon: .world, on: visibility == .onlyPublic) { visibility = visibility == .onlyPublic ? .all : .onlyPublic }
             Spacer(minLength: 8)
             if owners.count > 1 {
-                NativePopUp(
+                SelectMenu(
                     items: ["All owners"] + owners,
                     selection: Binding(get: { owner.flatMap { owners.firstIndex(of: $0) }.map { $0 + 1 } ?? 0 }, set: { owner = $0 == 0 ? nil : owners[$0 - 1] })
                 )
-                .accessibilityLabel("Owner").frame(width: 130)
+                .accessibilityLabel("Owner")
             }
-            FilterChip(title: "Hide watched", icon: hideWatched ? "eye.slash" : "eye", on: hideWatched) { hideWatched.toggle() }
+            FilterChip(title: "Hide watched", icon: hideWatched ? .eyeOff : .eye, on: hideWatched) { hideWatched.toggle() }
         }
     }
 
@@ -699,7 +699,7 @@ private struct AddReposSheet: View {
             if let problem = list.problem, let text = availableReposMessage(problem) {
                 Text("\(text.title). \(text.detail)").font(.scaled(11)).foregroundStyle(.red)
             }
-            Button { loadNextPage() } label: { Label(loadingMore ? "Loading…" : "Load more", systemImage: "arrow.down.circle") }
+            Button { loadNextPage() } label: { Label(loadingMore ? "Loading…" : "Load more", icon: .download) }
                 .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(loadingMore)
         }
     }
@@ -721,7 +721,7 @@ private struct AddReposSheet: View {
             let groups = repoGroups(list.repos, watched: watched, selected: selected, query: query, visibility: visibility, owner: owner, hideWatched: hideWatched)
             if groups.isEmpty {
                 message(
-                    "magnifyingglass", query.isEmpty ? "No repo matches the filters" : "No repo matches “\(query)”",
+                    .search, query.isEmpty ? "No repo matches the filters" : "No repo matches “\(query)”",
                     "Only repos your gh login can push to are listed, and the filters narrow them."
                 )
             } else {
@@ -738,7 +738,7 @@ private struct AddReposSheet: View {
             }
         case let list?:
             let text = list.problem.flatMap(availableReposMessage)
-            message("exclamationmark.triangle", text?.title ?? "", text?.detail ?? "")
+            message(.warning, text?.title ?? "", text?.detail ?? "")
         }
     }
 
@@ -762,7 +762,7 @@ private struct AddReposSheet: View {
                 }
                 Spacer(minLength: 8)
                 if choice.isPrivate { RepoChip(text: "private", tint: .gray) }
-                Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.scaled(17))
+                Glyph(on ? .checkCircleFilled : .circle, size: 19)
                     .foregroundStyle(choice.watched ? Color.secondary : on ? Color.themeAccent : Color.secondary.opacity(0.6))
             }
             .padding(.horizontal, 8).padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
@@ -773,7 +773,7 @@ private struct AddReposSheet: View {
         .accessibilityElement(children: .combine).accessibilityValue(on ? "selected" : "not selected")
     }
 
-    private func message(_ icon: String, _ title: String, _ detail: String) -> some View {
+    private func message(_ icon: AppIcon, _ title: String, _ detail: String) -> some View {
         EmptyStateView(icon: icon, title: title, line: detail)
             .settingsCard()
     }

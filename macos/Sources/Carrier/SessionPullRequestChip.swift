@@ -24,7 +24,7 @@ struct SessionPullRequestChip: View {
             if let url = browserURL(pr.url) { NSWorkspace.shared.open(url) }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: "arrow.triangle.pull").font(.scaled(9, weight: .semibold))
+                Glyph(.gitPullRequest, size: 9)
                 Text(pr.chipText).font(.scaled(11, weight: .medium).monospacedDigit())
             }
             .foregroundStyle(tint).padding(.horizontal, 6).frame(height: 17)

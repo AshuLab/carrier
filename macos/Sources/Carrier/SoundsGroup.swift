@@ -11,12 +11,12 @@ struct SoundsGroup: View {
     @AppStorage(AppPreferences.dictationSoundVolumeKey) private var volume = DictationSounds.defaultVolume
 
     var body: some View {
-        SettingsGroup(title: "Sounds") {
+        SettingsGroup(title: "Sounds", footer: "Tink, Pop or Glass. The play button always plays, at the volume set; the message boxes stay silent.") {
             soundRow("Start sound", detail: "Plays when it begins to listen", on: $startOn, name: $start, first: true)
             soundRow("End sound", detail: "Plays when it stops listening and goes on to clean and paste", on: $endOn, name: $end)
             SettingsTabRow(title: "Volume", detail: "For both sounds, in the global dictation only; \(volume)%") {
                 Slider(value: Binding(get: { Double(volume) }, set: { volume = Int($0.rounded()) }), in: 0...100)
-                    .frame(width: 160).accessibilityLabel("Volume").accessibilityValue("\(volume) percent")
+                    .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Volume").accessibilityValue("\(volume) percent")
             }
         }
     }
@@ -24,8 +24,8 @@ struct SoundsGroup: View {
     private func soundRow(_ title: String, detail: String, on: Binding<Bool>, name: Binding<String>, first: Bool = false) -> some View {
         SettingsTabRow(title: title, detail: detail, first: first) {
             HStack(spacing: 8) {
-                IconButton(icon: "play.fill", name: "Play \(title)") { DictationSoundPlayer.play(SoundToPlay(name: name.wrappedValue, volume: Double(volume) / 100)) }
-                ChoicePopUp(label: title, options: dictationSoundChoices.map { (value: $0, title: $0) }, selection: name, width: 110)
+                IconButton(icon: .playFilled, name: "Play \(title)") { DictationSoundPlayer.play(SoundToPlay(name: name.wrappedValue, volume: Double(volume) / 100)) }
+                ChoicePopUp(label: title, options: dictationSoundChoices.map { (value: $0, title: $0) }, selection: name)
                 Toggle(title, isOn: on).labelsHidden().toggleStyle(.switch)
             }
         }

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Builds Carrier.app with SwiftPM (needs Xcode selected, see README.md) and signs it ad hoc.
 # Usage: ./build-app.sh [version] [--open]   (version is written into the plist, 0.1.0 when none is given)
+# CARRIER_REUSE_BUILD=1 skips `swift build` and bundles the .build/release/Carrier that is already there (check-app.sh and the release build many bundles from one compile).
 # No version means a dev build: its own name, bundle id and settings, and no updater, so it never gets mixed up with the installed Carrier.
 # The build number (CFBundleVersion) is what Sparkle compares: X.Y.Z -> X*10000 + Y*100 + Z, and 1 when no version is given.
 set -euo pipefail
@@ -32,6 +33,8 @@ if [ "$GIVEN" = true ]; then
 fi
 # what macOS shows when the app asks for the microphone; CARRIER_MIC_USAGE exists so check-app.sh can prove an empty one fails the build
 MIC_USAGE="${CARRIER_MIC_USAGE-Carrier listens through the microphone only while you dictate a message, and the audio never leaves your Mac.}"
+# checked before the compile, which takes minutes: the plist check at the end only confirms what is already known here
+[ -n "$MIC_USAGE" ] || { echo "error: NSMicrophoneUsageDescription is empty" >&2; exit 1; }
 # SwiftUI's @State is a macro whose plugin ships only with Xcode, so the Command Line Tools cannot compile the views.
 case "$(xcode-select -p 2>/dev/null)" in
   */CommandLineTools*|"")
@@ -43,7 +46,11 @@ Or for this shell only:         export DEVELOPER_DIR=/Applications/Xcode.app/Con
 MSG
     exit 1 ;;
 esac
-swift build -c release
+if [ "${CARRIER_REUSE_BUILD:-}" = 1 ]; then
+  [ -x .build/release/Carrier ] || { echo "error: CARRIER_REUSE_BUILD=1 but .build/release/Carrier does not exist" >&2; exit 1; }
+else
+  swift build -c release
+fi
 APP=Carrier.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"

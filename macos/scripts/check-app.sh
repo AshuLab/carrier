@@ -8,6 +8,8 @@ plist() { /usr/libexec/PlistBuddy -c "Print :$1" "$PLIST"; }
 expect() { [ "$2" = "$3" ] || fail "$1 is '$2', expected '$3'"; }
 
 ./build-app.sh 1.2.3
+# the one compile: the builds below only change the plist, so they bundle this binary
+export CARRIER_REUSE_BUILD=1
 expect SUFeedURL "$(plist SUFeedURL)" "https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml"
 expect SUPublicEDKey "$(plist SUPublicEDKey)" "$(cat update-key.pub)"
 expect SUEnableAutomaticChecks "$(plist SUEnableAutomaticChecks)" true

@@ -25,7 +25,7 @@ struct WhereItWorksSheet: View {
             Divider()
             HStack {
                 Spacer(minLength: 0)
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
             }
             .padding(.horizontal, 20).padding(.vertical, 12)
         }

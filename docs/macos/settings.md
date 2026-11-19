@@ -17,6 +17,7 @@ What can be found is `settingsIndex` (`CarrierCore/SettingsIndex.swift`, `Settin
 
 A page with many controls gives its Reset to the window (`SettingsPageBody(reset:)`), and the ⋯ menu of the toolbar asks "Reset <page>?" before it runs (an alert: Cancel, or Reset in red).
 The ⋯ menu is only there on a page that has a Reset: Providers, Agents, Repos, Health, Engine and About have nothing to reset and show no menu.
+The Dictation page has its Reset on its first screen only ([dictation](dictation.md#the-dictation-page)); on its screens the ⋯ menu is not drawn.
 Behavior and Sessions keep what a Reset did before (the engine's eight values back to `EngineConfig()`, the preferences and the two ages of `chat.json`), now from the same menu.
 
 ## Where something that needs fixing shows

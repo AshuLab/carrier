@@ -372,8 +372,7 @@ struct AgentAvatar: View {
         }
         .foregroundStyle(.primary)
         .frame(width: 16, height: 16)
-        .background(Circle().fill(Color.themeWindow))
-        .overlay(Circle().strokeBorder(Color.primary.opacity(0.14), lineWidth: 1))
+        .avatarCornerDisc()
     }
 
     @MainActor static func mark(_ harness: String) -> NSImage? {

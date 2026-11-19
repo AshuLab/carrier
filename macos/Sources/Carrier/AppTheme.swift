@@ -54,7 +54,22 @@ extension Color {
     static var themeAccent: Color { AppTheme.shared.accent }
 }
 
+/// The disc behind the mark on the corner of an avatar (a role's, a session's): opaque, lighter than the dark windows and white in the light ones, with a
+/// ring that shows over a picture too. The window's color is not it: that one is translucent in some themes and the mark, the account's own icon or
+/// color, was lost against the picture.
+private struct AvatarCornerDisc: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+
+    func body(content: Content) -> some View {
+        content
+            .background(Circle().fill(scheme == .dark ? Color(white: 0.22) : Color.white))
+            .overlay(Circle().strokeBorder(Color.primary.opacity(0.3), lineWidth: 1))
+    }
+}
+
 extension View {
+    func avatarCornerDisc() -> some View { modifier(AvatarCornerDisc()) }
+
     /// The theme's accent and window color on the root of a window or a sheet. A sheet is another window: it takes neither the accent nor
     /// the color of the window it opens over. Carrier's translucent windows have no color of their own, so the sheet keeps the system's.
     func themed() -> some View {

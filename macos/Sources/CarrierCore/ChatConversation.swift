@@ -730,16 +730,18 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         let sendsBefore = sends
         do {
             var reply: ChatEvents
+            var fresh: [ChatEvent]
             repeat {
                 reply = try await host.events(sessionId, after: cursor, limit: Self.page)
                 // ids only grow (the host reads after the cursor, in order): one already here is never added twice
-                let fresh = reply.events.filter { $0.id > (events.last?.id ?? 0) }
+                fresh = reply.events.filter { $0.id > (events.last?.id ?? 0) }
                 // kept as each page comes, so a later page that fails does not lose the cursor's progress
                 events += fresh
                 if let last = fresh.last(where: { $0.kind == "user" }) { lastUserText = last.text }
                 cursor = max(cursor, reply.cursor)
                 changed = changed || fresh.isEmpty == false
-            } while reply.events.count >= Self.page
+            // a full page that brought nothing new does not move the cursor: asking again would only get the same page
+            } while reply.events.count >= Self.page && fresh.isEmpty == false
             let first = loaded == false
             if hostStops == nil, let listed = try? await host.capabilities() {
                 hostStops = listed.contains(.stopTask)

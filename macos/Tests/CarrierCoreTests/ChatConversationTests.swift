@@ -504,6 +504,9 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var hold: (@Sendable () async -> Void)?
     /// Set, the next `events` answers the whole list from the start with a cursor of 0, as a reader that was behind would.
     var rewind = false
+    /// Set, every `events` answers the first page from the start with a cursor of 0, whatever was asked; it gives up after 20 asks, so a
+    /// reader that never stops fails a test instead of hanging it.
+    var stale = false
 
     func agents() async throws -> [ChatAgent] { [] }
     func open(plan: SessionPlan) async throws -> String { "" }
@@ -548,6 +551,10 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
         if let wait = hold {
             hold = nil
             await wait()
+        }
+        if stale {
+            if asked.count > 20 { throw ControlError.closed }
+            return ChatEvents(events: Array(events.prefix(limit)), cursor: 0, streaming: streaming, state: state, preparation: preparation, progress: progress)
         }
         if rewind {
             rewind = false
@@ -1699,10 +1706,12 @@ private final class Flag: @unchecked Sendable { var raised = false }
     let first = Task { await model.poll() }
     while host.asked.isEmpty { await Task.yield() }
     host.events = [say(1), say(2)]
-    // an action's poll while the first waits
+    // an action's poll while the first waits: it does not read, the one under way goes round again when it ends
     await model.poll()
+    #expect(host.asked.map(\.after) == [0])
     open.finish()
     await first.value
+    #expect(host.asked.map(\.after) == [0, 2])
     #expect(model.rows.map(\.id) == ["e1", "e2"] && model.cursor == 2)
 }
 
@@ -1715,6 +1724,20 @@ private final class Flag: @unchecked Sendable { var raised = false }
     host.rewind = true
     await model.poll()
     #expect(model.cursor == 3 && model.rows.count == 3)
+}
+
+@MainActor @Test func aHostThatKeepsAnsweringAFullPageOfOldEventsDoesNotKeepTheRoundReading() async {
+    let host = ScriptedHost()
+    host.events = (1...200).map(say)
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.cursor == 200)
+    let before = host.asked.count
+    // a full page with nothing new is not a reason to ask again: the cursor would not move
+    host.stale = true
+    await model.poll()
+    #expect(host.asked.count - before == 1)
+    #expect(model.cursor == 200 && model.rows.count == 200)
 }
 
 @MainActor @Test func aQueuedMessageIsStillDeliveredAndReadAgainWhenTheRoundThatSeesTheAgentIdleEnds() async {

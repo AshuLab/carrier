@@ -128,8 +128,6 @@ final class WindowController: NSObject, NSWindowDelegate {
     private var stop: StopFlag?
     /// Cuts short the wait of the window's session list, while its monitor runs.
     private var sessionsNap: PollNap?
-    /// Whether the check of the chat host at open has answered (it was there, it was started, or it cannot be).
-    private var hostChecked = false
 
     /// Adds the "Open window" item at the end of the menu.
     func addMenuItem(to menu: NSMenu) {
@@ -548,17 +546,15 @@ final class WindowController: NSObject, NSWindowDelegate {
         // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()
         stop = nil
+        sessionsNap = nil
         model.state = nil
         if case .session(let id) = model.shell.selection { model.leave(id) }
         model.sessions = Sessions()
         model.shell.reset(open: SidebarStore().open)
     }
 
-    /// The check at open answered: the window's first list goes now instead of meeting a host that is still starting.
-    func chatHostChecked() {
-        hostChecked = true
-        sessionsNap?.wake()
-    }
+    /// The check at open answered, so a host that was starting is up: the window's session list is read now and not at the next tick.
+    func chatHostChecked() { sessionsNap?.wake() }
 
     private func startMonitor() {
         let stop = StopFlag()
@@ -597,9 +593,6 @@ final class WindowController: NSObject, NSWindowDelegate {
         // what changes the list is read at once: the wait is cut short, and the archived ones are read again
         let nap = PollNap()
         sessionsNap = nap
-        // at launch the host may still be starting and a list asked before it answers fails: the first one waits for the check at open,
-        // never longer than the 15 s a start waits; a window opened later does not wait
-        let waitsForHost = hostChecked == false
         DispatchQueue.main.async {
             model.actions.changed = {
                 sessions.invalidateArchived()
@@ -608,7 +601,6 @@ final class WindowController: NSObject, NSWindowDelegate {
             model.actions.archivingChanged = { DispatchQueue.main.async { model.refreshUnread() } }
         }
         Task.detached {
-            if waitsForHost { await nap.sleep(seconds: 15) }
             repeat {
                 await sessions.poll()
                 await nap.sleep(seconds: PollPace.shared.seconds)

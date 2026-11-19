@@ -29,7 +29,7 @@ A session whose turn ended and that the person has not opened since (`SessionRow
 When the turn ends while the row is on screen, the icon's glow turns green and goes once round, fast, from where the arc was (`WorkingRing`, `finished`); with Reduce Motion the lap is skipped and the word still appears.
 What was seen is kept in `sessions.seen`.
 A list the host does not answer (not started yet, being replaced) changes nothing: the lists keep the last rows and no mark is lost, and before the first list that answered nothing is pruned or stored.
-The window's first list waits for the check of the chat host at open, for 15 seconds at most.
+When the check of the chat host at open answers, the window's session list is read at once and not at the next tick.
 
 A row of the sidebar's list has room around its lines (`Density.sessionRowPadding`: 12 points, 7 compact) and the branch in monospace.
 A session that has a pull request, or lines it changed, has a third line: the pull request's chip (`SessionPullRequestChip`: "#412 · ✓", "#979 · CI ✕", "#983 · draft", "#88 · merged", tinted green, red, grey or purple, and a click opens it), the lines it changed as "+86 −12" and the providers, which go down from the second line with it; with only one of the two, the line has only that one.

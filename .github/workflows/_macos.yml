@@ -1,8 +1,8 @@
 name: Carrier macOS app
 
 # The app (macos/): its tests and its bundle, in parallel on macOS, the expensive runner.
-# Reusable: ci.yml calls it once the engine is green; run by hand to try a branch.
-# The bundle (~18 min, a cold release build) runs only when the change can affect it: ci.yml decides. release.yml runs the same check before it publishes.
+# Reusable: ci.yml calls it once the engine and the cheap checks are green, release.yml calls it with `bundle: false` (the tests only: the release builds and checks the bundle itself); run by hand to try a branch.
+# The bundle (~18 min, a cold release build) runs only when the change can affect it: ci.yml decides. release.yml runs the same check before anything reaches the tap or the update feed.
 on:
   workflow_call:
     inputs:

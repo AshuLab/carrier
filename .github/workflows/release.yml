@@ -23,9 +23,9 @@ on:
         type: boolean
         default: true
 
+# Read-only unless a job says otherwise: only `release` writes (the GitHub Release of the tag) and only `npm` mints the OIDC token (trusted publishing).
 permissions:
-  contents: write # the GitHub Release of the tag
-  id-token: write # npm trusted publishing
+  contents: read
 
 env:
   # Only a tag publishes: a tag is a real release, a manual run on a tag is real when dry-run is switched off, and anything else is a dry run.
@@ -102,6 +102,8 @@ jobs:
           name: tarball
           path: out
           retention-days: 7
+          # "Re-run all jobs" uploads again to a run that already has the artifact.
+          overwrite: true
 
   # The formula, tried in a throwaway tap against the tarball, before anything is published.
   formula:
@@ -157,6 +159,8 @@ jobs:
           name: formula
           path: formula
           retention-days: 7
+          # "Re-run all jobs" uploads again to a run that already has the artifact.
+          overwrite: true
 
   # The engine is ready to publish once its checks and the formula pass: the app is a client matched by protocol, so it does not hold npm back.
   npm:
@@ -164,6 +168,9 @@ jobs:
     needs: [pack, verify, formula]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing
     env:
       VERSION: ${{ needs.pack.outputs.version }}
     outputs:
@@ -275,6 +282,8 @@ jobs:
           name: app
           path: out
           retention-days: 7
+          # "Re-run all jobs" uploads again to a run that already has the artifact.
+          overwrite: true
 
   # Everything is green: the cask, then the public steps, in the order that never leaves the feed ahead of the formula.
   release:
@@ -282,6 +291,8 @@ jobs:
     needs: [pack, verify, app-tests, formula, npm, app]
     runs-on: macos-26
     timeout-minutes: 20
+    permissions:
+      contents: write # the GitHub Release of the tag
     env:
       VERSION: ${{ needs.pack.outputs.version }}
       PUBLISHED_SHA256: ${{ needs.npm.outputs.sha256 }}

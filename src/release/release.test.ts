@@ -58,6 +58,10 @@ describe('release.yml', () => {
     expect(jobs['npm']?.needs.toSorted()).toEqual(['formula', 'pack', 'verify']);
   });
 
+  it('decides the dry run once, for every job', () => {
+    expect(workflow).toMatch(/^env:\n(?: {2}.*\n)*? {2}DRY_RUN: /m);
+  });
+
   it('keeps every step that publishes, drafts included, out of a dry run', () => {
     const publishing = /gh release|github-release\.sh|pnpm publish|npm publish|git push/;
     const unguarded = Object.entries(jobs).flatMap(([job, { steps }]) =>

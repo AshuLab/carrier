@@ -128,14 +128,16 @@ struct SettingsRoot: View {
                         }
                         .sharedBackgroundVisibility(.hidden)
                     }
-                    ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            Button { confirmingReset = true } label: { Label("Reset this page…", systemImage: "arrow.counterclockwise") }
-                                .disabled(resetter.action == nil)
-                        } label: {
-                            Image(systemName: "ellipsis")
+                    // only on a page that has a Reset: a menu with nothing to do is not drawn
+                    if resetter.action != nil {
+                        ToolbarItem(placement: .primaryAction) {
+                            Menu {
+                                Button { confirmingReset = true } label: { Label("Reset this page…", systemImage: "arrow.counterclockwise") }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                            }
+                            .menuIndicator(.hidden).help("Page actions")
                         }
-                        .menuIndicator(.hidden).help("Page actions")
                     }
                 }
         }

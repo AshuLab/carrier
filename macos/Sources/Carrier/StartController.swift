@@ -17,7 +17,9 @@ final class StartController: ObservableObject {
     @Published private(set) var configExists = FileManager.default.fileExists(atPath: configFilePath())
 
     private init() {
-        Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.refreshConfig() }
+        let timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.refreshConfig() }
+        // a setting on disk, not a deadline: the system may fold this wake-up into others
+        timer.tolerance = 1
     }
 
     /// Reads the file again; the menu and the start call it so they never act on a value up to 3 seconds old.

@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Set it on the new Keep awake page of Settings, with an optional shortcut for any app.
 - The app keeps the system's reports on hangs and CPU use in `app/logs/metrics/` of the Carrier folder, to attach to a bug report; nothing leaves the Mac.
 
+### Changed
+
+- Carrier.app wakes the Mac less while it sits open: no hidden animation while an update waits, no tenth-of-a-second timer while the window is open, and no settings write at every read of an open session.
+
 ### Fixed
 
 - A message could show twice in a conversation when it arrived while the app was already reading the session.

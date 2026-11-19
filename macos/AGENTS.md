@@ -10,7 +10,7 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 ## Tests
 
 The gated recognizer tests (`{Apple,FluidAudio,WhisperKit}RecognizerTests`) run only with `CARRIER_IT_DICTATION` naming a folder laid out as the app keeps its models ([layout](../docs/macos/dictation.md#speech-models)).
-The live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
+The live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface offscreen, only with `CARRIER_IT_TERMINAL=1`.
 
 ## Starting Carrier and the chat host
 
@@ -25,13 +25,13 @@ The sequence is tested on a real socket against a scripted engine (`EngineReplac
 `build-app.sh` with no version makes the dev build, with a version the release build; the differences are in [CONTRIBUTING](../CONTRIBUTING.md#developing-against-a-throwaway-folder).
 The plist says which it is: `CarrierChannel` is `dev` or `release`, and `isDevBuild` (`Carrier/AppDelegate.swift`) reads it for the Dock badge and the toolbar mark in `PanelView`.
 A dev build has no `SUFeedURL`, and `AppUpdater.start` does not start the updater without one.
-`scripts/check-app.sh` asserts id, channel and missing feed for both; a new difference between the two goes into `build-app.sh` and into that script.
+`scripts/check-app.sh` asserts id, channel and missing feed for both; a new difference goes into `build-app.sh` and that script.
 
 ## Epics
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#resume-card).
 
-The words and the request are tested; the sheet, the "Resuming…" state and the layout are not.
+The words and the request are tested; the sheet, its "Resuming…" state and layout are not.
 
 ### The epic's Agent output
 
@@ -40,12 +40,13 @@ What the person sees: [the app shell](../docs/macos/app-shell.md#slices-and-find
 The rows, words and marks are two pure functions, `sliceCard(lane:)` in `CarrierCore/SliceCard.swift` (`SliceCardTests`) and `findingsCard(_:stage:round:)` in `CarrierCore/FindingsCard.swift` (`FindingsCardTests`, which also reads the golden epic reply); the views are checked only for their heights (`LaneHeaderTests`).
 The session row's words are `sessionRowText` and `RoleIdentities` (`SessionRowTests`); the epic's events become the chat's calls in `flowItems` (`EpicTranscriptAdapterTests`).
 
-## File icons
+## Icons
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#file-icons).
 
-The SVGs and the upstream licence text are in `Sources/CarrierCore/Resources/FileIcons` (release pinned in `SOURCE.txt`, notice in `THIRD-PARTY-NOTICES.md`, line in About).
+The SVGs and the upstream licence text are in `CarrierCore/Resources/FileIcons` (release pinned in `SOURCE.txt`, notice in `THIRD-PARTY-NOTICES.md`, line in About).
 `build-app.sh` copies SwiftPM's `Carrier_CarrierCore.bundle` into `Contents/Resources` and fails when an icon or the licence text is missing from it.
+The interface's icons are `TablerIcon` (`TablerIconsTests`), drawn by `Glyph`, checked the same.
 
 ## Settings
 
@@ -55,7 +56,7 @@ The window is `Carrier/SettingsWindow.swift`, a page's shared pieces `SettingsTa
 
 What the person sees: [settings-app](../docs/macos/settings-app.md#providers).
 
-The rows are `providersPage(_:config:chat:)` and the list's `providersDirectory` (`CarrierCore/ProvidersPage.swift`, `ProvidersDirectory.swift`; `ProvidersPageTests`, `ProvidersDirectoryTests`); the views are untested; `providers.json` is in `ProvidersFileTests` and `FixtureServerTests`.
+The rows are `providersPage(_:config:chat:)` and the list's `providersDirectory` (`CarrierCore/ProvidersPage.swift`, `ProvidersDirectory.swift`; `Providers{Page,Directory}Tests`); views untested; `providers.json` is in `ProvidersFileTests` and `FixtureServerTests`.
 
 ### Sessions page
 
@@ -133,5 +134,5 @@ Continue in Terminal launch construction (`EmbeddedResumeLaunch`, `embeddedResum
 The AppKit runtime (`Carrier/Terminal{Host,Appearance,ProcessInspector,ConfirmationCopy}.swift`, `Carrier/CarrierTerminalView.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation.
 The sidebar, overview, workspace, tab bar, settings page, menu bar, middle-click close and drawer views are the `Terminal*View.swift` files, `MainMenu.swift`, `MiddleClickModifier.swift`, `ContinueInTerminalView.swift`, `SessionSectionsView.swift`, `EpicView.swift` and `PanelView.swift`.
 Window selection and drawer state live in `CarrierCore/WindowShell.swift`, tested with layout, shortcuts and middle-click in `TerminalWorkspaceLayoutTests`, `MainMenuShortcutsTests`, `MiddleClickModifierTests` and `WindowShellTests`.
-Session deletion cleanup and process-activity guards connect through `CarrierCore/ChatArchive.swift`, `CarrierCore/ChatSessions.swift`, `Carrier/WindowController.swift` and `Carrier/AppDelegate.swift` (poller and store tested, view wiring not).
+Session deletion cleanup and process-activity guards connect through `CarrierCore/ChatArchive.swift`, `ChatSessions.swift`, `Carrier/WindowController.swift` and `AppDelegate.swift` (poller and store tested, view wiring not).
 `libghostty-spm` (`GhosttyTerminal`) is linked by the `Carrier` target only; `build-app.sh` and `scripts/check-app.sh` bundle and verify `GhosttyKit_GhosttyTerminal.bundle` and `THIRD-PARTY-NOTICES.md` (`ThirdPartyNoticesTests`).

@@ -29,6 +29,13 @@ ships inside the app, next to the icons. The licence covers the artwork files, n
 Anthropic, OpenAI and Google. The pinned release and its integrity hash are in
 `macos/Sources/CarrierCore/Resources/ProviderIcons/SOURCE.txt`.
 
+## Tabler Icons
+
+The icons of the app's own interface in `Carrier.app` (`macos/Sources/CarrierCore/Resources/TablerIcons`, the ones `TablerIcon` names) are copied
+unchanged from the npm package `@tabler/icons` 3.34.1 of [Tabler Icons](https://github.com/tabler/tabler-icons). Copyright (c) 2020-2024 Paweł Kuna,
+under the MIT licence; the text ships inside the app, next to the icons. The pinned release and its integrity hash are in
+`macos/Sources/CarrierCore/Resources/TablerIcons/SOURCE.txt`.
+
 ## Claude Agent SDK
 
 The Claude adapter of the chat host (`src/chat/claude.ts`) depends on the npm package

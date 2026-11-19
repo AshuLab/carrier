@@ -99,6 +99,7 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         carrierFolder: String, keep: @escaping () -> Bool, keepAudio: @escaping () -> Bool = { false }, audioDays: @escaping () -> Int = { 0 },
         now: @escaping () -> Date = Date.init, calendar: Calendar = .current
     ) {
+        let signpost = Signposts.launch.beginInterval("dictation records")
         let places = CarrierPlaces(folder: carrierFolder)
         path = places.dictations
         statisticsPath = places.dictationStatistics
@@ -110,6 +111,7 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         self.calendar = calendar
         if let data = FileManager.default.contents(atPath: statisticsPath) { counts = (try? JSONDecoder().decode([DictationCount].self, from: data)) ?? [] }
         scanAudio()
+        defer { Signposts.launch.endInterval("dictation records", signpost, "\(self.entries.count) entries") }
         guard let file = try? String(contentsOfFile: path, encoding: .utf8) else { return }
         let decoder = Self.decoder
         // a line that does not read (the last one, cut by a crash) is left out, and goes when the next delete rewrites the file

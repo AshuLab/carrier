@@ -12,8 +12,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isConfirmingTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let launching = Signposts.launch.beginInterval("didFinishLaunching")
+        defer { Signposts.launch.endInterval("didFinishLaunching", launching) }
+        // once, the first time the main run loop is about to sleep: after Core Animation's commit observer (order 2_000_000), so close to the
+        // first frame handed to the window server; LM-2 compares the work deferred with main.async against it
+        let firstCommit = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, false, CFIndex.max) { _, _ in
+            Signposts.launch.emitEvent("first commit")
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), firstCommit, .commonModes)
         // before the menu, whose "Check for Updates…" item is the updater controller's
+        let updating = Signposts.launch.beginInterval("updater")
         AppUpdater.start()
+        Signposts.launch.endInterval("updater", updating)
         installMainMenu()
         followColorScheme()
         // before anything reads the socket path: the fake engine's home becomes CARRIER_HOME
@@ -22,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             prepareAppCache(CarrierPlaces())
             // Apple's recognizer, which the box's microphone needs: it appears once the system has said which languages it supports; FluidAudio's and Whisper's follow
             Task {
+                Signposts.launch.emitEvent("recognizers task")
                 if let apple = await AppleRecognizer.make() { RecognizerRegistry.shared.register(apple) }
                 RecognizerRegistry.shared.register(FluidAudioRecognizer(modelsRoot: dictationModelsRoot()))
                 RecognizerRegistry.shared.register(WhisperKitRecognizer(modelsRoot: dictationModelsRoot()))
@@ -51,7 +62,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         KeepAwakeMenu.shared.install(in: menu)
         menu.addItem(.separator())
+        // the first touch of the window controller builds the panel's model, the epic store and the agent offers
+        let windowController = Signposts.launch.beginInterval("window controller")
         WindowController.shared.addMenuItem(to: menu)
+        Signposts.launch.endInterval("window controller", windowController)
         if fixtureServer != nil { EmptyStatesWindowController.shared.addMenuItem(to: menu) }
         WindowController.shared.addSettingsItem(to: menu)
         WindowController.shared.addAboutItem(to: menu)
@@ -63,11 +77,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SystemNotificationCentre.shared.attachDelegate()
         // the shortcut of the global dictation; a self-test or a smoke run takes no key of the Mac
         if Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false {
+            let dictation = Signposts.launch.beginInterval("dictation")
             GlobalDictationController.shared.start()
             DictationController.shared.startAudioSweep()
+            Signposts.launch.endInterval("dictation", dictation)
         }
         // the Notifications page writes user defaults: the badge follows its switch at once
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            // every write to user defaults lands here (LM-4): the events count them
+            Signposts.render.emitEvent("defaults changed")
             NotificationWatcher.app.refreshBadge()
             // the Keybindings page writes user defaults: the menu carries the new keys at once
             self?.rebuildMainMenuIfShortcutsChanged()
@@ -117,7 +135,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             selfTest(logPath: path)
         } else if CommandLine.arguments.contains("--smoke-window") == false {
             // an app opens on its window
+            let opening = Signposts.launch.beginInterval("open window")
             WindowController.shared.open()
+            Signposts.launch.endInterval("open window", opening)
         }
     }
 

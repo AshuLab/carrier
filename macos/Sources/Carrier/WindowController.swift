@@ -7,7 +7,11 @@ import SwiftUI
 @Observable final class PanelModel {
     var state: ConnectionState? {
         // an epic that stops on a usage limit has used up a quota: the Usage page's numbers are asked again
-        didSet { if usageLimitEntered(from: oldValue, to: state) { MainActor.assumeIsolated { _ = AppUsage.refresher.limitHit() } } }
+        didSet {
+            // counts what the window is handed (IPC-6): a clock that moved is one more
+            Signposts.render.emitEvent("panel state")
+            if usageLimitEntered(from: oldValue, to: state) { MainActor.assumeIsolated { _ = AppUsage.refresher.limitHit() } }
+        }
     }
     let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
@@ -463,6 +467,8 @@ final class WindowController: NSObject, NSWindowDelegate {
     }
 
     private func makeWindow() -> NSWindow {
+        let signpost = Signposts.launch.beginInterval("make window")
+        defer { Signposts.launch.endInterval("make window", signpost) }
         let host = NSHostingController(rootView: PanelView(model: model))
         // the split view's title and toolbar (the sidebar toggle) go to the window
         host.sceneBridgingOptions = .all

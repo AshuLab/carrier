@@ -700,7 +700,11 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
 
     /// One round: reads pages until one is not full, then rebuilds the feed when something changed.
     public func poll() async {
+        // two polls can overlap (IPC-10), so each interval has its own id
+        let signpost = Signposts.poll.beginInterval("conversation poll", id: Signposts.poll.makeSignpostID())
+        let eventsBefore = events.count
         var changed = loaded == false
+        defer { Signposts.poll.endInterval("conversation poll", signpost, "\(self.events.count - eventsBefore) new events, changed \(changed)") }
         let sendsBefore = sends
         do {
             var reply: ChatEvents
@@ -877,6 +881,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     }
 
     private func feed() -> [FeedRow] {
+        let signpost = Signposts.feed.beginInterval("chat feed")
+        defer { Signposts.feed.endInterval("chat feed", signpost, "\(self.events.count) events") }
         let rows = chatFeed(events, streaming: streaming, pending: pending, working: busy)
         guard let firstMessage, events.contains(where: { $0.kind == "user" }) == false else { return rows }
         return [.user(id: "first-message", text: firstMessage)] + rows

@@ -718,6 +718,8 @@ fileprivate func chatRequest<Reply: Decodable>(
     _ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String = "", also: (capability: ControlClient.Capability, fields: String)? = nil,
     timeout: TimeInterval = 5
 ) throws -> Reply {
+    let signpost = Signposts.poll.beginInterval("chat request", id: Signposts.poll.makeSignpostID(), "\(command, privacy: .public)")
+    defer { Signposts.poll.endInterval("chat request", signpost) }
     guard let client = ControlClient.connect(path: path, timeout: timeout) else { throw ControlError.closed }
     defer { client.close() }
     _ = try client.supportedHello()

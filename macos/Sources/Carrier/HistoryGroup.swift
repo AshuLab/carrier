@@ -49,6 +49,7 @@ struct HistoryList: View {
     @State private var open: UUID?
 
     var body: some View {
+        let _ = Signposts.render.emitEvent("history body", "\(records.entries.count) entries")
         let shown = dictationEntries(records.entries, matching: query, outcome: outcome)
         VStack(alignment: .leading, spacing: 10) {
             TextField("Search your dictations", text: $query).settingsField(icon: "magnifyingglass")

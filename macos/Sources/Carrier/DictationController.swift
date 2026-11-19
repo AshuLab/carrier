@@ -172,7 +172,7 @@ import SwiftUI
         preferences.dictationEnabled = on
         enabled = on
         if on { warmUp() } else {
-            stop()
+            session.stop()
             evaluate()
         }
     }
@@ -331,14 +331,10 @@ import SwiftUI
 
     /// Hiding or closing the window, or leaving the app: a message box's dictation stops, as nothing would listen and write unseen; the
     /// widget's goes on, since it floats over the app the person is in.
-    func stopBoxDictation() {
-        guard let owner = session.owner, owner != GlobalDictation.owner else { return }
-        stop(ownedBy: owner)
-    }
+    func stopBoxDictation() { session.stop(except: GlobalDictation.owner) }
 
-    /// Stops the dictation of `owner`, or whichever runs when nil: a typed key, Enter and leaving a session.
-    func stop(ownedBy owner: String? = nil) {
-        guard let owner else { return session.stop() }
+    /// Stops the dictation of `owner`: a typed key, Enter and leaving a session.
+    func stop(ownedBy owner: String) {
         if waiting == owner { waiting = nil }
         session.stop(ownedBy: owner)
     }

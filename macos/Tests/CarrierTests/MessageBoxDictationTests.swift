@@ -340,3 +340,56 @@ private struct CleaningClient: TextModelClient {
     try? await Task.sleep(for: .milliseconds(50))
     #expect(dictation.session.state == .idle && capture.startCount == 0)
 }
+
+// MARK: leaving the window
+
+@MainActor private func field(_ owner: String) -> DictationField { DictationField(owner: owner, text: { "" }, caret: { 0 }, put: { _, _, _ in }) }
+
+@MainActor private func untilHolds(_ condition: () -> Bool) async { for _ in 0..<2000 where condition() == false { try? await Task.sleep(for: .milliseconds(1)) } }
+
+@MainActor @Test func leavingTheWindowStopsABoxDictationAndLeavesTheWidgetsListening() async {
+    let registry = RecognizerRegistry()
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    // the audio ending ends it, so a stop reaches idle
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("")])
+    registry.register(recognizer)
+    // the widget's, started as the machine starts it
+    dictation.session.start(recognizer: recognizer, model: recognizer.models[0], into: field(GlobalDictation.owner))
+    await untilHolds { dictation.session.state == .listening }
+    dictation.stopBoxDictation()
+    try? await Task.sleep(for: .milliseconds(30))
+    #expect(dictation.session.owner == GlobalDictation.owner && dictation.session.state == .listening)
+    dictation.stop(ownedBy: GlobalDictation.owner)
+    await untilHolds { dictation.session.state == .idle }
+    // a message box's does stop
+    dictation.toggle(into: field("session:s"))
+    await untilHolds { dictation.session.state == .listening && dictation.session.modelReady }
+    #expect(dictation.session.owner == "session:s")
+    dictation.stopBoxDictation()
+    await untilHolds { dictation.session.state == .idle }
+    #expect(dictation.session.state == .idle)
+}
+
+@MainActor @Test func leavingTheWindowWithNothingDictatingDoesNothing() async {
+    let registry = RecognizerRegistry()
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    registry.register(ScriptedRecognizer(atAudioEnd: [.final("")]))
+    dictation.stopBoxDictation()
+    #expect(dictation.session.state == .idle && dictation.session.owner == nil)
+    #expect(dictation.session.failure(for: "box") == nil && dictation.session.failure(for: GlobalDictation.owner) == nil)
+}
+
+@MainActor @Test func theWidgetWaitingBehindABoxStartsWhenLeavingStopsTheBox() async {
+    let registry = RecognizerRegistry()
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    // the audio ending ends it, so a stop reaches idle
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("")])
+    registry.register(recognizer)
+    dictation.toggle(into: field("session:s"))
+    await untilHolds { dictation.session.state == .listening && dictation.session.modelReady }
+    // the shortcut pressed with the box listening: the widget's dictation waits its turn
+    dictation.session.start(recognizer: recognizer, model: recognizer.models[0], into: field(GlobalDictation.owner))
+    dictation.stopBoxDictation()
+    await untilHolds { dictation.session.owner == GlobalDictation.owner && dictation.session.state == .listening }
+    #expect(dictation.session.owner == GlobalDictation.owner && dictation.session.state == .listening)
+}

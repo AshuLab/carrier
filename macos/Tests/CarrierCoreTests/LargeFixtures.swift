@@ -7,12 +7,17 @@ import Foundation
 /// between runs. Measures how the history groups and draws a long list.
 func longDictationEntries(count: Int, perDay: Int, newest: Date) -> [DictationEntry] {
     let day: TimeInterval = 86_400
-    return (0..<count).map { index in
-        DictationEntry(
-            id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012ld", index))!,
-            started: newest.addingTimeInterval(-day * Double(index / perDay) - Double(index % perDay)),
+    return (0..<count).map { (index: Int) -> DictationEntry in
+        // one step per line: the CI's compiler gives up on the whole initializer as a single expression
+        let id = UUID(uuidString: String(format: "00000000-0000-0000-0000-%012ld", index))!
+        let daysBack: TimeInterval = day * Double(index / perDay)
+        let secondsIn: TimeInterval = Double(index % perDay)
+        let destination: String = index % 3 == 0 ? DictationEntry.carrier : "Slack"
+        let outcome: DictationOutcome = index % 5 == 0 ? .copied : .pasted
+        return DictationEntry(
+            id: id, started: newest.addingTimeInterval(-daysBack - secondsIn),
             text: "Dictation number \(index): please look at the module and tell me what to change.", model: "apple", transcription: 0.4, audio: 5,
-            destination: index % 3 == 0 ? DictationEntry.carrier : "Slack", outcome: index % 5 == 0 ? .copied : .pasted)
+            destination: destination, outcome: outcome)
     }
 }
 

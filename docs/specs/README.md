@@ -82,6 +82,10 @@ Specs of one area that build on each other are listed oldest first.
 - [dictation-in-the-app](dictation-in-the-app.md): dictating into the message box with local speech models. Implemented (v0.4.0).
 - [dictation-live-and-fast](dictation-live-and-fast.md): the model ready before the press, firm and tentative text, Parakeet over whole sentences. Spec.
 
+## macOS app: keep awake
+
+- [keep-awake](keep-awake.md): keeping the Mac from sleeping by hand or while agents work. Implemented (unreleased).
+
 ## macOS app: terminal
 
 - [embedded-terminal-core](embedded-terminal-core.md): native `GhosttyKit` terminal core with tabs, split panes, persistence, settings, and process close guards. Implemented (core only; UI unwired, unreleased).

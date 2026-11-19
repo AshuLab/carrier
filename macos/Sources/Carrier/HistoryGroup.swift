@@ -49,6 +49,7 @@ struct HistoryList: View {
     @State private var open: UUID?
 
     var body: some View {
+        let _ = Signposts.render.emitEvent("history body", "\(records.entries.count) entries")
         let shown = dictationEntries(records.entries, matching: query, outcome: outcome)
         SettingsGroup(title: "") {
             TextField("", text: $query, prompt: Text("Search your dictations")).accessibilityLabel("Search your dictations").settingsField(icon: "magnifyingglass")

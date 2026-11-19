@@ -147,3 +147,16 @@ private func section(_ id: String, _ kind: String, _ files: [FilesReply.File]) -
     #expect(note("something-new") == .note("No preview"))
     #expect(note(nil) == .note("No changes: the file is as it was"))
 }
+
+// MARK: the work of the model
+
+@Test func twoThousandFilesAskTheBundleOncePerIcon() {
+    let reply = largeFilesReply(paths: 2000)
+    #expect(reply.sections.map(\.files.count) == [500, 500, 500, 500])
+    let icons = Set(reply.sections.flatMap(\.files).compactMap { bundledIconName($0.path) })
+    #expect(icons.isEmpty == false)
+    var lookups = 0
+    let model = filesChangedModel(reply, lookups: &lookups)
+    #expect(model.sections.map(\.files.count) == [500, 500, 500, 500])
+    withKnownIssue("the bundle is asked for the icon of every row") { #expect(lookups <= icons.count) }
+}

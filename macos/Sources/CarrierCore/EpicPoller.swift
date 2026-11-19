@@ -34,6 +34,9 @@ public struct Transcript: Equatable {
     public init() {}
 
     public mutating func apply(_ reply: EventsReply) {
+        // runs on the monitor's thread, next to a rebuild on another
+        let signpost = Signposts.feed.beginInterval("transcript apply", id: Signposts.feed.makeSignpostID())
+        defer { Signposts.feed.endInterval("transcript apply", signpost, "\(reply.events.count) events") }
         let fresh = reply.events.filter { seen.insert($0.id).inserted }.sorted { $0.id < $1.id }
         if let first = fresh.first {
             if let last = events.last, first.id < last.id {
@@ -164,6 +167,9 @@ public final class EpicPoller {
 
     /// Sends what is due. A request the engine refuses is dropped until the next hello; a dead connection is thrown.
     public func poll(_ client: ControlClient) throws {
+        let signpost = Signposts.poll.beginInterval("epic poll", id: Signposts.poll.makeSignpostID())
+        var asked = 0
+        defer { Signposts.poll.endInterval("epic poll", signpost, "\(asked) resources") }
         lock.lock()
         let pending = requested
         requested = []
@@ -178,6 +184,7 @@ public final class EpicPoller {
         let moment = now()
         for kind in Kind.allCases where isDue(kind, focus, moment) {
             lastAsked[kind] = moment
+            asked += 1
             do {
                 switch kind {
                 case .epic: if let reply = try client.epic(repo: key.repo, issue: key.issue) { update(key) { $0.epic = reply } }

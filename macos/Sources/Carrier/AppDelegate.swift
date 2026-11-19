@@ -12,8 +12,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isConfirmingTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let launching = Signposts.launch.beginInterval("didFinishLaunching")
+        defer { Signposts.launch.endInterval("didFinishLaunching", launching) }
+        // once, the first time the main run loop is about to sleep: after Core Animation's commit observer (order 2_000_000), so close to the
+        // first frame handed to the window server; compares the work deferred with main.async against it
+        let firstCommit = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, false, CFIndex.max) { _, _ in
+            Signposts.launch.emitEvent("first commit")
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), firstCommit, .commonModes)
         // before the menu, whose "Check for Updates…" item is the updater controller's
+        let updating = Signposts.launch.beginInterval("updater")
         AppUpdater.start()
+        Signposts.launch.endInterval("updater", updating)
         installMainMenu()
         followColorScheme()
         // before anything reads the socket path: the fake engine's home becomes CARRIER_HOME
@@ -22,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             prepareAppCache(CarrierPlaces())
             // Apple's recognizer, which the box's microphone needs: it appears once the system has said which languages it supports; FluidAudio's and Whisper's follow
             Task {
+                Signposts.launch.emitEvent("recognizers task")
                 if let apple = await AppleRecognizer.make() { RecognizerRegistry.shared.register(apple) }
                 RecognizerRegistry.shared.register(FluidAudioRecognizer(modelsRoot: dictationModelsRoot()))
                 RecognizerRegistry.shared.register(WhisperKitRecognizer(modelsRoot: dictationModelsRoot()))
@@ -31,6 +42,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         IconController.install(on: item)
+        // a self-test or a smoke run keeps nothing awake and takes no key of the Mac
+        if Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false {
+            KeepAwakeController.shared.onChange = { IconController.shared?.setAwake($0.holds) }
+            KeepAwakeController.shared.start()
+        }
         if isDevBuild { NSApp.dockTile.badgeLabel = "DEV" }
 
         UserDefaults.standard.register(defaults: [showEpicsKey: true])
@@ -44,7 +60,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         MenuControls.shared.install(in: menu)
         menu.addItem(.separator())
+        KeepAwakeMenu.shared.install(in: menu)
+        menu.addItem(.separator())
+        // the first touch of the window controller builds the panel's model, the epic store and the agent offers
+        let windowController = Signposts.launch.beginInterval("window controller")
         WindowController.shared.addMenuItem(to: menu)
+        Signposts.launch.endInterval("window controller", windowController)
         if fixtureServer != nil { EmptyStatesWindowController.shared.addMenuItem(to: menu) }
         WindowController.shared.addSettingsItem(to: menu)
         WindowController.shared.addAboutItem(to: menu)
@@ -56,11 +77,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SystemNotificationCentre.shared.attachDelegate()
         // the shortcut of the global dictation; a self-test or a smoke run takes no key of the Mac
         if Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false {
+            let dictation = Signposts.launch.beginInterval("dictation")
             GlobalDictationController.shared.start()
             DictationController.shared.startAudioSweep()
+            Signposts.launch.endInterval("dictation", dictation)
         }
         // the Notifications page writes user defaults: the badge follows its switch at once
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            // every write to user defaults lands here: the events count them
+            Signposts.render.emitEvent("defaults changed")
             NotificationWatcher.app.refreshBadge()
             // the Keybindings page writes user defaults: the menu carries the new keys at once
             self?.rebuildMainMenuIfShortcutsChanged()
@@ -110,7 +135,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             selfTest(logPath: path)
         } else if CommandLine.arguments.contains("--smoke-window") == false {
             // an app opens on its window
+            let opening = Signposts.launch.beginInterval("open window")
             WindowController.shared.open()
+            Signposts.launch.endInterval("open window", opening)
         }
     }
 
@@ -127,6 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let monitor = ControlMonitor(socketPath: { controlSocketPath() }, pollEvery: { PollPace.shared.seconds }) { state in
             DispatchQueue.main.async {
                 IconController.shared?.show(state)
+                MainActor.assumeIsolated { KeepAwakeController.shared.epics(working: IconState(state).working) }
                 line.title = state.menuLine
                 self.header.show(state.menuStatus)
                 MenuControls.shared.react(to: state)
@@ -158,11 +186,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             while true {
                 do {
                     let rows = sessionRows(try await host.list(archived: false))
-                    await MainActor.run { NotificationWatcher.app.react(toSessions: rows) }
+                    await MainActor.run {
+                        NotificationWatcher.app.react(toSessions: rows)
+                        KeepAwakeController.shared.sessions(working: rows.filter(\.isWorking).count)
+                    }
                     wait = PollPace.shared.seconds
                     answering = true
                 } catch {
                     if answering { NSLog("Carrier: the chat host does not answer, asking again in a while: %@", String(describing: error)) }
+                    // a host that is not there works on nothing: its last list must not keep the Mac awake
+                    await MainActor.run { KeepAwakeController.shared.sessions(working: 0) }
                     answering = false
                     wait = min(wait * 2, 30)
                 }

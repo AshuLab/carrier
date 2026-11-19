@@ -2,7 +2,7 @@
 /// the order of the cases.
 public enum SettingsPage: String, CaseIterable, Sendable {
     case general = "General", providers = "Providers", appearance = "Appearance", notifications = "Notifications"
-    case keybindings = "Keybindings", dictation = "Dictation"
+    case keybindings = "Keybindings", dictation = "Dictation", keepAwake = "Keep awake"
     case chat = "Chat", sessions = "Sessions", sidebar = "Sidebar", terminal = "Terminal"
     case agents = "Agents", repos = "Repos", behavior = "Behavior"
     case engine = "Engine", health = "Health", about = "About"
@@ -23,7 +23,7 @@ public enum SettingsPage: String, CaseIterable, Sendable {
 
     public var group: Group {
         switch self {
-        case .general, .providers, .appearance, .notifications, .keybindings, .dictation: .app
+        case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake: .app
         case .chat, .sessions, .sidebar, .terminal: .workspace
         case .agents, .repos, .behavior: .carrier
         case .engine, .health, .about: .system
@@ -34,7 +34,7 @@ public enum SettingsPage: String, CaseIterable, Sendable {
     /// would not hold.
     public var usesForm: Bool {
         switch self {
-        case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .chat, .sessions, .sidebar, .terminal, .agents, .behavior, .engine, .about: true
+        case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .agents, .behavior, .engine, .about: true
         case .repos, .health: false
         }
     }
@@ -59,6 +59,7 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         case .chat: "bubble.left.and.text.bubble.right"
         case .dictation: "mic"
         case .keybindings: "keyboard"
+        case .keepAwake: "cup.and.saucer"
         case .about: "info.circle"
         case .providers: "brain"
         case .engine: "cpu"
@@ -81,6 +82,7 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         case .chat: "The message box and the conversation"
         case .dictation: "Speak instead of typing"
         case .keybindings: "The keys that run the app's actions"
+        case .keepAwake: "Keep the Mac from sleeping, by hand or while agents work"
         case .about: "This version, its links and whether Carrier updates by itself"
         case .providers: "The AI providers on this Mac and their accounts"
         case .engine: "How the app runs Carrier"

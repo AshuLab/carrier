@@ -90,6 +90,9 @@ public final class ChatSessionsPoller {
     public func invalidateArchived() { stale.withLock { $0 = true } }
 
     public func poll() async {
+        let signpost = Signposts.poll.beginInterval("sessions poll", id: Signposts.poll.makeSignpostID())
+        var outcome = "failed"
+        defer { Signposts.poll.endInterval("sessions poll", signpost, "\(outcome, privacy: .public)") }
         guard let active = try? await host.list(archived: false) else {
             archived = []
             archivedAt = nil
@@ -108,6 +111,7 @@ public final class ChatSessionsPoller {
             }
         }
         let combined = active + archived
+        outcome = "ok"
         onChange(sessionRows(combined))
         if archivedRefreshedThisPoll {
             onAuthoritativeSessionIds(Set(combined.map(\.id)))

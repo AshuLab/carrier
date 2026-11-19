@@ -322,3 +322,16 @@ private var utc: Calendar {
     off.record(DictationEntry(started: .now, text: "hola", model: "Apple", transcription: 0, audio: 1, destination: "Notes", outcome: .pasted), audio: clip)
     #expect(off.counts.count == 1 && off.entries.isEmpty && off.audioIDs.isEmpty)
 }
+
+// MARK: the work of grouping
+
+/// Noon of 15 November 2026, UTC: a day's dictations a second apart do not cross midnight.
+private let noon = Date(timeIntervalSince1970: 1_794_744_000)
+
+@Test func groupingADayOfFiveThousandDictationsTouchesEachOnce() {
+    let entries = longDictationEntries(count: 5000, perDay: 5000, newest: noon)
+    var work = 0
+    let days = dictationDays(entries, calendar: utc, work: &work)
+    #expect(days.count == 1 && days[0].entries.count == 5000 && days[0].entries == entries)
+    withKnownIssue("each entry copies its day") { #expect(work == 5000) }
+}

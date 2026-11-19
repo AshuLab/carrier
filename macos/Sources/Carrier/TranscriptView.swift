@@ -331,6 +331,8 @@ struct MarkdownView: View {
     }
 
     private var segments: [Segment] {
+        let signpost = Signposts.render.beginInterval("markdown", id: Signposts.render.makeSignpostID())
+        defer { Signposts.render.endInterval("markdown", signpost, "\(text.utf8.count) bytes") }
         var segments: [Segment] = []
         var run: AttributedString?
         func add(_ piece: AttributedString) {

@@ -3,7 +3,7 @@
 Settings in its own window, its sidebar, its search and where each group of pages is described.
 
 Settings is a window of its own (`Carrier/SettingsWindow.swift`: an `NSWindow` hosting a `NavigationSplitView`, as the main window is), not a sheet: it does not stop the main window being used, it keeps its place, size and last page (`CarrierSettingsWindow` autosave, `SettingsNavigator`), and ⌘W closes it.
-The sidebar lists sixteen pages in four groups, each page a colored tile with its symbol (`SettingsPage`, `SettingsSidebar`): App (General, Providers, Appearance, Notifications, Keybindings, Dictation; no heading, and Providers is here because both the engine and the chat host read its accounts), Workspace (Chat, Sessions, Sidebar, Terminal), Carrier (Agents, Repos, Behavior) and System (Engine, Health, About, last).
+The sidebar lists seventeen pages in four groups, each page a colored tile with its symbol (`SettingsPage`, `SettingsSidebar`): App (General, Providers, Appearance, Notifications, Keybindings, Dictation, Keep awake; no heading, and Providers is here because both the engine and the chat host read its accounts), Workspace (Chat, Sessions, Sidebar, Terminal), Carrier (Agents, Repos, Behavior) and System (Engine, Health, About, last).
 The chosen page is on the right under the window's toolbar: the page's name as its title and its line as its subtitle, ‹ › to go back and forward through the pages visited (⌘[ and ⌘], `SettingsHistory`), the page's note (Behavior's "Saved" or why it cannot save, with Ask Carrier again) and, on a page that has a Reset, a ⋯ menu with Reset this page….
 The menu's Settings…, ⌘, and the sidebar's Settings row open it on the page it was left on (`WindowController.showSettings`; it opens the main window too when it was closed, since the pages read what Carrier answers to it), or on the page a caller asks for (the Open Settings button of the stopped-Carrier view asks for Engine, and a reason that points to Health opens Health).
 
@@ -26,7 +26,7 @@ What Carrier is missing (`carrier` or `node` not found, or being looked for) sho
 
 ## The pages
 
-- App: [settings-app](settings-app.md) (General, Providers, Appearance, Notifications, Keybindings) and [dictation](dictation.md#the-dictation-page) (Dictation, after Keybindings: it is global, not of the chat).
+- App: [settings-app](settings-app.md) (General, Providers, Appearance, Notifications, Keybindings), [dictation](dictation.md#the-dictation-page) (Dictation, after Keybindings: it is global, not of the chat) and [keep-awake](keep-awake.md) (Keep awake, last of the group).
 - Workspace: [Sessions](#sessions-page) below (Chat, Sessions, Sidebar) and [Terminal](settings-app.md#terminal).
 - Carrier: [settings-carrier](settings-carrier.md) (Agents, Repos, Behavior).
 - System: [settings-carrier](settings-carrier.md) (Engine), [settings-health](settings-health.md) (Health) and About.

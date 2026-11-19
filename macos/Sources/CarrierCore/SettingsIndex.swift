@@ -122,6 +122,18 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
             + screen(.statistics, "This week", [("This week", "The last 7 days against the 7 before")])
             + screen(.statistics, "Records", [("Records", "Your best day, your longest dictation and your longest streak")])
             + screen(.statistics, "Statistics settings", [("Typing speed", "Used for the time saved"), ("Reset statistics", "Deletes the counters; the history stays")])
+    case .keepAwake:
+        return page(.keepAwake, "Now", [("Now", "Whether the Mac is being kept awake, and the button that turns it on or off")])
+            + page(.keepAwake, "By hand", [
+                ("Length", "What the menu's Keep awake item and the shortcut start"), ("Keep the screen on", "Off lets the screen sleep while the Mac stays awake"),
+                ("Shortcut", "Turns keep awake on or off from any app"),
+            ])
+            + page(.keepAwake, "With agents", [
+                ("Keep awake while agents work", "While an epic runs or a session works"), ("Stay awake after they finish", "Time to read the result before the Mac may sleep"),
+            ])
+            + page(.keepAwake, "Battery and notices", [
+                ("On battery", "What it does when the Mac runs on battery"), ("Tell me when it stops by itself", "A notification when the time runs out or the battery ends it"),
+            ])
     case .chat:
         return page(.chat, "Message box", [
             ("Send with", "The other key makes a new line"), ("While the agent works", "Hold the message, or stop the turn and send it"),

@@ -274,6 +274,7 @@ extension SettingsPage {
         case .appearance, .about: .blue
         case .notifications: .red
         case .dictation: .pink
+        case .keepAwake: .yellow
         case .chat: .teal
         case .sessions: .indigo
         case .sidebar: .cyan
@@ -383,6 +384,7 @@ struct SettingsPages: View {
         case .chat: ChatTabView()
         case .dictation: DictationTabView(place: navigator.place, go: navigator.go)
         case .keybindings: KeybindingsTabView()
+        case .keepAwake: KeepAwakeTabView()
         case .about: AboutTabView()
         case .providers: ProvidersTabView(place: navigator.place, go: navigator.go, back: navigator.back, openAgents: { navigator.go(.agents) })
         case .engine:

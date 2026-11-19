@@ -3,7 +3,7 @@ import Testing
 
 @Test func theAppGroupHasNoHeadingAndHoldsWhatIsSharedAndWhatIsOfTheMac() {
     #expect(SettingsPage.Group.app.heading == nil)
-    #expect(SettingsPage.pages(in: .app) == [.general, .providers, .appearance, .notifications, .keybindings, .dictation])
+    #expect(SettingsPage.pages(in: .app) == [.general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake])
     #expect(SettingsPage.terminal.icon == "terminal" && SettingsPage.terminal.detail == "Theme, font, cursor, padding and shell behavior")
     #expect(SettingsPage.dictation.icon == "mic" && SettingsPage.dictation.detail == "Speak instead of typing")
 }
@@ -32,12 +32,12 @@ import Testing
     #expect(SettingsPage.Group.allCases == [.app, .workspace, .carrier, .system])
     #expect(SettingsPage.Group.allCases.map(\.heading) == [nil, "Workspace", "Carrier", "System"])
     #expect(SettingsPage.allCases == SettingsPage.Group.allCases.flatMap { SettingsPage.pages(in: $0) })
-    #expect(SettingsPage.allCases.count == 16)
+    #expect(SettingsPage.allCases.count == 17)
     #expect(SettingsPage.allCases.allSatisfy { !$0.icon.isEmpty && !$0.detail.isEmpty })
 }
 
 @Test func thePagesOfSettingsThatAreSettingsFormsAreTheOnesMadeOfSimpleRows() {
-    #expect(SettingsPage.allCases.filter(\.usesForm) == [.general, .providers, .appearance, .notifications, .keybindings, .dictation, .chat, .sessions, .sidebar, .terminal, .agents, .behavior, .engine, .about])
+    #expect(SettingsPage.allCases.filter(\.usesForm) == [.general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .agents, .behavior, .engine, .about])
 }
 
 @Test func theLongPagesAreAColumnAndTheListsAndTablesTakeTheWidth() {

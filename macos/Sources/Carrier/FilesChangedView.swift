@@ -18,7 +18,9 @@ struct FilesChangedView: View {
     @State private var flipped: Set<String> = []
 
     var body: some View {
+        let signpost = Signposts.render.beginInterval("files model")
         let model = filesChangedModel(files)
+        let _ = Signposts.render.endInterval("files model", signpost)
         if model.isEmpty {
             EmptyStateView(state: .noFilesChanged).frame(minHeight: 260)
         } else {

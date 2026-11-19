@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The Settings window opens at a readable size the first time, not as a strip with only the window buttons, and centered over the main window.
+- Usage and the Providers page of Settings show a bar for Codex on the free plan, whose only limit is 30 days (it showed none because the page only knew the 5h and weekly windows).
+- Selects outside a form (Usage's filters, the cards of Settings) look like the ones in Settings' forms, and Usage's search box is wider.
+
 ## [0.14.0] - 2026-11-19
 
 Settings in a window of its own with search, Keep awake, a redrawn Providers, Dictation and Agents, a choice of icon sets, and a lighter app while it sits open.

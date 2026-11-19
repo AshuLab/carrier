@@ -709,6 +709,8 @@ struct TerminalDrawerView: View {
     let autoHideOnEmpty: () -> Void
 
     @State private var dragStartHeight: CGFloat?
+    /// The height while the edge is dragged: drawn from here, and written to `height` (the defaults) once, when the drag ends.
+    @State private var dragHeight: CGFloat?
 
     private static let minHeight: CGFloat = 180
 
@@ -716,7 +718,7 @@ struct TerminalDrawerView: View {
     private var activeTab: TerminalTab? { store.activeTab(for: owner) ?? tabs.first }
 
     var body: some View {
-        let clampedHeight = min(max(height, Self.minHeight), max(Self.minHeight, maxHeight))
+        let clampedHeight = min(max(dragHeight ?? height, Self.minHeight), max(Self.minHeight, maxHeight))
         VStack(spacing: 0) {
             resizeHandle
             TerminalTabBarView(
@@ -780,14 +782,16 @@ struct TerminalDrawerView: View {
             horizontal: false,
             isDragging: dragStartHeight != nil,
             accessibilityLabel: "Terminal drawer resize handle",
-            accessibilityValue: "\(Int(min(max(height, Self.minHeight), ceiling).rounded())) points",
+            accessibilityValue: "\(Int(min(max(dragHeight ?? height, Self.minHeight), ceiling).rounded())) points",
             onDragChanged: { deltaY in
                 let base = dragStartHeight ?? height
                 if dragStartHeight == nil { dragStartHeight = base }
-                let proposed = base - deltaY
-                height = min(max(proposed, Self.minHeight), ceiling)
+                dragHeight = min(max(base - deltaY, Self.minHeight), ceiling)
             },
             onDragEnded: {
+                // the defaults are written once per drag, not at every tick of it
+                if let dragHeight { height = dragHeight }
+                dragHeight = nil
                 dragStartHeight = nil
             },
             onAdjust: { increment in

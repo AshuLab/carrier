@@ -9,10 +9,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Settings › Behavior no longer shows a "Saved" note after each change: it saves as you type, and the window only says something when it could not.
+- The app drops the separate agent output window and its watcher, which nothing opened since an epic's output moved to its Agent output tab; the tab reads the same lines through the monitor, so nothing you see changes.
 
 ### Fixed
 
 - Carrier no longer grows in memory while it sits open: about 1 MB a minute went to what the connection to the engine left behind, and it is freed on every poll now.
+- The role summary in Settings is built without the `Text +` that macOS 26 deprecates; it looks the same.
 
 ## [0.14.1] - 2026-11-19
 

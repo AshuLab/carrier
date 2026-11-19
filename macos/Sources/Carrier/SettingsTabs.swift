@@ -457,7 +457,10 @@ func roleSummary(_ fields: RoleFields) -> Text {
     guard set.isEmpty == false else { return Text("Not set").foregroundStyle(.secondary) }
     return set.enumerated().reduce(Text("")) { text, item in
         let (index, part) = item
-        return text + Text(index == 0 ? "" : "  \u{00b7}  ").foregroundStyle(.tertiary) + Text("\(part.0) ").foregroundStyle(.secondary) + Text(part.1).foregroundStyle(.primary)
+        let gap = Text(index == 0 ? "" : "  \u{00b7}  ").foregroundStyle(.tertiary)
+        let label = Text("\(part.0) ").foregroundStyle(.secondary)
+        let value = Text(part.1).foregroundStyle(.primary)
+        return Text("\(text)\(gap)\(label)\(value)")
     }
 }
 

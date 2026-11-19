@@ -34,6 +34,15 @@ import SwiftUI
         }
         return actions
     }()
+    init() {
+        // after the terminals of the session are closed, the window leaves it if it is the one on screen
+        let closeTerminals = actions.didRemoveSession
+        actions.didRemoveSession = { [shell] sessionId in
+            closeTerminals(sessionId)
+            shell.sessionRemoved(sessionId)
+        }
+    }
+
     var collapse = SidebarCollapse()
     /// The chat host's sessions (`ChatSessionsPoller`), with which of them are unread.
     var sessions = Sessions()

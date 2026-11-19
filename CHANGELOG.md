@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Archiving (or deleting) the session on screen goes to a new session, so the next task starts there, and the conversation no longer stays on screen.
 - The Settings window opens at a readable size the first time, not as a strip with only the window buttons, and centered over the main window.
 - Hovering a link in a message no longer leaves dark rectangles over the rest of the text.
 - The provider's mark on the corner of an avatar (a role's, a session's) is on an opaque disc, so it is seen over a picture.

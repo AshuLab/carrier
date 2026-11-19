@@ -333,5 +333,23 @@ private let noon = Date(timeIntervalSince1970: 1_794_744_000)
     var work = 0
     let days = dictationDays(entries, calendar: utc, work: &work)
     #expect(days.count == 1 && days[0].entries.count == 5000 && days[0].entries == entries)
-    withKnownIssue("each entry copies its day") { #expect(work == 5000) }
+    #expect(work == 5000)
+}
+
+@Test func theHistoryDrawsOnlyTheFirstPageOfWhatMatchesAndSaysHowManyMatch() {
+    let entries = longDictationEntries(count: 5000, perDay: 2000, newest: noon)
+    let first = dictationHistory(entries, matching: "", outcome: nil, limit: dictationHistoryPage, calendar: utc)
+    #expect(first.matched == 5000 && first.days.map(\.entries.count).reduce(0, +) == dictationHistoryPage)
+    #expect(first.days.flatMap(\.entries) == Array(entries.prefix(dictationHistoryPage)))
+    let all = dictationHistory(entries, matching: "", outcome: nil, limit: 10_000, calendar: utc)
+    #expect(all.matched == 5000 && all.days.map(\.entries.count).reduce(0, +) == 5000)
+}
+
+@Test func theHistoryCountsWhatMatchesNotWhatItDraws() {
+    // the fixture's destination is "Slack" or Carrier, so "slack" matches two of every three entries
+    let entries = longDictationEntries(count: 600, perDay: 600, newest: noon)
+    let found = dictationHistory(entries, matching: "slack", outcome: nil, limit: dictationHistoryPage, calendar: utc)
+    let matching = dictationEntries(entries, matching: "slack", outcome: nil)
+    #expect(matching.count == 400 && found.matched == 400)
+    #expect(found.days.flatMap(\.entries) == Array(matching.prefix(dictationHistoryPage)))
 }

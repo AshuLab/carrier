@@ -288,7 +288,7 @@ public func dictationEntries(_ entries: [DictationEntry], matching query: String
 /// The entries of one day, newest first.
 public struct DictationDay: Identifiable, Equatable, Sendable {
     public let day: Date
-    public let entries: [DictationEntry]
+    public internal(set) var entries: [DictationEntry]
     public var id: Date { day }
 }
 
@@ -303,15 +303,25 @@ func dictationDays(_ entries: [DictationEntry], calendar: Calendar, work: inout 
     var days: [DictationDay] = []
     for entry in entries {
         let day = calendar.startOfDay(for: entry.started)
-        if let last = days.last, last.day == day {
-            work += last.entries.count + 1
-            days[days.count - 1] = DictationDay(day: day, entries: last.entries + [entry])
+        work += 1
+        if days.last?.day == day {
+            days[days.count - 1].entries.append(entry)
         } else {
-            work += 1
             days.append(DictationDay(day: day, entries: [entry]))
         }
     }
     return days
+}
+
+/// How many entries the History list draws before "Show more", and how many more each press adds.
+public let dictationHistoryPage = 100
+
+/// What the History list draws: the first `limit` entries that match, grouped by day, and how many match in all.
+public func dictationHistory(
+    _ entries: [DictationEntry], matching query: String, outcome: DictationOutcome?, limit: Int, calendar: Calendar = .current
+) -> (days: [DictationDay], matched: Int) {
+    let matched = dictationEntries(entries, matching: query, outcome: outcome)
+    return (dictationDays(Array(matched.prefix(limit)), calendar: calendar), matched.count)
 }
 
 /// "Today", "Yesterday", or the weekday and date, as the day's heading.

@@ -67,7 +67,7 @@ struct NewSessionView: View {
     /// the other cases (no git repository, a bare one, the host not answering yet) are said in words, as `model.sentence` has them.
     @ViewBuilder private var sentence: some View {
         VStack(alignment: .leading, spacing: 6) {
-            FlowLayout(spacing: 6) {
+            FlowLayout(spacing: 8) {
                 Text("Work in")
                 Button {
                     if foldersOpen == false { model.openPicker() }
@@ -81,8 +81,12 @@ struct NewSessionView: View {
                 .buttonStyle(SelectButtonStyle()).accessibilityLabel("Workspace")
                 .sheet(isPresented: $foldersOpen) { WorkspaceSheet(model: model, openHealth: openHealth).themed() }
                 if model.folder != nil {
-                    Button { model.clearWorkspace() } label: { Glyph(.closeCircleFilled).foregroundStyle(.secondary) }
-                        .buttonStyle(.plain).accessibilityLabel("Clear workspace").help("Clear the workspace")
+                    // the circle of the selects' chevrons, with a cross
+                    Button { model.clearWorkspace() } label: {
+                        Glyph(.close, size: 8, bold: true).foregroundStyle(.primary.opacity(0.85))
+                            .frame(width: 18, height: 18).background(Circle().fill(Color.primary.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain).accessibilityLabel("Clear workspace").help("Clear the workspace")
                 }
                 if model.loadingBranches { ProgressView().controlSize(.small) }
                 if model.folder != nil {
@@ -138,10 +142,12 @@ struct NewSessionView: View {
     /// button takes `SelectButtonStyle`.
     private func chip(_ title: String, tint: Color = .primary, icon: AppIcon? = nil) -> some View {
         HStack(spacing: 6) {
-            if let icon { Glyph(icon, size: 11).foregroundStyle(.secondary) }
+            if let icon { Glyph(icon, size: 13).foregroundStyle(.secondary).frame(width: 15) }
             Text(title).fontWeight(.medium).foregroundStyle(tint)
             SelectChevron()
         }
+        // with the button's 4 pt above and below, as tall as the worktree's name field
+        .frame(height: controlHeight - 8)
     }
 
     /// What sending does, a step each: its badge, what it does in a few words and the sentence that tells it, with the names in monospace and
@@ -189,7 +195,7 @@ struct NewSessionView: View {
                     .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
                     .foregroundStyle(nameColor).accessibilityLabel("Worktree name")
             }
-            Button { Task { await model.rollName() } } label: { Glyph(.refresh) }
+            Button { Task { await model.rollName() } } label: { Glyph(.refresh, size: 13) }
                 .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
         }
         .font(.callout.monospaced())

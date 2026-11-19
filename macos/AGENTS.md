@@ -11,7 +11,6 @@ A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the
 
 The gated recognizer tests (`AppleRecognizerTests`, `FluidAudioRecognizerTests`, `WhisperKitRecognizerTests`) run only with `CARRIER_IT_DICTATION` naming a folder laid out as the app keeps its models ([layout](../docs/macos/dictation.md#speech-models)).
 The live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetection`, `CarrierTerminalStoreTests`) spawns a real Ghostty surface offscreen and runs only with `CARRIER_IT_TERMINAL=1`.
-`writesTheLargeFixturesForAMeasurementByHand` (`LargeFixturesTests`) runs only with `CARRIER_PERF_FIXTURES=<folder>` and writes the large fixtures for a measurement by hand ([README](README.md#measuring-performance)).
 
 ## Starting Carrier and the chat host
 

@@ -703,7 +703,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
 
     /// One round: reads pages until one is not full, then rebuilds the feed when something changed.
     public func poll() async {
-        // two polls can overlap (IPC-10), so each interval has its own id
+        // two polls can overlap, so each interval has its own id
         let signpost = Signposts.poll.beginInterval("conversation poll", id: Signposts.poll.makeSignpostID())
         let eventsBefore = events.count
         var changed = loaded == false

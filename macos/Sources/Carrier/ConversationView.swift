@@ -49,7 +49,7 @@ struct ConversationView: View {
         _subagents = subagents
         _header = header
         self.cancelled = cancelled
-        // a model made at every pass over the parent's body is IPC-12: the events count them
+        // a model made at every pass over the parent's body is wasted work: the events count them
         Signposts.render.emitEvent("ConversationModel init")
         let model = ConversationModel(host: SocketChatHost(), sessionId: sessionId, memory: .userDefaults)
         model.onQuotaError = { AppUsage.refresher.limitHit() }

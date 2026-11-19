@@ -333,5 +333,5 @@ private let noon = Date(timeIntervalSince1970: 1_794_744_000)
     var work = 0
     let days = dictationDays(entries, calendar: utc, work: &work)
     #expect(days.count == 1 && days[0].entries.count == 5000 && days[0].entries == entries)
-    withKnownIssue("GAP-A1: each entry copies its day (P15)") { #expect(work == 5000) }
+    withKnownIssue("each entry copies its day") { #expect(work == 5000) }
 }

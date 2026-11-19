@@ -1667,7 +1667,7 @@ private final class Flag: @unchecked Sendable { var raised = false }
     host.events.append(say(5006))
     await model.poll()
     #expect(model.cursor == 5006)
-    withKnownIssue("UI-3: the feed is rebuilt from every event (P12)") { #expect(model.feedWork - before == 1) }
+    withKnownIssue("the feed is rebuilt from every event") { #expect(model.feedWork - before == 1) }
 }
 
 @MainActor @Test func aStreamingTokenCostsAtMostOneUnitOfFeedWork() async {
@@ -1675,5 +1675,5 @@ private final class Flag: @unchecked Sendable { var raised = false }
     let before = model.feedWork
     host.streaming = "Module 715 has"
     await model.poll()
-    withKnownIssue("UI-3: the feed is rebuilt from every event (P12)") { #expect(model.feedWork - before <= 1) }
+    withKnownIssue("the feed is rebuilt from every event") { #expect(model.feedWork - before <= 1) }
 }

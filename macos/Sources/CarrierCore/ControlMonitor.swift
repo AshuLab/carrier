@@ -1,6 +1,6 @@
 import Foundation
 
-/// Whether a new state is worth publishing to the window over the one it shows. Today any difference is, `now` included; IPC-6 narrows it.
+/// Whether a new state is worth publishing to the window over the one it shows. Today any difference is, `now` included (the engine moves it at every poll); a later change narrows it.
 public func publishes(_ new: ConnectionState, over old: ConnectionState?) -> Bool { new != old }
 
 public enum ConnectionState: Equatable {

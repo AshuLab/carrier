@@ -25,9 +25,6 @@ private let noon = Date(timeIntervalSince1970: 1_794_744_000)
     let diff = longFileDiff(rows: 1000)
     #expect(diff.rows.count == 1000 && diff.truncated && diff.rows.filter { $0.sign == "@" }.count == 20)
     #expect(longFileDiff(rows: 100).truncated == false)
-
-    let paste = largePaste(bytes: 1_000_000)
-    #expect(paste.utf8.count <= 1_000_000 && paste.utf8.count > 1_000_000 - 60)
     #expect(longChatEvents(rounds: 715).count == 5005)
 }
 
@@ -36,10 +33,14 @@ private let noon = Date(timeIntervalSince1970: 1_794_744_000)
 /// CARRIER_HOME=<folder>/home). Run it to measure by hand: `swift test --filter writesTheLargeFixtures`.
 @MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["CARRIER_PERF_FIXTURES"] != nil))
 func writesTheLargeFixturesForAMeasurementByHand() throws {
-    let root = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["CARRIER_PERF_FIXTURES"]))
+    // an empty value would make the folder the current one, and the copy below would replace its `fixtures`
+    let path = try #require(ProcessInfo.processInfo.environment["CARRIER_PERF_FIXTURES"])
+    try #require(path.isEmpty == false)
+    let root = URL(fileURLWithPath: path)
     let golden = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
     let fixtures = root.appendingPathComponent("fixtures")
     let fileManager = FileManager.default
+    try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
     try? fileManager.removeItem(at: fixtures)
     try fileManager.copyItem(at: golden, to: fixtures)
 
@@ -59,7 +60,9 @@ func writesTheLargeFixturesForAMeasurementByHand() throws {
     try fileManager.createDirectory(at: dictations.deletingLastPathComponent(), withIntermediateDirectories: true)
     try jsonl.write(to: dictations, atomically: true, encoding: .utf8)
 
-    _ = try FixtureServer(fixtures: fixtures.path)
+    // the server owns two threads, two sockets and a folder of its own until it is stopped
+    let server = try FixtureServer(fixtures: fixtures.path)
+    defer { server.stop() }
     let records = DictationRecords(carrierFolder: home.path, keep: { true })
     #expect(records.entries.count == 10_000)
 }

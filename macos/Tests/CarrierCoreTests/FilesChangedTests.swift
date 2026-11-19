@@ -158,5 +158,5 @@ private func section(_ id: String, _ kind: String, _ files: [FilesReply.File]) -
     var lookups = 0
     let model = filesChangedModel(reply, lookups: &lookups)
     #expect(model.sections.map(\.files.count) == [500, 500, 500, 500])
-    withKnownIssue("GAP-A2: the bundle is asked for the icon of every row (P15)") { #expect(lookups <= icons.count) }
+    withKnownIssue("the bundle is asked for the icon of every row") { #expect(lookups <= icons.count) }
 }

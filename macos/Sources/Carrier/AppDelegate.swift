@@ -15,7 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let launching = Signposts.launch.beginInterval("didFinishLaunching")
         defer { Signposts.launch.endInterval("didFinishLaunching", launching) }
         // once, the first time the main run loop is about to sleep: after Core Animation's commit observer (order 2_000_000), so close to the
-        // first frame handed to the window server; LM-2 compares the work deferred with main.async against it
+        // first frame handed to the window server; compares the work deferred with main.async against it
         let firstCommit = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, false, CFIndex.max) { _, _ in
             Signposts.launch.emitEvent("first commit")
         }
@@ -84,7 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // the Notifications page writes user defaults: the badge follows its switch at once
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
-            // every write to user defaults lands here (LM-4): the events count them
+            // every write to user defaults lands here: the events count them
             Signposts.render.emitEvent("defaults changed")
             NotificationWatcher.app.refreshBadge()
             // the Keybindings page writes user defaults: the menu carries the new keys at once

@@ -8,7 +8,7 @@ import SwiftUI
     var state: ConnectionState? {
         // an epic that stops on a usage limit has used up a quota: the Usage page's numbers are asked again
         didSet {
-            // counts what the window is handed (IPC-6): a clock that moved is one more
+            // counts what the window is handed: a clock that moved is one more
             Signposts.render.emitEvent("panel state")
             if usageLimitEntered(from: oldValue, to: state) { MainActor.assumeIsolated { _ = AppUsage.refresher.limitHit() } }
         }
@@ -564,6 +564,7 @@ final class WindowController: NSObject, NSWindowDelegate {
             wait: sleep,
             tick: { try poller.poll($0) },
             onChange: { state in
+                // an equal state is not assigned: the observer ignores it anyway, and the "panel state" signpost counts only what differs
                 DispatchQueue.main.async { if stop.isSet == false, publishes(state, over: model.state) { model.state = state } }
             }
         )

@@ -140,5 +140,5 @@ private let agents = PanelSnapshot.Agents(
     #expect(publishes(.running(snapshot), over: nil) && publishes(.stopped, over: .running(snapshot)))
     var later = snapshot
     later.now += 2_000
-    withKnownIssue("IPC-6: now changes at every poll (P12)") { #expect(publishes(.running(later), over: .running(snapshot)) == false) }
+    withKnownIssue("now changes at every poll, so every snapshot is published") { #expect(publishes(.running(later), over: .running(snapshot)) == false) }
 }

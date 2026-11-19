@@ -119,7 +119,7 @@ public func reloadOffMain(_ reload: @escaping Reload) async -> ReloadOutcome {
 /// thread and the ask is made at once; from any other thread it is made as soon as the main actor is free.
 public func reloadInBackground() -> ReloadOutcome? {
     if Thread.isMainThread {
-        MainActor.assumeIsolated { ReloadStatus.shared.ask() }
+        MainActor.assumeIsolated { _ = ReloadStatus.shared.ask() }
     } else {
         Task { @MainActor in ReloadStatus.shared.ask() }
     }

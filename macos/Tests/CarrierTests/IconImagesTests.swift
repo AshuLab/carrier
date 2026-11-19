@@ -37,7 +37,9 @@ func anInlineImageIsATemplateOfTheSizeOfTheTextForAnSVGAndOfItsPointSizeForASymb
     }
 }
 
-@Test func theSystemTakesTheSFSymbolOfEveryIconWhateverTheSetIs() {
+// On the main actor, like the tests that draw: the first use of AppKit starts its menu system once per process. Started from a thread of
+// the pool while a test on the main thread reaches it too, the two wait for each other and the run hangs until the watchdog cuts it.
+@MainActor @Test func theSystemTakesTheSFSymbolOfEveryIconWhateverTheSetIs() {
     for icon in AppIcon.allCases {
         #expect(NSImage(systemSymbolName: icon.systemSymbolName, accessibilityDescription: nil) != nil, Comment(rawValue: "\(icon)"))
         #expect(iconAsset(icon, in: .sfSymbols) == .symbol(icon.systemSymbolName))

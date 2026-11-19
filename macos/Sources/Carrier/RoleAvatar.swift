@@ -96,7 +96,6 @@ struct RoleAvatar: View {
         return AccountMark(account: account, icon: icon, size: diameter * 0.58)
             .foregroundStyle(.primary)
             .frame(width: diameter, height: diameter)
-            .background(Circle().fill(Color.themeWindow))
-            .overlay(Circle().strokeBorder(Color.primary.opacity(0.14), lineWidth: 1))
+            .avatarCornerDisc()
     }
 }

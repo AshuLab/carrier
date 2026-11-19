@@ -57,7 +57,7 @@ struct ConsumptionSection: View {
                 label: "Source", options: [(.all, "All sources"), (.epic, "Epic"), (.chat, "Chat"), (.external, "External")], selection: $store.sourceFilter
             )
             Spacer(minLength: 8)
-            TextField("Search model or workspace", text: $store.searchText).settingsField(width: 200, icon: .search)
+            TextField("Search model or workspace", text: $store.searchText).settingsField(width: 300, icon: .search)
         }
     }
 

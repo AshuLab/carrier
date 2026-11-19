@@ -34,6 +34,15 @@ import SwiftUI
         }
         return actions
     }()
+    init() {
+        // after the terminals of the session are closed, the window leaves it if it is the one on screen
+        let closeTerminals = actions.didRemoveSession
+        actions.didRemoveSession = { [shell] sessionId in
+            closeTerminals(sessionId)
+            shell.sessionRemoved(sessionId)
+        }
+    }
+
     var collapse = SidebarCollapse()
     /// The chat host's sessions (`ChatSessionsPoller`), with which of them are unread.
     var sessions = Sessions()
@@ -150,7 +159,7 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// what Carrier answers to it (its state, its repos), and Settings is a window of its own over it that does not stop it being used.
     func showSettings(_ page: SettingsPage? = nil, place: SettingsPlace? = nil) {
         open()
-        MainActor.assumeIsolated { SettingsWindowController.shared.show(page, place: place, model: model) }
+        MainActor.assumeIsolated { SettingsWindowController.shared.show(page, place: place, model: model, over: window) }
     }
 
     /// For the self-test.

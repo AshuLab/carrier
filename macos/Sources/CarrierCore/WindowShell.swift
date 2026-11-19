@@ -96,6 +96,11 @@ public struct ArchiveRequest: Equatable {
             }
         }
     }
+    /// A session that was archived or deleted while it is on screen has nothing to show: the window goes to a new session, where the next task starts.
+    public func sessionRemoved(_ id: String) {
+        if selection == .session(id: id) { selection = .newSession }
+    }
+
     /// The subagent views open over the open conversation, outermost first, each the call that launched it: Back leaves the last. A session
     /// is left with none open.
     public var subagents: [String] = []

@@ -146,7 +146,7 @@ struct BranchSheet: View {
                 Glyph(.cloud).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text("Branches as GitHub lists them now. The repository is cloned when the message is sent.").font(.subheadline)
                 Spacer(minLength: 16)
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
             }
             .padding(.horizontal, 20).padding(.vertical, 12)
         } else {
@@ -173,7 +173,7 @@ struct BranchSheet: View {
                 }
                     .controlSize(.small).disabled(model.fetching).help("Ask the remote for its latest branches")
                 Spacer(minLength: 16)
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
             }
             if let problem = model.fetchProblem {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {

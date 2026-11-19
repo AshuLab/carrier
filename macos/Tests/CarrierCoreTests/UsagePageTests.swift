@@ -42,6 +42,8 @@ private func window(_ used: Double, resetsAt: Int? = nil, label: String = "5h", 
     #expect(quotaKind(window(0, label: "5h")) == .fiveHour && quotaKind(window(0, label: "Gemini Models · Five Hour Limit Remaining")) == .fiveHour)
     #expect(quotaKind(window(0, label: "7d")) == .weekly && quotaKind(window(0, label: "Weekly Limit Remaining")) == .weekly)
     #expect(quotaKind(window(0, label: "7d Opus")) == nil)
+    // Codex's free plan has one window of 30 days (43 200 minutes): it is a meter like the others
+    #expect(quotaKind(window(100, label: "30d")) == .monthly)
 }
 
 @Test func aResetIsCountedDownOrSaidInTheProvidersWords() {

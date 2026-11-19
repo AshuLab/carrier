@@ -92,7 +92,8 @@ struct TerminalRows: View {
                 case .empty:
                     let empty = EmptyState.noTerminals
                     SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
-                        Button("New Terminal Session", action: newTerminal)
+                        // the pill of the title bar's New Terminal
+                        AccentGlassPillButton(title: "New Terminal", icon: .plus, action: newTerminal)
                             .help("New terminal session")
                     }
                 case .noMatch(let typed):

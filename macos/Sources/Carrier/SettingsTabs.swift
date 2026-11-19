@@ -299,13 +299,30 @@ struct SettingsStackedRow<Control: View>: View {
 struct SelectMenu: View {
     let items: [String]
     @Binding var selection: Int
+    @Environment(\.settingsForm) private var form
 
     var body: some View {
-        Picker(selection: $selection) {
-            ForEach(items.indices, id: \.self) { Text(items[$0]).tag($0) }
-        } label: { EmptyView() }
-        // no tint of the theme's: the window's own tint reaches the picker and colors it, and the system's is neutral
-        .pickerStyle(.menu).labelsHidden().fixedSize().tint(nil)
+        if form {
+            Picker(selection: $selection) {
+                ForEach(items.indices, id: \.self) { Text(items[$0]).tag($0) }
+            } label: { EmptyView() }
+            // no tint of the theme's: the window's own tint reaches the picker and colors it, and the system's is neutral
+            .pickerStyle(.menu).labelsHidden().fixedSize().tint(nil)
+        } else {
+            // outside a form the system draws a pop-up in a box: the same face by hand (the words and the circle), over the same system menu and check
+            Menu {
+                Picker(selection: $selection) {
+                    ForEach(items.indices, id: \.self) { Text(items[$0]).tag($0) }
+                } label: { EmptyView() }
+                .pickerStyle(.inline).labelsHidden()
+            } label: {
+                HStack(spacing: 6) {
+                    Text(items.indices.contains(selection) ? items[selection] : (items.first ?? "")).lineLimit(1)
+                    SelectChevron()
+                }
+            }
+            .menuStyle(.button).buttonStyle(SelectButtonStyle()).menuIndicator(.hidden).fixedSize()
+        }
     }
 }
 
@@ -329,8 +346,12 @@ struct SelectButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .padding(.vertical, 4)
-                .opacity(enabled ? (configuration.isPressed ? 0.55 : hovered ? 0.8 : 1) : 0.5)
+                .padding(.vertical, 4).padding(.horizontal, 6)
+                // the box a pop-up has, shown only under the pointer (and a little more when pressed); the margin it takes is given back, so the
+                // word stays where it was and a row's right edge is the same with and without it
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(enabled ? (configuration.isPressed ? 0.14 : hovered ? 0.08 : 0) : 0)))
+                .padding(.horizontal, -6)
+                .opacity(enabled ? 1 : 0.5)
                 .contentShape(Rectangle())
                 .onHover { hovered = $0 }
                 .animation(.easeOut(duration: 0.12), value: hovered)

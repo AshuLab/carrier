@@ -29,7 +29,7 @@ struct SettingsTabRow<Control: View>: View {
             Text(title).fontWeight(.medium)
             if detail.isEmpty == false || problem != nil {
                 Group {
-                    if let problem { Text("\(Image(systemName: "exclamationmark.triangle.fill")) \(problem)").foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
+                    if let problem { Label(problem, icon: .warningFilled, size: 11).foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
                 }
                 .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(11)).lineLimit(2).truncationMode(.middle)
             }
@@ -86,13 +86,13 @@ extension EnvironmentValues {
 /// The save of the screen that is open (an account's editor): set by the screen while it has something to save, read by the toolbar's button.
 @MainActor @Observable final class SettingsSave {
     private(set) var title: String?
-    private(set) var icon = "checkmark"
+    private(set) var icon = AppIcon.check
     private(set) var enabled = false
     private(set) var run: (() -> Void)?
     @ObservationIgnored private var owner: UUID?
 
     /// `icon` is the verb's own (Save a check, Add a plus), as the guide gives each button.
-    func set(_ owner: UUID, title: String, icon: String = "checkmark", enabled: Bool, run: @escaping () -> Void) {
+    func set(_ owner: UUID, title: String, icon: AppIcon = .check, enabled: Bool, run: @escaping () -> Void) {
         self.owner = owner
         self.title = title
         self.icon = icon
@@ -167,7 +167,7 @@ struct SettingsDivider: View {
 /// while it has the focus. Put it on a `TextField`; a click anywhere in the box, padding included, puts the cursor in it.
 private struct SettingsFieldModifier: ViewModifier {
     let width: CGFloat?
-    let icon: String?
+    let icon: AppIcon?
     @Environment(\.settingsInvalid) private var invalid
     /// The caller's own focus state, when it needs to know about the focus (to save as the person leaves the field); else the field keeps its own.
     let external: FocusState<Bool>.Binding?
@@ -179,10 +179,10 @@ private struct SettingsFieldModifier: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         HStack(spacing: 7) {
-            if let icon { Image(systemName: icon).font(.scaled(12, weight: .medium)).foregroundStyle(.secondary).accessibilityHidden(true) }
+            if let icon { Glyph(icon, size: 12).foregroundStyle(.secondary) }
             // a form makes a field's title its label, at the left of it, and aligns its text to the trailing edge: here the title is the prompt
             content.textFieldStyle(.plain).labelsHidden().multilineTextAlignment(.leading).focused(focus).focusEffectDisabled()
-            if invalid { Image(systemName: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange).accessibilityHidden(true) }
+            if invalid { Glyph(.warningFilled, size: 11).foregroundStyle(.orange).accessibilityHidden(true) }
         }
             .padding(.horizontal, 10).padding(.vertical, 6)
             // a fixed width, or the whole width it is given
@@ -197,9 +197,9 @@ private struct SettingsFieldModifier: ViewModifier {
 }
 
 extension View {
-    /// `icon` is an SF Symbol drawn inside the box before the text (a magnifying glass for a search).
+    /// `icon` is drawn inside the box before the text (a magnifying glass for a search).
     /// Inside a row with a `problem` the ring is orange and a warning mark sits in the box, the same size as without them: nothing moves.
-    func settingsField(width: CGFloat? = nil, icon: String? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
+    func settingsField(width: CGFloat? = nil, icon: AppIcon? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
         modifier(SettingsFieldModifier(width: width, icon: icon, external: focused))
     }
 }
@@ -208,7 +208,7 @@ extension View {
 /// a set that excludes each other is "All".
 struct FilterChip: View {
     let title: String
-    var icon: String?
+    var icon: AppIcon?
     let on: Bool
     let action: () -> Void
     @State private var hovered = false
@@ -216,7 +216,7 @@ struct FilterChip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                if let icon { Image(systemName: icon).font(.scaled(10, weight: .semibold)) }
+                if let icon { Glyph(icon, size: 11) }
                 Text(title).font(.scaled(12, weight: .medium))
             }
             .foregroundStyle(on ? Color.themeAccent : hovered ? Color.primary : Color.secondary)
@@ -233,7 +233,7 @@ struct FilterChip: View {
 /// A few choices that exclude each other, in one grey capsule: the chosen one is a lighter capsule inside it, never the accent. Every choice
 /// has the same type and padding whether chosen or not, so nothing changes size when the choice moves (Usage's metric and range).
 struct SegmentedChoice<Value: Hashable>: View {
-    let options: [(value: Value, title: String, icon: String?)]
+    let options: [(value: Value, title: String, icon: AppIcon?)]
     @Binding var selection: Value
 
     var body: some View {
@@ -248,7 +248,7 @@ struct SegmentedChoice<Value: Hashable>: View {
 
     private struct Segment: View {
         let title: String
-        let icon: String?
+        let icon: AppIcon?
         let on: Bool
         let action: () -> Void
         @State private var hovered = false
@@ -256,7 +256,7 @@ struct SegmentedChoice<Value: Hashable>: View {
         var body: some View {
             Button(action: action) {
                 HStack(spacing: 5) {
-                    if let icon { Image(systemName: icon).font(.scaled(10, weight: .semibold)) }
+                    if let icon { Glyph(icon, size: 11) }
                     Text(title).font(.scaled(12, weight: .medium))
                 }
                 .foregroundStyle(on ? Color.primary : Color.secondary)
@@ -349,7 +349,7 @@ private struct CopyOnHover: ViewModifier {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             content
             Button(action: copy) {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.scaled(10.5, weight: .medium))
+                Glyph(copied ? .check : .copy, size: 11)
                     .foregroundStyle(copied ? Color.green : Color.secondary).frame(width: 20, height: 20)
                     .background(Circle().fill(Color.primary.opacity(0.1))).contentShape(Circle())
             }
@@ -397,13 +397,13 @@ extension View {
 /// A state as a 16 pt round mark with a white symbol: `checkmark` green for ready, `exclamationmark` yellow for a warning, `xmark` orange for a
 /// failure. Next to a spinner (`ProgressView().controlSize(.mini)` in the same 16 pt) for what is still being looked at.
 struct StatusMark: View {
-    let symbol: String
+    let symbol: AppIcon
     let color: Color
     let label: String
 
     var body: some View {
-        Image(systemName: symbol).font(.scaled(9, weight: .heavy)).foregroundStyle(.white)
-            .frame(width: 16, height: 16).background(Circle().fill(color)).accessibilityLabel(label)
+        Glyph(symbol, size: 10, bold: true).foregroundStyle(.white)
+            .frame(width: 16, height: 16).background(Circle().fill(color)).accessibilityElement(children: .ignore).accessibilityLabel(label)
     }
 }
 
@@ -417,11 +417,11 @@ struct RoleTile: View {
     var body: some View {
         Group {
             if off {
-                Image(systemName: "power").font(.scaled(14, weight: .medium)).foregroundStyle(.tertiary)
+                Glyph(.power, size: 14).foregroundStyle(.tertiary)
             } else if let provider, let icon = icons[provider] {
                 ProviderMark(name: icon, size: 17)
             } else {
-                Image(systemName: "questionmark.circle").font(.scaled(15)).foregroundStyle(.secondary)
+                Glyph(.help, size: 15).foregroundStyle(.secondary)
             }
         }
         .frame(width: 34, height: 34).background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.07)))
@@ -526,9 +526,9 @@ struct SettingsNoteView: View {
         HStack(spacing: 10) {
             Group {
                 switch note.tone {
-                case .saved: Label(note.text, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                case .plain: Label(note.text, systemImage: "info.circle").foregroundStyle(.secondary)
+                case .saved: Label(note.text, icon: .checkCircleFilled).foregroundStyle(.green)
+                case .problem: Label(note.text, icon: .warningFilled).foregroundStyle(.orange)
+                case .plain: Label(note.text, icon: .info).foregroundStyle(.secondary)
                 }
             }
             .font(.scaled(12)).lineLimit(2).frame(maxWidth: 420, alignment: .trailing)
@@ -544,7 +544,7 @@ struct ProblemLine: View {
     var announces = true
 
     var body: some View {
-        Label(text, systemImage: "exclamationmark.triangle.fill").font(font).foregroundStyle(.orange)
+        Label(text, icon: .warningFilled).font(font).foregroundStyle(.orange)
             .fixedSize(horizontal: false, vertical: true)
             .onAppear { if announces { AccessibilityNotification.Announcement(text).post() } }
             .onChange(of: text) { _, text in if announces { AccessibilityNotification.Announcement(text).post() } }
@@ -565,7 +565,7 @@ struct ReloadNote: View {
                     ProblemLine(text: words, announces: false)
                     AskAgainButton()
                 } else {
-                    Label(words, systemImage: "info.circle").font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Label(words, icon: .info).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
             }
@@ -579,7 +579,7 @@ struct AskAgainButton: View {
     private let engine = ReloadStatus.shared
 
     var body: some View {
-        Button { engine.ask() } label: { Label("Ask Carrier again", systemImage: "arrow.clockwise") }
+        Button { engine.ask() } label: { Label("Ask Carrier again", icon: .refresh) }
             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(engine.pending)
     }
 }
@@ -728,6 +728,8 @@ struct AppearanceTabView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var scheme
     @AppStorage(TypeScale.percentKey) private var textSize = 100
+    @AppStorage(IconWeight.key) private var iconWeight = IconWeight.defaultWeight
+    @AppStorage(IconSet.key) private var iconSet = IconSet.defaultSet.rawValue
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     @AppStorage(AppPreferences.monospaceFamilyKey) private var family = MonospaceSettings.systemFamily
     @AppStorage(AppPreferences.monospaceSizeKey) private var codeSize = Double(MonospaceSettings.defaultSize)
@@ -746,6 +748,17 @@ struct AppearanceTabView: View {
 
     private func codePreview() -> some View {
         SettingsPreview { CodeBlockView(language: "swift", code: Self.sample) }
+    }
+
+    /// A few of the icons as they are drawn now, larger than in a row so the stroke the weight sets can be seen.
+    private var iconsPreview: some View {
+        SettingsPreview {
+            // wraps when the text size and the window leave less than the ten icons need in a row
+            FlowLayout(spacing: 22) {
+                ForEach([AppIcon.search, .settings, .folder, .copy, .bell, .trash, .refresh, .lock, .microphone, .terminal], id: \.self) { Glyph($0, size: 22) }
+            }
+            .foregroundStyle(.primary).frame(maxWidth: .infinity)
+        }
     }
 
     @AppStorage(AppPreferences.statesByShapeKey) private var statesByShape = false
@@ -788,6 +801,18 @@ struct AppearanceTabView: View {
                     )
                     .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Text size").accessibilityValue("\(textSize) percent")
                 }
+                SettingsTabRow(title: "Icon set", detail: "The look of the icons of the app: SF Symbols are the Mac's own") {
+                    ChoicePopUp(
+                        label: "Icon set", options: IconSet.allCases.map { (value: $0.rawValue, title: $0.title) },
+                        selection: Binding(get: { IconSet(rawValue: iconSet)?.rawValue ?? IconSet.defaultSet.rawValue }, set: { iconSet = $0 })
+                    )
+                }
+                SettingsTabRow(title: "Icon weight", detail: "How thick the strokes of the icons are, \(iconWeight.formatted(.number.precision(.fractionLength(0...2))))") {
+                    Slider(value: $iconWeight, in: IconWeight.range, step: IconWeight.step)
+                        .labelsHidden().frame(width: settingsSliderWidth)
+                        .accessibilityLabel("Icon weight").accessibilityValue(iconWeight.formatted(.number.precision(.fractionLength(0...2))))
+                }
+                iconsPreview
                 SettingsTabRow(title: "Density", detail: "The space in the sidebar rows and between the messages") {
                     ChoicePopUp(label: "Density", options: Density.allCases.map { (value: $0, title: $0.title) }, selection: $density)
                 }
@@ -1229,17 +1254,17 @@ struct NotificationsTabView: View {
                 SettingsTabRow(title: "System permission", detail: permission?.text ?? "Checking…", first: true) {
                     HStack {
                         if permission != .noBundle {
-                            Button { NSWorkspace.shared.open(Self.systemSettingsURL) } label: { Label("Open System Settings", systemImage: "gearshape") }
+                            Button { NSWorkspace.shared.open(Self.systemSettingsURL) } label: { Label("Open System Settings", icon: .settings) }
                         }
                         if permission == .notAsked {
-                            Button { send() } label: { Label("Allow", systemImage: "checkmark") }.buttonStyle(PrimaryCapsuleButtonStyle())
+                            Button { send() } label: { Label("Allow", icon: .check) }.buttonStyle(PrimaryCapsuleButtonStyle())
                         }
-                        Button { send() } label: { Label("Send a test", systemImage: "paperplane") }.disabled(permission == .noBundle)
+                        Button { send() } label: { Label("Send a test", icon: .send) }.disabled(permission == .noBundle)
                     }
                 }
             }
             if let testAdvice {
-                Label(testAdvice, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange).padding(.horizontal, 14)
+                Label(testAdvice, icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange).padding(.horizontal, 14)
             }
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())
@@ -1306,7 +1331,7 @@ struct NavigationRow<Trailing: View>: View {
             SettingsTabRow(title: title, detail: detail, leading: leading) {
                 HStack(spacing: 10) {
                     trailing
-                    Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).foregroundStyle(.tertiary).accessibilityHidden(true)
+                    Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary).accessibilityHidden(true)
                 }
             }
             .contentShape(Rectangle())

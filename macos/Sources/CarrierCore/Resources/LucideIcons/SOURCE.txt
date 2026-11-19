@@ -1,0 +1,7 @@
+Lucide, https://github.com/lucide-icons/lucide
+Licence: ISC, and MIT for the icons derived from Feather (both in LICENSE, the upstream text unchanged).
+Pinned release: npm package lucide-static 1.76.0.
+Tarball: https://registry.npmjs.org/lucide-static/-/lucide-static-1.76.0.tgz
+Integrity: sha512-8izOkC4xBdjtiIF641S1a21rEZP2DXiAcaRFYMXxwxnaFmgUUqLgelmRMxrNenjuW2pUJZIXEpOMuUcVyadF5Q==
+Files: the SVGs below, copied unchanged from the package's icons/ folder. LICENSE is the package's LICENSE.
+To refresh: download the tarball, check the integrity above (or the new one from the npm registry), copy the SVGs that IconSets.swift names, and update this file and THIRD-PARTY-NOTICES.md.

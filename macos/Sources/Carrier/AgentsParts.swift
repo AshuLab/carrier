@@ -21,7 +21,7 @@ struct AgentsStatusCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: readiness.tone == .ready ? "checkmark" : "exclamationmark").font(.scaled(16, weight: .bold)).foregroundStyle(.white)
+            Glyph(readiness.tone == .ready ? .check : .exclamation, size: 18, bold: true).foregroundStyle(.white)
                 .frame(width: 34, height: 34).background(Circle().fill(readiness.tone == .ready ? Color.green : Color.orange)).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(readiness.title).font(.scaled(15).weight(.bold))
@@ -29,7 +29,7 @@ struct AgentsStatusCard: View {
                     Text(note).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 if let fix = readiness.fix {
-                    Button { open(fix) } label: { Label("Open \(fix.title)", systemImage: "arrow.right").labelStyle(.titleAndIcon) }
+                    Button { open(fix) } label: { Label("Open \(fix.title)", icon: .arrowRight).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).padding(.top, 4)
                 }
             }
@@ -97,7 +97,7 @@ private struct RoleRailRow: View {
                 }
                 Spacer(minLength: 8)
                 trailing
-                Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).foregroundStyle(.tertiary).accessibilityHidden(true)
+                Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 8).frame(minHeight: 54)
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(hovering ? 0.05 : 0)))
@@ -204,7 +204,7 @@ struct RoleFlowStrip: View {
             Text("In an epic").font(.scaled(11.5)).foregroundStyle(.secondary)
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 if index > 0 {
-                    Image(systemName: index == 1 ? "arrow.left.arrow.right" : "arrow.right").font(.scaled(11, weight: .semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)
+                    Glyph(index == 1 ? .exchange : .arrowRight, size: 11).foregroundStyle(.tertiary).accessibilityHidden(true)
                 }
                 if row.role == current {
                     Text(row.title).font(.scaled(12, weight: .medium)).padding(.horizontal, 10).padding(.vertical, 2)

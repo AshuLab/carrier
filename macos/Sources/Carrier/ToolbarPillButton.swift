@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// A word with its icon for a glass pill of the toolbar: 12 pt type, the pill's height, a quiet fill under the pointer, the count of what is
@@ -8,7 +9,7 @@ struct ToolbarPillButton: View {
     static let height: CGFloat = 28
 
     let title: String
-    var icon = ""
+    var icon: AppIcon?
     /// An image in the place of the symbol (the GitHub mark).
     var mark: Image?
     var badge = 0
@@ -24,8 +25,8 @@ struct ToolbarPillButton: View {
             HStack(spacing: 5) {
                 if let mark {
                     mark.renderingMode(.template).resizable().scaledToFit().frame(width: 12, height: 12)
-                } else {
-                    Image(systemName: icon).font(.scaled(11, weight: .medium)).foregroundStyle(iconTint ?? .primary).symbolEffect(.rotate, options: .repeating, isActive: spinning)
+                } else if let icon {
+                    Glyph(icon, size: 12).foregroundStyle(iconTint ?? .primary).glyphSpinning(spinning)
                 }
                 Text(title).font(.scaled(12, weight: .medium))
                 if badge > 0 {
@@ -52,16 +53,14 @@ extension Color {
 /// Accent glass capsule pill button at `ToolbarPillButton.height` (28 pt), shared between headers and primary empty-state CTAs.
 struct AccentGlassPillButton: View {
     let title: String
-    var icon: String? = nil
+    var icon: AppIcon? = nil
     let action: () -> Void
     @Environment(\.isEnabled) private var enabled
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                if let icon {
-                    Image(systemName: icon).font(.scaled(11, weight: .semibold))
-                }
+                if let icon { Glyph(icon, size: 11) }
                 Text(title).font(.scaled(12, weight: .medium))
             }
             .foregroundStyle(.white)
@@ -78,7 +77,9 @@ struct AccentGlassPillButton: View {
 
 /// Compact icon-only button sized to `ToolbarPillButton.height` (28 pt) for grouped `.glassEffect(.regular, in: .capsule)` toolbars.
 struct ToolbarGlassIconButton: View {
-    let icon: String
+    let icon: AppIcon
+    /// What the button opened is open: a fill of the accent under the icon, so the state is not the color of the icon alone.
+    var active = false
     let name: String
     let action: () -> Void
     @State private var hovered = false
@@ -86,12 +87,11 @@ struct ToolbarGlassIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.scaled(11, weight: .medium))
-                .foregroundStyle(.primary)
+            Glyph(icon, size: 12)
+                .foregroundStyle(active ? Color.themeAccent : .primary)
                 .padding(.horizontal, 10)
                 .frame(height: ToolbarPillButton.height)
-                .background(Capsule().fill(Color.primary.opacity(hovered && enabled ? 0.1 : 0)))
+                .background(Capsule().fill(active ? Color.themeAccent.opacity(0.18) : Color.primary.opacity(hovered && enabled ? 0.1 : 0)))
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -100,6 +100,7 @@ struct ToolbarGlassIconButton: View {
         .animation(.easeOut(duration: 0.12), value: hovered)
         .help(name)
         .accessibilityLabel(name)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 }
 
@@ -113,8 +114,7 @@ struct ToolbarSearchField: View {
     var body: some View {
         if query != nil {
             HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.scaled(11, weight: .medium))
+                Glyph(.search, size: 11)
                     .foregroundStyle(.secondary)
                     .frame(width: 16, height: 16)
                     .accessibilityHidden(true)
@@ -127,8 +127,7 @@ struct ToolbarSearchField: View {
                         return .handled
                     }
                 Button(action: dismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.scaled(11))
+                    Glyph(.closeCircleFilled, size: 11)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -138,7 +137,7 @@ struct ToolbarSearchField: View {
             .padding(.horizontal, 11)
             .frame(width: 220, height: ToolbarPillButton.height)
         } else {
-            ToolbarPillButton(title: "Search", icon: "magnifyingglass") {
+            ToolbarPillButton(title: "Search", icon: .search) {
                 query = ""
                 focused.wrappedValue = true
             }

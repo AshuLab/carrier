@@ -10,7 +10,7 @@ struct SessionPlacePill: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: row.branch == nil ? "folder" : "arrow.triangle.branch").foregroundStyle(Color.themeAccent)
+            Glyph(row.branch == nil ? .folder : .gitBranch).foregroundStyle(Color.themeAccent)
             if let branch = row.branch {
                 Text("Worktree").fontWeight(.medium)
                 Text(branch).font(.caption.monospaced()).lineLimit(1).truncationMode(.middle)

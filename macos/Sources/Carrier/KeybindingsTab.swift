@@ -34,13 +34,13 @@ struct KeybindingsTabView: View {
         return SettingsTabRow(title: command.title, detail: "Default: \(command.defaultCombo?.text ?? "none")", first: first) {
             HStack(spacing: 8) {
                 if let refused, refused.command == command {
-                    Label("\(refused.combo.text) is the system's", systemImage: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange)
+                    Label("\(refused.combo.text) is the system's", icon: .warningFilled).font(.scaled(11)).foregroundStyle(.orange)
                 } else if let clash {
-                    Label("Also \(clash.title)", systemImage: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange)
+                    Label("Also \(clash.title)", icon: .warningFilled).font(.scaled(11)).foregroundStyle(.orange)
                 }
                 if table.isDefault(command) == false {
                     Button { table.set(command.defaultCombo, for: command); revision += 1 } label: {
-                        Label("Default", systemImage: "arrow.counterclockwise").labelStyle(.titleAndIcon)
+                        Label("Default", icon: .rotate).labelStyle(.titleAndIcon)
                     }
                     .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel("Back to the default for \(command.title)")
                 }

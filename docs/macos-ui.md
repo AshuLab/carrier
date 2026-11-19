@@ -84,6 +84,44 @@ A feed that is a column of the window (the Agent output of an epic) is not made 
 
 Always `SettingsDivider`, never `Divider()`: the system's is a grey hairline that stands out on the dark themes. It is one whole point on purpose; **a half-point line over a translucent fill is drawn uneven on a Retina screen, so do not use `lineWidth: 0.5`.** Put the line in the row's `.overlay(alignment: .top)` and **put extra padding inside the row, never outside it**, or the line stops being halfway between two rows.
 
+## Icons
+
+The interface's own icons are named by what they mean (`AppIcon`, `CarrierCore/AppIcon.swift`: `.check`, `.close`, `.search`…).
+They are drawn in the set the person chose in Appearance › Icon set (`IconSet`, `IconSets.swift`): Tabler (the default), Lucide or SF Symbols.
+`iconAsset(_:in:)` says which SVG or symbol each icon is in each set.
+They are drawn by `Glyph(.check, size: 14)` (`Carrier/Icons.swift`) and, with words, by `Label("Save", icon: .check)`.
+Never write `Image(systemName:)` for a new icon of ours.
+Add the case to `AppIcon`, its entry for all three sets (the `switch` does not build without them) and the SVGs (each set's `SOURCE.txt` says how).
+`IconsTests` fails when a set lacks an icon or its file, and `build-app.sh` when the app lacks one.
+
+Size is in points at the base text size.
+`Glyph` scales it by the person's text size, so a `.font` after it does nothing.
+The color is the one of its text (`foregroundStyle`).
+A small white mark on a color (a state's check, a sidebar tile) is `bold: true`, three quarters thicker, or the weight would be too thin to read.
+An icon that says something on its own (a tick that means "Pasted") takes `label:`, and one drawn in a circle or a capsule is wrapped in `.accessibilityElement(children: .ignore)` with its label; an icon beside words says nothing.
+
+The weight is the person's too, Appearance › Icon weight (`IconWeight`, 1.5 by default, from 1 to 2.5).
+For the two SVG sets the `stroke-width` is rewritten when the image is made, and the image is kept by set, icon and weight.
+Every `Glyph` is drawn again when either changes; for SF Symbols the weight is the weight of the font (1.5 is the regular one).
+A solid icon (`.warningFilled`, `.playFilled`) is a filled file where the set has one (Tabler), a filled outline where that stays readable (Lucide's play and stop) and an outline where it does not.
+
+What the system draws stays in SF Symbols whatever the set is, so that it looks like the rest of the Mac.
+That is the window's toolbar (‹ ›, ⋯ and the Back and Forward of Settings), the items of any menu (the status item's, a context menu, the composer's pop-ups), the menu bar's icon, the check and chevrons of a select and the disclosure of a list.
+The item of a menu and the native button of the window's toolbar are `Label("Reveal", systemIcon: .folder)`.
+The system draws their images, so they take the icon's SF Symbol, and a `Label(icon:)` there would lose its image.
+The glass pills of the toolbar (`ToolbarPillButton`, `ToolbarGlassIconButton`) are ours and use `AppIcon`.
+Provider marks (LobeHub) and file icons (Material Icon Theme) are their own sets.
+The icons of an account (`AccountIcon.symbol`) are SF Symbols, since the host offers them by name.
+
+The components that take an icon (`IconButton`, `EmptyStateView`, `NoticeCard`, `ToolbarPillButton`, `Badge`, `FilterChip`, `SegmentedChoice`, `StateGlyph`…) take an `AppIcon`.
+What the model says of an icon (`EmptyState.icon`, `ToolKind.icon`, `FileCategory.symbol`, `stateSymbol`, `SendStep.icon`) is an `AppIcon` too, so the core stays free of the names of any set.
+An effect an SF Symbol had is a modifier of `Glyph`: `.glyphSpinning(_:)`, `.glyphBouncing(_:)`, `.glyphPulsing(_:)` and `.glyphKick(_:)`.
+None of them moves with Reduce Motion on, and `glyphPulsing` is only for what lasts a moment, since its animation does not stop while the window is hidden.
+An icon inside a `Text` is `Image(inline:)`.
+For an `NSImage` (a text attachment, a layer) use `IconImages.image(_:)` and `.tinted(_:)`; a layer reads `IconAppearance` in `updateNSView` so it is drawn again when the set changes.
+A fourth set is a folder of SVGs with its licence, a column in `iconNames` and a case of `IconSet`.
+Keep the sets few, since every new icon of the app has to be found in each.
+
 ## Buttons
 
 Four kinds. Pick by what the button is, not by taste.
@@ -96,8 +134,8 @@ Four kinds. Pick by what the button is, not by taste.
 | Icon | `IconButton` (`HoverFillButtonStyle`) | A 24 pt glyph with a tooltip and an accessible name: close, fold. | `SidebarView.swift` |
 | Toolbar pill | `ToolbarPillButton`, `AccentGlassPillButton`, `ToolbarGlassIconButton` or `ToolbarSearchField` on `.glassEffect(.regular, in: .capsule)`, its item with `sharedBackgroundVisibility(.hidden)` | An action or inline search pill in the window's title bar (Search, Filter, Check again, Stop, New session, New Terminal) or a compact glass pill strip (floating pane controls), plus the sidebar's Update (`UpdatePill`, for the states of a download). An item of the sidebar column's `.toolbar` goes after the window's buttons with `placement: .automatic`; `.navigation` puts it on the detail's side. | `ToolbarPillButton.swift`, `UpdatePill.swift` |
 
-- **A button that does something has an icon** with its words: `Label("Save", systemImage: "checkmark")`. Used: Save `checkmark`, Cancel `xmark`, Remove `trash`, Add `plus`, Check again `arrow.clockwise`, Open on GitHub `arrow.up.right.square`, Reveal clone `folder`, Reveal `folder` and Open `doc.text` (a file), Detect `arrow.clockwise`, Use another… `folder.badge.plus`, Use the Homebrew one `arrow.uturn.backward`. Outside a `Menu` give the label `.labelStyle(.titleAndIcon)` when it sits in a text or icon style.
-- **A row that acts on a file or folder** (the Engine page's Files) has a Secondary button, Reveal or Open. While the path is missing the button is disabled and reads "Not created yet" with `questionmark.folder`. Its `.accessibilityLabel` is the verb and the row ("Reveal: Logs"), so VoiceOver can tell three such buttons apart.
+- **A button that does something has an icon** with its words: `Label("Save", icon: .check)`. Used: Save `.check`, Cancel `.close`, Remove `.trash`, Add `.plus`, Check again `.refresh`, Open on GitHub `.externalLink`, Reveal clone `.folder`, Reveal `.folder` and Open `.fileText` (a file), Detect `.refresh`, Use another… `.folderPlus`, Use the Homebrew one `.undo`. Outside a `Menu` give the label `.labelStyle(.titleAndIcon)` when it sits in a text or icon style.
+- **A row that acts on a file or folder** (the Engine page's Files) has a Secondary button, Reveal or Open. While the path is missing the button is disabled and reads "Not created yet" with `.folderQuestion`. Its `.accessibilityLabel` is the verb and the row ("Reveal: Logs"), so VoiceOver can tell three such buttons apart.
 - **A button that works for a while** (Detect) keeps its label and its size and is disabled while it runs, with a small `ProgressView` beside it that has an `.accessibilityLabel` ("Detecting"); when it ends, the result is announced to VoiceOver. Swapping the label for the spinner makes the row jump and leaves an unnamed button.
 - A form that is a card has its buttons in a row: Remove on the left, then a `Spacer`, then Cancel and Save, with 10 pt more above than the fields have between them. A form that is a screen of the Settings window (the account editor) has none: Save (or Add) is the toolbar's, Remove is the last row of the form and asks first (its ellipsis is that question, an alert), and Cancel is the window's back.
 - Destructive is `role: .destructive`; a plain capsule does not turn red by itself. When a screen has one destructive action, say so with colour (`HoverTextButtonStyle(danger: true)` turns red under the pointer).
@@ -106,7 +144,7 @@ Four kinds. Pick by what the button is, not by taste.
 
 ## Rows that open something
 
-A row that opens an editor or a form shows **a chevron `chevron.right` at its right and is clickable all over**:
+A row that opens an editor or a form shows **a chevron `.chevronRight` at its right and is clickable all over**:
 
 - The chevron is a `Button` in `HoverTextButtonStyle(tint: nil)` with `.accessibilityLabel("Edit …")` and a `.help`; it is dimmed (`.disabled`) while that row is the one open.
 - The row has `.contentShape(Rectangle()).onTapGesture { … }` (guard it so a second click on the open row does nothing). A button inside the row (Sign in, Reset, Use in an agent…) keeps its own click: a `Button` takes the click before the row's gesture.
@@ -116,7 +154,7 @@ A row that opens an editor or a form shows **a chevron `chevron.right` at its ri
 
 - **A text field is `TextField(…).settingsField(width:)`** (`SettingsTabs.swift`): a quiet fill with rounded corners of 8, no line while idle, the theme's accent as a 1.5 pt ring while it has the focus, and a click anywhere in the box puts the cursor in it. `width: 240` for a short value, no width to fill the space given (a multi-line field too). Do not use `.textFieldStyle(.roundedBorder)` in a form. In a form that is a page of the window a field is `TextField("", text:, prompt: Text("…"))` with an `.accessibilityLabel`: a form takes the title of a field for its label (at the left of it, with its text at the trailing edge) and `settingsField` hides it, so a title left as the title would show no prompt and leave the field with no name for VoiceOver.
 - **A slider of a row is `settingsSliderWidth`** (210 pt, the width of a field, so the tracks begin on the same line) **with `.labelsHidden()`**: in a form the track is otherwise drawn at about half of its frame, right-aligned in it.
-- A search field is the same field with `icon: "magnifyingglass"` (`settingsField(icon:)` draws the symbol inside the box) and a prompt that says what it searches ("Search repos").
+- A search field is the same field with `icon: .search` (`settingsField(icon:)` draws the symbol inside the box) and a prompt that says what it searches ("Search repos").
 - A field that saves as the person leaves it (Agents) passes its own focus: `settingsField(width:focused: $focused)`, so the ring and the save follow the same state.
 - **Filters are `FilterChip`s** (`SettingsTabs.swift`): small capsules that are on (the theme's accent) or off (a quiet fill), in a row under the search. `SegmentedChoice` (`SettingsTabs.swift`) is a few exclusive choices in one grey capsule, the chosen one a lighter capsule and never the accent, every choice the same type and padding so nothing changes size (Usage's metric and range); the system's segmented `Picker` is not used for filters. Chips that exclude each other start with "All" and a second click on the one that is on goes back to it; an on/off filter ("Hide watched") is a chip of its own at the right of the row; a filter with many values (the owner) is a `SelectMenu`. The filtering is a pure function in `CarrierCore` with a test (`repoGroups`), not logic in the view.
 - **A choice among a few words is `SelectMenu`** (`SettingsTabs.swift`), the one select of the app: the system's own pop-up (a SwiftUI `Picker` in the menu style, `.labelsHidden()` and `.fixedSize()`), which in a form is drawn as the Mac draws it, the chosen word at the right of the row with the up and down chevrons in a small circle, and opens the system's menu with its own check. It takes the room of its word: **give it no width**. The model picker's button (`ModelPickerButton`) is the same face (`SelectButtonStyle` and `SelectChevron`: no box, the words and the circle after them) over a popover, so every select looks alike. For a value (an enum, a stored string) use `ChoicePopUp(label:options:selection:)`, which wraps it: the choices are `(value, title)` pairs and the binding is the value itself. Do not use AppKit's `NSPopUpButton` or a hand-made menu button; the first draws badly in a form and the second has its own check and highlight. The first item is "Use default" (the empty value, nothing written) or "Same as everywhere (value)" when it inherits. A value already stored that is no longer on the list stays on it, so opening the editor never changes it.
@@ -140,7 +178,7 @@ A row that opens an editor or a form shows **a chevron `chevron.right` at its ri
 - **The model of a role (or of a failover step) is chosen with `ModelPickerButton`** (`ModelPicker.swift`), never typed: a pill with the provider's mark, the model and the reasoning that opens the chat's panel (the providers that can work as tabs, a search, the models, the `ScaleRow` slider for reasoning). Its choices are `ModelPick` values, and the logic of what it lists (`pickerAccounts`, `modelOptions`, `effortSteps`) is in `CarrierCore/ModelPicker.swift` with tests. A role runs on its own, so the panel shows its access as full, not as a choice. The Repos page uses the same picker for a repo's own roles, with `inherited:` (the first row of the list, and of the slider, is "Same as everywhere", and the pill says what that is) and `fill: true` (the pill takes the width of the form). Settings > Sessions uses it for what a new session starts with, over the chat host's agents and with `showsAccess: false`, since the person chooses the access in the message box.
 - **A menu's items have an icon, and a `Label` in a `Menu` or a `contextMenu` needs `.labelStyle(.titleAndIcon)` to show it**; this SwiftUI draws a menu's labels title only otherwise.
 - Small facts of a status card (`fact` in `ReposTab.swift`): a label of 84 pt in `secondary` and the value; **every row is at least 40 pt**, taller than any chip, so a row with a badge and one without are the same height.
-- A state is shown by a green, orange or grey dot, or by `StatusMark` (`SettingsTabs.swift`, a 16 pt round mark: `checkmark` green, `exclamationmark` yellow, `xmark` orange), at the right of a row that has no button or before one. While something runs, **each row turns its own `ProgressView` and says "Checking…"**; the page does not say it once in a corner.
+- A state is shown by a green, orange or grey dot, or by `StatusMark` (`SettingsTabs.swift`, a 16 pt round mark: `.check` green, `.exclamation` yellow, `.close` orange), at the right of a row that has no button or before one. While something runs, **each row turns its own `ProgressView` and says "Checking…"**; the page does not say it once in a corner.
 
 ## A value that is not valid
 

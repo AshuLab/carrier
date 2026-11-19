@@ -29,6 +29,22 @@ ships inside the app, next to the icons. The licence covers the artwork files, n
 Anthropic, OpenAI and Google. The pinned release and its integrity hash are in
 `macos/Sources/CarrierCore/Resources/ProviderIcons/SOURCE.txt`.
 
+## Tabler Icons
+
+One of the icon sets of the app's own interface in `Carrier.app` is a subset of [Tabler Icons](https://github.com/tabler/tabler-icons).
+It is in `macos/Sources/CarrierCore/Resources/TablerIcons` (the icons `AppIcon` names) and copied unchanged from the npm package `@tabler/icons` 3.34.1.
+Copyright (c) 2020-2024 Paweł Kuna, under the MIT licence; the text ships inside the app, next to the icons.
+The pinned release and its integrity hash are in `macos/Sources/CarrierCore/Resources/TablerIcons/SOURCE.txt`.
+
+## Lucide
+
+The other bundled icon set of the app's own interface is a subset of [Lucide](https://github.com/lucide-icons/lucide).
+It is in `macos/Sources/CarrierCore/Resources/LucideIcons` (the icons `AppIcon` names) and copied unchanged from the npm package `lucide-static` 1.76.0.
+Copyright (c) 2026 Lucide Icons and Contributors, under the ISC licence.
+The icons derived from Feather are Copyright (c) 2013-present Cole Bemis, under the MIT licence.
+Both texts ship inside the app, next to the icons.
+The pinned release and its integrity hash are in `macos/Sources/CarrierCore/Resources/LucideIcons/SOURCE.txt`.
+
 ## Claude Agent SDK
 
 The Claude adapter of the chat host (`src/chat/claude.ts`) depends on the npm package

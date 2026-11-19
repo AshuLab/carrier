@@ -160,34 +160,34 @@ struct TerminalPaneHeaderView: View {
                 SettingsDivider(vertical: true)
                     .frame(height: 14)
             }
-            ToolbarGlassIconButton(icon: "rectangle.split.2x1", name: "Split right", action: splitRight)
-            ToolbarGlassIconButton(icon: "rectangle.split.1x2", name: "Split down", action: splitDown)
+            ToolbarGlassIconButton(icon: .layoutColumns, name: "Split right", action: splitRight)
+            ToolbarGlassIconButton(icon: .layoutRows, name: "Split down", action: splitDown)
             if isSplit {
                 ToolbarGlassIconButton(
-                    icon: isZoomed ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
+                    icon: isZoomed ? .arrowsMinimize : .arrowsMaximize,
                     name: isZoomed ? "Restore split view" : "Zoom pane",
                     action: toggleZoom
                 )
             }
-            ToolbarGlassIconButton(icon: "xmark", name: isSplit ? "Close pane" : "Close terminal", action: close)
+            ToolbarGlassIconButton(icon: .close, name: isSplit ? "Close pane" : "Close terminal", action: close)
         }
         .glassEffect(.regular, in: .capsule)
         .contextMenu {
             Button(action: splitRight) {
-                Label("Split Right", systemImage: "rectangle.split.2x1").labelStyle(.titleAndIcon)
+                Label("Split Right", systemIcon: .layoutColumns).labelStyle(.titleAndIcon)
             }
             Button(action: splitDown) {
-                Label("Split Down", systemImage: "rectangle.split.1x2").labelStyle(.titleAndIcon)
+                Label("Split Down", systemIcon: .layoutRows).labelStyle(.titleAndIcon)
             }
             if isSplit {
                 Button(action: toggleZoom) {
                     Label(
                         isZoomed ? "Restore Split View" : "Zoom Pane",
-                        systemImage: isZoomed ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
+                        systemIcon: isZoomed ? .arrowsMinimize : .arrowsMaximize
                     ).labelStyle(.titleAndIcon)
                 }
                 Button(action: equalizeSplits) {
-                    Label("Equalize Splits", systemImage: "rectangle.split.3x1").labelStyle(.titleAndIcon)
+                    Label("Equalize Splits", systemIcon: .columns3).labelStyle(.titleAndIcon)
                 }
                 Button(action: moveToNewTab) {
                     Label("Move Pane to New Tab", systemImage: "macwindow.badge.plus").labelStyle(.titleAndIcon)
@@ -195,14 +195,13 @@ struct TerminalPaneHeaderView: View {
             }
             Divider()
             Button(role: .destructive, action: close) {
-                Label(isSplit ? "Close Pane" : "Close Terminal", systemImage: "xmark").labelStyle(.titleAndIcon)
+                Label(isSplit ? "Close Pane" : "Close Terminal", systemIcon: .close).labelStyle(.titleAndIcon)
             }
         }
     }
 
     private func dragHandle(onBeginDrag: @escaping () -> NSItemProvider) -> some View {
-        Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
-            .font(.scaled(11, weight: .medium))
+        Glyph(.arrowsMove, size: 11)
             .foregroundStyle(.primary)
             .padding(.horizontal, 10)
             .frame(height: ToolbarPillButton.height)
@@ -211,6 +210,8 @@ struct TerminalPaneHeaderView: View {
             .hoverCursor(.openHand) { dragHovered = $0 }
             .animation(.easeOut(duration: 0.12), value: dragHovered)
             .help("\(pane.displayTitle) (\(abbreviatedTerminalPath(pane.workingDirectory))) — Drag to move or swap pane")
+            // not a button, so the icon inside is its own element: one element, with the label
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Move pane \(pane.displayTitle)")
             .onDrag(onBeginDrag)
     }
@@ -677,7 +678,7 @@ struct TerminalDetailView: View {
                 EmptyStateView(
                     state: .noTerminals,
                     action: ("New Terminal Session", newTerminal),
-                    actionIcon: "plus",
+                    actionIcon: .plus,
                     actionStyle: .accentGlass
                 )
             }
@@ -687,7 +688,7 @@ struct TerminalDetailView: View {
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            AccentGlassPillButton(title: "New Terminal", icon: "plus", action: newTerminal)
+            AccentGlassPillButton(title: "New Terminal", icon: .plus, action: newTerminal)
                 .padding(.trailing, 10)
                 .help("New terminal")
         }
@@ -701,7 +702,7 @@ struct TerminalDrawerView: View {
     let owner: TerminalOwner
     let defaultDirectory: String
     var openDefaultTabIfEmpty: Bool = true
-    var dismissIcon: String = "chevron.down"
+    var dismissIcon: AppIcon = .chevronDown
     var dismissLabel: String = "Hide terminal"
     @Binding var height: CGFloat
     let maxHeight: CGFloat

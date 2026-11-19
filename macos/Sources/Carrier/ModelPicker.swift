@@ -216,7 +216,7 @@ struct ModelPickerButton: View {
                 }
             }
             if let noneTitle, shownProvider != nil {
-                Button { pick(.none); open = false } label: { Label(noneTitle, systemImage: "xmark").labelStyle(.titleAndIcon).frame(maxWidth: .infinity, alignment: .leading) }
+                Button { pick(.none); open = false } label: { Label(noneTitle, icon: .close).labelStyle(.titleAndIcon).frame(maxWidth: .infinity, alignment: .leading) }
                     .buttonStyle(HoverTextButtonStyle(tint: nil)).padding(.horizontal, 12).padding(.vertical, 10)
                     .overlay(alignment: .top) { Divider() }
             }
@@ -274,7 +274,7 @@ struct ModelPickerButton: View {
     }
 
     private var search: some View {
-        TextField("Search models", text: $query).settingsField(icon: "magnifyingglass")
+        TextField("Search models", text: $query).settingsField(icon: .search)
             .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 2)
     }
 
@@ -351,7 +351,7 @@ struct ModelPickerButton: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("ACCESS").font(.scaled(11, weight: .semibold)).tracking(0.6).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
-                Label("Full access", systemImage: "lock.open").labelStyle(.titleAndIcon).font(.scaled(13, weight: .semibold)).foregroundStyle(.orange)
+                Label("Full access", icon: .lockOpen).labelStyle(.titleAndIcon).font(.scaled(13, weight: .semibold)).foregroundStyle(.orange)
             }
             Text("Epics run on their own, so a role never waits for someone to approve a change: it can edit files and run commands.")
                 .font(.scaled(12)).foregroundStyle(.primary.opacity(0.75)).fixedSize(horizontal: false, vertical: true)

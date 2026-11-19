@@ -142,7 +142,7 @@ struct SliceRowView: View {
         switch group {
         case .inProgress: SpinningRing(diameter: 18, lineWidth: 2.5, color: .systemBlue)
         case .merged:
-            Image(systemName: "checkmark").font(.scaled(9, weight: .heavy)).foregroundStyle(.white)
+            Glyph(.check, size: 9, bold: true).foregroundStyle(.white)
                 .frame(width: 16, height: 16).background(Circle().fill(Color.green))
         case .pending: Circle().strokeBorder(Color.secondary.opacity(0.6), lineWidth: 2).frame(width: 12, height: 12)
         }
@@ -152,7 +152,7 @@ struct SliceRowView: View {
         let color: Color = accent ? .themeAccent : .secondary
         let label = HStack(spacing: 3) {
             Text(text)
-            if url != nil { Image(systemName: "arrow.up.right").font(.scaled(8, weight: .bold)) }
+            if url != nil { Glyph(.arrowUpRight, size: 8) }
         }
         .font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(color)
         .padding(.horizontal, 8).padding(.vertical, 2)

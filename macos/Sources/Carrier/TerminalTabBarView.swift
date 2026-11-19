@@ -123,8 +123,7 @@ struct TerminalTabChip: View {
         HStack(spacing: showsClose ? 2 : 0) {
             Button(action: select) {
                 HStack(spacing: 5) {
-                    Image(systemName: "terminal")
-                        .font(.scaled(10.5, weight: .medium))
+                    Glyph(.terminal, size: 10.5)
                         .foregroundStyle(selected ? Color.themeAccent : .secondary)
                     Text(tab.title)
                         .font(.scaled(12, weight: selected ? .medium : .regular))
@@ -156,8 +155,7 @@ struct TerminalTabChip: View {
 
             if showsClose {
                 Button(action: close) {
-                    Image(systemName: "xmark")
-                        .font(.scaled(8.5, weight: .bold))
+                    Glyph(.close, size: 8.5, bold: true)
                         .foregroundStyle(closeHovered ? .primary : .secondary)
                         .frame(width: 16, height: 16)
                         .background(Circle().fill(Color.primary.opacity(closeHovered ? 0.14 : 0)))
@@ -188,28 +186,28 @@ struct TerminalTabChip: View {
                 draftTitle = tab.customTitle ?? tab.title
                 renaming = true
             } label: {
-                Label("Rename Tab…", systemImage: "pencil").labelStyle(.titleAndIcon)
+                Label("Rename Tab…", systemIcon: .pencil).labelStyle(.titleAndIcon)
             }
             if canMoveLeft || canMoveRight {
                 Divider()
                 if canMoveLeft {
                     Button(action: moveLeft) {
-                        Label("Move Tab Left", systemImage: "arrow.left").labelStyle(.titleAndIcon)
+                        Label("Move Tab Left", systemIcon: .arrowLeft).labelStyle(.titleAndIcon)
                     }
                 }
                 if canMoveRight {
                     Button(action: moveRight) {
-                        Label("Move Tab Right", systemImage: "arrow.right").labelStyle(.titleAndIcon)
+                        Label("Move Tab Right", systemIcon: .arrowRight).labelStyle(.titleAndIcon)
                     }
                 }
             }
             Divider()
             Button(action: close) {
-                Label("Close Tab", systemImage: "xmark").labelStyle(.titleAndIcon)
+                Label("Close Tab", systemIcon: .close).labelStyle(.titleAndIcon)
             }
             if canCloseOthers {
                 Button(action: closeOthers) {
-                    Label("Close Other Tabs", systemImage: "xmark.circle").labelStyle(.titleAndIcon)
+                    Label("Close Other Tabs", systemIcon: .closeCircle).labelStyle(.titleAndIcon)
                 }
             }
         }
@@ -297,8 +295,7 @@ private struct TerminalAddTabButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "plus")
-                .font(.scaled(11, weight: .medium))
+            Glyph(.plus, size: 11)
                 .foregroundStyle(hovered ? .primary : .secondary)
                 .frame(width: TerminalTabChip.height, height: TerminalTabChip.height)
                 .background(Circle().fill(Color.primary.opacity(hovered ? 0.1 : 0.04)))
@@ -334,20 +331,20 @@ private struct TabRenamePopover: View {
             HStack(spacing: 8) {
                 if hasCustomTitle {
                     Button(action: reset) {
-                        Label("Reset", systemImage: "arrow.counterclockwise")
+                        Label("Reset", icon: .rotate)
                     }
                     .buttonStyle(SecondaryCapsuleButtonStyle())
                     .controlSize(.small)
                 }
                 Spacer(minLength: 0)
                 Button(action: cancel) {
-                    Label("Cancel", systemImage: "xmark")
+                    Label("Cancel", icon: .close)
                 }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
                 .controlSize(.small)
                 .keyboardShortcut(.cancelAction)
                 Button(action: save) {
-                    Label("Save", systemImage: "checkmark")
+                    Label("Save", icon: .check)
                 }
                 .buttonStyle(PrimaryCapsuleButtonStyle())
                 .controlSize(.small)

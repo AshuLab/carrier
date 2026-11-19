@@ -186,7 +186,7 @@ struct TerminalTabView: View {
         ]
     }
 
-    private var cursorStyleOptions: [(value: TerminalCursorStyleChoice, title: String, icon: String?)] {
+    private var cursorStyleOptions: [(value: TerminalCursorStyleChoice, title: String, icon: AppIcon?)] {
         TerminalCursorStyleChoice.allCases.map { (value: $0, title: $0.title, icon: nil) }
     }
 

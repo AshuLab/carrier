@@ -16,7 +16,7 @@ struct PastedTextCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 9) {
-                Image(systemName: "doc.text").font(.scaled(15, weight: .medium)).foregroundStyle(.white)
+                Glyph(.fileText, size: 15, bold: true).foregroundStyle(.white)
                     .frame(width: 32, height: 32)
                     .background(Color(red: 0.42, green: 0.47, blue: 0.58))
                     .clipShape(RoundedRectangle(cornerRadius: 9))
@@ -27,11 +27,11 @@ struct PastedTextCard: View {
                     Text(pasteStats(text)).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 12)
-                Button { toggle() } label: { Label(open ? "Collapse" : "Expand", systemImage: open ? "chevron.up" : "chevron.down") }
+                Button { toggle() } label: { Label(open ? "Collapse" : "Expand", icon: open ? .chevronUp : .chevronDown) }
                     .buttonStyle(HoverTextButtonStyle(tint: nil))
                 if let remove {
                     Button(action: remove) {
-                        Image(systemName: "xmark").font(.scaled(9, weight: .bold)).foregroundStyle(.secondary)
+                        Glyph(.close, size: 9).foregroundStyle(.secondary)
                             .frame(width: 18, height: 18).background(Circle().fill(Color.primary.opacity(0.14))).contentShape(Circle())
                     }
                     .buttonStyle(.plain).help("Take it out").accessibilityLabel("Remove the pasted text")

@@ -66,7 +66,7 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
     case .appearance:
         return page(.appearance, "Theme", [("Theme", "Nine themes, each in light and dark")])
             + page(.appearance, "Look", [
-                ("Color scheme", "System follows the Mac"), ("Text size", "The size of the text of the whole app"),
+                ("Color scheme", "System follows the Mac"), ("Text size", "The size of the text of the whole app"), ("Icon set", "SF Symbols, Tabler or Lucide for the icons of the app"), ("Icon weight", "How thick the strokes of the icons are"),
                 ("Density", "The space in the sidebar rows and between the messages"), ("Tell states apart by shape", "A symbol in each state, so that color is not the only clue"),
             ]) + page(.appearance, "Color", [
                 ("Accent color", "Buttons, switches and the selection"), ("Tint the windows", "A touch of the theme's own color on the backgrounds"),

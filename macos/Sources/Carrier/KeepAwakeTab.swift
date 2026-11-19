@@ -76,7 +76,7 @@ struct KeepAwakeTabView: View {
                     } label: {
                         Label(
                             decision.isManual ? "Stop" : awakeToggleTitle(manualActive: false, defaultMinutes: settings.defaultMinutes),
-                            systemImage: decision.isManual ? "stop.fill" : "cup.and.saucer")
+                            icon: decision.isManual ? .stopFilled : .cup)
                     }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 }

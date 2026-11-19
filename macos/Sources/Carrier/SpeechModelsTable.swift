@@ -125,7 +125,7 @@ private struct SpeechModelRowView: View {
     /// Always there so the column is the same on every row: lit on the model in use, plain on a model that is on disk, dim and dead on one that is not.
     private var radio: some View {
         Button { choose(row.id) } label: {
-            Image(systemName: row.radio == true ? "largecircle.fill.circle" : "circle").foregroundStyle(row.radio == true ? Color.themeAccent : .secondary)
+            Glyph(row.radio == true ? .radioOn : .circle, size: 16).foregroundStyle(row.radio == true ? Color.themeAccent : .secondary)
         }
         .buttonStyle(.plain).disabled(row.radio == nil).opacity(row.radio == nil ? 0.35 : 1)
         .accessibilityLabel("Use \(row.name)")
@@ -138,21 +138,21 @@ private struct SpeechModelRowView: View {
     @ViewBuilder private var action: some View {
         switch row.action {
         case .download(let size):
-            Button { download(row.id) } label: { Label("Download · \(size)", systemImage: "arrow.down.circle").lineLimit(1).fixedSize() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+            Button { download(row.id) } label: { Label("Download · \(size)", icon: .download).lineLimit(1).fixedSize() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
         case .downloading(let percent):
             HStack(spacing: 6) {
                 ProgressView(value: Double(percent), total: 100).tint(Color.themeAccent)
                 Text("\(percent)%").font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit()
-                IconButton(icon: "xmark", name: "Cancel the download of \(row.name)") { cancel(row.id) }
+                IconButton(icon: .close, name: "Cancel the download of \(row.name)") { cancel(row.id) }
             }
         case .failed(let cause):
             VStack(alignment: .trailing, spacing: 2) {
-                Label(cause, systemImage: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange).multilineTextAlignment(.trailing)
+                Label(cause, icon: .warningFilled).font(.scaled(11)).foregroundStyle(.orange).multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
-                Button { download(row.id) } label: { Label("Retry", systemImage: "arrow.clockwise") }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                Button { download(row.id) } label: { Label("Retry", icon: .refresh) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         case .delete:
-            IconButton(icon: "trash", name: "Delete \(row.name)") { delete(row.id) }
+            IconButton(icon: .trash, name: "Delete \(row.name)") { delete(row.id) }
         case .none:
             // a frame on an EmptyView collapses, and the whole row would slide a column to the right
             Color.clear.frame(height: 1)

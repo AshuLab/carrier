@@ -64,7 +64,7 @@ struct ProvidersTabView: View {
 
     /// Check again, on every screen that has none of its own: after Carrier starts a server or a CLI is installed, the page can be asked to look.
     private var checkButton: some View {
-        Button { Task { await look(refresh: true) } } label: { Label(looking ? "Checking…" : "Check again", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
+        Button { Task { await look(refresh: true) } } label: { Label(looking ? "Checking…" : "Check again", icon: .refresh).labelStyle(.titleAndIcon) }
             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(looking).fixedSize()
     }
 
@@ -118,7 +118,7 @@ struct ProvidersTabView: View {
     @ViewBuilder private func directory(_ page: ProvidersPage) -> some View {
         let list = providersDirectory(page, quotas: usage.quotas, filter: filter, now: Int(Date().timeIntervalSince1970 * 1000))
         SettingsGroup(title: "") {
-            TextField("", text: $filter, prompt: Text("Filter providers and accounts")).accessibilityLabel("Filter providers and accounts").settingsField(icon: "magnifyingglass").writingToolsBehavior(.disabled)
+            TextField("", text: $filter, prompt: Text("Filter providers and accounts")).accessibilityLabel("Filter providers and accounts").settingsField(icon: .search).writingToolsBehavior(.disabled)
         }
         if list.isEmpty {
             SettingsGroup(title: "") { Text("Nothing matches “\(filter)”").foregroundStyle(.secondary) }
@@ -159,7 +159,7 @@ struct ProvidersTabView: View {
             SettingsGroup(title: "Local servers") {
                 ForEach(list.servers) { server in
                     NavigationRow(
-                        title: server.title, detail: "", leading: ProviderTile(icon: nil, symbol: server.id == "ollama" ? "server.rack" : "desktopcomputer"),
+                        title: server.title, detail: "", leading: ProviderTile(icon: nil, symbol: server.id == "ollama" ? .server : .desktop),
                         action: { go(here(server.id)) }
                     ) {
                         StateWords(text: server.status, mark: server.running ? .ok : .off)
@@ -177,11 +177,11 @@ struct ProvidersTabView: View {
         if let problem = store.editProblem { SettingsGroup(title: "") { ProblemLine(text: problem, font: .scaled(11)) } }
         // not a problem: said quietly, as the other pages say that Carrier reads it when it starts
         if let note = store.editNote {
-            SettingsGroup(title: "") { Label(note, systemImage: "info.circle").font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            SettingsGroup(title: "") { Label(note, icon: .info).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
         switch tool.status {
         case .missing:
-            SettingsGroup(title: "") { EmptyStateView(icon: "arrow.down.circle", title: "\(tool.title) is not installed", line: "Not found on this Mac, so there are no accounts to show.").frame(minHeight: 260) }
+            SettingsGroup(title: "") { EmptyStateView(icon: .download, title: "\(tool.title) is not installed", line: "Not found on this Mac, so there are no accounts to show.").frame(minHeight: 260) }
             checkGroup
         case .foundNotAdded:
             SettingsGroup(title: "") {
@@ -203,7 +203,7 @@ struct ProvidersTabView: View {
                     )
                 }
                 if tool.id != "agy" {
-                    Button { store.dismissProblem(); go(here(tool.id, Self.addAccountPath)) } label: { Label("Add account", systemImage: "plus").labelStyle(.titleAndIcon) }
+                    Button { store.dismissProblem(); go(here(tool.id, Self.addAccountPath)) } label: { Label("Add account", icon: .plus).labelStyle(.titleAndIcon) }
                         .buttonStyle(HoverTextButtonStyle(tint: nil)).help("Another login of \(tool.title)")
                 }
             }
@@ -255,9 +255,9 @@ struct ProvidersTabView: View {
 
     @ViewBuilder private func serverScreen(_ server: ProviderServer) -> some View {
         if server.running == false {
-            SettingsGroup(title: "") { EmptyStateView(icon: "server.rack", title: "\(server.title) is not running", line: "Nothing answers. Start \(server.title) to see its models.").frame(minHeight: 260) }
+            SettingsGroup(title: "") { EmptyStateView(icon: .server, title: "\(server.title) is not running", line: "Nothing answers. Start \(server.title) to see its models.").frame(minHeight: 260) }
         } else if server.models.isEmpty {
-            SettingsGroup(title: "") { EmptyStateView(icon: "cube", title: "No model loaded", line: "\(server.title) is running, with no model loaded.").frame(minHeight: 260) }
+            SettingsGroup(title: "") { EmptyStateView(icon: .cube, title: "No model loaded", line: "\(server.title) is running, with no model loaded.").frame(minHeight: 260) }
         } else {
             SettingsGroup(title: "Models") {
                 ForEach(Array(server.models.enumerated()), id: \.offset) { index, model in
@@ -318,7 +318,7 @@ private struct AccountRow: View {
     }
 
     private var chevron: some View {
-        Button(action: edit) { Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).foregroundStyle(.tertiary) }
+        Button(action: edit) { Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary) }
             .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel("Edit \(account.name)").help("Edit \(account.name)")
     }
 
@@ -415,11 +415,11 @@ private struct StateWords: View {
 /// A provider's avatar: its mark (or a symbol, for a local server) in a rounded square at the left of its row.
 private struct ProviderTile: View {
     let icon: String?
-    let symbol: String?
+    let symbol: AppIcon?
 
     var body: some View {
         Group {
-            if let icon { ProviderMark(name: icon, size: 20) } else { Image(systemName: symbol ?? "questionmark.circle").font(.scaled(16)).foregroundStyle(.secondary) }
+            if let icon { ProviderMark(name: icon, size: 20) } else { Glyph(symbol ?? .help, size: 18).foregroundStyle(.secondary) }
         }
         .frame(width: 38, height: 38).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.07)))
         .accessibilityHidden(true)

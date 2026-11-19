@@ -61,11 +61,11 @@ private struct SubagentNote: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "lock").font(.scaled(12)).foregroundStyle(.secondary).accessibilityHidden(true)
+            Glyph(.lock, size: 12).foregroundStyle(.secondary).accessibilityHidden(true)
             Text("Subagent work is read-only.").font(.scaled(12.5)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 8)
             Button(action: backToChat) {
-                Label(backTitle, systemImage: "chevron.left").font(.scaled(12, weight: .medium)).labelStyle(.titleAndIcon)
+                Label(backTitle, icon: .chevronLeft).font(.scaled(12, weight: .medium)).labelStyle(.titleAndIcon)
                     .padding(.horizontal, 12).frame(height: ToolbarPillButton.height)
                     .chatSurface(.regular.interactive(), in: Capsule())
                     .contentShape(Capsule())

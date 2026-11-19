@@ -84,7 +84,7 @@ struct RoleAvatar: View {
             }
             .clipShape(shape)
         case .gh:
-            Image(systemName: "person.fill").font(.scaled(size * 0.42)).foregroundStyle(.white).frame(width: size, height: size).background(shape.fill(Color.gray))
+            Glyph(.user, size: size * 0.5, bold: true).foregroundStyle(.white).frame(width: size, height: size).background(shape.fill(Color.gray))
         case .missing, .unset:
             Text("?").font(.scaled(size * 0.4, weight: .semibold)).foregroundStyle(.secondary)
                 .frame(width: size, height: size).overlay(shape.strokeBorder(Color.secondary.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))

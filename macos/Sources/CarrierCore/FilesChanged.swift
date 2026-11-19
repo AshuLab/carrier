@@ -10,17 +10,17 @@ public enum FileCategory: CaseIterable {
     case code, data, text, image, style, shell, lock, test, other
 
     /// The one place that says which symbol each category gets, so the source can be replaced later (story 45).
-    public var symbol: String {
+    public var symbol: AppIcon {
         switch self {
-        case .code: "chevron.left.forwardslash.chevron.right"
-        case .data: "curlybraces"
-        case .text: "doc.text"
-        case .image: "photo"
-        case .style: "paintbrush"
-        case .shell: "terminal"
-        case .lock: "lock"
-        case .test: "checkmark.seal"
-        case .other: "doc"
+        case .code: .code
+        case .data: .braces
+        case .text: .fileText
+        case .image: .photo
+        case .style: .brush
+        case .shell: .terminal
+        case .lock: .lock
+        case .test: .sealCheck
+        case .other: .file
         }
     }
 }

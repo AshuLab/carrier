@@ -56,7 +56,7 @@ private func card(_ item: TranscriptItem) -> ToolCall? {
 @Test func anUnknownToolGetsTheGenericIconAndNoNameIsLost() {
     let item = card(transcriptItems([start(1, "a", "FutureTool"), end(2, "a", "FutureTool")])[0])
     #expect(item?.tool == "FutureTool")
-    #expect(item?.kind.icon == "wrench.and.screwdriver")
+    #expect(item?.kind.icon == .tool)
 }
 
 @Test func notesAndErrorsArePlainItemsAndUnknownKindsAreLeftOut() {
@@ -68,12 +68,12 @@ private func card(_ item: TranscriptItem) -> ToolCall? {
 }
 
 @Test func eachToolHasItsIconAndEachCallItsStatus() {
-    #expect(["Read", "Grep", "Edit", "Bash", "Nope"].map { ToolKind(tool: $0).icon } == ["doc.text", "magnifyingglass", "pencil", "terminal", "wrench.and.screwdriver"])
-    #expect(["Write", "MultiEdit"].map { ToolKind(tool: $0).icon } == ["pencil", "pencil"])
-    #expect(["shell", "exec_command"].map { ToolKind(tool: $0).icon } == ["terminal", "terminal"])
-    #expect(ToolKind(tool: nil).icon == "wrench.and.screwdriver")
-    #expect(ToolStatus.ok.icon == "checkmark.circle.fill")
-    #expect(ToolStatus.error.icon == "xmark.circle.fill")
+    #expect(["Read", "Grep", "Edit", "Bash", "Nope"].map { ToolKind(tool: $0).icon } == [.fileText, .search, .pencil, .terminal, .tool])
+    #expect(["Write", "MultiEdit"].map { ToolKind(tool: $0).icon } == [.pencil, .pencil])
+    #expect(["shell", "exec_command"].map { ToolKind(tool: $0).icon } == [.terminal, .terminal])
+    #expect(ToolKind(tool: nil).icon == .tool)
+    #expect(ToolStatus.ok.icon == .checkCircleFilled)
+    #expect(ToolStatus.error.icon == .closeCircleFilled)
     #expect(ToolStatus.pending.icon == nil)
 
     let cards = transcriptItems([start(1, "a", "Bash"), end(2, "a", "Bash", status: "err"), start(3, "b", "Read"), end(4, "b", "Read"), start(5, "c", "Edit")]).compactMap(card)

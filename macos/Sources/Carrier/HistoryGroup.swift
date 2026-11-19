@@ -26,7 +26,7 @@ struct HistoryGroup: View {
                 ChoicePopUp(label: "Delete audio older than", options: dictationAudioLimits.map { (value: $0.days, title: $0.title) }, selection: $days)
             }
             SettingsTabRow(title: "Audio on disk", detail: formatAudioOnDisk(bytes: dictation.records.audioBytes, files: dictation.records.audioIDs.count)) {
-                Button(role: .destructive) { confirmingDelete = true } label: { Label("Delete all audio", systemImage: "trash") }
+                Button(role: .destructive) { confirmingDelete = true } label: { Label("Delete all audio", icon: .trash) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(dictation.records.audioIDs.isEmpty)
             }
         }
@@ -52,7 +52,7 @@ struct HistoryList: View {
         let _ = Signposts.render.emitEvent("history body", "\(records.entries.count) entries")
         let shown = dictationEntries(records.entries, matching: query, outcome: outcome)
         SettingsGroup(title: "") {
-            TextField("", text: $query, prompt: Text("Search your dictations")).accessibilityLabel("Search your dictations").settingsField(icon: "magnifyingglass")
+            TextField("", text: $query, prompt: Text("Search your dictations")).accessibilityLabel("Search your dictations").settingsField(icon: .search)
             HStack(spacing: 6) {
                 FilterChip(title: "All", on: outcome == nil) { outcome = nil }
                 ForEach(DictationOutcome.allCases, id: \.self) { choice in
@@ -64,7 +64,7 @@ struct HistoryList: View {
         if shown.isEmpty {
             SettingsGroup(title: "") {
                 EmptyStateView(
-                    icon: records.entries.isEmpty ? "waveform" : "magnifyingglass", title: records.entries.isEmpty ? "No dictations yet" : "Nothing matches",
+                    icon: records.entries.isEmpty ? .waveform : .search, title: records.entries.isEmpty ? "No dictations yet" : "Nothing matches",
                     line: records.entries.isEmpty ? "What you dictate shows up here." : "Try another word or filter."
                 )
                 .frame(minHeight: 220)
@@ -115,8 +115,8 @@ private struct HistoryRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityValue(open ? "Expanded" : "Collapsed").accessibilityHint("Shows the details")
-                IconButton(icon: copied ? "checkmark" : "doc.on.doc", name: copied ? "Copied" : "Copy text") { copy(entry.shown) }
-                IconButton(icon: "trash", name: "Delete dictation") { confirmingDelete = true }
+                IconButton(icon: copied ? .check : .copy, name: copied ? "Copied" : "Copy text") { copy(entry.shown) }
+                IconButton(icon: .trash, name: "Delete dictation") { confirmingDelete = true }
             }
             FlowLayout(spacing: 6) {
                 StatusChip(text: entry.outcome.title, tint: tint)

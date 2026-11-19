@@ -31,7 +31,7 @@ jobs:
     name: Publish
     needs: verify
     runs-on: macos-26
-    timeout-minutes: 40
+    timeout-minutes: 70
     env:
       # Only a tag publishes: a tag is a real release, a manual run on a tag is real when dry-run is switched off, and anything else is a dry run.
       DRY_RUN: ${{ github.ref_type != 'tag' && 'true' || (github.event_name == 'workflow_dispatch' && inputs.dry-run || 'false') }}
@@ -77,13 +77,13 @@ jobs:
           echo "SHA256=$(shasum -a 256 "out/carrier-$VERSION.tgz" | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
       # The check a pull request runs only when it touches the packaging (ci.yml): here it always runs, before anything is published.
-      # It leaves a dev build in macos/Carrier.app, so the build below starts from its (warm) .build and replaces it.
+      # It leaves the release binary in macos/.build and a dev bundle in macos/Carrier.app: the build below bundles that binary again, with the real version.
       - name: Check the app's bundle
         run: ./macos/scripts/check-app.sh
 
       # Nothing is published before this point, so a failed app build leaves nothing on npm or in the tap.
       - name: Build the app
-        run: ./macos/build-app.sh "$VERSION"
+        run: CARRIER_REUSE_BUILD=1 ./macos/build-app.sh "$VERSION"
 
       # Its own step, so a Developer ID can replace the ad hoc signature without touching the rest.
       - name: Sign the app
@@ -143,6 +143,8 @@ jobs:
           if brew trust --help >/dev/null 2>&1; then brew trust local/ci; fi
           mkdir -p "$(brew --repository local/ci)/Formula"
           cp formula/carrier.rb "$(brew --repository local/ci)/Formula/carrier.rb"
+          # The audit taps homebrew/core, and a full clone of it takes ~6 minutes: a shallow one is enough.
+          git clone --depth 1 https://github.com/Homebrew/homebrew-core "$(brew --repository homebrew/core)"
           brew audit --strict local/ci/carrier
 
       - name: Install the formula from the tarball

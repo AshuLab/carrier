@@ -134,6 +134,10 @@ xcrun xctrace export --input s.trace --toc
 `scripts/perf-sample.sh <app-pid> [chat-host-pid] [seconds]` samples a running app: CPU and energy, the idle wake-ups and context switches a second, the footprint and, with a chat host's pid, its process tree with the memory of each process.
 It only reads, and it takes pids you captured or were given, never a name.
 
+`scripts/mem-loop.sh <app-pid> <seconds> <interval> <prefix>` follows the memory of a running app: the footprint, the bytes malloc holds alive and the RSS over time, and a `heap` listing at each end to diff by class.
+With the app idle, the live bytes should stay flat; a steady rise is a leak, or a thread that lives as long as the app and never drains its autorelease pool (the monitor's thread grew about 1 MB a minute until each pass got its own `autoreleasepool`).
+Start the app with `MallocStackLogging=lite` and ask `malloc_history <pid> <address>` (the addresses come from `heap <pid> -addresses all`) for the stack that allocated what is still alive.
+
 The system's own reports on hangs, CPU and disk use, crashes and the daily metrics reach the app through MetricKit (`Carrier/MetricsSink.swift`) and are kept as JSON in `<Carrier folder>/app/logs/metrics/`, the newest 30.
 macOS decides when to deliver them, up to a day later, and may deliver none to an app signed ad hoc; a fixture, a self-test and a smoke run do not subscribe.
 

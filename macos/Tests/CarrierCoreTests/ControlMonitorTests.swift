@@ -142,3 +142,53 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     #expect(state.menuStatus.detail == "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier.")
     #expect(ConnectionState.incompatible(update: nil).menuStatus.detail == nil)
 }
+
+@Test func whatAPollAutoreleasesIsFreedBeforeTheNextWaitNotWhenTheThreadEnds() throws {
+    let snapshot = String(decoding: try fixture(), as: UTF8.self)
+    let server = TestServer { connection in
+        connection.send(hello())
+        for _ in 1...3 {
+            guard let id = connection.readRequestId() else { return }
+            connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(snapshot)}\n")
+        }
+    }
+    defer { server.stop() }
+    let box = FreedBox()
+    var freedAtEachWait: [Int] = []
+    // The monitor's thread lives as long as the app, so nothing may wait for the thread's own pool: each pass cleans up after itself.
+    ControlMonitor(
+        socketPath: { server.path }, pollInterval: 1, retryInterval: 3,
+        wait: { _ in freedAtEachWait.append(box.freed); return freedAtEachWait.count < 3 },
+        log: { _ in },
+        tick: { _ in Freeable.autoreleaseOne(into: box) },
+        onChange: { _ in }
+    ).run()
+    #expect(freedAtEachWait == [1, 2, 3])
+}
+
+@Test func whatAnAttemptToReconnectAutoreleasesIsFreedBeforeTheNextWaitToo() {
+    let box = FreedBox()
+    var freedAtEachWait: [Int] = []
+    // The engine is down: the monitor tries again every few seconds for as long as the app lives, and so does what each try autoreleases.
+    ControlMonitor(
+        socketPath: { "/tmp/cc-missing-\(UUID().uuidString.prefix(8)).sock" }, pollInterval: 1, retryInterval: 3,
+        wait: { _ in freedAtEachWait.append(box.freed); return freedAtEachWait.count < 3 },
+        log: { _ in },
+        onChange: { _ in Freeable.autoreleaseOne(into: box) }
+    ).run()
+    #expect(freedAtEachWait == [1, 2, 3])
+}
+
+@Test func whatAnIncompatibleEngineMakesTheMonitorAutoreleaseIsFreedBeforeTheNextRetry() {
+    let box = FreedBox()
+    var freedAtEachWait: [Int] = []
+    let server = TestServer { connection in connection.send(hello(protocol: 2)) }
+    defer { server.stop() }
+    ControlMonitor(
+        socketPath: { server.path }, pollInterval: 1, retryInterval: 3,
+        wait: { _ in freedAtEachWait.append(box.freed); return freedAtEachWait.count < 2 },
+        log: { _ in },
+        onChange: { _ in Freeable.autoreleaseOne(into: box) }
+    ).run()
+    #expect(freedAtEachWait == [1, 2])
+}

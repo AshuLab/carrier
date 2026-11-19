@@ -883,3 +883,73 @@ private func aCleanupThatFailsLeavesTheRawTextTellsTheCauseAndLogsItAlone(failur
     try await Task.sleep(for: .milliseconds(30))
     #expect(timings.isEmpty)
 }
+
+// MARK: stopping everything but one owner (the window hides or the app leaves)
+
+@MainActor @Test func stoppingAllButOneOwnerStopsTheCaptureOfABoxAndNotOfTheOneItKeeps() async {
+    // nothing waits: it is `stop(except:)` itself that stops the box that listens
+    let box = Rig()
+    box.dictate(with: ScriptedRecognizer())
+    await box.reaches(.listening)
+    #expect(box.capture.isRunning)
+    box.session.stop(except: "global")
+    #expect(box.capture.isRunning == false)
+    let kept = Rig()
+    kept.dictate(with: ScriptedRecognizer(), owner: "global")
+    await kept.reaches(.listening)
+    kept.session.stop(except: "global")
+    #expect(kept.capture.isRunning && kept.session.owner == "global" && kept.session.state == .listening)
+}
+
+@MainActor @Test func stoppingAllButOneOwnerDropsTheBoxThatWaitsBehindAnotherBox() async {
+    let rig = Rig()
+    let first = ScriptedRecognizer()
+    rig.dictate(with: first)
+    await rig.reaches(.listening)
+    rig.dictate(with: ScriptedRecognizer(), owner: "another")
+    rig.session.stop(except: "global")
+    first.finish()
+    await rig.reaches(.idle)
+    try? await Task.sleep(for: .milliseconds(20))
+    // the box that waited never opened the microphone
+    #expect(rig.session.state == .idle && rig.session.owner == nil && rig.capture.startCount == 1)
+}
+
+@MainActor @Test func stoppingAllButOneOwnerDropsABoxThatWaitsBehindTheOneItKeepsWhileItTranscribes() async {
+    let rig = Rig()
+    let kept = ScriptedRecognizer(partial: .atTheEnd)
+    rig.dictate(with: kept, owner: "global")
+    await rig.reaches(.listening)
+    // stopped, its text still to come: a dictation that starts now waits and does not stop it
+    rig.session.stop(ownedBy: "global")
+    await rig.reaches(.transcribing)
+    rig.dictate(with: ScriptedRecognizer(), owner: "box")
+    rig.session.stop(except: "global")
+    #expect(rig.session.owner == "global" && rig.session.state == .transcribing)
+    kept.finish()
+    await rig.reaches(.idle)
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(rig.session.state == .idle && rig.session.owner == nil && rig.capture.startCount == 1)
+}
+
+@MainActor @Test func stoppingAllButOneOwnerKeepsTheDictationOfThatOwnerThatWaits() async {
+    let rig = Rig()
+    let first = ScriptedRecognizer()
+    rig.dictate(with: first)
+    await rig.reaches(.listening)
+    rig.dictate(with: ScriptedRecognizer(), owner: "global")
+    rig.session.stop(except: "global")
+    first.finish()
+    await rig.until { rig.session.owner == "global" && rig.session.state == .listening }
+}
+
+@MainActor @Test func stoppingAllButOneOwnerLetsTheCleanupOfABoxFinish() async {
+    let server = ScriptedServer()
+    let (rig, _) = await cleaning(server)
+    rig.session.stop(except: "global")
+    // the microphone is off already: the cleanup is not the reason to stop, as the stop that took no owner did not skip it
+    #expect(rig.session.state == .cleaning)
+    server.reply(.success("Hola."))
+    await rig.reaches(.idle)
+    #expect(rig.text == "uno Hola.dos")
+}

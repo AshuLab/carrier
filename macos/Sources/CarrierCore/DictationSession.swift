@@ -212,6 +212,15 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         if state == .cleaning { skip() } else { halt() }
     }
 
+    /// `stop` for a window that hides or an app that leaves: whatever is not `kept`'s stops as `stop()` stops it (a cleanup that is running
+    /// goes on, the microphone being off already) and the dictation of another that waits is dropped, so none opens the microphone unseen;
+    /// the dictation of `kept`, running or waiting, goes on.
+    public func stop(except kept: String) {
+        if queued?.field.owner != kept { queued = nil }
+        guard let owner, owner != kept else { return }
+        halt()
+    }
+
     /// Cancels the dictation at once, in any state: the audio is dropped, nothing the recognizer says afterwards is written, and the text on the
     /// screen, a partial one included, stays as it is, as final. A model that gives its text at the end, which has shown none, adds none, and a
     /// cleanup that has not answered is given up: the raw text stays. Returns whether there was a dictation to cancel.

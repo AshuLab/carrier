@@ -532,16 +532,17 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     @objc private func windowShownOrHidden() {
         refreshPace()
-        // hiding the window (minimized, or no pixel of it on screen: another Space, a full-screen app over it) ends the dictation as closing it and leaving
-        // the app do: nothing listens and writes unseen. A window that other windows only partly cover is still `.visible`, so it keeps listening.
-        if windowIsShown == false { MainActor.assumeIsolated { DictationController.shared.stop() } }
+        // hiding the window (minimized, or no pixel of it on screen: another Space, a full-screen app over it) ends a message box's dictation as
+        // closing it and leaving the app do: nothing listens and writes unseen. The widget's goes on: it is on screen over the other app.
+        // A window that other windows only partly cover is still `.visible`, so it keeps listening.
+        if windowIsShown == false { MainActor.assumeIsolated { DictationController.shared.stopBoxDictation() } }
     }
 
     @objc private func windowClosed() {
         PollPace.shared.set(attentive: false)
         MainActor.assumeIsolated {
             AppUsage.refresher.setAttentive(false)
-            DictationController.shared.stop()
+            DictationController.shared.stopBoxDictation()
         }
         // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()

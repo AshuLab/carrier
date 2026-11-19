@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A message could show twice in a conversation when it arrived while the app was already reading the session.
 - Opening Carrier before the chat host was up emptied the sessions list for a moment and lost which sessions were unread.
+- Dictating in another app with the shortcut no longer stops when Carrier's window is hidden, covered, minimized or closed.
 
 ## [0.13.1] - 2026-11-18
 

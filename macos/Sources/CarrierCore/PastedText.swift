@@ -7,10 +7,18 @@ import Foundation
 public let pastedTextThreshold = 2000
 
 /// What a pasted text holds, in one line: "3,412 chars · 87 lines · ~850 tokens" (a token is about four characters).
-public func pasteStats(_ text: String) -> String {
-    let chars = text.utf16.count
-    let lines = text.split(separator: "\n", omittingEmptySubsequences: false).count
-    return "\(chars.formatted()) chars · \(lines.formatted()) \(lines == 1 ? "line" : "lines") · ~\(TurnSummary.tokens(Double((chars + 3) / 4))) tokens"
+public func pasteStats(_ text: String) -> String { PasteSummary(text).stats }
+
+/// What a paste's card says of it, worked out once per text: the stats line and the number of lines, so a long paste is not split again at each draw.
+public struct PasteSummary: Equatable {
+    public let stats: String
+    public let lines: Int
+
+    public init(_ text: String) {
+        let chars = text.utf16.count
+        lines = text.split(separator: "\n", omittingEmptySubsequences: false).count
+        stats = "\(chars.formatted()) chars · \(lines.formatted()) \(lines == 1 ? "line" : "lines") · ~\(TurnSummary.tokens(Double((chars + 3) / 4))) tokens"
+    }
 }
 
 /// The message the agent gets: what the person wrote, then each pasted text in a fenced block marked `pasted`, whose fence is longer than any

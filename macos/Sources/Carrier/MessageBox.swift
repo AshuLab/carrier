@@ -59,7 +59,13 @@ struct MessageBox<Selects: View>: View {
 
     private struct Pasted: Identifiable, Equatable {
         let id = UUID()
-        var text: String
+        var text: String { didSet { summary = PasteSummary(text) } }
+        private(set) var summary: PasteSummary
+
+        init(text: String) {
+            self.text = text
+            summary = PasteSummary(text)
+        }
     }
 
     /// Whether there is something to send: a text, or a pasted text when the session would take one.
@@ -90,7 +96,7 @@ struct MessageBox<Selects: View>: View {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(pastes) { pasted in
                             PastedTextCard(
-                                text: pasted.text,
+                                text: pasted.text, summary: pasted.summary,
                                 edit: { edited in if let at = pastes.firstIndex(where: { $0.id == pasted.id }) { pastes[at].text = edited } },
                                 remove: { withAnimation(.smooth(duration: 0.2)) { pastes.removeAll { $0.id == pasted.id } } }
                             )

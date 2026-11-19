@@ -118,3 +118,11 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
     #expect(messagePreview(messageWithPastes("", pastes: ["a\nb"])) == "Pasted text · 2 lines")
     #expect(messagePreview("plain") == "plain")
 }
+
+@Test func aPasteSummaryIsTheStatsLineAndCountsEmptyLinesAsTheCardDid() {
+    for text in ["a\n\nb\n", "", "one line", String(repeating: "x\n", count: 87)] {
+        #expect(PasteSummary(text).stats == pasteStats(text))
+        #expect(PasteSummary(text).lines == text.split(separator: "\n", omittingEmptySubsequences: false).count)
+    }
+    #expect(PasteSummary("a\n\nb\n").lines == 4)
+}

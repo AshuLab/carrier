@@ -249,11 +249,12 @@ struct WorkspaceSheet: View {
             } label: {
                 HStack(spacing: 4) {
                     if visibility != .all { Text(visibility.rawValue).font(.subheadline.weight(.semibold)) }
-                    Glyph(.filter)
+                    Glyph(.filter, size: 13)
                 }
                 .foregroundStyle(visibility == .all ? Color.secondary : Color.themeAccent)
             }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Show all, public or private repositories")
+            // not `.borderlessButton`: that one draws the icon in the system's black and larger than asked
+            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().help("Show all, public or private repositories")
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(RoundedRectangle(cornerRadius: radius).fill(Color.secondary.opacity(0.12)))

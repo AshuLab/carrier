@@ -70,7 +70,8 @@ struct RowHint: View {
 
     var body: some View {
         Text(text).font(.caption.weight(.semibold)).foregroundStyle(.white)
-            .padding(.horizontal, 10).padding(.vertical, 3).background(Capsule().fill(Color.themeAccent))
+            // the deepened accent the title bar's pills have under their white words: the accent itself, a light one, left the word without contrast
+            .padding(.horizontal, 10).padding(.vertical, 3).background(Capsule().fill(Color.accentGlass))
             .opacity(shown ? 1 : 0).accessibilityHidden(true)
     }
 }
@@ -133,7 +134,7 @@ struct RowChevron: View {
 
     var body: some View {
         Glyph(.chevronRight, size: 11, bold: true).foregroundStyle(.white)
-            .frame(width: 26, height: 26).glassEffect(.regular.tint(Color.themeAccent), in: .circle)
+            .frame(width: 26, height: 26).glassEffect(.regular.tint(Color.accentGlass), in: .circle)
             .opacity(shown ? 1 : 0).accessibilityHidden(true)
     }
 }

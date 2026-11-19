@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The provider's mark on the corner of an avatar (a role's, a session's) is on an opaque disc, so it is seen over a picture.
 - Usage and the Providers page of Settings show a bar for Codex on the free plan, whose only limit is 30 days (it showed none because the page only knew the 5h and weekly windows).
 - Cancel in the sheets of a new session (workspace, where it works, branches) and Change… under the workspaces are the grey capsule of the other secondary buttons.
+- In the workspace and branch sheets the Open and Select tags and the chevron of a row have contrast on a light accent, and the filter icon is the size and color of the search's.
 - The "Let Carrier watch" switch of the workspace sheet is the size of the ones in Settings.
 - The New session and New Terminal buttons of the empty sidebar are the glass pills of the title bar.
 - The controls of "Work in … on … from …" in a new session (workspace, where it works, branches) look like the selects of Settings, with a box under the pointer, and their icons and heights are aligned.

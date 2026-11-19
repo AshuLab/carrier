@@ -150,7 +150,7 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// what Carrier answers to it (its state, its repos), and Settings is a window of its own over it that does not stop it being used.
     func showSettings(_ page: SettingsPage? = nil, place: SettingsPlace? = nil) {
         open()
-        MainActor.assumeIsolated { SettingsWindowController.shared.show(page, place: place, model: model) }
+        MainActor.assumeIsolated { SettingsWindowController.shared.show(page, place: place, model: model, over: window) }
     }
 
     /// For the self-test.

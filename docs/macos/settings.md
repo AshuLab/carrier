@@ -2,12 +2,12 @@
 
 The Settings sheet, its rail and where each group of pages is described.
 
-Settings is a sheet over the window (`Carrier/SettingsSheet.swift`, the shape of the workspace chooser: a rail of sixteen pages in three groups, App (General, Providers, Notifications, Appearance, Terminal, Keybindings, Dictation; no heading, and Providers is here because both the engine and the chat host read its accounts), Chat (Chat, Sidebar, Sessions) and Carrier (Repos, Agents, Behavior, Engine, Health) and About (alone, kept at the foot of the rail under a line, so it stays in view in a short window), `RailHeader` and `RailRow` of `SheetParts.swift`, the chosen one on the right, closed by an ✕ at the top right or Esc).
+Settings is a sheet over the window (`Carrier/SettingsSheet.swift`, the shape of the workspace chooser: a rail of seventeen pages in three groups, App (General, Providers, Notifications, Appearance, Terminal, Keybindings, Dictation, Keep awake; no heading, and Providers is here because both the engine and the chat host read its accounts), Chat (Chat, Sidebar, Sessions) and Carrier (Repos, Agents, Behavior, Engine, Health) and About (alone, kept at the foot of the rail under a line, so it stays in view in a short window), `RailHeader` and `RailRow` of `SheetParts.swift`, the chosen one on the right, closed by an ✕ at the top right or Esc).
 The menu's Settings…, ⌘, and the sidebar's Settings row open it over whatever page is selected (`WindowShell.showSettings`, `settingsShown`; it is not a `Selection`), on General unless a caller asks for another (`openHealth` asks for Health, and the Open Settings button of the stopped-Carrier view asks for Engine).
 
 ## The rail
 
-- App: [settings-app](settings-app.md) (General, Providers, Notifications, Appearance, Terminal, Keybindings) and [dictation](dictation.md#the-dictation-page) (Dictation, after Keybindings: it is global, not of the chat).
+- App: [settings-app](settings-app.md) (General, Providers, Notifications, Appearance, Terminal, Keybindings) and [dictation](dictation.md#the-dictation-page) (Dictation, after Keybindings: it is global, not of the chat) and [keep-awake](keep-awake.md) (Keep awake, last of the group).
 - Chat: [Sessions](#sessions-page) below (Chat, Sidebar, Sessions).
 - Carrier: [settings-carrier](settings-carrier.md) (Repos, Agents, Behavior, Engine) and [settings-health](settings-health.md) (Health).
 - About (`Carrier/AboutTab.swift`, last of the rail): the app's icon, name and version with the links of the About panel (`aboutLinks`: Release notes, Documentation, GitHub) and a row Star Carrier on GitHub with its button (it opens the repository, `repositoryURL`); Updates (Check now or the step of an update found, Check by itself, Install by itself and Update delay: None, 1, 3, 7, 14 or 30 days, `updates.delayDays`, `updateDelayChoices`); and the engine's own update with Try again.

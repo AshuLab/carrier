@@ -78,9 +78,10 @@ public struct QuietHours: Equatable {
     }
 }
 
-/// Whether a banner shows: always the test, and anything else unless the person asked for none while the app is in front and it is.
-public func shouldPresent(onlyWhenAway: Bool, appIsActive: Bool, isTest: Bool) -> Bool {
-    isTest || (onlyWhenAway && appIsActive) == false
+/// Whether a banner shows: always the test and the notices marked `always`, and anything else unless the person asked for none while the app
+/// is in front and it is.
+public func shouldPresent(onlyWhenAway: Bool, appIsActive: Bool, isTest: Bool, always: Bool = false) -> Bool {
+    isTest || always || (onlyWhenAway && appIsActive) == false
 }
 
 /// How macOS shows this app's notifications, and whether it plays the sound.

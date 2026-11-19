@@ -31,6 +31,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         IconController.install(on: item)
+        // a self-test or a smoke run keeps nothing awake and takes no key of the Mac
+        if Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false {
+            KeepAwakeController.shared.onChange = { IconController.shared?.setAwake($0.holds) }
+            KeepAwakeController.shared.start()
+        }
         if isDevBuild { NSApp.dockTile.badgeLabel = "DEV" }
 
         UserDefaults.standard.register(defaults: [showEpicsKey: true])
@@ -43,6 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // the epics go after this separator (EpicMenuSection), above the controls
         menu.addItem(.separator())
         MenuControls.shared.install(in: menu)
+        menu.addItem(.separator())
+        KeepAwakeMenu.shared.install(in: menu)
         menu.addItem(.separator())
         WindowController.shared.addMenuItem(to: menu)
         if fixtureServer != nil { EmptyStatesWindowController.shared.addMenuItem(to: menu) }
@@ -127,6 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let monitor = ControlMonitor(socketPath: { controlSocketPath() }, pollEvery: { PollPace.shared.seconds }) { state in
             DispatchQueue.main.async {
                 IconController.shared?.show(state)
+                MainActor.assumeIsolated { KeepAwakeController.shared.epics(working: IconState(state).working) }
                 line.title = state.menuLine
                 self.header.show(state.menuStatus)
                 MenuControls.shared.react(to: state)
@@ -158,11 +166,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             while true {
                 do {
                     let rows = sessionRows(try await host.list(archived: false))
-                    await MainActor.run { NotificationWatcher.app.react(toSessions: rows) }
+                    await MainActor.run {
+                        NotificationWatcher.app.react(toSessions: rows)
+                        KeepAwakeController.shared.sessions(working: rows.filter(\.isWorking).count)
+                    }
                     wait = PollPace.shared.seconds
                     answering = true
                 } catch {
                     if answering { NSLog("Carrier: the chat host does not answer, asking again in a while: %@", String(describing: error)) }
+                    // a host that is not there works on nothing: its last list must not keep the Mac awake
+                    await MainActor.run { KeepAwakeController.shared.sessions(working: 0) }
                     answering = false
                     wait = min(wait * 2, 30)
                 }

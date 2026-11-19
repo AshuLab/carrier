@@ -2,7 +2,7 @@
 /// these, in the order of the cases.
 public enum SettingsPage: String, CaseIterable {
     case general = "General", providers = "Providers", notifications = "Notifications", appearance = "Appearance", terminal = "Terminal"
-    case keybindings = "Keybindings", dictation = "Dictation"
+    case keybindings = "Keybindings", dictation = "Dictation", keepAwake = "Keep awake"
     case chat = "Chat", sidebar = "Sidebar", sessions = "Sessions"
     case repos = "Repos"
     case agents = "Agents"
@@ -27,7 +27,7 @@ public enum SettingsPage: String, CaseIterable {
 
     public var group: Group {
         switch self {
-        case .general, .providers, .notifications, .appearance, .terminal, .keybindings, .dictation: .app
+        case .general, .providers, .notifications, .appearance, .terminal, .keybindings, .dictation, .keepAwake: .app
         case .chat, .sidebar, .sessions: .chat
         case .repos, .agents, .behavior, .engine, .health: .carrier
         case .about: .about
@@ -45,6 +45,7 @@ public enum SettingsPage: String, CaseIterable {
         case .chat: "bubble.left.and.text.bubble.right"
         case .dictation: "mic"
         case .keybindings: "keyboard"
+        case .keepAwake: "cup.and.saucer"
         case .about: "info.circle"
         case .providers: "brain"
         case .engine: "cpu"
@@ -67,6 +68,7 @@ public enum SettingsPage: String, CaseIterable {
         case .chat: "The message box and the conversation"
         case .dictation: "Speak instead of typing"
         case .keybindings: "The keys that run the app's actions"
+        case .keepAwake: "Keep the Mac from sleeping, by hand or while agents work"
         case .about: "This version, its links and whether Carrier updates by itself"
         case .providers: "The AI tools on this Mac and their accounts"
         case .engine: "How the app runs Carrier"

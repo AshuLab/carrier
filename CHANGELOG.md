@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Keep awake: stop the Mac from sleeping from the menu bar (30 min to 5 hours, or until you turn it off), with a small cup on the icon while it holds.
+  It can also stay on while agents work and for a few minutes after, pauses on a low battery and tells you when it stops by itself.
+  Set it on the new Keep awake page of Settings, with an optional shortcut for any app.
+
 ## [0.13.1] - 2026-11-18
 
 Fixes after 0.13.0: starting from the app with a late PATH, pull requests of SSH-alias remotes, the draft's reasoning levels and choosing a repository to clone.

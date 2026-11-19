@@ -118,3 +118,4 @@ How the app looks is in [macos-ui](../docs/macos-ui.md); what it does, area by a
 - [Terminal](../docs/macos/terminal.md): standalone terminals, tabs and splits, the session drawer and the bottom-anchored Zsh prompt.
 - [Usage](../docs/macos/usage.md): the quotas and the consumption.
 - [Dictation](../docs/macos/dictation.md): the recognizers, the speech models and the capture.
+- [Keep awake](../docs/macos/keep-awake.md): the Mac kept from sleeping by hand or while agents work.

@@ -3,7 +3,7 @@ import Testing
 
 @Test func theAppGroupHasNoHeadingAndHoldsWhatIsSharedAndWhatIsOfTheMac() {
     #expect(SettingsPage.Group.app.heading == nil)
-    #expect(SettingsPage.pages(in: .app) == [.general, .providers, .notifications, .appearance, .terminal, .keybindings, .dictation])
+    #expect(SettingsPage.pages(in: .app) == [.general, .providers, .notifications, .appearance, .terminal, .keybindings, .dictation, .keepAwake])
     #expect(SettingsPage.terminal.icon == "terminal" && SettingsPage.terminal.detail == "Theme, font, cursor, padding and shell behavior")
 }
 

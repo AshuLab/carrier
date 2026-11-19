@@ -11,8 +11,14 @@ public struct EpicNotification: Equatable {
     public var isTest: Bool
     public var sound: Bool
     public var quiet: Bool
+    /// Shown as a banner even with the app in front, whatever "only when away" says: the answer to something the person just did, or a stop
+    /// they must not miss because the window was left open.
+    public var always: Bool
 
-    public init(title: String, body: String, epic: EpicRef? = nil, session: String? = nil, isTest: Bool = false, sound: Bool = true, quiet: Bool = false) {
+    public init(
+        title: String, body: String, epic: EpicRef? = nil, session: String? = nil, isTest: Bool = false, sound: Bool = true, quiet: Bool = false,
+        always: Bool = false
+    ) {
         self.title = title
         self.body = body
         self.epic = epic
@@ -20,6 +26,7 @@ public struct EpicNotification: Equatable {
         self.isTest = isTest
         self.sound = sound
         self.quiet = quiet
+        self.always = always
     }
 }
 

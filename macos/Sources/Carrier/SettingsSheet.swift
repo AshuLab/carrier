@@ -69,6 +69,7 @@ struct SettingsSheet: View {
             case .chat: ChatTabView()
             case .dictation: DictationTabView()
             case .keybindings: KeybindingsTabView()
+            case .keepAwake: KeepAwakeTabView()
             case .about: AboutTabView()
             case .providers: ProvidersTabView(openAgents: { tab = .agents })
             case .engine:

@@ -145,9 +145,9 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     @objc private func settingsFromMenu() { showSettings() }
 
-    func showSettings() {
+    func showSettings(_ page: SettingsPage = .general) {
         open()
-        model.shell.showSettings()
+        model.shell.showSettings(page)
     }
 
     /// For the self-test.

@@ -194,6 +194,8 @@ private func assertionsHeldBySystem() -> [String] {
 @Test @MainActor func startingOnALowBatteryHoldsNothingAndSaysItIsWaiting() {
     let rig = Rig()
     defer { rig.finish() }
+    rig.defaults.set(false, forKey: AppPreferences.awakeNotifyKey)
+    rig.controller.settingsChanged()
     rig.power = PowerFacts(onBattery: true, percent: 10)
     rig.controller.powerChanged()
     rig.controller.start(minutes: 60)
@@ -243,8 +245,63 @@ private func oddShortcut() -> DictationShortcut? {
     #expect(first.controller.shortcutProblem?.contains(shortcut.text) == true)
 }
 
-@Test @MainActor func noShortcutIsNoProblem() {
+private func otherShortcut() -> DictationShortcut? {
+    guard case .accepted(let shortcut) = recordShortcut(keyCode: 17, characters: "t", modifiers: [.control, .option, .shift, .command]) else { return nil }
+    return shortcut
+}
+
+@Test @MainActor func noShortcutIsNoProblemAndOnlyARegisteredOneIsTheActiveOne() throws {
+    let shortcut = try #require(oddShortcut())
     let rig = Rig()
     defer { rig.finish() }
     #expect(rig.controller.shortcutProblem == nil)
+    #expect(rig.controller.registeredShortcut == nil)
+    AppPreferences(defaults: rig.defaults).awakeShortcut = shortcut
+    rig.controller.settingsChanged()
+    #expect(rig.controller.registeredShortcut == shortcut)
+    #expect(rig.controller.shortcutProblem == nil)
+}
+
+@Test @MainActor func aRefusedShortcutIsNotActiveAndClearingItLeavesNoProblemBehind() throws {
+    let shortcut = try #require(oddShortcut())
+    let first = Rig(shortcut: shortcut)
+    let second = Rig(shortcut: shortcut)
+    defer {
+        first.finish()
+        second.finish()
+    }
+    #expect(second.controller.shortcutProblem != nil)
+    // refused: the menu and the page must not show it as the active one
+    #expect(second.controller.registeredShortcut == nil)
+    // Clear (or Reset) takes the shortcut away: nothing is left to complain about
+    AppPreferences(defaults: second.defaults).awakeShortcut = nil
+    second.controller.settingsChanged()
+    #expect(second.controller.shortcutProblem == nil)
+    // and the keys refused before are not remembered against a new one
+    let other = try #require(otherShortcut())
+    AppPreferences(defaults: second.defaults).awakeShortcut = other
+    second.controller.settingsChanged()
+    #expect(second.controller.shortcutProblem == nil)
+    #expect(second.controller.registeredShortcut == other)
+}
+
+@Test @MainActor func aRefusalSurvivesNoOtherChangeAndRecordingOtherKeysReplacesIt() throws {
+    let shortcut = try #require(oddShortcut())
+    let other = try #require(otherShortcut())
+    let first = Rig(shortcut: shortcut)
+    let second = Rig(shortcut: shortcut)
+    defer {
+        first.finish()
+        second.finish()
+    }
+    #expect(second.controller.shortcutProblem != nil)
+    // an unrelated change of settings does not try again and again
+    second.controller.settingsChanged()
+    #expect(second.controller.shortcutProblem != nil)
+    // recording starts: the page stops showing a problem of keys that are being replaced
+    second.controller.recordingShortcut = true
+    AppPreferences(defaults: second.defaults).awakeShortcut = other
+    second.controller.recordingShortcut = false
+    #expect(second.controller.registeredShortcut == other)
+    #expect(second.controller.shortcutProblem == nil)
 }

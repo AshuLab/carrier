@@ -161,9 +161,12 @@ struct ShortcutRecorderRow: View {
     }
 
     private func stop() {
+        // the row going off screen calls this too: with nothing recorded there is nothing to let go or to forget
+        guard recording || monitor != nil else { return }
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
         recording = false
+        refusal = nil
         Self.listening(false)
     }
 

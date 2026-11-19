@@ -43,7 +43,8 @@ import CarrierCore
             toggleItem.subtitle = awakeStatus(decision, settings: settings, now: now)
             showIcon(decision.holds ? "cup.and.saucer.fill" : "cup.and.saucer", on: toggleItem)
             // the menu shows the keys that do the same from any app, so the shortcut is learned where it is used
-            let shortcut = AppPreferences().awakeShortcut
+            // only keys the system accepted: keys it refused are not shown as if they worked
+            let shortcut = controller.registeredShortcut
             let key = awakeMenuKey(shortcut)
             toggleItem.keyEquivalent = key ?? ""
             toggleItem.keyEquivalentModifierMask = key == nil ? [] : (shortcut?.modifiers.flags ?? [])

@@ -56,6 +56,9 @@ import IOKit.pwr_mgt
 
     var working: Bool { epicsWorking + sessionsWorking > 0 }
 
+    /// The shortcut the system accepted: what the menu may show. nil when none is recorded or the keys were refused.
+    var registeredShortcut: DictationShortcut? { registered }
+
     /// Reads the settings and the battery, watches both, registers the shortcut. Called once when the app opens, on the shared instance only:
     /// the battery's callback holds this object without retaining it, and nothing here is torn down.
     func start() {
@@ -212,12 +215,20 @@ import IOKit.pwr_mgt
 
     private func registerShortcut() {
         let wanted = recordingShortcut ? nil : preferences.awakeShortcut
-        if recordingShortcut { refused = nil }
-        guard wanted != registered, wanted == nil || wanted != refused else { return }
+        // none wanted (cleared, reset or being recorded): nothing is registered, nothing is refused and there is no problem to show
+        guard let wanted else {
+            hotKey = nil
+            registered = nil
+            refused = nil
+            shortcutProblem = nil
+            return
+        }
+        // the same keys again: already registered, or already refused and not tried over and over
+        guard wanted != registered, wanted != refused else { return }
         hotKey = nil
         registered = nil
+        refused = nil
         shortcutProblem = nil
-        guard let wanted else { return }
         let key = GlobalHotKey(GlobalHotKey.Shortcut(wanted), pressed: { [weak self] in
             MainActor.assumeIsolated { self?.toggle() }
         })

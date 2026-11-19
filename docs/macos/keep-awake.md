@@ -9,7 +9,7 @@ Why it was built and what was left out: the [spec](../specs/keep-awake.md).
 - **The menu** (the status item's, under the Pause and Stop controls): the first item says what a click does, with the state under it.
   "Keep awake for 1 hour" starts the default length; with a keep awake by hand running it reads "Stop keeping awake".
   Under it: "Off", "Awake · 1 h 12 min left", "Awake until you turn it off", "Awake while agents work", "Awake · 4 min after agents finished", "Paused: battery at 18 %" or "Off · wakes up when agents work".
-  Once a shortcut is recorded, the item shows its keys beside the title (a letter, digit, sign or space; a key with a name, such as an arrow or F5, shows none), so the shortcut is learned where it is used (`awakeMenuKey`).
+  Once a shortcut is registered, the item shows its keys beside the title (not keys the system refused) (a letter, digit, sign or space; a key with a name, such as an arrow or F5, shows none), so the shortcut is learned where it is used (`awakeMenuKey`).
 - **Keep awake for**, a submenu of lengths (30 min, 1 hour, 2 hours, 5 hours, Until I turn it off) with the one that runs checked, and a way to the page.
 - **Keep awake while agents work**, a checked item: the same switch as the page's.
 - **The icon**: a small cup shows before the count and the bar while the Mac is held, and goes when it is not.

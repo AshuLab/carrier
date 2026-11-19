@@ -12,21 +12,27 @@ import SwiftUI
     /// The place the search took the person to: its page scrolls to it and shows it for a moment, and then lets it go.
     var target: SettingsEntry?
 
-    var page: SettingsPage { history.current }
+    var page: SettingsPage { history.page }
+    /// The page and, inside it, which screen (the Providers page has one for a provider and one for an account of it).
+    var place: SettingsPlace { history.current }
 
     init() {
         history = SettingsHistory(UserDefaults.standard.string(forKey: Self.lastPageKey).flatMap(SettingsPage.init(rawValue:)) ?? .general)
     }
 
-    func go(_ page: SettingsPage) {
-        history.visit(page)
+    func go(_ page: SettingsPage) { go(SettingsPlace(page)) }
+
+    func go(_ place: SettingsPlace) {
+        history.visit(place)
         remember()
     }
 
-    /// Goes to a place the search found: its page, and the row or group on it.
+    /// Goes to a place the search found: its page, and the row or group on it, or the screen of a provider or an account (each screen on the way
+    /// is a place, so back leaves one at a time).
     func open(_ entry: SettingsEntry) {
         go(entry.page)
-        target = entry.isPage ? nil : entry
+        for length in entry.path.indices { go(SettingsPlace(entry.page, path: Array(entry.path.prefix(length + 1)))) }
+        target = entry.isPage || entry.path.isEmpty == false ? nil : entry
     }
 
     func back() {
@@ -91,6 +97,8 @@ struct SettingsRoot: View {
     @State private var headerNote: SettingsHeaderNote?
     @State private var query = ""
     @State private var resetter = SettingsReset()
+    @State private var saver = SettingsSave()
+    @State private var title: SettingsTitle?
     @State private var confirmingReset = false
 
     var body: some View {
@@ -101,10 +109,10 @@ struct SettingsRoot: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
         } detail: {
             SettingsPages(
-                state: model.state, canReload: model.epics.canReload, page: navigator.page, open: navigator.go, target: $navigator.target, headerNote: $headerNote
+                state: model.state, canReload: model.epics.canReload, navigator: navigator, target: $navigator.target, headerNote: $headerNote, title: $title
             )
-                .navigationTitle(navigator.page.rawValue)
-                .navigationSubtitle(navigator.page.detail)
+                .navigationTitle(title?.text ?? navigator.page.rawValue)
+                .navigationSubtitle(title?.subtitle ?? navigator.page.detail)
                 .toolbar {
                     ToolbarItemGroup(placement: .navigation) {
                         Button(action: navigator.back) { Label("Back", systemImage: "chevron.backward") }
@@ -113,6 +121,13 @@ struct SettingsRoot: View {
                             .disabled(navigator.history.canGoForward == false).keyboardShortcut("]", modifiers: .command).help("Forward")
                     }
                     if let headerNote { ToolbarItem(placement: .primaryAction) { SettingsNoteView(note: headerNote) } }
+                    // the save of a screen that edits something (an account): on its own glass pill, as the window's other actions
+                    if let saveTitle = saver.title {
+                        ToolbarItem(placement: .primaryAction) {
+                            AccentGlassPillButton(title: saveTitle, icon: "checkmark") { saver.run?() }.disabled(saver.enabled == false)
+                        }
+                        .sharedBackgroundVisibility(.hidden)
+                    }
                     ToolbarItem(placement: .primaryAction) {
                         Menu {
                             Button { confirmingReset = true } label: { Label("Reset this page…", systemImage: "arrow.counterclockwise") }
@@ -125,6 +140,7 @@ struct SettingsRoot: View {
                 }
         }
         .environment(\.settingsReset, resetter)
+        .environment(\.settingsSave, saver)
         // the session rows of the Sidebar page's preview read what the main window gives its own
         .environment(model.actions)
         .alert("Reset \(navigator.page.rawValue)?", isPresented: $confirmingReset) {
@@ -135,6 +151,8 @@ struct SettingsRoot: View {
         }
         // the size of a Text with no font of its own, so it follows the text size too
         .font(.scaled(13))
+        // the search finds the providers and accounts of this Mac, which only the host knows
+        .task { await AppHealth.providers.load() }
         // a problem appears while the person looks elsewhere: say it to VoiceOver too
         .onChange(of: headerNote) { _, note in
             if let note, note.tone == .saved || (note.tone == .problem && note.announces) { AccessibilityNotification.Announcement(note.text).post() }
@@ -167,9 +185,15 @@ struct SettingsSidebar: View {
         .scrollContentBackground(.hidden).themedSidebarBackground()
     }
 
+    /// The providers, accounts and servers of this Mac, which the static index cannot know: the Providers page's own answer, when it has one.
+    private var providersEntries: [SettingsEntry] {
+        guard case .reply(let reply) = AppHealth.providers.outcome, reply.problem == nil else { return [] }
+        return providersSearchEntries(providersPage(reply, config: currentConfig(), chat: try? currentChatConfig()))
+    }
+
     /// What the search found, under the pages it is in; choosing one opens the page and shows the row.
     @ViewBuilder private var results: some View {
-        let found = settingsResults(query)
+        let found = settingsResults(query, in: settingsIndex + providersEntries)
         let words = query.split(whereSeparator: \.isWhitespace).map(String.init)
         if found.isEmpty {
             ContentUnavailableView.search(text: query)
@@ -266,11 +290,12 @@ let settingsColumnWidth: CGFloat = 760
 struct SettingsPages: View {
     let state: ConnectionState?
     let canReload: Bool
-    let page: SettingsPage
-    let open: (SettingsPage) -> Void
+    let navigator: SettingsNavigator
     /// The place the search chose: scrolled to and shown for a moment, once the page is drawn.
     @Binding var target: SettingsEntry?
     @Binding var headerNote: SettingsHeaderNote?
+    /// What a screen of a page says of itself in the toolbar (a provider's name, an account's), when it is not the page's.
+    @Binding var title: SettingsTitle?
     @ObservedObject var setup: SetupController = .shared
     @ObservedObject private var start = StartController.shared
     @AppStorage(startOnOpenKey) private var startOnOpen = false
@@ -281,6 +306,7 @@ struct SettingsPages: View {
     @State private var highlight: String?
     /// The width the page has, to center a column in it.
     @State private var width: CGFloat = 0
+    private var page: SettingsPage { navigator.page }
     private var inset: CGFloat { page.isColumn ? max(0, (width - settingsColumnWidth) / 2) : 0 }
 
     var body: some View {
@@ -324,6 +350,7 @@ struct SettingsPages: View {
         .environment(\.settingsPage, page)
         .environment(\.settingsHighlight, highlight)
         .onPreferenceChange(SettingsHeaderNoteKey.self) { headerNote = $0 }
+        .onPreferenceChange(SettingsTitleKey.self) { title = $0 }
     }
 
     /// The readiness banner and what detecting said belong to the pages where it is fixed, not to every page.
@@ -354,7 +381,7 @@ struct SettingsPages: View {
         case .dictation: DictationTabView()
         case .keybindings: KeybindingsTabView()
         case .about: AboutTabView()
-        case .providers: ProvidersTabView(openAgents: { open(.agents) })
+        case .providers: ProvidersTabView(place: navigator.place, go: navigator.go, back: navigator.back, openAgents: { navigator.go(.agents) })
         case .engine:
             // one container, so the versions are read once and not once per group
             SettingsPageBody { engine(notConfigured: notConfigured) }
@@ -363,7 +390,7 @@ struct SettingsPages: View {
                     versions = await ProgramVersions.read(setup)
                 }
         case .behavior: BehaviorTabView()
-        case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { open(.agents) })
+        case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { navigator.go(.agents) })
         case .agents: AgentsTabView()
         case .sessions: SessionsTabView()
         case .notifications: NotificationsTabView()

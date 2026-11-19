@@ -13,13 +13,16 @@ public struct SettingsEntry: Equatable, Sendable, Identifiable {
     public let detail: String
     /// The page itself, found by its name: choosing it goes to the page, not to a row.
     public let isPage: Bool
+    /// The screen inside the page this opens, for what only this Mac knows (a provider, an account); empty for a row of the page.
+    public let path: [String]
 
-    public init(page: SettingsPage, group: String = "", title: String, detail: String = "", isPage: Bool = false) {
+    public init(page: SettingsPage, group: String = "", title: String, detail: String = "", isPage: Bool = false, path: [String] = []) {
         self.page = page
         self.group = group
         self.title = title
         self.detail = detail
         self.isPage = isPage
+        self.path = path
     }
 
     public var id: String { isPage ? settingsAnchor(page, group: "", title: "") : settingsAnchor(page, group: group, title: title) }
@@ -53,8 +56,9 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
             ("Time format", "Ages read \"11m\" or as a time, \"14:32\""), ("Clock", "How clock times count the hours"),
         ])
     case .providers:
-        return page(.providers, "Accounts", [("Accounts", "The AI accounts Carrier and the chat can use")])
-            + page(.providers, "Models", [("Models", "What each account can run")])
+        return page(.providers, "Accounts that need attention", [("Accounts that need attention", "Signed out, or near the limit of the 5h window")])
+            + page(.providers, "AI providers", [("AI providers", "The tools of this Mac, each with its accounts")])
+            + page(.providers, "Local servers", [("Local servers", "LM Studio and Ollama, and the models they have loaded")])
     case .appearance:
         return page(.appearance, "Theme", [("Theme", "Nine themes, each in light and dark")])
             + page(.appearance, "Look", [

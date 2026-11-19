@@ -300,6 +300,12 @@ final class WindowController: NSObject, NSWindowDelegate {
         model.shell.selection = .session(id: id)
     }
 
+    /// Opens the Usage page of the main window (the history of tokens and cost, which Settings only points to).
+    func showUsage() {
+        open()
+        model.shell.selection = .usage
+    }
+
     func close() { window?.close() }
 
     /// For the self-test: whether the window is on screen and whether its monitor runs.

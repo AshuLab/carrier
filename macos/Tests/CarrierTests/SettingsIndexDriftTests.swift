@@ -18,6 +18,7 @@ import Testing
     /// form is open.
     private static let notSearched: Set<String> = [
         "Create a bot…", "Label, icon and color", "Name", "Config folder", "Days", "Edit \\(account.title)", "Add account", "Carrier \\(version)",
+        "Where it runs", "Advanced", "Remove account", "Accounts", "Models", "Version", "Signed out", "Use in an agent", "Found on this Mac", "Sign-ins and quotas",
         "A session you stop using today", "Left alone", "Most dictations in a day", "Most words in a day", "Longest dictation", "Longest streak",
     ]
 

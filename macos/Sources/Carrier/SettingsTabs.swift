@@ -79,6 +79,32 @@ extension EnvironmentValues {
     @Entry var settingsForm = false
     /// Where a page puts what its Reset does (`SettingsPageBody`), for the window's toolbar to run after asking.
     @Entry var settingsReset: SettingsReset?
+    /// Where a screen that edits something puts its Save for the toolbar (`SettingsSave`).
+    @Entry var settingsSave: SettingsSave?
+}
+
+/// The save of the screen that is open (an account's editor): set by the screen while it has something to save, read by the toolbar's button.
+@MainActor @Observable final class SettingsSave {
+    private(set) var title: String?
+    private(set) var enabled = false
+    private(set) var run: (() -> Void)?
+    @ObservationIgnored private var owner: UUID?
+
+    func set(_ owner: UUID, title: String, enabled: Bool, run: @escaping () -> Void) {
+        self.owner = owner
+        self.title = title
+        self.enabled = enabled
+        self.run = run
+    }
+
+    /// Only the screen that set it clears it: the next one may have set its own before this one has gone.
+    func clear(_ owner: UUID) {
+        guard self.owner == owner else { return }
+        self.owner = nil
+        title = nil
+        enabled = false
+        run = nil
+    }
 }
 
 /// The Reset of the page that is open: set by the page when it appears, cleared when it goes, and read by the toolbar's menu.
@@ -151,7 +177,8 @@ private struct SettingsFieldModifier: ViewModifier {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         HStack(spacing: 7) {
             if let icon { Image(systemName: icon).font(.scaled(12, weight: .medium)).foregroundStyle(.secondary).accessibilityHidden(true) }
-            content.textFieldStyle(.plain).focused(focus).focusEffectDisabled()
+            // a form makes a field's title its label, at the left of it, and aligns its text to the trailing edge: here the title is the prompt
+            content.textFieldStyle(.plain).labelsHidden().multilineTextAlignment(.leading).focused(focus).focusEffectDisabled()
             if invalid { Image(systemName: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange).accessibilityHidden(true) }
         }
             .padding(.horizontal, 10).padding(.vertical, 6)
@@ -484,6 +511,17 @@ struct SettingsHeaderNote: Equatable {
     var announces = true
     /// The engine did not apply the save: the note has a way to ask it again, without a new edit.
     var asksAgain = false
+}
+
+/// What a screen of a page says of itself in the window's toolbar when it is not the page's own title: a provider's name, an account's.
+struct SettingsTitle: Equatable {
+    let text: String
+    let subtitle: String
+}
+
+struct SettingsTitleKey: PreferenceKey {
+    static let defaultValue: SettingsTitle? = nil
+    static func reduce(value: inout SettingsTitle?, nextValue: () -> SettingsTitle?) { value = nextValue() ?? value }
 }
 
 struct SettingsHeaderNoteKey: PreferenceKey {

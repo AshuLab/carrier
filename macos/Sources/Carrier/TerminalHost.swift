@@ -597,9 +597,21 @@ final class CarrierTerminalStore {
         lastAppliedAppearance = look.profile
         appearanceProfile = look.profile
 
+        let drawn = Self.ghosttyAppearance(look, preferences: prefs)
         controller.setColorScheme(TerminalAppearanceMapper.ghosttyColorScheme(look.scheme))
-        _ = controller.setTheme(TerminalAppearanceMapper.ghosttyTheme(for: look.profile.theme, preferences: prefs, translucent: look.translucent))
-        _ = controller.setTerminalConfiguration(TerminalAppearanceMapper.ghosttyBaseConfiguration(for: look.profile))
+        _ = controller.setTheme(drawn.theme)
+        _ = controller.setTerminalConfiguration(drawn.configuration)
+    }
+
+    /// The theme and the configuration Ghostty is given for a look: built only once the profile is known to have changed.
+    private static func ghosttyAppearance(
+        _ look: (scheme: ThemeScheme, profile: TerminalAppearanceProfile, translucent: Bool),
+        preferences: AppPreferences
+    ) -> (theme: TerminalTheme, configuration: TerminalConfiguration) {
+        (
+            TerminalAppearanceMapper.ghosttyTheme(for: look.profile.theme, preferences: preferences, translucent: look.translucent),
+            TerminalAppearanceMapper.ghosttyBaseConfiguration(for: look.profile)
+        )
     }
 
     /// The scheme, the profile and whether the terminal is translucent: what decides whether anything changed.
@@ -623,9 +635,8 @@ final class CarrierTerminalStore {
         scheme: ThemeScheme?
     ) -> (scheme: ThemeScheme, profile: TerminalAppearanceProfile, theme: TerminalTheme, configuration: TerminalConfiguration) {
         let look = appearanceLook(preferences: preferences, scheme: scheme)
-        let theme = TerminalAppearanceMapper.ghosttyTheme(for: look.profile.theme, preferences: preferences, translucent: look.translucent)
-        let config = TerminalAppearanceMapper.ghosttyBaseConfiguration(for: look.profile)
-        return (look.scheme, look.profile, theme, config)
+        let drawn = ghosttyAppearance(look, preferences: preferences)
+        return (look.scheme, look.profile, drawn.theme, drawn.configuration)
     }
 
     // MARK: - Process Confirmation & Lifecycle Teardown

@@ -261,7 +261,7 @@ private struct SessionHomeRow: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 6) {
-                SessionTimeLabel(row: row, age: timeText(row.updatedAt, now: Date())).font(.scaled(12).monospacedDigit()).lineLimit(1)
+                SessionTimeLabel(row: row, age: timeText(row.updatedAt, now: Date(), format: timeChanges.format)).font(.scaled(12).monospacedDigit()).lineLimit(1)
                 ProviderMarks(names: row.providers)
             }
             .opacity(active ? 0 : 1)

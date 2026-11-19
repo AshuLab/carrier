@@ -54,12 +54,12 @@ public func timeText(_ date: Date, now: Date, style: TimeStyle, hours: ClockHour
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) {
             return "Yesterday \(time)"
         }
-        let day = clockFormatters.formatter("day|\(timeZone.identifier)") {
+        let day = clockFormatters.string(from: date, key: "day|\(timeZone.identifier)") {
             let day = DateFormatter()
             (day.locale, day.timeZone, day.dateFormat) = (Locale(identifier: "en_US_POSIX"), timeZone, "MMM d")
             return day
         }
-        return "\(day.string(from: date)) \(time)"
+        return "\(day) \(time)"
     }
 }
 
@@ -71,7 +71,7 @@ public func timeText(_ date: Date, now: Date, format: TimeFormat = .stored()) ->
 public func clockTime(_ date: Date, hours: ClockHours, locale: Locale, timeZone: TimeZone = .current) -> String {
     // `hourCycle` is in the key: when the person changes "24-hour time" in the system with no change of region, `.system` is not stale
     let key = "\(hours.rawValue)|\(locale.identifier)|\(locale.hourCycle)|\(timeZone.identifier)"
-    let formatter = clockFormatters.formatter(key) {
+    return clockFormatters.string(from: date, key: key) {
         let formatter = DateFormatter()
         formatter.timeZone = timeZone
         switch hours {
@@ -83,20 +83,20 @@ public func clockTime(_ date: Date, hours: ClockHours, locale: Locale, timeZone:
         }
         return formatter
     }
-    return formatter.string(from: date)
 }
 
 /// The formatters a clock time is written with, made once per clock, locale and zone: making one costs far more than writing with it.
+/// They never leave the class, so nothing outside can change one that others share.
 private final class ClockFormatters: @unchecked Sendable {
     private let lock = NSLock()
     private var made: [String: DateFormatter] = [:]
 
-    func formatter(_ key: String, _ make: () -> DateFormatter) -> DateFormatter {
+    func string(from date: Date, key: String, make: () -> DateFormatter) -> String {
         lock.withLock {
-            if let formatter = made[key] { return formatter }
+            if let formatter = made[key] { return formatter.string(from: date) }
             let formatter = make()
             made[key] = formatter
-            return formatter
+            return formatter.string(from: date)
         }
     }
 }

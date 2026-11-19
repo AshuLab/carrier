@@ -762,6 +762,12 @@ struct TerminalDrawerView: View {
             }
         }
         .onAppear { ensureTabExists() }
+        .onDisappear {
+            // the drawer goes away in the middle of a drag: what was drawn is kept, as it would have been on release
+            if let dragHeight { height = dragHeight }
+            dragHeight = nil
+            dragStartHeight = nil
+        }
         .onChange(of: owner) { _, _ in ensureTabExists() }
         .onChange(of: tabs.isEmpty) { _, isEmpty in
             if isEmpty { autoHideOnEmpty() }
@@ -795,7 +801,11 @@ struct TerminalDrawerView: View {
                 dragStartHeight = nil
             },
             onAdjust: { increment in
-                height = min(max(height + (increment ? 24 : -24), Self.minHeight), ceiling)
+                // from what is drawn, and the drag state is over: a drag that never reported its end must not hold the drawn height
+                let base = dragHeight ?? height
+                dragHeight = nil
+                dragStartHeight = nil
+                height = min(max(base + (increment ? 24 : -24), Self.minHeight), ceiling)
             }
         )
     }

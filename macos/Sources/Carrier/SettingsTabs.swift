@@ -5,7 +5,8 @@ import SwiftUI
 
 // The page pattern of Settings (a header, cards of rows, a preview, a Reset) and the General and Notifications pages.
 
-/// A row of these tabs: a title and a line under it on the left, the control on the right.
+/// A row of these tabs: a title and a line under it on the left, the control on the right. In a page that is a native `Form` it is a
+/// `LabeledContent` of its section; elsewhere it is a row of a card.
 struct SettingsTabRow<Control: View>: View {
     let title: String
     let detail: String
@@ -21,35 +22,135 @@ struct SettingsTabRow<Control: View>: View {
     /// A tile at the row's left, before the title (an account's avatar); the text keeps its place after it.
     var leading: AnyView?
     @ViewBuilder var control: Control
+    @Environment(\.settingsForm) private var form
+
+    private var words: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title).fontWeight(.medium)
+            if detail.isEmpty == false || problem != nil {
+                Group {
+                    if let problem { Label(problem, icon: .warningFilled, size: 11).foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
+                }
+                .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(11)).lineLimit(2).truncationMode(.middle)
+            }
+            if let note {
+                // cut in the middle to one line: the whole of it (a long PATH) is in the tooltip, and it can be selected to copy
+                Text(note).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
+                    .help(note).textSelection(.enabled)
+            }
+        }
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
-            if let leading { leading }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).fontWeight(.medium)
-                if detail.isEmpty == false || problem != nil {
-                    Group {
-                        if let problem { Text("\(Image(systemName: "exclamationmark.triangle.fill")) \(problem)").foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
-                    }
-                    .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(11)).lineLimit(2).truncationMode(.middle)
-                }
-                if let note {
-                    // cut in the middle to one line: the whole of it (a long PATH) is in the tooltip, and it can be selected to copy
-                    Text(note).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
-                        .help(note).textSelection(.enabled)
-                }
+        if form {
+            // an HStack and not a LabeledContent: that one sets the control at the height of the first line, so on a row with a detail line the
+            // switches and selects would not sit in the middle of it
+            HStack(spacing: 12) {
+                if let leading { leading }
+                words
+                Spacer(minLength: 8)
+                control.environment(\.settingsInvalid, problem != nil)
             }
-            Spacer(minLength: 8)
-            control.environment(\.settingsInvalid, problem != nil)
+            .frame(minHeight: 36)
+            .settingsAnchored(title)
+        } else {
+            HStack(spacing: 12) {
+                if let leading { leading }
+                words
+                Spacer(minLength: 8)
+                control.environment(\.settingsInvalid, problem != nil)
+            }
+            .padding(.vertical, roomy ? 14 : 10).frame(minHeight: 46)
+            .overlay(alignment: .top) { if first == false { SettingsDivider() } }
+            .settingsAnchored(title)
         }
-        .padding(.vertical, roomy ? 14 : 10).frame(minHeight: 46)
-        .overlay(alignment: .top) { if first == false { SettingsDivider() } }
     }
 }
 
 extension EnvironmentValues {
     /// Whether the row the control sits in says its value is not valid.
     @Entry var settingsInvalid = false
+    /// The page being drawn and the title of the group a row is in, so a row knows the anchor the search finds it by (`settingsAnchor`).
+    @Entry var settingsPage: SettingsPage?
+    @Entry var settingsGroup = ""
+    /// The anchor the search just took the person to: its row shows itself for a moment.
+    @Entry var settingsHighlight: String?
+    /// The page is a native `Form`: its groups are sections and its rows are labeled content, and the page's reset goes to the toolbar.
+    @Entry var settingsForm = false
+    /// Where a page puts what its Reset does (`SettingsPageBody`), for the window's toolbar to run after asking.
+    @Entry var settingsReset: SettingsReset?
+    /// Where a screen that edits something puts its Save for the toolbar (`SettingsSave`).
+    @Entry var settingsSave: SettingsSave?
+}
+
+/// The save of the screen that is open (an account's editor): set by the screen while it has something to save, read by the toolbar's button.
+@MainActor @Observable final class SettingsSave {
+    private(set) var title: String?
+    private(set) var icon = AppIcon.check
+    private(set) var enabled = false
+    private(set) var run: (() -> Void)?
+    @ObservationIgnored private var owner: UUID?
+
+    /// `icon` is the verb's own (Save a check, Add a plus), as the guide gives each button.
+    func set(_ owner: UUID, title: String, icon: AppIcon = .check, enabled: Bool, run: @escaping () -> Void) {
+        self.owner = owner
+        self.title = title
+        self.icon = icon
+        self.enabled = enabled
+        self.run = run
+    }
+
+    /// Only the screen that set it clears it: the next one may have set its own before this one has gone.
+    func clear(_ owner: UUID) {
+        guard self.owner == owner else { return }
+        self.owner = nil
+        title = nil
+        enabled = false
+        run = nil
+    }
+}
+
+/// The Reset of the page that is open: set by the page when it appears, cleared when it goes, and read by the toolbar's menu.
+@MainActor @Observable final class SettingsReset {
+    private(set) var action: (() -> Void)?
+    @ObservationIgnored private var owner: UUID?
+
+    func set(_ owner: UUID, _ action: @escaping () -> Void) {
+        self.owner = owner
+        self.action = action
+    }
+
+    /// Only the page that set it clears it: the next page may have set its own before this one has gone.
+    func clear(_ owner: UUID) {
+        guard self.owner == owner else { return }
+        self.owner = nil
+        action = nil
+    }
+}
+
+/// Makes a row (or a group, with its own title as both) findable by the search: the id the page scrolls to, and the color it takes when it is the
+/// place that was chosen.
+private struct SettingsAnchored: ViewModifier {
+    let group: String?
+    let title: String
+    @Environment(\.settingsPage) private var page
+    @Environment(\.settingsGroup) private var inherited
+    @Environment(\.settingsHighlight) private var highlight
+
+    func body(content: Content) -> some View {
+        if let page {
+            let anchor = settingsAnchor(page, group: group ?? inherited, title: title)
+            content.id(anchor)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.yellow.opacity(highlight == anchor ? 0.3 : 0)))
+                .animation(.easeOut(duration: 0.5), value: highlight == anchor)
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func settingsAnchored(_ title: String, group: String? = nil) -> some View { modifier(SettingsAnchored(group: group, title: title)) }
 }
 
 /// The line between two rows of a card: a whole point tall and quiet, where the system's Divider is a grey hairline that stands out on the dark themes.
@@ -66,7 +167,7 @@ struct SettingsDivider: View {
 /// while it has the focus. Put it on a `TextField`; a click anywhere in the box, padding included, puts the cursor in it.
 private struct SettingsFieldModifier: ViewModifier {
     let width: CGFloat?
-    let icon: String?
+    let icon: AppIcon?
     @Environment(\.settingsInvalid) private var invalid
     /// The caller's own focus state, when it needs to know about the focus (to save as the person leaves the field); else the field keeps its own.
     let external: FocusState<Bool>.Binding?
@@ -78,9 +179,10 @@ private struct SettingsFieldModifier: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         HStack(spacing: 7) {
-            if let icon { Image(systemName: icon).font(.scaled(12, weight: .medium)).foregroundStyle(.secondary).accessibilityHidden(true) }
-            content.textFieldStyle(.plain).focused(focus).focusEffectDisabled()
-            if invalid { Image(systemName: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange).accessibilityHidden(true) }
+            if let icon { Glyph(icon, size: 12).foregroundStyle(.secondary) }
+            // a form makes a field's title its label, at the left of it, and aligns its text to the trailing edge: here the title is the prompt
+            content.textFieldStyle(.plain).labelsHidden().multilineTextAlignment(.leading).focused(focus).focusEffectDisabled()
+            if invalid { Glyph(.warningFilled, size: 11).foregroundStyle(.orange).accessibilityHidden(true) }
         }
             .padding(.horizontal, 10).padding(.vertical, 6)
             // a fixed width, or the whole width it is given
@@ -95,9 +197,9 @@ private struct SettingsFieldModifier: ViewModifier {
 }
 
 extension View {
-    /// `icon` is an SF Symbol drawn inside the box before the text (a magnifying glass for a search).
+    /// `icon` is drawn inside the box before the text (a magnifying glass for a search).
     /// Inside a row with a `problem` the ring is orange and a warning mark sits in the box, the same size as without them: nothing moves.
-    func settingsField(width: CGFloat? = nil, icon: String? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
+    func settingsField(width: CGFloat? = nil, icon: AppIcon? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
         modifier(SettingsFieldModifier(width: width, icon: icon, external: focused))
     }
 }
@@ -106,7 +208,7 @@ extension View {
 /// a set that excludes each other is "All".
 struct FilterChip: View {
     let title: String
-    var icon: String?
+    var icon: AppIcon?
     let on: Bool
     let action: () -> Void
     @State private var hovered = false
@@ -114,7 +216,7 @@ struct FilterChip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                if let icon { Image(systemName: icon).font(.scaled(10, weight: .semibold)) }
+                if let icon { Glyph(icon, size: 11) }
                 Text(title).font(.scaled(12, weight: .medium))
             }
             .foregroundStyle(on ? Color.themeAccent : hovered ? Color.primary : Color.secondary)
@@ -131,7 +233,7 @@ struct FilterChip: View {
 /// A few choices that exclude each other, in one grey capsule: the chosen one is a lighter capsule inside it, never the accent. Every choice
 /// has the same type and padding whether chosen or not, so nothing changes size when the choice moves (Usage's metric and range).
 struct SegmentedChoice<Value: Hashable>: View {
-    let options: [(value: Value, title: String, icon: String?)]
+    let options: [(value: Value, title: String, icon: AppIcon?)]
     @Binding var selection: Value
 
     var body: some View {
@@ -146,7 +248,7 @@ struct SegmentedChoice<Value: Hashable>: View {
 
     private struct Segment: View {
         let title: String
-        let icon: String?
+        let icon: AppIcon?
         let on: Bool
         let action: () -> Void
         @State private var hovered = false
@@ -154,7 +256,7 @@ struct SegmentedChoice<Value: Hashable>: View {
         var body: some View {
             Button(action: action) {
                 HStack(spacing: 5) {
-                    if let icon { Image(systemName: icon).font(.scaled(10, weight: .semibold)) }
+                    if let icon { Glyph(icon, size: 11) }
                     Text(title).font(.scaled(12, weight: .medium))
                 }
                 .foregroundStyle(on ? Color.primary : Color.secondary)
@@ -175,6 +277,7 @@ struct SettingsStackedRow<Control: View>: View {
     let detail: String
     var first = false
     @ViewBuilder var control: Control
+    @Environment(\.settingsForm) private var form
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -184,46 +287,54 @@ struct SettingsStackedRow<Control: View>: View {
             }
             control
         }
-        .padding(.vertical, 12).frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .top) { if first == false { SettingsDivider() } }
+        .padding(.vertical, form ? 4 : 12).frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .top) { if first == false && form == false { SettingsDivider() } }
+        .settingsAnchored(title)
     }
 }
 
-/// The system's pop-up button, as the Mac draws it, for a choice among a few words. SwiftUI's menu picker takes the theme's accent for its
-/// fill and its text, which reads as a main action; this one is neutral and fills the width it is given.
-struct NativePopUp: NSViewRepresentable {
+/// A choice among a few words, the one select of the app's rows: the system's own pop-up menu (a `Picker` in the menu style), which in a form is drawn as
+/// the Mac draws it, the chosen word at the right with the up and down chevrons in a small circle, and opens the system's menu with its own check. It takes
+/// the room of its word: rows no longer give it a width. (AppKit's `NSPopUpButton` in its place drew badly in a form; the SwiftUI picker does not.)
+struct SelectMenu: View {
     let items: [String]
     @Binding var selection: Int
 
-    func makeNSView(context: Context) -> NSPopUpButton {
-        let button = NSPopUpButton(frame: .zero, pullsDown: false)
-        button.target = context.coordinator
-        button.action = #selector(Coordinator.changed(_:))
-        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        return button
+    var body: some View {
+        Picker(selection: $selection) {
+            ForEach(items.indices, id: \.self) { Text(items[$0]).tag($0) }
+        } label: { EmptyView() }
+        // no tint of the theme's: the window's own tint reaches the picker and colors it, and the system's is neutral
+        .pickerStyle(.menu).labelsHidden().fixedSize().tint(nil)
     }
+}
 
-    func updateNSView(_ button: NSPopUpButton, context: Context) {
-        context.coordinator.parent = self
-        // a row switched off (`.disabled`) dims its pop-up too
-        button.isEnabled = context.environment.isEnabled
-        if button.itemTitles != items {
-            button.removeAllItems()
-            button.addItems(withTitles: items)
+/// The chevrons of a select in their small circle, as the Mac's pop-up draws them in a form.
+struct SelectChevron: View {
+    var body: some View {
+        Image(systemName: "chevron.up.chevron.down").font(.scaled(8, weight: .bold)).foregroundStyle(.primary.opacity(0.85))
+            .frame(width: 18, height: 18).background(Circle().fill(Color.primary.opacity(0.12))).accessibilityHidden(true)
+    }
+}
+
+/// The face of a button that opens a choice (the model picker's): no box, its words and `SelectChevron` after them as a system pop-up in a form has them,
+/// a little dimmer under the pointer and when pressed.
+struct SelectButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
+
+    private struct Face: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isEnabled) private var enabled
+        @State private var hovered = false
+
+        var body: some View {
+            configuration.label
+                .padding(.vertical, 4)
+                .opacity(enabled ? (configuration.isPressed ? 0.55 : hovered ? 0.8 : 1) : 0.5)
+                .contentShape(Rectangle())
+                .onHover { hovered = $0 }
+                .animation(.easeOut(duration: 0.12), value: hovered)
         }
-        if button.indexOfSelectedItem != selection, items.indices.contains(selection) { button.selectItem(at: selection) }
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSPopUpButton, context: Context) -> CGSize? {
-        CGSize(width: proposal.width ?? nsView.intrinsicContentSize.width, height: nsView.intrinsicContentSize.height)
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    final class Coordinator: NSObject {
-        var parent: NativePopUp
-        init(_ parent: NativePopUp) { self.parent = parent }
-        @objc func changed(_ sender: NSPopUpButton) { parent.selection = sender.indexOfSelectedItem }
     }
 }
 
@@ -238,7 +349,7 @@ private struct CopyOnHover: ViewModifier {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             content
             Button(action: copy) {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.scaled(10.5, weight: .medium))
+                Glyph(copied ? .check : .copy, size: 11)
                     .foregroundStyle(copied ? Color.green : Color.secondary).frame(width: 20, height: 20)
                     .background(Circle().fill(Color.primary.opacity(0.1))).contentShape(Circle())
             }
@@ -286,13 +397,13 @@ extension View {
 /// A state as a 16 pt round mark with a white symbol: `checkmark` green for ready, `exclamationmark` yellow for a warning, `xmark` orange for a
 /// failure. Next to a spinner (`ProgressView().controlSize(.mini)` in the same 16 pt) for what is still being looked at.
 struct StatusMark: View {
-    let symbol: String
+    let symbol: AppIcon
     let color: Color
     let label: String
 
     var body: some View {
-        Image(systemName: symbol).font(.scaled(9, weight: .heavy)).foregroundStyle(.white)
-            .frame(width: 16, height: 16).background(Circle().fill(color)).accessibilityLabel(label)
+        Glyph(symbol, size: 10, bold: true).foregroundStyle(.white)
+            .frame(width: 16, height: 16).background(Circle().fill(color)).accessibilityElement(children: .ignore).accessibilityLabel(label)
     }
 }
 
@@ -306,11 +417,11 @@ struct RoleTile: View {
     var body: some View {
         Group {
             if off {
-                Image(systemName: "power").font(.scaled(14, weight: .medium)).foregroundStyle(.tertiary)
+                Glyph(.power, size: 14).foregroundStyle(.tertiary)
             } else if let provider, let icon = icons[provider] {
                 ProviderMark(name: icon, size: 17)
             } else {
-                Image(systemName: "questionmark.circle").font(.scaled(15)).foregroundStyle(.secondary)
+                Glyph(.help, size: 15).foregroundStyle(.secondary)
             }
         }
         .frame(width: 34, height: 34).background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.07)))
@@ -329,28 +440,53 @@ func roleSummary(_ fields: RoleFields) -> Text {
     }
 }
 
-/// A group of a tab: a small uppercase title over a card of rows.
+/// A group of a tab: a small uppercase title over a card of rows, or a section of a native `Form`. `footer` is the longer word about the whole
+/// group, under it, so a row's own line can stay short.
 struct SettingsGroup<Content: View, Accessory: View>: View {
     let title: String
+    var footer: String?
     @ViewBuilder var accessory: Accessory
     @ViewBuilder var content: Content
+    @Environment(\.settingsForm) private var form
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(title).sectionLabel()
-                Spacer(minLength: 8)
-                accessory
+        if form {
+            Section {
+                content.environment(\.settingsGroup, title)
+            } header: {
+                if title.isEmpty == false {
+                    HStack {
+                        Text(title)
+                        Spacer(minLength: 8)
+                        accessory
+                    }
+                    .settingsAnchored(title, group: title)
+                }
+            } footer: {
+                if let footer { Text(footer) }
             }
-            .padding(.leading, 14).padding(.top, 8)
-            SettingsTabCard { content }
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                if title.isEmpty == false {
+                    HStack {
+                        Text(title).sectionLabel()
+                        Spacer(minLength: 8)
+                        accessory
+                    }
+                    .padding(.leading, 14).padding(.top, 8)
+                }
+                SettingsTabCard { content }.environment(\.settingsGroup, title)
+                if let footer { Text(footer).font(.scaled(11)).foregroundStyle(.secondary).padding(.horizontal, 14) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .settingsAnchored(title, group: title)
         }
     }
 }
 
 extension SettingsGroup where Accessory == EmptyView {
-    init(title: String, @ViewBuilder content: () -> Content) {
-        self.init(title: title, accessory: { EmptyView() }, content: content)
+    init(title: String, footer: String? = nil, @ViewBuilder content: () -> Content) {
+        self.init(title: title, footer: footer, accessory: { EmptyView() }, content: content)
     }
 }
 
@@ -366,70 +502,38 @@ struct SettingsHeaderNote: Equatable {
     var asksAgain = false
 }
 
+/// What a screen of a page says of itself in the window's toolbar when it is not the page's own title: a provider's name, an account's.
+struct SettingsTitle: Equatable {
+    let text: String
+    let subtitle: String
+}
+
+struct SettingsTitleKey: PreferenceKey {
+    static let defaultValue: SettingsTitle? = nil
+    static func reduce(value: inout SettingsTitle?, nextValue: () -> SettingsTitle?) { value = nextValue() ?? value }
+}
+
 struct SettingsHeaderNoteKey: PreferenceKey {
     static let defaultValue: SettingsHeaderNote? = nil
     static func reduce(value: inout SettingsHeaderNote?, nextValue: () -> SettingsHeaderNote?) { value = nextValue() ?? value }
 }
 
-/// The top of a page: an icon, the title and a line, and the page's note at the right when it has one, or below the title when the page is
-/// too narrow for both.
-struct SettingsPageHeader: View {
-    let page: SettingsPage
-    var note: SettingsHeaderNote?
+/// A page's note as the toolbar shows it, at its right: the Behavior page's "Saved", or why it cannot save, with a way to ask Carrier again.
+struct SettingsNoteView: View {
+    let note: SettingsHeaderNote
 
-    private var tile: some View {
-        Image(systemName: page.icon)
-            .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
-            .frame(width: 38, height: 38)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
-            .accessibilityHidden(true)
-    }
-
-    // the two lines are about as tall as the tile (a Spacer here would take the whole height the page's bar offers)
-    private var titles: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(page.rawValue).font(.scaled(15).weight(.semibold))
-            Text(page.detail).font(.scaled(12)).foregroundStyle(.secondary)
-        }
-    }
-
-    // an engine's message can be long: it wraps instead of being cut
-    @ViewBuilder private func noteView(_ note: SettingsHeaderNote) -> some View {
+    var body: some View {
         HStack(spacing: 10) {
             Group {
                 switch note.tone {
-                case .saved: Label(note.text, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                case .plain: Label(note.text, systemImage: "info.circle").foregroundStyle(.secondary)
+                case .saved: Label(note.text, icon: .checkCircleFilled).foregroundStyle(.green)
+                case .problem: Label(note.text, icon: .warningFilled).foregroundStyle(.orange)
+                case .plain: Label(note.text, icon: .info).foregroundStyle(.secondary)
                 }
             }
-            .font(.scaled(12)).fixedSize(horizontal: false, vertical: true)
+            .font(.scaled(12)).lineLimit(2).frame(maxWidth: 420, alignment: .trailing)
             if note.asksAgain { AskAgainButton() }
         }
-    }
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 12) {
-                tile
-                titles.fixedSize(horizontal: true, vertical: false)
-                if let note {
-                    Spacer(minLength: 16)
-                    noteView(note).multilineTextAlignment(.trailing).frame(maxWidth: 420, alignment: .trailing)
-                }
-            }
-            // too narrow for the title and the note side by side: the note goes under the title, with the room of the page
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center, spacing: 12) { tile; titles }
-                if let note { noteView(note).frame(maxWidth: .infinity, alignment: .leading) }
-            }
-        }
-        // a problem appears while the person looks elsewhere: say it to VoiceOver too
-        .onChange(of: note) { _, note in
-            if let note, note.tone == .saved || (note.tone == .problem && note.announces) { AccessibilityNotification.Announcement(note.text).post() }
-        }
-        // room for the close button, which sits over the corner of the header
-        .padding(.trailing, 32)
     }
 }
 
@@ -440,7 +544,7 @@ struct ProblemLine: View {
     var announces = true
 
     var body: some View {
-        Label(text, systemImage: "exclamationmark.triangle.fill").font(font).foregroundStyle(.orange)
+        Label(text, icon: .warningFilled).font(font).foregroundStyle(.orange)
             .fixedSize(horizontal: false, vertical: true)
             .onAppear { if announces { AccessibilityNotification.Announcement(text).post() } }
             .onChange(of: text) { _, text in if announces { AccessibilityNotification.Announcement(text).post() } }
@@ -461,7 +565,7 @@ struct ReloadNote: View {
                     ProblemLine(text: words, announces: false)
                     AskAgainButton()
                 } else {
-                    Label(words, systemImage: "info.circle").font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Label(words, icon: .info).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
             }
@@ -475,7 +579,7 @@ struct AskAgainButton: View {
     private let engine = ReloadStatus.shared
 
     var body: some View {
-        Button { engine.ask() } label: { Label("Ask Carrier again", systemImage: "arrow.clockwise") }
+        Button { engine.ask() } label: { Label("Ask Carrier again", icon: .refresh) }
             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(engine.pending)
     }
 }
@@ -489,48 +593,57 @@ extension View {
     }
 }
 
-/// `NativePopUp` over a value: the choices as (value, title) pairs, the one chosen bound as the value itself. A stored value that is not on the
+/// How wide a field or a slider of a row is, the same on every page so they end and begin on one line down the card.
+let settingsSelectWidth: CGFloat = 210
+
+/// How wide a slider of a row is: the width of the selects, which is at least 200 pt, so the track is long enough to aim at.
+let settingsSliderWidth: CGFloat = settingsSelectWidth
+
+/// `SelectMenu` over a value: the choices as (value, title) pairs, the one chosen bound as the value itself. A stored value that is not on the
 /// list shows the first choice, as the pages already read an unknown value as their default.
 struct ChoicePopUp<Value: Hashable>: View {
     let label: String
     let options: [(value: Value, title: String)]
     @Binding var selection: Value
-    var width: CGFloat = 160
 
     var body: some View {
-        NativePopUp(
+        SelectMenu(
             items: options.map(\.title),
             selection: Binding(
                 get: { options.firstIndex { $0.value == selection } ?? 0 },
                 set: { selection = options[$0].value }
             )
         )
-        .accessibilityLabel(label).frame(width: width)
+        .accessibilityLabel(label)
     }
 }
 
-/// What goes under a page's header: the groups and a Reset row where the page has many controls.
+/// What a page is made of: its groups, as a native `Form` where the page is one (`SettingsPage.usesForm`) and a column of cards elsewhere. A page
+/// with many controls gives `reset`: the toolbar's menu runs it after asking.
 struct SettingsPageBody<Content: View>: View {
     var reset: (() -> Void)?
     @ViewBuilder var content: Content
+    @Environment(\.settingsForm) private var form
+    @Environment(\.settingsReset) private var resetter
+    @State private var owner = UUID()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            content
-            if let reset {
-                SettingsTabCard {
-                    SettingsTabRow(title: "Reset", detail: "Puts this page back to how it came", first: true) {
-                        Button(action: reset) { Label("Reset", systemImage: "arrow.counterclockwise") }.buttonStyle(SecondaryCapsuleButtonStyle())
-                    }
-                }
+        Group {
+            if form {
+                Form { content }.formStyle(.grouped).scrollContentBackground(.hidden)
+            } else {
+                VStack(alignment: .leading, spacing: 12) { content }.frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .onAppear { if let reset { resetter?.set(owner, reset) } }
+        .onDisappear { resetter?.clear(owner) }
     }
 }
 
 /// A sample of what the rows around it change, inside the group of those rows so that it sits next to the controls.
 struct SettingsPreview<Content: View>: View {
     @ViewBuilder var content: Content
+    @Environment(\.settingsForm) private var form
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -538,7 +651,7 @@ struct SettingsPreview<Content: View>: View {
             content.frame(maxWidth: .infinity)
         }
         .padding(.vertical, 12)
-        .overlay(alignment: .top) { SettingsDivider() }
+        .overlay(alignment: .top) { if form == false { SettingsDivider() } }
     }
 }
 
@@ -585,7 +698,7 @@ struct GeneralTabView: View {
                 }
             }
             SettingsGroup(title: "Display") {
-                SettingsTabRow(title: "Time format", detail: "Ages read \"11m\", or as the time of the event, \"14:32\"", first: true) {
+                SettingsTabRow(title: "Time format", detail: "Ages read \"11m\" or as a time, \"14:32\"", first: true) {
                     // a saved value that is not a choice reads as the default, as the formatter does
                     ChoicePopUp(
                         label: "Time format", options: [(value: TimeStyle.relative, title: "Relative"), (value: .clock, title: "Clock")],
@@ -615,7 +728,38 @@ struct AppearanceTabView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var scheme
     @AppStorage(TypeScale.percentKey) private var textSize = 100
+    @AppStorage(IconWeight.key) private var iconWeight = IconWeight.defaultWeight
+    @AppStorage(IconSet.key) private var iconSet = IconSet.defaultSet.rawValue
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    @AppStorage(AppPreferences.monospaceFamilyKey) private var family = MonospaceSettings.systemFamily
+    @AppStorage(AppPreferences.monospaceSizeKey) private var codeSize = Double(MonospaceSettings.defaultSize)
+    @AppStorage(AppPreferences.monospaceLineHeightKey) private var lineHeight = LineHeight.normal
+    @AppStorage(AppPreferences.monospaceLigaturesKey) private var ligatures = true
+    @AppStorage(AppPreferences.monospaceWrapKey) private var wrapLongLines = true
+    @AppStorage(AppPreferences.monospaceLineNumbersKey) private var lineNumbers = false
+
+    /// A few lines of code under the settings: a long line to wrap, and the pairs of characters a ligature joins.
+    private static let sample = """
+        func total(_ lines: [Int]) -> Int {
+            // a line that is longer than the room it has, so wrapping and scrolling sideways show: 0123456789 abcdefghij 0123456789
+            lines.filter { $0 != 0 && $0 >= 1 }.reduce(0, +)
+        }
+        """
+
+    private func codePreview() -> some View {
+        SettingsPreview { CodeBlockView(language: "swift", code: Self.sample) }
+    }
+
+    /// A few of the icons as they are drawn now, larger than in a row so the stroke the weight sets can be seen.
+    private var iconsPreview: some View {
+        SettingsPreview {
+            // wraps when the text size and the window leave less than the ten icons need in a row
+            FlowLayout(spacing: 22) {
+                ForEach([AppIcon.search, .settings, .folder, .copy, .bell, .trash, .refresh, .lock, .microphone, .terminal], id: \.self) { Glyph($0, size: 22) }
+            }
+            .foregroundStyle(.primary).frame(maxWidth: .infinity)
+        }
+    }
 
     @AppStorage(AppPreferences.statesByShapeKey) private var statesByShape = false
     /// The four states as the app draws them now, with or without their symbols, larger than they are in a row so the mark inside reads.
@@ -647,7 +791,7 @@ struct AppearanceTabView: View {
                 ThemeGallery(theme: $theme)
             }
             SettingsGroup(title: "Look") {
-                SettingsTabRow(title: "Color scheme", detail: "System follows the Mac; light and dark stay as chosen", first: true) {
+                SettingsTabRow(title: "Color scheme", detail: "System follows the Mac", first: true) {
                     ChoicePopUp(label: "Color scheme", options: ColorSchemeChoice.allCases.map { (value: $0, title: $0.title) }, selection: $colorScheme)
                 }
                 SettingsTabRow(title: "Text size", detail: "The size of the text of the whole app, \(textSize)%") {
@@ -655,8 +799,20 @@ struct AppearanceTabView: View {
                         value: Binding(get: { Double(textSize) }, set: { textSize = Int($0) }),
                         in: Double(TypeScale.range.lowerBound)...Double(TypeScale.range.upperBound), step: 5
                     )
-                    .frame(width: 160).accessibilityLabel("Text size").accessibilityValue("\(textSize) percent")
+                    .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Text size").accessibilityValue("\(textSize) percent")
                 }
+                SettingsTabRow(title: "Icon set", detail: "The look of the icons of the app: SF Symbols are the Mac's own") {
+                    ChoicePopUp(
+                        label: "Icon set", options: IconSet.allCases.map { (value: $0.rawValue, title: $0.title) },
+                        selection: Binding(get: { IconSet(rawValue: iconSet)?.rawValue ?? IconSet.defaultSet.rawValue }, set: { iconSet = $0 })
+                    )
+                }
+                SettingsTabRow(title: "Icon weight", detail: "How thick the strokes of the icons are, \(iconWeight.formatted(.number.precision(.fractionLength(0...2))))") {
+                    Slider(value: $iconWeight, in: IconWeight.range, step: IconWeight.step)
+                        .labelsHidden().frame(width: settingsSliderWidth)
+                        .accessibilityLabel("Icon weight").accessibilityValue(iconWeight.formatted(.number.precision(.fractionLength(0...2))))
+                }
+                iconsPreview
                 SettingsTabRow(title: "Density", detail: "The space in the sidebar rows and between the messages") {
                     ChoicePopUp(label: "Density", options: Density.allCases.map { (value: $0, title: $0.title) }, selection: $density)
                 }
@@ -666,18 +822,47 @@ struct AppearanceTabView: View {
                 statesPreview
             }
             SettingsGroup(title: "Color") {
-                SettingsTabRow(title: "Accent color", detail: "Buttons, switches and the selection; the first one is the theme's own", first: true) {
+                SettingsTabRow(title: "Accent color", detail: "Buttons, switches and the selection", first: true) {
                     AccentSwatches(theme: theme, scheme: scheme == .dark ? .dark : .light, accent: $accent)
                 }
-                SettingsTabRow(title: "Tint the windows", detail: "A touch of the theme's own color on the backgrounds; the accent you pick does not change it") {
+                SettingsTabRow(title: "Tint the windows", detail: "A touch of the theme's own color on the backgrounds") {
                     ChoicePopUp(label: "Tint the windows", options: Tint.allCases.map { (value: $0, title: $0.title) }, selection: $tint)
                 }
-                SettingsTabRow(title: "Translucent windows", detail: "Off draws solid backgrounds; it follows the Mac's Reduce transparency until you choose") {
+                SettingsTabRow(title: "Translucent windows", detail: "Off draws solid backgrounds") {
                     Toggle("Translucent windows", isOn: Binding(
                         get: { translucentChoice ?? (reduceTransparency == false) }, set: { translucentChoice = $0 }
                     ))
                     .labelsHidden().toggleStyle(.switch)
                 }
+            }
+            SettingsGroup(title: "Code and output") {
+                SettingsTabRow(title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
+                    // a family that is no longer installed shows as the system's, as the views draw it
+                    ChoicePopUp(
+                        label: "Font", options: ([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies).map { (value: $0, title: $0) },
+                        selection: Binding(
+                            get: { MonospaceStyle.installedFamilies.contains(family) ? family : MonospaceSettings.systemFamily },
+                            set: { family = $0 }
+                        )
+                    )
+                }
+                SettingsTabRow(title: "Size", detail: "In points, before the text size of the whole app") {
+                    Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
+                        .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
+                }
+                SettingsTabRow(title: "Line height", detail: "The room between the lines of code and output") {
+                    ChoicePopUp(label: "Line height", options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)
+                }
+                SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
+                    Toggle("Ligatures", isOn: $ligatures).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Wrap long lines", detail: "Off keeps each line whole and scrolls sideways") {
+                    Toggle("Wrap long lines", isOn: $wrapLongLines).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Line numbers", detail: "In code blocks and the output of a command") {
+                    Toggle("Line numbers", isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
+                }
+                codePreview()
             }
         }
     }
@@ -759,10 +944,7 @@ private struct ThemePreview: View {
     func open(color: NSColor, picked: @escaping (NSColor) -> Void) {
         let panel = NSColorPanel.shared
         panel.showsAlpha = false
-        // Settings is a sheet, which blocks the other windows: the panel has to work with one open and stay above it
-        panel.worksWhenModal = true
         panel.isFloatingPanel = true
-        panel.level = .floating
         // set before the target, so showing the current color does not count as a pick
         panel.color = color
         self.picked = picked
@@ -919,28 +1101,10 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.diffStyleKey) private var diffStyle = AppPreferences.defaultDiffStyle
     @AppStorage(AppPreferences.outputLengthKey) private var outputLength = AppPreferences.defaultOutputLength
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
-    @AppStorage(AppPreferences.monospaceFamilyKey) private var family = MonospaceSettings.systemFamily
-    @AppStorage(AppPreferences.monospaceSizeKey) private var codeSize = Double(MonospaceSettings.defaultSize)
-    @AppStorage(AppPreferences.monospaceLineHeightKey) private var lineHeight = LineHeight.normal
-    @AppStorage(AppPreferences.monospaceLigaturesKey) private var ligatures = true
-    @AppStorage(AppPreferences.monospaceWrapKey) private var wrapLongLines = true
-    @AppStorage(AppPreferences.monospaceLineNumbersKey) private var lineNumbers = false
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
     @AppStorage(AppPreferences.chatSurfaceKey) private var chatSurface = AppPreferences.defaultChatSurface
     @State private var previewRoom: CGFloat = 0
     @State private var flipped: Set<String> = []
-
-    /// A few lines of code under the settings: a long line to wrap, and the pairs of characters a ligature joins.
-    private static let sample = """
-        func total(_ lines: [Int]) -> Int {
-            // a line that is longer than the room it has, so wrapping and scrolling sideways show: 0123456789 abcdefghij 0123456789
-            lines.filter { $0 != 0 && $0 >= 1 }.reduce(0, +)
-        }
-        """
-
-    private func codePreview() -> some View {
-        SettingsPreview { CodeBlockView(language: "swift", code: Self.sample) }
-    }
 
     /// The column of a conversation as the person set it, drawn with the feed's own rows (a message of theirs, the agent's work, its answer) in the
     /// middle of a track that is the widest column: the column is to the track as the chosen width is to the widest one, so the four differ in
@@ -970,7 +1134,7 @@ struct ChatTabView: View {
                 SettingsTabRow(title: "Send with", detail: "The other key makes a new line", first: true) {
                     ChoicePopUp(label: "Send with", options: [(value: SendKey.return, title: "Return"), (value: .commandReturn, title: "\u{2318}Return")], selection: $sendKey)
                 }
-                SettingsTabRow(title: "While the agent works", detail: "What sending does while it answers: hold the message until the turn ends, or stop the turn and send it") {
+                SettingsTabRow(title: "While the agent works", detail: "Hold the message, or stop the turn and send it") {
                     ChoicePopUp(label: "While the agent works", options: [(value: WhileWorking.queue, title: "Queue it"), (value: .interrupt, title: "Interrupt")], selection: $whileWorking)
                 }
                 SettingsTabRow(title: "Writing Tools", detail: "The system's offer to rewrite or proofread what you select") {
@@ -990,13 +1154,13 @@ struct ChatTabView: View {
                 SettingsTabRow(title: "Message times", detail: "When a message shows the time it was written, as in General") {
                     ChoicePopUp(label: "Message times", options: MessageTimes.allCases.map { (value: $0, title: $0.title) }, selection: $messageTimes)
                 }
-                SettingsTabRow(title: "Tool output", detail: "What the agent's tools show: nothing, each run folded, or every call open") {
+                SettingsTabRow(title: "Tool output", detail: "Nothing, each run folded, or every call open") {
                     ChoicePopUp(label: "Tool output", options: ToolOutputMode.allCases.map { (value: $0, title: $0.title) }, selection: $toolOutput)
                 }
                 SettingsTabRow(title: "Open the calls that failed", detail: "A call that failed opens by itself, even when the rest are folded") {
                     Toggle("Open the calls that failed", isOn: $opensFailedCalls).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Diff style", detail: "How an edit reads: its lines one under the other, or removed and added side by side") {
+                SettingsTabRow(title: "Diff style", detail: "Unified, or removed and added side by side") {
                     ChoicePopUp(label: "Diff style", options: DiffStyle.allCases.map { (value: $0, title: $0.title) }, selection: $diffStyle)
                 }
                 SettingsTabRow(title: "Output length", detail: "How many lines of an output show before Show more") {
@@ -1008,43 +1172,13 @@ struct ChatTabView: View {
                 SettingsTabRow(title: "Message width", detail: "How wide a message gets before it wraps") {
                     ChoicePopUp(
                         label: "Message width", options: MessageWidth.allCases.map { (value: $0, title: "\($0.title) · \(Int($0.points)) pt") },
-                        selection: $messageWidth, width: 180
+                        selection: $messageWidth
                     )
                 }
-                SettingsTabRow(title: "Surfaces", detail: "Glass blurs what is under the cards, the bubble and the message box; flat draws them as a quiet solid fill") {
+                SettingsTabRow(title: "Surfaces", detail: "Glass blurs what is under; flat is a quiet solid fill") {
                     SegmentedChoice(options: ChatSurface.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $chatSurface)
                 }
                 messagePreview
-            }
-            SettingsGroup(title: "Code and output") {
-                SettingsTabRow(title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
-                    // a family that is no longer installed shows as the system's, as the views draw it
-                    ChoicePopUp(
-                        label: "Font", options: ([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies).map { (value: $0, title: $0) },
-                        selection: Binding(
-                            get: { MonospaceStyle.installedFamilies.contains(family) ? family : MonospaceSettings.systemFamily },
-                            set: { family = $0 }
-                        ),
-                        width: 200
-                    )
-                }
-                SettingsTabRow(title: "Size", detail: "\(Int(codeSize)) pt, before the text size of the whole app") {
-                    Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
-                        .frame(width: 160).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
-                }
-                SettingsTabRow(title: "Line height", detail: "The room between the lines of code and output") {
-                    ChoicePopUp(label: "Line height", options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)
-                }
-                SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
-                    Toggle("Ligatures", isOn: $ligatures).labelsHidden().toggleStyle(.switch)
-                }
-                SettingsTabRow(title: "Wrap long lines", detail: "Off keeps each line whole and scrolls sideways") {
-                    Toggle("Wrap long lines", isOn: $wrapLongLines).labelsHidden().toggleStyle(.switch)
-                }
-                SettingsTabRow(title: "Line numbers", detail: "In code blocks and the output of a command") {
-                    Toggle("Line numbers", isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
-                }
-                codePreview()
             }
         }
     }
@@ -1087,32 +1221,24 @@ struct NotificationsTabView: View {
                     Toggle("Chat done", isOn: $chatDone).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(title: "When") {
+            SettingsGroup(title: "Delivery") {
                 SettingsTabRow(title: "Only when Carrier is not in front", detail: "No banner while its window is the one you are looking at", first: true) {
                     Toggle("Only when Carrier is not in front", isOn: $onlyWhenAway).labelsHidden().toggleStyle(.switch)
                 }
-            }
-            SettingsGroup(title: "Dock") {
-                SettingsTabRow(title: "Dock badge", detail: "The Dock icon counts the epics that need a person and the sessions that wait for an approval", first: true) {
+                SettingsTabRow(title: "Dock badge", detail: "The Dock icon counts the epics that need a person and the sessions that wait for an approval") {
                     Toggle("Dock badge", isOn: $dockBadge).labelsHidden().toggleStyle(.switch)
                 }
-            }
-            SettingsGroup(title: "Sound") {
-                SettingsTabRow(title: "Play a sound", detail: "A banner plays the notification sound", first: true) {
+                SettingsTabRow(title: "Play a sound", detail: "A banner plays the notification sound") {
                     Toggle("Play a sound", isOn: $sound).labelsHidden().toggleStyle(.switch)
                 }
-            }
-            SettingsGroup(title: "Reminders") {
-                SettingsTabRow(title: "Remind me again", detail: "While an epic or a session still needs attention. Ready for test and Done never remind", first: true) {
+                SettingsTabRow(title: "Remind me again", detail: "While an epic or a session still needs attention. Ready for test and Done never remind") {
                     // a saved value that is not a choice reads as Never, as the watcher does
                     ChoicePopUp(
                         label: "Remind me again", options: ReminderInterval.allCases.map { (value: $0, title: $0.title) },
                         selection: Binding(get: { ReminderInterval(rawValue: reminder) ?? .never }, set: { reminder = $0.rawValue })
                     )
                 }
-            }
-            SettingsGroup(title: "Quiet hours") {
-                SettingsTabRow(title: "Quiet hours", detail: "No banner and no sound: notifications wait in the Notification Center", first: true) {
+                SettingsTabRow(title: "Quiet hours", detail: "No banner and no sound: notifications wait in the Notification Center") {
                     Toggle("Quiet hours", isOn: $quiet).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(title: "From", detail: "When the quiet starts") {
@@ -1128,17 +1254,17 @@ struct NotificationsTabView: View {
                 SettingsTabRow(title: "System permission", detail: permission?.text ?? "Checking…", first: true) {
                     HStack {
                         if permission != .noBundle {
-                            Button { NSWorkspace.shared.open(Self.systemSettingsURL) } label: { Label("Open System Settings", systemImage: "gearshape") }
+                            Button { NSWorkspace.shared.open(Self.systemSettingsURL) } label: { Label("Open System Settings", icon: .settings) }
                         }
                         if permission == .notAsked {
-                            Button { send() } label: { Label("Allow", systemImage: "checkmark") }.buttonStyle(PrimaryCapsuleButtonStyle())
+                            Button { send() } label: { Label("Allow", icon: .check) }.buttonStyle(PrimaryCapsuleButtonStyle())
                         }
-                        Button { send() } label: { Label("Send a test", systemImage: "paperplane") }.disabled(permission == .noBundle)
+                        Button { send() } label: { Label("Send a test", icon: .send) }.disabled(permission == .noBundle)
                     }
                 }
             }
             if let testAdvice {
-                Label(testAdvice, systemImage: "exclamationmark.triangle.fill").font(.scaled(12)).foregroundStyle(.orange).padding(.horizontal, 14)
+                Label(testAdvice, icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange).padding(.horizontal, 14)
             }
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())
@@ -1173,5 +1299,43 @@ struct NotificationsTabView: View {
             permission = $0
             if $0.testAdvice == nil { testAdvice = nil }
         }
+    }
+}
+
+/// A row of a form that opens a screen: the whole row is the button, with a chevron at its end and whatever else says its state before it.
+struct NavigationRow<Trailing: View>: View {
+    let title: String
+    let detail: String
+    let leading: AnyView?
+    let action: () -> Void
+    @ViewBuilder let trailing: Trailing
+
+    init<Leading: View>(title: String, detail: String, leading: Leading, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+        self.title = title
+        self.detail = detail
+        self.leading = AnyView(leading)
+        self.action = action
+        self.trailing = trailing()
+    }
+
+    init(title: String, detail: String, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+        self.title = title
+        self.detail = detail
+        self.leading = nil
+        self.action = action
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        Button(action: action) {
+            SettingsTabRow(title: title, detail: detail, leading: leading) {
+                HStack(spacing: 10) {
+                    trailing
+                    Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary).accessibilityHidden(true)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

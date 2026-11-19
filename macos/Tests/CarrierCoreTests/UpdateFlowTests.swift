@@ -65,9 +65,9 @@ import Testing
 
 @Test func theSettingsButtonKeepsItsWordsWhileItsStepRuns() {
     let available = UpdatePhase.available(version: "0.9.0").settingsAction
-    #expect(available == UpdateAction(title: "Update", symbol: "arrow.down.to.line", working: false))
-    #expect(UpdatePhase.downloading(version: "0.9.0", percent: 5).settingsAction == UpdateAction(title: "Update", symbol: "arrow.down.to.line", working: true))
-    #expect(UpdatePhase.ready(version: "0.9.0").settingsAction == UpdateAction(title: "Restart", symbol: "arrow.clockwise", working: false))
-    #expect(UpdatePhase.installing.settingsAction == UpdateAction(title: "Restart", symbol: "arrow.clockwise", working: true))
-    #expect(UpdatePhase.failed(version: "0.9.0").settingsAction == UpdateAction(title: "Retry", symbol: "arrow.clockwise", working: false))
+    #expect(available == UpdateAction(title: "Update", symbol: .downloadTray, working: false))
+    #expect(UpdatePhase.downloading(version: "0.9.0", percent: 5).settingsAction == UpdateAction(title: "Update", symbol: .downloadTray, working: true))
+    #expect(UpdatePhase.ready(version: "0.9.0").settingsAction == UpdateAction(title: "Restart", symbol: .refresh, working: false))
+    #expect(UpdatePhase.installing.settingsAction == UpdateAction(title: "Restart", symbol: .refresh, working: true))
+    #expect(UpdatePhase.failed(version: "0.9.0").settingsAction == UpdateAction(title: "Retry", symbol: .refresh, working: false))
 }

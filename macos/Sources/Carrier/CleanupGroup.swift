@@ -1,7 +1,8 @@
 import CarrierCore
 import SwiftUI
 
-/// The Cleanup group of the page: the switch, the server and its models, the prompt and the Try it box. With Dictation off the group is drawn at 40%; with the switch off the server, model, prompt and Try it box are too.
+/// The Cleanup group of the page: the switch, the server and its models, the prompt and the Try it box. With Dictation off the group is drawn at 40%; with the
+/// switch off only the switch shows, and the rest comes with it.
 struct CleanupGroup: View {
     var cleanup = CleanupController.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -12,7 +13,12 @@ struct CleanupGroup: View {
     @AppStorage(AppPreferences.dictationCleanupPromptKey) private var savedPrompt: String?
 
     var body: some View {
-        SettingsGroup(title: "Cleanup") {
+        SettingsGroup(
+            title: "Cleanup",
+            footer: cleanup.enabled
+                ? "In a message box and in the widget the raw text is used when the server is down, the model is missing or it does not answer in 30 seconds."
+                : "The server, the model, the prompt and the test appear when it is on."
+        ) {
             SettingsTabRow(
                 title: "Clean the text with a model",
                 detail: cleanup.enabled && cleanup.canBeOn == false ? "Choose a server and a model below; until then the text stays as dictated" : "After you dictate, a model on this Mac rewrites the text with your prompt",
@@ -21,8 +27,9 @@ struct CleanupGroup: View {
                 Toggle("Clean the text with a model", isOn: Binding(get: { cleanup.enabled }, set: { cleanup.setEnabled($0) }))
                     .labelsHidden().toggleStyle(.switch)
             }
-            // the switch is the whole group's: off, all of it is dimmed and takes no clicks
-            Group { serverRow; modelRow; promptRow; tryRow }.opacity(cleanup.enabled ? 1 : 0.4).disabled(cleanup.enabled == false)
+            // the switch is the whole group's: off, there is nothing else to set, so nothing else is drawn
+            // a search for Server, Model, Prompt or Try it with the switch off opens this screen, which is the switch alone: it shows, with nothing to scroll to
+            if cleanup.enabled { serverRow; modelRow; promptRow; tryRow }
         }
         .task(id: savedServer) { await cleanup.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await cleanup.refresh() } }
@@ -47,7 +54,7 @@ struct CleanupGroup: View {
                 ChoicePopUp(
                     label: "Server",
                     options: [(value: "", title: "Choose…")] + CleanupServer.allCases.map { (value: $0.rawValue, title: $0.title) },
-                    selection: Binding(get: { cleanup.server?.rawValue ?? "" }, set: { cleanup.choose(server: CleanupServer(rawValue: $0)) }), width: 160
+                    selection: Binding(get: { cleanup.server?.rawValue ?? "" }, set: { cleanup.choose(server: CleanupServer(rawValue: $0)) })
                 )
             }
         }
@@ -62,7 +69,7 @@ struct CleanupGroup: View {
         return SettingsTabRow(title: "Model", detail: detail) {
             ChoicePopUp(
                 label: "Model", options: [(value: "", title: "Choose…")] + (kept + listed).map { (value: $0, title: $0) },
-                selection: Binding(get: { cleanup.model ?? "" }, set: { cleanup.choose(model: $0.isEmpty ? nil : $0) }), width: 200
+                selection: Binding(get: { cleanup.model ?? "" }, set: { cleanup.choose(model: $0.isEmpty ? nil : $0) })
             )
             .disabled(cleanup.server == nil)
         }
@@ -83,7 +90,7 @@ struct CleanupGroup: View {
                 testPanel("Dictated", text: cleanupSample, tint: .secondary)
                 HStack {
                     Spacer()
-                    Button { Task { await cleanup.runTest() } } label: { Label("Clean this sample", systemImage: "arrow.down") }
+                    Button { Task { await cleanup.runTest() } } label: { Label("Clean this sample", icon: .arrowDown) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(cleanup.test == .running)
                     Spacer()
                 }
@@ -142,7 +149,7 @@ struct CleanupGroup: View {
     /// The box of the answer when the model gave none: the same box in orange, with the cause as a sentence.
     private func testFailure(_ message: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label("Could not clean", systemImage: "exclamationmark.triangle.fill").sectionLabel().foregroundStyle(.orange)
+            Label("Could not clean", icon: .warningFilled).sectionLabel().foregroundStyle(.orange)
             Text(message).font(.scaled(13)).foregroundStyle(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(12)

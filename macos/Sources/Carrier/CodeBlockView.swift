@@ -223,8 +223,7 @@ private struct CodeCopyButton: View {
                 copied = false
             }
         } label: {
-            Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                .font(.scaled(11, weight: copied ? .semibold : .regular)).foregroundStyle(copied ? Color.green : Color.secondary)
+            Glyph(copied ? .check : .copy, size: 11).foregroundStyle(copied ? Color.green : Color.secondary)
                 .frame(width: 26, height: 22).contentShape(Rectangle())
         }
         .buttonStyle(.plain)

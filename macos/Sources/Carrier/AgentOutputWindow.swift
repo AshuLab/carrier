@@ -83,9 +83,9 @@ private struct AgentOutputView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if model.carrierStopped {
-                Label("Carrier stopped: this output is no longer updated", systemImage: "stop.circle").foregroundStyle(.orange).padding(10)
+                Label("Carrier stopped: this output is no longer updated", icon: .stopCircle).foregroundStyle(.orange).padding(10)
             } else if let error = model.error {
-                Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange).padding(10)
+                Label(error, icon: .warningFilled).foregroundStyle(.orange).padding(10)
             }
             if let lines = model.lines, lines.isEmpty == false {
                 OutputText(lines: lines, mono: MonospaceStyle.shared.settings, textSize: TextSize.shared.percent)

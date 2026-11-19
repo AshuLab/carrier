@@ -23,7 +23,7 @@ struct RunningView: View {
     /// What is left of the slots, drawn like a row of the cards above but empty: the same fill, with a dashed edge.
     private func freeRoom(_ room: FreeRoom) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: room.hasRoom ? "plus" : "circle.fill").font(.scaled(room.hasRoom ? 12 : 5, weight: .semibold))
+            Glyph(room.hasRoom ? .plus : .circleFilled, size: room.hasRoom ? 12 : 5, bold: true)
                 .foregroundStyle(.tertiary)
                 .frame(width: 28, height: 28)
                 .overlay(Circle().strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))

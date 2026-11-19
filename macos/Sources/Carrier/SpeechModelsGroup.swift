@@ -11,7 +11,7 @@ struct SpeechModelsGroup: View {
     @State private var deleting: String?
 
     var body: some View {
-        SettingsGroup(title: "Speech models", accessory: {
+        SettingsGroup(title: "Speech models", footer: "The model in use is the one with its radio lit. A model on disk can be chosen; one that is not has to be downloaded first.", accessory: {
             HStack(spacing: 6) {
                 FilterChip(title: "All", on: filter == nil) { filter = nil }
                 ForEach(RecognizerID.allCases, id: \.self) { recognizer in
@@ -20,6 +20,11 @@ struct SpeechModelsGroup: View {
             }
             .padding(.trailing, 14)
         }, content: {
+            if let missing = speechModelChoice(models: dictation.models, chosen: dictation.chosenModel, state: dictation.store.state(of:)).missing {
+                // another model listens until this one is back: said where it can be downloaded
+                ProblemLine(text: "\(missing.name) is not on disk: download it in the table or choose another", font: .scaled(11), announces: false)
+                    .padding(.vertical, 8)
+            }
             SpeechModelsTable(
                 rows: dictation.rows(filter: filter), choose: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) },
                 download: dictation.store.download, cancel: dictation.store.cancel, delete: { deleting = $0 }

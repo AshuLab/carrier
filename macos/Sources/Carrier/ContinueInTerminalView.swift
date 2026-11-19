@@ -29,7 +29,7 @@ struct ContinueInTerminalView: View {
                         onContinue(freshValid)
                     } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "terminal").font(.scaled(12)).foregroundStyle(.secondary).frame(width: 16, height: 16)
+                            Glyph(.terminal, size: 12).foregroundStyle(.secondary).frame(width: 16, height: 16)
                             Text("Continue in Terminal").fontWeight(.semibold)
                             Text("· resumes this session").foregroundStyle(.secondary)
                             Spacer(minLength: 8)

@@ -44,21 +44,20 @@ extension View {
 /// The mark of the chosen row of a list: a white tick on a disc of the accent colour, so the tick reads on it.
 struct ChosenMark: View {
     var body: some View {
-        Image(systemName: "checkmark")
-            .font(.scaled(9, weight: .bold)).foregroundStyle(.white)
+        Glyph(.check, size: 9, bold: true).foregroundStyle(.white)
             .frame(width: 18, height: 18).background(Circle().fill(Color.themeAccent))
-            .accessibilityLabel("Chosen")
+            .accessibilityElement(children: .ignore).accessibilityLabel("Chosen")
     }
 }
 
 /// What a state of a thing is, in a word and an icon, in its colour: indigo is private, green is watched.
 struct Badge: View {
     let text: String
-    let icon: String
+    let icon: AppIcon
     let tint: Color
 
     var body: some View {
-        Label(text, systemImage: icon).font(.caption.weight(.medium)).foregroundStyle(tint)
+        Label(text, icon: icon).font(.caption.weight(.medium)).foregroundStyle(tint)
             .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(tint.opacity(0.14)))
     }
 }
@@ -80,13 +79,12 @@ struct RowHint: View {
 struct RailHeader: View {
     let title: String
     let detail: String
-    var icon: String?
+    var icon: AppIcon?
 
     var body: some View {
         HStack(spacing: 10) {
             if let icon {
-                Image(systemName: icon)
-                    .font(.scaled(15, weight: .medium)).foregroundStyle(.white)
+                Glyph(icon, size: 15, bold: true).foregroundStyle(.white)
                     .frame(width: 36, height: 36)
                     .background(Circle().fill(LinearGradient(colors: [.themeAccent, .themeAccent.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
                     .accessibilityHidden(true)
@@ -106,7 +104,7 @@ struct RailRow: View {
     let title: String
     /// The line under the title; nil leaves the row at one line (Settings' rail says it in the page's header).
     let detail: String?
-    let icon: String
+    let icon: AppIcon
     let selected: Bool
     var off = false
     let action: () -> Void
@@ -114,8 +112,7 @@ struct RailRow: View {
     var body: some View {
         HoverRow(action: action, fill: selected ? Color.themeAccent.opacity(0.22) : nil) { _ in
             HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.scaled(13, weight: .medium)).foregroundStyle(selected ? Color.themeAccent : .secondary)
+                Glyph(icon, size: 13).foregroundStyle(selected ? Color.themeAccent : .secondary)
                     .frame(width: 28, height: 28)
                     .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.themeAccent.opacity(0.18) : Color.secondary.opacity(0.12)))
                 VStack(alignment: .leading, spacing: 1) {
@@ -135,7 +132,7 @@ struct RowChevron: View {
     let shown: Bool
 
     var body: some View {
-        Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.white)
+        Glyph(.chevronRight, size: 11, bold: true).foregroundStyle(.white)
             .frame(width: 26, height: 26).glassEffect(.regular.tint(Color.themeAccent), in: .circle)
             .opacity(shown ? 1 : 0).accessibilityHidden(true)
     }

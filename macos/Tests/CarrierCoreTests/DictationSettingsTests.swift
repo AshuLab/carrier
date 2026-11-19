@@ -64,9 +64,9 @@ private func theLanguagePageOffersAFunctionOfTheModelMacOSAndTheSavedChoice(c: C
     #expect(languageChoices(for: nemotronMultilingual, macOSLanguages: [], saved: "en").hint == "Choose Automatic to mix languages")
 }
 
-@Test func theSwitchDimsEveryRowButItselfStorageAndReset() {
-    let rows: [DictationRow] = [.enabledSwitch, .speechModel, .language, .keepReady, .releaseAfter, .microphone, .modelsTable, .storage, .reset, .cleanup, .sounds]
-    #expect(rows.filter { dictationRowIsLive($0, enabled: false) } == [.enabledSwitch, .storage, .reset])
+@Test func theSwitchDimsEveryRowButStorage() {
+    let rows: [DictationRow] = [.language, .keepReady, .releaseAfter, .modelsTable, .storage, .cleanup, .sounds]
+    #expect(rows.filter { dictationRowIsLive($0, enabled: false) } == [.storage])
     #expect(rows.allSatisfy { dictationRowIsLive($0, enabled: true) })
 }
 

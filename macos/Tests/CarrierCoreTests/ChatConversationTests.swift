@@ -1150,16 +1150,16 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
 }
 
 @Test func everyKindChipHasItsLabelTintAndIcon() {
-    let cases: [(KindChip, String, ChipTint, String?)] = [
+    let cases: [(KindChip, String, ChipTint, AppIcon?)] = [
         (.thinking, "Thinking", .thought, nil),
-        (.read, "Read", .files, "doc.text"),
-        (.search, "Search", .files, "magnifyingglass"),
-        (.edit, "Edit", .files, "pencil"),
-        (.shell, "Shell", .shell, "terminal"),
-        (.mcp(server: "linear"), "linear", .mcp, "powerplug"),
-        (.subagents(1), "1 subagent", .subagents, "person.2"),
-        (.subagents(3), "3 subagents", .subagents, "person.2"),
-        (.subagent(type: "Explore"), "Explore", .subagents, "person.2"),
+        (.read, "Read", .files, .fileText),
+        (.search, "Search", .files, .search),
+        (.edit, "Edit", .files, .pencil),
+        (.shell, "Shell", .shell, .terminal),
+        (.mcp(server: "linear"), "linear", .mcp, .plug),
+        (.subagents(1), "1 subagent", .subagents, .users),
+        (.subagents(3), "3 subagents", .subagents, .users),
+        (.subagent(type: "Explore"), "Explore", .subagents, .users),
         (.needsYou, "Needs you", .attention, nil),
     ]
     for (chip, label, tint, icon) in cases {

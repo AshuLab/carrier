@@ -57,7 +57,7 @@ struct AudioPlayerView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            IconButton(icon: playback.playing ? "pause.fill" : "play.fill", name: playback.playing ? "Pause audio" : "Play audio", enabled: playback.failed == false, why: "The audio could not be read") {
+            IconButton(icon: playback.playing ? .pauseFilled : .playFilled, name: playback.playing ? "Pause audio" : "Play audio", enabled: playback.failed == false, why: "The audio could not be read") {
                 playback.toggle()
             }
             if playback.failed {

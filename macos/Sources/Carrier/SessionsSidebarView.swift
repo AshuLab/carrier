@@ -55,7 +55,7 @@ struct SessionsRows: View {
     }
 
     @ViewBuilder private var header: some View {
-        SidebarSectionRow(title: "Sessions", icon: "bubble.left.and.bubble.right", selected: selected, keepActions: sortOpen || query != nil, action: select, actions: {
+        SidebarSectionRow(title: "Sessions", icon: .messages, selected: selected, keepActions: sortOpen || query != nil, action: select, actions: {
             if sessions.open > 0 {
                 Text("\(sessions.open)").font(SidebarMetrics.detail.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
                     .padding(.horizontal, 6).padding(.vertical, 1)
@@ -64,19 +64,19 @@ struct SessionsRows: View {
             }
         }, hoverActions: {
             IconButton(
-                icon: "magnifyingglass", name: "Search sessions", enabled: sessions.open > 0, why: "No sessions to search", shortcut: "⌘F",
+                icon: .search, name: "Search sessions", enabled: sessions.open > 0, why: "No sessions to search", shortcut: "⌘F",
                 pressed: query != nil
             ) {
                 if query == nil { openSearch() } else { query = nil }
             }
-            IconButton(icon: "ellipsis", name: "Sort sessions") { sortOpen.toggle() }
+            IconButton(icon: .dots, name: "Sort sessions") { sortOpen.toggle() }
                 .popover(isPresented: $sortOpen, arrowEdge: .bottom) {
                     ChoiceMenu(
                         title: "Sort sessions", options: SessionSort.allCases.map { ($0.menuTitle, $0) },
                         selection: $sort, close: { sortOpen = false }
                     )
                 }
-            IconButton(icon: "plus", name: "New session", action: newSession)
+            IconButton(icon: .plus, name: "New session", action: newSession)
         })
         .help("Sessions (⌘2)")
         // the field is only drawn while unfolded, so a query must not outlive it: the magnifier would look pressed with no field
@@ -98,13 +98,13 @@ struct SessionsRows: View {
                     )
                 }
                 if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
-                    SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
+                    SidebarEmptyBlock(icon: .warning, title: notice.title, line: notice.line) { EmptyView() }
                 }
                 if ChatHostStarter.shared.restartAdvised {
-                    SidebarEmptyBlock(icon: "arrow.clockwise", title: chatHostRestartNotice.title, line: chatHostRestartNotice.line) { EmptyView() }
+                    SidebarEmptyBlock(icon: .refresh, title: chatHostRestartNotice.title, line: chatHostRestartNotice.line) { EmptyView() }
                 }
                 if let notice = ChatHostStarter.shared.upgradeNotice {
-                    SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
+                    SidebarEmptyBlock(icon: .warning, title: notice.title, line: notice.line) { EmptyView() }
                 }
                 switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
                 case .empty where ChatHostStarter.shared.missing.isEmpty:
@@ -174,7 +174,7 @@ private struct GroupHeader: View {
             Spacer(minLength: 0)
             if let add {
                 // it hides a moment late: the pointer crossing the gap between two rows, or on its way to the button, does not blink it
-                IconButton(icon: "plus", name: "New session in \(title)", action: add).opacity(over ? 1 : 0)
+                IconButton(icon: .plus, name: "New session in \(title)", action: add).opacity(over ? 1 : 0)
                     .animation(over ? .easeOut(duration: 0.12) : .easeOut(duration: 0.12).delay(0.15), value: over)
             }
         }

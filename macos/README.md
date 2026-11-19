@@ -64,6 +64,7 @@ swift build && swift test
 
 The shell's layers have no automated tests (`CarrierTests` only checks that the icon's layer host takes no clicks); the logic behind them is tested in `CarrierCoreTests`.
 Its smoke check is the self-test flag: it runs the menu's actions from code, one a second (pause, resume and check now are sent to a running Carrier, resume putting back the pause state it found; Stop is only checked, as it would end the Carrier under test), appends a line per step to the file and ends with a line saying the process was still alive.
+It also opens each page of Settings in turn (`settings page <name>`), so a page that cannot be drawn ends the process before that last line.
 
 ```sh
 ./Carrier.app/Contents/MacOS/Carrier --selftest /tmp/carrier-selftest.log

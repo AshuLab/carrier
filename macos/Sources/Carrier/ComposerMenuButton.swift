@@ -75,7 +75,7 @@ struct ComposerMenuButton: View {
                     Text(part).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
-            Image(systemName: "chevron.down").font(.scaled(9, weight: .bold)).foregroundStyle(.secondary)
+            Glyph(.chevronDown, size: 9).foregroundStyle(.secondary)
         }
         .font(.callout).padding(.horizontal, 10).frame(height: 28)
         .chatSurface(.regular.interactive(), flat: Color.primary.opacity(0.08), in: Capsule())
@@ -149,7 +149,7 @@ struct ComposerMenuButton: View {
 
     private var search: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").font(.scaled(12)).foregroundStyle(.secondary)
+            Glyph(.search, size: 12).foregroundStyle(.secondary)
             TextField("Search models", text: $query).textFieldStyle(.plain).font(.scaled(13))
         }
         .padding(.horizontal, 10).frame(height: 30)

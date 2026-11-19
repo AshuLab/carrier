@@ -13,9 +13,9 @@ struct ResumeCardView: View {
     private var resuming: Bool { store.resuming.contains(epic) }
 
     var body: some View {
-        NoticeCard(symbol: "exclamationmark", tint: card.attention.color, title: card.title, detail: card.words) {
+        NoticeCard(symbol: .exclamation, tint: card.attention.color, title: card.title, detail: card.words) {
             if card.showsButton {
-                Button { confirming = true } label: { Label(resuming ? "Resuming…" : "Resume", systemImage: "play.fill") }
+                Button { confirming = true } label: { Label(resuming ? "Resuming…" : "Resume", icon: .playFilled) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).labelStyle(.titleAndIcon).disabled(resuming)
             }
         } below: {
@@ -32,12 +32,12 @@ struct ResumeCardView: View {
             }
             HStack(spacing: 10) {
                 Spacer()
-                Button { confirming = false } label: { Label("Cancel", systemImage: "xmark") }
+                Button { confirming = false } label: { Label("Cancel", icon: .close) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
                 Button {
                     confirming = false
                     resume()
-                } label: { Label("Resume", systemImage: "play.fill") }
+                } label: { Label("Resume", icon: .playFilled) }
                     .buttonStyle(PrimaryCapsuleButtonStyle()).keyboardShortcut(.defaultAction)
             }
             .labelStyle(.titleAndIcon).padding(.top, 10)

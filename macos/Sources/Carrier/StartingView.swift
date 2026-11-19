@@ -39,8 +39,8 @@ struct StartingView: View {
     @ViewBuilder private func mark(_ state: StepState) -> some View {
         switch state {
         case .done:
-            Image(systemName: "checkmark").font(.caption.weight(.bold)).foregroundStyle(.white)
-                .frame(width: 22, height: 22).background(Circle().fill(Color.green)).accessibilityLabel("done")
+            Glyph(.check, size: 10, bold: true).foregroundStyle(.white)
+                .frame(width: 22, height: 22).background(Circle().fill(Color.green)).accessibilityElement(children: .ignore).accessibilityLabel("done")
         case .current: SpinningRing(diameter: 16, lineWidth: 2.5).accessibilityLabel("in progress")
         case .waiting, .input, .error, .cancelled:
             Circle().fill(Color.secondary.opacity(0.15)).frame(width: 22, height: 22).accessibilityLabel("not started")

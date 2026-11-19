@@ -578,18 +578,20 @@ struct DiffView: View {
     var body: some View {
         let shown = visibleDiffRows(rows, expanded: showAll)
         Console {
-            switch style {
-            case .unified:
-                ForEach(Array(shown.rows.enumerated()), id: \.offset) { _, row in line(row).background(background(row)) }
-            case .split:
-                ForEach(Array(splitDiffPairs(shown.rows).enumerated()), id: \.offset) { _, pair in
-                    if let left = pair.left, left.sign == .hunk {
-                        line(left).background(background(left))
-                    } else {
-                        HStack(spacing: 0) {
-                            half(pair.left)
-                            Rectangle().fill(Color.white.opacity(0.1)).frame(width: 1)
-                            half(pair.right)
+            LazyVStack(alignment: .leading, spacing: 0) {
+                switch style {
+                case .unified:
+                    ForEach(Array(shown.rows.enumerated()), id: \.offset) { _, row in line(row).background(background(row)) }
+                case .split:
+                    ForEach(Array(splitDiffPairs(shown.rows).enumerated()), id: \.offset) { _, pair in
+                        if let left = pair.left, left.sign == .hunk {
+                            line(left).background(background(left))
+                        } else {
+                            HStack(spacing: 0) {
+                                half(pair.left)
+                                Rectangle().fill(Color.white.opacity(0.1)).frame(width: 1)
+                                half(pair.right)
+                            }
                         }
                     }
                 }

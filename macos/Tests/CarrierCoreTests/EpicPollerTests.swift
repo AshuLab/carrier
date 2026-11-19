@@ -474,3 +474,15 @@ private func diffClient(_ engine: FixtureEngine) throws -> ControlClient {
     try tick(91, EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, openFiles: [laneToken]))
     #expect(engine.commands.count == 3)
 }
+
+@Test func theFilesModelIsBuiltWithTheReplyAndAnEqualReplyPublishesNothing() throws {
+    let rig = try Rig()
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true))
+    #expect(try rig.tick(at: 0).contains("files"))
+    let data = try #require(rig.poller.data[web])
+    #expect(data.files != nil && data.filesChanged.isEmpty == false)
+    #expect(data.filesChanged == filesChangedModel(data.files))
+    let published = rig.changed.count
+    #expect(try rig.tick(at: 10).contains("files"))
+    #expect(rig.changed.count == published)
+}

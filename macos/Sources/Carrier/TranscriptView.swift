@@ -97,8 +97,8 @@ private struct LinkedText: View {
     var body: some View {
         Text(lit)
             .lineSpacing(4)
-            .contentTransition(.interpolate)
-            .animation(.easeOut(duration: 0.15), value: hovered)
+            // no `contentTransition(.interpolate)` here: interpolating a text whose runs have a background (the chips) leaves ghost rectangles of
+            // them over the other lines while the lit link fades, so the chip changes at once
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { places = Self.place(links: text, width: $0) }
             .onChange(of: text) { places = [] }
             .onContinuousHover { phase in

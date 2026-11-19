@@ -61,7 +61,7 @@ struct AgentsTabView: View {
     /// What the toolbar says of a role's screen: its name and, under it, the model, the effort and who it works as.
     private var title: SettingsTitle? {
         guard let role, let row = page?.rows.first(where: { $0.role == role }) else { return nil }
-        return SettingsTitle(text: row.title, subtitle: turningOnLead && role == .leadReviewer ? leadDraft.shown(in: row).headline : row.headline)
+        return SettingsTitle(text: row.title, subtitle: (turningOnLead && role == .leadReviewer ? leadDraft.shown(in: row) : row).headline)
     }
 
     private func open(_ role: AgentRole) { go(SettingsPlace(.agents, path: [role.rawValue])) }
@@ -87,7 +87,7 @@ struct AgentsTabView: View {
         return result
     }
 
-    /// The Details and failover cards write through here (`saveGlobalPersona`, `saveGlobalFailover`; tested in `RoleDetailsSaveTests`), then read the file back.
+    /// The Persona and failover groups write through here (`saveGlobalPersona`, `saveGlobalFailover`; tested in `RoleDetailsSaveTests`), then read the file back.
     private func saveDetails(_ result: RoleSave) -> Bool {
         load()
         problem = result.problem
@@ -145,11 +145,11 @@ struct AgentsTabView: View {
                 }
             }
             SettingsGroup(title: "") {
-                RoleHero(row: row, page: page, icons: icons, open: open)
+                RoleHero(row: row, page: page, icons: icons)
                 RoleFlowStrip(current: row.role, rows: page.rows, open: open)
             }
             Group {
-                SettingsGroup(title: "Who") {
+                SettingsGroup(title: "Who", footer: identityFooter(row, page: page)) {
                     SettingsTabRow(title: "Identity", detail: row.identityDetail, first: true) { identityPicker(row, page: page) }
                     SettingsTabRow(title: "Model", detail: row.providerMissing ? "Not an account of providers.json" : "Provider, model and how hard it thinks") {
                         ModelPickerButton(
@@ -209,7 +209,7 @@ struct AgentsTabView: View {
     }
 
     /// What the engine runs in each stage of the role, as the engine has it today: shown and not changeable yet (a later version of the engine reads
-    /// it from the config). `RoleStagesTests` keeps `AgentRole.stages` equal to what `src/prompts` invokes.
+    /// it from the config). `AgentsReadinessTests` keeps `AgentRole.stages` equal to what `src/prompts` invokes.
     @ViewBuilder private func skills(_ row: RoleRow) -> some View {
         if row.role.stages.isEmpty {
             SettingsGroup(title: "Skills") {
@@ -229,6 +229,14 @@ struct AgentsTabView: View {
                 }
             }
         }
+    }
+
+    /// What is said under Identity where the person chooses it, not only on the first screen: that Author and Reviewer sign as one account, and why the
+    /// list of bots is empty (no registry, or one that does not read).
+    private func identityFooter(_ row: RoleRow, page: AgentsPage) -> String? {
+        let shared = row.role == .leadReviewer ? nil : page.sharedNote
+        let lines = [shared, page.bots.note].compactMap { $0 }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     private func blankIsNil(_ text: String) -> String? {

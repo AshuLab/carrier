@@ -9,8 +9,8 @@ func roleAvatar(_ row: RoleRow, page: AgentsPage, icons: [String: String], size:
     var appId: String?
     if case .forge(let bot) = row.identity { appId = page.bots.appIds[bot] }
     return RoleAvatar(
-        identity: row.identity, name: row.fields.profile, appId: appId, account: row.fields.provider,
-        icon: row.fields.provider.flatMap { icons[$0] }, size: size, off: row.off
+        identity: row.identity, appId: appId, account: row.fields.provider,
+        icon: row.fields.provider.flatMap { icons[$0] }, size: size, off: row.off && row.drafting == false
     )
 }
 
@@ -157,7 +157,6 @@ struct RoleHero: View {
     let row: RoleRow
     let page: AgentsPage
     let icons: [String: String]
-    let open: (AgentRole) -> Void
     private let store = ForgeAvatarStore.shared
 
     var body: some View {
@@ -212,8 +211,9 @@ struct RoleFlowStrip: View {
                         .background(Capsule().fill(Color.themeAccent.opacity(0.18))).overlay(Capsule().strokeBorder(Color.themeAccent, lineWidth: 1.5))
                         .accessibilityAddTraits(.isSelected)
                 } else {
-                    Button { open(row.role) } label: { Text(row.title) }
-                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).opacity(row.off ? 0.55 : 1)
+                    // a role that is off says so in words, not only in a lighter button
+                    Button { open(row.role) } label: { Text(row.off ? "\(row.title) \u{00b7} Off" : row.title) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 }
             }
         }

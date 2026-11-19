@@ -45,7 +45,8 @@ public func forgeBots(registry: Data?) -> ForgeBots {
 
 /// A GitHub App id as the registry stores it: digits only, since it goes into a URL.
 func isGitHubAppId(_ id: String) -> Bool {
-    (1...12).contains(id.count) && id.allSatisfy { $0 >= "0" && $0 <= "9" }
+    // bytes and not characters: a digit with a combining mark is one character and must not pass
+    (1...12).contains(id.utf8.count) && id.utf8.allSatisfy { (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) }
 }
 
 /// Where the picture of a bot is: Agent Forge's registry has no avatar of its own, but every bot is a GitHub App, whose logo is public at
@@ -94,6 +95,9 @@ public struct RoleRow: Equatable, Identifiable {
     public var steps: [FailoverStep]
     /// the Lead reviewer while the file has no `agents.leadReviewer`: its page is shown dimmed and not usable
     public var off: Bool
+    /// The page shows this row with what the person is choosing for a Lead reviewer they are turning on (`LeadReviewerDraft.shown`): `off` stays, since
+    /// the switch still has to say the file has no role, but it is drawn and worded as a role that is on.
+    public var drafting = false
     public var id: String { role.rawValue }
     public var title: String { role.title }
     /// the Lead reviewer has the switch row on top
@@ -104,7 +108,7 @@ public struct RoleRow: Equatable, Identifiable {
 
     /// What the toolbar says under the role's name on its screen: the model, how hard it thinks and who it works as.
     public var headline: String {
-        if off { return "Off" }
+        if off, drafting == false { return "Off" }
         let parts = [fields.model, fields.effort, fields.profile].compactMap { $0 }.filter { $0.isEmpty == false }
         return parts.isEmpty ? "Not set" : parts.joined(separator: " · ")
     }

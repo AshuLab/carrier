@@ -17,7 +17,8 @@ if [ "$GIVEN" = true ]; then
   # the updater starts only from a bundle with a feed (AppUpdater.start), so a dev build has none
   UPDATER="<key>SUFeedURL</key><string>https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml</string>
 <key>SUPublicEDKey</key><string>$(tr -d '[:space:]' < update-key.pub)</string>
-<key>SUEnableAutomaticChecks</key><true/>"
+<key>SUEnableAutomaticChecks</key><true/>
+<key>SUScheduledCheckInterval</key><integer>3600</integer>"
 else
   CHANNEL=dev; NAME="Carrier Dev"; BUNDLE_ID=dev.ashulab.carrier.dev; UPDATER=""
 fi

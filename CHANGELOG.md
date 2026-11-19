@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Carrier looks for an update every hour, not once a day. An installed Carrier keeps the daily check until it updates to this version.
+
 ### Fixed
 
 - The Settings window opens at a readable size the first time, not as a strip with only the window buttons, and centered over the main window.

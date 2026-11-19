@@ -11,6 +11,7 @@ expect() { [ "$2" = "$3" ] || fail "$1 is '$2', expected '$3'"; }
 expect SUFeedURL "$(plist SUFeedURL)" "https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml"
 expect SUPublicEDKey "$(plist SUPublicEDKey)" "$(cat update-key.pub)"
 expect SUEnableAutomaticChecks "$(plist SUEnableAutomaticChecks)" true
+expect SUScheduledCheckInterval "$(plist SUScheduledCheckInterval)" 3600
 expect CFBundleShortVersionString "$(plist CFBundleShortVersionString)" 1.2.3
 expect "bundle id of a release" "$(plist CFBundleIdentifier)" dev.ashulab.carrier
 expect "channel of a release" "$(plist CarrierChannel)" release

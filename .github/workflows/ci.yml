@@ -5,7 +5,8 @@ name: CI
 # It always triggers (no paths filter on the workflow), and `changes` decides what runs, so `success` is never left pending.
 # A job skipped by its `if:` counts as passed, so a draft never blocks.
 # The app's bundle (a cold release build, the slowest job) runs only for a change that can affect the packaging; release.yml checks it again before it publishes.
-# Order: engine (cheap, Linux) first, macOS (10x the minutes) only if it did not fail.
+# Order by cost: the checks of seconds (changelog, agent-context) and the engine (Linux, ~1.5 min) run together, and macOS (10x the minutes, 8 to 16 min) only if none of them failed.
+# Linux is not gated on the cheap checks: it is cheap enough that one run shows every failure at once.
 # A push to main runs the engine only: two PRs that were green apart can still break main together.
 on:
   pull_request:
@@ -62,9 +63,9 @@ jobs:
 
   macos:
     name: Carrier macOS app
-    needs: [changes, engine]
-    # always(): `engine` is skipped on a PR that only touches macos/, and a skipped need would skip this too.
-    if: ${{ !cancelled() && needs.changes.outputs.macos == 'true' && needs.engine.result != 'failure' }}
+    needs: [changes, engine, changelog, agent-context]
+    # always(): `engine` is skipped on a PR that only touches macos/ and the other two on a push, and a skipped need would skip this too.
+    if: ${{ !cancelled() && needs.changes.outputs.macos == 'true' && needs.engine.result != 'failure' && needs.changelog.result != 'failure' && needs.agent-context.result != 'failure' }}
     uses: ./.github/workflows/_macos.yml
     with:
       bundle: ${{ needs.changes.outputs.bundle == 'true' }}

@@ -37,9 +37,9 @@ import Testing
 }
 
 @Test func thePagesOfSettingsThatAreSettingsFormsAreTheOnesMadeOfSimpleRows() {
-    #expect(SettingsPage.allCases.filter(\.usesForm) == [.general, .appearance, .notifications, .keybindings, .chat, .sessions, .sidebar, .terminal, .agents, .behavior, .engine, .about])
+    #expect(SettingsPage.allCases.filter(\.usesForm) == [.general, .providers, .appearance, .notifications, .keybindings, .chat, .sessions, .sidebar, .terminal, .agents, .behavior, .engine, .about])
 }
 
 @Test func theLongPagesAreAColumnAndTheListsAndTablesTakeTheWidth() {
-    #expect(SettingsPage.allCases.filter { !$0.isColumn } == [.providers, .dictation, .repos, .health])
+    #expect(SettingsPage.allCases.filter { !$0.isColumn } == [.dictation, .repos, .health])
 }

@@ -4,7 +4,7 @@ Settings in its own window, its sidebar, its search and where each group of page
 
 Settings is a window of its own (`Carrier/SettingsWindow.swift`: an `NSWindow` hosting a `NavigationSplitView`, as the main window is), not a sheet: it does not stop the main window being used, it keeps its place, size and last page (`CarrierSettingsWindow` autosave, `SettingsNavigator`), and ⌘W closes it.
 The sidebar lists sixteen pages in four groups, each page a colored tile with its symbol (`SettingsPage`, `SettingsSidebar`): App (General, Providers, Appearance, Notifications, Keybindings, Dictation; no heading, and Providers is here because both the engine and the chat host read its accounts), Workspace (Chat, Sessions, Sidebar, Terminal), Carrier (Agents, Repos, Behavior) and System (Engine, Health, About, last).
-The chosen page is on the right under the window's toolbar: the page's name as its title and its line as its subtitle, ‹ › to go back and forward through the pages visited (⌘[ and ⌘], `SettingsHistory`), the page's note (Behavior's "Saved" or why it cannot save, with Ask Carrier again) and a ⋯ menu with Reset this page….
+The chosen page is on the right under the window's toolbar: the page's name as its title and its line as its subtitle, ‹ › to go back and forward through the pages visited (⌘[ and ⌘], `SettingsHistory`), the page's note (Behavior's "Saved" or why it cannot save, with Ask Carrier again) and, on a page that has a Reset, a ⋯ menu with Reset this page….
 The menu's Settings…, ⌘, and the sidebar's Settings row open it on the page it was left on (`WindowController.showSettings`; it opens the main window too when it was closed, since the pages read what Carrier answers to it), or on the page a caller asks for (the Open Settings button of the stopped-Carrier view asks for Engine, and a reason that points to Health opens Health).
 
 ## Search
@@ -16,7 +16,7 @@ What can be found is `settingsIndex` (`CarrierCore/SettingsIndex.swift`, `Settin
 ## Reset
 
 A page with many controls gives its Reset to the window (`SettingsPageBody(reset:)`), and the ⋯ menu of the toolbar asks "Reset <page>?" before it runs (an alert: Cancel, or Reset in red).
-The menu item is off while the open page has none (Providers, Agents, Repos, Health, Engine and About have nothing to reset).
+The ⋯ menu is only there on a page that has a Reset: Providers, Agents, Repos, Health, Engine and About have nothing to reset and show no menu.
 Behavior and Sessions keep what a Reset did before (the engine's eight values back to `EngineConfig()`, the preferences and the two ages of `chat.json`), now from the same menu.
 
 ## Where something that needs fixing shows

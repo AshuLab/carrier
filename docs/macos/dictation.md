@@ -75,7 +75,7 @@ The screens:
 - Cleanup and Sounds: [below](#cleanup) and [below](#sounds).
 - [History](#history) and [Statistics](#statistics).
 
-With the switch off the settings inside Speech recognition, Global dictation, Cleanup and Sounds are drawn at 40% and take no clicks (`dictationRowIsLive`; Storage and Reset stay live); the rows that open a screen, History and Statistics stay as they are.
+With the switch off the settings inside Speech recognition, Global dictation, Cleanup and Sounds are drawn at 40% and take no clicks (`dictationRowIsLive`; Storage stays live); the rows that open a screen, History and Statistics stay as they are.
 
 ## Global dictation
 
@@ -110,7 +110,7 @@ The rule is `dictationFront` and `dictationRoute(for:)` in `CarrierCore/Dictatio
 
 ### The widget style and position
 
-The Global dictation group has a Widget style row (Pill, Small, Medium, Large; Medium by default), a Position row (Top, Bottom; Bottom by default) and under them a Preview of the chosen style, listening to a sample, that changes as the row does and shrinks to the width of the card when the box is wider than it (Large in a narrow window) (`dictation.widget.style` and `dictation.widget.position`, both put back by `reset(.dictation)`; a saved value that is not one of them reads as the default). The widget reads them each time it opens.
+The Widget group of the Global dictation screen has a Widget style row (four drawn cards: Pill, Small, Medium, Large; Medium by default), a Position row (Top, Bottom; Bottom by default) and under them a Preview of the chosen style, listening to a sample, that changes as the row does and shrinks to the width of the card when the box is wider than it (Large in a narrow window) (`dictation.widget.style` and `dictation.widget.position`, both put back by `reset(.dictation)`; a saved value that is not one of them reads as the default). The widget reads them each time it opens.
 Small, Medium and Large are a box of 2, 3 and 4 lines, 340, 420 and 540 points wide, with 12, 14 and 17 point text (at the person's text size), and the box has one height per style; the text starts at the top, and when it is longer than the lines it scrolls, the newest words last. The Pill is a capsule badge with no text: the microphone in the accent while it listens, a spinner while it gets ready or transcribes, a sparkle while it cleans, a check when pasted, a warning when it pasted without cleaning and an x when cancelled.
 In a box, a pasted or cancelled dictation shows its text with Pasted or Cancelled under it, and one pasted without cleaning shows Pasted without cleaning and the cause in orange (the Pill says it to VoiceOver). A check or an x stays for 1.2 seconds (the warning, 4, since it holds the cause) and fades (with no animation under Reduce Motion); a new dictation takes it away at once. A dictation with no words, a failure and a text that was only copied show no check or x.
 The states that need text or a button (a failure to start or to recognize, and a text that was only copied) open the Pill as the Small box until they are dismissed; with another style they use that box.

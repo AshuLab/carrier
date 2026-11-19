@@ -11,7 +11,9 @@ struct DictationTabView: View {
     /// Where the page is: nothing for the first screen, or the path of one of its screens (`DictationScreen`).
     var place = SettingsPlace(.dictation)
     var go: (SettingsPlace) -> Void = { _ in }
-    var cleanup = CleanupController.shared
+    // the cleanup's choices are the controller's, and a defaults it does not publish: these make the toolbar's line and the Cleanup row redraw when they change
+    @AppStorage(AppPreferences.dictationCleanupEnabledKey) private var cleanupOn = false
+    @AppStorage(AppPreferences.dictationCleanupServerKey) private var cleanupServer: String?
     // what the summaries of the first screen say is stored in these; they make it redraw when a screen changes one, Reset included
     @AppStorage(AppPreferences.dictationGlobalKey) private var global = AppPreferences.defaultDictationGlobal
     @AppStorage(AppPreferences.dictationShortcutKey) private var shortcutText = ""
@@ -34,15 +36,21 @@ struct DictationTabView: View {
             switch screen {
             case .none: first
             case .recognition?:
+                offNotice
                 SpeechModelsGroup(dictation: dictation).live(.modelsTable, enabled: enabled)
                 LanguageGroup(dictation: dictation).live(.language, enabled: enabled)
                 MemoryGroup(dictation: dictation)
                 StorageGroup(dictation: dictation).live(.storage, enabled: enabled)
             case .global?:
+                offNotice
                 GlobalDictationGroup(dictation: dictation)
                 WidgetGroup(dictation: dictation)
-            case .cleanup?: CleanupGroup().live(.cleanup, enabled: enabled)
-            case .sounds?: SoundsGroup().live(.sounds, enabled: enabled)
+            case .cleanup?:
+                offNotice
+                CleanupGroup().live(.cleanup, enabled: enabled)
+            case .sounds?:
+                offNotice
+                SoundsGroup().live(.sounds, enabled: enabled)
             case .history?: HistoryGroup(dictation: dictation)
             case .statistics?: StatisticsGroup(dictation: dictation)
             }
@@ -64,9 +72,25 @@ struct DictationTabView: View {
         }
     }
 
+    /// What a screen that Dictation's switch dims says first, with the way to turn it on: a person who comes by a search finds the screen locked.
+    @ViewBuilder private var offNotice: some View {
+        if dictation.enabled == false {
+            SettingsGroup(title: "") {
+                HStack(spacing: 12) {
+                    Image(systemName: "power").font(.scaled(14, weight: .semibold)).foregroundStyle(.secondary).accessibilityHidden(true)
+                    Text("Dictation is off, so what is set here waits. Turn it on to change it.").font(.scaled(12)).foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Button("Turn on") { dictation.setEnabled(true) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                }
+                .accessibilityElement(children: .contain)
+            }
+        }
+    }
+
     private func opens(_ screen: DictationScreen) -> some View {
         NavigationRow(title: screen.title, detail: screen.detail, action: { go(SettingsPlace(.dictation, path: [screen.rawValue])) }) {
-            Text(summary(screen)).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
+            // two lines before a cut: at a narrow window and a large text the summary wraps and does not lose its last word
+            Text(summary(screen)).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -79,8 +103,9 @@ struct DictationTabView: View {
         case .global:
             return dictation.enabled && global ? "\(AppPreferences().dictationShortcut.text) · \(activation == .hold ? "Hold" : "Toggle") · \(widgetStyle.title)" : "Off"
         case .cleanup:
-            return cleanup.enabled ? "On · \(cleanup.server?.title ?? "no server yet")" : "Off"
+            return cleanupOn ? "On · \(cleanupServer.flatMap(CleanupServer.init(rawValue:))?.title ?? "no server yet")" : "Off"
         case .sounds:
+            if startOn == false, endOn == false { return "Off" }
             return "\(startOn ? start : "—") · \(endOn ? end : "—") · \(volume)%"
         case .history:
             let count = dictation.records.entries.count

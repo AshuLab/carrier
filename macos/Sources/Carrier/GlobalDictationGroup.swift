@@ -120,6 +120,7 @@ private struct WidgetStylePicker: View {
                 .buttonStyle(.plain).accessibilityLabel(style.title).accessibilityAddTraits(on ? .isSelected : [])
             }
         }
+        .accessibilityElement(children: .contain).accessibilityLabel("Widget style")
     }
 
     @ViewBuilder private func drawing(_ style: DictationWidgetStyle) -> some View {

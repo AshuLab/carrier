@@ -28,6 +28,7 @@ struct CleanupGroup: View {
                     .labelsHidden().toggleStyle(.switch)
             }
             // the switch is the whole group's: off, there is nothing else to set, so nothing else is drawn
+            // a search for Server, Model, Prompt or Try it with the switch off opens this screen, which is the switch alone: it shows, with nothing to scroll to
             if cleanup.enabled { serverRow; modelRow; promptRow; tryRow }
         }
         .task(id: savedServer) { await cleanup.refresh() }

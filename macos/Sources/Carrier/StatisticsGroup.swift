@@ -49,13 +49,19 @@ struct StatisticsGroup: View {
     private func cards(_ figures: DictationFigures, wpm: Int) -> some View {
         let now = figures.current
         let before = figures.previous
-        return HStack(alignment: .top, spacing: 10) {
-            StatisticsCard(title: "Dictations", value: now.dictations.formatted(), line: statisticsChange(Double(now.dictations), from: before.map { Double($0.dictations) }))
-            StatisticsCard(title: "Words", value: now.words.formatted(), line: statisticsChange(Double(now.words), from: before.map { Double($0.words) }))
-            StatisticsCard(title: "Speaking time", value: statisticsDuration(now.seconds), line: statisticsChange(now.seconds, from: before?.seconds))
-            StatisticsCard(
-                title: "Time saved", value: statisticsDuration(now.saved(wpm: wpm).inSeconds),
-                line: statisticsChange(now.saved(wpm: wpm).inSeconds, from: before.map { $0.saved(wpm: wpm).inSeconds }), highlighted: true)
+        let dictations = StatisticsCard(title: "Dictations", value: now.dictations.formatted(), line: statisticsChange(Double(now.dictations), from: before.map { Double($0.dictations) }))
+        let words = StatisticsCard(title: "Words", value: now.words.formatted(), line: statisticsChange(Double(now.words), from: before.map { Double($0.words) }))
+        let speaking = StatisticsCard(title: "Speaking time", value: statisticsDuration(now.seconds), line: statisticsChange(now.seconds, from: before?.seconds))
+        let saved = StatisticsCard(
+            title: "Time saved", value: statisticsDuration(now.saved(wpm: wpm).inSeconds),
+            line: statisticsChange(now.saved(wpm: wpm).inSeconds, from: before.map { $0.saved(wpm: wpm).inSeconds }), highlighted: true)
+        // four in a row while they fit, two by two when the window is narrow
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 10) { dictations; words; speaking; saved }
+            VStack(spacing: 10) {
+                HStack(alignment: .top, spacing: 10) { dictations; words }
+                HStack(alignment: .top, spacing: 10) { speaking; saved }
+            }
         }
         .padding(.vertical, 6)
     }
@@ -112,13 +118,21 @@ struct StatisticsGroup: View {
 
     private var settings: some View {
         SettingsGroup(title: "Statistics settings") {
-            SettingsTabRow(title: "Typing speed", detail: "Used for the time saved: words ÷ speed, minus the time you spent speaking", first: true) {
+            SettingsTabRow(
+                title: "Typing speed", detail: "Used for the time saved: words ÷ speed, minus the time you spent speaking", first: true,
+                problem: unparsable.isEmpty ? nil : "Must be between \(AppPreferences.dictationTypingSpeedRange.lowerBound) and \(AppPreferences.dictationTypingSpeedRange.upperBound)"
+            ) {
                 // the counter of Behavior's numbers: a number between the range's ends, − and + by 5; text that is not one keeps the last good value
                 HStack(spacing: 6) {
                     NumberField(
                         key: "Typing speed, words per minute", value: $wpm, unparsable: $unparsable,
                         parse: { Int($0).flatMap { AppPreferences.dictationTypingSpeedRange.contains($0) ? $0 : nil } }, format: { String($0) },
-                        step: { AppPreferences.dictationTypingSpeedRange.contains($0 + $1 * 5) ? $0 + $1 * 5 : nil })
+                        // a click goes to the end of the range when 5 would pass it, and nowhere when it is already there
+                        step: { value, direction in
+                            let range = AppPreferences.dictationTypingSpeedRange
+                            let next = min(max(value + direction * 5, range.lowerBound), range.upperBound)
+                            return next == value ? nil : next
+                        })
                     Text("words/min").font(.scaled(11)).foregroundStyle(.secondary)
                 }
             }

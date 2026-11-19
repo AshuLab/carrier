@@ -72,15 +72,22 @@ public final class ControlMonitor {
     }
 
     public func run() {
+        var carriesOn = true
         repeat {
-            guard let client = autoreleasepool(invoking: { ControlClient.connect(path: socketPath()) }) else {
-                onChange(.stopped)
-                continue
-            }
-            defer { client.close() }
-            // false: `wait` said stop while connected
-            if poll(client) == false { return }
-        } while wait(retryInterval)
+            carriesOn = autoreleasepool { connectAndPoll() }
+        } while carriesOn && wait(retryInterval)
+    }
+
+    /// One try: connect, then poll until the connection ends. Its own pool frees what a try that ends at once leaves (the hello of an
+    /// incompatible engine, the report that it is stopped); a connection that stays has a pool of its own in each pass of `poll`.
+    /// False when `wait` said stop while connected.
+    private func connectAndPoll() -> Bool {
+        guard let client = ControlClient.connect(path: socketPath()) else {
+            onChange(.stopped)
+            return true
+        }
+        defer { client.close() }
+        return poll(client)
     }
 
     /// Polls until the connection ends; false when `wait` asked to stop.

@@ -264,7 +264,9 @@ public final class FixtureServer {
             while let end = pending.firstIndex(of: 0x0A) {
                 let line = pending[pending.startIndex..<end]
                 pending.removeSubrange(pending.startIndex...end)
-                guard send(chat ? chatReply(to: Data(line)) : reply(to: Data(line)), to: fd) else { return }
+                // this thread lives as long as the connection, so each request frees what it autoreleases (the JSON of the request)
+                let sent = autoreleasepool { send(chat ? chatReply(to: Data(line)) : reply(to: Data(line)), to: fd) }
+                guard sent else { return }
             }
         }
     }

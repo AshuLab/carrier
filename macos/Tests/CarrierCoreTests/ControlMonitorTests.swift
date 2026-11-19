@@ -165,3 +165,30 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     ).run()
     #expect(freedAtEachWait == [1, 2, 3])
 }
+
+@Test func whatAnAttemptToReconnectAutoreleasesIsFreedBeforeTheNextWaitToo() {
+    let box = FreedBox()
+    var freedAtEachWait: [Int] = []
+    // The engine is down: the monitor tries again every few seconds for as long as the app lives, and so does what each try autoreleases.
+    ControlMonitor(
+        socketPath: { "/tmp/cc-missing-\(UUID().uuidString.prefix(8)).sock" }, pollInterval: 1, retryInterval: 3,
+        wait: { _ in freedAtEachWait.append(box.freed); return freedAtEachWait.count < 3 },
+        log: { _ in },
+        onChange: { _ in Freeable.autoreleaseOne(into: box) }
+    ).run()
+    #expect(freedAtEachWait == [1, 2, 3])
+}
+
+@Test func whatAnIncompatibleEngineMakesTheMonitorAutoreleaseIsFreedBeforeTheNextRetry() {
+    let box = FreedBox()
+    var freedAtEachWait: [Int] = []
+    let server = TestServer { connection in connection.send(hello(protocol: 2)) }
+    defer { server.stop() }
+    ControlMonitor(
+        socketPath: { server.path }, pollInterval: 1, retryInterval: 3,
+        wait: { _ in freedAtEachWait.append(box.freed); return freedAtEachWait.count < 2 },
+        log: { _ in },
+        onChange: { _ in Freeable.autoreleaseOne(into: box) }
+    ).run()
+    #expect(freedAtEachWait == [1, 2])
+}

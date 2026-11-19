@@ -64,25 +64,20 @@ public final class OutputWatcher {
         }
         defer { client.close() }
         repeat {
-            // a thread that lives as long as the window: each pass frees what Foundation autoreleased in it, not when the window closes
-            let carriesOn = autoreleasepool { () -> Bool in
-                do {
-                    onUpdate(.lines(try client.tail(executionId: executionId, lines: count)))
-                } catch ControlError.remote(let text) {
-                    onUpdate(.error(text))
-                } catch ControlError.timeout {
-                    onUpdate(.error("Carrier did not answer"))
-                } catch ControlError.closed {
-                    onUpdate(.carrierStopped)
-                    return false
-                } catch {
-                    log("tail connection failed: \(error)")
-                    onUpdate(.carrierStopped)
-                    return false
-                }
-                return true
+            do {
+                onUpdate(.lines(try client.tail(executionId: executionId, lines: count)))
+            } catch ControlError.remote(let text) {
+                onUpdate(.error(text))
+            } catch ControlError.timeout {
+                onUpdate(.error("Carrier did not answer"))
+            } catch ControlError.closed {
+                onUpdate(.carrierStopped)
+                return
+            } catch {
+                log("tail connection failed: \(error)")
+                onUpdate(.carrierStopped)
+                return
             }
-            if carriesOn == false { return }
         } while wait(interval)
     }
 }

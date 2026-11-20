@@ -24,7 +24,12 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     /// What `workspace` says of each folder; one not listed is a clean git folder on main.
     var workspaces: [String: WorkspaceInfo] = [:]
     var fetched: WorkspaceInfo?
+    /// Each `fetch` asked: the folder and whether it asked for the freshness window; `fetchGate` holds the answer until the test lets it go.
+    var fetches: [(folder: String, ifStale: Bool)] = []
+    var fetchGate: (() async -> Void)?
     var names = ["brave-marine-aiur", "keen-ghost-char"]
+    /// Holds the answer of `suggestName` until the test lets it go.
+    var suggestGate: (() async -> Void)?
     var taken: [String: NameCheck] = [:]
     /// The plan of each `open`.
     var plans: [SessionPlan] = []
@@ -65,11 +70,14 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         if let error = refuse["workspace"] { throw error }
         return workspaces[folder] ?? cleanRepo(folder)
     }
-    func fetch(_ folder: String) async throws -> WorkspaceInfo {
+    func fetch(_ folder: String, ifStale: Bool) async throws -> WorkspaceInfo {
+        fetches.append((folder, ifStale))
+        await fetchGate?()
         if let error = refuse["fetch"] { throw error }
         return fetched ?? cleanRepo(folder)
     }
     func suggestName(_ folder: String) async throws -> String {
+        await suggestGate?()
         if let error = refuse["suggestName"] { throw error }
         return names.removeFirst()
     }
@@ -320,7 +328,8 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     await model.choose(folder: "/w/api")
     await model.useWorktree(true)
     #expect(model.worktree && model.worktreeName == "brave-marine-aiur" && model.nameState == .free && model.startBranch == "main")
-    #expect(model.sentence == "Work in api in a new worktree carrier/brave-marine-aiur from main")
+    // the setting says Remote when the file says nothing, so the branch is cut from its copy on origin
+    #expect(model.sentence == "Work in api in a new worktree carrier/brave-marine-aiur from origin/main")
     // the uncommitted files are kept out of the way by the worktree: no warning in this mode
     #expect(model.warning == nil)
     // back to the base folder and again: the name stays
@@ -573,9 +582,10 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(try await host.workspace("/Users/dev/web").branch == nil)
     #expect(try await host.workspace("/Users/dev/notes").git == false)
     #expect(try await host.workspace("/somewhere/else").git == false)
-    #expect(try await host.fetch("/Users/dev/carrier").fetchedAt == 1_792_007_200_000)
-    await #expect(throws: ControlError.remote("That folder is not a git repository")) { try await host.fetch("/Users/dev/notes") }
-    await #expect(throws: ControlError.remote("The fetch of origin failed")) { try await host.fetch("/Users/dev/work/web") }
+    #expect(try await host.fetch("/Users/dev/carrier", ifStale: false).fetchedAt == 1_792_007_200_000)
+    #expect(try await host.fetch("/Users/dev/carrier", ifStale: true).branches.first?.behind == 12, "the fixture host takes ifStale and answers as a current one")
+    await #expect(throws: ControlError.remote("That folder is not a git repository")) { try await host.fetch("/Users/dev/notes", ifStale: true) }
+    await #expect(throws: ControlError.remote("The fetch of origin failed")) { try await host.fetch("/Users/dev/work/web", ifStale: true) }
     #expect(try await host.suggestName("/Users/dev/carrier") == "brave-marine-aiur")
     #expect(try await host.suggestName("/Users/dev/carrier") == "keen-ghost-char")
     #expect(try await host.checkName("/Users/dev/carrier", "fix-login") == NameCheck(valid: true, free: false, reason: "A branch called carrier/fix-login already exists"))
@@ -891,7 +901,7 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     func list(archived: Bool) async throws -> [ChatSession] { [] }
     func open(plan: SessionPlan) async throws -> String { opened }
     func workspace(_ folder: String) async throws -> WorkspaceInfo { cleanRepo(folder) }
-    func fetch(_ folder: String) async throws -> WorkspaceInfo { cleanRepo(folder) }
+    func fetch(_ folder: String, ifStale: Bool) async throws -> WorkspaceInfo { cleanRepo(folder) }
     func suggestName(_ folder: String) async throws -> String { "x" }
     func checkName(_ folder: String, _ name: String) async throws -> NameCheck { NameCheck(valid: true, free: true) }
     func send(_ id: String, _ text: String) async throws {}
@@ -1809,4 +1819,261 @@ private let codexLevels = [
     #expect(model.chosenOptions == ["model": "plain"])
     model.choose(option: "model", value: "deep")
     #expect(effortOf(model)?.values.map(\.id) == ["low", "high"])
+}
+
+// Where a new worktree starts: the picker's Remote and Local tabs, the setting that opens one, and what is sent.
+
+private let startSides = WorkspaceInfo(
+    folder: "/w/api", branch: "main", defaultBranch: "main",
+    branches: [
+        .init(name: "main", remote: false), .init(name: "local-only", remote: false),
+        .init(name: "origin/main", remote: true), .init(name: "origin/remote-only", remote: true),
+    ]
+)
+
+/// A draft on `/w/api` (main on both sides, `local-only` never pushed) whose `chat.json` says `setting`, in a new worktree.
+@MainActor private func startDraft(_ host: FakeChat, setting: String? = nil, listing: Bool = true) async -> NewSessionModel {
+    host.workspaces["/w/api"] = startSides
+    if listing { host.capabilities.insert(.worktreeStart) }
+    let file = setting.map { Data("{\"worktreeStart\":\"\($0)\"}".utf8) }
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, readChatConfig: { file })
+    await model.load()
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(true)
+    model.text = "hi"
+    return model
+}
+
+@MainActor @Test func thePickerOpensOnTheTabTheSettingSaysAndRemoteWhenTheFileSaysNothing() async {
+    #expect(await startDraft(FakeChat()).startTab == .remote)
+    #expect(await startDraft(FakeChat(), setting: "remote").startTab == .remote)
+    #expect(await startDraft(FakeChat(), setting: "local").startTab == .local)
+    #expect(await startDraft(FakeChat(), setting: "elsewhere").startTab == .remote)
+}
+
+@MainActor @Test func theSettingDecidesTheStartOfTheBranchTheFolderIsOn() async {
+    let remote = await startDraft(FakeChat())
+    #expect(remote.startPoint == StartPoint(branch: "main", side: .remote) && remote.sentence.hasSuffix("from origin/main"))
+    let local = await startDraft(FakeChat(), setting: "local")
+    #expect(local.startPoint == StartPoint(branch: "main", side: .local) && local.sentence.hasSuffix("from main"))
+}
+
+@MainActor @Test func theTabLeftOnIsTheSessionsChoiceAndIsSentAsStartFromWithTheBareNameWhileTheSettingIsNotWritten() async {
+    let host = FakeChat()
+    var writes = 0
+    host.workspaces["/w/api"] = startSides
+    host.capabilities.insert(.worktreeStart)
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, readChatConfig: { nil }, writeChatConfig: { _ in writes += 1 })
+    await model.load()
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(true)
+    model.text = "hi"
+    model.choose(startTab: .local)
+    #expect(model.startTab == .local && model.worktreeRequest == WorktreeRequest(from: "main", name: model.worktreeName, startFrom: .local))
+    model.choose(startBranch: "origin/main", on: .remote)
+    #expect(model.startTab == .remote && model.startBranch == "main" && model.worktreeRequest == WorktreeRequest(from: "main", name: model.worktreeName, startFrom: .remote))
+    let name = model.worktreeName
+    _ = await model.send()
+    #expect(host.plans.last?.wire.contains("\"worktree\":{\"name\":\"\(name)\",\"startFrom\":\"remote\"}") == true && writes == 0)
+}
+
+@MainActor @Test func theTabLeftOnIsForgottenWhenAnotherWorkspaceIsChosen() async {
+    let model = await startDraft(FakeChat(), setting: "local")
+    model.choose(startTab: .remote)
+    await model.choose(folder: "/w/api")
+    #expect(model.startTab == .local)
+}
+
+@MainActor @Test func aLocalBranchWithNoCounterpartOnOriginStartsFromLocalAndSaysSo() async {
+    let model = await startDraft(FakeChat())
+    model.choose(startBranch: "local-only", on: .local)
+    #expect(model.startPoint == StartPoint(branch: "local-only", side: .local))
+    #expect(model.picker(query: "")?.rows(.local).first { $0.name == "local-only" }?.localOnly == true)
+    #expect(model.worktreeRequest == WorktreeRequest(from: "local-only", name: model.worktreeName, startFrom: .local))
+    #expect(model.sentence.hasSuffix("from local-only"))
+}
+
+@MainActor @Test func theSendStepsBringTheLatestRemoteBranchBeforeCreatingTheBranchOnlyForARemoteStart() async {
+    let model = await startDraft(FakeChat())
+    #expect(model.sendSteps.map(\.title) == ["Bring the latest origin/main", "Create a branch of its own"])
+    #expect(model.sendSteps.last?.parts.contains(.code("origin/main")) == true)
+    model.choose(startTab: .local)
+    #expect(model.sendSteps.map(\.title) == ["Create a branch of its own"] && model.sendSteps.first?.parts.contains(.code("main")) == true)
+}
+
+@MainActor @Test func aHostThatDoesNotListWorktreeStartIsToldTheRemoteRefAndNoStartFrom() async {
+    let host = FakeChat()
+    let model = await startDraft(host, listing: false)
+    // the setting is Remote: the app's old way of saying so is the ref itself
+    #expect(model.worktreeRequest == WorktreeRequest(from: "origin/main", name: model.worktreeName))
+    #expect(model.sendSteps.map(\.title) == ["Create a branch of its own"], "an older host does not fetch the folder")
+    model.choose(startTab: .local)
+    #expect(model.worktreeRequest == WorktreeRequest(from: "main", name: model.worktreeName))
+    model.choose(startBranch: "origin/remote-only", on: .remote)
+    #expect(model.worktreeRequest == WorktreeRequest(from: "origin/remote-only", name: model.worktreeName))
+    _ = await model.send()
+    #expect(host.plans.last?.wire.contains("\"branch\":\"origin\\/remote-only\"") == true && host.plans.last?.wire.contains("startFrom") == false)
+}
+
+@MainActor @Test func aRepositoryToCloneHasNoTabsAndNoStartFrom() async {
+    let host = FakeChat()
+    host.capabilities.insert(.worktreeStart)
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
+    let model = await popover(host)
+    await model.choose(repo: "AshuLab/carrier")
+    await model.useWorktree(true)
+    model.choose(startBranch: "feat/x")
+    #expect(model.hasStartTabs == false && model.startPoint == StartPoint(branch: "feat/x", side: nil))
+    #expect(model.worktreeRequest == WorktreeRequest(from: "feat/x", name: model.worktreeName))
+    #expect(model.sendSteps.map(\.title) == ["Download the repository", "Create a branch of its own"])
+    let folder = await startDraft(FakeChat())
+    #expect(folder.hasStartTabs)
+}
+
+@MainActor @Test func aCancelledWorktreeComesBackWithItsSide() async {
+    let model = await startDraft(FakeChat(), setting: "local")
+    model.choose(startBranch: "origin/main", on: .remote)
+    #expect(model.startPoint?.side == .remote)
+    let wanted = SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "main", name: "my-fix", startFrom: .remote), text: "hi")
+    let back = await startDraft(FakeChat(), setting: "local")
+    back.restore(wanted)
+    await back.load()
+    #expect(back.startPoint == StartPoint(branch: "main", side: .remote))
+}
+
+// Choosing a project brings its branches up to date: the fetch behind the branches, what it shows and when it says nothing.
+
+private let behindInfo = WorkspaceInfo(
+    folder: "/w/api", branch: "main", defaultBranch: "main",
+    branches: [.init(name: "main", remote: false, ahead: 0, behind: 2), .init(name: "origin/main", remote: true)], fetchedAt: 1_000, repo: .init(owner: "a", name: "api")
+)
+private let freshInfo = WorkspaceInfo(
+    folder: "/w/api", branch: "main", defaultBranch: "main",
+    branches: [.init(name: "main", remote: false, ahead: 0, behind: 14), .init(name: "origin/main", remote: true)], fetchedAt: 2_000, repo: .init(owner: "a", name: "api")
+)
+
+/// A host that lists `fetchIfStale`, with `/w/api` as it is on disk (`behindInfo`) and as a fetch would leave it (`freshInfo`).
+@MainActor private func fetchingHost(listing: Bool = true) -> FakeChat {
+    let host = FakeChat()
+    host.workspaces["/w/api"] = behindInfo
+    host.fetched = freshInfo
+    if listing { host.capabilities.insert(.fetchIfStale) }
+    return host
+}
+
+@MainActor @Test func choosingAProjectShowsTheBranchesAtOnceAndFetchesBehindThemAskingForTheFreshnessWindow() async {
+    let host = fetchingHost()
+    var release: CheckedContinuation<Void, Never>?
+    host.fetchGate = { await withCheckedContinuation { release = $0 } }
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await settle { release != nil }
+    // what is on disk is shown and the spinner runs while the fetch is out
+    #expect(model.workspace == behindInfo && model.fetching && model.unreachable == false)
+    #expect(host.fetches.map(\.folder) == ["/w/api"] && host.fetches.map(\.ifStale) == [true])
+    release?.resume()
+    await model.refreshed()
+    #expect(model.workspace == freshInfo && model.fetching == false && model.unreachable == false && model.fetchProblem == nil)
+    #expect(model.picker(query: "")?.local.first?.behindText == "14 behind origin")
+}
+
+@MainActor @Test func aFetchInsideTheFreshnessWindowChangesNothingButTheSpinnerEndingAtOnce() async {
+    let host = fetchingHost()
+    host.fetched = behindInfo  // the host skipped the git call and answered what the folder is
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.refreshed()
+    #expect(model.workspace == behindInfo && model.fetching == false && model.unreachable == false && model.fetchProblem == nil)
+    #expect(model.picker(query: "")?.unreachable == nil)
+}
+
+@MainActor @Test func aFetchThatCannotReachTheRemoteShowsNoErrorAndTheFooterSaysSoWithWhenItWasLastFetched() async {
+    let host = fetchingHost()
+    host.refuse["fetch"] = ControlError.remote("The fetch of origin failed")
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.refreshed()
+    #expect(model.workspace == behindInfo && model.fetching == false && model.fetchProblem == nil && model.refusal == nil && model.workspaceProblem == nil)
+    let picker = model.picker(query: "", now: Date(timeIntervalSince1970: 1.5))
+    #expect(picker?.unreachable == "Could not reach origin" && picker?.fetched == "Fetched just now")
+    // Fetch now asks for no window, shows its own error, and a later one that works clears the footer's note
+    await model.fetchNow()
+    #expect(host.fetches.map(\.ifStale) == [true, false] && model.fetchProblem == "The fetch of origin failed" && model.unreachable)
+    host.refuse["fetch"] = nil
+    await model.fetchNow()
+    #expect(model.workspace == freshInfo && model.unreachable == false && model.fetchProblem == nil)
+}
+
+@MainActor @Test func aHostWithoutFetchIfStaleIsNotFetchedOnChoosingAndFetchNowWorksAsItDid() async {
+    let host = fetchingHost(listing: false)
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.refreshed()
+    #expect(host.fetches.isEmpty && model.workspace == behindInfo && model.fetching == false)
+    await model.fetchNow()
+    #expect(host.fetches.map(\.ifStale) == [false] && model.workspace == freshInfo)
+}
+
+@MainActor @Test func onlyAGitRepositoryWithAnOriginIsFetchedOnChoosing() async {
+    let host = fetchingHost()
+    host.workspaces["/w/notes"] = WorkspaceInfo(folder: "/w/notes", git: false)
+    host.workspaces["/w/bare"] = WorkspaceInfo(folder: "/w/bare", bare: true, defaultBranch: "main", branches: [.init(name: "main", remote: false)])
+    host.workspaces["/w/local"] = WorkspaceInfo(folder: "/w/local", branch: "main", branches: [.init(name: "main", remote: false)])
+    let model = await draft(host)
+    for folder in ["/w/notes", "/w/bare", "/w/local"] {
+        await model.choose(folder: folder)
+        await model.refreshed()
+    }
+    #expect(host.fetches.isEmpty && model.unreachable == false)
+    // a repository the person has in the projects folder is a folder, and is fetched; one still to clone is read from GitHub and is not
+    host.branchesOf["a/new"] = RepoBranches(defaultBranch: "main", branches: ["main"])
+    await model.choose(repo: "a/new")
+    await model.refreshed()
+    #expect(host.fetches.isEmpty && model.fetching == false)
+}
+
+@MainActor @Test func theFetchOfAFolderLeftBehindDoesNotAnswerTheOneChosenAfterIt() async {
+    let host = fetchingHost()
+    host.workspaces["/w/notes"] = WorkspaceInfo(folder: "/w/notes", git: false)
+    var release: CheckedContinuation<Void, Never>?
+    host.fetchGate = { await withCheckedContinuation { release = $0 } }
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await settle { release != nil }
+    await model.choose(folder: "/w/notes")  // nothing to fetch: the first fetch is left behind
+    #expect(model.fetching == false)
+    release?.resume()
+    await model.refreshed()
+    #expect(model.folder == "/w/notes" && model.workspace?.folder == "/w/notes" && model.unreachable == false)
+}
+
+@MainActor @Test func aFolderChosenWhileTheNameIsBeingSuggestedIsNotFetchedForTheOneLeftBehind() async {
+    let host = fetchingHost()
+    host.workspaces["/w/notes"] = WorkspaceInfo(folder: "/w/notes", git: false)
+    var release: CheckedContinuation<Void, Never>?
+    host.suggestGate = { await withCheckedContinuation { release = $0 } }
+    let model = await draft(host, workIn: .newWorktree)
+    let first = Task { await model.choose(folder: "/w/api") }
+    await settle { release != nil }
+    await model.choose(folder: "/w/notes")  // the first read is still waiting for its name
+    release?.resume()
+    await first.value
+    await model.refreshed()
+    #expect(host.fetches.isEmpty && model.folder == "/w/notes" && model.fetching == false)
+}
+
+@Test func theWireOfFetchCarriesIfStaleOnlyToAHostThatListsIt() async throws {
+    var lines: [String] = []
+    for listed in [true, false] {
+        let server = TestServer { connection in
+            connection.send(listed ? "{\"event\":\"hello\",\"protocol\":1,\"capabilities\":[\"fetch\",\"fetchIfStale\"]}\n" : "{\"event\":\"hello\",\"protocol\":1,\"capabilities\":[\"fetch\"]}\n")
+            guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+            lines.append(line)
+            connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"folder\":\"/w\",\"git\":false,\"bare\":false,\"linkedWorktree\":false,\"repo\":null,\"branch\":null,\"defaultBranch\":null,\"dirty\":0,\"branches\":[],\"fetchedAt\":null}}\n")
+        }
+        defer { server.stop() }
+        let host = SocketChatHost(socketPath: { server.path })
+        _ = try await host.fetch("/w", ifStale: true)
+    }
+    #expect(lines.count == 2 && lines[0].contains("\"ifStale\":true") && lines[1].contains("ifStale") == false)
 }

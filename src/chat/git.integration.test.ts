@@ -73,8 +73,15 @@ describe.skipIf(!enabled)('the workspace of a folder, with the real git', () => 
     git(clone, 'remote', 'set-url', 'origin', 'git@github.com:acme/app.git');
     const info = await inspectFolder(realGit, realpathSync(clone));
     expect(info).toMatchObject({ git: true, repo: { owner: 'acme', name: 'app' }, branch: 'mine', defaultBranch: 'release' });
-    expect(info.branches).toEqual([{ name: 'mine', remote: false }, { name: 'release', remote: false }, { name: 'origin/main', remote: true }, { name: 'origin/release', remote: true }]);
+    expect(info.branches).toEqual([{ name: 'mine', remote: false }, { name: 'release', remote: false, ahead: 0, behind: 0 }, { name: 'origin/main', remote: true }, { name: 'origin/release', remote: true }]);
     expect(info.fetchedAt).toBeGreaterThan(Date.now() - 60_000);
+    git(clone, 'checkout', '-q', 'release');
+    git(clone, 'commit', '-q', '--allow-empty', '-m', 'local only');
+    git(origin, 'commit', '-q', '--allow-empty', '-m', 'remote one');
+    git(origin, 'commit', '-q', '--allow-empty', '-m', 'remote two');
+    git(bare, 'fetch', '-q', origin, 'release:release'); // the origin the clone follows moves two ahead
+    git(clone, 'fetch', '-q', bare, '+release:refs/remotes/origin/release'); // by path: `origin` is a GitHub URL by now
+    expect((await inspectFolder(realGit, realpathSync(clone))).branches).toContainEqual({ name: 'release', remote: false, ahead: 1, behind: 2 });
     git(clone, 'remote', 'set-url', 'origin', 'https://gitlab.com/acme/app.git');
     expect((await inspectFolder(realGit, realpathSync(clone))).repo).toBeNull();
   });
@@ -246,6 +253,27 @@ describe.skipIf(!enabled)('a session worktree, with the real git', () => {
     expect(git(made.path, 'branch', '--show-current').trim()).toBe('carrier/from-detached');
     expect(snapshot(repo)).toEqual(before);
     expect(before.branch).toBe('');
+  });
+
+  test('with a local main behind origin/main a remote start begins at origin/main\'s tip and a local start at the local main', async () => {
+    const clone = cloneOf('behind');
+    const other = join(dir, 'behind-other');
+    writeFileSync(join(other, 'newer.txt'), 'n\n');
+    git(other, 'add', '.');
+    git(other, 'commit', '-q', '-m', 'landed on origin');
+    git(other, 'push', '-q', 'origin', 'main');
+    git(clone, 'fetch', '-q', join(dir, 'behind.git'), '+refs/heads/*:refs/remotes/origin/*'); // the clone's origin URL is a GitHub one: fetch from the bare repository itself
+    const stale = git(clone, 'rev-parse', 'main').trim();
+    const tip = git(clone, 'rev-parse', 'origin/main').trim();
+    expect(tip).not.toBe(stale);
+
+    const fromRemote = await createWorktree(realGit, clone, { from: 'main', name: 'fresh', startFrom: 'remote' });
+    expect(fromRemote.from).toBe('origin/main');
+    expect(git(fromRemote.path, 'rev-parse', 'HEAD').trim()).toBe(tip);
+    expect(git(clone, 'for-each-ref', '--format=%(upstream)', 'refs/heads/carrier/fresh').trim()).toBe('');
+    const fromLocal = await createWorktree(realGit, clone, { from: 'main', name: 'stale', startFrom: 'local' });
+    expect(git(fromLocal.path, 'rev-parse', 'HEAD').trim()).toBe(stale);
+    expect(git(clone, 'rev-parse', 'main').trim()).toBe(stale); // the local main is never moved
   });
 
   test('from a base folder that is itself a linked worktree', async () => {

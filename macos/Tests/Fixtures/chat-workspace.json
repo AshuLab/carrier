@@ -3,7 +3,8 @@
     "folder": "/Users/dev/carrier", "git": true, "bare": false, "linkedWorktree": false,
     "repo": { "owner": "AshuLab", "name": "carrier" }, "branch": "main", "defaultBranch": "main", "dirty": 3,
     "branches": [
-      { "name": "main", "remote": false }, { "name": "feat/retry-sync", "remote": false },
+      { "name": "main", "remote": false, "ahead": 0, "behind": 2 }, { "name": "feat/retry-sync", "remote": false, "ahead": 1, "behind": 0 },
+      { "name": "wip/spike", "remote": false },
       { "name": "origin/main", "remote": true }, { "name": "origin/feat/retry-sync", "remote": true }
     ],
     "fetchedAt": 1792000000000
@@ -11,7 +12,7 @@
   "/Users/dev/web": {
     "folder": "/Users/dev/web", "git": true, "bare": false, "linkedWorktree": false,
     "repo": { "owner": "AshuLab", "name": "web" }, "branch": null, "defaultBranch": "main", "dirty": 0,
-    "branches": [ { "name": "main", "remote": false }, { "name": "origin/main", "remote": true }, { "name": "origin/release/2" , "remote": true } ],
+    "branches": [ { "name": "main", "remote": false, "ahead": 0, "behind": 0 }, { "name": "origin/main", "remote": true }, { "name": "origin/release/2" , "remote": true } ],
     "fetchedAt": null
   },
   "/Users/dev/work/web": {

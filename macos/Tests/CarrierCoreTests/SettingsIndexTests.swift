@@ -53,3 +53,11 @@ import Testing
     #expect(typing?.id == "\(typing?.anchor ?? "")/statistics")
     #expect(dictation.first { $0.title == "Microphone" }.map { $0.id == $0.anchor } == true)
 }
+
+@Test func theSearchFindsTheStartFromRowOnTheSessionsPageEvenWhileItIsOff() {
+    for query in ["remote", "worktree", "start", "local branch"] {
+        #expect(settingsResults(query).contains { $0.page == .sessions && $0.group == "New sessions" && $0.title == "Start from" }, Comment(rawValue: query))
+    }
+    let rows = settingsIndex.filter { $0.page == .sessions && $0.group == "New sessions" }.map(\.title)
+    #expect(rows == ["Starts with", "Work in", "Start from"])
+}

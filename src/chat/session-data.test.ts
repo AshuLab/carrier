@@ -109,6 +109,38 @@ test('a turn counts the lines of a worktree from where it was cut, and says noth
   expect(s.calls.find((call) => call.command === ORIGIN)?.folder).toBe('/work/app');
 });
 
+const NUMSTAT = (base: string) => `diff --numstat --no-ext-diff --no-textconv --no-renames ${base} --`;
+const WORKTREE = { folder: '/wt/fix', workspaceKind: 'worktree' as const, worktreeBranch: 'carrier/fix', worktreeBase: '/work/app', worktreePath: '/wt/fix' };
+
+test('a worktree counts from the closest merge-base of the local and the remote copy of its start branch', async () => {
+  const counted = async (answers: Record<string, string>, worktreeFrom: string) => {
+    rmSync(join(dir, 'chat.db'), { force: true });
+    const s = setup({ [ORIGIN]: 'git@github.com:AshuLab/carrier.git', [DEFAULT]: 'origin/main', ...answers }, { ...WORKTREE, worktreeFrom });
+    await s.data.afterTurn(s.id);
+    return { diff: s.data.view(s.row()).diff, commands: s.calls.map((call) => call.command) };
+  };
+  // the local main is behind origin/main and the worktree is up to date with origin/main: an untouched session counts nothing
+  const behind = await counted({ 'merge-base main HEAD': 'old\n', 'merge-base origin/main HEAD': 'new\n', 'merge-base --is-ancestor old new': '', [NUMSTAT('new')]: '' }, 'main');
+  expect(behind.diff).toBeNull();
+  expect(behind.commands).toContain(NUMSTAT('new'));
+  // the local main is ahead (not pushed) and the worktree was cut from it: the local one
+  const ahead = await counted({ 'merge-base main HEAD': 'local\n', 'merge-base origin/main HEAD': 'remote\n', 'merge-base --is-ancestor remote local': '', [NUMSTAT('local')]: '2\t0\ta\n' }, 'main');
+  expect(ahead.diff).toEqual({ added: 2, removed: 0 });
+  // the same commit on both sides, or only one copy of the branch
+  expect((await counted({ 'merge-base main HEAD': 'same\n', 'merge-base origin/main HEAD': 'same\n', [NUMSTAT('same')]: '1\t1\ta\n' }, 'main')).diff).toEqual({ added: 1, removed: 1 });
+  expect((await counted({ 'merge-base origin/main HEAD': 'remote\n', [NUMSTAT('remote')]: '3\t0\ta\n' }, 'main')).diff).toEqual({ added: 3, removed: 0 });
+  expect((await counted({ 'merge-base main HEAD': 'local\n', [NUMSTAT('local')]: '4\t0\ta\n' }, 'main')).diff).toEqual({ added: 4, removed: 0 });
+  // neither: what is committed
+  expect((await counted({ [NUMSTAT('HEAD')]: '5\t0\ta\n' }, 'main')).diff).toEqual({ added: 5, removed: 0 });
+});
+
+test('a worktree cut from origin/main counts from its merge-base with origin/main, and origin/origin/main is never tried', async () => {
+  const s = setup({ [ORIGIN]: 'git@github.com:AshuLab/carrier.git', [DEFAULT]: 'origin/main', 'merge-base origin/main HEAD': 'remote\n', [NUMSTAT('remote')]: '6\t1\ta\n' }, { ...WORKTREE, worktreeFrom: 'origin/main' });
+  await s.data.afterTurn(s.id);
+  expect(s.data.view(s.row()).diff).toEqual({ added: 6, removed: 1 });
+  expect(s.calls.map((call) => call.command).filter((command) => command.startsWith('merge-base'))).toEqual(['merge-base origin/main HEAD']);
+});
+
 test('the pull request of a worktree is looked for on the branch checked out now, not the one it was cut with', async () => {
   const s = setup(
     { [ORIGIN]: 'git@github.com:AshuLab/carrier.git', 'rev-parse --abbrev-ref HEAD': 'fix/renamed\n', [DEFAULT]: 'origin/main' },

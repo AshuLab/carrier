@@ -73,11 +73,27 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(server.unreadSessionIds == ["a1000000-0000-4000-8000-000000000001"] && server.pinnedSessionIds == ["a1000000-0000-4000-8000-000000000004"])
 }
 
+@Test func theFixtureHostCutsAPlansWorktreeFromTheRemoteBranchWhenTheStartIsRemote() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    func plan(_ branch: String, _ startFrom: WorktreeStart?) -> SessionPlan {
+        SessionPlan(agent: "claude", folder: "/Users/dev/web", worktree: WorktreeRequest(from: branch, name: "x-\(branch.count)", startFrom: startFrom), options: [:], text: "hi")
+    }
+    // `release/2` is listed only as `origin/release/2`: a remote start finds it, a local one is refused as the host refuses it
+    _ = try await host.open(plan: plan("release/2", .remote))
+    await #expect(throws: ControlError.remote("The branch to start from is not one this repository lists")) { _ = try await host.open(plan: plan("release/2", .local)) }
+    _ = try await host.open(plan: plan("main", .remote))
+    _ = try await host.open(plan: plan("main", .local))
+    let opened = try await host.list(archived: false).filter { $0.workspace?.base == "/Users/dev/web" }
+    #expect(opened.count >= 3)
+}
+
 @Test func theHelloCarriesTheChatCapabilities() throws {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .interrupt, .stopTask])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .interrupt, .stopTask, .worktreeStart, .fetchIfStale])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -291,14 +307,14 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
         guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
         lines.append(line)
         if line.contains("retryPreparation") { return connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"x\"}}}\n") }
-        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"folder\",\"folder\":\"/w/api\"},\"agent\":\"claude\",\"text\":\"hi\\nthere\",\"options\":{\"model\":\"haiku\"},\"branch\":\"main\",\"worktree\":{\"name\":\"my-fix\"}}}}\n")
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"folder\",\"folder\":\"/w/api\"},\"agent\":\"claude\",\"text\":\"hi\\nthere\",\"options\":{\"model\":\"haiku\"},\"branch\":\"main\",\"worktree\":{\"name\":\"my-fix\",\"startFrom\":\"remote\"}}}}\n")
     }
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.path })
     let sessionId = "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01"
     try await host.retryPreparation(sessionId)
     let plan = try await host.cancelPreparation(sessionId)
-    #expect(plan == SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "main", name: "my-fix"), options: ["model": "haiku"], text: "hi\nthere"))
+    #expect(plan == SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "main", name: "my-fix", startFrom: .remote), options: ["model": "haiku"], text: "hi\nthere"))
     let sent = lines.compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
     #expect(sent.map { $0["cmd"] as? String } == ["retryPreparation", "cancelPreparation"] && sent.allSatisfy { $0["sessionId"] as? String == sessionId && $0.keys.sorted() == ["cmd", "id", "sessionId"] })
 }

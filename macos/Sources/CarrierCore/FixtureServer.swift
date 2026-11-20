@@ -12,7 +12,7 @@ public enum FixtureError: Error, Equatable {
 /// asked and not answered as pending, `answer`, which records the answer as an event, `archive` and `delete` on the listed sessions
 /// (kept in memory, refused for a working or waiting one as the host does), `deletePreview`, which says what `chat-delete-preview.json`
 /// holds for the sessions it names and `worktree: null` for the other listed ones, and the worktree requests from `chat-workspace.json`
-/// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see), `chat-providers.json` (`providers`), `chat-usage.json` (`usage`, the same sample for any filter; `usageOverride` is accepted and changes nothing), `chat-names.json` (`suggestName`,
+/// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder; `ifStale` is accepted and the answer is the same: a window that has passed; a git folder not listed there is refused as a remote that cannot be reached), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see), `chat-providers.json` (`providers`), `chat-usage.json` (`usage`, the same sample for any filter; `usageOverride` is accepted and changes nothing), `chat-names.json` (`suggestName`,
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; `switchAgent` gives an idle session another listed agent and a notice that says so; anything else is an error.
@@ -86,7 +86,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\"]}\n".utf8)
+    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\"]}\n".utf8)
     private let data: [String: Data]
     let hello: Data
     private var stopped = false
@@ -456,7 +456,12 @@ public final class FixtureServer {
         let folder = place?["folder"] as? String ?? (place?["repo"] as? String).map { "/Users/dev/projects/\($0)" }
         guard let folder, let text = plan["text"] as? String else { return Self.refused(id, "invalid request") }
         var request: [String: Any] = ["agent": plan["agent"] as Any, "folder": folder]
-        if let from = plan["branch"] as? String { request["worktree"] = ["from": from, "name": (plan["worktree"] as? [String: Any])?["name"] as Any].compactMapValues { $0 is NSNull ? nil : $0 } }
+        if var from = plan["branch"] as? String {
+            // as the host does: a remote start of a branch the repository lists as `origin/<name>` is cut from that ref
+            let listed = (chatWorkspaces[folder]?["branches"] as? [[String: Any]])?.compactMap { $0["name"] as? String } ?? []
+            if (plan["worktree"] as? [String: Any])?["startFrom"] as? String == "remote", from.hasPrefix("origin/") == false, listed.contains("origin/\(from)") { from = "origin/\(from)" }
+            request["worktree"] = ["from": from, "name": (plan["worktree"] as? [String: Any])?["name"] as Any].compactMapValues { $0 is NSNull ? nil : $0 }
+        }
         let opened = open(id, request)
         guard let reply = (try? JSONSerialization.jsonObject(with: opened.dropLast())) as? [String: Any], reply["ok"] as? Bool == true,
             let session = (reply["data"] as? [String: Any])?["session"] as? [String: Any], let sessionId = session["id"] as? String else { return opened }

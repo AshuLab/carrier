@@ -28,7 +28,7 @@ import { createProject, projectFolder, type createProjects } from './projects.ts
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
 import { clearWorktree, createWorktree, deleteWorktree, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
-import { checkout, fetchFolder, inspectFolder } from './workspace.ts';
+import { checkout, FETCH_FRESH_MS, fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
 
@@ -43,8 +43,8 @@ const CHILD_MESSAGE = 4000;
 export const FOLLOW_UP_MS = 3_000;
 
 const DAY = 86_400_000;
-/** The lifecycle's ages (ADR 0019), as `chat.json` gives them. */
-export type SessionAges = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'> & Partial<Pick<ChatSettings, 'worktreeCleanup'>>;
+/** The lifecycle's ages (ADR 0019) and where a new worktree starts (ADR 0037), as `chat.json` gives them. */
+export type LiveSettings = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'> & Partial<Pick<ChatSettings, 'worktreeCleanup' | 'worktreeStart'>>;
 const idleFor = (row: { state: State; lastActiveAt: number }, live: boolean, now: number, days: number | 'never') => days !== 'never' && row.state === 'idle' && !live && now - row.lastActiveAt >= days * DAY;
 
 type Harness = (typeof sessions.$inferSelect)['harness'];
@@ -111,7 +111,7 @@ export type ChatSessionsDeps = {
   /** Where a session's pull request is read from; without it a row has none unless it was found before. */
   pulls?: PullRequests;
   /** The lifecycle's ages now: `list` says from them when the clock will delete each archived session. */
-  ages: () => SessionAges;
+  ages: () => LiveSettings;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
   /** The chat MCP: the registry that issues each conversation's token and the URL of the endpoint, which is undefined when the host could not start it. Without this a host has no MCP and says nothing of it. */
@@ -541,6 +541,42 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   };
 
   /**
+   * The `fetch` step of a plan that cuts a worktree from the remote branch of a folder the person already had, ahead of the `worktree` step (ADR 0037): it runs
+   * only when `origin/<branch>` is on disk and the last fetch is older than the freshness window. Answers where the worktree starts: `remote`, or `local` when
+   * the fetch failed, timed out or took `origin/<branch>` away and the local branch exists. That fetch ends as done and a `notice` says why, so the send goes on.
+   */
+  async function refresh(sessionId: string, folder: string, branch: string, signal: AbortSignal): Promise<'remote' | 'local'> {
+    const remote = `origin/${branch}`;
+    const before = await inspectFolder(git, folder).catch(() => undefined); // a folder git cannot read is refused by the worktree step, in words
+    if (before === undefined) return 'remote';
+    const fresh = before.fetchedAt !== null && clock.now() - before.fetchedAt < FETCH_FRESH_MS;
+    if (branch.startsWith('origin/') || before.branches.some((listed) => listed.name === remote) === false || fresh) return 'remote';
+    stepEvent(sessionId, 'fetch', 'running');
+    let why: string;
+    let known = true; // whether `origin/<branch>` is still there to count against
+    try {
+      const after = await fetchFolder(git, folder, { signal });
+      stepEvent(sessionId, 'fetch', 'done');
+      if (after.branches.some((listed) => listed.name === remote)) return 'remote';
+      why = `${remote} is no longer on origin`;
+      known = false;
+    } catch (error) {
+      if (signal.aborted) return 'remote'; // the person left: the preparation ends at the next check, with no fallback to record
+      if (error instanceof ChatRefused === false) log.error('fetching for a new worktree failed', error);
+      stepEvent(sessionId, 'fetch', 'done');
+      why = error instanceof ChatRefused ? error.message : 'The fetch of origin failed';
+    }
+    if (before.branches.some((listed) => listed.name === branch && listed.remote === false) === false) {
+      if (known) store(sessionId, { kind: 'notice', text: `${why}, so this worktree started from the copy of ${remote} the last fetch left.` });
+      return 'remote';
+    }
+    const counted = known ? await git.run(folder, ['rev-list', '--count', `refs/heads/${branch}..refs/remotes/${remote}`]) : undefined;
+    const behind = counted?.ok === true ? Number.parseInt(counted.out, 10) : 0;
+    store(sessionId, { kind: 'notice', text: `${why}, so this worktree started from the local branch ${branch}${behind > 0 ? `, which is ${behind} ${behind === 1 ? 'commit' : 'commits'} behind ${remote}` : ''}.` });
+    return 'local';
+  }
+
+  /**
    * The `worktree` or `checkout` step of a plan, when it has one: the folder the agent runs in, or undefined once the step failed and was recorded.
    * A worktree already recorded on the session is the one made before, so it is reused and not made twice; so is a checkout already done.
    */
@@ -551,12 +587,15 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const recorded = row(sessionId);
     if (recorded.workspaceKind === 'worktree') return recorded.worktreePath!;
     if (step === 'checkout' && lastStatus(sessionId, step) === 'done') return folder; // a retry does not switch the branch again
+    let startFrom = worktree?.startFrom ?? ages().worktreeStart ?? 'remote';
+    if (worktree !== undefined && branch !== undefined && startFrom === 'remote' && plan.workspace.kind === 'folder') startFrom = await refresh(sessionId, folder, branch, signal); // its `fetch` step comes before the `worktree` one
+    if (signal.aborted) return undefined;
     stepEvent(sessionId, step, 'running');
     try {
       if (worktree !== undefined) {
         if (branch === undefined) throw new ChatRefused('A worktree needs the branch it starts from');
         // an empty name is the host's to generate
-        const made = await exclusive(async () => createWorktree(git, folder, { from: await listedAs(folder, plan, branch), ...(worktree.name !== undefined && worktree.name !== '' && { name: worktree.name }) }, signal));
+        const made = await exclusive(async () => createWorktree(git, folder, { from: await listedAs(folder, plan, branch), startFrom, ...(worktree.name !== undefined && worktree.name !== '' && { name: worktree.name }) }, signal));
         db.update(sessions).set({ folder: made.path, workspaceKind: 'worktree', worktreeBranch: made.branch, worktreeFrom: made.from, worktreeBase: made.base, worktreePath: made.path }).where(eq(sessions.id, sessionId)).run();
         stepEvent(sessionId, step, 'done');
         return made.path;
@@ -1301,7 +1340,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
      * The clock's pass: archives each session left alone for `archiveAfterDays`, then deletes each archived one left alone for `deleteAfterDays`, sparing
      * (marking `keptAt`) one whose worktree holds unsaved work. A working, waiting or live one is looked at again on the next pass.
      */
-    async applyClock({ archiveAfterDays, deleteAfterDays, worktreeCleanup }: SessionAges) {
+    async applyClock({ archiveAfterDays, deleteAfterDays, worktreeCleanup }: LiveSettings) {
       const now = clock.now();
       for (const found of db.select().from(sessions).where(and(eq(sessions.archived, false), isNull(sessions.parentSessionId))).all()) {
         if (switching.has(found.id)) continue; // a switch is opening its new conversation; the next pass looks again
@@ -1365,7 +1404,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     workspace: async ({ folder }: { folder: string }) => inspectFolder(git, checkFolder(folder, carrierHome())),
 
     /** Fetches `origin` of a folder and answers what it is after it. */
-    fetch: async ({ folder }: { folder: string }) => fetchFolder(git, checkFolder(folder, carrierHome())),
+    fetch: async ({ folder, ifStale }: { folder: string; ifStale?: boolean }) => fetchFolder(git, checkFolder(folder, carrierHome()), ifStale === true ? { now: clock.now() } : {}),
 
     /** A free name for a worktree of a folder, from the StarCraft word lists. */
     suggestName: async ({ folder }: { folder: string }) => suggestName(git, checkFolder(folder, carrierHome())),

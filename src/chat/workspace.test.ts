@@ -1,6 +1,9 @@
+import { mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { FakeGit } from './fake.ts';
-import { countPorcelain, inspectFolder, parseBranches, parseDefaultBranch, parseOrigin, resolveOrigin } from './workspace.ts';
+import { countPorcelain, FETCH_FRESH_MS, fetchFolder, inspectFolder, parseBranches, parseDefaultBranch, parseOrigin, resolveOrigin } from './workspace.ts';
 
 describe('parseOrigin', () => {
   test.each([
@@ -103,7 +106,7 @@ describe('inspectFolder with the fake git', () => {
   test('a folder git does not know is a plain one', async () => expect(await inspectFolder(new FakeGit(), folder)).toMatchObject({ git: false, branches: [], dirty: 0 }));
   test('git failing in any other way refuses in words', async () => {
     const git = withRepo({ head: 'main', branches: ['main'] });
-    git.failures.set('for-each-ref --format=%(refname) refs/heads refs/remotes/origin', { ok: false, code: 128, stderr: 'fatal: https://user:secret@host broke' });
+    git.failures.set('for-each-ref --format=%(refname) %(objectname) refs/heads refs/remotes/origin', { ok: false, code: 128, stderr: 'fatal: https://user:secret@host broke' });
     const refused = await inspectFolder(git, folder).catch((error: Error) => error);
     expect(refused).toMatchObject({ message: 'Git could not read that folder' });
   });
@@ -112,5 +115,75 @@ describe('inspectFolder with the fake git', () => {
     await inspectFolder(git, folder);
     expect(git.calls.length).toBeGreaterThan(0);
     for (const call of git.calls) expect(call.folder).toBe(folder);
+  });
+});
+
+describe('the counts of a local branch against origin', () => {
+  const folder = '/work/app';
+  const inspected = async (repo: Parameters<FakeGit['repos']['set']>[1]) => {
+    const git = new FakeGit();
+    git.repos.set(folder, repo);
+    return { git, info: await inspectFolder(git, folder) };
+  };
+
+  test('a local branch with an origin copy carries how many commits it lacks and how many are not pushed; any other branch carries neither', async () => {
+    const { info } = await inspected({ head: 'main', branches: ['main', 'feat', 'local-only', 'synced'], remoteBranches: ['main', 'feat', 'synced', 'remote-only'], ahead: { main: 1, feat: 3 }, behind: { main: 143 } });
+    expect(info.branches).toEqual([
+      { name: 'main', remote: false, ahead: 1, behind: 143 },
+      { name: 'feat', remote: false, ahead: 3, behind: 0 },
+      { name: 'local-only', remote: false },
+      { name: 'synced', remote: false, ahead: 0, behind: 0 },
+      { name: 'origin/main', remote: true },
+      { name: 'origin/feat', remote: true },
+      { name: 'origin/synced', remote: true },
+      { name: 'origin/remote-only', remote: true },
+    ]);
+  });
+  test('git is asked only for the branches whose two copies differ, each with its own command', async () => {
+    const { git } = await inspected({ head: 'main', branches: ['main', 'feat', 'synced'], remoteBranches: ['main', 'feat', 'synced'], behind: { main: 2 }, ahead: { feat: 1 } });
+    const counted = git.calls.filter((call) => call.args.includes('--left-right')).map((call) => call.args.at(-1));
+    expect(counted.sort()).toEqual(['refs/heads/feat...refs/remotes/origin/feat', 'refs/heads/main...refs/remotes/origin/main']);
+  });
+  test('a count git could not make leaves the branch without counts and the reply stands', async () => {
+    const git = new FakeGit();
+    git.repos.set(folder, { head: 'main', branches: ['main'], remoteBranches: ['main'], behind: { main: 2 } });
+    git.failures.set('rev-list --left-right --count refs/heads/main...refs/remotes/origin/main', { ok: false, code: 128, stderr: 'fatal: bad' });
+    expect((await inspectFolder(git, folder)).branches[0]).toEqual({ name: 'main', remote: false });
+  });
+});
+
+describe('fetchFolder with the fake git', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'carrier-fetch-'));
+  const folder = '/work/app';
+  const fetchHead = join(dir, 'FETCH_HEAD');
+  writeFileSync(fetchHead, '');
+  const fetchedAt = 1_700_000_000_000;
+  utimesSync(fetchHead, fetchedAt / 1000, fetchedAt / 1000);
+  const setup = () => {
+    const git = new FakeGit();
+    git.repos.set(folder, { head: 'main', branches: ['main'], remoteBranches: ['main'], origin: 'git@github.com:acme/app.git', fetchHead });
+    return git;
+  };
+  const fetches = (git: FakeGit) => git.calls.filter((call) => call.args[0] === 'fetch').length;
+
+  test('without now it fetches, and ifStale within the window does not and answers with the folder as it is', async () => {
+    const git = setup();
+    await fetchFolder(git, folder);
+    expect(fetches(git)).toBe(1);
+    const answered = await fetchFolder(git, folder, { now: fetchedAt + FETCH_FRESH_MS - 1 });
+    expect(fetches(git)).toBe(1);
+    expect(answered).toMatchObject({ folder, git: true, fetchedAt, branches: [{ name: 'main', remote: false, ahead: 0, behind: 0 }, { name: 'origin/main', remote: true }] });
+  });
+  test('ifStale with the last fetch older than the window fetches', async () => {
+    const git = setup();
+    await fetchFolder(git, folder, { now: fetchedAt + FETCH_FRESH_MS });
+    expect(fetches(git)).toBe(1);
+  });
+  test('ifStale with no fetch on record fetches, and a folder that is not a repository is still refused', async () => {
+    const git = setup();
+    git.repos.get(folder)!.fetchHead = join(dir, 'never');
+    await fetchFolder(git, folder, { now: fetchedAt });
+    expect(fetches(git)).toBe(1);
+    await expect(fetchFolder(new FakeGit(), folder, { now: fetchedAt })).rejects.toThrow('not a git repository');
   });
 });

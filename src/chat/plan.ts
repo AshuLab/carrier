@@ -18,7 +18,7 @@ export const plan = z
     options: z.record(z.string(), z.string()).optional(),
     text: z.string().min(1),
     branch: branch.optional(),
-    worktree: z.strictObject({ name: z.string().max(1000).optional() }).optional(),
+    worktree: z.strictObject({ name: z.string().max(1000).optional(), startFrom: z.enum(['remote', 'local']).optional() }).optional(),
   })
   .refine((p) => p.workspace.kind !== 'project' || (p.branch === undefined && p.worktree === undefined)); // a project has no commits
 

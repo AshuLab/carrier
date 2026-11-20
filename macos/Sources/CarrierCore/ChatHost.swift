@@ -226,7 +226,9 @@ public protocol ChatHost {
     /// What a folder is as a git repository (`WorkspaceInfo.git` is false for a plain folder); refused for a folder the host will not open.
     func workspace(_ folder: String) async throws -> WorkspaceInfo
     /// Fetches the folder's `origin` and answers what the folder is after it; a fetch that fails or takes too long is refused in words.
-    func fetch(_ folder: String) async throws -> WorkspaceInfo
+    /// With `ifStale` a host that lists `fetchIfStale` skips the git call when the last fetch is within its window and answers all the same;
+    /// a host that does not is never sent it.
+    func fetch(_ folder: String, ifStale: Bool) async throws -> WorkspaceInfo
     /// A free generated name for a worktree of the folder: the part after `carrier/`.
     func suggestName(_ folder: String) async throws -> String
     /// Whether a typed name (the part after `carrier/`) is valid and free, and why not.
@@ -391,10 +393,13 @@ public struct SocketChatHost: ChatHost {
         return try await Task.detached { try chatRequest(path, "workspace", requires: .workspace, fields: fields) }.value
     }
 
-    public func fetch(_ folder: String) async throws -> WorkspaceInfo {
+    public func fetch(_ folder: String, ifStale: Bool) async throws -> WorkspaceInfo {
         let fields = ",\"folder\":\(jsonString(folder))"
         let path = socketPath()
-        return try await Task.detached { try chatRequest(path, "fetch", requires: .fetch, fields: fields) }.value
+        // the host gives a fetch 60 seconds, so the wait is longer than that
+        return try await Task.detached {
+            try chatRequest(path, "fetch", requires: .fetch, fields: fields, also: ifStale ? [(.fetchIfStale, ",\"ifStale\":true")] : [], timeout: 70)
+        }.value
     }
 
     public func suggestName(_ folder: String) async throws -> String {
@@ -627,7 +632,10 @@ public struct SessionPlan: Equatable {
         if options.isEmpty == false { fields.append("\"options\":{" + options.sorted { $0.key < $1.key }.map { "\(jsonString($0.key)):\(jsonString($0.value))" }.joined(separator: ",") + "}") }
         // a worktree is cut from the branch, so the one field serves both
         if let branch = worktree?.from ?? branch { fields.append("\"branch\":\(jsonString(branch))") }
-        if let worktree { fields.append("\"worktree\":{" + (worktree.name.map { "\"name\":\(jsonString($0))" } ?? "") + "}") }
+        if let worktree {
+            let inside = [worktree.name.map { "\"name\":\(jsonString($0))" }, worktree.startFrom.map { "\"startFrom\":\"\($0.rawValue)\"" }].compactMap { $0 }
+            fields.append("\"worktree\":{" + inside.joined(separator: ",") + "}")
+        }
         return "{" + fields.joined(separator: ",") + "}"
     }
 }
@@ -685,7 +693,7 @@ private struct CancelledReply: Decodable {
             let repo: String?
             let name: String?
         }
-        struct Worktree: Decodable { let name: String? }
+        struct Worktree: Decodable { let name: String?; let startFrom: String? }
         let workspace: Workspace
         let agent: String
         let text: String
@@ -703,7 +711,7 @@ private struct CancelledReply: Decodable {
                 case ("project", _, _, let name?): place = .project(name)
                 default: throw ControlError.badLine
                 }
-                let cut = worktree.flatMap { wanted in branch.map { WorktreeRequest(from: $0, name: wanted.name) } }
+                let cut = worktree.flatMap { wanted in branch.map { WorktreeRequest(from: $0, name: wanted.name, startFrom: wanted.startFrom.flatMap(WorktreeStart.init(rawValue:))) } }
                 return SessionPlan(agent: agent, workspace: place, branch: worktree == nil ? branch : nil, worktree: cut, options: options ?? [:], text: text)
             }
         }

@@ -16,8 +16,9 @@ struct DictationIndicator: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var motion = IndicatorMotion()
 
-    // ponytail: 60 frames a second is what makes the tremble smooth; the cost is the processor time while it listens, so lower this if Activity Monitor says so
-    private static let fps = 60.0
+    // 30 frames a second: the voice reaches it about twelve times a second, and 60 asked for twice the frames while it listens for a tremble that the eye
+    // does not tell from this one
+    private static let fps = 30.0
 
     /// The arc and its bloom are light over the ring; Reduce Transparency keeps the ring alone.
     static func drawsLight(reduceTransparency: Bool) -> Bool { reduceTransparency == false }
@@ -34,7 +35,7 @@ struct DictationIndicator: View {
     var body: some View {
         let colors = Self.accentColors()
         // with Reduce Motion nothing goes round, trembles or thickens: the arc stands still and its brightness follows the voice, at a calmer rate
-        TimelineView(.animation(minimumInterval: 1 / (reduceMotion ? 30 : Self.fps))) { context in
+        TimelineView(.animation(minimumInterval: 1 / Self.fps)) { context in
             let frame = motion.frame(toward: levels, at: context.date, moving: reduceMotion == false)
             let heard = frame.levels
             let voice = Double(heard.overall)

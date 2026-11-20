@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Every "Check again" and "Check now" button (Usage, Carrier, Providers, Health, Repos) works the same: it shows "Checking…" while it runs, then "Up to date" with a green mark (or "Check failed" in red) for three seconds.
+
 ## [0.16.0] - 2026-11-20
 
 A new worktree starts from the remote branch, with a Remote and Local choice in the branch picker.

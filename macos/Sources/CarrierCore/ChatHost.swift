@@ -398,7 +398,7 @@ public struct SocketChatHost: ChatHost {
         let path = socketPath()
         // the host gives a fetch 60 seconds, so the wait is longer than that
         return try await Task.detached {
-            try chatRequest(path, "fetch", requires: .fetch, fields: fields, also: ifStale ? (.fetchIfStale, ",\"ifStale\":true") : nil, timeout: 70)
+            try chatRequest(path, "fetch", requires: .fetch, fields: fields, also: ifStale ? [(.fetchIfStale, ",\"ifStale\":true")] : [], timeout: 70)
         }.value
     }
 

@@ -3,7 +3,7 @@ import type { Detected } from '../../doctor/detect.ts';
 import { harnessLabel, harnessNames, type HarnessName } from '../../harnesses/names.ts';
 import { localKinds, localLabel, type LocalProvider } from '../../harnesses/local.ts';
 import { sameAccount } from '../../config/resolve.ts';
-import type { AIProvider, Failover, Role } from './build-config.ts';
+import type { AIProvider, Failover, Identity, Role } from './build-config.ts';
 
 /** `~` for the home folder, for what is shown to a person. */
 export const tilde = (path: string) => (path.startsWith(`${homedir()}/`) ? `~${path.slice(homedir().length)}` : path);
@@ -17,6 +17,8 @@ const roleLine = (r: Role, providers: Record<string, AIProvider>) => {
   const pDesc = p ? `${r.provider} (${providerLine(p)})` : r.provider;
   return [`${r.identity.kind === 'gh' ? 'your gh login' : r.identity.agent} · ${pDesc} · ${r.model}${r.effort ? ` · ${r.effort}` : ''}`, ...personaLine(r).map((item) => `\n              persona: ${item}`)].join('');
 };
+
+const identityLine = (identity: Identity) => (identity.kind === 'gh' ? 'your gh login' : identity.agent);
 
 const loginText = { in: 'signed in', out: 'signed out', unknown: 'login not checked' } as const;
 
@@ -47,10 +49,12 @@ export const summary = (
   out: string,
   providersPath: string,
   leadReviewer?: Role,
+  orchestrator?: Identity,
 ) =>
   [
     ['Repos', repos.length > 0 ? repos.join(', ') : 'none yet'],
     ...(sameAccount(author.identity, reviewer.identity) ? [['Identity', 'shared: author and reviewer are the same account, and the signature in what they publish will show it']] : []),
+    ['Orchestrator', identityLine(orchestrator ?? author.identity)],
     ['Accounts', Object.keys(providers).join(', ')],
     ['Author', roleLine(author, providers)],
     ['Reviewer', roleLine(reviewer, providers)],

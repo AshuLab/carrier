@@ -46,6 +46,7 @@
     "switchAgent",
     "stopTask",
     "worktreeStart",
-    "fetchIfStale"
+    "fetchIfStale",
+    "listsRev"
   ]
 }

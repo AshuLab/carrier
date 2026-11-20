@@ -16,13 +16,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A new worktree is cut from the remote branch (`origin/main`) and no longer from a local `main` that may be far behind; if the remote cannot be reached it starts from the local branch and the session says so.
 - The sidebar no longer counts what landed on the remote branch as the session's work: a session in which nothing was done shows +0 −0.
+
+## [0.15.0] - 2026-11-20
+
+Less memory and CPU in the app, `carrier init` asks who Carrier reads GitHub as, and a calmer Settings › Behavior.
+
+### Added
+
+- `carrier init` asks who Carrier reads GitHub as (the orchestrator's identity) before the author and the reviewer, and no longer writes the author's name into it without asking. An unattended init still uses the author's identity.
+
+### Changed
+
 - Settings › Behavior no longer shows a "Saved" note after each change: it saves as you type, and the window only says something when it could not.
 - The app drops the separate agent output window and its watcher, which nothing opened since an epic's output moved to its Agent output tab; the tab reads the same lines through the monitor, so nothing you see changes.
 
 ### Fixed
 
+- When "Carrier can read it" fails with a 404 on a repo, the fix also says Carrier can read as another identity (`orchestratorProfile`, Settings > Engine > GitHub identity), and not only to install the App.
 - Carrier no longer grows in memory while it sits open: about 1 MB a minute went to what the connection to the engine left behind, and it is freed on every poll now.
+- An open conversation uses less CPU: the app reads and decodes each answer of the chat host once, where it went over a long answer again at every read and took it apart twice.
+- The chat host sends a session's options and slash commands only when they change, not again at every poll of an open conversation: they were most of what it sent.
 - The role summary in Settings is built without the `Text +` that macOS 26 deprecates; it looks the same.
+- A session's pull request shows in the sidebar when its agent moved the worktree to another branch: it is looked for on the branch checked out now, not the one the worktree was cut with.
 
 ## [0.14.1] - 2026-11-19
 

@@ -19,7 +19,7 @@ export const fixes = {
     return `run: agent-forge token --agent ${profile.agent} from a clone of the repo to see the full error`;
   },
   read(repo: string, detail: string) {
-    if (detail.includes('404')) return `the repo does not exist or this identity cannot see it: install the App on ${repo.split('/')[0]} and give it access to ${repo}`;
+    if (detail.includes('404')) return `the repo does not exist or this identity cannot see it: install the App on ${repo.split('/')[0]} and give it access to ${repo}, or let Carrier read as another identity: orchestratorProfile in engine.json (Settings > Engine > GitHub identity)`;
     if (detail.includes('401')) return "the identity's credentials were rejected: for gh run gh auth login, for a bot check its App in Forge";
     return undefined;
   },

@@ -417,3 +417,79 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     // the feed shows it as the plain line it is
     #expect(chatFeed([switched]) == [.line(id: "e9", text: "The agent changed from claude to codex.")])
 }
+
+private final class Asked: @unchecked Sendable {
+    private let lock = NSLock()
+    private var lines: [String] = []
+    func add(_ line: String) { lock.withLock { lines.append(line) } }
+    var all: [String] { lock.withLock { lines } }
+}
+
+private let someCommands = #"[{"id":"review","name":"review","description":"Review","kind":"skill"}]"#
+private let otherCommands = #"[{"id":"review","name":"review","description":"Review","kind":"skill"},{"id":"pdf","name":"pdf","description":"PDFs","kind":"skill"}]"#
+
+private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
+    #"{"id":\#(id),"ok":true,"data":{"events":[],"cursor":0,"streaming":"","session":{"state":"idle"},"listsRev":"\#(rev)",\#(lists)}}"# + "\n"
+}
+
+@Test func theHostIsToldWhichListsTheClientHasAndALeftOutListIsTheOneKept() async throws {
+    let asked = Asked()
+    // the answers in the order of the requests: whole, left out, whole with another rev, left out
+    let answers = [
+        { (id: Int) in eventsReply(id, rev: "ab12", lists: #""options":[],"commands":\#(someCommands)"#) },
+        { (id: Int) in eventsReply(id, rev: "ab12", lists: #""listsUnchanged":true"#) },
+        { (id: Int) in eventsReply(id, rev: "cd34", lists: #""options":[],"commands":\#(otherCommands)"#) },
+        { (id: Int) in eventsReply(id, rev: "cd34", lists: #""listsUnchanged":true"#) },
+    ]
+    let server = TestServer { connection in
+        connection.send(hello(#""events","listsRev""#))
+        guard let line = connection.readLine(), let json = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any], let id = json["id"] as? Int else { return }
+        asked.add(line)
+        connection.send(answers[min(asked.all.count, answers.count) - 1](id))
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+
+    let first = try await host.events("0509fe2a-2637-4bdd-840c-5727696d6a3e", after: 0, limit: 50)
+    #expect(first.commands.map(\.name) == ["review"])
+    let second = try await host.events("0509fe2a-2637-4bdd-840c-5727696d6a3e", after: 0, limit: 50)
+    #expect(second.commands.map(\.name) == ["review"] && second.listsUnchanged == false)
+    let third = try await host.events("0509fe2a-2637-4bdd-840c-5727696d6a3e", after: 0, limit: 50)
+    #expect(third.commands.map(\.name) == ["review", "pdf"])
+    let fourth = try await host.events("0509fe2a-2637-4bdd-840c-5727696d6a3e", after: 0, limit: 50)
+    #expect(fourth.commands.map(\.name) == ["review", "pdf"])
+
+    // the first ask had none to name; each one after it named the rev of the last answer
+    #expect(asked.all.map { $0.contains("\"lists\"") } == [false, true, true, true])
+    #expect(asked.all[1].contains(#""lists":"ab12""#) && asked.all[2].contains(#""lists":"ab12""#) && asked.all[3].contains(#""lists":"cd34""#))
+}
+
+@Test func aHostThatDoesNotListTheRevisionIsNeverSentOneAndKeepsSendingTheListsWhole() async throws {
+    let asked = Asked()
+    let server = TestServer { connection in
+        connection.send(hello(#""events""#))
+        guard let line = connection.readLine(), let json = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any], let id = json["id"] as? Int else { return }
+        asked.add(line)
+        connection.send(#"{"id":\#(id),"ok":true,"data":{"events":[],"cursor":0,"streaming":"","session":{"state":"idle"},"options":[],"commands":\#(someCommands)}}"# + "\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+
+    for _ in 0..<2 { #expect(try await host.events("0509fe2a-2637-4bdd-840c-5727696d6a3e", after: 0, limit: 50).commands.map(\.name) == ["review"]) }
+    #expect(asked.all.count == 2 && asked.all.allSatisfy { $0.contains("\"lists\"") == false })
+}
+
+@Test func aRevisionThatIsNotPlainHexIsNotKeptNorSentBack() async throws {
+    let asked = Asked()
+    let server = TestServer { connection in
+        connection.send(hello(#""events","listsRev""#))
+        guard let line = connection.readLine(), let json = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any], let id = json["id"] as? Int else { return }
+        asked.add(line)
+        connection.send(eventsReply(id, rev: #"a\",\"cmd\":\"stop"#, lists: #""options":[],"commands":[]"#))
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+
+    for _ in 0..<2 { _ = try await host.events("0509fe2a-2637-4bdd-840c-5727696d6a3e", after: 0, limit: 50) }
+    #expect(asked.all.allSatisfy { $0.contains("\"lists\"") == false && $0.contains("\"cmd\":\"stop\"") == false })
+}

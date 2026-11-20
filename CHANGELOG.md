@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-20
+
+A new worktree starts from the remote branch, with a Remote and Local choice in the branch picker.
+
 ### Added
 
 - Settings › Sessions › New sessions has a "Start from" choice: a new worktree starts from the remote branch (the latest, the default) or from your local one.

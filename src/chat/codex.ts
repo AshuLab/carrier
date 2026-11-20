@@ -137,8 +137,6 @@ class CodexConversation implements ChatConversation {
   private child: boolean;
   /** The key the chat MCP is registered under, when it was handed over. */
   private mcpServerName: string | undefined;
-  /** Every tool of the chat MCP, by name: they run without asking. */
-  private tools: string[] = [];
   mcpProblem: string | undefined;
   appServerVersion: string | undefined;
   /** Called when the chat MCP reports that it started or failed, so `start` can stop waiting. */
@@ -159,7 +157,7 @@ class CodexConversation implements ChatConversation {
 
   async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp, instructions }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string; tools?: string[] } | undefined; instructions: string | undefined }) {
     this.mcpServerName = mcp?.serverName;
-    this.tools = mcp?.tools ?? [];
+    const tools = mcp?.tools ?? [];
     this.limitWaitMs = deps.limitWaitMs ?? 2000;
     const settled = new Promise<void>((resolve) => (this.mcpSettled = resolve));
     this.transport = deps.spawn(this.binary, { cwd: folder, env, args: argsOf(launch) });
@@ -174,7 +172,7 @@ class CodexConversation implements ChatConversation {
       ...(instructions !== undefined && { developerInstructions: instructions }), // thread/start and thread/resume both take it
       // over the pipe, so that the token is in neither `argv` nor a config file
       // every tool of the chat MCP is named under `tools` and approved, whatever the approval policy: none asks
-      ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, default_tools_approval_mode: 'auto', ...(this.tools.length > 0 && { tools: Object.fromEntries(this.tools.map((name) => [name, { approval_mode: 'approve' }])) }), http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
+      ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, default_tools_approval_mode: 'auto', ...(tools.length > 0 && { tools: Object.fromEntries(tools.map((name) => [name, { approval_mode: 'approve' }])) }), http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
     };
     const started = await this.request(resume === undefined ? 'thread/start' : 'thread/resume', resume === undefined ? params : { threadId: resume, ...params });
     this.nativeId = started.thread.id;

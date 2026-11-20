@@ -307,10 +307,12 @@ _Avoid_: summary, compaction, context transfer.
 **Child session** - A user session started by a delegation from another session, its parent: a real session with its own agent and transcript, working in the parent's folder, kept out of the list of sessions and listed in its parent's summary. It runs one task and takes no message from the person, who can still read it and answer its approvals ([0033](adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)).
 _Avoid_: subagent (a Claude agent inside an execution, with no session of its own), sub-session, worker, thread.
 
-**Delegation** - The person asking, in a session, for work to go to other agents, which the agent carries out with the chat MCP's `delegate_start`, in any mode and with no approval of its own ([0036](adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)). It starts child sessions and moves nothing out of the parent.
+**Delegation** - The person asking, in a session, for work to go to other agents, which the agent carries out with the chat MCP's `delegate_start`, in any mode and with no approval of its own ([0036](adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)).
+It starts child sessions and moves nothing out of the parent.
 _Avoid_: failover, subagent call, handover (the parent keeps the session).
 
-**Permission level** - Carrier's scale of four steps for what a chat session may do, from reading only to Claude's `auto`, on which the options of each harness sit (Claude's permission modes, Codex's sandbox and approval policy). It exists to keep a child session from having more privilege than its parent ([0033](adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md), [0036](adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)).
+**Permission level** - Carrier's scale of four steps for what a chat session may do, from reading only to Claude's `auto`, on which the options of each harness sit (Claude's permission modes, Codex's sandbox and approval policy).
+It exists to keep a child session from having more privilege than its parent ([0033](adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md), [0036](adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)).
 _Avoid_: permission mode (Claude's own option), sandbox (Codex's own option), access level (what a chat MCP tool declares, [0024](adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)).
 
 **Keep awake** - Holding the Mac from sleeping on its own, with the system's power assertions and no password, so a long job is not cut by sleep.

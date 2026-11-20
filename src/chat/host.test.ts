@@ -846,7 +846,7 @@ test('the host serves the chat MCP to the conversation it opened: capabilities a
   const mcp = claude.opened[0]!.mcp!;
   expect(mcp).toMatchObject({ serverName: 'carrier-chat', url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/) });
   const listed = (await (await callMcp(mcp, 'tools/list')).json()) as any;
-  expect(listed.result.tools.map((t: any) => t.name)).toEqual(['capabilities', 'history', 'agents', 'delegate_start', 'delegate_wait']); // a conversation of the default mode asks, so it may delegate
+  expect(listed.result.tools.map((t: any) => t.name)).toEqual(['capabilities', 'history', 'agents', 'delegate_start', 'delegate_wait']); // a conversation in any mode may delegate
   const called = (await (await callMcp(mcp, 'tools/call', { name: 'capabilities' })).json()) as any;
   expect(called.result.isError).toBe(false);
   expect(JSON.parse(called.result.content[0].text).session).toMatchObject({ id: session.id, agent: 'claude' });

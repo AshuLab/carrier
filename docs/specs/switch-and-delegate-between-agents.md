@@ -15,7 +15,7 @@ The owner uses Claude and Codex, on more than one account, and wants all of thes
 [chat-host](chat-host.md) left switching provider mid-session out of its first epic, deferred and not refused.
 
 This spec is the support of the chat host and nothing of the screens.
-We know it is solved when the host can switch a session to another configured agent and the next message goes on with that agent knowing what came before; when it tells a usage limit apart, naming the agent and the reset time, so that any client can offer another agent; and when, after the person approves, a session's agent can start two child sessions on two models and a client can read their state and result.
+We know it is solved when the host can switch a session to another configured agent and the next message goes on with that agent knowing what came before; when it tells a usage limit apart, naming the agent and the reset time, so that any client can offer another agent; and when a session's agent, asked by the person, can start two child sessions on two models and a client can read their state and result.
 The screens that show all of this are another piece of work, and the host leaves the data ready for them.
 
 ## Solution

@@ -2358,6 +2358,7 @@ function delegation(extra: Partial<Parameters<typeof createSessions>[0]> = {}) {
     reader: { account: 'claude', options: { permissionMode: 'dontAsk' } },
     planner: { account: 'claude', options: { permissionMode: 'plan' } },
     edit: { account: 'claude', options: { permissionMode: 'acceptEdits' }, model: 'haiku' },
+    autonomous: { account: 'claude', options: { permissionMode: 'auto' } },
     plain: { account: 'claude' },
     cx: { account: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } },
     cxcareful: { account: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' } },
@@ -2455,6 +2456,7 @@ test('a child opens at the level of a parent in each mode, and a Codex child of 
   };
   // edit is a Claude agent at 2, reader at 0, cx a Codex agent at 2
   expect(await childOf('auto', 'edit')).toMatchObject({ level: 2, options: { permissionMode: 'acceptEdits' } });
+  expect(await childOf('auto', 'autonomous')).toMatchObject({ level: 3, options: { permissionMode: 'auto' } });
   expect(await childOf('auto', 'cx')).toMatchObject({ level: 2, options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } });
   expect(await childOf('acceptEdits', 'edit')).toMatchObject({ level: 2 });
   expect(await childOf('default', 'edit')).toMatchObject({ level: 1, options: { permissionMode: 'default' } });
@@ -2467,7 +2469,9 @@ test('a Claude agent in auto has a child in auto, and a Codex parent with never 
   const s = delegation();
   const auto = await s.parent('plain');
   await s.sessions.setOption({ sessionId: auto.id, option: 'permissionMode', value: 'auto' });
-  expect(await s.start(auto.id, 'edit')).toMatchObject({ childId: expect.any(String) });
+  const { childId: autoChild } = await s.start(auto.id, 'autonomous');
+  expect(s.children().find((child) => child.id === autoChild)!.options).toMatchObject({ permissionMode: 'auto' });
+  expect(s.sessions.list({}).sessions.find((listed) => listed.id === auto.id)!.children.find((child) => child.id === autoChild)!.level).toBe(3);
   const never = await s.parent('cxcareful');
   s.codex.conversations.at(-1)!.appServerVersion = '0.122.0';
   await s.sessions.setOption({ sessionId: never.id, option: 'approvalPolicy', value: 'never' });

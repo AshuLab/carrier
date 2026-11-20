@@ -444,8 +444,9 @@ const roster: Listed[] = [
   { name: 'claude-read', harness: 'claude', account: 'claude', found: true },
   { name: 'codex', harness: 'codex', account: 'codex', found: true },
   { name: 'gone', harness: 'claude', account: 'other', found: false },
+  { name: 'claude-auto', harness: 'claude', account: 'claude', found: true },
 ];
-const configured: Record<string, Record<string, string>> = { 'claude-edit': { permissionMode: 'acceptEdits' }, 'claude-read': { permissionMode: 'dontAsk' }, codex: {}, gone: {} };
+const configured: Record<string, Record<string, string>> = { 'claude-edit': { permissionMode: 'acceptEdits' }, 'claude-read': { permissionMode: 'dontAsk' }, codex: {}, gone: {}, 'claude-auto': { permissionMode: 'auto' } };
 const offers: Record<string, { id: string; values: { id: string; label: string }[] }[]> = {
   'claude-edit': [{ id: 'model', values: [{ id: 'opus', label: 'Opus' }, { id: 'haiku', label: 'Haiku' }] }, { id: 'effort', values: [{ id: 'low', label: 'low' }, { id: 'high', label: 'high' }] }, { id: 'permissionMode', values: [{ id: 'default', label: 'Ask' }] }],
   'claude-read': [{ id: 'model', values: [{ id: 'sonnet', label: 'Sonnet' }] }],
@@ -488,12 +489,13 @@ test('agents lists each configured agent with its state and the level it would h
       { name: 'claude-read', harness: 'claude', found: true, state: 'unknown', childLevel: 0 },
       { name: 'codex', harness: 'codex', found: true, state: 'signedOut', childLevel: 1 }, // no options: the adapter's defaults
       { name: 'gone', harness: 'claude', found: false, state: 'unknown', childLevel: 1 },
+      { name: 'claude-auto', harness: 'claude', found: true, state: 'unknown', childLevel: 1 }, // lowered from 3 by the caller
     ],
   });
   expect(probed).toEqual([]);
 
   const level2 = JSON.parse((await askAgents({ harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } }, { models: false })).text);
-  expect(level2.agents.map((agent: any) => [agent.name, agent.childLevel])).toEqual([['claude-edit', 2], ['claude-read', 0], ['codex', 1], ['gone', 1]]);
+  expect(level2.agents.map((agent: any) => [agent.name, agent.childLevel])).toEqual([['claude-edit', 2], ['claude-read', 0], ['codex', 1], ['gone', 1], ['claude-auto', 2]]);
   expect(probed).toEqual([]);
   expect((await askAgents({ harness: 'claude', options: {} })).isError).toBe(false); // a caller with no options is at the adapter's default
   expect((await askAgents({ harness: 'claude', options: {} }, { models: 'yes' })).isError).toBe(true);
@@ -505,11 +507,11 @@ test('agents shows a child level in every mode of the caller, up to 3 for Claude
     for (const agent of listed) expect(agent).not.toHaveProperty('notOffered');
     return listed.map((agent: any) => agent.childLevel);
   };
-  // claude-edit is configured at 2, claude-read at 0, codex and gone at the adapter's defaults (1)
-  expect(await levels({ harness: 'claude', options: { permissionMode: 'auto' } })).toEqual([2, 0, 1, 1]);
-  expect(await levels({ harness: 'claude', options: { permissionMode: 'plan' } })).toEqual([0, 0, 0, 0]);
-  expect(await levels({ harness: 'claude', options: { permissionMode: 'dontAsk' } })).toEqual([0, 0, 0, 0]);
-  expect(await levels({ harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'never' } })).toEqual([2, 0, 1, 1]);
+  // claude-edit is configured at 2, claude-read at 0, codex and gone at the adapter's defaults (1), claude-auto at 3
+  expect(await levels({ harness: 'claude', options: { permissionMode: 'auto' } })).toEqual([2, 0, 1, 1, 3]); // a Claude child of an auto parent opens in auto
+  expect(await levels({ harness: 'claude', options: { permissionMode: 'plan' } })).toEqual([0, 0, 0, 0, 0]);
+  expect(await levels({ harness: 'claude', options: { permissionMode: 'dontAsk' } })).toEqual([0, 0, 0, 0, 0]);
+  expect(await levels({ harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'never' } })).toEqual([2, 0, 1, 1, 2]); // Codex has nothing at 3
 });
 
 test('agents answers notOffered with the words of the refusal and no childLevel when the caller may not delegate', async () => {
@@ -519,7 +521,7 @@ test('agents answers notOffered with the words of the refusal and no childLevel 
   ];
   for (const caller of off) {
     const { agents: listed } = JSON.parse((await askAgents(caller)).text);
-    expect(listed).toHaveLength(4);
+    expect(listed).toHaveLength(5);
     for (const agent of listed) {
       expect(agent).not.toHaveProperty('childLevel');
       expect(agent.notOffered).toBe(delegationRefusal(caller.harness, caller.options, '0.122.0'));
@@ -555,7 +557,7 @@ test('the delegation tools are listed to a session with no parent in every mode 
 
 test('agents lists models and efforts from the probe only when asked, and says so for an agent whose probe fails or that is not found', async () => {
   const { agents: listed } = JSON.parse((await askAgents({ harness: 'claude', options: { permissionMode: 'default' } }, { models: true })).text);
-  expect(probed.sort()).toEqual(['claude-edit', 'claude-read', 'codex']); // a probe for an agent that is not found would only fail
+  expect(probed.sort()).toEqual(['claude-auto', 'claude-edit', 'claude-read', 'codex']); // a probe for an agent that is not found would only fail
   expect(listed[0]).toMatchObject({ name: 'claude-edit', models: [{ id: 'opus', label: 'Opus' }, { id: 'haiku', label: 'Haiku' }], efforts: ['low', 'high'] });
   expect(listed[1]).toMatchObject({ name: 'claude-read', models: [{ id: 'sonnet', label: 'Sonnet' }], efforts: [] });
   expect(listed[2]).toMatchObject({ name: 'codex', childLevel: 1, modelsUnavailable: 'The models of this agent could not be listed' });

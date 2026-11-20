@@ -32,8 +32,7 @@ struct HealthTabView: View {
             HStack {
                 Text("Is everything Carrier needs ready?").font(.scaled(12)).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
-                if checking { ProgressView().controlSize(.small) }
-                Button("Check again") { Task { await checkAgain() } }.buttonStyle(SecondaryCapsuleButtonStyle()).disabled(checking)
+                CheckButton(checking: checking, failed: doctor.state.failedToAnswer) { Task { await checkAgain() } }
             }
             .padding(.horizontal, 14)
             ForEach(healthSections(host: store.latest, facts: facts, doctor: doctor.state), id: \.title) { section in

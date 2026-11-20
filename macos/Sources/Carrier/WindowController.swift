@@ -528,12 +528,25 @@ final class WindowController: NSObject, NSWindowDelegate {
         return NSSize(width: max(frameSize.width, least.width), height: max(frameSize.height, least.height))
     }
 
-    /// Someone is looking when the app is active and the window is on screen: then the host and the engine are asked often, and the Usage
-    /// page's minute timer runs (it pauses while nobody looks and asks again when someone does).
-    func refreshPace() {
-        let attentive = NSApp.isActive && windowIsShown
-        PollPace.shared.set(attentive: attentive)
-        MainActor.assumeIsolated { _ = AppUsage.refresher.setAttentive(attentive) }
+    /// Tells `Viewing` whether anyone is looking: the app is active and the window is on screen, or one of them, or the Mac sleeps. Then the host and
+    /// the engine are asked often or not, and the Usage page's minute timer runs (it pauses while nobody looks and asks again when someone does).
+    /// A window that is closing is still visible when it says so: the caller says it is not shown.
+    func refreshPace(windowShown shown: Bool? = nil) {
+        MainActor.assumeIsolated {
+            Viewing.shared.update(
+                appActive: NSApp.isActive, windowShown: shown ?? windowIsShown, asleep: sleepReasons.isEmpty == false,
+                lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled
+            )
+            _ = AppUsage.refresher.setAttentive(Viewing.shared.state == .focused)
+        }
+    }
+
+    /// What the Mac is asleep for, by name: the screens, the system, or the user's session switched away. Any one is enough for nobody to look.
+    private var sleepReasons: Set<String> = []
+
+    func sleeping(_ reason: String, _ asleep: Bool) {
+        if asleep { sleepReasons.insert(reason) } else { sleepReasons.remove(reason) }
+        refreshPace()
     }
 
     private var windowIsShown: Bool {
@@ -549,11 +562,9 @@ final class WindowController: NSObject, NSWindowDelegate {
     }
 
     @objc private func windowClosed() {
-        PollPace.shared.set(attentive: false)
-        MainActor.assumeIsolated {
-            AppUsage.refresher.setAttentive(false)
-            DictationController.shared.stopBoxDictation()
-        }
+        // `willClose` comes while the window is still on screen
+        refreshPace(windowShown: false)
+        MainActor.assumeIsolated { DictationController.shared.stopBoxDictation() }
         // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()
         stop = nil

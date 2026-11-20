@@ -13,7 +13,9 @@ Last, Open window (⌘O), Settings… (⌘,) and Quit Carrier (⌘Q).
 The line comes from Carrier's control socket, `<folder>/engine/state/control.sock`, where `<folder>` is the Carrier folder: `CARRIER_HOME` from the app's own environment, else `~/.carrier`.
 The app finds the engine from the folder alone, with no config file read, and has no setting for a config path; it works the folder out again at each connection attempt.
 The engine's config is `<folder>/engine.json`, and while that file does not exist the Carrier home and the Carrier section of the sidebar say that the engine is not configured (with nothing to do about it here: the setup wizard makes the file) and Start Carrier is off, with that as the reason.
-The app asks for the snapshot every second while connected and tries to connect every three seconds while not.
+The app asks for the snapshot every 2 seconds while connected and someone is looking (the app in front with its window on screen), every 5 seconds otherwise, and every 10 seconds in Low Power Mode when nobody is in the app; it tries to connect every three seconds while not.
+`Viewing` (`CarrierCore/Viewing.swift`) is the one place that says whether anyone looks: it is `focused`, `visible`, `hidden` or `asleep`, from whether the app is in front, whether the window is on screen, and whether the screens, the Mac or the user's session are asleep.
+`PollPace` is its copy for the threads that cannot read it.
 
 ## Sidebar and window shortcuts
 

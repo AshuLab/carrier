@@ -2183,7 +2183,7 @@ test.each([
 const ENDPOINT = 'http://127.0.0.1:4242/mcp';
 const withMcp = (down = false) => {
   const registry = new McpSessionRegistry(new FakeClock());
-  return { registry, extra: { mcp: { registry, url: () => (down ? undefined : ENDPOINT), readTools: ['agents'] } } };
+  return { registry, extra: { mcp: { registry, url: () => (down ? undefined : ENDPOINT), tools: ['agents'] } } };
 };
 const tokensLive = (registry: McpSessionRegistry) => (registry as any).records.size as number;
 const noticesOf = (s: ReturnType<typeof setup>, id: string) => (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((e) => e.kind === 'notice').map((e) => e.text as string);
@@ -2192,7 +2192,7 @@ test('open hands the runner a fresh token for the session it is about to create,
   const { registry, extra } = withMcp();
   const s = await openOne(setup(undefined, extra));
   const { mcp } = s.claude.opened[0]!;
-  expect(mcp).toMatchObject({ serverName: 'carrier-chat', url: ENDPOINT, readTools: ['agents'] });
+  expect(mcp).toMatchObject({ serverName: 'carrier-chat', url: ENDPOINT, tools: ['agents'] });
   expect(registry.lookup(mcp!.token)).toMatchObject({ sessionId: s.id, capabilities: new Set(['read', 'act']) }); // no parent: it may act
   expect(noticesOf(s, s.id)).toEqual([]);
   await s.sessions.close({ sessionId: s.id });
@@ -2387,6 +2387,7 @@ function delegation(extra: Partial<Parameters<typeof createSessions>[0]> = {}) {
     reader: { account: 'claude', options: { permissionMode: 'dontAsk' } },
     planner: { account: 'claude', options: { permissionMode: 'plan' } },
     edit: { account: 'claude', options: { permissionMode: 'acceptEdits' }, model: 'haiku' },
+    autonomous: { account: 'claude', options: { permissionMode: 'auto' } },
     plain: { account: 'claude' },
     cx: { account: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } },
     cxcareful: { account: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' } },
@@ -2465,12 +2466,46 @@ test('a child opens at the lower of its agent\'s level and its parent\'s, across
   expect(await levelOfChild('careful', 'edit')).toMatchObject({ level: 1, options: { permissionMode: 'default' } }); // lowered
   expect(await levelOfChild('cxread', 'edit')).toMatchObject({ level: 0, options: { permissionMode: 'dontAsk', model: 'haiku' } });
   expect(await levelOfChild('main', 'plain')).toMatchObject({ level: 1, options: { permissionMode: 'default' } }); // none set: the adapter's default
-  expect(await levelOfChild('main', 'planner')).toMatchObject({ level: 2, options: { permissionMode: 'acceptEdits' } }); // off the scale: given the parent's level
+  expect(await levelOfChild('main', 'planner')).toMatchObject({ level: 0, options: { permissionMode: 'plan' } }); // plan reads: it stays
   expect(await levelOfChild('main', 'cx')).toMatchObject({ level: 2, options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } });
   expect(await levelOfChild('careful', 'cx')).toMatchObject({ level: 1, options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' } });
   expect(await levelOfChild('cxread', 'cx')).toMatchObject({ level: 0, options: { sandbox: 'read-only', approvalPolicy: 'untrusted' } });
   expect(await levelOfChild('main', 'cxcareful')).toMatchObject({ level: 1 });
   expect(s.codex.opened.at(-1)).toMatchObject({ options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' } });
+});
+
+test('a child opens at the level of a parent in each mode, and a Codex child of an auto parent at 2', async () => {
+  const s = delegation();
+  const childOf = async (parentMode: string, childAgent: string) => {
+    const parent = await s.parent('plain');
+    await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: parentMode });
+    const { childId } = await s.start(parent.id, childAgent);
+    const found = s.children().find((child) => child.id === childId)!;
+    return { level: s.sessions.list({}).sessions.find((listed) => listed.id === parent.id)!.children.find((child) => child.id === childId)!.level, options: found.options };
+  };
+  // edit is a Claude agent at 2, reader at 0, cx a Codex agent at 2
+  expect(await childOf('auto', 'edit')).toMatchObject({ level: 2, options: { permissionMode: 'acceptEdits' } });
+  expect(await childOf('auto', 'autonomous')).toMatchObject({ level: 3, options: { permissionMode: 'auto' } });
+  expect(await childOf('auto', 'cx')).toMatchObject({ level: 2, options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } });
+  expect(await childOf('acceptEdits', 'edit')).toMatchObject({ level: 2 });
+  expect(await childOf('default', 'edit')).toMatchObject({ level: 1, options: { permissionMode: 'default' } });
+  expect(await childOf('dontAsk', 'edit')).toMatchObject({ level: 0, options: { permissionMode: 'dontAsk' } });
+  expect(await childOf('plan', 'edit')).toMatchObject({ level: 0, options: { permissionMode: 'dontAsk' } });
+  expect(await childOf('plan', 'cx')).toMatchObject({ level: 0, options: { sandbox: 'read-only' } });
+});
+
+test('a Claude agent in auto has a child in auto, and a Codex parent with never has a child at 2', async () => {
+  const s = delegation();
+  const auto = await s.parent('plain');
+  await s.sessions.setOption({ sessionId: auto.id, option: 'permissionMode', value: 'auto' });
+  const { childId: autoChild } = await s.start(auto.id, 'autonomous');
+  expect(s.children().find((child) => child.id === autoChild)!.options).toMatchObject({ permissionMode: 'auto' });
+  expect(s.sessions.list({}).sessions.find((listed) => listed.id === auto.id)!.children.find((child) => child.id === autoChild)!.level).toBe(3);
+  const never = await s.parent('cxcareful');
+  s.codex.conversations.at(-1)!.appServerVersion = '0.122.0';
+  await s.sessions.setOption({ sessionId: never.id, option: 'approvalPolicy', value: 'never' });
+  const { childId } = await s.start(never.id, 'edit');
+  expect(s.children().find((child) => child.id === childId)!.options).toMatchObject({ permissionMode: 'acceptEdits' });
 });
 
 test('the parent\'s level is read from its options as they are at the call, and a parent that is not offered cannot start a child', async () => {
@@ -2480,10 +2515,9 @@ test('the parent\'s level is read from its options as they are at the call, and 
   const { childId } = await s.start(parent.id, 'edit');
   expect(s.children().find((child) => child.id === childId)!.options).toMatchObject({ permissionMode: 'default' });
   await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'plan' });
-  await expect(s.start(parent.id, 'edit')).rejects.toThrow(/does not ask the person/);
-  const off = await s.parent('planner');
-  await expect(s.start(off.id, 'edit')).rejects.toThrow(ChatRefused);
-  expect(s.children()).toHaveLength(1);
+  const again = await s.start(parent.id, 'edit');
+  expect(s.children().find((child) => child.id === again.childId)!.options).toMatchObject({ permissionMode: 'dontAsk' }); // the level was read again at the call
+  expect(s.children()).toHaveLength(2);
 });
 
 test('a repeated requestId returns the same child whatever the other arguments are, even with four running, and a new one is refused there', async () => {
@@ -3265,7 +3299,7 @@ test('a host with a child working is live: a closed parent does not make it idle
   expect(f.sessions.liveCount()).toBe(0);
 });
 
-test('the delegation is offered only in a mode that asks, on the scale, on a harness that is new enough, and each refusal says why in the words `agents` gives', async () => {
+test('the delegation is offered in every mode on the scale, on a harness that is new enough, and each refusal says why in the words `agents` gives', async () => {
   const s = delegation();
   const offered = async (harness: 'claude' | 'codex', options: Record<string, string>, version: string | null = '0.122.0') => {
     const runner = harness === 'claude' ? s.claude : s.codex;
@@ -3278,16 +3312,12 @@ test('the delegation is offered only in a mode that asks, on the scale, on a har
   };
   expect((await offered('claude', {})).why).toBeUndefined();
   expect((await offered('claude', { permissionMode: 'acceptEdits' })).why).toBeUndefined();
-  for (const permissionMode of ['dontAsk', 'auto', 'plan']) {
-    const { id, why } = await offered('claude', { permissionMode });
-    expect(why, permissionMode).toContain(`permissionMode is ${permissionMode}`);
-    await expect(s.start(id, 'edit')).rejects.toThrow(why!);
-  }
+  for (const permissionMode of ['dontAsk', 'auto', 'plan']) expect((await offered('claude', { permissionMode })).why, permissionMode).toBeUndefined();
   expect((await offered('codex', {})).why).toBeUndefined();
   expect((await offered('codex', { approvalPolicy: 'on-request' })).why).toBeUndefined();
   expect((await offered('codex', { sandbox: 'read-only' })).why).toBeUndefined();
-  expect((await offered('codex', { approvalPolicy: 'never' })).why).toContain('approvalPolicy is never');
-  expect((await offered('codex', { sandbox: 'read-only', approvalPolicy: 'never' })).why).toContain('approvalPolicy is never'); // level 0, but it never asks
+  expect((await offered('codex', { approvalPolicy: 'never' })).why).toBeUndefined();
+  expect((await offered('codex', { sandbox: 'read-only', approvalPolicy: 'never' })).why).toBeUndefined();
   const old = await offered('codex', {}, '0.121.9');
   expect(old.why).toBe('This Codex app-server is 0.121.9, older than 0.122.0, which delegation needs');
   await expect(s.start(old.id, 'edit')).rejects.toThrow(old.why!);
@@ -3299,72 +3329,13 @@ test('the delegation is offered only in a mode that asks, on the scale, on a har
   expect(s.children()).toEqual([]);
 });
 
-test('a child is told it cannot start children, and the mode changed after the tools were listed makes the next call fail', async () => {
+test('a child is told it cannot start children, and a parent whose mode changes to auto still can', async () => {
   const s = delegation();
   const parent = await s.parent();
   expect(s.sessions.mcpView.delegationRefusal(parent.id)).toBeUndefined();
   const { childId } = await s.start(parent.id, 'edit');
   expect(s.sessions.mcpView.delegationRefusal(childId)).toBe('A child session cannot start children of its own');
   await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'auto' });
-  await expect(s.start(parent.id, 'edit', 'again')).rejects.toThrow(/permissionMode is auto/);
-  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'default' });
   expect((await s.start(parent.id, 'edit', 'again')).childId).toBeDefined();
   expect(s.children()).toHaveLength(2);
-});
-
-const choices = [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }];
-const delegateApproval = (approvalId: string, input: Record<string, unknown>) => ({ kind: 'approval' as const, approvalId, tool: 'mcp__carrier-chat__delegate_start', arg: 'raw', input, choices });
-const storedApprovals = (s: { sessions: ReturnType<typeof setup>['sessions'] }, id: string) => (s.sessions.events({ sessionId: id, limit: 100 }).events as any[]).filter((event) => event.kind === 'approval');
-
-test('the approval of delegate_start is stored with the agent, the model, the level, the lowered note, the notice and the whole task, and holds no input', async () => {
-  const s = delegation();
-  const parent = await s.parent('careful');
-  const task = `Review the diff.\n${'x'.repeat(30_000)}`;
-  s.claude.conversations[0]!.emit(delegateApproval('a1', { agent: 'edit', task, model: 'opus' }));
-  const [shown] = storedApprovals(s, parent.id);
-  expect(shown.arg).toBe(`Start edit as a child session\nModel: opus\nLevel: 1 (changes, asking before each change), lowered to match this session\nThe child can read this conversation.\nTask:\n${task}`);
-  expect(shown).not.toHaveProperty('input');
-  expect(JSON.stringify(s.sessions.events({ sessionId: parent.id, limit: 100 }))).not.toContain('"input"');
-
-  s.claude.conversations[0]!.emit(delegateApproval('a2', { agent: 'plain', task: 'short' }));
-  expect(storedApprovals(s, parent.id)[1].arg).toBe('Start plain as a child session\nModel: the agent\'s own\nLevel: 1 (changes, asking before each change)\nThe child can read this conversation.\nTask:\nshort');
-  const cx = await s.parent('main');
-  s.claude.conversations.at(-1)!.emit(delegateApproval('a3', { agent: 'ghost', task: 'x' }));
-  expect(storedApprovals(s, cx.id)[0].arg).toContain('Level: not known');
-});
-
-test('a call whose level differs from the one approved fails and starts no child, until the person approves the new level', async () => {
-  const s = delegation();
-  const parent = await s.parent('main');
-  const live = s.claude.conversations[0]!;
-  live.emit(delegateApproval('a1', { agent: 'edit', task: 'do it' }));
-  expect(storedApprovals(s, parent.id)[0].arg).toContain('Level: 2 (edits without asking)');
-  s.sessions.answer({ sessionId: parent.id, approvalId: 'a1', choiceId: 'allow' });
-  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'default' }); // the person lowers the mode after approving
-  await expect(s.start(parent.id, 'edit', 'do it')).rejects.toThrow(/approval was for level 2.*level 1.*none was started/);
-  await expect(s.start(parent.id, 'edit', 'do it')).rejects.toThrow(/approval was for level 2/); // and keeps failing
-  expect(s.children()).toEqual([]);
-
-  live.emit(delegateApproval('a2', { agent: 'edit', task: 'do it' })); // asked again, at the level of now
-  expect(storedApprovals(s, parent.id)[1].arg).toContain('Level: 1 (changes, asking before each change)');
-  s.sessions.answer({ sessionId: parent.id, approvalId: 'a2', choiceId: 'allow' });
-  const { childId } = await s.start(parent.id, 'edit', 'do it');
-  expect(s.children().find((child) => child.id === childId)!.options).toMatchObject({ permissionMode: 'default' });
-  // the approval was spent: another call for the same task is not held to it
-  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'acceptEdits' });
-  expect((await s.start(parent.id, 'edit', 'do it')).childId).not.toBe(childId);
-});
-
-test('a denied approval holds no level, and a call is only held to an approval of the same agent, model and task', async () => {
-  const s = delegation();
-  const parent = await s.parent('main');
-  const live = s.claude.conversations[0]!;
-  live.emit(delegateApproval('a1', { agent: 'edit', task: 'one' }));
-  s.sessions.answer({ sessionId: parent.id, approvalId: 'a1', choiceId: 'deny' });
-  live.emit(delegateApproval('a2', { agent: 'edit', task: 'two' }));
-  s.sessions.answer({ sessionId: parent.id, approvalId: 'a2', choiceId: 'allow' });
-  await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'default' });
-  expect((await s.start(parent.id, 'edit', 'one')).childId).toBeDefined(); // denied: nothing to compare with
-  expect((await s.start(parent.id, 'edit', 'other')).childId).toBeDefined(); // not what was approved
-  await expect(s.start(parent.id, 'edit', 'two')).rejects.toThrow(/approval was for level 2/);
 });

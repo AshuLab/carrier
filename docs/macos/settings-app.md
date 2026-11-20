@@ -5,7 +5,9 @@ The pages of the App group of [Settings](settings.md).
 ## General
 
 The General page (`GeneralTabView` in `Carrier/SettingsTabs.swift`) changes the icon style, the animation and "Show epics in the menu" (`menu.iconStyle`, `menu.animate`, `menu.showEpics`); the keys of the App pages are read by `CarrierCore/AppPreferences.swift`.
-The bar of the menu icon bounces only while the setting is on, the screens and the Mac are awake and Low Power Mode is off (`iconAnimates`): the window hiding does not stop it, as it is there to be seen with the window closed, but it costs the window server about four points of a core.
+The bar of the menu icon bounces only while the setting is on, the screens and the Mac are awake and Low Power Mode is off (`iconAnimates`).
+The window hiding does not stop it, as it is there to be seen with the window closed, but it costs the window server about four points of a core.
+The row says "except in Low Power Mode", so a switch that is on with no bounce is explained.
 
 ## Providers
 

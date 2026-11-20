@@ -738,7 +738,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             if let sleep {
                 try await sleep(.seconds(seconds))
             } else {
-                await nap.sleep(seconds: seconds)
+                // the nap waits on a task of its own, which does not hear a cancellation: cutting it short ends the wait with the task
+                await withTaskCancellationHandler { await nap.sleep(seconds: seconds) } onCancel: { nap.wake() }
                 try Task.checkCancellation()
             }
         } catch { return false }
@@ -752,8 +753,9 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             _ = viewing.state
         } onChange: { [weak self] in
             Task { @MainActor in
-                self?.nap.wake()
-                self?.watchViewing()
+                guard let self, self.running else { return }
+                self.nap.wake()
+                self.watchViewing()
             }
         }
     }

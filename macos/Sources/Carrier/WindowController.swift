@@ -594,8 +594,9 @@ final class WindowController: NSObject, NSWindowDelegate {
             pollEvery: { PollPace.shared.seconds },
             // closing the window cuts the wait short at once
             wait: stop.wait,
-            // the epic on screen is read while someone can see the window: a hidden one is read again at the next tick after it shows
-            tick: { client in if PollPace.shared.looking { try poller.poll(client) } },
+            // the epic on screen is read while someone can see the window, or when it was just asked for (a window that is opening is not on screen
+            // yet at its first tick): a hidden one is read again at the next tick after it shows
+            tick: { client in if PollPace.shared.looking || poller.hasPendingFocus { try poller.poll(client) } },
             onChange: { state in
                 // an equal state is not assigned: the observer ignores it anyway, and the "panel state" signpost counts only what differs
                 DispatchQueue.main.async { if stop.isSet == false, publishes(state, over: model.state) { model.state = state } }

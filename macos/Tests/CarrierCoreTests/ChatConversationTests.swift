@@ -684,6 +684,21 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
         }
     }
     for state in [ViewingState.hidden, .asleep] { #expect(conversationWait(state: state, turnRunning: true, failures: 0) == nil) }
+    // a person who looks does not wait long for a host that came back: 0.5, 1, 2, 4 and then 5
+    #expect((1...7).map { conversationWait(state: .focused, turnRunning: false, failures: $0) } == [0.5, 1, 2, 4, 5, 5, 5])
+}
+
+@MainActor @Test func cancellingRunEndsItAtOnceEvenInTheLongWaitOfAHiddenWindow() async {
+    let host = ScriptedHost()
+    // not told it is on screen, it is hidden: the wait is the pause of 30 seconds, in the model's own nap
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, viewing: Viewing())
+    let running = Task { await model.run() }
+    while host.asked.isEmpty { await Task.yield() }
+    try? await Task.sleep(for: .milliseconds(50))
+    let started = ContinuousClock.now
+    running.cancel()
+    await running.value
+    #expect(ContinuousClock.now - started < .seconds(10))
 }
 
 @MainActor @Test func aSendCutsTheWaitOfAnIdleSessionShortSoTheTurnIsReadAtOnce() async {
@@ -715,6 +730,11 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     #expect(model.nap.wakes == 2)
     running.cancel()
     await running.value
+    // and it stops watching with the task: a change after that wakes no one
+    let after = model.nap.wakes
+    viewing.update(appActive: true, windowShown: true, asleep: false, lowPower: false, pace: pace)
+    try? await Task.sleep(for: .milliseconds(100))
+    #expect(model.nap.wakes == after)
 }
 
 @MainActor @Test func aSessionThatIsNotLiveIsClosedAndASendResumesItAndContinueSendsContinue() async throws {

@@ -16,8 +16,8 @@ The engine's config is `<folder>/engine.json`, and while that file does not exis
 The app asks for the snapshot every 2 seconds while connected and someone is looking (the app in front with its window on screen), every 5 seconds otherwise, and every 10 seconds in Low Power Mode when nobody is in the app; it tries to connect every three seconds while not.
 `Viewing` (`CarrierCore/Viewing.swift`) is the one place that says whether anyone looks: it is `focused`, `visible`, `hidden` or `asleep`, from whether the app is in front, whether the window is on screen, and whether the screens, the Mac or the user's session are asleep.
 `PollPace` is its copy for the threads that cannot read it.
-What only serves the window waits for someone to see it: with the window hidden (minimized, covered whole, closed) or the Mac asleep, the monitor does not read the epic on screen and the window's session list is read about every 30 seconds, and both go back to their pace when the window comes in sight (the list at once).
-The menu line and the notifications keep their 5 seconds, so a session that waits for the person is still told.
+What only serves the window waits for someone to see it: with the window hidden (minimized, covered whole, closed) or the Mac asleep, the monitor does not read the epic on screen and the window's session list is read about every 30 seconds, and both go back to their pace when the window comes in sight: the list at once, and the epic at the next tick, within a few seconds (an epic that is opened is read at the next tick whether the window is in sight yet or not).
+The menu line and the notifications keep their 5 seconds (10 in Low Power Mode), so a session that waits for the person is still told.
 
 ## Sidebar and window shortcuts
 

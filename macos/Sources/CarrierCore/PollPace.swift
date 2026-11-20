@@ -37,8 +37,7 @@ public final class PollPace: Sendable {
 
     /// Someone can see the window.
     public var looking: Bool {
-        let state = mirror.withLock { $0.state }
-        return state == .focused || state == .visible
+        mirror.withLock { $0.state.canBeSeen }
     }
 }
 

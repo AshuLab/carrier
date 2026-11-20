@@ -12,17 +12,26 @@ git tag vX.Y.Z <commit> && git push origin vX.Y.Z
 
 To rehearse, run the workflow by hand from a branch: `gh workflow run release.yml --ref <branch>`. A manual run is a dry run unless it is on a tag and `dry-run` is switched off. It builds, packs, installs the formula from the tarball, builds the app, signs its zip, checks the appcast and the cask, and publishes nothing.
 
-What the run does, in this order (each step needs the ones above it, and only the last five are public):
+The run is seven jobs of `release.yml`; the tag is the version of all of them, so the engine and the app stay in sync. Jobs that do not wait for each other run side by side:
 
-1. **Check and build.** `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm test`, `pnpm build`, then `pnpm pack`.
-2. **The app.** `macos/scripts/check-app.sh` first checks the bundle (plist, Sparkle, licences, signature); then `macos/build-app.sh` builds it with Sparkle inside, the workflow signs it ad hoc, zips it (`Carrier-X.Y.Z.zip` and its `.sha256`) and checks the zip: the plist's version and `codesign --verify --deep --strict`.
-3. **The appcast.** The zip is signed with the update key (the secret `SPARKLE_PRIVATE_KEY`, which reaches the signing tool through the environment and its standard input, never a file or the log) and `.github/scripts/appcast.mjs` writes `appcast.xml`, one item. The same script then checks it against the app inside the zip: version, build number, the zip's length, the signature (verified with the public key derived from the private one), and that this key is the app's `SUPublicEDKey`.
-4. **The tap files.** The formula and the cask are rewritten and tried in a throwaway tap (`brew audit --strict`, `brew audit --cask --strict`, an install of the formula from the tarball). The cask is made to declare `auto_updates true` and Sparkle's cache folder in its `zap` (`.github/scripts/cask.mjs ensure`).
-5. **npm.** The package is published through trusted publishing (no token). A version that is already on npm is not published again. The formula then takes the sha of the tarball npm really serves; npm validates a new version before it serves it (about 5 minutes for 0.3.0), so the step tries for about 8 minutes, every 45 seconds, and if npm has not served it by then the step fails: re-run the failed job when `curl -I https://registry.npmjs.org/@ashulab/carrier/-/carrier-X.Y.Z.tgz` answers 200.
-6. **The GitHub Release, as a draft,** with the zip and its checksum (`.github/scripts/github-release.sh draft`). A draft is never `releases/latest`, so the update feed still answers with the previous release.
-7. **The tap.** The formula and the cask are pushed to `AshuLab/homebrew-tap` as `carrier X.Y.Z`. From here `brew upgrade` finds the new version.
-8. **The appcast** is attached to the draft (`github-release.sh attach`). It is still invisible to the apps.
-9. **Publish.** `github-release.sh publish` runs `gh release edit --draft=false`. Only now does `https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml` answer with the new version. Right after the release is published that address may answer 404 for about ten seconds.
+| Job | Does | Needs |
+|-----|------|-------|
+| **Verify** (Linux) | The checks a pull request ran: `pnpm typecheck`, `pnpm test`, the migrations, the package smoke. | |
+| **Pack** (Linux) | Reads the version from the tag, `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm pack`. The tarball goes to the run's files. | |
+| **App tests** (macOS) | The app's unit tests (`macos/scripts/test-ci.sh`, `swift test` with a watchdog). A pull request runs them but a push to `main` does not, so this is where what is released has passed them. | Verify |
+| **Formula** (macOS) | The formula is rewritten and tried in a throwaway tap: `brew audit --strict` and an install from the tarball. | Pack, Verify |
+| **App** (macOS) | `macos/scripts/check-app.sh` checks the bundle (plist, Sparkle, licences, signature) and compiles it once; `macos/build-app.sh` bundles that binary with the version, the workflow signs it ad hoc, zips it (`Carrier-X.Y.Z.zip` and its `.sha256`) and checks the zip. The zip is signed with the update key (the secret `SPARKLE_PRIVATE_KEY`, which reaches the signing tool through the environment and its standard input, never a file or the log) and `.github/scripts/appcast.mjs` writes `appcast.xml`, one item, and checks it against the app inside the zip: version, build number, the zip's length, the signature and that the key is the app's `SUPublicEDKey`. | Pack, Verify |
+| **npm** (Linux) | Publishes through trusted publishing (no token); a version already on npm is not published again. Then it takes the sha of the tarball npm really serves; npm validates a new version before it serves it (about 5 minutes for 0.3.0), so it tries for about 8 minutes, every 45 seconds, and if npm has not served it by then the job fails: re-run it when `curl -I https://registry.npmjs.org/@ashulab/carrier/-/carrier-X.Y.Z.tgz` answers 200. | Pack, Verify, Formula |
+| **Publish** (macOS) | The cask is rewritten and tried (`brew audit --cask --strict`; `.github/scripts/cask.mjs ensure` makes it declare `auto_updates true` and Sparkle's cache folder in its `zap`), then, in this order, the public steps below. | all of the above |
+
+npm does not wait for the app: the engine is ready once its checks and the formula pass, and the app is a client matched to it by protocol, not by version. The cost is that a version can reach npm and the app then fail (see the table below).
+
+What **Publish** does, in this order (each step needs the ones above it):
+
+1. **The GitHub Release, as a draft,** with the zip and its checksum (`.github/scripts/github-release.sh draft`). A draft is never `releases/latest`, so the update feed still answers with the previous release.
+2. **The tap.** The formula (with the sha npm serves) and the cask are pushed to `AshuLab/homebrew-tap` as `carrier X.Y.Z`. From here `brew upgrade` finds the new version.
+3. **The appcast** is attached to the draft (`github-release.sh attach`). It is still invisible to the apps.
+4. **Publish.** `github-release.sh publish` runs `gh release edit --draft=false`. Only now does `https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml` answer with the new version. Right after the release is published that address may answer 404 for about ten seconds.
 
 The order is the point. The moment the appcast is visible an app may update, and the app then asks Homebrew for the new `carrier`, so the tap has to have it first. A run that stops in the middle therefore never leaves the feed on a version without its formula or its appcast.
 
@@ -30,16 +39,17 @@ The order is the point. The moment the appcast is visible an app may update, and
 
 | It stopped | What is left | The feed |
 |------------|--------------|----------|
-| Before npm (steps 1 to 4) | Nothing published. | Previous release. |
-| After npm, before the draft | The version is on npm, and a version cannot be published twice. | Previous release. |
+| Before npm (Verify, Pack or Formula failed) | Nothing published. | Previous release. |
+| After npm, while the app or its tests fail | The version is on npm, and a version cannot be published twice. No draft, no tap. | Previous release. |
+| After npm, before the draft | The version is on npm. | Previous release. |
 | After the draft, before the tap | A draft with the zip. | Previous release. |
 | After the tap, before the appcast | A draft with the zip, and the tap already on the new version: `brew upgrade` already moves people. | Previous release. |
 | After the appcast, before publish | A draft with the zip and the appcast. | Previous release. |
 | After publish | Nothing: it is done. | New release. |
 
-Re-run the failed run: `gh run rerun <run-id> --failed`, or "Re-run failed jobs" on the run's page. It rebuilds, finds the version on npm and does not publish it again, finds the release as it was left (draft or published) and replaces its files, finds the tap either already at this version (nothing to commit) or pushes it, attaches the appcast and publishes. A half-done release finishes with the same run; there is no cleanup first. Do not delete the tag: it cannot be moved once something was published from it. By hand, the [`release` skill](../.claude/skills/release/SKILL.md) repeats from the step that failed.
+Re-run the failed run: `gh run rerun <run-id> --failed`, or "Re-run failed jobs" on the run's page. Only the jobs that failed (and the ones that waited for them) run again, with the files the others left (kept 7 days): an app that was built is not built again. A job that publishes finds the version on npm and does not publish it again, finds the release as it was left (draft or published) and replaces its files, finds the tap either already at this version (nothing to commit) or pushes it, attaches the appcast and publishes. A half-done release finishes with the same run; there is no cleanup first. Do not delete the tag: it cannot be moved once something was published from it. By hand, the [`release` skill](../.claude/skills/release/SKILL.md) repeats from the step that failed.
 
-Failures that are not a half-done release: a missing `SPARKLE_PRIVATE_KEY` secret stops the run at "Sign the zip", before anything is published; an appcast whose public key is not the app's stops it at "Check the appcast".
+Failures that are not a half-done release: a missing `SPARKLE_PRIVATE_KEY` secret stops the **App** job at "Sign the zip", and an appcast whose public key is not the app's stops it at "Check the appcast"; in both the version may already be on npm, but nothing reaches the tap or the feed.
 
 ## 2. What the installed app does
 
@@ -71,7 +81,7 @@ The update key is an EdDSA key pair. The private half signs every release's zip,
 
 ## 5. The first real release: what only a real tag proves
 
-Everything else is covered by the dry run, the app's build check (`macos/scripts/check-app.sh`, which the release runs before it publishes) and the tests. These need a real tag and a real Mac. Tick each one after the release, and write what you saw if it differs.
+Everything else is covered by the dry run, the app's build check (`macos/scripts/check-app.sh`, which the release runs before anything reaches the tap or the update feed) and the tests. These need a real tag and a real Mac. Tick each one after the release, and write what you saw if it differs.
 
 - [ ] **The order of publication.** While the run goes, `gh release view vX.Y.Z --repo AshuLab/carrier --json isDraft` says `true` until the last step; the tap already has the commit `carrier X.Y.Z` before the release is published; and the feed (`curl -sIL https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml`) keeps answering with the previous release (a 404 for the first release with Sparkle, since the previous one has no appcast) until the release is published, then answers 200 with an `appcast.xml` that names X.Y.Z (allow ten seconds).
 - [ ] **A re-run of a half-done release finishes it.** The first time a run fails or is cancelled after the draft step (cancelling one on purpose proves it), `gh run rerun <run-id> --failed` ends with the release published, the tap at X.Y.Z, npm untouched and the feed on X.Y.Z.

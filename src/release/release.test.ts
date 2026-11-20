@@ -10,40 +10,71 @@ const scripts = join(import.meta.dirname, '../../.github/scripts');
 const workflow = readFileSync(join(import.meta.dirname, '../../.github/workflows/release.yml'), 'utf8');
 const seed = join(import.meta.dirname, '../../.github/homebrew/carrier-cask.rb');
 
-const steps = workflow
-  .slice(workflow.indexOf('    steps:'))
-  .split(/\n {6}- /)
-  .slice(1)
-  .map((text) => ({
-    name: /^(?:uses: .*\n\s+)?name: (.*)$/m.exec(text)?.[1] ?? '',
-    guarded: text.includes("if: env.DRY_RUN != 'true'"),
-    text,
-  }));
+// The workflow's jobs by id, each with its `needs` and its steps. Read as text: there is no YAML parser in the project and the file's layout is fixed.
+const jobs = Object.fromEntries(
+  workflow
+    .slice(workflow.indexOf('\njobs:\n') + 7)
+    .split(/\n(?=  [a-z][\w-]*:\n)/)
+    .filter((text) => /^ {2}[a-z][\w-]*:$/m.test(text))
+    .map((text) => {
+      const body = text.includes('    steps:') ? text.slice(text.indexOf('    steps:')) : '';
+      return [
+        /^ {2}([a-z][\w-]*):$/m.exec(text)?.[1] ?? '',
+        {
+          needs: /^ {4}needs: \[?([^\]\n]*)\]?$/m.exec(text)?.[1]?.split(', ') ?? [],
+          steps: body
+            .split(/\n {6}- /)
+            .slice(1)
+            .map((step) => ({
+              name: /^(?:uses: .*\n\s+)?name: (.*)$/m.exec(step)?.[1] ?? '',
+              guarded: step.includes("if: env.DRY_RUN != 'true'"),
+              text: step,
+            })),
+        },
+      ];
+    }),
+);
+const release = jobs['release'];
 
 describe('release.yml', () => {
   it('publishes in the order npm, draft, tap, appcast, publish and no other', () => {
-    const published = steps.filter((step) => step.guarded).map((step) => step.name);
+    const published = Object.entries(jobs).flatMap(([job, { steps }]) => steps.filter((step) => step.guarded).map((step) => `${job}: ${step.name}`));
     expect(published).toEqual([
-      'Tap',
-      'Publish to npm',
-      'Formula from the published tarball',
-      'GitHub Release as a draft',
-      'Push the formula and the cask to the tap',
-      'Attach the appcast',
-      'Publish the release',
+      'formula: Tap',
+      'npm: Publish to npm',
+      'release: Tap',
+      'release: GitHub Release as a draft',
+      'release: Push the formula and the cask to the tap',
+      'release: Attach the appcast',
+      'release: Publish the release',
     ]);
+  });
+
+  it('waits for every other job before the draft, the tap and the feed', () => {
+    expect(release?.needs.toSorted()).toEqual(Object.keys(jobs).filter((job) => job !== 'release').toSorted());
+  });
+
+  it('holds npm back for the engine checks and the formula, and not for the app', () => {
+    expect(jobs['npm']?.needs.toSorted()).toEqual(['formula', 'pack', 'verify']);
+  });
+
+  it('decides the dry run once, for every job', () => {
+    expect(workflow).toMatch(/^env:\n(?: {2}.*\n)*? {2}DRY_RUN: /m);
   });
 
   it('keeps every step that publishes, drafts included, out of a dry run', () => {
     const publishing = /gh release|github-release\.sh|pnpm publish|npm publish|git push/;
-    const unguarded = steps.filter((step) => !step.guarded && publishing.test(step.text.replace(/^ *#.*$/gm, '')));
-    expect(unguarded.map((step) => step.name)).toEqual([]);
+    const unguarded = Object.entries(jobs).flatMap(([job, { steps }]) =>
+      steps.filter((step) => !step.guarded && publishing.test(step.text.replace(/^ *#.*$/gm, ''))).map((step) => `${job}: ${step.name}`),
+    );
+    expect(unguarded).toEqual([]);
   });
 
-  it('checks the cask with the cask step before anything is published', () => {
-    const names = steps.map((step) => step.name);
-    expect(names.indexOf('Cask')).toBeLessThan(names.indexOf('Publish to npm'));
-    expect(steps[names.indexOf('Cask')]?.text).toContain('cask.mjs ensure cask/carrier.rb');
+  it('checks the cask with the cask step before the Release is drafted', () => {
+    const names = (release?.steps ?? []).map((step) => step.name);
+    expect(names.indexOf('Cask')).toBeGreaterThanOrEqual(0);
+    expect(names.indexOf('Cask')).toBeLessThan(names.indexOf('GitHub Release as a draft'));
+    expect(release?.steps[names.indexOf('Cask')]?.text).toContain('cask.mjs ensure cask/carrier.rb');
   });
 });
 

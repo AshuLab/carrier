@@ -118,7 +118,7 @@ export type ChatSessionsDeps = {
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
   /** The chat MCP: the registry that issues each conversation's token and the URL of the endpoint, which is undefined when the host could not start it. Without this a host has no MCP and says nothing of it. */
-  mcp?: { registry: McpSessionRegistry; url: () => string | undefined; /** The tools of the chat MCP that only read, by name, which the adapters are told when a conversation opens. */ readTools: string[] };
+  mcp?: { registry: McpSessionRegistry; url: () => string | undefined; /** Every tool of the chat MCP, by name, which the adapters are told when a conversation opens. */ tools: string[] };
 };
 
 /** The key the chat MCP is registered under in each harness, so it cannot collide with a server the person configured. */
@@ -447,11 +447,11 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const invocationId = randomUUID();
     const url = mcp?.url();
     if (mcp === undefined || url === undefined) return { invocationId, args: undefined };
-    return { invocationId, args: { serverName: MCP_SERVER_NAME, url, readTools: mcp.readTools, token: mcp.registry.issue({ sessionId, invocationId, capabilities: child ? ['read'] : ['read', 'act'] }) } };
+    return { invocationId, args: { serverName: MCP_SERVER_NAME, url, tools: mcp.tools, token: mcp.registry.issue({ sessionId, invocationId, capabilities: child ? ['read'] : ['read', 'act'] }) } };
   };
   const revoke = (invocationId: string) => mcp?.registry.revokeByInvocation(invocationId);
 
-  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string; child?: boolean; mcp?: { serverName: string; url: string; token: string; readTools?: string[] }; instructions?: string }) {
+  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string; child?: boolean; mcp?: { serverName: string; url: string; token: string; tools?: string[] }; instructions?: string }) {
     try {
       return await runner.open({ ...args, command, launch, env });
     } catch (error) {

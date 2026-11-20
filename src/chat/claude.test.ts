@@ -69,9 +69,9 @@ function replay(segments: Segment[], mcpServers?: { name: string; status: string
 }
 
 const deps = (query: typeof sdkQuery, over: Partial<ClaudeChatDeps> = {}): ClaudeChatDeps => ({ query, resolve: (command) => command ?? '/bin/claude', loggedIn: async () => true, ...over });
-const openWith = async (segments: Segment[], resume?: string, child = false, mcp = false) => {
+const openWith = async (segments: Segment[], resume?: string, child = false) => {
   const replayed = replay(segments);
-  const conversation = await claudeChatRunner(deps(replayed.query)).open({ folder: '/work', env: { A: 'b' }, ...(resume && { resume }), ...(child && { child }), ...(mcp && { mcp: { serverName: 'carrier-chat', url: 'http://127.0.0.1:1/mcp', token: 'token' } }) });
+  const conversation = await claudeChatRunner(deps(replayed.query)).open({ folder: '/work', env: { A: 'b' }, ...(resume && { resume }), ...(child && { child }) });
   const events: ChatEvent[] = [];
   conversation.onEvent((event) => events.push(event));
   return { conversation, events, ...replayed };
@@ -158,23 +158,31 @@ test('the approvals of a child offer Allow and Deny and none of the suggestions'
   expect(seen.permissions[0]).not.toHaveProperty('updatedPermissions');
 });
 
-test('the approval of delegate_start carries its input and offers Allow, Deny and one allowance for the session, none of the CLI\'s own suggestions; a child gets no allowance', async () => {
+test('delegate_start is pre-approved like the other tools of the chat MCP: no card, no input and no allowance for the session; only in plan, where the harness asks for every tool of a server, the adapter allows the chat MCP\'s tools and nothing else', async () => {
   const tool = 'mcp__carrier-chat__delegate_start';
   const input = { agent: 'codex', task: 'review the diff' };
-  const cli = [{ type: 'addRules', behavior: 'allow', rules: [{ toolName: tool }], destination: 'localSettings' }];
-  const asking = (suggestions: unknown): Segment => ({ ...main[0]!, lines: [{ host: 'canUseTool', toolName: tool, input, toolUseID: 'toolu_d', suggestions } as Line, ...main[0]!.lines] });
-  const run = async (choice: string, child = false) => {
-    const { conversation, events, seen } = await openWith([asking(cli)], undefined, child, true);
-    conversation.onEvent((e) => e.kind === 'approval' && queueMicrotask(() => conversation.answer(e.approvalId, choice)));
-    const played = await turn(conversation, events, main[0]!.text);
-    return { approval: played.find((e) => e.kind === 'approval'), permission: seen.permissions[0] };
+  const asking = (toolName: string): Segment => ({ ...main[0]!, lines: [{ host: 'canUseTool', toolName, input, toolUseID: 'toolu_d', suggestions: [] } as Line, ...main[0]!.lines] });
+  const run = async (toolName: string, permissionMode: string) => {
+    const replayed = replay([asking(toolName)]);
+    const conversation = await claudeChatRunner(deps(replayed.query)).open({ folder: '/work', env: {}, options: { permissionMode }, mcp: { serverName: 'carrier-chat', url: 'http://127.0.0.1:1/mcp', token: 'token', tools: ['capabilities', 'delegate_start'] } });
+    const events: ChatEvent[] = [];
+    conversation.onEvent((e) => e.kind === 'approval' && queueMicrotask(() => conversation.answer(e.approvalId, 'deny')));
+    conversation.onEvent((e) => events.push(e));
+    await turn(conversation, events, main[0]!.text);
+    return { approvals: events.filter((e) => e.kind === 'approval'), permission: replayed.seen.permissions[0] };
   };
 
-  const allowed = await run('suggestion:0');
-  expect(allowed.approval).toEqual({ kind: 'approval', approvalId: 'toolu_d', tool, arg: expect.any(String), input, choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }, { id: 'suggestion:0', label: 'Allow for the rest of the session', allow: true }] });
-  expect(allowed.permission).toEqual({ behavior: 'allow', updatedInput: input, updatedPermissions: [{ type: 'addRules', behavior: 'allow', rules: [{ toolName: tool }], destination: 'session' }] });
-  expect((await run('deny')).permission).toMatchObject({ behavior: 'deny' });
-  expect(((await run('allow', true)).approval as { choices: unknown[] }).choices).toHaveLength(2);
+  const planned = await run(tool, 'plan');
+  expect(planned.approvals).toEqual([]);
+  expect(planned.permission).toEqual({ behavior: 'allow', updatedInput: input });
+
+  // outside plan the harness does not call canUseTool for it; if it does (a rule of the person's settings that asks), it is the person's call, as for any tool, with nothing of the old card
+  const asked = await run(tool, 'default');
+  expect(asked.approvals).toEqual([{ kind: 'approval', approvalId: 'toolu_d', tool, arg: expect.any(String), choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }] }]);
+  expect(asked.permission).toMatchObject({ behavior: 'deny' });
+
+  // a tool that is not the chat MCP's still asks in plan, and so does another server's
+  for (const other of ['Bash', 'mcp__other__delegate_start']) expect((await run(other, 'plan')).approvals).toHaveLength(1);
 });
 
 test('AskUserQuestion is asked as questions, the answers go back in the tool input, a skip is a deny, and bad input is a generic approval', async () => {
@@ -453,13 +461,13 @@ test('an account\'s compaction and launch arguments reach the SDK as extraArgs, 
 
 const mcp = { serverName: 'carrier-chat', url: 'http://127.0.0.1:4000/mcp', token: 'tok-secret' };
 
-test('the chat MCP is handed to the SDK with only its tools that read pre-approved by name, on a fresh open and on a resume; the token rides in the process environment, and neither extraArgs nor the mcpServers the SDK turns into argv hold it', async () => {
+test('the chat MCP is handed to the SDK with every one of its tools, delegate_start among them, pre-approved by name, on a fresh open and on a resume; the token rides in the process environment, and neither extraArgs nor the mcpServers the SDK turns into argv hold it', async () => {
   for (const resume of [undefined, sessionId]) {
     const { query, seen } = replay([]);
-    const conversation = await claudeChatRunner(deps(query)).open({ folder: '/work', env: { PATH: '/bin' }, mcp: { ...mcp, readTools: ['capabilities', 'history'] }, ...(resume && { resume }) });
+    const conversation = await claudeChatRunner(deps(query)).open({ folder: '/work', env: { PATH: '/bin' }, mcp: { ...mcp, tools: ['capabilities', 'delegate_start'] }, ...(resume && { resume }) });
     expect(seen.options.mcpServers).toEqual({ 'carrier-chat': { type: 'http', url: mcp.url, headers: { Authorization: 'Bearer ${CARRIER_MCP_TOKEN}' } } });
     expect(seen.options.env).toEqual({ PATH: '/bin', CARRIER_MCP_TOKEN: 'tok-secret' });
-    expect(seen.options.allowedTools).toEqual(['mcp__carrier-chat__capabilities', 'mcp__carrier-chat__history']);
+    expect(seen.options.allowedTools).toEqual(['mcp__carrier-chat__capabilities', 'mcp__carrier-chat__delegate_start']);
     expect(seen.options.resume).toBe(resume);
     expect(JSON.stringify(seen.options.extraArgs)).not.toContain('tok-secret');
     expect(conversation.mcpProblem).toBeUndefined();

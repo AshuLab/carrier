@@ -92,7 +92,7 @@ function replay(lines: Line[]) {
 
 const deps = (transport: CodexTransport, over: Partial<CodexChatDeps> = {}): CodexChatDeps => ({ resolve: (command) => command ?? '/bin/codex', loggedIn: async () => true, spawn: () => transport, mcpWaitMs: 0, ...over });
 const mcp = { serverName: 'carrier-chat', url: 'http://127.0.0.1:1/mcp', token: 'secret-token' };
-const openWith = async (lines: Line[], args: { resume?: string; options?: Record<string, string>; mcp?: typeof mcp & { readTools?: string[] }; instructions?: string; child?: boolean } = {}) => {
+const openWith = async (lines: Line[], args: { resume?: string; options?: Record<string, string>; mcp?: typeof mcp & { tools?: string[] }; instructions?: string; child?: boolean } = {}) => {
   const { transport, seen } = replay(lines);
   const conversation = await codexChatRunner(deps(transport)).open({ folder: '/work', env: { A: 'b' }, ...args });
   const events: ChatEvent[] = [];
@@ -333,13 +333,13 @@ const elicited = (file: string, tool: string): { ask: Line; answer: Line } => {
 
 test('the injected server asks by default and approves the tools that read by name, on thread/start and thread/resume', async () => {
   const config = { 'mcp_servers.carrier-chat': { url: mcp.url, default_tools_approval_mode: 'auto', tools: { agents: { approval_mode: 'approve' }, history: { approval_mode: 'approve' } }, http_headers: { Authorization: 'Bearer secret-token' } } };
-  const withReads = { ...mcp, readTools: ['agents', 'history'] };
+  const withReads = { ...mcp, tools: ['agents', 'history'] };
   expect((await openWith(main, { mcp: withReads })).seen.written.find((m) => m.method === 'thread/start')!.params.config).toEqual(config);
   expect((await openWith(resumed, { resume: threadId, mcp: withReads })).seen.written.find((m) => m.method === 'thread/resume')!.params.config).toEqual(config);
 });
 
 test("an elicitation for a tool that reads is accepted with no approval event; another server's and every other unknown request get -32601", async () => {
-  const { events, seen, transport } = await openWith(main, { mcp: { ...mcp, readTools: ['ping_read'] } });
+  const { events, seen, transport } = await openWith(main, { mcp: { ...mcp, tools: ['ping_read'] } });
   const before = seen.written.length;
   const read = elicited('b6-V3-persist-act-then-read.jsonl', 'ping_read');
   transport.play({ ...read.ask, id: 0 });
@@ -358,7 +358,7 @@ test('an elicitation for another tool is an approval event with its input; each 
   const { ask, answer } = elicited('b6-V3-persist-act-then-read.jsonl', 'ping_act'); // offers persist: ['session', 'always']
   const plain = { ...ask, params: { ...ask.params, _meta: { ...ask.params._meta, persist: undefined } } }; // an explicit `prompt` leaves the offer out
   const choicesOf = async (play: Line) => {
-    const { conversation, events, seen, transport } = await openWith(main, { mcp: { ...mcp, readTools: ['ping_read'] } });
+    const { conversation, events, seen, transport } = await openWith(main, { mcp: { ...mcp, tools: ['ping_read'] } });
     const before = seen.written.length;
     transport.play(play);
     const approval = events.find((e): e is Extract<ChatEvent, { kind: 'approval' }> => e.kind === 'approval')!;

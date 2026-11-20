@@ -424,6 +424,26 @@ test('a plan with a worktree starts from origin by default, follows worktreeStar
   expect(await startOfNext()).toBe('refs/remotes/origin/main');
 });
 
+test('a plan for a folder with a remote start fetches origin first, and falls back to the local branch with a notice when the fetch fails', async () => {
+  const { git, client, repo, base } = await worktreeHost();
+  const send = async (name: string) => {
+    const { session } = (await client.request('open', { plan: { workspace: { kind: 'folder', folder: repo }, agent: 'claude', text: 'go', branch: 'main', worktree: { name } } })) as { session: { id: string } };
+    await vi.waitFor(async () => expect(((await client.request('events', { sessionId: session.id, limit: 50 })) as any).events.some((event: any) => event.step === 'agent' && event.status === 'running')).toBe(true));
+    return ((await client.request('events', { sessionId: session.id, limit: 50 })) as any).events as any[];
+  };
+  const verbs = () => git.calls.map((call) => call.args.slice(0, 2).join(' ')).filter((verb) => ['fetch origin', 'worktree add'].includes(verb));
+  expect((await send('one')).filter((event) => event.kind === 'step').map((event) => `${event.step}:${event.status}`).slice(0, 4)).toEqual(['fetch:running', 'fetch:done', 'worktree:running', 'worktree:done']);
+  expect(verbs()).toEqual(['fetch origin', 'worktree add']);
+  expect(worktreeAdds(git)[0]!.args.at(-1)).toBe('refs/remotes/origin/main');
+  base.behind = { main: 2 };
+  git.failures.set('fetch origin --prune', { ok: false, code: 128, stderr: 'fatal' });
+  const events = await send('two');
+  expect(worktreeAdds(git)[1]!.args.at(-1)).toBe('refs/heads/main');
+  expect(events.filter((event) => event.kind === 'step').map((event) => `${event.step}:${event.status}`).slice(0, 4)).toEqual(['fetch:running', 'fetch:done', 'worktree:running', 'worktree:done']);
+  expect(events.filter((event) => event.kind === 'notice').map((event) => event.text)).toEqual(['The fetch of origin failed, so this worktree started from the local branch main, which is 2 commits behind origin/main.']);
+  client.close();
+});
+
 test('a git failure while adding leaves no worktree, no branch and no session, and says so in words without what git said', async () => {
   const { git, claude, client, repo, worktrees, base } = await worktreeHost();
   const path = join(worktrees, 'acme', 'app', 'gamma');

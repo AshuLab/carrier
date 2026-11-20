@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -1666,10 +1666,17 @@ describe('where a new worktree of a plan starts', () => {
   const addOf = (git: FakeGit) => git.calls.find((call) => call.args[0] === 'worktree' && call.args[1] === 'add')!.args.at(-1);
   const startSetup = (worktreeStart?: 'remote' | 'local') => {
     const git = new FakeGit();
-    git.repos.set(realpathSync(work), { head: 'main', branches: ['main', 'local-only'], remoteBranches: ['main'] });
+    const fetchHead = join(dir, 'FETCH_HEAD');
+    writeFileSync(fetchHead, '');
+    git.repos.set(realpathSync(work), { head: 'main', branches: ['main', 'local-only'], remoteBranches: ['main'], origin: 'git@github.com:acme/app.git', fetchHead });
     const ages = { archiveAfterDays: 15, deleteAfterDays: 30, ...(worktreeStart && { worktreeStart }) };
     const current = { ...ages };
-    return { ...setup(undefined, { git, ages: () => current }), git, current };
+    const s = { ...setup(undefined, { git, ages: () => current }), git, current, fetchHead };
+    s.clock.time = 10 * 60_000;
+    /** The last fetch of origin, this many minutes ago. */
+    const fetchedAgo = (minutes: number) => utimesSync(fetchHead, (s.clock.time - minutes * 60_000) / 1000, (s.clock.time - minutes * 60_000) / 1000);
+    fetchedAgo(1);
+    return { ...s, fetchedAgo };
   };
   const prepare = async (s: ReturnType<typeof startSetup>, branch: string, worktree: object) => {
     const { session } = await s.sessions.openPlan({ plan: planFor({ branch, worktree }) });
@@ -1716,6 +1723,76 @@ describe('where a new worktree of a plan starts', () => {
     git.repos.get(realpathSync(work))!.remoteBranches = ['main', 'dev'];
     const id = await prepare(s, 'dev', { name: 'a', startFrom: 'local' });
     expect(stepsOf(s, id)).toEqual(['worktree:running', 'worktree:failed:The branch to start from is not one this repository lists']);
+  });
+
+  const fetches = (s: ReturnType<typeof startSetup>) => s.git.calls.filter((call) => call.args[0] === 'fetch');
+  const noticesOf = (s: ReturnType<typeof startSetup>, id: string) => (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((event) => event.kind === 'notice').map((event) => event.text);
+  const sent = (s: ReturnType<typeof startSetup>, id: string) => vi.waitFor(() => expect(stepsOf(s, id)).toContain('agent:running'));
+
+  test('a last fetch older than five minutes runs the fetch step before the worktree, which is cut from what it brought', async () => {
+    const s = startSetup();
+    s.fetchedAgo(6);
+    const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'main', worktree: { name: 'a' } }) });
+    await sent(s, session.id);
+    expect(stepsOf(s, session.id).slice(0, 4)).toEqual(['fetch:running', 'fetch:done', 'worktree:running', 'worktree:done']);
+    const order = s.git.calls.map((call) => call.args.slice(0, 2).join(' '));
+    expect(order.indexOf('fetch origin')).toBeGreaterThan(-1);
+    expect(order.indexOf('fetch origin')).toBeLessThan(order.indexOf('worktree add'));
+    expect(s.git.calls.find((call) => call.args[0] === 'fetch')).toMatchObject({ args: ['fetch', 'origin', '--prune'], timeoutMs: 60_000 });
+    expect(addOf(s.git)).toBe('refs/remotes/origin/main');
+    expect(noticesOf(s, session.id)).toEqual([]);
+  });
+
+  test('a fresh last fetch, a local start and a branch with nothing on origin run no fetch for the folder', async () => {
+    const s = startSetup();
+    s.fetchedAgo(4);
+    await sent(s, (await s.sessions.openPlan({ plan: planFor({ branch: 'main', worktree: { name: 'a' } }) })).session.id);
+    s.fetchedAgo(60);
+    await sent(s, (await s.sessions.openPlan({ plan: planFor({ branch: 'main', worktree: { name: 'b', startFrom: 'local' } }) })).session.id);
+    await sent(s, (await s.sessions.openPlan({ plan: planFor({ branch: 'local-only', worktree: { name: 'c' } }) })).session.id);
+    expect(fetches(s)).toEqual([]);
+  });
+
+  test.each([
+    ['fails', { ok: false as const, code: 128, stderr: 'fatal: could not read from https://x:token@github.com/a/b' }, 'The fetch of origin failed'],
+    ['times out', { ok: false as const, code: null, timedOut: true as const, stderr: '' }, 'The fetch took too long and was stopped'],
+  ])('a fetch that %s cuts the worktree from the local branch, ends the step as done and says how far behind it is', async (_, failure, reason) => {
+    const s = startSetup();
+    s.fetchedAgo(6);
+    s.git.repos.get(realpathSync(work))!.behind = { main: 3 };
+    s.git.failures.set('fetch origin --prune', failure);
+    const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'main', worktree: { name: 'a' } }) });
+    await sent(s, session.id);
+    expect(stepsOf(s, session.id).slice(0, 4)).toEqual(['fetch:running', 'fetch:done', 'worktree:running', 'worktree:done']);
+    expect(addOf(s.git)).toBe('refs/heads/main');
+    expect(rows('sessions')[0]).toMatchObject({ worktreeFrom: 'main' });
+    expect(noticesOf(s, session.id)).toEqual([`${reason}, so this worktree started from the local branch main, which is 3 commits behind origin/main.`]);
+  });
+
+  test('a fetch that takes origin/<branch> away falls back to the local branch without a count', async () => {
+    const s = startSetup();
+    s.fetchedAgo(6);
+    const repo = s.git.repos.get(realpathSync(work))!;
+    s.git.failures.clear();
+    const run = s.git.run.bind(s.git);
+    s.git.run = async (folder, args, options) => (args[0] === 'fetch' ? ((repo.remoteBranches = []), run(folder, args, options)) : run(folder, args, options));
+    const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'main', worktree: { name: 'a' } }) });
+    await sent(s, session.id);
+    expect(addOf(s.git)).toBe('refs/heads/main');
+    expect(noticesOf(s, session.id)).toEqual(['origin/main is no longer on origin, so this worktree started from the local branch main.']);
+  });
+
+  test('a GitHub project keeps its own step: it fetches as before and a failure of it fails the session', async () => {
+    const git = new FakeGit();
+    const s = setup(undefined, { git });
+    const repoFolder = join(dir, 'home', 'chat', 'projects', 'acme', 'app');
+    mkdirSync(join(repoFolder, '.git'), { recursive: true });
+    git.repos.set(repoFolder, { head: 'main', branches: ['main'], remoteBranches: ['main'], origin: 'https://github.com/acme/app.git' });
+    git.failures.set('fetch origin --prune', { ok: false, code: 128, stderr: 'no' });
+    const { session } = await s.sessions.openPlan({ plan: { workspace: { kind: 'repo', repo: 'acme/app' }, agent: 'claude', text: 'go', branch: 'main', worktree: { name: 'a' } } });
+    await vi.waitFor(() => expect(stepsOf(s, session.id).some((step) => step.startsWith('fetch:failed'))).toBe(true));
+    expect(stepsOf(s, session.id).some((step) => step.startsWith('worktree'))).toBe(false);
+    expect(git.calls.some((call) => call.args[0] === 'worktree')).toBe(false);
   });
 
   test('a branch that carries origin/ is cut from that ref whatever startFrom says', async () => {

@@ -9,7 +9,7 @@ struct StartingView: View {
 
     var body: some View {
         // the clock of the workspace step runs: one tick a second is all it needs
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        TickingTimeline(every: 1) { context in
             let steps = startingSteps(epic, reply: reply, now: Int(context.date.timeIntervalSince1970 * 1000))
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(steps.enumerated()), id: \.offset) { index, step in

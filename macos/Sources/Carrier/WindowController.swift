@@ -484,7 +484,7 @@ final class WindowController: NSObject, NSWindowDelegate {
     private func makeWindow() -> NSWindow {
         let signpost = Signposts.launch.beginInterval("make window")
         defer { Signposts.launch.endInterval("make window", signpost) }
-        let host = NSHostingController(rootView: PanelView(model: model))
+        let host = NSHostingController(rootView: PanelView(model: model).environment(MainActor.assumeIsolated { Viewing.shared }))
         // the split view's title and toolbar (the sidebar toggle) go to the window
         host.sceneBridgingOptions = .all
         // the content does not size the window: following its minimum size loops in layout when the inspector comes and goes

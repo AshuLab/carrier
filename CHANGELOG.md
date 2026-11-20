@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - An open conversation asks the chat host less often when nothing is happening: every 2 seconds instead of four times a second while idle with the app in front, every 5 seconds behind another app, and almost never with the window hidden or the Mac asleep. It still reads every quarter of a second while the agent works, and at once after you send.
+- The working animations (the glow on a card's edge, the sweep over "Thinking…", the spark) and the running clocks stop while the window is minimized, covered or the Mac asleep, and run at most 30 frames a second otherwise: a session that works no longer keeps the app at tens of percent of a core with its window minimized.
 - With the window hidden or the Mac asleep, the app stops reading the epic you had open and reads the sidebar's session list about every 30 seconds instead of every 5; both are up to date again as the window shows. Notifications are unchanged.
 - In Low Power Mode the app asks the engine and the chat host less often (every 10 seconds) while nobody is in the app.
 

@@ -28,7 +28,7 @@ struct PreparationStepsView: View {
     private var key: String { "\(current?.step ?? "")-\(current?.status?.rawValue ?? "")" }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        TickingTimeline(every: 1) { context in
             card(elapsed: context.date.timeIntervalSince(since))
         }
         .onChange(of: key, initial: true) { since = Date() }

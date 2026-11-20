@@ -236,3 +236,4 @@ The widget of the global dictation (`DictationWidget.swift`) is a floating panel
 - A `contentShape` row with a gesture and a button inside is fine; two gestures on the same view are not.
 - A row that opens on `.onTapGesture` alone is invisible to the keyboard and to Full Keyboard Access: make it a `Button` (`.buttonStyle(.plain)`).
 - The window's size does not matter to a build that only compiles. **Open the app and look** at the state with a long value, a missing value, an error and the empty state.
+- A bare `TimelineView(.animation)` or `.periodic` keeps drawing with the window minimized (measured: 48% of a core with a session working and the window minimized). In the window use `MovingTimeline` for a motion (30 frames a second at most) and `TickingTimeline` for a clock: both stop while nobody can see the window (`Viewing`).

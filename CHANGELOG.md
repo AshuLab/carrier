@@ -8,7 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+<<<<<<< HEAD
 - A session in any mode can delegate to other agents, including Claude's auto, dontAsk and plan modes and a Codex thread that never asks: saying "launch these agents" is the request, so it asks you nothing, and each child runs at your session's permission level, never above it.
+=======
+- `carrier init` asks who Carrier reads GitHub as (the orchestrator's identity) before the author and the reviewer, and no longer writes the author's name into it without asking. An unattended init still uses the author's identity.
+>>>>>>> origin/main
 
 ### Changed
 
@@ -17,8 +21,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- When "Carrier can read it" fails with a 404 on a repo, the fix also says Carrier can read as another identity (`orchestratorProfile`, Settings > Engine > GitHub identity), and not only to install the App.
 - Carrier no longer grows in memory while it sits open: about 1 MB a minute went to what the connection to the engine left behind, and it is freed on every poll now.
 - The role summary in Settings is built without the `Text +` that macOS 26 deprecates; it looks the same.
+- A session's pull request shows in the sidebar when its agent moved the worktree to another branch: it is looked for on the branch checked out now, not the one the worktree was cut with.
 
 ## [0.14.1] - 2026-11-19
 

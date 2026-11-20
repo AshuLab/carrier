@@ -26,6 +26,9 @@ _Avoid_: provider (the app's page of tools, and the config key under which accou
 **GitHub profile** - User-configured reference to an available GitHub identity and its authentication mechanism. It is assigned to the orchestrator, author or reviewer; it is independent of the AI harness/model and of an agent's working session.
 _Avoid_: model, agent session, AI identity for a GitHub account.
 
+**Orchestrator's profile** - The GitHub profile Carrier reads issues and PRs and changes labels with (`orchestratorProfile`). Left out of the config it is the author's profile; `carrier init` asks for it and Settings → Engine sets it. Set it apart from the author's when the author's bot is not installed on a repo Carrier must read.
+_Avoid_: orchestrator identity, reader profile.
+
 **Epic** - `solve:epic` issue with a spec and prepared tickets; the unit that Carrier queues, executes and delivers. It is identified by repo and issue, because different repos reuse numbers.
 _Avoid_: feature, task, job.
 

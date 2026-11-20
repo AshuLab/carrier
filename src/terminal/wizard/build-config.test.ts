@@ -49,3 +49,10 @@ test('buildConfig writes the failover block only when given, and a config with f
   expect(config.failover).toEqual({ roles: { author: [{ provider: 'personal' }, { provider: 'codex', model: 'gpt' }] } });
   expect(loadConfig(defaults, config, { ...providers, personal: { harness: 'claude', configDir: '/home/me/.claude-personal' } }).ok).toBe(true);
 });
+
+test('buildConfig writes the orchestrator as its own profile when it is not the author, and the config loads', () => {
+  const config = buildConfig({ ...answers, orchestrator: parseIdentity('forge:reader') });
+  expect(config).toMatchObject({ orchestratorProfile: 'reader', profiles: { reader: { kind: 'forge', agent: 'reader' } } });
+  expect(config.agents.author.profile).toBe('gh');
+  expect(loadConfig(defaults, config, providers).ok).toBe(true);
+});

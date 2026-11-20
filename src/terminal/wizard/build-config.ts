@@ -9,7 +9,7 @@ export type AIProvider = Providers[string];
 export type Failover = NonNullable<Config['failover']>;
 export type Effort = NonNullable<Config['agents']['author']['effort']>;
 export type Role = { identity: Identity; provider: string; model: string; effort?: Effort; persona?: Persona };
-export type Answers = { repos: string[]; author: Role; reviewer: Role; leadReviewer?: Role; failover?: Failover };
+export type Answers = { repos: string[]; orchestrator?: Identity; author: Role; reviewer: Role; leadReviewer?: Role; failover?: Failover };
 
 /** `forge:<agent>` or `gh`, the form used by flags and by the prompts' values. */
 export function parseIdentity(text: string): Identity {
@@ -37,18 +37,20 @@ export function parseProvider(text: string): LocalProvider {
 // A forge profile is named after its agent; the user's own login is just "gh".
 const profileName = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : identity.agent);
 
-/** The user config (what goes in the file): only what has no default, and not the accounts, which go in `providers.json`. The author's profile also acts as orchestrator. */
-export function buildConfig({ repos, author, reviewer, leadReviewer, failover }: Answers) {
+/** The user config (what goes in the file): only what has no default, and not the accounts, which go in `providers.json`. Without an `orchestrator` answer the author's profile acts as orchestrator. */
+export function buildConfig({ repos, orchestrator, author, reviewer, leadReviewer, failover }: Answers) {
   const [a, r] = [profileName(author.identity), profileName(reviewer.identity)];
+  const o = profileName(orchestrator ?? author.identity);
   const l = leadReviewer ? profileName(leadReviewer.identity) : undefined;
   return {
     repos: repos.map((name) => ({ name })),
     profiles: {
       [a]: author.identity,
       [r]: reviewer.identity,
+      [o]: orchestrator ?? author.identity,
       ...(l && leadReviewer ? { [l]: leadReviewer.identity } : {}),
     },
-    orchestratorProfile: a,
+    orchestratorProfile: o,
     ...(failover && { failover }),
     agents: {
       author: {

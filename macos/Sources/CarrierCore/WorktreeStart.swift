@@ -1,6 +1,6 @@
 import Foundation
 
-// Where a new worktree is cut from (ADR 0036): the chat's `worktreeStart` in `chat.json`, written the way the session ages are (SessionAges.swift).
+// Where a new worktree is cut from (ADR 0037): the chat's `worktreeStart` in `chat.json`, written the way the session ages are (SessionAges.swift).
 // The host reads the file at each plan, so a save is used with no restart.
 
 /// `worktreeStart` of `chat.json`: `remote` is `origin/<branch>` as of the last fetch, `local` is the local branch.

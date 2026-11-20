@@ -135,10 +135,8 @@ class CodexConversation implements ChatConversation {
   private binary: string;
   /** A child session: its approvals offer no always-allow of a command. */
   private child: boolean;
-  /** The key the chat MCP is registered under, when it was handed over: its elicitations are accepted for the person. */
+  /** The key the chat MCP is registered under, when it was handed over. */
   private mcpServerName: string | undefined;
-  /** The tools of the chat MCP that only read: they run without asking, and any other tool of it asks the person. */
-  private readTools: string[] = [];
   mcpProblem: string | undefined;
   appServerVersion: string | undefined;
   /** Called when the chat MCP reports that it started or failed, so `start` can stop waiting. */
@@ -157,9 +155,9 @@ class CodexConversation implements ChatConversation {
     this.sandbox = chosen.sandbox ?? 'workspace-write';
   }
 
-  async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp, instructions }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string; readTools?: string[] } | undefined; instructions: string | undefined }) {
+  async start(deps: CodexChatDeps, { folder, env, resume, launch, mcp, instructions }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch; mcp: { serverName: string; url: string; token: string; tools?: string[] } | undefined; instructions: string | undefined }) {
     this.mcpServerName = mcp?.serverName;
-    this.readTools = mcp?.readTools ?? [];
+    const tools = mcp?.tools ?? [];
     this.limitWaitMs = deps.limitWaitMs ?? 2000;
     const settled = new Promise<void>((resolve) => (this.mcpSettled = resolve));
     this.transport = deps.spawn(this.binary, { cwd: folder, env, args: argsOf(launch) });
@@ -173,8 +171,8 @@ class CodexConversation implements ChatConversation {
     const params = { cwd: folder, approvalPolicy: this.approvalPolicy, sandbox: this.sandbox, ...(this.chosen.model && { model: this.chosen.model }),
       ...(instructions !== undefined && { developerInstructions: instructions }), // thread/start and thread/resume both take it
       // over the pipe, so that the token is in neither `argv` nor a config file
-      // `auto` leaves a tool that is not named under `tools` asking (and offering the session), the ones that read are approved
-      ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, default_tools_approval_mode: 'auto', ...(this.readTools.length > 0 && { tools: Object.fromEntries(this.readTools.map((name) => [name, { approval_mode: 'approve' }])) }), http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
+      // every tool of the chat MCP is named under `tools` and approved, whatever the approval policy: none asks
+      ...(mcp !== undefined && { config: { [`mcp_servers.${mcp.serverName}`]: { url: mcp.url, default_tools_approval_mode: 'auto', ...(tools.length > 0 && { tools: Object.fromEntries(tools.map((name) => [name, { approval_mode: 'approve' }])) }), http_headers: { Authorization: `Bearer ${mcp.token}` } } } }),
     };
     const started = await this.request(resume === undefined ? 'thread/start' : 'thread/resume', resume === undefined ? params : { threadId: resume, ...params });
     this.nativeId = started.thread.id;
@@ -366,10 +364,6 @@ class CodexConversation implements ChatConversation {
   }
 
   private serverRequest(requestId: number, method: string, params: any) {
-    if (method === 'mcpServer/elicitation/request' && this.mcpServerName !== undefined && params?.serverName === this.mcpServerName) {
-      this.elicitation(requestId, params);
-      return;
-    }
     if (method !== 'item/commandExecution/requestApproval') {
       // A request left unanswered holds the turn: say the method is not there.
       log.warn('codex asked for something this adapter does not handle', { method });
@@ -394,35 +388,6 @@ class CodexConversation implements ChatConversation {
     const approvalId = String(requestId);
     this.pending.set(approvalId, { requestId, replies, cancel: { decision: 'cancel' } });
     this.emit({ kind: 'approval', approvalId, tool: 'command', arg: typeof params?.command === 'string' ? params.command : undefined, choices });
-  }
-
-  /** A call of the chat MCP that is not approved up front: a tool that reads is accepted, any other asks the person, who may allow it for the session when Codex offers that. */
-  private elicitation(requestId: number, params: any) {
-    const tool = params?._meta?.tool_name;
-    if (typeof tool !== 'string') {
-      log.warn('codex asked about a tool of the chat MCP without naming it', { requestId });
-      this.respond(requestId, { action: 'decline' });
-      return;
-    }
-    if (this.readTools.includes(tool)) {
-      this.respond(requestId, { action: 'accept', content: {} });
-      return;
-    }
-    const input = params._meta.tool_params;
-    const hasInput = typeof input === 'object' && input !== null && !Array.isArray(input);
-    const replies: Record<string, unknown> = { accept: { action: 'accept', content: {} }, decline: { action: 'decline' } };
-    const choices: ChatChoice[] = [
-      { id: 'accept', label: 'Allow', allow: true },
-      { id: 'decline', label: 'Deny', allow: false },
-    ];
-    if (Array.isArray(params._meta.persist) && params._meta.persist.includes('session')) {
-      replies.session = { action: 'accept', content: {}, _meta: { persist: 'session' } };
-      choices.splice(1, 0, { id: 'session', label: 'Allow for this session', allow: true });
-    }
-    const approvalId = String(requestId);
-    this.pending.set(approvalId, { requestId, replies, cancel: { action: 'cancel' } });
-    // `tool` ends with the tool's name, which is what the host matches an approval by
-    this.emit({ kind: 'approval', approvalId, tool: `mcp__${this.mcpServerName}__${tool}`, ...(hasInput && { arg: JSON.stringify(input), input }), choices });
   }
 
   private translate(method: string, params: any): ChatEvent[] | Promise<ChatEvent[]> {

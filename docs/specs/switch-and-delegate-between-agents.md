@@ -1,6 +1,6 @@
 # A session can change agent and hand work to other agents
 
-Status: spec
+Status: spec; [0036](../adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) and the spec of [delegating from any mode](delegate-from-any-mode.md) amend what it says of who may delegate, of the approval of `delegate_start` and of the scale of levels.
 
 ## Problem
 
@@ -15,7 +15,7 @@ The owner uses Claude and Codex, on more than one account, and wants all of thes
 [chat-host](chat-host.md) left switching provider mid-session out of its first epic, deferred and not refused.
 
 This spec is the support of the chat host and nothing of the screens.
-We know it is solved when the host can switch a session to another configured agent and the next message goes on with that agent knowing what came before; when it tells a usage limit apart, naming the agent and the reset time, so that any client can offer another agent; and when, after the person approves, a session's agent can start two child sessions on two models and a client can read their state and result.
+We know it is solved when the host can switch a session to another configured agent and the next message goes on with that agent knowing what came before; when it tells a usage limit apart, naming the agent and the reset time, so that any client can offer another agent; and when a session's agent, asked by the person, can start two child sessions on two models and a client can read their state and result.
 The screens that show all of this are another piece of work, and the host leaves the data ready for them.
 
 ## Solution
@@ -50,9 +50,7 @@ On Codex the adapter asks `account/rateLimits/read` for it as soon as the limit 
 
 **Delegation.**
 In a session the person says what they want, such as two agents on two models, and the agent turns it into calls of the chat MCP.
-Each `delegate_start` asks the person through the harness's own approval, which names the agent, the model, the level the child will run at and the whole task, and says that the child can read this conversation.
-On Codex the approval offers to allow the tool for the rest of the session, and on Claude it offers the same through an update of the permissions with the destination `session`, which the SDK takes, and when the CLI does not honour it every call asks.
-It is only offered in a session whose harness asks the person: not in Claude's `dontAsk`, `auto` or `plan` modes, which deny it, run it unasked, or ask for every tool, and not on a Codex thread whose policy is `never`.
+Saying so is the request: `delegate_start` asks the person nothing, in any mode, and it is offered to every session that has no parent and whose harness is new enough.
 A child is a real session hanging from its parent: its own agent and options, the parent's folder, not in the list of sessions, archived and deleted with the parent.
 It runs one task and takes no message from the person, and the host refuses one sent to it; a client can read its events as they come, the person can answer its approvals and questions, and to correct it they delegate again.
 Nothing is recursive, because only a session without a parent gets the `act` capability that the MCP already has for a tool that changes something, and a parent has at most four children running.
@@ -60,12 +58,14 @@ A child never has more privilege than its parent: Carrier ranks what a session m
 
 | Level | The session | Claude | Codex |
 | --- | --- | --- | --- |
-| 0 | reads and changes nothing | `dontAsk` | sandbox `read-only` |
+| 0 | reads and changes nothing | `dontAsk`, `plan` | sandbox `read-only` |
 | 1 | changes, and asks before each change | `default` | `workspace-write` with `untrusted` |
-| 2 | edits without asking | `acceptEdits` | `workspace-write` with `on-request` |
+| 2 | edits without asking | `acceptEdits` | `workspace-write` with `on-request` or `never` |
+| 3 | acts with no check | `auto` | none |
 
-Claude's `plan` and `auto` and Codex's `never` are off the scale, because a session that never asks cannot delegate and `plan` is not read-only: it ran `curl` unasked.
-A level of Codex is a pair of sandbox and approval policy: `read-only` is level 0 whatever the policy, and `workspace-write` is level 1 with `untrusted`, level 2 with `on-request` and off the scale with `never`.
+Every mode is on the scale, so a session in any of them can delegate; the scale only decides what the child may do.
+A level of Codex is a pair of sandbox and approval policy: `read-only` is level 0 whatever the policy, and `workspace-write` is level 1 with `untrusted` and level 2 with `on-request` or `never`.
+A parent in `auto` has a Claude child in `auto` and a Codex child at level 2, the broadest Codex has.
 A child runs at the lower of the level of its own agent's options and the parent's level, with the options of its own harness at that level, so it is never raised.
 A child belongs to the parent session and not to the agent that holds it, so the parent can be switched, or closed and resumed, and still wait for its children.
 The list of sessions leaves children out, and the clock that archives and deletes sessions ages a parent and its children as one.
@@ -77,7 +77,7 @@ Four tools under the existing `carrier-chat` server, which already names them as
 | --- | --- | --- |
 | `history` | Reads events of its own session, of its children if it is a parent, or of its parent if it is a child; paged by position, by view (messages or activity), and by item with a text offset for a long one. | `readsAsSession`, pre-approved |
 | `agents` | Lists the configured agents with their state, the level each would have as a child of the caller and, when asked, their models and reasoning levels. | `readsAsSession`, pre-approved |
-| `delegate_start` | Takes an agent, a task, an optional model and a request id so that a retry does not start a second child; answers at once with the child's id. | `actsAsSession`, asks the person each time |
+| `delegate_start` | Takes an agent, a task, an optional model and a request id so that a retry does not start a second child; answers at once with the child's id. | `actsAsSession`, pre-approved |
 | `delegate_wait` | Takes child ids and a timeout of at most 45 seconds; answers each child's state (working, needs approval, done with its final message, error, usage limit, interrupted). | `readsAsSession`, pre-approved |
 
 `capabilities` stays as it is.
@@ -106,9 +106,9 @@ The Codex adapter pins the app-server it was recorded against at 0.153.4 (`CODEX
 8. As a person in the terminal, I can switch the agent of the session I am in with `carrier chat`, which checks first that the host announces the capability.
 9. As the macOS app, I see the `switchAgent` capability and decode its reply and the new fields of a session and of an event, with no screen using them.
 10. As an agent in a session that may delegate, I can list the configured agents with `agents`, with their state, the level each would have as my child and their models when I ask.
-11. As a person, when my agent asks to delegate, I approve a request that names the agent, the model, the level and the task, and a child session starts and receives the task.
+11. As a person, when I ask my agent to launch other agents, a child session starts and receives the task, with no approval to give first.
 12. As an agent, I can wait for my children with `delegate_wait` and learn the state of each and the final message of the ones that are done.
-13. As a person, a child never has more privilege than its parent, and a parent that is not on the scale cannot delegate.
+13. As a person, a child never has more privilege than its parent, and a parent whose options are off the scale cannot delegate.
 14. As a person, a child cannot delegate and takes no message, and it can read its parent's history.
 15. As a client of the host, I find a child from its parent with its agent, state and level, read its events and answer its approvals, and the list of sessions leaves children out.
 16. As a person, archiving, deleting and the clock treat a parent and its children as one, and never remove a folder while a child works in it.
@@ -116,7 +116,7 @@ The Codex adapter pins the app-server it was recorded against at 0.153.4 (`CODEX
 
 ## Decisions
 
-The switch is decided in [0032](../adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md), the delegation and the scale in [0033](../adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md), and what this section adds is how they are built.
+The switch is decided in [0032](../adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md), the delegation and the scale in [0033](../adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) as [0036](../adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) amends it, and what this section adds is how they are built.
 No config key is added: the 16,000 bytes, the four children and the 45 seconds are constants, so `docs/configuration.md` does not change.
 
 **Data.**
@@ -132,13 +132,13 @@ The events are the shared language of the adapters, the host and the stored tran
 ```ts
 | { kind: 'error'; text: string; reason?: 'usage_limit'; resetsAt?: number /* ms since epoch */; resetText?: string }
 | { kind: 'notice'; text: string; lostNativeId?: string; switched?: { from: string; to: string } }
-| { kind: 'approval'; approvalId: string; tool: string; arg?: string; input?: Record<string, unknown>; choices: ChatChoice[]; questions?: ChatQuestion[] }
+| { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; questions?: ChatQuestion[] }
 
 type ChildState = 'working' | 'needs_approval' | 'done' | 'error' | 'usage_limit' | 'interrupted';
 ```
 
 `boundEvent` in `src/chat/transcript.ts` keeps only `text` for an `error` today, so it has to keep `reason`, `resetsAt` and `resetText` (the last one cut like the rest), or a usage limit is lost when it is stored.
-`switched` names the agents as the config does, and `input` is only what an adapter hands the host for an approval of a chat MCP tool: the host composes the text of the approval from it and drops it before the event is bounded and stored.
+`switched` names the agents as the config does.
 `resetsAt` is a number in milliseconds and `resetText` is the provider's own words, and an event has one, the other or neither.
 
 **The handoff.**
@@ -173,24 +173,24 @@ A switch is refused for an archived session, for one whose preparation did not f
 A switch marks the session as switching, a marker of its own and not the delete's, which every request that touches the session checks, and when the new conversation attaches the old one is detached, so that its events are no longer recorded, while its process stays recorded until it ends, so that a host that dies in between can still sweep it.
 
 **Who may delegate.**
-The token gets `act` when its session has no parent, and the delegation tools are listed and callable only while the session's current options are a mode that asks the person and on the scale, and the harness is new enough; the Codex adapter exposes the app-server's version for this, and 0.122.0 is the floor.
-The mode is checked when the tools are listed and again when one is called, because the person can change the mode during the session and the agent lists the tools only when it starts; the check on the call is the one that holds, and a call in a mode that is not offered fails with words that say why.
-The adapters are told by name which tools of the chat MCP read, when the conversation opens, and the Codex adapter exposes the version of its app-server.
+The token gets `act` when its session has no parent, and the delegation tools are listed and callable only while the session's current options are on the scale, in any mode, and the harness is new enough; the Codex adapter exposes the app-server's version for this, and 0.122.0 is the floor.
+The options are checked when the tools are listed and again when one is called, because the person can change the mode during the session and the agent lists the tools only when it starts; the check on the call is the one that holds, and a call that is not offered fails with words that say why.
+The adapters are told by name which tools of the chat MCP there are, when the conversation opens, and the Codex adapter exposes the version of its app-server.
 `agents` says the same reason for the caller.
 The child's folder is the parent's, recorded as a plain folder, and a child is counted as running while it works or waits for an approval, so a fifth `delegate_start` is refused with words while four are.
 The slot and the request id are reserved before the conversation opens: the child's row is inserted first, counts toward the four and is deleted if the open fails, and a repeated request id returns the existing child whatever the other arguments, checked before the cap, so that a retry with four running gets its child back.
 The parent's existence is checked again once the child's conversation has opened, as `resume` does.
 
 **Approvals.**
-On Claude `allowedTools` lists each tool that reads by name and not the wildcard, and the approval of `delegate_start` carries one suggestion with the destination `session` and none of the CLI's own, which write to the project's settings.
-On Codex the server's default is `auto` and each tool that reads is `approve`; the adapter accepts the elicitation of a tool that reads by its `_meta.tool_name` and shows any other to the person, with the choice to allow for the session when `_meta.persist` offers it.
-The text of the approval says the agent, the model, the level and whether it was lowered, that the child can read the conversation, and the whole task, which an approval event keeps up to `chatCaps.message` characters like a message, so that the person never approves text they cannot see; the level it shows is the one of that moment, and a call that finds another level fails with words.
-In Claude's `plan` mode every tool of the chat MCP asks, which holds for the tools that exist today too, and the spec does not change it.
-The approval is the harness's and the host cannot prove it to the MCP: the token of a Claude conversation sits in the environment of its process, so an agent that is allowed to run a shell command could post `delegate_start` itself, as it could start `claude` or `codex` itself, and in `default` and `acceptEdits` mode the shell command is what the harness asks about; a person's own `allow` rule for the tool runs it unasked too.
-The spec accepts that, says it here and adds no proof of approval to the MCP.
+This is what [0036](../adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) changed: no tool of the chat MCP asks the person, `delegate_start` included.
+On Claude `allowedTools` lists each tool of the chat MCP by name and not the wildcard, and in `plan`, which asks for every tool of a server whatever `allowedTools` says, the adapter's `canUseTool` allows the chat MCP's tools.
+On Codex the server's default is `auto` and each tool is `approve`, so no elicitation reaches the person.
+The host cannot prove that the person asked: the token of a Claude conversation sits in the environment of its process, so an agent that is allowed to run a shell command could post `delegate_start` itself, as it could start `claude` or `codex` itself.
+The tool's description tells the agent to delegate only when the person asked, which is advice and not a check, and the spec accepts that and adds no proof to the MCP.
+The approvals of a child that runs at a level that asks are its own, and they reach the person as before.
 
 **`delegate_start` and `delegate_wait`.**
-`delegate_start` takes `agent`, `task` of up to `chatCaps.message` characters, an optional `model` and an optional `requestId`; it opens the child, sends it the task as its first message and answers with its id as soon as that is done, and it fails with words when the agent is not configured, not found or signed out, when the model is not one it lists, when four children are running or when the mode is not offered.
+`delegate_start` takes `agent`, `task` of up to `chatCaps.message` characters, an optional `model` and an optional `requestId`; it opens the child, sends it the task as its first message and answers with its id as soon as that is done, and it fails with words when the agent is not configured, not found or signed out, when the model is not one it lists, when four children are running or when the session's options are off the scale.
 `delegate_wait` takes between one and four child ids of the caller and a timeout that defaults to 30 seconds and is at most 45, and answers as soon as no child is working, counting a child that waits for an approval as stopped, or when the time ends.
 A child is `needs_approval` while its session waits for an approval, and when it is idle it is `usage_limit` if its last error says so, `error` for another error, `interrupted` after an interrupt and `done` otherwise, with its last assistant message cut to 4,000 characters.
 A child whose last turn never ended, because it was closed or its process died in the middle, is `interrupted`.
@@ -226,9 +226,9 @@ The MCP tools and the listing of tools are tested through the real server and re
 | 8 | `src/terminal/cli/commands/chat.test.ts`. |
 | 9 | `server.test.ts` (the hello lists), `replies.test.ts` (the golden reply), `capabilities-contract.test.ts`, and the Swift `ContractTests`, `ChatHostTests`, `RepliesTests` and `FixtureServerTests`. |
 | 10 | `mcp.test.ts` for `agents`, and a unit test of the scale. |
-| 11 | `sessions.test.ts` for the child that starts, the request id that returns the same one, each refusal and the mode checked again on the call; `mcp.test.ts` for the listing; `claude.test.ts` and `codex.test.ts` for the approval, its text, the suggestion and the elicitation; the gated integration tests for a real approval. |
+| 11 | `sessions.test.ts` for the child that starts, the request id that returns the same one, each refusal and the mode checked again on the call; `mcp.test.ts` for the listing; `claude.test.ts` and `codex.test.ts` for what each adapter hands the harness so that `delegate_start` asks no one; the gated integration tests for a real run. |
 | 12 | `sessions.test.ts` and `mcp.test.ts` with `FakeClock`, for each state and for the timeout. |
-| 13 | A unit test of the scale that crosses both harnesses, the three levels and agents with options on and off the scale, and `sessions.test.ts` asserting the options a child was opened with. |
+| 13 | A unit test of the scale that crosses both harnesses, the four levels and agents with options on and off the scale, and `sessions.test.ts` asserting the options a child was opened with. |
 | 14 | `mcp.test.ts` for a child's token that lists no delegation tool and for the refused call, and `sessions.test.ts` for the message that a child refuses. |
 | 15 | `sessions.test.ts` for the list, the parent's summary, `events` and `answer` on a child, and the golden replies. |
 | 16 | `sessions.test.ts` and `sweep.test.ts` for archive, delete and the clock over a family, and for the refusal while a child works. |
@@ -243,7 +243,6 @@ Choosing the agent on every message, and queueing a switch while the agent is wo
 A worktree of its own for a child, and a way to merge it back.
 Raising the level of a child after it started.
 Waking a parent when a child ends, a `delegate_send` or a `delegate_cancel` tool, and a child that delegates.
-Delegating from a session that never asks, such as Claude's `auto` mode or a Codex policy of `never`, or from Claude's `plan` mode.
 Antigravity as a chat agent, which `chatAccount` refuses today.
 Connecting a session to an epic, which [0012](../adr/0012-sessions-and-epics-are-two-separate-worlds.md) keeps apart.
 Every screen of the app: the agent picker, the message about a limit, the cards and avatars of children, what opening a child shows, the indicator on a parent's row, notifications and the marks of the providers.

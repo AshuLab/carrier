@@ -1,4 +1,4 @@
-# 0036 - A new worktree is cut from the remote branch by default, and choosing a project fetches it
+# 0037 - A new worktree is cut from the remote branch by default, and choosing a project fetches it
 
 - Status: accepted; amends [0014](0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md) (the branch a session worktree is cut from)
 - Date: 2026-11-19

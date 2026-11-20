@@ -23,6 +23,7 @@ Less memory and CPU in the app, `carrier init` asks who Carrier reads GitHub as,
 
 ### Added
 
+- A session in any mode can delegate to other agents, including Claude's auto, dontAsk and plan modes and a Codex thread that never asks: saying "launch these agents" is the request, so it asks you nothing, and each child runs at your session's permission level, never above it.
 - `carrier init` asks who Carrier reads GitHub as (the orchestrator's identity) before the author and the reviewer, and no longer writes the author's name into it without asking. An unattended init still uses the author's identity.
 
 ### Changed

@@ -158,7 +158,7 @@ export async function inspectFolder(git: Git, folder: string): Promise<Workspace
 /** What a fetch may take before the host gives up on it. */
 export const FETCH_TIMEOUT_MS = 60_000;
 
-/** How long after a fetch of `origin` the host takes it as current and does not fetch again (ADR 0036). */
+/** How long after a fetch of `origin` the host takes it as current and does not fetch again (ADR 0037). */
 export const FETCH_FRESH_MS = 5 * 60_000;
 
 /** Runs `git fetch origin --prune` in `folder` (already checked, a real path) and answers what the folder is after it; with `now`, a last fetch within `FETCH_FRESH_MS` of it is not repeated. A refusal never carries git's own words: they can hold a URL or a token. */

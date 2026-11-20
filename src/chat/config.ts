@@ -32,7 +32,7 @@ const chatConfigSchema = z.strictObject({
   /** An archived session left alone this long is deleted by the same pass, unless its worktree holds unsaved work; it must be greater than `archiveAfterDays` when both are numbers. */
   deleteAfterDays: days.default(30),
   /** When the clock's pass removes a session's worktree folder, keeping its branch; both off by default. */
-  /** Which copy of a branch a new worktree is cut from when the plan does not say (ADR 0036). */
+  /** Which copy of a branch a new worktree is cut from when the plan does not say (ADR 0037). */
   worktreeStart: z.enum(['remote', 'local']).default('remote'),
   worktreeCleanup: z.strictObject({ afterPrMerged: z.boolean().default(false), afterInactiveDays: days.default('never') }).default({ afterPrMerged: false, afterInactiveDays: 'never' }),
 }).refine((c) => typeof c.archiveAfterDays !== 'number' || typeof c.deleteAfterDays !== 'number' || c.deleteAfterDays > c.archiveAfterDays, {

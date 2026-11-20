@@ -37,7 +37,7 @@ const noPullRequests: PullRequests = { find: async () => null, states: async () 
 export const IDLE_CLOSE_MS = 60_000;
 /** The children of one session that may work or wait for an approval at the same time ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). */
 const MAX_RUNNING_CHILDREN = 4;
-const LEVEL_WORDS = ['reads only', 'changes, asking before each change', 'edits without asking'];
+const LEVEL_WORDS = ['reads only', 'changes, asking before each change', 'edits without asking', 'acts with no check'];
 /** How much of a done child's last message `delegate_wait` answers. */
 const CHILD_MESSAGE = 4000;
 /** How long a session whose last subagent just ended waits for the turn the SDK opens by itself (it follows at once) before it is idle. */

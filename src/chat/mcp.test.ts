@@ -499,12 +499,22 @@ test('agents lists each configured agent with its state and the level it would h
   expect((await askAgents({ harness: 'claude', options: {} }, { models: 'yes' })).isError).toBe(true);
 });
 
+test('agents shows a child level in every mode of the caller, up to 3 for Claude auto, and 2 for Codex under it', async () => {
+  const levels = async (caller: { harness: string; options: Record<string, string> }) => {
+    const { agents: listed } = JSON.parse((await askAgents(caller)).text);
+    for (const agent of listed) expect(agent).not.toHaveProperty('notOffered');
+    return listed.map((agent: any) => agent.childLevel);
+  };
+  // claude-edit is configured at 2, claude-read at 0, codex and gone at the adapter's defaults (1)
+  expect(await levels({ harness: 'claude', options: { permissionMode: 'auto' } })).toEqual([2, 0, 1, 1]);
+  expect(await levels({ harness: 'claude', options: { permissionMode: 'plan' } })).toEqual([0, 0, 0, 0]);
+  expect(await levels({ harness: 'claude', options: { permissionMode: 'dontAsk' } })).toEqual([0, 0, 0, 0]);
+  expect(await levels({ harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'never' } })).toEqual([2, 0, 1, 1]);
+});
+
 test('agents answers notOffered with the words of the refusal and no childLevel when the caller may not delegate', async () => {
   const off: { harness: string; options: Record<string, string> }[] = [
-    { harness: 'claude', options: { permissionMode: 'plan' } },
-    { harness: 'claude', options: { permissionMode: 'dontAsk' } },
-    { harness: 'claude', options: { permissionMode: 'auto' } },
-    { harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'never' } },
+    { harness: 'claude', options: { permissionMode: 'bypassPermissions' } },
     { harness: 'codex', options: { sandbox: 'danger-full-access', approvalPolicy: 'on-request' } },
   ];
   for (const caller of off) {
@@ -514,10 +524,33 @@ test('agents answers notOffered with the words of the refusal and no childLevel 
       expect(agent).not.toHaveProperty('childLevel');
       expect(agent.notOffered).toBe(delegationRefusal(caller.harness, caller.options, '0.122.0'));
     }
-    expect(listed[0].notOffered).toContain(Object.values(caller.options).at(-1)!);
+    expect(listed[0].notOffered).toMatch(/off the permission scale/);
   }
-  expect(delegationRefusal('claude', { permissionMode: 'plan' })).toMatch(/does not ask the person/);
-  expect(delegationRefusal('codex', { sandbox: 'danger-full-access', approvalPolicy: 'on-request' })).toMatch(/off the permission scale/);
+});
+
+test('the delegation tools are listed to a session with no parent in every mode that is on the scale, and not to one that is off it, a harness that is not Claude or Codex, or a Codex app-server that is unknown or older than the floor', async () => {
+  const listing = async (harness: string, options: Record<string, string>, version?: string, capabilities: ('read' | 'act')[] = ['read', 'act']) => {
+    const own = await startMcpServer({ registry, tools: [delegateStart, delegateWait, whoami], sessions: { exists: () => true, live: () => true, delegationRefusal: () => delegationRefusal(harness, options, version), startChild: async () => ({ childId: 'c' }), waitChildren: async () => [] } as any });
+    try {
+      const ask = async (method: string, params?: unknown) => (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${issue(capabilities)}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params !== undefined && { params }) }) })).json()) as any;
+      const listed = ((await ask('tools/list')).result.tools as { name: string }[]).map((tool) => tool.name);
+      const called = (await ask('tools/call', { name: 'delegate_start', arguments: { agent: 'codex', task: 'review' } })).result;
+      return { listed, called: called.isError !== true };
+    } finally {
+      await own.close();
+    }
+  };
+  const all = ['delegate_start', 'delegate_wait', 'test_whoami'];
+  for (const permissionMode of ['auto', 'dontAsk', 'plan', 'default', 'acceptEdits']) expect(await listing('claude', { permissionMode }), permissionMode).toEqual({ listed: all, called: true });
+  for (const approvalPolicy of ['never', 'untrusted', 'on-request']) expect(await listing('codex', { sandbox: 'workspace-write', approvalPolicy }, '0.122.0'), approvalPolicy).toEqual({ listed: all, called: true });
+  const unlisted = ['delegate_wait', 'test_whoami'];
+  expect(await listing('claude', { permissionMode: 'bypassPermissions' })).toEqual({ listed: unlisted, called: false });
+  expect(await listing('codex', { sandbox: 'danger-full-access', approvalPolicy: 'never' }, '0.122.0')).toEqual({ listed: unlisted, called: false });
+  expect(await listing('gemini', {})).toEqual({ listed: unlisted, called: false });
+  expect(await listing('codex', {}, '0.121.9')).toEqual({ listed: unlisted, called: false });
+  expect(await listing('codex', {})).toEqual({ listed: unlisted, called: false });
+  // a child holds no act, in any mode
+  expect(await listing('claude', { permissionMode: 'auto' }, undefined, ['read'])).toEqual({ listed: unlisted, called: false });
 });
 
 test('agents lists models and efforts from the probe only when asked, and says so for an agent whose probe fails or that is not found', async () => {
@@ -579,7 +612,7 @@ test('a delegation tool is listed and callable only while the session may delega
     const start = async () => (await ask('tools/call', { name: 'delegate_start', arguments: { agent: 'codex', task: 'review' } })).result;
 
     expect(await names()).toEqual(['delegate_start', 'test_whoami']);
-    refusal = 'This session\'s permissionMode is auto, which does not ask the person before a change, so it cannot delegate';
+    refusal = 'This session\'s options are off the permission scale, so a child cannot be given a level';
     expect(await names()).toEqual(['test_whoami']); // what reads stays
     expect(await start()).toMatchObject({ isError: true, content: [{ text: refusal }] });
     expect(started).toEqual([]);
@@ -587,8 +620,8 @@ test('a delegation tool is listed and callable only while the session may delega
     // the agent listed the tools while the mode asked, and the person changed it after: the call is the check that holds
     refusal = undefined;
     expect(await names()).toContain('delegate_start');
-    refusal = 'now it does not ask';
-    expect(await start()).toMatchObject({ isError: true, content: [{ text: 'now it does not ask' }] });
+    refusal = 'now it is off the scale';
+    expect(await start()).toMatchObject({ isError: true, content: [{ text: 'now it is off the scale' }] });
     expect(started).toEqual([]);
     refusal = undefined;
     expect((await start()).isError).toBe(false);

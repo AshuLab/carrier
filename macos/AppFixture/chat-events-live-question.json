@@ -1,0 +1,143 @@
+{
+  "sessionId": "b2000000-0000-4000-8000-000000000012",
+  "events": [
+    {
+      "ago": 90000,
+      "kind": "user",
+      "text": "Go over the login flow and tell me what is fragile.",
+      "id": 1
+    },
+    {
+      "ago": 88000,
+      "kind": "reasoning",
+      "text": "\nI will start with the session code, then the timer and the close handler.\n",
+      "id": 2
+    },
+    {
+      "ago": 80000,
+      "kind": "tool_start",
+      "callId": "p0",
+      "tool": "Read",
+      "arg": "src/login/index.ts",
+      "id": 3
+    },
+    {
+      "ago": 79400,
+      "kind": "tool_end",
+      "callId": "p0",
+      "tool": "Read",
+      "status": "ok",
+      "id": 4
+    },
+    {
+      "at": 1792000004000,
+      "kind": "approval",
+      "approvalId": "z2",
+      "tool": "AskUserQuestion",
+      "choices": [
+        {
+          "id": "allow",
+          "label": "Send answers",
+          "allow": true
+        },
+        {
+          "id": "deny",
+          "label": "Skip",
+          "allow": false
+        }
+      ],
+      "questions": [
+        {
+          "question": "What does the cache have to survive?",
+          "header": "Durability",
+          "multiSelect": false,
+          "options": [
+            {
+              "label": "Nothing, it is only a speed-up",
+              "description": "A restart empties it and that is fine."
+            },
+            {
+              "label": "A restart of one node",
+              "description": "The data lives on disk or in a shared store.",
+              "preview": "node A  --writes-->  shared store\nnode B  --reads--->  shared store"
+            },
+            {
+              "label": "A full outage",
+              "description": "It is a source of truth too."
+            }
+          ]
+        },
+        {
+          "question": "Which of these may it use?",
+          "header": "Stack",
+          "multiSelect": true,
+          "options": [
+            {
+              "label": "Redis",
+              "description": "Already runs in staging."
+            },
+            {
+              "label": "SQLite",
+              "description": "No new service."
+            },
+            {
+              "label": "In-process memory",
+              "description": "Fastest, per node."
+            }
+          ]
+        }
+      ],
+      "id": 5,
+      "ago": 9000
+    }
+  ],
+  "cursor": 5,
+  "streaming": "",
+  "options": [
+    {
+      "id": "model",
+      "label": "Model",
+      "values": [
+        {
+          "id": "sonnet",
+          "label": "Sonnet"
+        },
+        {
+          "id": "opus",
+          "label": "Opus"
+        }
+      ],
+      "current": "sonnet"
+    },
+    {
+      "id": "effort",
+      "label": "Effort",
+      "values": [
+        {
+          "id": "medium",
+          "label": "Medium"
+        },
+        {
+          "id": "high",
+          "label": "High"
+        }
+      ],
+      "current": "high"
+    },
+    {
+      "id": "permissionMode",
+      "label": "Permissions",
+      "values": [
+        {
+          "id": "default",
+          "label": "Ask first"
+        },
+        {
+          "id": "acceptEdits",
+          "label": "Accept edits"
+        }
+      ],
+      "current": "default"
+    }
+  ]
+}

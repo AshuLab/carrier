@@ -1,0 +1,207 @@
+{
+  "sessions": [
+    {
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Every state of the live line",
+      "nativeId": "n-states",
+      "state": "working",
+      "createdAgo": 14400000,
+      "lastActiveAgo": 2000,
+      "archived": false,
+      "live": true,
+      "diff": {
+        "added": 86,
+        "removed": 12
+      },
+      "pr": {
+        "repo": "AshuLab/carrier",
+        "number": 983,
+        "url": "https://github.com/AshuLab/carrier/pull/983",
+        "state": "draft",
+        "checks": null
+      }
+    },
+    {
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Live: reading a file",
+      "nativeId": "n-live-reading",
+      "state": "working",
+      "createdAgo": 7200000,
+      "lastActiveAgo": 2000,
+      "archived": false,
+      "live": true
+    },
+    {
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Live: searching the code",
+      "nativeId": "n-live-searching",
+      "state": "working",
+      "createdAgo": 7200000,
+      "lastActiveAgo": 3000,
+      "archived": false,
+      "live": true
+    },
+    {
+      "id": "b2000000-0000-4000-8000-000000000004",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Live: editing a file",
+      "nativeId": "n-live-editing",
+      "state": "working",
+      "createdAgo": 7200000,
+      "lastActiveAgo": 4000,
+      "archived": false,
+      "live": true
+    },
+    {
+      "id": "b2000000-0000-4000-8000-000000000005",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Live: running a command",
+      "nativeId": "n-live-shell",
+      "state": "working",
+      "createdAgo": 7200000,
+      "lastActiveAgo": 5000,
+      "archived": false,
+      "live": true
+    },
+    {
+      "id": "b2000000-0000-4000-8000-000000000006",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Live: a slow command (amber timer)",
+      "nativeId": "n-live-shell-slow",
+      "state": "working",
+      "createdAgo": 7200000,
+      "lastActiveAgo": 6000,
+      "archived": false,
+      "live": true
+    },
+    {
+      "id": "b2000000-0000-4000-8000-000000000007",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Live: an MCP call",
+      "nativeId": "n-live-mcp",
+      "state": "working",
+      "createdAgo": 7200000,
+      "lastActiveAgo": 7000,
+      "archived": false,
+      "live": true
+    },
+    {
+      "id": "b2000000-0000-4000-8000-000000000008",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Live: a slow MCP call (amber timer)",
+      "nativeId": "n-live-mcp-slow",
+      "state": "working",
+      "createdAgo": 7200000,
+      "lastActiveAgo": 8000,
+      "archived": false,
+      "live": true
+    },
+    {
+      "id": "b2000000-0000-4000-8000-000000000009",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Live: a tool with no kind of its own",
+      "nativeId": "n-live-other",
+      "state": "working",
+      "createdAgo": 7200000,
+      "lastActiveAgo": 9000,
+      "archived": false,
+      "live": true
+    },
+    {
+      "id": "b2000000-0000-4000-8000-000000000010",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Live: waiting for subagents",
+      "nativeId": "n-live-subagents",
+      "state": "working",
+      "createdAgo": 7200000,
+      "lastActiveAgo": 10000,
+      "archived": false,
+      "live": true
+    },
+    {
+      "id": "b2000000-0000-4000-8000-000000000011",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Live: needs you (a command to approve)",
+      "nativeId": "n-live-approval",
+      "state": "waiting_approval",
+      "createdAgo": 7200000,
+      "lastActiveAgo": 11000,
+      "archived": false,
+      "live": true
+    },
+    {
+      "id": "b2000000-0000-4000-8000-000000000012",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Live: needs you (a question)",
+      "nativeId": "n-live-question",
+      "state": "waiting_approval",
+      "createdAgo": 7200000,
+      "lastActiveAgo": 12000,
+      "archived": false,
+      "live": true
+    }
+  ]
+}

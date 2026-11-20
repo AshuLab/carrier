@@ -85,6 +85,7 @@ A second socket, `<home>/chat/state/chat.sock`, is a fake chat host (the app fin
 `switchAgent` gives an idle listed session another listed agent and a notice with `switched`, and is refused in words for a working or waiting one, the agent it has, one that is not listed and one that is not found.
 So the Sessions + is enabled and a selected session shows a conversation.
 `folder` defaults to the copy of the golden files that `build-app.sh` puts in `Carrier.app/Contents/Resources/Fixtures`; give one when running without the bundle.
+That copy is `Tests/Fixtures` with its chat sessions replaced by the one of `AppFixture`: "Every state of the live line", a single conversation with every kind of call (reads, searches, edits, shell, an MCP server's tools, a web fetch, todos, subagents, approvals allowed and denied, a failed call, an error, an interrupted turn, a notice), a pull request and changed lines in the sidebar, and a live turn at its end where the agent is thinking. Add to it when a state is found that it lacks; the tests keep their own sessions in `Tests/Fixtures`.
 The temporary folder is removed when the app quits.
 In this mode the menu also has "Empty states", a window listing the empty states (`CarrierCore/EmptyStates.swift`).
 It combines with `--selftest`.

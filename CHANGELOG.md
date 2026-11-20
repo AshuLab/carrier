@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-20
+
+Less memory and CPU in the app, `carrier init` asks who Carrier reads GitHub as, and a calmer Settings › Behavior.
+
 ### Added
 
 - `carrier init` asks who Carrier reads GitHub as (the orchestrator's identity) before the author and the reviewer, and no longer writes the author's name into it without asking. An unattended init still uses the author's identity.

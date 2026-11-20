@@ -44,14 +44,19 @@ public final class PollNap: Sendable {
     private struct State {
         var sleeping: Task<Void, Never>?
         var woken = false
+        var wakes = 0
     }
 
     private let state = Mutex(State())
 
     public init() {}
 
+    /// How many times it was woken, for the tests of who wakes it.
+    var wakes: Int { state.withLock { $0.wakes } }
+
     public func wake() {
         state.withLock {
+            $0.wakes += 1
             $0.woken = true
             $0.sleeping?.cancel()
         }

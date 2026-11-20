@@ -34,3 +34,20 @@ public func viewingState(appActive: Bool, windowShown: Bool, asleep: Bool) -> Vi
         pace.set(next, lowPower: lowPower)
     }
 }
+
+/// How long a conversation waits before it reads its session again, for who is looking and whether the agent is working: the turn's own
+/// pace while someone can see it, a slow one for an idle session, and a growing one while the host does not answer (0.5 s, doubling, up to
+/// 30). nil is a pause, which the caller waits at most `conversationPause`: a change of who is looking cuts it short.
+public func conversationWait(state: ViewingState, turnRunning: Bool, failures: Int) -> TimeInterval? {
+    guard state == .focused || state == .visible else { return nil }
+    if failures > 0 { return min(0.5 * pow(2, Double(failures - 1)), 30) }
+    if turnRunning { return conversationTurnWait }
+    return state == .focused ? 2 : 5
+}
+
+/// How often a turn that is running is read, while someone can see it.
+public let conversationTurnWait: TimeInterval = 0.25
+
+/// The longest a conversation goes without asking while nobody looks: a wake-up that gets lost costs one ask every 30 seconds, and the chat
+/// host, which closes a session that nobody asked about for a minute, still hears from the app.
+public let conversationPause: TimeInterval = 30

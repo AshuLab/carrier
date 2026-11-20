@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- An open conversation asks the chat host less often when nothing is happening: every 2 seconds instead of four times a second while idle with the app in front, every 5 seconds behind another app, and almost never with the window hidden or the Mac asleep. It still reads every quarter of a second while the agent works, and at once after you send.
 - In Low Power Mode the app asks the engine and the chat host less often (every 10 seconds) while nobody is in the app.
 - Settings › Behavior no longer shows a "Saved" note after each change: it saves as you type, and the window only says something when it could not.
 - The app drops the separate agent output window and its watcher, which nothing opened since an epic's output moved to its Agent output tab; the tab reads the same lines through the monitor, so nothing you see changes.

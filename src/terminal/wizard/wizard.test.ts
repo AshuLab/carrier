@@ -494,3 +494,28 @@ test('editing a config starts the orchestrator from the file, and an unattended 
   await runInit({ repo: ['A/b'], authorProfile: 'gh', reviewerProfile: 'forge:artanis-agent', author: 'claude:m1', reviewer: 'codex:m2', out, yes: true }, quietUi().ui, unattended);
   expect(JSON.parse(written[out]!).orchestratorProfile).toBe('gh');
 });
+
+test('with both profile flags an edit keeps the file\'s own orchestrator, and the recap shows it', async () => {
+  const file = {
+    ...existing,
+    profiles: { 'artanis-agent': { kind: 'forge', agent: 'artanis-agent' }, 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' }, gh: { kind: 'gh' } },
+    orchestratorProfile: 'artanis-agent',
+    agents: { author: { profile: 'gh', provider: 'claude', model: 'opus' }, reviewer: { profile: 'tassadar-agent', provider: 'codex', model: 'gpt-test' } },
+  };
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(file) });
+  const { ui } = quietUi({ [existingKey]: 'edit', [notNow]: false });
+  const notes: Record<string, string> = {};
+  await withHome(() => runInit({ authorProfile: 'gh', reviewerProfile: 'forge:tassadar-agent', author: 'claude:m1', reviewer: 'codex:m2' }, { ...ui, note: (m, t) => void (notes[t] = m) }, deps));
+  expect(notes['This is what will be saved']).toContain('Orchestrator  artanis-agent');
+  expect(JSON.parse(written[join(dir, 'home', 'engine.json')]!).orchestratorProfile).toBe('artanis-agent');
+});
+
+test('with a single identity the orchestrator answers itself and says so', async () => {
+  const { deps, written } = fakeDeps({ forgeAgents: () => [], which: (tool) => tool !== 'agent-forge' });
+  const { ui } = quietUi();
+  const notes: { title?: string; message: string }[] = [];
+  const out = join(dir, 'lone.json');
+  await runInit({ repo: ['A/b'], out }, { ...ui, note: (message, title) => void notes.push({ title, message }) }, deps);
+  expect(notes.find((n) => n.title === 'GitHub identity for the orchestrator')?.message).toContain('the only identity there is');
+  expect(JSON.parse(written[out]!).orchestratorProfile).toBe('gh');
+});

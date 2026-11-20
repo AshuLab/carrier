@@ -116,8 +116,8 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
         'GitHub identities',
       );
     }
-    // Not asked (--yes or the profile flags): the orchestrator is the author's identity, as when the key is left out.
-    const orchestrator = asking ? await askIdentity(ui, 'orchestrator', forge, readForge, login, undefined, deps, interactive, from?.orchestrator) : undefined;
+    // Not asked (--yes or the profile flags): the file's own when editing, else the author's identity.
+    const orchestrator = asking ? await askIdentity(ui, 'orchestrator', forge, readForge, login, undefined, deps, interactive, from?.orchestrator) : from?.orchestrator;
     const authorIdentity = flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, readForge, login, undefined, deps, interactive, from?.author.identity);
     const reviewerIdentity = flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, readForge, login, authorIdentity, deps, interactive, from?.reviewer.identity);
 

@@ -18,6 +18,8 @@ const roleLine = (r: Role, providers: Record<string, AIProvider>) => {
   return [`${r.identity.kind === 'gh' ? 'your gh login' : r.identity.agent} · ${pDesc} · ${r.model}${r.effort ? ` · ${r.effort}` : ''}`, ...personaLine(r).map((item) => `\n              persona: ${item}`)].join('');
 };
 
+const identityLine = (identity: Identity) => (identity.kind === 'gh' ? 'your gh login' : identity.agent);
+
 const loginText = { in: 'signed in', out: 'signed out', unknown: 'login not checked' } as const;
 
 /** What the detector found, one line per tool: where the binary is and its version, whether it is signed in, which servers answer. */
@@ -52,7 +54,7 @@ export const summary = (
   [
     ['Repos', repos.length > 0 ? repos.join(', ') : 'none yet'],
     ...(sameAccount(author.identity, reviewer.identity) ? [['Identity', 'shared: author and reviewer are the same account, and the signature in what they publish will show it']] : []),
-    ...(orchestrator ? [['Orchestrator', orchestrator.kind === 'gh' ? 'your gh login' : orchestrator.agent]] : []),
+    ['Orchestrator', identityLine(orchestrator ?? author.identity)],
     ['Accounts', Object.keys(providers).join(', ')],
     ['Author', roleLine(author, providers)],
     ['Reviewer', roleLine(reviewer, providers)],

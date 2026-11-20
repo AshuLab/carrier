@@ -52,22 +52,27 @@ export const SWEEP_GRACE_MS = 5_000;
  * keeps its record so the next start tries again. Returns how many groups it ended.
  */
 export async function sweepDeadHost(db: ChatDb, processes: Processes = realProcesses, graceMs = SWEEP_GRACE_MS) {
-  let ended = 0;
-  for (const found of db.select().from(sessions).where(isNotNull(sessions.pid)).all()) {
-    try {
-      const { pid, pgid, command } = found;
-      const ours = pid !== null && pgid !== null && command !== null && processes.commandOf(pid)?.startsWith(command) === true;
-      if (ours && processes.groupAlive(pgid)) {
-        processes.signalGroup(pgid, 'SIGTERM');
-        for (let waited = 0; waited < graceMs && processes.groupAlive(pgid); waited += 100) await processes.sleep(100);
-        if (processes.groupAlive(pgid)) processes.signalGroup(pgid, 'SIGKILL');
-        ended++;
-        log.info('ended an agent a dead host left running', { sessionId: found.id, pgid });
+  // In parallel: the N groups a dead host left cost one grace before the socket opens, not N.
+  const ended = await Promise.all(
+    db.select().from(sessions).where(isNotNull(sessions.pid)).all().map(async (found) => {
+      try {
+        const { pid, pgid, command } = found;
+        const ours = pid !== null && pgid !== null && command !== null && processes.commandOf(pid)?.startsWith(command) === true;
+        let endedOne = 0;
+        if (ours && processes.groupAlive(pgid)) {
+          processes.signalGroup(pgid, 'SIGTERM');
+          for (let waited = 0; waited < graceMs && processes.groupAlive(pgid); waited += 100) await processes.sleep(100);
+          if (processes.groupAlive(pgid)) processes.signalGroup(pgid, 'SIGKILL');
+          endedOne = 1;
+          log.info('ended an agent a dead host left running', { sessionId: found.id, pgid });
+        }
+        db.update(sessions).set({ state: 'idle', pid: null, pgid: null, command: null }).where(eq(sessions.id, found.id)).run();
+        return endedOne;
+      } catch (error) {
+        log.error('sweeping a session of a dead host failed', error);
+        return 0;
       }
-      db.update(sessions).set({ state: 'idle', pid: null, pgid: null, command: null }).where(eq(sessions.id, found.id)).run();
-    } catch (error) {
-      log.error('sweeping a session of a dead host failed', error);
-    }
-  }
-  return ended;
+    }),
+  );
+  return ended.reduce((total, one) => total + one, 0);
 }

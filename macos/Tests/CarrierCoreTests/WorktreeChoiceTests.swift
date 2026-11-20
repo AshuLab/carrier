@@ -25,8 +25,9 @@ private let bare = "/Users/dev/bare.git"
 @Test func theGoldenWorkspaceRepliesDecodeAsTheHostSendsThem() throws {
     let info = try workspace(carrier)
     #expect(info.git && info.bare == false && info.branch == "main" && info.defaultBranch == "main" && info.dirty == 3)
-    #expect(info.branches.map(\.name) == ["main", "feat/retry-sync", "origin/main", "origin/feat/retry-sync"])
-    #expect(info.branches.map(\.remote) == [false, false, true, true] && info.fetchedAt == 1_792_000_000_000)
+    #expect(info.branches.map(\.name) == ["main", "feat/retry-sync", "wip/spike", "origin/main", "origin/feat/retry-sync"])
+    #expect(info.branches.map(\.remote) == [false, false, false, true, true] && info.fetchedAt == 1_792_000_000_000)
+    #expect(info.repo == .init(owner: "AshuLab", name: "carrier") && info.hasOrigin)
     let plain = try workspace(notes)
     #expect(plain.git == false && plain.branches.isEmpty && plain.dirty == 0 && plain.offersWorktree == false)
 }
@@ -73,7 +74,10 @@ private let bare = "/Users/dev/bare.git"
 
 @Test func thePickerHasTwoSectionsAndMarksTheCheckedOutBranchAndTagsTheDefault() throws {
     let picker = branchPicker(try workspace(carrier), now: Date(timeIntervalSince1970: 1_792_000_300))
-    #expect(picker.local == [BranchRow(name: "main", checkedOut: true, isDefault: true), BranchRow(name: "feat/retry-sync", checkedOut: false, isDefault: false)])
+    #expect(picker.local == [
+        BranchRow(name: "main", checkedOut: true, isDefault: true, behind: 2), BranchRow(name: "feat/retry-sync", checkedOut: false, isDefault: false, ahead: 1),
+        BranchRow(name: "wip/spike", checkedOut: false, isDefault: false, localOnly: true),
+    ])
     #expect(picker.remote == [BranchRow(name: "origin/main", checkedOut: false, isDefault: true), BranchRow(name: "origin/feat/retry-sync", checkedOut: false, isDefault: false)])
     #expect(picker.fetched == "Fetched 5 minutes ago")
 }
@@ -110,4 +114,120 @@ private let bare = "/Users/dev/bare.git"
     #expect(try state("fix-login") == .problem("A branch called carrier/fix-login already exists"))
     #expect(try state("Big_Name") == .problem("The name must start with a lowercase letter or a digit"))
     #expect(stateOfName(NameCheck(valid: false, free: false)) == .problem("That name cannot be used"))
+}
+
+// The start of a worktree: the branch by its bare name and the side of it (Remote is `origin/<name>`, Local is `<name>`).
+
+/// main on both sides, `local-only` never pushed, `remote-only` not checked out here, and `feat/retry-sync` on both.
+private let sides = WorkspaceInfo(
+    folder: "/w", branch: "main", defaultBranch: "main",
+    branches: [
+        .init(name: "main", remote: false), .init(name: "local-only", remote: false), .init(name: "feat/retry-sync", remote: false),
+        .init(name: "origin/main", remote: true), .init(name: "origin/remote-only", remote: true), .init(name: "origin/feat/retry-sync", remote: true),
+    ]
+)
+
+@Test func eachTabListsItsOwnSideSoABranchIsNeverOfferedTwice() {
+    let picker = branchPicker(sides)
+    #expect(picker.rows(.remote).map(\.name) == ["origin/main", "origin/remote-only", "origin/feat/retry-sync"])
+    #expect(picker.rows(.local).map(\.name) == ["main", "local-only", "feat/retry-sync"])
+    let names = picker.rows(.remote).map(\.name) + picker.rows(.local).map(\.name)
+    #expect(Set(names).count == names.count)
+}
+
+@Test func aLocalBranchWithNoCounterpartOnOriginIsMarkedAndNothingElseIs() {
+    let picker = branchPicker(sides)
+    #expect(picker.rows(.local).map(\.localOnly) == [false, true, false])
+    #expect(picker.rows(.remote).allSatisfy { $0.localOnly == false })
+    // a search keeps the mark: it depends on the whole list, not on what matched
+    #expect(branchPicker(sides, query: "local").rows(.local).map(\.localOnly) == [true])
+}
+
+@Test func theSearchHasNoMatchInOneTabAndSomeInTheOther() {
+    let picker = branchPicker(sides, query: "remote-only")
+    #expect(picker.rows(.local).isEmpty && picker.rows(.remote).map(\.name) == ["origin/remote-only"])
+}
+
+@Test func theSettingDecidesTheSideOfABranchOnBothSidesAndTheTabLeftOnWinsOverIt() {
+    #expect(startPoint(picked: nil, in: sides, choice: nil, setting: .remote) == StartPoint(branch: "main", side: .remote))
+    #expect(startPoint(picked: nil, in: sides, choice: nil, setting: .local) == StartPoint(branch: "main", side: .local))
+    #expect(startPoint(picked: nil, in: sides, choice: .local, setting: .remote) == StartPoint(branch: "main", side: .local))
+    #expect(startPoint(picked: "feat/retry-sync", in: sides, choice: .remote, setting: .local)?.ref == "origin/feat/retry-sync")
+}
+
+@Test func aBranchOnOneSideOnlyIsCutFromThatSideWhateverTheSettingAndTheTabSay() {
+    #expect(startPoint(picked: "local-only", in: sides, choice: .remote, setting: .remote) == StartPoint(branch: "local-only", side: .local))
+    #expect(startPoint(picked: "remote-only", in: sides, choice: .local, setting: .local) == StartPoint(branch: "remote-only", side: .remote))
+    #expect(StartPoint(branch: "remote-only", side: .remote).ref == "origin/remote-only" && StartPoint(branch: "local-only", side: .local).ref == "local-only")
+}
+
+@Test func aBranchNamedAsOriginSlashNameIsItsRemoteSideUntilATabIsChosen() {
+    #expect(startPoint(picked: "origin/main", in: sides, choice: nil, setting: .local) == StartPoint(branch: "main", side: .remote))
+    #expect(startPoint(picked: "origin/main", in: sides, choice: .local, setting: .local) == StartPoint(branch: "main", side: .local))
+}
+
+@Test func aRepositoryToCloneHasNoSideAndTheBranchIsItsOwnRef() {
+    let github = WorkspaceInfo(folder: "/p", branch: "main", defaultBranch: "main", branches: [.init(name: "main", remote: false), .init(name: "feat/x", remote: false)])
+    #expect(startPoint(picked: "feat/x", in: github, choice: .remote, setting: .remote, cloned: true) == StartPoint(branch: "feat/x", side: nil))
+    #expect(StartPoint(branch: "feat/x", side: nil).ref == "feat/x")
+}
+
+@Test func theChosenRowIsTheOneOfTheSideTheWorktreeIsCutFromAndOnlyInThatTab() {
+    let point = StartPoint(branch: "main", side: .remote)
+    let picker = branchPicker(sides)
+    #expect(picker.rows(.remote).map { point.chooses($0, on: .remote) } == [true, false, false])
+    #expect(picker.rows(.local).map { point.chooses($0, on: .local) } == [false, false, false])
+    #expect(StartPoint(branch: "local-only", side: .local).chooses(picker.rows(.local)[1], on: .local))
+    #expect(StartPoint(branch: "main", side: nil).chooses(picker.rows(.local)[0], on: .local) == false)
+}
+
+// Behind and not pushed: the counts of a local branch that has a counterpart on origin, and what the picker says of them.
+
+@Test func aLocalBranchCarriesTheHostsCountsOnlyWhenItHasACounterpartOnOrigin() throws {
+    let branches = try workspace(carrier).branches
+    func branch(_ name: String) -> WorkspaceInfo.Branch? { branches.first { $0.name == name } }
+    #expect(branch("main")?.behind == 2 && branch("main")?.ahead == 0)
+    #expect(branch("feat/retry-sync")?.ahead == 1 && branch("feat/retry-sync")?.behind == 0)
+    #expect(branch("wip/spike")?.ahead == nil && branch("wip/spike")?.behind == nil, "no counterpart, no counts")
+    #expect(branch("origin/main")?.ahead == nil)
+    // a host that does not count says nothing and the app reads the reply all the same
+    let old = #"{"folder":"/w","git":true,"bare":false,"linkedWorktree":false,"repo":null,"branch":"main","defaultBranch":"main","dirty":0,"branches":[{"name":"main","remote":false}],"fetchedAt":null}"#
+    let info = try JSONDecoder().decode(WorkspaceInfo.self, from: Data(old.utf8))
+    #expect(info.branches.first?.behind == nil && branchPicker(info).local.first?.behindText == nil)
+}
+
+@Test func theBadgesSayHowFarBehindAndHowManyAreNotPushedOnlyWhenNotZero() throws {
+    let rows = branchPicker(try workspace(carrier)).local
+    #expect(rows[0].behindText == "2 behind origin" && rows[0].notPushedText == nil)
+    #expect(rows[1].notPushedText == "1 not pushed" && rows[1].behindText == nil)
+    #expect(rows[2].behindText == nil && rows[2].notPushedText == nil && rows[2].localOnly, "one on neither shows only that it is not on origin")
+    #expect(branchPicker(try workspace(web)).local.map { [$0.behindText, $0.notPushedText] } == [[nil, nil]], "a branch level with origin shows nothing")
+    #expect(branchPicker(try workspace(carrier, in: "chat-fetch.json")).local.first?.behindText == "12 behind origin")
+}
+
+@Test func theFooterSaysItCouldNotReachOriginOnlyWhenTheFetchOnChoosingFailed() throws {
+    let now = Date(timeIntervalSince1970: 1_792_000_300)
+    #expect(branchPicker(try workspace(carrier), now: now).unreachable == nil)
+    let picker = branchPicker(try workspace(carrier), now: now, unreachable: true)
+    #expect(picker.unreachable == "Could not reach origin" && picker.fetched == "Fetched 5 minutes ago")
+    #expect(branchPicker(try workspace(web), unreachable: true).fetched == "Never fetched")
+}
+
+@Test func theSummaryWarnsOfALocalBranchBehindOnlyWithLocalAndOfCommitsNotPushedOnlyWithRemote() throws {
+    let info = try workspace(carrier)
+    #expect(startWarning(StartPoint(branch: "main", side: .local), in: info) == "main is 2 commits behind origin/main, so the worktree starts without them.")
+    #expect(startWarning(StartPoint(branch: "main", side: .remote), in: info) == nil, "Remote starts from the fresh branch: being behind is no problem")
+    #expect(startWarning(StartPoint(branch: "feat/retry-sync", side: .remote), in: info) == "feat/retry-sync has 1 commit not pushed to origin/feat/retry-sync, so the worktree will not have it.")
+    #expect(startWarning(StartPoint(branch: "feat/retry-sync", side: .local), in: info) == nil, "Local has the commits")
+    #expect(startWarning(StartPoint(branch: "wip/spike", side: .local), in: info) == nil, "on neither: nothing to compare")
+    #expect(startWarning(StartPoint(branch: "main", side: nil), in: info) == nil && startWarning(nil, in: info) == nil && startWarning(StartPoint(branch: "main", side: .local), in: nil) == nil)
+    #expect(startWarning(StartPoint(branch: "main", side: .local), in: WorkspaceInfo(folder: "/w", branches: [.init(name: "main", remote: false, ahead: 0, behind: 1)]))?.hasPrefix("main is 1 commit behind") == true)
+}
+
+@Test func onlyAFolderWithAnOriginIsFetchedOnChoosing() throws {
+    #expect(try workspace(carrier).hasOrigin && workspace(web).hasOrigin)
+    #expect(try workspace(notes).hasOrigin == false && workspace(bare).hasOrigin == false)
+    // a remote that is not GitHub's still counts once its branches are on disk; a repository with none has nothing to fetch yet
+    #expect(WorkspaceInfo(folder: "/w", branches: [.init(name: "origin/main", remote: true)]).hasOrigin)
+    #expect(WorkspaceInfo(folder: "/w", branches: [.init(name: "main", remote: false)]).hasOrigin == false)
 }

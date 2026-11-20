@@ -147,7 +147,8 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
             ("Surfaces", "Glass blurs what is under; flat is a quiet solid fill"),
         ])
     case .sessions:
-        return page(.sessions, "New sessions", [("Starts with", "Provider, model and reasoning"), ("Work in", "Base folder or a new worktree")])
+        return page(.sessions, "New sessions", [("Starts with", "Provider, model and reasoning"), ("Work in", "Base folder or a new worktree"),
+            ("Start from", "Where a new worktree is cut: the remote branch (latest) or the local branch")])
             + page(.sessions, "Archive and delete", [
                 ("Archive after", "Days without activity before it is archived"), ("Delete after", "Days an archived session waits before it is deleted"),
                 ("Ask before deleting a session", "The question says its worktree goes with it"),

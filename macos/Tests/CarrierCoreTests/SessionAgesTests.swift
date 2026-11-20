@@ -103,3 +103,32 @@ private func line(_ ages: SessionAges, on year: Int, _ month: Int, _ day: Int, u
     #expect(line(SessionAges(archive: .days(1), delete: .days(2)), on: 2028, 2, 28) == "Is archived on Feb 29 and deleted on Mar 1. Both ages count from its last activity")
     #expect(line(SessionAges(archive: .days(1), delete: .days(2)), on: 2026, 2, 28) == "Is archived on Mar 1 and deleted on Mar 2. Both ages count from its last activity")
 }
+
+@Test func theStartIsTheFilesAndRemoteWhenItHasNoneOrAWrongOne() {
+    func start(_ json: String?) -> WorktreeStart { worktreeStart(chatJSON: json.map { Data($0.utf8) }) }
+    #expect(start(nil) == .remote && start("{}") == .remote)
+    #expect(start(#"{"worktreeStart":"local"}"#) == .local && start(#"{"worktreeStart":"remote"}"#) == .remote)
+    for wrong in [#""Local""#, #""origin""#, "1", "null", "true", "[]"] { #expect(start(#"{"worktreeStart":\#(wrong)}"#) == .remote, Comment(rawValue: wrong)) }
+    #expect(start("nope") == .remote && start("[1]") == .remote)
+}
+
+@Test func changingTheStartKeepsTheOtherKeysAndLeavesTheDefaultOut() throws {
+    let file = Data(#"{"agents":{"a":{"harness":"claude"}},"archiveAfterDays":5,"worktreeStart":"local"}"#.utf8)
+    let remote = try object(applyingWorktreeStart(.remote, to: file))
+    #expect(remote["worktreeStart"] == nil && remote["archiveAfterDays"] as? Int == 5 && remote["agents"] != nil)
+    let local = try object(applyingWorktreeStart(.local, to: Data(#"{"logLevel":"debug"}"#.utf8)))
+    #expect(local as NSDictionary == ["logLevel": "debug", "worktreeStart": "local"])
+    #expect(try object(applyingWorktreeStart(.local, to: nil)) as NSDictionary == ["worktreeStart": "local"])
+    #expect(try object(applyingWorktreeStart(.remote, to: nil)).isEmpty)
+    #expect(worktreeStart(chatJSON: applyingWorktreeStart(.local, to: file)) == .local)
+}
+
+@Test func theStartIsNotWrittenOverAFileThatCannotBeRead() {
+    #expect(applyingWorktreeStart(.local, to: Data("[1]".utf8)) == nil && applyingWorktreeStart(.local, to: Data("nope".utf8)) == nil)
+}
+
+@Test func theStartRowIsOffWithTheReasonWhileWorkInIsTheBaseFolder() {
+    #expect(worktreeStartOffReason(workIn: .baseFolder) == "Only for a new worktree")
+    #expect(worktreeStartOffReason(workIn: .newWorktree) == nil)
+    #expect(WorktreeStart.allCases.map(\.title) == ["Remote branch (latest)", "Local branch"])
+}

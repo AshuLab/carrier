@@ -6,8 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Settings › Sessions › New sessions has a "Start from" choice: a new worktree starts from the remote branch (the latest, the default) or from your local one.
+- The branch picker of a new session has Remote and Local tabs, shows how many commits a local branch is behind its remote copy or has not pushed, and says where the worktree will start.
+- Choosing a project in a new session brings its branches up to date in the background, and the picker says when the remote could not be reached.
+
 ### Changed
 
+- A new worktree is cut from the remote branch (`origin/main`) and no longer from a local `main` that may be far behind; if the remote cannot be reached it starts from the local branch and the session says so.
+- The sidebar no longer counts what landed on the remote branch as the session's work: a session in which nothing was done shows +0 −0.
 - An open conversation asks the chat host less often when nothing is happening: every 2 seconds instead of four times a second while idle with the app in front, every 5 seconds behind another app, and almost never with the window hidden or the Mac asleep. It still reads every quarter of a second while the agent works, and at once after you send.
 - In Low Power Mode the app asks the engine and the chat host less often (every 10 seconds) while nobody is in the app.
 

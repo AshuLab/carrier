@@ -16,7 +16,8 @@ export type WorkspaceInfo = {
   branch: string | null;
   defaultBranch: string | null;
   dirty: number;
-  branches: { name: string; remote: boolean }[];
+  /** `ahead` (commits not on `origin/<name>`) and `behind` (commits of it the branch lacks) are on a local branch that has an `origin/<name>`, and nowhere else. */
+  branches: { name: string; remote: boolean; ahead?: number; behind?: number }[];
   fetchedAt: number | null;
 };
 
@@ -44,15 +45,46 @@ export async function resolveOrigin(git: Git, url: string): Promise<{ owner: str
 /** The number of lines `git status --porcelain` printed. */
 export const countPorcelain = (out: string) => lines(out).length;
 
-/** From `for-each-ref --format=%(refname) refs/heads refs/remotes/origin`: local branches, then `origin/x` ones, `origin/HEAD` left out. */
+const REFS = '%(refname) %(objectname)'; // a ref name has no space
+
+/** From `for-each-ref --format=%(refname) %(objectname) refs/heads refs/remotes/origin`: local branches, then `origin/x` ones, `origin/HEAD` left out. */
 export function parseBranches(out: string): { name: string; remote: boolean }[] {
   const found: { name: string; remote: boolean }[] = [];
-  for (const ref of lines(out)) {
+  for (const line of lines(out)) {
+    const ref = line.split(' ')[0]!;
     if (ref.startsWith('refs/heads/')) found.push({ name: ref.slice('refs/heads/'.length), remote: false });
     else if (ref.startsWith('refs/remotes/origin/') && ref !== 'refs/remotes/origin/HEAD') found.push({ name: ref.slice('refs/remotes/'.length), remote: true });
   }
   return found.sort((a, b) => Number(a.remote) - Number(b.remote)); // stable: each group stays in git's order
 }
+
+/** How many commits each local branch that has an `origin/<name>` is ahead of it and behind it, in one `rev-list --left-right --count` per branch that differs (the same commit is 0 and 0 with no git call), a few at a time. A count git could not make is left out. */
+async function countAheadBehind(git: Git, folder: string, refs: string): Promise<Map<string, { ahead: number; behind: number }>> {
+  const shas = new Map(lines(refs).map((line) => line.split(' ') as [string, string]));
+  const counts = new Map<string, { ahead: number; behind: number }>();
+  const differing: string[] = [];
+  for (const [ref, sha] of shas) {
+    if (ref.startsWith('refs/heads/') === false) continue;
+    const name = ref.slice('refs/heads/'.length);
+    const remote = shas.get(`refs/remotes/origin/${name}`);
+    if (remote === undefined) continue;
+    if (remote === sha) counts.set(name, { ahead: 0, behind: 0 });
+    else differing.push(name);
+  }
+  for (let from = 0; from < differing.length; from += COUNT_PARALLEL) {
+    await Promise.all(
+      differing.slice(from, from + COUNT_PARALLEL).map(async (name) => {
+        const counted = await git.run(folder, ['rev-list', '--left-right', '--count', `refs/heads/${name}...refs/remotes/origin/${name}`]);
+        const [ahead, behind] = counted.ok ? counted.out.trim().split(/\s+/).map(Number) : [];
+        if (Number.isInteger(ahead) && Number.isInteger(behind)) counts.set(name, { ahead: ahead!, behind: behind! });
+        else log.warn('git rev-list --left-right --count failed', { code: counted.ok ? 0 : counted.code });
+      }),
+    );
+  }
+  return counts;
+}
+
+const COUNT_PARALLEL = 8;
 
 /** `origin/HEAD` (`symbolic-ref` printed `refs/remotes/origin/main`) when set, else `main`, else `master` when listed, else null. */
 export function parseDefaultBranch(originHead: string | null, branches: { name: string }[]): string | null {
@@ -102,10 +134,12 @@ export async function inspectFolder(git: Git, folder: string): Promise<Workspace
     git.run(folder, ['remote', 'get-url', 'origin']), // not `config --get`: this one applies `url.<base>.insteadOf`, as git does when it connects
     git.run(folder, ['symbolic-ref', '-q', '--short', 'HEAD']),
     git.run(folder, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']),
-    git.run(folder, ['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes/origin']),
+    git.run(folder, ['for-each-ref', `--format=${REFS}`, 'refs/heads', 'refs/remotes/origin']),
     isBare ? Promise.resolve<GitResult>({ ok: true, out: '' }) : git.run(folder, ['--no-optional-locks', 'status', '--porcelain']),
   ]);
-  const branches = parseBranches(mustRun(refs, 'for-each-ref'));
+  const listed = mustRun(refs, 'for-each-ref');
+  const counts = await countAheadBehind(git, folder, listed);
+  const branches = parseBranches(listed).map((branch) => (branch.remote ? branch : { ...branch, ...counts.get(branch.name) }));
   const origin = url.ok === false && url.code === 2 ? null : answer(url, 'remote'); // `get-url` exits 2 for no origin
   return {
     folder,
@@ -124,14 +158,23 @@ export async function inspectFolder(git: Git, folder: string): Promise<Workspace
 /** What a fetch may take before the host gives up on it. */
 export const FETCH_TIMEOUT_MS = 60_000;
 
-/** Runs `git fetch origin --prune` in `folder` (already checked, a real path) and answers what the folder is after it. A refusal never carries git's own words: they can hold a URL or a token. */
-export async function fetchFolder(git: Git, folder: string): Promise<WorkspaceInfo> {
+/** How long after a fetch of `origin` the host takes it as current and does not fetch again (ADR 0037). */
+export const FETCH_FRESH_MS = 5 * 60_000;
+
+/** Runs `git fetch origin --prune` in `folder` (already checked, a real path) and answers what the folder is after it; with `now`, a last fetch within `FETCH_FRESH_MS` of it is not repeated. A refusal never carries git's own words: they can hold a URL or a token. */
+export async function fetchFolder(git: Git, folder: string, { signal, now }: { signal?: AbortSignal; now?: number } = {}): Promise<WorkspaceInfo> {
+  if (now !== undefined) {
+    // `ifStale`: a fetch within the window is not repeated, and the answer is what the folder is now
+    const current = await inspectFolder(git, folder).catch(() => undefined); // a folder git cannot read goes on to the refusals below
+    if (current?.fetchedAt != null && now - current.fetchedAt < FETCH_FRESH_MS) return current;
+  }
   const probe = await git.run(folder, ['rev-parse', '--git-dir']);
   if (probe.ok === false && probe.code === 128) throw new ChatRefused('That folder is not a git repository');
   mustRun(probe, 'rev-parse');
   if (answer(await git.run(folder, ['config', '--get', 'remote.origin.url']), 'config') === null) throw new ChatRefused('That repository has no origin remote to fetch');
-  const fetched = await git.run(folder, ['fetch', 'origin', '--prune'], { timeoutMs: FETCH_TIMEOUT_MS });
+  const fetched = await git.run(folder, ['fetch', 'origin', '--prune'], { timeoutMs: FETCH_TIMEOUT_MS, signal });
   if (fetched.ok === false) {
+    if (fetched.aborted === true) throw new ChatRefused('The fetch was stopped'); // the person left: not a failure of git
     log.error('git fetch failed', { code: fetched.code, timedOut: fetched.timedOut === true });
     throw new ChatRefused(fetched.timedOut === true ? 'The fetch took too long and was stopped' : 'The fetch of origin failed');
   }

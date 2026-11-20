@@ -15,15 +15,18 @@ export type MadeWorktree = { path: string; branch: string; from: string; base: s
 const ADD_TIMEOUT_MS = 60_000;
 
 /**
- * Creates `<CARRIER_HOME>/chat/worktrees/<owner>/<repo>/<name>` on a new branch `carrier/<name>` cut from `from`, in the
+ * `startFrom` says which copy of the branch `from` the worktree is cut from: `remote` is `origin/<from>` when the repository lists it (else the local branch,
+ * which is all there is for a branch never pushed), `local` is the local branch. A `from` that already carries `origin/`, or no `startFrom`, is the ref `from` names.
+ * Creates `<CARRIER_HOME>/chat/worktrees/<owner>/<repo>/<name>` on a new branch `carrier/<name>` cut from that, in the
  * repository of `folder` (already checked, a real path). The base folder is only read: git adds the worktree without a
  * checkout, stash or commit in it. Refuses, with a reason in words, a folder that is not a repository or is bare, a `from`
  * that `workspace` does not list and a name that is invalid or taken. When git fails nothing is left behind.
  * Callers run it one at a time, so what it checked is still true when git adds. `signal` stops the add, and what it made is taken away.
  */
-export async function createWorktree(git: Git, folder: string, request: { from: string; name?: string }, signal?: AbortSignal): Promise<MadeWorktree> {
+export async function createWorktree(git: Git, folder: string, request: { from: string; name?: string; startFrom?: 'remote' | 'local' }, signal?: AbortSignal): Promise<MadeWorktree> {
   const { info, takenBecause, freeName } = await repository(git, folder);
-  const start = info.branches.find((branch) => branch.name === request.from);
+  const listed = (name: string) => info.branches.find((branch) => branch.name === name);
+  const start = request.startFrom === 'remote' && request.from.startsWith('origin/') === false ? (listed(`origin/${request.from}`) ?? listed(request.from)) : listed(request.from);
   if (start === undefined) throw new ChatRefused('The branch to start from is not one this repository lists');
   if (request.name !== undefined) {
     const refusal = invalidReason(request.name) ?? takenBecause(request.name);

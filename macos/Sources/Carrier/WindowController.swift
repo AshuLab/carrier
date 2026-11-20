@@ -374,7 +374,7 @@ final class WindowController: NSObject, NSWindowDelegate {
             await draft.useWorktree(true)
             if draft.worktree {
                 let picker = draft.picker(query: "")
-                lines.append("new session worktree: \"\(draft.sentence)\", name \(draft.nameState), branches \(picker?.local.count ?? 0) local and \(picker?.remote.count ?? 0) remote, \(picker?.fetched ?? "no picker")")
+                lines.append("new session worktree: \"\(draft.sentence)\", name \(draft.nameState), branches \(picker?.local.count ?? 0) local and \(picker?.remote.count ?? 0) remote, tabs \(draft.hasStartTabs ? "\(draft.startTab.tabTitle) open" : "none"), starts from \(draft.startPoint?.ref ?? "nothing"), \(picker?.fetched ?? "no picker")")
                 await draft.useWorktree(false)
             }
         }

@@ -64,20 +64,16 @@ public func deleteAgeOffReason(_ ages: SessionAges) -> String? {
 /// read) or when the ages break a rule (`sessionAgeProblems`): a value the host would refuse is never written.
 public func applyingSessionAges(_ ages: SessionAges, to json: Data?) -> Data? {
     guard sessionAgeProblems(ages).isEmpty else { return nil }
-    var file: [String: Any] = [:]
-    if let json {
-        guard let object = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return nil }
-        file = object
-    }
-    func set(_ key: String, _ age: SessionAge, default fallback: Int) {
-        switch age {
-        case .never: file[key] = "never"
-        case .days(let days): file[key] = days == fallback ? nil : days
+    return editingChatConfig(json) { file in
+        func set(_ key: String, _ age: SessionAge, default fallback: Int) {
+            switch age {
+            case .never: file[key] = "never"
+            case .days(let days): file[key] = days == fallback ? nil : days
+            }
         }
+        set(archiveKey, ages.archive, default: defaultArchiveAfterDays)
+        set(deleteKey, ages.delete, default: defaultDeleteAfterDays)
     }
-    set(archiveKey, ages.archive, default: defaultArchiveAfterDays)
-    set(deleteKey, ages.delete, default: defaultDeleteAfterDays)
-    return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
 }
 
 /// The line of the Sessions page about a session left alone from `today`, in dates: both ages count from the same last activity, so both

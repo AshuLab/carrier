@@ -1,9 +1,10 @@
 import CarrierCore
 import SwiftUI
 
-/// The branch a new worktree starts from, as a sheet: a search, the local and the remote branches in two sections, and Fetch now with
-/// when it last did. Choosing a row sets `startBranch` and closes the sheet. `browsing` is the same sheet for a session that works in the
-/// folder itself: the pick is the branch the folder is switched to when the message is sent (docs/adr/0018).
+/// The branch a new worktree starts from, as a sheet: a search, the Remote and Local tabs (one list at a time) and Fetch now with when it
+/// last did. Choosing a row sets the branch and the side of it the worktree is cut from, and closes the sheet. A repository that is not on
+/// this Mac yet has no tabs: its branches are one list in two sections. `browsing` is the same sheet for a session that works in the folder
+/// itself: the pick is the branch the folder is switched to when the message is sent (docs/adr/0018).
 struct BranchSheet: View {
     @Bindable var model: NewSessionModel
     var browsing = false
@@ -23,6 +24,7 @@ struct BranchSheet: View {
                     .textFieldStyle(.roundedBorder).controlSize(.large).autocorrectionDisabled().focused($searching)
             }
             .padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 16)
+            if tabbed { tabs(picker).padding(.bottom, 12) }
             Divider()
             list(picker)
             summary
@@ -31,6 +33,17 @@ struct BranchSheet: View {
         }
         .frame(width: 600, height: 600)
         .onAppear { searching = true }
+    }
+
+    /// The worktree's picker of a repository that is on this Mac has the two tabs; the folder's sheet and a repository to clone do not.
+    private var tabbed: Bool { browsing == false && model.hasStartTabs }
+
+    private func tabs(_ picker: BranchPicker?) -> some View {
+        let tab = Binding(get: { model.startTab }, set: { model.choose(startTab: $0) })
+        return SegmentedChoice(
+            options: WorktreeStart.allCases.map { (value: $0, title: "\($0.tabTitle) \(picker?.rows($0).count ?? 0)", icon: $0.icon) }, selection: tab
+        )
+        .frame(maxWidth: .infinity)
     }
 
     private var header: some View {
@@ -49,7 +62,9 @@ struct BranchSheet: View {
     @ViewBuilder private func list(_ picker: BranchPicker?) -> some View {
         let local = picker?.local ?? []
         let remote = picker?.remote ?? []
-        if local.isEmpty && remote.isEmpty {
+        if tabbed {
+            tabList(picker?.rows(model.startTab) ?? [], tab: model.startTab, otherHas: (picker?.rows(model.startTab == .remote ? .local : .remote) ?? []).isEmpty == false)
+        } else if local.isEmpty && remote.isEmpty {
             VStack(spacing: 8) {
                 Glyph(query.isEmpty ? .gitBranch : .search, size: 32).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text(query.isEmpty ? "No branches" : "No branch matches “\(query)”").font(.headline)
@@ -62,6 +77,30 @@ struct BranchSheet: View {
                 LazyVStack(alignment: .leading, spacing: 24) {
                     section("Local", .harddrive, local, empty: "No local branches.")
                     section("Remote", .cloud, remote, empty: "No remote branches yet. Fetch to look for them.")
+                }
+                .padding(.horizontal, 16).padding(.vertical, 16)
+            }
+        }
+    }
+
+    /// The list of the tab that is open: its branches, or why there are none. A search that matches nothing here says where else to look.
+    @ViewBuilder private func tabList(_ rows: [BranchRow], tab: WorktreeStart, otherHas: Bool) -> some View {
+        if rows.isEmpty {
+            let other = tab == .remote ? WorktreeStart.local : .remote
+            VStack(spacing: 8) {
+                Glyph(query.isEmpty ? tab.icon : .search, size: 32).foregroundStyle(.secondary).accessibilityHidden(true)
+                Text(query.isEmpty ? "No \(tab.tabTitle.lowercased()) branches" : "No \(tab.tabTitle.lowercased()) branch matches “\(query)”").font(.headline)
+                Text(
+                    query.isEmpty ? (tab == .remote ? "Nothing on origin yet. Fetch to look for it." : "This repository has no local branch.")
+                        : otherHas ? "The \(other.tabTitle) tab has matches." : "Search looks at the branches of this tab. Fetch to see new ones."
+                )
+                .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 360)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(rows, id: \.name) { row in branchRow(row, on: tab) }
                 }
                 .padding(.horizontal, 16).padding(.vertical, 16)
             }
@@ -83,20 +122,28 @@ struct BranchSheet: View {
                 if rows.isEmpty {
                     Text(empty).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.vertical, 8)
                 }
-                ForEach(rows, id: \.name) { row in branchRow(row) }
+                ForEach(rows, id: \.name) { row in branchRow(row, on: nil) }
             }
         }
     }
 
     /// The folder part of a name (`carrier/`, `origin/`, `feature/x/`) is quiet and the last part is the branch; a row is a button that picks it.
-    @ViewBuilder private func branchRow(_ row: BranchRow) -> some View {
-        let chosen = model.startBranch == row.name
-        HoverRow(action: { model.choose(startBranch: row.name); dismiss() }, fill: chosen ? Color.themeAccent.opacity(0.18) : nil) { hovering in
-            rowContent(row, chosen: chosen, hovering: hovering)
+    /// `tab` is the tab the row is in, nil in a list with no tabs.
+    @ViewBuilder private func branchRow(_ row: BranchRow, on tab: WorktreeStart?) -> some View {
+        let chosen = tab.map { model.startPoint?.chooses(row, on: $0) ?? false } ?? (model.startBranch == row.name)
+        HoverRow(
+            action: {
+                if let tab { model.choose(startBranch: row.name, on: tab) } else { model.choose(startBranch: row.name) }
+                dismiss()
+            },
+            fill: chosen ? Color.themeAccent.opacity(0.18) : nil
+        ) { hovering in
+            rowContent(row, chosen: chosen, hovering: hovering, notOnOrigin: tab == .local && row.localOnly, counted: tab == .local)
         }
     }
 
-    private func rowContent(_ row: BranchRow, chosen: Bool, hovering: Bool) -> some View {
+    /// `counted` is the Local tab: only there is a branch compared with its copy on `origin`.
+    private func rowContent(_ row: BranchRow, chosen: Bool, hovering: Bool, notOnOrigin: Bool = false, counted: Bool = false) -> some View {
         let cut = row.name.lastIndex(of: "/").map { row.name.index(after: $0) } ?? row.name.startIndex
         return HStack(spacing: 10) {
             Glyph(.gitBranch).foregroundStyle(chosen ? Color.themeAccent : .secondary).frame(width: 18).accessibilityHidden(true)
@@ -104,6 +151,9 @@ struct BranchSheet: View {
                 .lineLimit(1).truncationMode(.middle)
             if row.isDefault { Badge(text: "default", icon: .starFilled, tint: .themeAccent) }
             if row.checkedOut { Badge(text: browsing ? "current" : "checked out", icon: .checkCircle, tint: browsing ? .themeAccent : .secondary) }
+            if notOnOrigin { Badge(text: "not on origin", icon: .cloud, tint: .secondary) }
+            if counted, let behind = row.behindText { Badge(text: behind, icon: .arrowDown, tint: .orange) }
+            if counted, let notPushed = row.notPushedText { Badge(text: notPushed, icon: .arrowUp, tint: .orange) }
             Spacer(minLength: 8)
             if chosen { Glyph(.check, label: "Chosen").foregroundStyle(Color.themeAccent) }
             else { RowHint(text: "Select", shown: hovering) }
@@ -128,16 +178,25 @@ struct BranchSheet: View {
     }
 
     private var newBranch: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            newBranchLine
+            if let warning = model.startWarning { ProblemLine(text: warning, font: .subheadline) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12).background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
+        .padding(.horizontal, 16).padding(.bottom, 16)
+    }
+
+    private var newBranchLine: some View {
         HStack(spacing: 8) {
             Glyph(.circlePlus).foregroundStyle(.secondary).accessibilityHidden(true)
             Text("New branch").font(.subheadline).foregroundStyle(.secondary)
             Text(model.worktreeName.isEmpty ? "\(worktreeBranchPrefix)<generated when sent>" : "\(worktreeBranchPrefix)\(model.worktreeName)").font(.subheadline.monospaced()).lineLimit(1).truncationMode(.middle)
             Glyph(.arrowLeft, size: 11, label: "from").foregroundStyle(.secondary)
-            Text(model.startBranch ?? "…").font(.subheadline.monospaced().weight(.semibold)).lineLimit(1).truncationMode(.middle)
+            Text(model.startPoint?.ref ?? "…").font(.subheadline.monospaced().weight(.semibold)).foregroundStyle(model.startPoint?.side?.tint ?? .primary)
+                .lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 0)
         }
-        .padding(12).background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
-        .padding(.horizontal, 16).padding(.bottom, 16)
     }
 
     @ViewBuilder private func footer(_ picker: BranchPicker?) -> some View {
@@ -159,11 +218,15 @@ struct BranchSheet: View {
         let stale = at.map { Date().timeIntervalSince1970 - Double($0) / 1000 > staleAfter } ?? true
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Glyph(stale ? .warningFilled : .history)
-                    .foregroundStyle(stale ? Color.orange : .secondary).accessibilityHidden(true)
+                Glyph(stale || picker?.unreachable != nil ? .warningFilled : .history)
+                    .foregroundStyle(stale || picker?.unreachable != nil ? Color.orange : .secondary).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(picker?.fetched ?? "").font(.subheadline)
-                    if stale { Text("The remote branches may be out of date.").font(.subheadline).foregroundStyle(.orange) }
+                    // the fetch that choosing the project started could not reach origin: said here and nowhere else
+                    if let unreachable = picker?.unreachable {
+                        Text(unreachable).font(.subheadline).foregroundStyle(.orange)
+                            .onAppear { AccessibilityNotification.Announcement(unreachable).post() }
+                    } else if stale { Text("The remote branches may be out of date.").font(.subheadline).foregroundStyle(.orange) }
                 }
                 Button { Task { await model.fetchNow() } } label: {
                     Label { Text(model.fetching ? "Fetching…" : "Fetch now") } icon: {
@@ -186,4 +249,11 @@ struct BranchSheet: View {
         }
         .padding(.horizontal, 20).padding(.vertical, 12)
     }
+}
+
+extension WorktreeStart {
+    /// The side's mark in the picker's tabs, the "from" chip and the summary.
+    var icon: AppIcon { self == .remote ? .cloud : .harddrive }
+    /// The colour of the side wherever a start is named: the chip, the summary and the send steps' ref.
+    var tint: Color { self == .remote ? .teal : .indigo }
 }

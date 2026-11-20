@@ -61,13 +61,16 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
     return result.ok ? result.out.trim() : null;
   };
 
-  /** The branch the session works on (null while detached) and where it was cut from or merges into, to count lines against. */
+  /** The branch the session works on (null while detached; a worktree then falls back to the one it was cut with) and where it was cut from or merges into, to count lines against. */
   async function whereOf(found: Found) {
     const worktree = found.workspaceKind === 'worktree';
     const originFolder = worktree ? (found.worktreeBase ?? found.folder) : found.folder;
     const origin = await out(originFolder, ['remote', 'get-url', 'origin']); // as git resolves it, `insteadOf` included
     const parsed = origin === null ? null : await resolveOrigin(git, origin);
-    const branch = worktree ? found.worktreeBranch : await out(found.folder, ['rev-parse', '--abbrev-ref', 'HEAD']);
+    // what is checked out now: an agent may have moved a worktree to another branch than the one it was cut with
+    const current = await out(found.folder, ['rev-parse', '--abbrev-ref', 'HEAD']);
+    const checkedOut = current === null || current === 'HEAD' ? null : current;
+    const branch = checkedOut ?? (worktree ? found.worktreeBranch : null);
     const head = await out(originFolder, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
     return {
       repo: parsed === null ? null : `${parsed.owner}/${parsed.name}`,

@@ -165,7 +165,7 @@ struct SettingsRoot: View {
         .task { await AppHealth.providers.load() }
         // a problem appears while the person looks elsewhere: say it to VoiceOver too
         .onChange(of: headerNote) { _, note in
-            if let note, note.tone == .saved || (note.tone == .problem && note.announces) { AccessibilityNotification.Announcement(note.text).post() }
+            if let note, note.tone == .problem, note.announces { AccessibilityNotification.Announcement(note.text).post() }
         }
     }
 }

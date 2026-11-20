@@ -32,15 +32,6 @@ struct SessionsHomeView: View {
                 } icon: { Glyph(.refresh) }
                     .padding(.horizontal, 20).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
             }
-            if let notice = ChatHostStarter.shared.upgradeNotice {
-                Label {
-                    VStack(alignment: .leading) {
-                        Text(notice.title).bold()
-                        Text(notice.line).foregroundStyle(.secondary).textSelection(.enabled)
-                    }
-                } icon: { Glyph(.warning) }
-                    .padding(.horizontal, 20).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
-            }
             sessionsContent(page: page, searched: searched)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

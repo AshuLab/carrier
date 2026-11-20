@@ -52,7 +52,7 @@ public func upgradeCarrier(installed: String, app: String, brew: (BrewCommand) -
 }
 
 /// Where the engine's own update stands, for the Updates page: only a Homebrew `carrier` older than the app is upgraded, so anything else
-/// stays `unknown`. A failure carries the notice the Sessions pages show; the page also lets a person try again.
+/// stays `unknown`. A failure carries the notice this page shows, and the page also lets a person try again.
 public enum EngineUpdateState: Equatable {
     case unknown, running, upToDate, updated
     case failed(ChatHostNotice)

@@ -356,6 +356,14 @@ test('the options and the commands are left out of the events while the client h
   const changed = sessions.events({ sessionId: id, limit: 10, lists: first.listsRev });
   expect(changed.listsRev).not.toBe(first.listsRev);
   expect(changed.commands).toHaveLength(2);
+  // so is a change of an option's value, which is what a setOption makes
+  const mode = { id: 'mode', label: 'Mode', values: [{ id: 'default', label: 'Default' }], current: 'default' };
+  conversation.options = [mode];
+  const before = sessions.events({ sessionId: id, limit: 10 });
+  conversation.options = [{ ...mode, current: 'plan' }];
+  const moved = sessions.events({ sessionId: id, limit: 10, lists: before.listsRev });
+  expect(moved.listsRev).not.toBe(before.listsRev);
+  expect(moved.options?.[0]?.current).toBe('plan');
 });
 
 test('a command the session lists is invoked by its id: the person sees a slash and its name, the adapter gets the command, and the events list the commands', async () => {

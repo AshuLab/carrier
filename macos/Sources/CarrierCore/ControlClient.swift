@@ -37,8 +37,8 @@ public final class ControlClient {
     private var scanned = 0
     /// What the searches for the end of a line have looked at in all, and how many replies took one parse: the tests tell a search that
     /// goes over the buffer again at each read, or a reply parsed twice, from these.
-    public internal(set) var bytesScanned = 0
-    public internal(set) var repliesParsedOnce = 0
+    private(set) var bytesScanned = 0
+    private(set) var repliesParsedOnce = 0
     private var lastId = 0
     private var isOpen = true
     private let maxLineBytes = 8 * 1024 * 1024
@@ -198,7 +198,6 @@ public final class ControlClient {
             if let end = endOfLine() {
                 let line = Data(buffer[..<end])
                 buffer.removeSubrange(...end)
-                scanned = 0
                 return line
             }
             guard buffer.count <= maxLineBytes else { throw ControlError.badLine }

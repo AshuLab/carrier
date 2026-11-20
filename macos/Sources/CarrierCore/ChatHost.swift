@@ -720,7 +720,6 @@ private struct DeletePreviewReply: Decodable { let sessions: [SessionDeletePrevi
 
 private struct ChatSessionsReply: Decodable { let sessions: [ChatSession] }
 
-/// Connects, reads the hello, makes one request the host said it can answer and decodes its reply.
 /// The options and the commands of each session as the host last sent them, with its name for that version (`listsRev`): the one thing of a
 /// reply that is most of its bytes and almost never changes. A reference, so every copy of the host that holds it shares what was kept.
 private final class ListsMemory: @unchecked Sendable {
@@ -750,6 +749,7 @@ private final class ListsMemory: @unchecked Sendable {
     }
 }
 
+/// Connects, reads the hello, makes one request the host said it can answer and decodes its reply.
 fileprivate func chatRequest<Reply: Decodable>(
     _ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String = "", also: [(capability: ControlClient.Capability, fields: String)] = [],
     timeout: TimeInterval = 5

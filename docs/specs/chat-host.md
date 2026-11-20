@@ -72,7 +72,8 @@ The `events` reply carries the events after the cursor, the new cursor, the sess
 The reply also carries `listsRev`, the host's name for the current options and commands.
 A client that sends it back as `lists`, and only to a host whose hello lists `listsRev`, gets `listsUnchanged: true` and no `options` or `commands` while they are the same: they are most of the reply's bytes and almost never change, and a poll asks every 250 ms.
 A client that sends no `lists` gets both every time, as before.
-There is no push channel: a client polls `events` by cursor, as the app polls the engine, and the terminal client polls every 200 ms. A push channel can be added later behind a capability without changing these requests.
+There is no push channel: a client polls `events` by cursor, as the app polls the engine, and the terminal client polls every 200 ms.
+A push channel can be added later behind a capability without changing these requests.
 
 The folder of `open` must be an absolute path to an existing directory and is resolved to its real path. It is refused when it lies inside `<folder>/engine/` or is reached through a symlink into it: a session never works in the engine's shared clone or in an epic's worktree. A reply that fails names the reason in words and never the provider's or the system's own message when that could carry more than the client should see.
 

@@ -1298,6 +1298,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         progress: progress.get(sessionId) ?? null,
         approvals: [...(live?.approvals.values() ?? [])],
         listsRev,
+        // the keys are named in both replies so they have one type; JSON drops the undefined ones
         ...(lists === listsRev ? { listsUnchanged: true as const, options: undefined, commands: undefined } : { listsUnchanged: undefined, options, commands }),
       };
     },

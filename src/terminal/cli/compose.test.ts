@@ -233,7 +233,7 @@ test('the control socket answers while the start recovers, the snapshot says it 
   failing.runner.listActive = async () => {
     throw new Error('boom');
   };
-  const other = mkdtempSync(join(tmpdir(), 'carrier-compose3-'));
+  const other = mkdtempSync(join(tmpdir(), 'carrier-compose-sock-'));
   await expect(startCarrier(config(), other, sameConfig, failing.deps)).rejects.toThrow('boom');
   await expect(connectControl(join(other, 'engine', 'state', 'control.sock'))).rejects.toThrow('not-running');
   rmSync(other, { recursive: true, force: true });

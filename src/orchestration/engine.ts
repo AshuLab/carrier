@@ -1127,6 +1127,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
      * Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
      */
     async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string } = {}) {
+      // The start's recovery is not the epic's wait: it can take longer than the 30 seconds below, and the socket answers while it runs.
+      await recovering?.catch(() => {});
       const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
       if (!epic) throw new ResumeRefused('unknown epic');
       if (epic.status !== 'needs_human') throw new ResumeRefused('not stopped');

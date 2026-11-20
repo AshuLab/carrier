@@ -242,7 +242,7 @@ test('workspace tells a client what a folder is, with the fake git, and refuses 
     branch: 'feat/x',
     defaultBranch: 'main',
     dirty: 2,
-    branches: [{ name: 'main', remote: false }, { name: 'feat/x', remote: false }, { name: 'origin/main', remote: true }, { name: 'origin/dev', remote: true }],
+    branches: [{ name: 'main', remote: false, ahead: 0, behind: 0 }, { name: 'feat/x', remote: false }, { name: 'origin/main', remote: true }, { name: 'origin/dev', remote: true }],
     fetchedAt: 1_700_000_000_000,
   });
   expect(await client.request('workspace', { folder: plain })).toEqual({ folder: realpathSync(plain), git: false, bare: false, linkedWorktree: false, repo: null, branch: null, defaultBranch: null, dirty: 0, branches: [], fetchedAt: null });

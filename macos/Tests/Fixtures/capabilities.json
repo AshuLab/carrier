@@ -45,6 +45,7 @@
     "accountPalette",
     "switchAgent",
     "stopTask",
-    "worktreeStart"
+    "worktreeStart",
+    "fetchIfStale"
   ]
 }

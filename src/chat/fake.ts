@@ -118,6 +118,8 @@ export type FakeRepo = {
   unpushed?: Record<string, number>;
   /** The commits of `origin/<branch>` that the local branch lacks, for `rev-list --count refs/heads/<branch>..refs/remotes/origin/<branch>`; 0 when absent. */
   behind?: Record<string, number>;
+  /** The commits of the local branch that `origin/<branch>` lacks, for `rev-list --left-right --count refs/heads/<branch>...refs/remotes/origin/<branch>`; 0 when absent. The two print the same commit when both counts are 0. */
+  ahead?: Record<string, number>;
 };
 
 /** A git with a table of folders and the repositories in them, which answers the commands the host sends, and plays scripted failures. */
@@ -218,7 +220,14 @@ export class FakeGit implements Git {
     if (verb === 'config') return repo.origin === undefined ? no : out(repo.origin);
     if (verb === 'symbolic-ref' && rest.includes('refs/remotes/origin/HEAD')) return repo.originHead === undefined ? no : out(`refs/remotes/origin/${repo.originHead}`);
     if (verb === 'symbolic-ref') return repo.head === null ? no : out(repo.head);
-    if (verb === 'for-each-ref') return out(...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`), ...(repo.originHead === undefined ? [] : ['refs/remotes/origin/HEAD']));
+    if (verb === 'for-each-ref') {
+      const apart = (name: string) => (repo.ahead?.[name] ?? 0) + (repo.behind?.[name] ?? 0) > 0;
+      return out(...repo.branches.map((name) => `refs/heads/${name} ${apart(name) ? 'local' : 'same'}-${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name} ${apart(name) ? 'remote' : 'same'}-${name}`), ...(repo.originHead === undefined ? [] : ['refs/remotes/origin/HEAD same-HEAD']));
+    }
+    if (verb === 'rev-list' && rest.includes('--left-right')) {
+      const name = rest.at(-1)!.split('...')[0]!.replace('refs/heads/', '');
+      return { ok: true as const, out: `${repo.ahead?.[name] ?? 0}\t${repo.behind?.[name] ?? 0}\n` };
+    }
     if (verb === 'rev-list' && rest[1]!.includes('..')) return out(String(repo.behind?.[rest[1]!.split('..')[0]!.replace('refs/heads/', '')] ?? 0));
     if (verb === 'rev-list') return out(String(repo.unpushed?.[rest[1]!.replace('refs/heads/', '')] ?? 0));
     if (verb === 'switch') {

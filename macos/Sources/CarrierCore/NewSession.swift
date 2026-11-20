@@ -110,6 +110,13 @@ public struct WatchNote: Equatable {
     public private(set) var nameState = NameState.suggesting
     /// The branch the worktree starts from; the person's pick, else `defaultStartBranch`.
     public private(set) var picked: String?
+    /// The side of the branch the person left the picker's tab on: the session's own choice, which is sent as `startFrom` and never written
+    /// to the setting. Nil until a tab or a row of it is chosen; then the setting decides.
+    public private(set) var chosenStart: WorktreeStart?
+    /// `worktreeStart` of `chat.json`, read when the workspace is chosen.
+    @ObservationIgnored private var settingStart = defaultWorktreeStart
+    /// Whether the host's hello lists `worktreeStart`: only then is `startFrom` sent; an older host is told `origin/<name>` for a remote start.
+    public private(set) var hostStarts = false
     public private(set) var fetching = false
     /// Why the last Fetch now failed, in the host's words; cleared by the next one.
     public private(set) var fetchProblem: String?
@@ -273,6 +280,7 @@ public struct WatchNote: Equatable {
         restoredOptions = plan.options
         if let wanted = plan.worktree {
             picked = wanted.from
+            chosenStart = wanted.startFrom
             await useWorktree(true)
             // an empty name is the host's to generate, which the draft already did
             if let name = wanted.name, name.isEmpty == false, worktree { worktreeName = name }
@@ -319,6 +327,7 @@ public struct WatchNote: Equatable {
         hostPlansRepos = capabilities.contains(.repoBranches)
         hostCreates = capabilities.contains(.createProject)
         hostLists = capabilities.contains(.githubRepos)
+        hostStarts = capabilities.contains(.worktreeStart)
     }
 
     /// Lists what the chosen agent offers: what was kept for it shows at once and the host is asked again in the background, so the list
@@ -588,10 +597,14 @@ public struct WatchNote: Equatable {
         if toClone == false, let change = branchChange {
             steps.append(SendStep(icon: .exchange, title: "Change the folder's branch", parts: [.text("Switches the folder from "), .code(change.from), .text(" to "), .code(change.to), .text(" when you send.")], help: folder))
         }
-        if worktree, let branch = startBranch {
+        if worktree, let point = startPoint {
+            // a repository from GitHub already has its own step that fetches; an older host does not fetch for a folder
+            if point.side == .remote, hostStarts, repo == nil {
+                steps.append(SendStep(icon: .download, title: "Bring the latest \(point.ref)", parts: [.text("Fetches "), .code("origin"), .text(" first. If it cannot be reached, the worktree starts from your local copy.")], help: folder))
+            }
             let name = worktreeBranchPrefix + (worktreeName.isEmpty ? "<name>" : worktreeName)
             let tail = toClone ? " in a separate folder." : " in a separate folder. Your current folder is not touched."
-            steps.append(SendStep(icon: .gitBranch, title: "Create a branch of its own", parts: [.text("Creates the branch "), .code(name), .text(" from "), .code(branch), .text(tail)], help: nil))
+            steps.append(SendStep(icon: .gitBranch, title: "Create a branch of its own", parts: [.text("Creates the branch "), .code(name), .text(" from "), .code(point.ref), .text(tail)], help: nil))
         }
         return steps
     }
@@ -686,6 +699,8 @@ public struct WatchNote: Equatable {
         worktreeName = ""
         verifiedName = nil
         nameState = .suggesting
+        chosenStart = nil
+        settingStart = worktreeStart(chatJSON: (try? readChatConfig()) ?? nil)
     }
 
     /// The branch the worktree starts from, nil when none is known and the person is asked.
@@ -693,8 +708,28 @@ public struct WatchNote: Equatable {
 
     public func choose(startBranch branch: String) { picked = branch }
 
+    /// Where the worktree is cut from: the branch and the side of it, nil while no branch is known.
+    public var startPoint: StartPoint? {
+        workspace.flatMap { CarrierCore.startPoint(picked: picked, in: $0, choice: chosenStart, setting: settingStart, cloned: toClone) }
+    }
+
+    /// Whether the branch picker of a worktree has the Remote and Local tabs: not for a repository that is not on this Mac yet.
+    public var hasStartTabs: Bool { toClone == false }
+
+    /// The tab the picker is on: the one the person left it on, else the one `worktreeStart` says.
+    public var startTab: WorktreeStart { chosenStart ?? settingStart }
+
+    /// The tab the person moved to is the session's choice, sent as `startFrom`; the setting is not written.
+    public func choose(startTab tab: WorktreeStart) { chosenStart = tab }
+
+    /// A row of a tab: the branch by its bare name (the Remote tab lists `origin/<name>`), on the side of the tab.
+    public func choose(startBranch branch: String, on tab: WorktreeStart) {
+        picked = tab == .remote && branch.hasPrefix("origin/") ? String(branch.dropFirst("origin/".count)) : branch
+        chosenStart = tab
+    }
+
     public var sentence: String {
-        return workSentence(folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startBranch) : nil, gitMissing: gitMissing)
+        return workSentence(folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startPoint?.ref) : nil, gitMissing: gitMissing)
     }
 
     /// The branch the folder will be switched to when the message is sent: the person picked one other than the checked-out one and
@@ -794,13 +829,16 @@ public struct WatchNote: Equatable {
         guard folder != nil, hostOlder == false, agents.contains(where: { $0.name == agent && $0.available }), sending == false else { return false }
         guard worktree else { return true }
         if case .problem = nameState { return false }
-        return startBranch != nil && (worktreeName.isEmpty == false || toClone)
+        return startPoint != nil && (worktreeName.isEmpty == false || toClone)
     }
 
     /// What `send` asks `open` for: nil in the base folder.
     var worktreeRequest: WorktreeRequest? {
-        guard worktree, let from = startBranch else { return nil }
-        return WorktreeRequest(from: from, name: worktreeName.isEmpty ? nil : worktreeName)
+        guard worktree, let point = startPoint else { return nil }
+        let name = worktreeName.isEmpty ? nil : worktreeName
+        // an older host takes no `startFrom`: a remote start is the ref `origin/<name>`, as the app always named it
+        guard hostStarts, let side = point.side else { return WorktreeRequest(from: point.ref, name: name) }
+        return WorktreeRequest(from: point.branch, name: name, startFrom: side)
     }
 
     /// Opens the session with one request that carries the plan and the first message, and returns the session's id to select, nil when
@@ -817,7 +855,10 @@ public struct WatchNote: Equatable {
             return nil
         }
         // a host that was not running when the draft opened has not said yet whether it takes a plan
-        if let capabilities = try? await host.capabilities() { hostOlder = capabilities.contains(.plan) == false }
+        if let capabilities = try? await host.capabilities() {
+            hostOlder = capabilities.contains(.plan) == false
+            hostStarts = capabilities.contains(.worktreeStart)
+        }
         guard hostOlder == false else { return nil }
         let id: String
         do {

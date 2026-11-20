@@ -60,14 +60,48 @@ public struct NameCheck: Decodable, Equatable {
 }
 
 /// What `open` is asked to make: a worktree cut from `from` (a branch `workspace` listed), called `name` (the part after `carrier/`).
+/// `startFrom` says which copy of the branch `from` names, `origin/<from>` or `<from>`; nil leaves it to the host's setting, and `from` then
+/// is the exact ref (a host whose hello lacks `worktreeStart` takes no `startFrom`).
 public struct WorktreeRequest: Equatable {
     public let from: String
     public let name: String?
+    public let startFrom: WorktreeStart?
 
-    public init(from: String, name: String? = nil) {
+    public init(from: String, name: String? = nil, startFrom: WorktreeStart? = nil) {
         self.from = from
         self.name = name
+        self.startFrom = startFrom
     }
+}
+
+/// Where a new worktree is cut from: a branch by its bare name and the side of it. `side` is nil for a repository that is not on this Mac
+/// yet (its branches come from GitHub and a fresh clone follows the pick): there is no local side to choose.
+public struct StartPoint: Equatable {
+    public let branch: String
+    public let side: WorktreeStart?
+
+    /// The ref the worktree is cut from, as the chip and the steps name it.
+    public var ref: String { side == .remote ? "origin/\(branch)" : branch }
+
+    /// Whether `row` of `tab` is the branch this start is cut from: the same side and the same branch.
+    public func chooses(_ row: BranchRow, on tab: WorktreeStart) -> Bool {
+        side == tab && row.name == (tab == .remote ? "origin/\(branch)" : branch)
+    }
+}
+
+/// The start of a worktree: the branch `picked` (else the default one, `defaultStartBranch`) on the side the person left the picker on
+/// (`choice`), else the one the setting says. A branch that is not on `origin` can only start from local, and one that is only on `origin`
+/// only from there. A branch named as `origin/<name>` (the folder sheet's pick) means its remote side unless the person chose a tab.
+public func startPoint(picked: String?, in info: WorkspaceInfo, choice: WorktreeStart?, setting: WorktreeStart, cloned: Bool = false) -> StartPoint? {
+    guard let named = picked ?? defaultStartBranch(info) else { return nil }
+    let namedOnOrigin = info.branches.contains { $0.remote && $0.name == named }
+    let branch = namedOnOrigin ? String(named.dropFirst("origin/".count)) : named
+    guard cloned == false else { return StartPoint(branch: branch, side: nil) }
+    let onOrigin = info.branches.contains { $0.remote && $0.name == "origin/\(branch)" }
+    let onLocal = info.branches.contains { $0.remote == false && $0.name == branch }
+    guard onOrigin else { return StartPoint(branch: branch, side: .local) }
+    guard onLocal else { return StartPoint(branch: branch, side: .remote) }
+    return StartPoint(branch: branch, side: choice ?? (namedOnOrigin ? .remote : setting))
 }
 
 /// Every worktree branch is `carrier/<name>`: the person edits the name, the prefix is fixed.
@@ -110,6 +144,8 @@ public struct BranchRow: Equatable {
     public let name: String
     public let checkedOut: Bool
     public let isDefault: Bool
+    /// A local branch with no counterpart on `origin`: it is only in the Local tab, and starts from local.
+    public var localOnly = false
 }
 
 /// The picker's content: the local and the remote branches in two sections (what a search matches, ignoring case), the checked-out one
@@ -118,14 +154,23 @@ public struct BranchPicker: Equatable {
     public let local: [BranchRow]
     public let remote: [BranchRow]
     public let fetched: String
+
+    /// What the tab lists, one tab at a time so a branch is never offered twice: the branches on `origin` for Remote, the local ones for Local.
+    public func rows(_ tab: WorktreeStart) -> [BranchRow] { tab == .remote ? remote : local }
 }
 
 public func branchPicker(_ workspace: WorkspaceInfo, query: String = "", now: Date = Date()) -> BranchPicker {
     let wanted = query.trimmingCharacters(in: .whitespaces)
     let defaults = workspace.defaultBranch.map { [$0, "origin/\($0)"] } ?? []
+    let onOrigin = Set(workspace.branches.filter(\.remote).map(\.name))
     let rows = workspace.branches
         .filter { wanted.isEmpty || $0.name.localizedCaseInsensitiveContains(wanted) }
-        .map { (remote: $0.remote, row: BranchRow(name: $0.name, checkedOut: $0.remote == false && $0.name == workspace.branch, isDefault: defaults.contains($0.name))) }
+        .map {
+            (remote: $0.remote, row: BranchRow(
+                name: $0.name, checkedOut: $0.remote == false && $0.name == workspace.branch, isDefault: defaults.contains($0.name),
+                localOnly: $0.remote == false && onOrigin.contains("origin/\($0.name)") == false
+            ))
+        }
     return BranchPicker(
         local: rows.filter { $0.remote == false }.map(\.row), remote: rows.filter(\.remote).map(\.row),
         fetched: fetchedLine(workspace.fetchedAt, now: now)

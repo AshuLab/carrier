@@ -111,3 +111,68 @@ private let bare = "/Users/dev/bare.git"
     #expect(try state("Big_Name") == .problem("The name must start with a lowercase letter or a digit"))
     #expect(stateOfName(NameCheck(valid: false, free: false)) == .problem("That name cannot be used"))
 }
+
+// The start of a worktree: the branch by its bare name and the side of it (Remote is `origin/<name>`, Local is `<name>`).
+
+/// main on both sides, `local-only` never pushed, `remote-only` not checked out here, and `feat/retry-sync` on both.
+private let sides = WorkspaceInfo(
+    folder: "/w", branch: "main", defaultBranch: "main",
+    branches: [
+        .init(name: "main", remote: false), .init(name: "local-only", remote: false), .init(name: "feat/retry-sync", remote: false),
+        .init(name: "origin/main", remote: true), .init(name: "origin/remote-only", remote: true), .init(name: "origin/feat/retry-sync", remote: true),
+    ]
+)
+
+@Test func eachTabListsItsOwnSideSoABranchIsNeverOfferedTwice() {
+    let picker = branchPicker(sides)
+    #expect(picker.rows(.remote).map(\.name) == ["origin/main", "origin/remote-only", "origin/feat/retry-sync"])
+    #expect(picker.rows(.local).map(\.name) == ["main", "local-only", "feat/retry-sync"])
+    let names = picker.rows(.remote).map(\.name) + picker.rows(.local).map(\.name)
+    #expect(Set(names).count == names.count)
+}
+
+@Test func aLocalBranchWithNoCounterpartOnOriginIsMarkedAndNothingElseIs() {
+    let picker = branchPicker(sides)
+    #expect(picker.rows(.local).map(\.localOnly) == [false, true, false])
+    #expect(picker.rows(.remote).allSatisfy { $0.localOnly == false })
+    // a search keeps the mark: it depends on the whole list, not on what matched
+    #expect(branchPicker(sides, query: "local").rows(.local).map(\.localOnly) == [true])
+}
+
+@Test func theSearchHasNoMatchInOneTabAndSomeInTheOther() {
+    let picker = branchPicker(sides, query: "remote-only")
+    #expect(picker.rows(.local).isEmpty && picker.rows(.remote).map(\.name) == ["origin/remote-only"])
+}
+
+@Test func theSettingDecidesTheSideOfABranchOnBothSidesAndTheTabLeftOnWinsOverIt() {
+    #expect(startPoint(picked: nil, in: sides, choice: nil, setting: .remote) == StartPoint(branch: "main", side: .remote))
+    #expect(startPoint(picked: nil, in: sides, choice: nil, setting: .local) == StartPoint(branch: "main", side: .local))
+    #expect(startPoint(picked: nil, in: sides, choice: .local, setting: .remote) == StartPoint(branch: "main", side: .local))
+    #expect(startPoint(picked: "feat/retry-sync", in: sides, choice: .remote, setting: .local)?.ref == "origin/feat/retry-sync")
+}
+
+@Test func aBranchOnOneSideOnlyIsCutFromThatSideWhateverTheSettingAndTheTabSay() {
+    #expect(startPoint(picked: "local-only", in: sides, choice: .remote, setting: .remote) == StartPoint(branch: "local-only", side: .local))
+    #expect(startPoint(picked: "remote-only", in: sides, choice: .local, setting: .local) == StartPoint(branch: "remote-only", side: .remote))
+    #expect(StartPoint(branch: "remote-only", side: .remote).ref == "origin/remote-only" && StartPoint(branch: "local-only", side: .local).ref == "local-only")
+}
+
+@Test func aBranchNamedAsOriginSlashNameIsItsRemoteSideUntilATabIsChosen() {
+    #expect(startPoint(picked: "origin/main", in: sides, choice: nil, setting: .local) == StartPoint(branch: "main", side: .remote))
+    #expect(startPoint(picked: "origin/main", in: sides, choice: .local, setting: .local) == StartPoint(branch: "main", side: .local))
+}
+
+@Test func aRepositoryToCloneHasNoSideAndTheBranchIsItsOwnRef() {
+    let github = WorkspaceInfo(folder: "/p", branch: "main", defaultBranch: "main", branches: [.init(name: "main", remote: false), .init(name: "feat/x", remote: false)])
+    #expect(startPoint(picked: "feat/x", in: github, choice: .remote, setting: .remote, cloned: true) == StartPoint(branch: "feat/x", side: nil))
+    #expect(StartPoint(branch: "feat/x", side: nil).ref == "feat/x")
+}
+
+@Test func theChosenRowIsTheOneOfTheSideTheWorktreeIsCutFromAndOnlyInThatTab() {
+    let point = StartPoint(branch: "main", side: .remote)
+    let picker = branchPicker(sides)
+    #expect(picker.rows(.remote).map { point.chooses($0, on: .remote) } == [true, false, false])
+    #expect(picker.rows(.local).map { point.chooses($0, on: .local) } == [false, false, false])
+    #expect(StartPoint(branch: "local-only", side: .local).chooses(picker.rows(.local)[1], on: .local))
+    #expect(StartPoint(branch: "main", side: nil).chooses(picker.rows(.local)[0], on: .local) == false)
+}

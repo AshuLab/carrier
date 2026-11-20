@@ -205,7 +205,8 @@ struct NewSessionView: View {
         // the name is checked a moment after typing; typing again cancels the check that was waiting
         .task(id: model.worktreeName) { await model.verifyName() }
         Text("from")
-        Button { branchesOpen.toggle() } label: { chip(model.startBranch ?? "Choose a branch…", icon: .gitBranch) }
+        // the chip wears the colour of the side the worktree is cut from: the remote copy or the local branch
+        Button { branchesOpen.toggle() } label: { chip(model.startPoint?.ref ?? "Choose a branch…", tint: model.startPoint?.side?.tint ?? .primary, icon: model.startPoint?.side?.icon ?? .gitBranch) }
             .buttonStyle(SelectButtonStyle())
             .sheet(isPresented: $branchesOpen) { BranchSheet(model: model).themed() }
     }

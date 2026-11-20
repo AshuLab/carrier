@@ -54,9 +54,25 @@ The button shows in the draft under the box (a provider that is blocked, and `gi
 
 Above the box the sentence reads "Work in Choose a workspace…" (orange), with the box dimmed and unable to send until one is chosen.
 Once one is, the app asks the host what it is (`workspace`) and the sentence reads "Work in <workspace> on Current folder (<branch>)" ("detached HEAD" when there is no branch), with a line under it when the folder has uncommitted files (how many, and that a worktree keeps them out of the agent's way); a folder that is not a git repository (or is bare) reads "in the folder (not a git repository: no worktree)" and offers no worktree.
-"Current folder" is a menu of two choices that switches to "New worktree carrier/<name> from <branch>", with a line under the box saying what it creates: the name is the host's `suggestName` with ↻ for another, the part after the fixed `carrier/` is editable and `checkName` asks about it 400 ms after the last keystroke (a taken or invalid name is red with the host's reason and cannot be sent), and the branch control opens a picker with a search, the local and the remote branches in two sections (the checked-out one marked, the default one tagged) and Fetch now (`fetch`), which says how long ago the remote branches were fetched.
+"Current folder" is a menu of two choices that switches to "New worktree carrier/<name> from <branch>", with a line under the box saying what it creates: the name is the host's `suggestName` with ↻ for another, the part after the fixed `carrier/` is editable and `checkName` asks about it 400 ms after the last keystroke (a taken or invalid name is red with the host's reason and cannot be sent), and the branch control opens a picker with a search, the branches and Fetch now (`fetch`), which says how long ago the remote branches were fetched.
 The branch defaults to the one checked out in the folder, else the repository's default branch, else the person is asked.
-Sending in a worktree puts `branch` (the one the worktree starts from) and `worktree: {name}` in the plan; a refusal is said in the draft.
+Sending in a worktree puts `branch` (the one the worktree starts from) and `worktree: {name, startFrom}` in the plan; a refusal is said in the draft.
+
+## Where a worktree starts
+
+A new worktree is cut from the remote copy of the branch by default, and the person can cut it from the local branch instead ([0036](../adr/0036-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md), [the spec](../specs/worktrees-start-from-remote.md)).
+The branch picker of a worktree (`BranchSheet`) has two tabs under the search field, Remote and Local, with how many branches each lists, and one list at a time (`BranchPicker.rows`), so a branch is never offered twice: the Remote tab lists the branches on `origin`, the Local tab the local ones.
+A local branch with no counterpart on `origin` is only in the Local tab, marked "not on origin" (`BranchRow.localOnly`), and a branch that is only on `origin` is only in the Remote one.
+The picker opens on the tab `worktreeStart` of `chat.json` says (`NewSessionModel.startTab`, read when the workspace is chosen, [Settings](settings.md)), Remote when it says nothing.
+The tab the person leaves it on is the session's own choice (`chosenStart`): it is sent as `worktree.startFrom` with the branch's bare name, it is forgotten when another workspace is chosen, and it never writes the setting.
+Choosing a row of a tab chooses its side with it; choosing a branch that exists on one side only cuts from that side whatever the tab says, so a local-only branch is sent as `startFrom: local` (`startPoint`, pure and tested in `WorktreeChoiceTests`).
+The "from" chip of the sentence says `origin/<name>` or `<name>` and wears the colour of its side (teal for Remote, indigo for Local), and the picker's summary says the same ref.
+The send steps card has "Bring the latest `origin/<name>`" before "Create a branch of its own" when the start is remote, and not when it is local.
+A repository from GitHub has its own step that fetches or clones, so it does not get that one, and an older host (its hello lacks `worktreeStart`) does not fetch a folder, so it does not either.
+A host whose hello lacks `worktreeStart` takes no `startFrom`: a Remote choice is sent as `branch: origin/<name>`, as the app always could, and a Local one as `branch: <name>` (`worktreeRequest`; `NewSessionTests`).
+A repository that is not on this Mac yet has no local side: no tabs, the two sections it always had, and a plan with no `startFrom`.
+The sheet of a session in the person's own folder (`browsing`) is not changed, and neither is its pick.
+How far behind `origin` a local branch is, and the fetch on choosing a project, are other changes of the same epic.
 
 ## Sending and the preparation
 

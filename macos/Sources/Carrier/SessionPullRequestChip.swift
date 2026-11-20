@@ -51,7 +51,7 @@ extension SessionPullRequest {
 }
 
 /// The third line of a sidebar row: the pull request and the lines changed in one capsule. The capsule is always there, so nothing moves when it
-/// shows its fill: none at rest, a quiet one under the pointer, a dark one on the selected row, where the accent behind would drown a tint.
+/// shows its fill: none at rest, a quiet one under the pointer, a light one on the selected row, whose fill is already deep.
 /// No colour but a dot for the state (hollow for a draft or a closed one); the words and the lines are grey.
 struct SessionWorkPill: View {
     let pr: SessionPullRequest?
@@ -62,7 +62,7 @@ struct SessionWorkPill: View {
         switch state {
         case .resting: .clear
         case .hovered: Color.primary.opacity(0.1)
-        case .selected: Color.black.opacity(0.46)
+        case .selected: Color.white.opacity(0.14)
         }
     }
 

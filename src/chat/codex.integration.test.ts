@@ -6,6 +6,7 @@ import { argsOf, codexChatRunner, realCodexDeps } from './codex.ts';
 import { endGroup } from './group.ts';
 import { McpSessionRegistry, startMcpServer } from './mcp.ts';
 import { capabilities } from './mcp/capabilities.ts';
+import { delegateStart } from './mcp/delegate.ts';
 import { realClock } from '../orchestration/clock.ts';
 import type { ChatConversation, ChatEvent } from './runner.ts';
 
@@ -17,6 +18,7 @@ import type { ChatConversation, ChatEvent } from './runner.ts';
 //   CARRIER_IT_CODEX_CHAT=1   (optional: CARRIER_IT_CODEX_COMMAND=<path to the codex binary>, else the one on the path)
 // One more test spends nothing: it starts `app-server` as the adapter does for an account that sets Auto-compact and reads the effective config
 // over the protocol, to show whether `-c model_auto_compact_token_limit` reaches the server the way it does `codex exec` (the open question of docs/specs/providers-in-settings.md).
+// Another has it call `delegate_start` of the chat MCP under each approval policy (`untrusted`, `on-request`, `never`): the call starts a child and no approval is asked.
 // No token is read or printed: the agent runs with the environment of this process, as the chat host runs it.
 const enabled = process.env.CARRIER_IT_CODEX_CHAT === '1';
 
@@ -106,6 +108,32 @@ describe.skipIf(!enabled)('the Codex chat adapter against the real Codex', () =>
       await conversation.close();
       await server.close();
     }
+  });
+
+  // Every tool of the chat MCP is approved by name (ADR 0036): under each policy the model's call to `delegate_start` starts the child and no approval is asked.
+  describe.each(['untrusted', 'on-request', 'never'])('delegate_start under %s', (approvalPolicy) => {
+    test('is called by the model and starts a child with no approval', { timeout: 240_000 }, async () => {
+      const registry = new McpSessionRegistry(realClock);
+      const view = { id: 's1', agent: 'a', harness: 'codex', folder, model: null, options: {} };
+      const started: unknown[] = [];
+      const server = await startMcpServer({
+        registry,
+        tools: [capabilities, delegateStart],
+        sessions: { exists: () => true, live: () => true, snapshot: () => view, agents: () => [], agentOptions: () => ({}), offer: async () => [], health: async () => ({ git: 'ready', gh: 'ready', agents: [] }), storedEvents: () => [], storedEvent: () => undefined, toolStatuses: () => ({}), delegationRefusal: () => undefined, startChild: async (_id: string, args: unknown) => (started.push(args), { childId: `child-${started.length}` }), related: () => false, waitChildren: async () => [] },
+      });
+      const token = registry.issue({ sessionId: 's1', invocationId: 'i1', capabilities: ['read', 'act'] });
+      const conversation = await codexChatRunner().open({ folder, command: process.env.CARRIER_IT_CODEX_COMMAND, options: { effort: 'low', approvalPolicy }, env: process.env, mcp: { serverName: 'carrier-chat', url: server.url, token, tools: ['capabilities', 'delegate_start'] } });
+      try {
+        const { events, turn } = watch(conversation);
+        expect(conversation.mcpProblem).toBeUndefined();
+        await turn('Launch another agent: call the delegate_start tool of the carrier-chat MCP server once with agent "claude" and task "say hi". If it is refused, do not retry. Then reply with just: DONE');
+        expect(started).toHaveLength(1);
+        expect(events.filter((e) => e.kind === 'approval')).toEqual([]);
+      } finally {
+        await conversation.close();
+        await server.close();
+      }
+    });
   });
 
   test('app-server honours -c model_auto_compact_token_limit: the effective config carries the account\'s limit, and none without it', { timeout: 60_000 }, async () => {

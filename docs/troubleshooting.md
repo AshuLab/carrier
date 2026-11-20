@@ -149,4 +149,6 @@ To get rid of it, open the Archive page, hover the row and press Delete: the app
 
 ## Cleaning up
 
-Logs and sessions of a merged or cancelled epic are deleted 30 days after the merge or the close; an epic still waiting in ready-for-test keeps them. SQLite (`<folder>/engine/state/carrier.db`) and worktrees are never deleted by Carrier.
+Logs and sessions of a merged or cancelled epic are deleted 30 days after the merge or the close.
+An epic still waiting in ready-for-test keeps them.
+SQLite (`<folder>/engine/state/carrier.db`) and worktrees are never deleted by Carrier.

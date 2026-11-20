@@ -185,7 +185,7 @@ test('the snapshot reads the executions of an epic by index and never walks the 
     }
   }
   const statements: string[] = [];
-  const traced = drizzle(new Database(join(dir, 'carrier.db'), { verbose: (sql) => statements.push(String(sql)) }));
+  const traced = drizzle(new Database(join(dir, 'carrier.db'), { readonly: true, verbose: (sql) => statements.push(String(sql)) }));
   buildSnapshot(traced, { now: 100_000, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000 });
   const reads = statements.filter((sql) => /^\s*select\b/i.test(sql) && /\bexecutions\b|\bexecution_events\b/.test(sql));
   expect(reads.length).toBeGreaterThan(30);

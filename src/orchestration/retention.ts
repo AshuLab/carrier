@@ -73,7 +73,7 @@ function sessionFiles({ claude, codex }: SessionDirs, ids: string[]): string[] {
  * Deletes the execution logs (`<logs>/executions/<executionId>/`), the results (`<state>/results/<executionId>.json`) and the sessions the CLIs saved
  * for them, of epics merged or cancelled 30 days or more before `now`, and the events stored from those logs.
  * Never touches other SQLite rows nor workspaces; a symlink is removed itself, never followed. Returns the paths deleted.
- * An execution that was purged is not purged again: see `pending`.
+
  */
 export function purgeExpired(db: Db, places: Pick<EnginePlaces, 'logs' | 'state'>, now: number, sessionDirs: SessionDirs = sessionDirsFrom()): string[] {
   const expired = db
@@ -82,9 +82,10 @@ export function purgeExpired(db: Db, places: Pick<EnginePlaces, 'logs' | 'state'
     .innerJoin(epics, eq(epics.id, executions.epicId))
     .where(and(inArray(epics.status, finished), isNotNull(epics.finishedAt), lte(epics.finishedAt, now - retentionMs)))
     .all();
-  // A purge removes the logs last (below), so an execution whose logs are gone was purged whole: there is nothing left to walk the CLIs' folders for.
-  // shortcut: one existsSync per expired execution, every day; a `purgedAt` column is the upgrade if that ever shows in a profile.
-  const rows = expired.filter((row) => existsSync(join(places.logs, 'executions', row.executionId)));
+  // A purge removes the results and then the logs (below), so an execution with neither was purged whole: there is nothing left to walk the CLIs' folders for.
+  // One whose logs were taken away by hand still has its result and is purged now.
+  // ponytail: two existsSync per expired execution, every day; a `purgedAt` column is the upgrade if that ever shows in a profile.
+  const rows = expired.filter((row) => existsSync(join(places.logs, 'executions', row.executionId)) || existsSync(join(places.state, 'results', `${row.executionId}.json`)));
 
   // The events are a copy of the logs: they go when the logs do.
   db.transaction((tx) => {

@@ -83,6 +83,13 @@ test('a purge does not repeat what it purged: the next one deletes nothing and d
   expect(session('s-old').every((file) => existsSync(file))).toBe(true);
 });
 
+test('an execution whose logs were taken away by hand is still purged while its result is there', () => {
+  seed('old', 'merged', 0);
+  rmSync(logs('x-old'), { recursive: true });
+  purgeExpired(db, places(), 100 * DAY, dirs);
+  expect(gone('old')).toBe(true);
+});
+
 test('a purge cut short is finished the next day: the logs are removed last, so they are what says it is not done', () => {
   const now = 100 * DAY;
   seed('old', 'merged', 0);

@@ -106,7 +106,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -328,6 +328,7 @@ test('open takes a plan, strictly: what it refuses and what it accepts', async (
   expect(await c.ask(planOf())).toEqual({ id: 1, ok: true, data: { session: { agent: 'claude', state: 'preparing' } } });
   for (const branch of ['main', 'feat/x']) expect(await c.ask(planOf({ branch }))).toMatchObject({ ok: true });
   expect(await c.ask(planOf({ options: { model: 'haiku' }, worktree: { name: 'mine' } }))).toMatchObject({ ok: true });
+  for (const startFrom of ['remote', 'local']) expect(await c.ask(planOf({ branch: 'main', worktree: { startFrom } }))).toMatchObject({ ok: true });
   expect(await c.ask(planOf({}, { kind: 'repo', repo: 'AshuLab/carrier' }))).toMatchObject({ ok: true });
   expect(await c.ask(planOf({}, { kind: 'project', name: 'my-app' }))).toMatchObject({ ok: true });
   const bad: [string, string][] = [
@@ -339,6 +340,8 @@ test('open takes a plan, strictly: what it refuses and what it accepts', async (
     ['an empty repo', planOf({}, { kind: 'repo', repo: '' })],
     ['a project with a branch', planOf({ branch: 'main' }, { kind: 'project', name: 'my-app' })],
     ['a project with a worktree', planOf({ worktree: {} }, { kind: 'project', name: 'my-app' })],
+    ['a worktree start that is neither remote nor local', planOf({ branch: 'main', worktree: { startFrom: 'origin' } })],
+    ['a worktree start that is not a text', planOf({ branch: 'main', worktree: { startFrom: true } })],
     ['an unknown workspace kind', planOf({}, { kind: 'url', url: 'x' })],
     ['an extra field of the plan', planOf({ force: true })],
     ['a plan together with a folder', JSON.stringify({ id: 1, cmd: 'open', folder: '/work', plan: { workspace: { kind: 'folder', folder: '/work' }, agent: 'claude', text: 'hi' } })],

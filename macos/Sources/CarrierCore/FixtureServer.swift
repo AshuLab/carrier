@@ -86,7 +86,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\"]}\n".utf8)
+    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\"]}\n".utf8)
     private let data: [String: Data]
     let hello: Data
     private var stopped = false

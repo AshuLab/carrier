@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- An open conversation asks the chat host less often when nothing is happening: every 2 seconds instead of four times a second while idle with the app in front, every 5 seconds behind another app, and almost never with the window hidden or the Mac asleep. It still reads every quarter of a second while the agent works, and at once after you send.
+- With the window hidden or the Mac asleep, the app stops reading the epic you had open and reads the sidebar's session list about every 30 seconds instead of every 5; both are up to date again as the window shows. Notifications are unchanged.
+- In Low Power Mode the app asks the engine and the chat host less often (every 10 seconds) while nobody is in the app.
+
 ## [0.16.0] - 2026-11-20
 
 A new worktree starts from the remote branch, with a Remote and Local choice in the branch picker.
@@ -20,9 +26,6 @@ A new worktree starts from the remote branch, with a Remote and Local choice in 
 
 - A new worktree is cut from the remote branch (`origin/main`) and no longer from a local `main` that may be far behind; if the remote cannot be reached it starts from the local branch and the session says so.
 - The sidebar no longer counts what landed on the remote branch as the session's work: a session in which nothing was done shows +0 −0.
-- An open conversation asks the chat host less often when nothing is happening: every 2 seconds instead of four times a second while idle with the app in front, every 5 seconds behind another app, and almost never with the window hidden or the Mac asleep. It still reads every quarter of a second while the agent works, and at once after you send.
-- With the window hidden or the Mac asleep, the app stops reading the epic you had open and reads the sidebar's session list about every 30 seconds instead of every 5; both are up to date again as the window shows. Notifications are unchanged.
-- In Low Power Mode the app asks the engine and the chat host less often (every 10 seconds) while nobody is in the app.
 
 ## [0.15.0] - 2026-11-20
 

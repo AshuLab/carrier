@@ -320,7 +320,8 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     await model.choose(folder: "/w/api")
     await model.useWorktree(true)
     #expect(model.worktree && model.worktreeName == "brave-marine-aiur" && model.nameState == .free && model.startBranch == "main")
-    #expect(model.sentence == "Work in api in a new worktree carrier/brave-marine-aiur from main")
+    // the setting says Remote when the file says nothing, so the branch is cut from its copy on origin
+    #expect(model.sentence == "Work in api in a new worktree carrier/brave-marine-aiur from origin/main")
     // the uncommitted files are kept out of the way by the worktree: no warning in this mode
     #expect(model.warning == nil)
     // back to the base folder and again: the name stays
@@ -1809,4 +1810,124 @@ private let codexLevels = [
     #expect(model.chosenOptions == ["model": "plain"])
     model.choose(option: "model", value: "deep")
     #expect(effortOf(model)?.values.map(\.id) == ["low", "high"])
+}
+
+// Where a new worktree starts: the picker's Remote and Local tabs, the setting that opens one, and what is sent.
+
+private let startSides = WorkspaceInfo(
+    folder: "/w/api", branch: "main", defaultBranch: "main",
+    branches: [
+        .init(name: "main", remote: false), .init(name: "local-only", remote: false),
+        .init(name: "origin/main", remote: true), .init(name: "origin/remote-only", remote: true),
+    ]
+)
+
+/// A draft on `/w/api` (main on both sides, `local-only` never pushed) whose `chat.json` says `setting`, in a new worktree.
+@MainActor private func startDraft(_ host: FakeChat, setting: String? = nil, listing: Bool = true) async -> NewSessionModel {
+    host.workspaces["/w/api"] = startSides
+    if listing { host.capabilities.insert(.worktreeStart) }
+    let file = setting.map { Data("{\"worktreeStart\":\"\($0)\"}".utf8) }
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, readChatConfig: { file })
+    await model.load()
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(true)
+    model.text = "hi"
+    return model
+}
+
+@MainActor @Test func thePickerOpensOnTheTabTheSettingSaysAndRemoteWhenTheFileSaysNothing() async {
+    #expect(await startDraft(FakeChat()).startTab == .remote)
+    #expect(await startDraft(FakeChat(), setting: "remote").startTab == .remote)
+    #expect(await startDraft(FakeChat(), setting: "local").startTab == .local)
+    #expect(await startDraft(FakeChat(), setting: "elsewhere").startTab == .remote)
+}
+
+@MainActor @Test func theSettingDecidesTheStartOfTheBranchTheFolderIsOn() async {
+    let remote = await startDraft(FakeChat())
+    #expect(remote.startPoint == StartPoint(branch: "main", side: .remote) && remote.sentence.hasSuffix("from origin/main"))
+    let local = await startDraft(FakeChat(), setting: "local")
+    #expect(local.startPoint == StartPoint(branch: "main", side: .local) && local.sentence.hasSuffix("from main"))
+}
+
+@MainActor @Test func theTabLeftOnIsTheSessionsChoiceAndIsSentAsStartFromWithTheBareNameWhileTheSettingIsNotWritten() async {
+    let host = FakeChat()
+    var writes = 0
+    host.workspaces["/w/api"] = startSides
+    host.capabilities.insert(.worktreeStart)
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, readChatConfig: { nil }, writeChatConfig: { _ in writes += 1 })
+    await model.load()
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(true)
+    model.text = "hi"
+    model.choose(startTab: .local)
+    #expect(model.startTab == .local && model.worktreeRequest == WorktreeRequest(from: "main", name: model.worktreeName, startFrom: .local))
+    model.choose(startBranch: "origin/main", on: .remote)
+    #expect(model.startTab == .remote && model.startBranch == "main" && model.worktreeRequest == WorktreeRequest(from: "main", name: model.worktreeName, startFrom: .remote))
+    let name = model.worktreeName
+    _ = await model.send()
+    #expect(host.plans.last?.wire.contains("\"worktree\":{\"name\":\"\(name)\",\"startFrom\":\"remote\"}") == true && writes == 0)
+}
+
+@MainActor @Test func theTabLeftOnIsForgottenWhenAnotherWorkspaceIsChosen() async {
+    let model = await startDraft(FakeChat(), setting: "local")
+    model.choose(startTab: .remote)
+    await model.choose(folder: "/w/api")
+    #expect(model.startTab == .local)
+}
+
+@MainActor @Test func aLocalBranchWithNoCounterpartOnOriginStartsFromLocalAndSaysSo() async {
+    let model = await startDraft(FakeChat())
+    model.choose(startBranch: "local-only", on: .local)
+    #expect(model.startPoint == StartPoint(branch: "local-only", side: .local))
+    #expect(model.picker(query: "")?.rows(.local).first { $0.name == "local-only" }?.localOnly == true)
+    #expect(model.worktreeRequest == WorktreeRequest(from: "local-only", name: model.worktreeName, startFrom: .local))
+    #expect(model.sentence.hasSuffix("from local-only"))
+}
+
+@MainActor @Test func theSendStepsBringTheLatestRemoteBranchBeforeCreatingTheBranchOnlyForARemoteStart() async {
+    let model = await startDraft(FakeChat())
+    #expect(model.sendSteps.map(\.title) == ["Bring the latest origin/main", "Create a branch of its own"])
+    #expect(model.sendSteps.last?.parts.contains(.code("origin/main")) == true)
+    model.choose(startTab: .local)
+    #expect(model.sendSteps.map(\.title) == ["Create a branch of its own"] && model.sendSteps.first?.parts.contains(.code("main")) == true)
+}
+
+@MainActor @Test func aHostThatDoesNotListWorktreeStartIsToldTheRemoteRefAndNoStartFrom() async {
+    let host = FakeChat()
+    let model = await startDraft(host, listing: false)
+    // the setting is Remote: the app's old way of saying so is the ref itself
+    #expect(model.worktreeRequest == WorktreeRequest(from: "origin/main", name: model.worktreeName))
+    #expect(model.sendSteps.map(\.title) == ["Create a branch of its own"], "an older host does not fetch the folder")
+    model.choose(startTab: .local)
+    #expect(model.worktreeRequest == WorktreeRequest(from: "main", name: model.worktreeName))
+    model.choose(startBranch: "origin/remote-only", on: .remote)
+    #expect(model.worktreeRequest == WorktreeRequest(from: "origin/remote-only", name: model.worktreeName))
+    _ = await model.send()
+    #expect(host.plans.last?.wire.contains("\"branch\":\"origin\\/remote-only\"") == true && host.plans.last?.wire.contains("startFrom") == false)
+}
+
+@MainActor @Test func aRepositoryToCloneHasNoTabsAndNoStartFrom() async {
+    let host = FakeChat()
+    host.capabilities.insert(.worktreeStart)
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
+    let model = await popover(host)
+    await model.choose(repo: "AshuLab/carrier")
+    await model.useWorktree(true)
+    model.choose(startBranch: "feat/x")
+    #expect(model.hasStartTabs == false && model.startPoint == StartPoint(branch: "feat/x", side: nil))
+    #expect(model.worktreeRequest == WorktreeRequest(from: "feat/x", name: model.worktreeName))
+    #expect(model.sendSteps.map(\.title) == ["Download the repository", "Create a branch of its own"])
+    let folder = await startDraft(FakeChat())
+    #expect(folder.hasStartTabs)
+}
+
+@MainActor @Test func aCancelledWorktreeComesBackWithItsSide() async {
+    let model = await startDraft(FakeChat(), setting: "local")
+    model.choose(startBranch: "origin/main", on: .remote)
+    #expect(model.startPoint?.side == .remote)
+    let wanted = SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "main", name: "my-fix", startFrom: .remote), text: "hi")
+    let back = await startDraft(FakeChat(), setting: "local")
+    back.restore(wanted)
+    await back.load()
+    #expect(back.startPoint == StartPoint(branch: "main", side: .remote))
 }

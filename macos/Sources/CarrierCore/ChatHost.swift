@@ -620,7 +620,10 @@ public struct SessionPlan: Equatable {
         if options.isEmpty == false { fields.append("\"options\":{" + options.sorted { $0.key < $1.key }.map { "\(jsonString($0.key)):\(jsonString($0.value))" }.joined(separator: ",") + "}") }
         // a worktree is cut from the branch, so the one field serves both
         if let branch = worktree?.from ?? branch { fields.append("\"branch\":\(jsonString(branch))") }
-        if let worktree { fields.append("\"worktree\":{" + (worktree.name.map { "\"name\":\(jsonString($0))" } ?? "") + "}") }
+        if let worktree {
+            let inside = [worktree.name.map { "\"name\":\(jsonString($0))" }, worktree.startFrom.map { "\"startFrom\":\"\($0.rawValue)\"" }].compactMap { $0 }
+            fields.append("\"worktree\":{" + inside.joined(separator: ",") + "}")
+        }
         return "{" + fields.joined(separator: ",") + "}"
     }
 }
@@ -678,7 +681,7 @@ private struct CancelledReply: Decodable {
             let repo: String?
             let name: String?
         }
-        struct Worktree: Decodable { let name: String? }
+        struct Worktree: Decodable { let name: String?; let startFrom: String? }
         let workspace: Workspace
         let agent: String
         let text: String
@@ -696,7 +699,7 @@ private struct CancelledReply: Decodable {
                 case ("project", _, _, let name?): place = .project(name)
                 default: throw ControlError.badLine
                 }
-                let cut = worktree.flatMap { wanted in branch.map { WorktreeRequest(from: $0, name: wanted.name) } }
+                let cut = worktree.flatMap { wanted in branch.map { WorktreeRequest(from: $0, name: wanted.name, startFrom: wanted.startFrom.flatMap(WorktreeStart.init(rawValue:))) } }
                 return SessionPlan(agent: agent, workspace: place, branch: worktree == nil ? branch : nil, worktree: cut, options: options ?? [:], text: text)
             }
         }

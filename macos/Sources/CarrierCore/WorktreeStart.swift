@@ -8,6 +8,9 @@ public enum WorktreeStart: String, CaseIterable, Equatable {
     case remote, local
 
     public var title: String { self == .remote ? "Remote branch (latest)" : "Local branch" }
+
+    /// The branch picker's tab.
+    public var tabTitle: String { self == .remote ? "Remote" : "Local" }
 }
 
 /// The host's default (src/chat/config.ts); a value equal to it is left out of the file.

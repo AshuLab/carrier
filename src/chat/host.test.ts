@@ -405,6 +405,25 @@ test('open with a worktree refuses a folder that is not a repository, a bare one
   client.close();
 });
 
+test('a plan with a worktree starts from origin by default, follows worktreeStart as chat.json says at each plan, and a wrong file keeps the last good value', async () => {
+  const { git, client, repo } = await worktreeHost();
+  const config = (text: string) => writeFileSync(join(root, 'chat.json'), text);
+  let planned = 0;
+  const startOfNext = async (worktree: { startFrom?: 'remote' | 'local' } = {}) => {
+    await client.request('open', { plan: { workspace: { kind: 'folder', folder: repo }, agent: 'claude', text: 'go', branch: 'main', worktree } });
+    await vi.waitFor(() => expect(worktreeAdds(git)).toHaveLength(++planned));
+    return worktreeAdds(git).at(-1)!.args.at(-1);
+  };
+  expect(await startOfNext()).toBe('refs/remotes/origin/main');
+  config('{"worktreeStart":"local"}');
+  expect(await startOfNext()).toBe('refs/heads/main');
+  config('{"worktreeStart":"sideways"}');
+  expect(await startOfNext()).toBe('refs/heads/main'); // the last good value
+  expect(await startOfNext({ startFrom: 'remote' })).toBe('refs/remotes/origin/main');
+  config('{}');
+  expect(await startOfNext()).toBe('refs/remotes/origin/main');
+});
+
 test('a git failure while adding leaves no worktree, no branch and no session, and says so in words without what git said', async () => {
   const { git, claude, client, repo, worktrees, base } = await worktreeHost();
   const path = join(worktrees, 'acme', 'app', 'gamma');

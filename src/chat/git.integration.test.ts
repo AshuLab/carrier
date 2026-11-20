@@ -248,6 +248,27 @@ describe.skipIf(!enabled)('a session worktree, with the real git', () => {
     expect(before.branch).toBe('');
   });
 
+  test('with a local main behind origin/main a remote start begins at origin/main\'s tip and a local start at the local main', async () => {
+    const clone = cloneOf('behind');
+    const other = join(dir, 'behind-other');
+    writeFileSync(join(other, 'newer.txt'), 'n\n');
+    git(other, 'add', '.');
+    git(other, 'commit', '-q', '-m', 'landed on origin');
+    git(other, 'push', '-q', 'origin', 'main');
+    git(clone, 'fetch', '-q', join(dir, 'behind.git'), '+refs/heads/*:refs/remotes/origin/*'); // the clone's origin URL is a GitHub one: fetch from the bare repository itself
+    const stale = git(clone, 'rev-parse', 'main').trim();
+    const tip = git(clone, 'rev-parse', 'origin/main').trim();
+    expect(tip).not.toBe(stale);
+
+    const fromRemote = await createWorktree(realGit, clone, { from: 'main', name: 'fresh', startFrom: 'remote' });
+    expect(fromRemote.from).toBe('origin/main');
+    expect(git(fromRemote.path, 'rev-parse', 'HEAD').trim()).toBe(tip);
+    expect(git(clone, 'for-each-ref', '--format=%(upstream)', 'refs/heads/carrier/fresh').trim()).toBe('');
+    const fromLocal = await createWorktree(realGit, clone, { from: 'main', name: 'stale', startFrom: 'local' });
+    expect(git(fromLocal.path, 'rev-parse', 'HEAD').trim()).toBe(stale);
+    expect(git(clone, 'rev-parse', 'main').trim()).toBe(stale); // the local main is never moved
+  });
+
   test('from a base folder that is itself a linked worktree', async () => {
     const repo = repoAt('linked-main');
     const linked = join(dir, 'linked-base');

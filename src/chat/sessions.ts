@@ -44,8 +44,8 @@ const CHILD_MESSAGE = 4000;
 export const FOLLOW_UP_MS = 3_000;
 
 const DAY = 86_400_000;
-/** The lifecycle's ages (ADR 0019), as `chat.json` gives them. */
-export type SessionAges = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'> & Partial<Pick<ChatSettings, 'worktreeCleanup'>>;
+/** The lifecycle's ages (ADR 0019) and where a new worktree starts (ADR 0036), as `chat.json` gives them. */
+export type SessionAges = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'> & Partial<Pick<ChatSettings, 'worktreeCleanup' | 'worktreeStart'>>;
 const idleFor = (row: { state: State; lastActiveAt: number }, live: boolean, now: number, days: number | 'never') => days !== 'never' && row.state === 'idle' && !live && now - row.lastActiveAt >= days * DAY;
 
 type Harness = (typeof sessions.$inferSelect)['harness'];
@@ -563,7 +563,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       if (worktree !== undefined) {
         if (branch === undefined) throw new ChatRefused('A worktree needs the branch it starts from');
         // an empty name is the host's to generate
-        const made = await exclusive(async () => createWorktree(git, folder, { from: await listedAs(folder, plan, branch), ...(worktree.name !== undefined && worktree.name !== '' && { name: worktree.name }) }, signal));
+        const made = await exclusive(async () => createWorktree(git, folder, { from: await listedAs(folder, plan, branch), startFrom: worktree.startFrom ?? ages().worktreeStart ?? 'remote', ...(worktree.name !== undefined && worktree.name !== '' && { name: worktree.name }) }, signal));
         db.update(sessions).set({ folder: made.path, workspaceKind: 'worktree', worktreeBranch: made.branch, worktreeFrom: made.from, worktreeBase: made.base, worktreePath: made.path }).where(eq(sessions.id, sessionId)).run();
         stepEvent(sessionId, step, 'done');
         return made.path;

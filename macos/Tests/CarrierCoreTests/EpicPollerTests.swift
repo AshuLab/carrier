@@ -53,6 +53,15 @@ private final class UpdateBox {
     #expect(try rig.tick(at: 1) == ["epic", "sessions"])
 }
 
+@Test func anEpicThatWasAskedForIsPendingUntilTheNextPollReadsIt() throws {
+    let rig = try Rig()
+    #expect(rig.poller.hasPendingFocus == false)
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true))
+    #expect(rig.poller.hasPendingFocus)
+    _ = try rig.tick(at: 1)
+    #expect(rig.poller.hasPendingFocus == false)
+}
+
 @Test func theEpicEveryThreeSecondsAndTheSessionsEveryFiveStartingWhenItOpens() throws {
     let rig = try Rig()
     rig.poller.show(EpicFocus(epic: web, epicRunning: true))

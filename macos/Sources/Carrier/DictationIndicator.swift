@@ -7,7 +7,7 @@ import SwiftUI
 /// goes round. In silence it goes at the pace of a slow breath; with a voice it goes faster, the line thickens with the voice and trembles with its
 /// mids and highs. Reduce Motion stops the turning, the swelling and the tremble (the brightness still follows the voice); Reduce Transparency
 /// keeps the ring alone, with no arc and no bloom. It ignores the pointer, has the box's radius (dictation-composer-spec.html, section 3) and exists
-/// only while it listens, with its timeline, `fps` frames a second.
+/// only while it listens, with a `MovingTimeline`.
 struct DictationIndicator: View {
     let levels: VoiceLevels
     /// The message box's own radius (`MessageBox` writes the same 16; keep the two equal).
@@ -15,9 +15,6 @@ struct DictationIndicator: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var motion = IndicatorMotion()
-
-    // ponytail: 60 frames a second is what makes the tremble smooth; the cost is the processor time while it listens, so lower this if Activity Monitor says so
-    private static let fps = 60.0
 
     /// The arc and its bloom are light over the ring; Reduce Transparency keeps the ring alone.
     static func drawsLight(reduceTransparency: Bool) -> Bool { reduceTransparency == false }
@@ -34,7 +31,9 @@ struct DictationIndicator: View {
     var body: some View {
         let colors = Self.accentColors()
         // with Reduce Motion nothing goes round, trembles or thickens: the arc stands still and its brightness follows the voice, at a calmer rate
-        TimelineView(.animation(minimumInterval: 1 / (reduceMotion ? 30 : Self.fps))) { context in
+        // 30 frames a second, as every motion in the window: the voice reaches it about twelve times a second, and 60 asked for twice the frames
+        // for a tremble that the eye does not tell from this one
+        MovingTimeline { context in
             let frame = motion.frame(toward: levels, at: context.date, moving: reduceMotion == false)
             let heard = frame.levels
             let voice = Double(heard.overall)

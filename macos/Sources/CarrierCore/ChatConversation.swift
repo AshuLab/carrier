@@ -587,8 +587,6 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
 /// when the person leaves the session), in pages of at most `ConversationModel.page`, and keeps the feed.
 @MainActor @Observable public final class ConversationModel {
     public static let page = 200
-    public static let intervalMilliseconds = 250
-    public static let interval = Duration.milliseconds(intervalMilliseconds)
 
     public let sessionId: String
     public private(set) var rows: [FeedRow] = []
@@ -684,7 +682,12 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     @ObservationIgnored private var sends = 0
 
     @ObservationIgnored private let host: ChatHost
-    @ObservationIgnored private let sleep: (Duration) async throws -> Void
+    /// Replaces the wait between two rounds (the tests'); without it the model waits in `nap`, which a change of who looks and a send cut short.
+    @ObservationIgnored private let sleep: ((Duration) async throws -> Void)?
+    @ObservationIgnored let nap = PollNap()
+    @ObservationIgnored private let viewing: Viewing
+    /// The rounds in a row that failed, for the wait to grow while the host does not answer.
+    @ObservationIgnored private var failures = 0
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private let memory: OptionsMemory
     @ObservationIgnored private var events: [ChatEvent] = []
@@ -700,13 +703,14 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     @ObservationIgnored private var lastUserText: String?
 
     public init(
-        host: ChatHost, sessionId: String, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        host: ChatHost, sessionId: String, sleep: ((Duration) async throws -> Void)? = nil,
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
-        memory: OptionsMemory = .none
+        memory: OptionsMemory = .none, viewing: Viewing? = nil
     ) {
         self.host = host
         self.sessionId = sessionId
         self.sleep = sleep
+        self.viewing = viewing ?? .shared
         self.log = log
         self.memory = memory
         remembered = memory.load(sessionId)
@@ -716,9 +720,44 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         draft = memory.loadDraft(sessionId)
     }
 
-    /// Polls until the task is cancelled or `sleep` throws.
+    /// Polls until the task is cancelled or `sleep` throws, as often as who is looking and what the agent is doing call for.
     public func run() async {
-        repeat { await poll() } while (try? await sleep(Self.interval)) != nil
+        running = true
+        defer { running = false }
+        watchViewing()
+        repeat { await poll() } while await rest()
+    }
+
+    @ObservationIgnored private var running = false
+
+    /// Waits until the next round is due; false when the task was cancelled.
+    private func rest() async -> Bool {
+        let working = busy || streaming.isEmpty == false || preparation == .running
+        let seconds = conversationWait(state: viewing.state, turnRunning: working, failures: failures) ?? conversationPause
+        do {
+            if let sleep {
+                try await sleep(.seconds(seconds))
+            } else {
+                // the nap waits on a task of its own, which does not hear a cancellation: cutting it short ends the wait with the task
+                await withTaskCancellationHandler { await nap.sleep(seconds: seconds) } onCancel: { nap.wake() }
+                try Task.checkCancellation()
+            }
+        } catch { return false }
+        return true
+    }
+
+    /// A change of who is looking (the window shows, hides, the Mac sleeps) cuts the wait short, so the model asks at the new pace at once.
+    private func watchViewing() {
+        guard running else { return }
+        withObservationTracking {
+            _ = viewing.state
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self, self.running else { return }
+                self.nap.wake()
+                self.watchViewing()
+            }
+        }
     }
 
     /// Whether a round is under way, and whether another was asked for meanwhile.
@@ -798,6 +837,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             progress = reply.progress
             loaded = true
             failure = nil
+            failures = 0
             options = reply.options
             commands = reply.commands
             if agent.isEmpty == false, agent != savedAgent {
@@ -821,6 +861,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             let message = Self.words(error)
             if failure != message { log("session \(sessionId): \(message)") }
             failure = message
+            failures += 1
         }
         let preparing = preparationSteps(events, preparation: preparation, progress: progress)
         if preparing != steps { steps = preparing }
@@ -1051,6 +1092,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         if draft.trimmingCharacters(in: .whitespacesAndNewlines) == text { draft = "" }
         sends += 1
         busy = true
+        // the loop may be in a long wait of an idle session: the turn that just began is read at the turn's pace from now
+        nap.wake()
         await poll()
     }
 

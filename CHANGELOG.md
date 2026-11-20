@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- An open conversation asks the chat host less often when nothing is happening: every 2 seconds instead of four times a second while idle with the app in front, every 5 seconds behind another app, and almost never with the window hidden or the Mac asleep. It still reads every quarter of a second while the agent works, and at once after you send.
+- The working animations (the glow on a card's edge, the sweep over "Thinking…", the spark) and the running clocks stop while the window is minimized, covered or the Mac asleep, and run at most 30 frames a second otherwise: a session that works no longer keeps the app at tens of percent of a core with its window minimized.
+- The glow around the message box while you dictate is drawn 30 times a second instead of 60, so it asks less of the Mac while it listens.
+- The little bar that bounces in the menu bar icon stops in Low Power Mode and while the screens or the Mac are asleep; it cost the system about four percent of a core.
+- With the window hidden or the Mac asleep, the app stops reading the epic you had open and reads the sidebar's session list about every 30 seconds instead of every 5; the list is up to date as the window shows and the epic within a few seconds. Notifications keep their pace (every 10 seconds in Low Power Mode).
+- In Low Power Mode the app asks the engine and the chat host less often (every 10 seconds) while nobody is in the app.
+
 ## [0.16.0] - 2026-11-20
 
 A new worktree starts from the remote branch, with a Remote and Local choice in the branch picker.

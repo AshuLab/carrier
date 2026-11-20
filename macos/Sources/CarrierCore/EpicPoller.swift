@@ -154,6 +154,14 @@ public final class EpicPoller {
     }
 
     /// Sets what is on screen: nil when the window is closed. What stops being shown is asked at once when it is shown again.
+    /// Whether an epic was asked for (opened, or closed) and not read yet: that is read at the next tick even if nobody can see the window yet,
+    /// which an opening window is not for the first moments.
+    public var hasPendingFocus: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return requested.isEmpty == false
+    }
+
     public func show(_ next: EpicFocus?) {
         lock.lock()
         requested.append(next)

@@ -713,7 +713,7 @@ struct GeneralTabView: View {
                         selection: Binding(get: { IconStyle(rawValue: style) ?? AppPreferences.defaultStyle }, set: { style = $0.rawValue })
                     )
                 }
-                SettingsTabRow(title: "Animate the icon", detail: "A segment moves over the bar while epics run") {
+                SettingsTabRow(title: "Animate the icon", detail: "A segment moves over the bar while epics run, except in Low Power Mode") {
                     Toggle("Animate the icon", isOn: $animates).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(title: "List epics in the menu", detail: "The epics that run or wait show under the status") {

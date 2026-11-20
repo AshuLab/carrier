@@ -40,7 +40,7 @@ struct SubagentStatePill: View {
         HStack(spacing: 6) {
             mark.frame(width: 10, height: 10)
             if header.state == .running {
-                TimelineView(.periodic(from: .now, by: 1)) { context in words(Int((clock ?? context.date).timeIntervalSince1970 * 1000)) }
+                TickingTimeline(every: 1) { context in words(Int((clock ?? context.date).timeIntervalSince1970 * 1000)) }
             } else {
                 words(0)
             }

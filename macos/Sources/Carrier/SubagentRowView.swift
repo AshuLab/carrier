@@ -60,7 +60,7 @@ struct SubagentRowView: View {
     /// Ticking while it runs, its own duration once it ended.
     @ViewBuilder private var timer: some View {
         if subagent.status == .running {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
+            TickingTimeline(every: 1) { context in
                 time(Int((clock ?? context.date).timeIntervalSince1970 * 1000))
             }
         } else {

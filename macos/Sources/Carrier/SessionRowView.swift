@@ -213,7 +213,7 @@ struct SessionTimeLabel: View {
                 Text(age).foregroundStyle(.tertiary)
             }
         } else if age != nil, let since = WorkingClock.shared.since(row) {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
+            TickingTimeline(every: 1) { context in
                 Text(workingElapsed(Int(context.date.timeIntervalSince(since)))).foregroundStyle(row.state == .working ? Color.thought : SessionRowView.backgroundWork)
             }
         } else {

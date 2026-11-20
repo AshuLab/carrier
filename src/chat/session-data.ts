@@ -76,14 +76,20 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
     };
   }
 
-  /** The commit the work is counted from: where a worktree was cut from, where a folder on its own branch left the default one, else what is committed. */
+  /** The commit the work is counted from: where a worktree was cut from (the closer to its head of the local and the remote copy of the start branch), where a folder on its own branch left the default one, else what is committed. */
   async function baseOf(found: Found, where: { branch: string | null; defaultBranch: string }) {
     const from = found.workspaceKind === 'worktree' ? found.worktreeFrom : where.branch !== null && where.branch !== where.defaultBranch ? where.defaultBranch : null;
     if (from === null) return 'HEAD';
-    for (const ref of [from, `origin/${from}`]) {
+    // the local and the remote copy of the start branch (a name that already says `origin/` has only itself)
+    const refs = from.startsWith('origin/') ? [from] : [from, `origin/${from}`];
+    let closest: string | null = null;
+    for (const ref of refs) {
       const base = await out(found.folder, ['merge-base', ref, 'HEAD']);
-      if (base !== null && base !== '') return base;
+      if (base === null || base === '') continue;
+      // both are ancestors of HEAD, so the one that descends from the other is the closer to it
+      if (closest === null || (base !== closest && (await out(found.folder, ['merge-base', '--is-ancestor', closest, base])) !== null)) closest = base;
     }
+    if (closest !== null) return closest;
     return 'HEAD';
   }
 

@@ -7,6 +7,8 @@ import SwiftUI
 struct SessionsTabView: View {
     @State private var saved = SessionAges()
     @State private var draft = SessionAges()
+    /// `worktreeStart` of chat.json, as the file says
+    @State private var start = defaultWorktreeStart
     /// fields whose text is not a number yet
     @State private var unparsable: Set<String> = []
     @State private var failure: String?
@@ -46,7 +48,7 @@ struct SessionsTabView: View {
         SettingsPageBody(reset: reset) {
             SettingsGroup(
                 title: "New sessions",
-                footer: "A new worktree is offered only for a git repository. The message box and the new session screen still change these for that one session."
+                footer: "A new worktree is offered only for a git repository. The message box and the new session screen still change these for that one session. Remote fetches the branch first and falls back to the local one when it cannot be reached."
             ) {
                 SettingsTabRow(title: "Starts with", detail: "Provider, model and reasoning", first: true) {
                     ModelPickerButton(
@@ -72,6 +74,12 @@ struct SessionsTabView: View {
                 SettingsTabRow(title: "Work in", detail: "Base folder or a new worktree") {
                     ChoicePopUp(label: "Work in", options: WorkIn.allCases.map { (value: $0, title: $0.title) }, selection: $workIn)
                 }
+                let startOff = worktreeStartOffReason(workIn: workIn)
+                SettingsTabRow(title: "Start from", detail: startOff ?? "Where a new worktree is cut") {
+                    ChoicePopUp(label: "Start from", options: WorktreeStart.allCases.map { (value: $0, title: $0.title) }, selection: $start)
+                        .disabled(startOff != nil || unreadable)
+                }
+                .foregroundStyle(startOff == nil ? Color.primary : Color.secondary)
             }
             SettingsGroup(
                 title: "Archive and delete",
@@ -93,6 +101,7 @@ struct SessionsTabView: View {
         }
         .onAppear(perform: load)
         .onChange(of: draft) { save() }
+        .onChange(of: start) { saveStart() }
     }
 
     private func row(_ title: String, _ detail: String, _ field: SessionAgeField, off: String?, first: Bool = false, age: Binding<SessionAge>, fallback: Int) -> some View {
@@ -123,13 +132,16 @@ struct SessionsTabView: View {
         if unreadable == false {
             unparsable = []
             draft = SessionAges()
+            start = defaultWorktreeStart
         }
     }
 
     private func load() {
         do {
-            saved = sessionAges(chatJSON: try currentChatConfig())
+            let file = try currentChatConfig()
+            saved = sessionAges(chatJSON: file)
             draft = saved
+            start = worktreeStart(chatJSON: file)
             failure = nil
             unreadable = false
         } catch {
@@ -148,6 +160,23 @@ struct SessionsTabView: View {
             }
             try writeCurrentChatConfig(updated)
             saved = draft
+            failure = nil
+        } catch {
+            FileHandle.standardError.write(Data("carrier: saving chat.json failed: \(error)\n".utf8))
+            failure = "Could not save chat.json: \(error.localizedDescription)"
+        }
+    }
+
+    /// Writes `worktreeStart`, the file read again just now.
+    private func saveStart() {
+        do {
+            let file = try currentChatConfig()
+            guard worktreeStart(chatJSON: file) != start else { return }
+            guard let updated = applyingWorktreeStart(start, to: file) else {
+                failure = "chat.json is not a JSON object, so it was not changed."
+                return
+            }
+            try writeCurrentChatConfig(updated)
             failure = nil
         } catch {
             FileHandle.standardError.write(Data("carrier: saving chat.json failed: \(error)\n".utf8))

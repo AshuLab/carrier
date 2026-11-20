@@ -36,12 +36,16 @@ The delay holds back, for that many days after its date in the appcast, a releas
 ## Sessions page
 
 Settings has a Sessions page (`Carrier/SessionsTab.swift`, `SettingsPage.sessions`, in the Chat group after Sidebar, "How sessions start and age out") with everything a person sets about how a session starts, ages and is deleted; the Chat page keeps only the message box and the conversation.
-Its groups are New sessions ("Starts with", the provider, model, reasoning and access a new session opens with, and "Work in", the base folder or a new worktree), Archive and delete, With these ages and Reset.
+Its groups are New sessions ("Starts with", the provider, model, reasoning and access a new session opens with, "Work in", the base folder or a new worktree, and "Start from", where a new worktree is cut), Archive and delete, With these ages and Reset.
+"Start from" is the chat's `worktreeStart` in `chat.json`: Remote branch (latest), which is what the row shows when the file does not say, or Local branch.
+A change is saved as it is made (`applyingWorktreeStart` in `CarrierCore/WorktreeStart.swift`, written the way the ages are: the file's other keys are kept, Remote is left out of the file, a file that is not a JSON object is never overwritten), and `worktreeStart(chatJSON:)` reads it back (`remote` when the key is missing or is not one of the two values).
+The row is off, with the words "Only for a new worktree", while "Work in" is the base folder (`worktreeStartOffReason`), and on again when it is a new worktree; it stays in the search while it is off.
+The group's footer says that Remote fetches the branch first and falls back to the local one when it cannot be reached.
 Archive and delete has the session clock's two ages, `archiveAfterDays` and `deleteAfterDays` of the chat's `<folder>/chat.json`: each a number of days or Never, shown with the values the file has (15 and 30 when it has none), and "Ask before deleting a session".
 A change of an age is saved as it is made (`applyingSessionAges` in `CarrierCore/SessionAges.swift`, as `applyingProjectsFolder` does: the file's other keys are kept, an age equal to its default is left out, a file that is not a JSON object is never overwritten); the host reads the file each pass, so nothing is restarted.
 Delete is off, with the reason, while archive is Never, and an age that breaks the host's rule (a number under 1, or delete not greater than archive) is not saved and the field says why (`sessionAgeProblems`, `deleteAgeOffReason`).
 With these ages says in dates what the ages do to a session left alone from today (`sessionAgesLine` in `CarrierCore/SessionAges.swift`, given the date of the day: "Is archived on Nov 28 and deleted on Dec 13. Both ages count from its last activity", with the year only for a date that is not in this year; never archived or deleted with Archive at Never; archived and never deleted with Delete at Never; not shown while an age is refused), and, always, that a session that is working, waiting for you or open is looked at again later.
-Reset (the toolbar's, with its question) puts back "Starts with", "Work in", the delete question and the two ages to 15 and 30 days in `chat.json`; the Reset of Chat does not touch them.
+Reset (the toolbar's, with its question) puts back "Starts with", "Work in", "Start from" (to Remote, in `chat.json`), the delete question and the two ages to 15 and 30 days in `chat.json`; the Reset of Chat does not touch them.
 
 ## Changes apply without a restart
 

@@ -6,8 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Settings › Sessions › New sessions has a "Start from" choice: a new worktree starts from the remote branch (the latest, the default) or from your local one.
+- The branch picker of a new session has Remote and Local tabs, shows how many commits a local branch is behind its remote copy or has not pushed, and says where the worktree will start.
+- Choosing a project in a new session brings its branches up to date in the background, and the picker says when the remote could not be reached.
+
 ### Changed
 
+- A new worktree is cut from the remote branch (`origin/main`) and no longer from a local `main` that may be far behind; if the remote cannot be reached it starts from the local branch and the session says so.
+- The sidebar no longer counts what landed on the remote branch as the session's work: a session in which nothing was done shows +0 −0.
 - Settings › Behavior no longer shows a "Saved" note after each change: it saves as you type, and the window only says something when it could not.
 - The app drops the separate agent output window and its watcher, which nothing opened since an epic's output moved to its Agent output tab; the tab reads the same lines through the monitor, so nothing you see changes.
 

@@ -1,6 +1,6 @@
 # 0024 - The chat MCP lives in the chat host and is injected per session
 
-- Status: accepted; its pre-approval of every tool is narrowed by [0033](0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) for the tool that starts a delegation
+- Status: accepted; its pre-approval of every tool is narrowed by [0033](0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) for the tool that starts a delegation and widened again by [0036](0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)
 - Date: 2026-11-12
 
 ## Context

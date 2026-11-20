@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A session in any mode can delegate to other agents, including Claude's auto, dontAsk and plan modes and a Codex thread that never asks: saying "launch these agents" is the request, so it asks you nothing, and each child runs at your session's permission level, never above it.
+
 ### Changed
 
 - Settings › Behavior no longer shows a "Saved" note after each change: it saves as you type, and the window only says something when it could not.

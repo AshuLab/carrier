@@ -41,7 +41,6 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   `defineTool`: every tool declares its access level.
   A tool is listed and callable only for a token with the capability its access level needs: `delegate_start` (`mcp/delegate.ts`, `actsAsSession`) needs `act`, which a session with no parent gets.
   A tool marked `delegation` is also listed only while `sessions.delegationRefusal` (`levels.ts`: options on the scale in any mode, Codex app-server 0.122.0 or later) finds none, and that check runs again on the call; `agents` says the same words as `notOffered`.
-  The approval of `delegate_start` carries `input` (never stored, dropped by `boundEvent`), from which `sessions.ts` words the approval and holds the call to the level shown.
   Every tool of the chat MCP is handed to the adapters by name (`tools` of `ChatRunner.open`), and Claude names each in `allowedTools`, no wildcard, so `delegate_start` asks no one.
   In `plan` the harness asks for every tool of a server whatever `allowedTools` says, so the adapter's `canUseTool` allows the chat MCP's tools there.
   `delegate_wait` (`readsAsSession`) waits for the caller's children through `waitChildren` of `sessions.ts` (live state, else how the child's one turn ended), and `history` also reads a child or the parent (`related`).

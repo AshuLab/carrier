@@ -27,7 +27,7 @@ export function boundEvent(event: ChatEvent | StepEvent): Record<string, unknown
       return { ...rest, ...(arg !== undefined && { arg: clean(arg, chatCaps.arg) }), ...(output !== undefined && { output: boundOutput(output.join('\n')) }) };
     }
     case 'approval': {
-      const { kind: _kind, arg, input: _input, questions, ...rest } = event; // `input` is for wording the approval and is never stored
+      const { kind: _kind, arg, questions, ...rest } = event;
       // ponytail: an answer is matched to its question by the stored text, so a question the redaction changed is answered under the changed text
       const bound = questions?.map((q) => ({
         question: clean(q.question, chatCaps.arg),

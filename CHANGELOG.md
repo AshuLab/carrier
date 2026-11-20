@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Dictation in any app: when macOS drops Carrier's Accessibility permission after an update (the switch still reads on and the text is only copied), the widget and Settings › Dictation offer "Reset permission", which removes it and asks again.
 - The live line of a run that is only thinking said "Thinking" twice (the chip and the words beside it); it says it once.
 - Dragging the thumbnail of a macOS screenshot onto the message box attaches the picture; before, the box refused it. A picture dragged from a web page or another app that offers only its image data attaches too.
 

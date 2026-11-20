@@ -444,8 +444,9 @@ const roster: Listed[] = [
   { name: 'claude-read', harness: 'claude', account: 'claude', found: true },
   { name: 'codex', harness: 'codex', account: 'codex', found: true },
   { name: 'gone', harness: 'claude', account: 'other', found: false },
+  { name: 'claude-auto', harness: 'claude', account: 'claude', found: true },
 ];
-const configured: Record<string, Record<string, string>> = { 'claude-edit': { permissionMode: 'acceptEdits' }, 'claude-read': { permissionMode: 'dontAsk' }, codex: {}, gone: {} };
+const configured: Record<string, Record<string, string>> = { 'claude-edit': { permissionMode: 'acceptEdits' }, 'claude-read': { permissionMode: 'dontAsk' }, codex: {}, gone: {}, 'claude-auto': { permissionMode: 'auto' } };
 const offers: Record<string, { id: string; values: { id: string; label: string }[] }[]> = {
   'claude-edit': [{ id: 'model', values: [{ id: 'opus', label: 'Opus' }, { id: 'haiku', label: 'Haiku' }] }, { id: 'effort', values: [{ id: 'low', label: 'low' }, { id: 'high', label: 'high' }] }, { id: 'permissionMode', values: [{ id: 'default', label: 'Ask' }] }],
   'claude-read': [{ id: 'model', values: [{ id: 'sonnet', label: 'Sonnet' }] }],
@@ -488,41 +489,75 @@ test('agents lists each configured agent with its state and the level it would h
       { name: 'claude-read', harness: 'claude', found: true, state: 'unknown', childLevel: 0 },
       { name: 'codex', harness: 'codex', found: true, state: 'signedOut', childLevel: 1 }, // no options: the adapter's defaults
       { name: 'gone', harness: 'claude', found: false, state: 'unknown', childLevel: 1 },
+      { name: 'claude-auto', harness: 'claude', found: true, state: 'unknown', childLevel: 1 }, // lowered from 3 by the caller
     ],
   });
   expect(probed).toEqual([]);
 
   const level2 = JSON.parse((await askAgents({ harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } }, { models: false })).text);
-  expect(level2.agents.map((agent: any) => [agent.name, agent.childLevel])).toEqual([['claude-edit', 2], ['claude-read', 0], ['codex', 1], ['gone', 1]]);
+  expect(level2.agents.map((agent: any) => [agent.name, agent.childLevel])).toEqual([['claude-edit', 2], ['claude-read', 0], ['codex', 1], ['gone', 1], ['claude-auto', 2]]);
   expect(probed).toEqual([]);
   expect((await askAgents({ harness: 'claude', options: {} })).isError).toBe(false); // a caller with no options is at the adapter's default
   expect((await askAgents({ harness: 'claude', options: {} }, { models: 'yes' })).isError).toBe(true);
 });
 
+test('agents shows a child level in every mode of the caller, up to 3 for Claude auto, and 2 for Codex under it', async () => {
+  const levels = async (caller: { harness: string; options: Record<string, string> }) => {
+    const { agents: listed } = JSON.parse((await askAgents(caller)).text);
+    for (const agent of listed) expect(agent).not.toHaveProperty('notOffered');
+    return listed.map((agent: any) => agent.childLevel);
+  };
+  // claude-edit is configured at 2, claude-read at 0, codex and gone at the adapter's defaults (1), claude-auto at 3
+  expect(await levels({ harness: 'claude', options: { permissionMode: 'auto' } })).toEqual([2, 0, 1, 1, 3]); // a Claude child of an auto parent opens in auto
+  expect(await levels({ harness: 'claude', options: { permissionMode: 'plan' } })).toEqual([0, 0, 0, 0, 0]);
+  expect(await levels({ harness: 'claude', options: { permissionMode: 'dontAsk' } })).toEqual([0, 0, 0, 0, 0]);
+  expect(await levels({ harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'never' } })).toEqual([2, 0, 1, 1, 2]); // Codex has nothing at 3
+});
+
 test('agents answers notOffered with the words of the refusal and no childLevel when the caller may not delegate', async () => {
   const off: { harness: string; options: Record<string, string> }[] = [
-    { harness: 'claude', options: { permissionMode: 'plan' } },
-    { harness: 'claude', options: { permissionMode: 'dontAsk' } },
-    { harness: 'claude', options: { permissionMode: 'auto' } },
-    { harness: 'codex', options: { sandbox: 'workspace-write', approvalPolicy: 'never' } },
+    { harness: 'claude', options: { permissionMode: 'bypassPermissions' } },
     { harness: 'codex', options: { sandbox: 'danger-full-access', approvalPolicy: 'on-request' } },
   ];
   for (const caller of off) {
     const { agents: listed } = JSON.parse((await askAgents(caller)).text);
-    expect(listed).toHaveLength(4);
+    expect(listed).toHaveLength(5);
     for (const agent of listed) {
       expect(agent).not.toHaveProperty('childLevel');
       expect(agent.notOffered).toBe(delegationRefusal(caller.harness, caller.options, '0.122.0'));
     }
-    expect(listed[0].notOffered).toContain(Object.values(caller.options).at(-1)!);
+    expect(listed[0].notOffered).toMatch(/off the permission scale/);
   }
-  expect(delegationRefusal('claude', { permissionMode: 'plan' })).toMatch(/does not ask the person/);
-  expect(delegationRefusal('codex', { sandbox: 'danger-full-access', approvalPolicy: 'on-request' })).toMatch(/off the permission scale/);
+});
+
+test('the delegation tools are listed to a session with no parent in every mode that is on the scale, and not to one that is off it, a harness that is not Claude or Codex, or a Codex app-server that is unknown or older than the floor', async () => {
+  const listing = async (harness: string, options: Record<string, string>, version?: string, capabilities: ('read' | 'act')[] = ['read', 'act']) => {
+    const own = await startMcpServer({ registry, tools: [delegateStart, delegateWait, whoami], sessions: { exists: () => true, live: () => true, delegationRefusal: () => delegationRefusal(harness, options, version), startChild: async () => ({ childId: 'c' }), waitChildren: async () => [] } as any });
+    try {
+      const ask = async (method: string, params?: unknown) => (await (await fetch(own.url, { method: 'POST', headers: { authorization: `Bearer ${issue(capabilities)}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params !== undefined && { params }) }) })).json()) as any;
+      const listed = ((await ask('tools/list')).result.tools as { name: string }[]).map((tool) => tool.name);
+      const called = (await ask('tools/call', { name: 'delegate_start', arguments: { agent: 'codex', task: 'review' } })).result;
+      return { listed, called: called.isError !== true };
+    } finally {
+      await own.close();
+    }
+  };
+  const all = ['delegate_start', 'delegate_wait', 'test_whoami'];
+  for (const permissionMode of ['auto', 'dontAsk', 'plan', 'default', 'acceptEdits']) expect(await listing('claude', { permissionMode }), permissionMode).toEqual({ listed: all, called: true });
+  for (const approvalPolicy of ['never', 'untrusted', 'on-request']) expect(await listing('codex', { sandbox: 'workspace-write', approvalPolicy }, '0.122.0'), approvalPolicy).toEqual({ listed: all, called: true });
+  const unlisted = ['delegate_wait', 'test_whoami'];
+  expect(await listing('claude', { permissionMode: 'bypassPermissions' })).toEqual({ listed: unlisted, called: false });
+  expect(await listing('codex', { sandbox: 'danger-full-access', approvalPolicy: 'never' }, '0.122.0')).toEqual({ listed: unlisted, called: false });
+  expect(await listing('gemini', {})).toEqual({ listed: unlisted, called: false });
+  expect(await listing('codex', {}, '0.121.9')).toEqual({ listed: unlisted, called: false });
+  expect(await listing('codex', {})).toEqual({ listed: unlisted, called: false });
+  // a child holds no act, in any mode
+  expect(await listing('claude', { permissionMode: 'auto' }, undefined, ['read'])).toEqual({ listed: unlisted, called: false });
 });
 
 test('agents lists models and efforts from the probe only when asked, and says so for an agent whose probe fails or that is not found', async () => {
   const { agents: listed } = JSON.parse((await askAgents({ harness: 'claude', options: { permissionMode: 'default' } }, { models: true })).text);
-  expect(probed.sort()).toEqual(['claude-edit', 'claude-read', 'codex']); // a probe for an agent that is not found would only fail
+  expect(probed.sort()).toEqual(['claude-auto', 'claude-edit', 'claude-read', 'codex']); // a probe for an agent that is not found would only fail
   expect(listed[0]).toMatchObject({ name: 'claude-edit', models: [{ id: 'opus', label: 'Opus' }, { id: 'haiku', label: 'Haiku' }], efforts: ['low', 'high'] });
   expect(listed[1]).toMatchObject({ name: 'claude-read', models: [{ id: 'sonnet', label: 'Sonnet' }], efforts: [] });
   expect(listed[2]).toMatchObject({ name: 'codex', childLevel: 1, modelsUnavailable: 'The models of this agent could not be listed' });
@@ -533,6 +568,7 @@ test('agents lists models and efforts from the probe only when asked, and says s
 
 test('delegate_start is an actsAsSession tool: a token without act can neither list nor call it, one with act starts a child for its own session and gets its id', async () => {
   expect(delegateStart).toMatchObject({ name: 'delegate_start', access: 'actsAsSession' });
+  expect(delegateStart.description).toContain('Delegate only when the person asked for other agents');
   const withDelegate = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, delegationRefusal: () => undefined, startChild: async (parentId: string, args: unknown) => (started.push({ parentId, args }), { childId: 'child-1' }) } as any });
   try {
     const ask = async (token: string, method: string, params?: unknown) => (await (await fetch(withDelegate.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params !== undefined && { params }) }) })).json()) as any;
@@ -579,7 +615,7 @@ test('a delegation tool is listed and callable only while the session may delega
     const start = async () => (await ask('tools/call', { name: 'delegate_start', arguments: { agent: 'codex', task: 'review' } })).result;
 
     expect(await names()).toEqual(['delegate_start', 'test_whoami']);
-    refusal = 'This session\'s permissionMode is auto, which does not ask the person before a change, so it cannot delegate';
+    refusal = 'This session\'s options are off the permission scale, so a child cannot be given a level';
     expect(await names()).toEqual(['test_whoami']); // what reads stays
     expect(await start()).toMatchObject({ isError: true, content: [{ text: refusal }] });
     expect(started).toEqual([]);
@@ -587,8 +623,8 @@ test('a delegation tool is listed and callable only while the session may delega
     // the agent listed the tools while the mode asked, and the person changed it after: the call is the check that holds
     refusal = undefined;
     expect(await names()).toContain('delegate_start');
-    refusal = 'now it does not ask';
-    expect(await start()).toMatchObject({ isError: true, content: [{ text: 'now it does not ask' }] });
+    refusal = 'now it is off the scale';
+    expect(await start()).toMatchObject({ isError: true, content: [{ text: 'now it is off the scale' }] });
     expect(started).toEqual([]);
     refusal = undefined;
     expect((await start()).isError).toBe(false);

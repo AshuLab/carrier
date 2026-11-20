@@ -22,9 +22,6 @@ const PERMISSION_MODES = [
 /** The variable of the claude process that holds the chat MCP's token; the header of the injected server names it. */
 const MCP_TOKEN_ENV = 'CARRIER_MCP_TOKEN';
 
-/** Whether the real CLI keeps an allow rule with the destination `session` for the rest of the session (the gated integration test records it). */
-export const HONOURS_SESSION_ALLOWANCE = true;
-
 /** The statuses of an MCP server that cannot be used (`pending` is still connecting, and is not a failure). */
 const MCP_DOWN = ['failed', 'needs-auth', 'disabled', 'disconnected'];
 
@@ -118,8 +115,8 @@ class ClaudeConversation implements ChatConversation {
   private tools = new Map<string, string>();
   /** The subagents seen start, by task id, to the call that launched each: a progress or an end of any other task is not a subagent's, and a nested subagent finds its launcher's call here. */
   private agents = new Map<string, string>();
-  /** The name the chat MCP was injected under, so `delegate_start` is recognised as that server's tool and no other's. */
-  private mcpServerName: string | undefined;
+  /** The chat MCP's tools as the harness names them (`mcp__server__tool`). */
+  private mcpTools = new Set<string>();
   private turning = false;
   private interrupting = false;
   /** Turns that Carrier started itself (an `/effort` change) and the person must not see. */
@@ -146,7 +143,7 @@ class ClaudeConversation implements ChatConversation {
     this.effort = chosen.effort ?? '';
   }
 
-  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs, mcp, instructions }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null>; mcp?: { serverName: string; url: string; token: string; readTools?: string[] }; instructions?: string }) {
+  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs, mcp, instructions }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null>; mcp?: { serverName: string; url: string; token: string; tools?: string[] }; instructions?: string }) {
     const spawnOwn = deps.spawn && ((o: Parameters<NonNullable<ClaudeChatDeps['spawn']>>[0]) => {
       const child = deps.spawn!(o);
       this.pid = (child as { pid?: number }).pid;
@@ -172,17 +169,17 @@ class ClaudeConversation implements ChatConversation {
         ...(this.nativeId && { resume: this.nativeId }),
         // the system prompt stays Claude Code's own and the instructions are appended to it: a handoff in front of a command made the model run its skill itself
         ...(instructions !== undefined && { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: instructions } }),
-        // The SDK writes `mcpServers` into the `argv` of the claude process, where any user of the machine can read it, so the header names the token and the token itself rides in that process's environment (Claude Code expands `${VAR}` in these headers). Never in `extraArgs`, never in a config file; only its tools that read run without asking, each named: `delegate_start` is left out, so it reaches the approval.
+        // The SDK writes `mcpServers` into the `argv` of the claude process, where any user of the machine can read it, so the header names the token and the token itself rides in that process's environment (Claude Code expands `${VAR}` in these headers). Never in `extraArgs`, never in a config file; every tool of it runs without asking, each named, whatever the mode.
         ...(mcp && {
           mcpServers: { [mcp.serverName]: { type: 'http' as const, url: mcp.url, headers: { Authorization: `Bearer \${${MCP_TOKEN_ENV}}` } } },
-          allowedTools: (mcp.readTools ?? []).map((tool) => `mcp__${mcp.serverName}__${tool}`),
+          allowedTools: (mcp.tools ?? []).map((tool) => `mcp__${mcp.serverName}__${tool}`),
         }),
       },
     });
     const ready = await this.query.initializationResult();
     this.models = ready.models;
+    this.mcpTools = new Set((mcp?.tools ?? []).map((tool) => `mcp__${mcp!.serverName}__${tool}`));
     this.slash = ready.commands ?? [];
-    this.mcpServerName = mcp?.serverName;
     // The reply of `initializationResult` carries no MCP verdict; `mcpServerStatus` does, and at once for a server that is down (checked against the real Claude Code). A status that cannot be read is no verdict: a broken MCP never blocks a chat.
     if (mcp) {
       try {
@@ -296,22 +293,21 @@ class ClaudeConversation implements ChatConversation {
   }
 
   private ask(approvalId: string, tool: string, input: Record<string, unknown>, suggestions: PermissionUpdate[], title?: string): Promise<PermissionResult> {
+    // `plan` asks for every tool of a server whatever `allowedTools` says (checked against the real Claude Code), and delegating is not a change to the code
+    if (this.mode === 'plan' && this.mcpTools.has(tool)) return Promise.resolve({ behavior: 'allow', updatedInput: input });
     const questions = tool === 'AskUserQuestion' ? questionsOf(input) : undefined;
-    const delegation = this.mcpServerName !== undefined && tool === `mcp__${this.mcpServerName}__delegate_start`;
     // a child's approvals never change its mode, folders or rules: nothing raises it from inside
     if (this.child) suggestions = [];
-    // the CLI's own suggestion for the tool writes an allow rule to the project's settings, which outlives the session: offer one for the session only
-    else if (delegation) suggestions = HONOURS_SESSION_ALLOWANCE ? [{ type: 'addRules', behavior: 'allow', rules: [{ toolName: tool }], destination: 'session' }] : [];
     const choices: ChatChoice[] = questions
       ? [{ id: 'allow', label: 'Send answers', allow: true }, { id: 'deny', label: 'Skip', allow: false }]
       : [
           { id: 'allow', label: 'Allow', allow: true },
           { id: 'deny', label: 'Deny', allow: false },
-          ...suggestions.map((s, i) => ({ id: `suggestion:${i}`, label: delegation ? 'Allow for the rest of the session' : labelOf(s), allow: true })),
+          ...suggestions.map((s, i) => ({ id: `suggestion:${i}`, label: labelOf(s), allow: true })),
         ];
     return new Promise((resolve) => {
       this.pending.set(approvalId, { input, suggestions, asking: questions !== undefined, resolve });
-      this.emit(questions ? { kind: 'approval', approvalId, tool, choices, questions } : { kind: 'approval', approvalId, tool, arg: argOf(input) ?? title, ...(delegation && { input }), choices });
+      this.emit(questions ? { kind: 'approval', approvalId, tool, choices, questions } : { kind: 'approval', approvalId, tool, arg: argOf(input) ?? title, choices });
     });
   }
 

@@ -26,6 +26,20 @@ import Testing
     }
 }
 
+@Test func whatServesOnlyTheWindowPausesWhileNobodyCanSeeItAndNeverForAMinute() {
+    let pace = PollPace()
+    pace.set(.focused, lowPower: false)
+    #expect(pace.windowSeconds == PollPace.attentiveSeconds)
+    pace.set(.visible, lowPower: false)
+    #expect(pace.windowSeconds == PollPace.backgroundSeconds)
+    pace.set(.visible, lowPower: true)
+    #expect(pace.windowSeconds == PollPace.lowPowerSeconds)
+    for state in [ViewingState.hidden, .asleep] {
+        pace.set(state, lowPower: false)
+        #expect(pace.windowSeconds == conversationPause && pace.windowSeconds < 60, "\(state)")
+    }
+}
+
 @Test func aStopCutsTheWaitShortAndEveryWaitAfterItSaysStop() async {
     let flag = StopFlag()
     // not set: the wait is the whole time and says to go on

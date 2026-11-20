@@ -31,6 +31,10 @@ public final class PollPace: Sendable {
         return now.lowPower ? Self.lowPowerSeconds : Self.backgroundSeconds
     }
 
+    /// The wait of what only serves the window (its sessions list, the epic it shows): `seconds` while someone can see it, and the pause of a
+    /// conversation while not, which a change of who looks cuts short. Never above a minute, as the host hears from the app to keep sessions awake.
+    public var windowSeconds: TimeInterval { looking ? seconds : conversationPause }
+
     /// Someone can see the window.
     public var looking: Bool {
         let state = mirror.withLock { $0.state }

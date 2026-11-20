@@ -532,6 +532,11 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// the engine are asked often or not, and the Usage page's minute timer runs (it pauses while nobody looks and asks again when someone does).
     /// A window that is closing is still visible when it says so: the caller says it is not shown.
     func refreshPace(windowShown shown: Bool? = nil) {
+        let wasLooking = PollPace.shared.looking
+        defer {
+            // the window's list is read at once when it comes back in sight, not at the end of the pause
+            if wasLooking == false, PollPace.shared.looking { sessionsNap?.wake() }
+        }
         MainActor.assumeIsolated {
             Viewing.shared.update(
                 appActive: NSApp.isActive, windowShown: shown ?? windowIsShown, asleep: sleepReasons.isEmpty == false,
@@ -588,7 +593,8 @@ final class WindowController: NSObject, NSWindowDelegate {
             pollEvery: { PollPace.shared.seconds },
             // closing the window cuts the wait short at once
             wait: stop.wait,
-            tick: { try poller.poll($0) },
+            // the epic on screen is read while someone can see the window: a hidden one is read again at the next tick after it shows
+            tick: { client in if PollPace.shared.looking { try poller.poll(client) } },
             onChange: { state in
                 // an equal state is not assigned: the observer ignores it anyway, and the "panel state" signpost counts only what differs
                 DispatchQueue.main.async { if stop.isSet == false, publishes(state, over: model.state) { model.state = state } }
@@ -620,7 +626,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         Task.detached {
             repeat {
                 await sessions.poll()
-                await nap.sleep(seconds: PollPace.shared.seconds)
+                await nap.sleep(seconds: PollPace.shared.windowSeconds)
             } while stop.isSet == false
         }
     }

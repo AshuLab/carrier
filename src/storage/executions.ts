@@ -1,4 +1,4 @@
-import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { epics } from './schema.ts';
 
 export const executionStates = ['running', 'finished', 'failed', 'timed_out', 'interrupted', 'invalid_result'] as const;
@@ -38,4 +38,7 @@ export const executions = sqliteTable('executions', {
   resultPath: text().notNull(),
   startedAt: integer().notNull(),
   finishedAt: integer(),
-});
+}, (table) => [
+  // the last execution of an epic is asked for about forty times a snapshot, and the table is never pruned: by epic and start, newest first without a sort
+  index('executions_epic').on(table.epicId, table.startedAt),
+]);

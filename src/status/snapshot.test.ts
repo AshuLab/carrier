@@ -1,6 +1,8 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { callerResults } from '../storage/caller-results.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
@@ -172,4 +174,23 @@ test('a restart is offered every account the epic declares, and no deadline come
   const providers = { claude: { harness: 'claude' as const }, codex: { harness: 'codex' as const }, spare: { harness: 'claude' as const } };
   const options = optionsOf({ config: { providers, agents: {} } as never, authorOption: 'claude', reviewerOption: 'codex' });
   expect(options).toEqual({ names: ['claude', 'codex', 'spare'], author: 'claude', reviewer: 'codex' });
+});
+
+test('the snapshot reads the executions of an epic by index and never walks the whole table', () => {
+  // a few dozen epics of every state, each with several executions: what a snapshot asks per epic must not grow with all of them
+  for (let issue = 1; issue <= 30; issue++) {
+    const epic = add(issue, (['running', 'needs_human', 'ready_for_test', 'merged'] as const)[issue % 4]!, { finishedAt: issue % 4 === 3 ? 99_000 : null });
+    for (const stage of ['ship', 'review', 'fix'] as const) {
+      db.insert(executions).values({ executionId: `x${issue}-${stage}`, epicId: epic.id, stage, resultPath: '/r', startedAt: issue, status: stage === 'fix' ? 'running' : 'finished' }).run();
+    }
+  }
+  const statements: string[] = [];
+  const traced = drizzle(new Database(join(dir, 'carrier.db'), { verbose: (sql) => statements.push(String(sql)) }));
+  buildSnapshot(traced, { now: 100_000, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000 });
+  const reads = statements.filter((sql) => /^\s*select\b/i.test(sql) && /\bexecutions\b|\bexecution_events\b/.test(sql));
+  expect(reads.length).toBeGreaterThan(30);
+  // without `ANALYZE` the planner does not look at how many rows a table has, so the plan is the same on any machine and any size
+  const walks = reads.flatMap((sql) => (traced.$client.prepare(`explain query plan ${sql}`).all() as { detail: string }[]).map((row) => row.detail)).filter((detail) => /\bSCAN (executions|execution_events)\b/.test(detail));
+  traced.$client.close();
+  expect(walks).toEqual([]);
 });

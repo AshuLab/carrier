@@ -22,7 +22,7 @@ import { McpSessionRegistry, startMcpServer, type McpServer } from './mcp.ts';
 import { startChatServer } from './server.ts';
 import { realMachine, type Machine } from '../doctor/detect.ts';
 import { realProbes, type HealthProbes } from './health.ts';
-import { binaryFound, createSessions, type ChatSessionsDeps, type SessionAges } from './sessions.ts';
+import { binaryFound, createSessions, type ChatSessionsDeps, type LiveSettings } from './sessions.ts';
 import { realProcesses, sweepDeadHost, type Processes } from './sweep.ts';
 import { createUsage, type UsageDeps } from '../usage/service.ts';
 import { realHistoryPorts, realUsagePorts } from '../usage/real.ts';
@@ -97,7 +97,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   const mcpRegistry = new McpSessionRegistry(deps.clock);
   let idle: ReturnType<typeof idleExit> | undefined;
   // `list` says from the ages in chat.json, read fresh; a wrong file keeps the last ages that were good.
-  let ages: SessionAges = settings;
+  let ages: LiveSettings = settings;
   const currentAges = () => {
     const current = readChatConfig();
     if (current.ok) ages = current.settings;

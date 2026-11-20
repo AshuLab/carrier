@@ -225,6 +225,7 @@ struct BranchSheet: View {
                     // the fetch that choosing the project started could not reach origin: said here and nowhere else
                     if let unreachable = picker?.unreachable {
                         Text(unreachable).font(.subheadline).foregroundStyle(.orange)
+                            .onAppear { AccessibilityNotification.Announcement(unreachable).post() }
                     } else if stale { Text("The remote branches may be out of date.").font(.subheadline).foregroundStyle(.orange) }
                 }
                 Button { Task { await model.fetchNow() } } label: {

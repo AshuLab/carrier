@@ -73,6 +73,22 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(server.unreadSessionIds == ["a1000000-0000-4000-8000-000000000001"] && server.pinnedSessionIds == ["a1000000-0000-4000-8000-000000000004"])
 }
 
+@Test func theFixtureHostCutsAPlansWorktreeFromTheRemoteBranchWhenTheStartIsRemote() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    func plan(_ branch: String, _ startFrom: WorktreeStart?) -> SessionPlan {
+        SessionPlan(agent: "claude", folder: "/Users/dev/web", worktree: WorktreeRequest(from: branch, name: "x-\(branch.count)", startFrom: startFrom), options: [:], text: "hi")
+    }
+    // `release/2` is listed only as `origin/release/2`: a remote start finds it, a local one is refused as the host refuses it
+    _ = try await host.open(plan: plan("release/2", .remote))
+    await #expect(throws: ControlError.remote("The branch to start from is not one this repository lists")) { _ = try await host.open(plan: plan("release/2", .local)) }
+    _ = try await host.open(plan: plan("main", .remote))
+    _ = try await host.open(plan: plan("main", .local))
+    let opened = try await host.list(archived: false).filter { $0.workspace?.base == "/Users/dev/web" }
+    #expect(opened.count >= 3)
+}
+
 @Test func theHelloCarriesTheChatCapabilities() throws {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }

@@ -68,7 +68,7 @@ What the person sees: [settings-carrier](../docs/macos/settings-carrier.md#agent
 
 What the person sees: [settings](../docs/macos/settings.md#sessions-page).
 
-The functions are tested in `SessionAgesTests` (the ages in `CarrierCore/SessionAges.swift`, the "Start from" key in `CarrierCore/WorktreeStart.swift`); the view is untested.
+The functions are tested in `SessionAgesTests`; the view is untested.
 
 ### Health tab
 

@@ -683,6 +683,7 @@ public struct WatchNote: Equatable {
             guard folder == path else { return }
             workspace = info
             await openWhereSettingsSays()
+            guard folder == path else { return }
             // the branches are on screen from what is on disk; the fetch runs behind them and the picker is current when it ends
             if hostFetchesIfStale, toClone == false, info.hasOrigin { refresh = Task { if Task.isCancelled == false { await fetch(whenChosen: true) } } }
         } catch {

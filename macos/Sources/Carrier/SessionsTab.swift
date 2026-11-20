@@ -174,6 +174,7 @@ struct SessionsTabView: View {
             guard worktreeStart(chatJSON: file) != start else { return }
             guard let updated = applyingWorktreeStart(start, to: file) else {
                 failure = "chat.json is not a JSON object, so it was not changed."
+                start = worktreeStart(chatJSON: file) // the row shows what the host will use, not the choice that was not written
                 return
             }
             try writeCurrentChatConfig(updated)
@@ -181,6 +182,7 @@ struct SessionsTabView: View {
         } catch {
             FileHandle.standardError.write(Data("carrier: saving chat.json failed: \(error)\n".utf8))
             failure = "Could not save chat.json: \(error.localizedDescription)"
+            start = (try? currentChatConfig()).map { worktreeStart(chatJSON: $0) } ?? .remote
         }
     }
 }

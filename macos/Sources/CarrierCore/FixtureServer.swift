@@ -456,7 +456,12 @@ public final class FixtureServer {
         let folder = place?["folder"] as? String ?? (place?["repo"] as? String).map { "/Users/dev/projects/\($0)" }
         guard let folder, let text = plan["text"] as? String else { return Self.refused(id, "invalid request") }
         var request: [String: Any] = ["agent": plan["agent"] as Any, "folder": folder]
-        if let from = plan["branch"] as? String { request["worktree"] = ["from": from, "name": (plan["worktree"] as? [String: Any])?["name"] as Any].compactMapValues { $0 is NSNull ? nil : $0 } }
+        if var from = plan["branch"] as? String {
+            // as the host does: a remote start of a branch the repository lists as `origin/<name>` is cut from that ref
+            let listed = (chatWorkspaces[folder]?["branches"] as? [[String: Any]])?.compactMap { $0["name"] as? String } ?? []
+            if (plan["worktree"] as? [String: Any])?["startFrom"] as? String == "remote", from.hasPrefix("origin/") == false, listed.contains("origin/\(from)") { from = "origin/\(from)" }
+            request["worktree"] = ["from": from, "name": (plan["worktree"] as? [String: Any])?["name"] as Any].compactMapValues { $0 is NSNull ? nil : $0 }
+        }
         let opened = open(id, request)
         guard let reply = (try? JSONSerialization.jsonObject(with: opened.dropLast())) as? [String: Any], reply["ok"] as? Bool == true,
             let session = (reply["data"] as? [String: Any])?["session"] as? [String: Any], let sessionId = session["id"] as? String else { return opened }

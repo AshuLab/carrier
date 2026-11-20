@@ -28,6 +28,8 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var fetches: [(folder: String, ifStale: Bool)] = []
     var fetchGate: (() async -> Void)?
     var names = ["brave-marine-aiur", "keen-ghost-char"]
+    /// Holds the answer of `suggestName` until the test lets it go.
+    var suggestGate: (() async -> Void)?
     var taken: [String: NameCheck] = [:]
     /// The plan of each `open`.
     var plans: [SessionPlan] = []
@@ -75,6 +77,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         return fetched ?? cleanRepo(folder)
     }
     func suggestName(_ folder: String) async throws -> String {
+        await suggestGate?()
         if let error = refuse["suggestName"] { throw error }
         return names.removeFirst()
     }
@@ -2042,6 +2045,21 @@ private let freshInfo = WorkspaceInfo(
     release?.resume()
     await model.refreshed()
     #expect(model.folder == "/w/notes" && model.workspace?.folder == "/w/notes" && model.unreachable == false)
+}
+
+@MainActor @Test func aFolderChosenWhileTheNameIsBeingSuggestedIsNotFetchedForTheOneLeftBehind() async {
+    let host = fetchingHost()
+    host.workspaces["/w/notes"] = WorkspaceInfo(folder: "/w/notes", git: false)
+    var release: CheckedContinuation<Void, Never>?
+    host.suggestGate = { await withCheckedContinuation { release = $0 } }
+    let model = await draft(host, workIn: .newWorktree)
+    let first = Task { await model.choose(folder: "/w/api") }
+    await settle { release != nil }
+    await model.choose(folder: "/w/notes")  // the first read is still waiting for its name
+    release?.resume()
+    await first.value
+    await model.refreshed()
+    #expect(host.fetches.isEmpty && model.folder == "/w/notes" && model.fetching == false)
 }
 
 @Test func theWireOfFetchCarriesIfStaleOnlyToAHostThatListsIt() async throws {

@@ -174,6 +174,7 @@ export async function fetchFolder(git: Git, folder: string, { signal, now }: { s
   if (answer(await git.run(folder, ['config', '--get', 'remote.origin.url']), 'config') === null) throw new ChatRefused('That repository has no origin remote to fetch');
   const fetched = await git.run(folder, ['fetch', 'origin', '--prune'], { timeoutMs: FETCH_TIMEOUT_MS, signal });
   if (fetched.ok === false) {
+    if (fetched.aborted === true) throw new ChatRefused('The fetch was stopped'); // the person left: not a failure of git
     log.error('git fetch failed', { code: fetched.code, timedOut: fetched.timedOut === true });
     throw new ChatRefused(fetched.timedOut === true ? 'The fetch took too long and was stopped' : 'The fetch of origin failed');
   }

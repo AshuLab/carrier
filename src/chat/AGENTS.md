@@ -15,11 +15,10 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `server.ts`: the socket (`chat.sock`, a strict request union and a hello like the engine's).
 - `idle.ts`: the rule that ends it.
 - `sessions.ts`: what the requests do (open, send, events, close, the one-minute idle close, and `openPlan`).
-  An archive of a live idle session does not wait for its agent to end (SIGTERM, then SIGKILL after three seconds): the session stops being live and is marked at once, the agent ends in the background and the host's stop waits for it. A delete does wait, as its worktree cannot be removed under a running agent.
+  An archive of a live idle session does not wait for its agent to end: the session stops being live and is marked at once, the agent ends in the background and the host's stop waits for it. A delete does wait, as its worktree cannot be removed under a running agent.
   `openPlan`: a plan for a folder, a repository to clone or a new project, with the branch to check out (`checkout` in `workspace.ts`, refused on a folder with uncommitted changes) or a worktree from it, becomes a `preparing` session.
-  Its steps (`clone`, `fetch` via `projects.cloneRepo`; the `events` reply carries its latest git progress line as `progress`, never stored) run in the background and are stored as `step` events.
-  The plan's `worktree.startFrom` (else `worktreeStart` of `chat.json`, read through `ages()` at each plan) picks `origin/<branch>` or the local branch for `createWorktree`; the capability is `worktreeStart` ([spec](../../docs/specs/session-worktrees.md)).
-  For a folder with a remote start, `refresh` runs a `fetch` step first when the last fetch is older than `FETCH_FRESH_MS` and falls back to the local branch with a `notice` when it fails (the step still ends as done).
+  Its steps (`clone`, `fetch` via `projects.cloneRepo`; the `events` reply carries its latest git progress line as `progress`) run in the background and are stored as `step` events.
+  A plan's `startFrom`, `worktreeStart` and the fetch before the cut: [spec](../../docs/specs/session-worktrees.md).
   `retryPreparation` repeats a failed one from where it stopped (the worktree recorded on the session and a checkout done are reused).
   `cancelPreparation` aborts the running step, deletes the session like a delete does and answers the plan ([ADR 0018](../../docs/adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
   A child session (`parentSessionId`, from `startChild` of the MCP's `delegate_start`, [ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)) is a session of its own agent in its parent's folder, recorded as a plain folder, with its agent's options lowered to the parent's level.
@@ -33,7 +32,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `session-data.ts` and `pull-requests.ts`: the `diff` and `pr` of a `list` row, read in a background sweep, never in the request ([spec](../../docs/specs/chat-host.md)).
 - `plan.ts`: the plan's request schema and the step types.
 - `runner.ts`: the chat runner port, with `fake.ts` its test double; `claude.ts` and `codex.ts` are the Claude and Codex adapters.
-  Codex's usage limit (`usageLimitExceeded`, not retried) is an `error` with `reason: 'usage_limit'`: its `resetsAt` is read from `account/rateLimits/read` (the window that resets last, 2 s at most) and `resetText` is the error's own `try again at ...` when that gives none; the error is emitted before the turn's `turn_end`.
+  Codex's usage limit (`usageLimitExceeded`, not retried) is an `error` with `reason: 'usage_limit'`: its `resetsAt` is read from `account/rateLimits/read` and `resetText` is the error's own `try again at ...` when that gives none; the error is emitted before the turn's `turn_end`.
 - `folder.ts`: the check of a session's folder, never inside `<folder>/engine/` (and `checkProjectsFolder`, the same rule for the projects folder).
 - `projects.ts`: what the chat brings onto the Mac with the person's own `gh` login, under the projects folder ([ADR 0015](../../docs/adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)).
   `cloneRepo` (waiters share one clone, which stops when nobody waits; only git's progress lines pass on, one a second), `createProject`, the `githubRepos` listing and `repoBranches`.
@@ -52,7 +51,6 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `health.ts`: the `health` request (whether `git`, `gh` and each agent's CLI work and are signed in, as `ready`, `missing`, `signedOut` or `unknown`, only the verdicts; [spec](../../docs/specs/chat-host.md)).
 - `git.ts`: the port to the machine's git (`realGit` in production, `FakeGit` in `fake.ts`).
 - `workspace.ts`: what a folder is as a repository, and its fetch.
-  `fetch` with `ifStale` skips the git call within `FETCH_FRESH_MS` (capability `fetchIfStale`), and a local branch with an `origin/<name>` carries `ahead` and `behind` ([spec](../../docs/specs/session-worktrees.md)).
 - `names.ts` and `words.ts`: the worktree name and its word lists.
 - `worktree.ts`: the creation, the delete preview and the removal of a session's worktree under `<folder>/chat/worktrees` ([ADR 0014](../../docs/adr/0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md)).
 - `transcript.ts`: the redact-then-cut limits.

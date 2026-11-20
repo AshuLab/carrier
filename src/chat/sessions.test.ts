@@ -14,7 +14,7 @@ import { chatEvents, chatTurns, sessions as schemaSessions } from './schema.ts';
 import type { HealthProbes } from './health.ts';
 import { capabilities } from './mcp/capabilities.ts';
 import { McpSessionRegistry } from './mcp.ts';
-import { createSessions, FOLLOW_UP_MS, type SessionAges } from './sessions.ts';
+import { createSessions, FOLLOW_UP_MS, type LiveSettings } from './sessions.ts';
 
 let dir: string;
 let work: string;
@@ -1125,7 +1125,7 @@ const sessionIds = (s: { db: ReturnType<typeof setup>['db'] }) => s.db.select().
 const keptAt = (s: { db: ReturnType<typeof setup>['db'] }, id: string) => s.db.select().from(schemaSessions).where(eq(schemaSessions.id, id)).get()?.keptAt;
 
 /** A host over a fake git with a base repository acme/app in `work`; `inWorktree` opens a session in a worktree of it and tells the fake what git finds there. */
-function worktreeSetup(ages?: () => SessionAges) {
+function worktreeSetup(ages?: () => LiveSettings) {
   const git = new FakeGit();
   const s = setup(undefined, { git, ...(ages && { ages }) });
   const repo = realpathSync(work);
@@ -1809,6 +1809,34 @@ describe('where a new worktree of a plan starts', () => {
     await sent(s, session.id);
     expect(addOf(s.git)).toBe('refs/heads/main');
     expect(noticesOf(s, session.id)).toEqual(['origin/main is no longer on origin, so this worktree started from the local branch main.']);
+  });
+
+  test('a branch that exists only on origin, when the fetch fails, is cut from the copy the last fetch left and the notice says so', async () => {
+    const s = startSetup();
+    s.fetchedAgo(6);
+    s.git.repos.get(realpathSync(work))!.remoteBranches = ['main', 'dev'];
+    s.git.failures.set('fetch origin --prune', { ok: false, code: 128, stderr: 'fatal: unable to access' });
+    const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'dev', worktree: { name: 'a' } }) });
+    await sent(s, session.id);
+    expect(stepsOf(s, session.id).slice(0, 4)).toEqual(['fetch:running', 'fetch:done', 'worktree:running', 'worktree:done']);
+    expect(addOf(s.git)).toBe('refs/remotes/origin/dev');
+    expect(rows('sessions')[0]).toMatchObject({ worktreeFrom: 'origin/dev' });
+    expect(noticesOf(s, session.id)).toEqual(['The fetch of origin failed, so this worktree started from the copy of origin/dev the last fetch left.']);
+  });
+
+  test('leaving while the fetch is out ends the preparation with no fallback, no notice and no worktree', async () => {
+    const s = startSetup();
+    s.fetchedAgo(6);
+    const run = s.git.run.bind(s.git);
+    s.git.run = async (folder, args, options) => (args[0] === 'fetch'
+      ? (await new Promise((resolve) => options?.signal?.addEventListener('abort', resolve, { once: true })), { ok: false as const, code: null, aborted: true as const, stderr: '' })
+      : run(folder, args, options));
+    const plan = planFor({ branch: 'main', worktree: { name: 'a' } });
+    const { session } = await s.sessions.openPlan({ plan });
+    await vi.waitFor(() => expect(stepsOf(s, session.id)).toContain('fetch:running'));
+    await s.sessions.cancelPreparation({ sessionId: session.id });
+    await vi.waitFor(() => expect(rows('sessions')).toEqual([]));
+    expect(s.git.calls.some((call) => call.args[0] === 'worktree' || call.args[0] === 'rev-list')).toBe(false);
   });
 
   test('a GitHub project keeps its own step: it fetches as before and a failure of it fails the session', async () => {

@@ -208,7 +208,8 @@ struct NewSessionView: View {
         Text("from")
         // the chip wears the colour of the side the worktree is cut from: the remote copy or the local branch
         Button { branchesOpen.toggle() } label: { chip(model.startPoint?.ref ?? "Choose a branch…", tint: model.startPoint?.side?.tint ?? .primary, icon: model.startPoint?.side?.icon ?? .gitBranch) }
-            .buttonStyle(SelectButtonStyle())
+            .buttonStyle(SelectButtonStyle()).accessibilityLabel("Start branch")
+            .accessibilityValue(model.startPoint.map { "\($0.side?.tabTitle ?? "Local") \($0.ref)" } ?? "none chosen")
             .sheet(isPresented: $branchesOpen) { BranchSheet(model: model).themed() }
     }
 

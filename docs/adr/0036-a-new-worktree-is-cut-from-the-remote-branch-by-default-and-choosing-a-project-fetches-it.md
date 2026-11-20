@@ -25,17 +25,23 @@ The host never refuses to start a session in a folder because it could not reach
 
 ## Alternatives considered
 
-Keeping the local branch as the default and warning when it is behind. The warning is read after the worktree exists, and the drift comes back with every `main` that was not pulled.
+Keeping the local branch as the default and warning when it is behind.
+The warning is read after the worktree exists, and the drift comes back with every `main` that was not pulled.
 
-Remote with no way to choose local. A person whose `main` holds commits not pushed yet could not start from them without naming a branch by hand, so the picker keeps a Local tab and says how many commits are not pushed.
+Remote with no way to choose local.
+A person whose `main` holds commits not pushed yet could not start from them without naming a branch by hand, so the picker keeps a Local tab and says how many commits are not pushed.
 
-The setting in the app's preferences, as "Work in" is. The host, which does the fetch and the cut, cannot read them, so a plan that does not say where to start would have no default.
+The setting in the app's preferences, as "Work in" is.
+The host, which does the fetch and the cut, cannot read them, so a plan that does not say where to start would have no default.
 
-Fetching only the chosen branch. It would be a second fetch mechanism next to the `git fetch origin --prune` that "Update the repository" and "Fetch now" already run, for the sake of fetching less; the one that exists has its timeout and its credential handling.
+Fetching only the chosen branch.
+It would be a second fetch mechanism next to the `git fetch origin --prune` that "Update the repository" and "Fetch now" already run, for the sake of fetching less; the one that exists has its timeout and its credential handling.
 
-Fetching only when the message is sent. The picker would then show branches and "behind" counts that are days old at the moment the person chooses, which is when they need them.
+Fetching only when the message is sent.
+The picker would then show branches and "behind" counts that are days old at the moment the person chooses, which is when they need them.
 
-Refusing to send when the fetch fails. It would stop a person without network from working at all, for a condition the notice already explains.
+Refusing to send when the fetch fails.
+It would stop a person without network from working at all, for a condition the notice already explains.
 
 ## Consequences
 

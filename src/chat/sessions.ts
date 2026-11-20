@@ -45,7 +45,7 @@ export const FOLLOW_UP_MS = 3_000;
 
 const DAY = 86_400_000;
 /** The lifecycle's ages (ADR 0019) and where a new worktree starts (ADR 0036), as `chat.json` gives them. */
-export type SessionAges = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'> & Partial<Pick<ChatSettings, 'worktreeCleanup' | 'worktreeStart'>>;
+export type LiveSettings = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'> & Partial<Pick<ChatSettings, 'worktreeCleanup' | 'worktreeStart'>>;
 const idleFor = (row: { state: State; lastActiveAt: number }, live: boolean, now: number, days: number | 'never') => days !== 'never' && row.state === 'idle' && !live && now - row.lastActiveAt >= days * DAY;
 
 type Harness = (typeof sessions.$inferSelect)['harness'];
@@ -114,7 +114,7 @@ export type ChatSessionsDeps = {
   /** Where a session's pull request is read from; without it a row has none unless it was found before. */
   pulls?: PullRequests;
   /** The lifecycle's ages now: `list` says from them when the clock will delete each archived session. */
-  ages: () => SessionAges;
+  ages: () => LiveSettings;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
   /** The chat MCP: the registry that issues each conversation's token and the URL of the endpoint, which is undefined when the host could not start it. Without this a host has no MCP and says nothing of it. */
@@ -568,6 +568,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       why = `${remote} is no longer on origin`;
       known = false;
     } catch (error) {
+      if (signal.aborted) return 'remote'; // the person left: the preparation ends at the next check, with no fallback to record
       if (error instanceof ChatRefused === false) log.error('fetching for a new worktree failed', error);
       stepEvent(sessionId, 'fetch', 'done');
       why = error instanceof ChatRefused ? error.message : 'The fetch of origin failed';
@@ -595,6 +596,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (step === 'checkout' && lastStatus(sessionId, step) === 'done') return folder; // a retry does not switch the branch again
     let startFrom = worktree?.startFrom ?? ages().worktreeStart ?? 'remote';
     if (worktree !== undefined && branch !== undefined && startFrom === 'remote' && plan.workspace.kind === 'folder') startFrom = await refresh(sessionId, folder, branch, signal); // its `fetch` step comes before the `worktree` one
+    if (signal.aborted) return undefined;
     stepEvent(sessionId, step, 'running');
     try {
       if (worktree !== undefined) {
@@ -1369,7 +1371,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
      * The clock's pass: archives each session left alone for `archiveAfterDays`, then deletes each archived one left alone for `deleteAfterDays`, sparing
      * (marking `keptAt`) one whose worktree holds unsaved work. A working, waiting or live one is looked at again on the next pass.
      */
-    async applyClock({ archiveAfterDays, deleteAfterDays, worktreeCleanup }: SessionAges) {
+    async applyClock({ archiveAfterDays, deleteAfterDays, worktreeCleanup }: LiveSettings) {
       const now = clock.now();
       for (const found of db.select().from(sessions).where(and(eq(sessions.archived, false), isNull(sessions.parentSessionId))).all()) {
         if (switching.has(found.id)) continue; // a switch is opening its new conversation; the next pass looks again

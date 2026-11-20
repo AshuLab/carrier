@@ -168,7 +168,9 @@ _Avoid_: main folder, original, source.
 **Session worktree** - A git worktree that Carrier creates for a user session, on a new branch named `carrier/<adjective>-<unit>-<place>` and cut from a branch the person picks, so the base folder stays untouched. It lives in the chat folder's `worktrees/`, its name is generated (the person may type another after the `carrier/` prefix) and it is removed with the session ([0014](adr/0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md)). It is not an epic's worktree and not a lane.
 _Avoid_: workspace copy, sandbox, checkout, epic worktree.
 
-**Start point** - The branch a session worktree is cut from, taken from its remote copy (`origin/<branch>`) by default and from the local branch when the person chooses it. The default is `worktreeStart` in `chat.json`, the session's own choice is the Remote or Local tab of the branch picker, and a branch that exists only locally can only start from local. A start point that cannot be reached falls back to the local branch with a notice ([0036](adr/0036-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md)).
+**Start point** - The branch a session worktree is cut from, taken from its remote copy (`origin/<branch>`) by default and from the local branch when the person chooses it.
+The default is `worktreeStart` in `chat.json`, the session's own choice is the Remote or Local tab of the branch picker, and a branch that exists only locally can only start from local.
+A start point that cannot be reached falls back to the local branch with a notice ([0036](adr/0036-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md)).
 _Avoid_: base branch (that is the base folder's), source branch, parent branch.
 
 **Done** - The group of epics whose final PR was merged, shown for the finished window after the merge. Not Ready for test: nothing is waiting for a person any more. In the terminal panel it is a section of the same name.

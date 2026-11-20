@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The live line of a run that is only thinking said "Thinking" twice (the chip and the words beside it); it says it once.
 - Dragging the thumbnail of a macOS screenshot onto the message box attaches the picture; before, the box refused it. A picture dragged from a web page or another app that offers only its image data attaches too.
 
 ### Changed

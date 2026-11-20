@@ -87,4 +87,7 @@ Testing seams, by story:
 ## Open questions
 
 - Does a pre-approved `delegate_start` run in Claude's `plan` mode?
-  The spike's model refused to call a tool there, so a probe with a real model decides whether `plan` needs more than `allowedTools` and `canUseTool`; it belongs to the slice that does story 2.
+  Answered, with a real Claude Code and the cheapest model, through the gated integration test of the Claude adapter.
+  With the tool only in `allowedTools`, the model calls it and the harness still asks the person (a `canUseTool` request for `mcp__carrier-chat__delegate_start`), so no child starts and the turn waits.
+  With the adapter's `canUseTool` allowing the chat MCP's tools in `plan`, the model calls it and the child starts with no approval.
+  In `default`, `acceptEdits`, `auto` and `dontAsk` `allowedTools` is enough.

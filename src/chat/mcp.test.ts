@@ -566,6 +566,7 @@ test('agents lists models and efforts from the probe only when asked, and says s
 
 test('delegate_start is an actsAsSession tool: a token without act can neither list nor call it, one with act starts a child for its own session and gets its id', async () => {
   expect(delegateStart).toMatchObject({ name: 'delegate_start', access: 'actsAsSession' });
+  expect(delegateStart.description).toContain('Delegate only when the person asked for other agents');
   const withDelegate = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, delegationRefusal: () => undefined, startChild: async (parentId: string, args: unknown) => (started.push({ parentId, args }), { childId: 'child-1' }) } as any });
   try {
     const ask = async (token: string, method: string, params?: unknown) => (await (await fetch(withDelegate.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params !== undefined && { params }) }) })).json()) as any;

@@ -2154,7 +2154,7 @@ test.each([
 const ENDPOINT = 'http://127.0.0.1:4242/mcp';
 const withMcp = (down = false) => {
   const registry = new McpSessionRegistry(new FakeClock());
-  return { registry, extra: { mcp: { registry, url: () => (down ? undefined : ENDPOINT), readTools: ['agents'] } } };
+  return { registry, extra: { mcp: { registry, url: () => (down ? undefined : ENDPOINT), tools: ['agents'] } } };
 };
 const tokensLive = (registry: McpSessionRegistry) => (registry as any).records.size as number;
 const noticesOf = (s: ReturnType<typeof setup>, id: string) => (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((e) => e.kind === 'notice').map((e) => e.text as string);
@@ -2163,7 +2163,7 @@ test('open hands the runner a fresh token for the session it is about to create,
   const { registry, extra } = withMcp();
   const s = await openOne(setup(undefined, extra));
   const { mcp } = s.claude.opened[0]!;
-  expect(mcp).toMatchObject({ serverName: 'carrier-chat', url: ENDPOINT, readTools: ['agents'] });
+  expect(mcp).toMatchObject({ serverName: 'carrier-chat', url: ENDPOINT, tools: ['agents'] });
   expect(registry.lookup(mcp!.token)).toMatchObject({ sessionId: s.id, capabilities: new Set(['read', 'act']) }); // no parent: it may act
   expect(noticesOf(s, s.id)).toEqual([]);
   await s.sessions.close({ sessionId: s.id });

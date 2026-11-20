@@ -59,7 +59,7 @@ export type ChatEvent =
       /** The call of the subagent that launched this one; absent for one the main agent launched. */
       parentCallId?: string;
     }
-  | { kind: 'approval'; approvalId: string; tool: string; arg?: string; /** What the adapter hands the host to word the approval from (a delegation's agent, model and task); never stored. */ input?: Record<string, unknown>; choices: ChatChoice[]; /** Set when the approval is the agent asking questions: the person answers them with `answers`. */ questions?: ChatQuestion[] }
+  | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; /** Set when the approval is the agent asking questions: the person answers them with `answers`. */ questions?: ChatQuestion[] }
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; /** Question text to the answer; a multiple choice joins its picks with a comma. */ answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }
   /** A turn the provider opened itself, with no message from the person (a background subagent ended and the SDK answers it). The host's own: never stored, never shown. */

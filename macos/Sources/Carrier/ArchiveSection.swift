@@ -22,6 +22,7 @@ struct ArchiveSection: View {
     @AppStorage(SidebarStore.archiveListSortKey) private var sort = SessionSort.age
     @State private var sortOpen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
     /// About five rows of a session (a row is about 38 points).
     private static let listHeight: CGFloat = 5 * 38
     /// What the sort menu offers: an archived session has no state to group by.
@@ -104,7 +105,7 @@ struct ArchiveSection: View {
                             SessionRowView(row: row, showsWorkspace: true)
                                 .padding(.vertical, 2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(chosen ? Color.themeAccent.opacity(0.45) : .clear))
+                                .background(RoundedRectangle(cornerRadius: 8).fill(chosen ? Color.selectedRow(dark: scheme == .dark) : .clear))
                                 .contentShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)

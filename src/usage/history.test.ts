@@ -220,6 +220,24 @@ test('an epic run is read from the engine database by model, with the cost the C
   expect(result.byWorkspace).toMatchObject([{ workspace: 'acme/app', source: 'epic', turns: 2 }]);
 });
 
+test('an epic run is still read while the engine holds a write lock: the reader does not wait on a commit or get refused by it', async () => {
+  const { engineDbFile, run } = setup();
+  insertEpicRun(engineDbFile, { executionId: 'e1', sessionId: 'sess-e1', usage: usage(30, 10, 1.5) });
+  // the engine mid-commit: in a rollback journal this exclusive transaction refuses the reader with SQLITE_BUSY after its 100 ms and the epics vanish
+  // from the page without a word; in WAL the reader goes on reading the last commit
+  const writer = openDatabase(engineDbFile);
+  writer.$client.exec('BEGIN EXCLUSIVE');
+  writer.insert(epics).values({ repo: 'acme/other', issue: 1 }).run();
+  try {
+    const result = await run();
+    expect(result.totals).toMatchObject({ turns: 1, tokens: { input: 30, output: 10 } });
+    expect(result.byWorkspace).toMatchObject([{ workspace: 'acme/app', source: 'epic', turns: 1 }]);
+  } finally {
+    writer.$client.exec('COMMIT');
+    writer.$client.close();
+  }
+});
+
 test('an epic run with no usage leaves its session to the external transcripts', async () => {
   const { engineDbFile, run } = setup();
   insertEpicRun(engineDbFile, { executionId: 'e1', sessionId: 'S-KILLED', usage: null }); // killed before its result, or from before usage was recorded

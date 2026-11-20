@@ -32,6 +32,12 @@ test('the worktree migration leaves every existing session a folder session', ()
   db.$client.close();
 });
 
+test('the chat database is opened in WAL', () => {
+  const db = openChatDatabase(join(dir, 'chat.db'));
+  expect(db.$client.pragma('journal_mode', { simple: true })).toBe('wal');
+  db.$client.close();
+});
+
 test('the turn migration gives every existing turn its session\'s harness, agent and native id', () => {
   // the database as it was before the turns kept them: every migration before theirs applied
   const before = join(dir, 'migrations');

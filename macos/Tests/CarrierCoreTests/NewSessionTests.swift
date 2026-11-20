@@ -24,6 +24,9 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     /// What `workspace` says of each folder; one not listed is a clean git folder on main.
     var workspaces: [String: WorkspaceInfo] = [:]
     var fetched: WorkspaceInfo?
+    /// Each `fetch` asked: the folder and whether it asked for the freshness window; `fetchGate` holds the answer until the test lets it go.
+    var fetches: [(folder: String, ifStale: Bool)] = []
+    var fetchGate: (() async -> Void)?
     var names = ["brave-marine-aiur", "keen-ghost-char"]
     var taken: [String: NameCheck] = [:]
     /// The plan of each `open`.
@@ -65,7 +68,9 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         if let error = refuse["workspace"] { throw error }
         return workspaces[folder] ?? cleanRepo(folder)
     }
-    func fetch(_ folder: String) async throws -> WorkspaceInfo {
+    func fetch(_ folder: String, ifStale: Bool) async throws -> WorkspaceInfo {
+        fetches.append((folder, ifStale))
+        await fetchGate?()
         if let error = refuse["fetch"] { throw error }
         return fetched ?? cleanRepo(folder)
     }
@@ -574,9 +579,10 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(try await host.workspace("/Users/dev/web").branch == nil)
     #expect(try await host.workspace("/Users/dev/notes").git == false)
     #expect(try await host.workspace("/somewhere/else").git == false)
-    #expect(try await host.fetch("/Users/dev/carrier").fetchedAt == 1_792_007_200_000)
-    await #expect(throws: ControlError.remote("That folder is not a git repository")) { try await host.fetch("/Users/dev/notes") }
-    await #expect(throws: ControlError.remote("The fetch of origin failed")) { try await host.fetch("/Users/dev/work/web") }
+    #expect(try await host.fetch("/Users/dev/carrier", ifStale: false).fetchedAt == 1_792_007_200_000)
+    #expect(try await host.fetch("/Users/dev/carrier", ifStale: true).branches.first?.behind == 12, "the fixture host takes ifStale and answers as a current one")
+    await #expect(throws: ControlError.remote("That folder is not a git repository")) { try await host.fetch("/Users/dev/notes", ifStale: true) }
+    await #expect(throws: ControlError.remote("The fetch of origin failed")) { try await host.fetch("/Users/dev/work/web", ifStale: true) }
     #expect(try await host.suggestName("/Users/dev/carrier") == "brave-marine-aiur")
     #expect(try await host.suggestName("/Users/dev/carrier") == "keen-ghost-char")
     #expect(try await host.checkName("/Users/dev/carrier", "fix-login") == NameCheck(valid: true, free: false, reason: "A branch called carrier/fix-login already exists"))
@@ -892,7 +898,7 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     func list(archived: Bool) async throws -> [ChatSession] { [] }
     func open(plan: SessionPlan) async throws -> String { opened }
     func workspace(_ folder: String) async throws -> WorkspaceInfo { cleanRepo(folder) }
-    func fetch(_ folder: String) async throws -> WorkspaceInfo { cleanRepo(folder) }
+    func fetch(_ folder: String, ifStale: Bool) async throws -> WorkspaceInfo { cleanRepo(folder) }
     func suggestName(_ folder: String) async throws -> String { "x" }
     func checkName(_ folder: String, _ name: String) async throws -> NameCheck { NameCheck(valid: true, free: true) }
     func send(_ id: String, _ text: String) async throws {}
@@ -1930,4 +1936,126 @@ private let startSides = WorkspaceInfo(
     back.restore(wanted)
     await back.load()
     #expect(back.startPoint == StartPoint(branch: "main", side: .remote))
+}
+
+// Choosing a project brings its branches up to date: the fetch behind the branches, what it shows and when it says nothing.
+
+private let behindInfo = WorkspaceInfo(
+    folder: "/w/api", branch: "main", defaultBranch: "main",
+    branches: [.init(name: "main", remote: false, ahead: 0, behind: 2), .init(name: "origin/main", remote: true)], fetchedAt: 1_000, repo: .init(owner: "a", name: "api")
+)
+private let freshInfo = WorkspaceInfo(
+    folder: "/w/api", branch: "main", defaultBranch: "main",
+    branches: [.init(name: "main", remote: false, ahead: 0, behind: 14), .init(name: "origin/main", remote: true)], fetchedAt: 2_000, repo: .init(owner: "a", name: "api")
+)
+
+/// A host that lists `fetchIfStale`, with `/w/api` as it is on disk (`behindInfo`) and as a fetch would leave it (`freshInfo`).
+@MainActor private func fetchingHost(listing: Bool = true) -> FakeChat {
+    let host = FakeChat()
+    host.workspaces["/w/api"] = behindInfo
+    host.fetched = freshInfo
+    if listing { host.capabilities.insert(.fetchIfStale) }
+    return host
+}
+
+@MainActor @Test func choosingAProjectShowsTheBranchesAtOnceAndFetchesBehindThemAskingForTheFreshnessWindow() async {
+    let host = fetchingHost()
+    var release: CheckedContinuation<Void, Never>?
+    host.fetchGate = { await withCheckedContinuation { release = $0 } }
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await settle { release != nil }
+    // what is on disk is shown and the spinner runs while the fetch is out
+    #expect(model.workspace == behindInfo && model.fetching && model.unreachable == false)
+    #expect(host.fetches.map(\.folder) == ["/w/api"] && host.fetches.map(\.ifStale) == [true])
+    release?.resume()
+    await model.refreshed()
+    #expect(model.workspace == freshInfo && model.fetching == false && model.unreachable == false && model.fetchProblem == nil)
+    #expect(model.picker(query: "")?.local.first?.behindText == "14 behind origin")
+}
+
+@MainActor @Test func aFetchInsideTheFreshnessWindowChangesNothingButTheSpinnerEndingAtOnce() async {
+    let host = fetchingHost()
+    host.fetched = behindInfo  // the host skipped the git call and answered what the folder is
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.refreshed()
+    #expect(model.workspace == behindInfo && model.fetching == false && model.unreachable == false && model.fetchProblem == nil)
+    #expect(model.picker(query: "")?.unreachable == nil)
+}
+
+@MainActor @Test func aFetchThatCannotReachTheRemoteShowsNoErrorAndTheFooterSaysSoWithWhenItWasLastFetched() async {
+    let host = fetchingHost()
+    host.refuse["fetch"] = ControlError.remote("The fetch of origin failed")
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.refreshed()
+    #expect(model.workspace == behindInfo && model.fetching == false && model.fetchProblem == nil && model.refusal == nil && model.workspaceProblem == nil)
+    let picker = model.picker(query: "", now: Date(timeIntervalSince1970: 1.5))
+    #expect(picker?.unreachable == "Could not reach origin" && picker?.fetched == "Fetched just now")
+    // Fetch now asks for no window, shows its own error, and a later one that works clears the footer's note
+    await model.fetchNow()
+    #expect(host.fetches.map(\.ifStale) == [true, false] && model.fetchProblem == "The fetch of origin failed" && model.unreachable)
+    host.refuse["fetch"] = nil
+    await model.fetchNow()
+    #expect(model.workspace == freshInfo && model.unreachable == false && model.fetchProblem == nil)
+}
+
+@MainActor @Test func aHostWithoutFetchIfStaleIsNotFetchedOnChoosingAndFetchNowWorksAsItDid() async {
+    let host = fetchingHost(listing: false)
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.refreshed()
+    #expect(host.fetches.isEmpty && model.workspace == behindInfo && model.fetching == false)
+    await model.fetchNow()
+    #expect(host.fetches.map(\.ifStale) == [false] && model.workspace == freshInfo)
+}
+
+@MainActor @Test func onlyAGitRepositoryWithAnOriginIsFetchedOnChoosing() async {
+    let host = fetchingHost()
+    host.workspaces["/w/notes"] = WorkspaceInfo(folder: "/w/notes", git: false)
+    host.workspaces["/w/bare"] = WorkspaceInfo(folder: "/w/bare", bare: true, defaultBranch: "main", branches: [.init(name: "main", remote: false)])
+    host.workspaces["/w/local"] = WorkspaceInfo(folder: "/w/local", branch: "main", branches: [.init(name: "main", remote: false)])
+    let model = await draft(host)
+    for folder in ["/w/notes", "/w/bare", "/w/local"] {
+        await model.choose(folder: folder)
+        await model.refreshed()
+    }
+    #expect(host.fetches.isEmpty && model.unreachable == false)
+    // a repository the person has in the projects folder is a folder, and is fetched; one still to clone is read from GitHub and is not
+    host.branchesOf["a/new"] = RepoBranches(defaultBranch: "main", branches: ["main"])
+    await model.choose(repo: "a/new")
+    await model.refreshed()
+    #expect(host.fetches.isEmpty && model.fetching == false)
+}
+
+@MainActor @Test func theFetchOfAFolderLeftBehindDoesNotAnswerTheOneChosenAfterIt() async {
+    let host = fetchingHost()
+    host.workspaces["/w/notes"] = WorkspaceInfo(folder: "/w/notes", git: false)
+    var release: CheckedContinuation<Void, Never>?
+    host.fetchGate = { await withCheckedContinuation { release = $0 } }
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await settle { release != nil }
+    await model.choose(folder: "/w/notes")  // nothing to fetch: the first fetch is left behind
+    #expect(model.fetching == false)
+    release?.resume()
+    await model.refreshed()
+    #expect(model.folder == "/w/notes" && model.workspace?.folder == "/w/notes" && model.unreachable == false)
+}
+
+@Test func theWireOfFetchCarriesIfStaleOnlyToAHostThatListsIt() async throws {
+    var lines: [String] = []
+    for listed in [true, false] {
+        let server = TestServer { connection in
+            connection.send(listed ? "{\"event\":\"hello\",\"protocol\":1,\"capabilities\":[\"fetch\",\"fetchIfStale\"]}\n" : "{\"event\":\"hello\",\"protocol\":1,\"capabilities\":[\"fetch\"]}\n")
+            guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+            lines.append(line)
+            connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"folder\":\"/w\",\"git\":false,\"bare\":false,\"linkedWorktree\":false,\"repo\":null,\"branch\":null,\"defaultBranch\":null,\"dirty\":0,\"branches\":[],\"fetchedAt\":null}}\n")
+        }
+        defer { server.stop() }
+        let host = SocketChatHost(socketPath: { server.path })
+        _ = try await host.fetch("/w", ifStale: true)
+    }
+    #expect(lines.count == 2 && lines[0].contains("\"ifStale\":true") && lines[1].contains("ifStale") == false)
 }

@@ -117,7 +117,13 @@ public struct WatchNote: Equatable {
     @ObservationIgnored private var settingStart = defaultWorktreeStart
     /// Whether the host's hello lists `worktreeStart`: only then is `startFrom` sent; an older host is told `origin/<name>` for a remote start.
     public private(set) var hostStarts = false
+    /// Whether the host's hello lists `fetchIfStale`: only then does choosing a project fetch it.
+    public private(set) var hostFetchesIfStale = false
+    /// Whether a fetch of `origin` is running: Fetch now, or the one that choosing a project starts in the background.
     public private(set) var fetching = false
+    /// Whether the fetch that choosing a project started could not reach `origin`: the picker's footer says so, with when the branches were
+    /// last fetched, and nothing else is shown or asked. Cleared by the next fetch that works and when another workspace is chosen.
+    public private(set) var unreachable = false
     /// Why the last Fetch now failed, in the host's words; cleared by the next one.
     public private(set) var fetchProblem: String?
 
@@ -181,6 +187,10 @@ public struct WatchNote: Equatable {
     @ObservationIgnored private let carrierFolder: String
     /// Counts the times the list was started over, so a page that was asked for before is dropped when it comes back.
     @ObservationIgnored private var reposRead = 0
+    /// Counts the fetches (and the times the workspace was chosen), so the answer of one that was left behind is dropped.
+    @ObservationIgnored private var fetchRuns = 0
+    /// The fetch that choosing a project runs behind the branches, for `refreshed()`.
+    @ObservationIgnored private var refresh: Task<Void, Never>?
     /// The repositories to add to the engine's `repos`, by the session that was opened for them, until its `message` step is done.
     @ObservationIgnored private var pendingWatches: [String: String] = [:]
     @ObservationIgnored private var watchTask: Task<Void, Never>?
@@ -328,6 +338,7 @@ public struct WatchNote: Equatable {
         hostCreates = capabilities.contains(.createProject)
         hostLists = capabilities.contains(.githubRepos)
         hostStarts = capabilities.contains(.worktreeStart)
+        hostFetchesIfStale = capabilities.contains(.fetchIfStale)
     }
 
     /// Lists what the chosen agent offers: what was kept for it shows at once and the host is asked again in the background, so the list
@@ -672,6 +683,8 @@ public struct WatchNote: Equatable {
             guard folder == path else { return }
             workspace = info
             await openWhereSettingsSays()
+            // the branches are on screen from what is on disk; the fetch runs behind them and the picker is current when it ends
+            if hostFetchesIfStale, toClone == false, info.hasOrigin { refresh = Task { if Task.isCancelled == false { await fetch(whenChosen: true) } } }
         } catch {
             guard folder == path else { return }
             // the draft still works in the base folder: the host refuses the same folder at `open`, in words
@@ -684,7 +697,15 @@ public struct WatchNote: Equatable {
         if workIn() == .newWorktree { await useWorktree(true) }
     }
 
+    /// Waits for the fetch that choosing a project started in the background, if one is running.
+    public func refreshed() async { await refresh?.value }
+
     private func reset(folder path: String?) {
+        fetchRuns += 1
+        refresh?.cancel()
+        refresh = nil
+        fetching = false
+        unreachable = false
         folder = path
         newProject = nil
         workspace = nil
@@ -757,7 +778,10 @@ public struct WatchNote: Equatable {
     public var offersWorktree: Bool { workspace?.offersWorktree == true && gitMissing == false }
 
     /// The picker's lists for the chosen folder.
-    public func picker(query: String, now: Date = Date()) -> BranchPicker? { workspace.map { branchPicker($0, query: query, now: now) } }
+    public func picker(query: String, now: Date = Date()) -> BranchPicker? { workspace.map { branchPicker($0, query: query, now: now, unreachable: unreachable) } }
+
+    /// What the picker's summary warns of under the "from" chip: the branch is behind (Local) or has commits not pushed (Remote).
+    public var startWarning: String? { CarrierCore.startWarning(startPoint, in: workspace) }
 
     /// "base folder" and "in a new worktree" are one control: choosing the worktree asks the host for a name the first time.
     public func useWorktree(_ on: Bool) async {
@@ -807,18 +831,30 @@ public struct WatchNote: Equatable {
     }
 
     /// Fetch now: the host fetches `origin` and answers what the folder is after it, with the remote branches and the time of the fetch.
-    public func fetchNow() async {
+    public func fetchNow() async { await fetch(whenChosen: false) }
+
+    /// One fetch of the folder's `origin`. `whenChosen` is the one choosing a project starts: it asks the host to skip the git call within its
+    /// freshness window, and one that cannot reach the remote is only `unreachable`, with no error. Fetch now never skips and says why it failed.
+    private func fetch(whenChosen: Bool) async {
         guard let path = folder, fetching == false, toClone == false else { return }
+        fetchRuns += 1
+        let run = fetchRuns
         fetching = true
         fetchProblem = nil
-        defer { fetching = false }
+        defer { if run == fetchRuns { fetching = false } }
         do {
-            let info = try await host.fetch(path)
-            guard folder == path else { return }
+            let info = try await host.fetch(path, ifStale: whenChosen)
+            guard run == fetchRuns else { return }
             workspace = info
+            unreachable = false
         } catch {
-            guard folder == path else { return }
-            fetchProblem = report(error, "fetch")
+            guard run == fetchRuns else { return }
+            if whenChosen {
+                unreachable = true
+                _ = report(error, "fetch on choosing")
+            } else {
+                fetchProblem = report(error, "fetch")
+            }
         }
     }
 

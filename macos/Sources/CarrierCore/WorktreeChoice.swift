@@ -10,6 +10,28 @@ public struct WorkspaceInfo: Decodable, Equatable {
         public let name: String
         /// A remote branch is listed as `origin/<name>`.
         public let remote: Bool
+        /// On a local branch that has a counterpart on `origin` only: the commits it has that `origin/<name>` lacks (not pushed), and the
+        /// commits of `origin/<name>` it lacks (behind). Nil on a branch with no counterpart, and from a host that does not count.
+        public let ahead: Int?
+        public let behind: Int?
+
+        public init(name: String, remote: Bool, ahead: Int? = nil, behind: Int? = nil) {
+            self.name = name
+            self.remote = remote
+            self.ahead = ahead
+            self.behind = behind
+        }
+    }
+
+    /// `owner/name` of the GitHub remote the folder's `origin` is; nil for any other remote, and for none.
+    public struct Repo: Decodable, Equatable {
+        public let owner: String
+        public let name: String
+
+        public init(owner: String, name: String) {
+            self.owner = owner
+            self.name = name
+        }
     }
 
     public let folder: String
@@ -26,11 +48,13 @@ public struct WorkspaceInfo: Decodable, Equatable {
     public let branches: [Branch]
     /// Milliseconds since the epoch of the last fetch of `origin`.
     public let fetchedAt: Int?
+    public let repo: Repo?
 
     public init(
         folder: String, git: Bool = true, bare: Bool = false, linkedWorktree: Bool = false, branch: String? = nil, defaultBranch: String? = nil,
-        dirty: Int = 0, branches: [Branch] = [], fetchedAt: Int? = nil
+        dirty: Int = 0, branches: [Branch] = [], fetchedAt: Int? = nil, repo: Repo? = nil
     ) {
+        self.repo = repo
         self.folder = folder
         self.git = git
         self.bare = bare
@@ -41,6 +65,10 @@ public struct WorkspaceInfo: Decodable, Equatable {
         self.branches = branches
         self.fetchedAt = fetchedAt
     }
+
+    /// Whether the folder is a repository with an `origin` to fetch: a GitHub remote, or any remote branch already on disk (the host's reply
+    /// does not name other remotes). Choosing the folder fetches only these.
+    public var hasOrigin: Bool { git && bare == false && (repo != nil || branches.contains { $0.remote }) }
 
     /// A worktree needs a repository with a working folder and a commit to start from: with no branch at all there is none.
     public var offersWorktree: Bool { git && bare == false && branches.isEmpty == false }
@@ -146,6 +174,14 @@ public struct BranchRow: Equatable {
     public let isDefault: Bool
     /// A local branch with no counterpart on `origin`: it is only in the Local tab, and starts from local.
     public var localOnly = false
+    /// How many commits of `origin/<name>` this local branch lacks, and how many it has that are not pushed; 0 with no counterpart or no count.
+    public var behind = 0
+    public var ahead = 0
+
+    /// "3 behind origin", shown when the branch is behind; nil when it is not.
+    public var behindText: String? { behind > 0 ? "\(behind) behind origin" : nil }
+    /// "2 not pushed", shown when the branch has commits `origin` lacks; nil when it has none.
+    public var notPushedText: String? { ahead > 0 ? "\(ahead) not pushed" : nil }
 }
 
 /// The picker's content: the local and the remote branches in two sections (what a search matches, ignoring case), the checked-out one
@@ -154,12 +190,14 @@ public struct BranchPicker: Equatable {
     public let local: [BranchRow]
     public let remote: [BranchRow]
     public let fetched: String
+    /// What the footer says when the fetch on choosing could not reach `origin`; nil otherwise.
+    public let unreachable: String?
 
     /// What the tab lists, one tab at a time so a branch is never offered twice: the branches on `origin` for Remote, the local ones for Local.
     public func rows(_ tab: WorktreeStart) -> [BranchRow] { tab == .remote ? remote : local }
 }
 
-public func branchPicker(_ workspace: WorkspaceInfo, query: String = "", now: Date = Date()) -> BranchPicker {
+public func branchPicker(_ workspace: WorkspaceInfo, query: String = "", now: Date = Date(), unreachable: Bool = false) -> BranchPicker {
     let wanted = query.trimmingCharacters(in: .whitespaces)
     let defaults = workspace.defaultBranch.map { [$0, "origin/\($0)"] } ?? []
     let onOrigin = Set(workspace.branches.filter(\.remote).map(\.name))
@@ -168,13 +206,32 @@ public func branchPicker(_ workspace: WorkspaceInfo, query: String = "", now: Da
         .map {
             (remote: $0.remote, row: BranchRow(
                 name: $0.name, checkedOut: $0.remote == false && $0.name == workspace.branch, isDefault: defaults.contains($0.name),
-                localOnly: $0.remote == false && onOrigin.contains("origin/\($0.name)") == false
+                localOnly: $0.remote == false && onOrigin.contains("origin/\($0.name)") == false,
+                behind: $0.behind ?? 0, ahead: $0.ahead ?? 0
             ))
         }
     return BranchPicker(
         local: rows.filter { $0.remote == false }.map(\.row), remote: rows.filter(\.remote).map(\.row),
-        fetched: fetchedLine(workspace.fetchedAt, now: now)
+        fetched: fetchedLine(workspace.fetchedAt, now: now), unreachable: unreachable ? unreachableLine : nil
     )
+}
+
+/// The footer's words when the fetch that runs on choosing a project could not reach `origin`; with them, `fetchedLine` says since when the branches stand.
+public let unreachableLine = "Could not reach origin"
+
+/// The warning under the picker's "from" chip, nil when there is nothing to say: with Local chosen, that the branch is behind its copy on
+/// `origin`; with Remote chosen, that the local branch has commits not pushed that the worktree will not have.
+public func startWarning(_ point: StartPoint?, in workspace: WorkspaceInfo?) -> String? {
+    guard let point, let side = point.side, let local = workspace?.branches.first(where: { $0.remote == false && $0.name == point.branch }) else { return nil }
+    func commits(_ count: Int) -> String { "\(count) \(count == 1 ? "commit" : "commits")" }
+    switch side {
+    case .local:
+        guard let behind = local.behind, behind > 0 else { return nil }
+        return "\(point.branch) is \(commits(behind)) behind origin/\(point.branch), so the worktree starts without \(behind == 1 ? "it" : "them")."
+    case .remote:
+        guard let ahead = local.ahead, ahead > 0 else { return nil }
+        return "\(point.branch) has \(commits(ahead)) not pushed to origin/\(point.branch), so the worktree will not have \(ahead == 1 ? "it" : "them")."
+    }
 }
 
 /// "Fetched 5 minutes ago"; "Never fetched" when the folder has no record of one.

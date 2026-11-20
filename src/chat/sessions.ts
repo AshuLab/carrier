@@ -1,6 +1,6 @@
 import { accessSync, constants, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/places.ts';
@@ -1246,11 +1246,18 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       return { options: live.conversation.options };
     },
 
-    /** `reasoning` is the client asking for the `reasoning` events: one that does not keeps getting the events it knew. */
-    events({ sessionId, after = 0, limit, reasoning = false }: { sessionId: string; after?: number; limit: number; reasoning?: boolean }) {
+    /**
+     * `reasoning` is the client asking for the `reasoning` events: one that does not keeps getting the events it knew.
+     * `lists` is the `listsRev` the client already has: the options and the commands, which are most of the reply and almost never change, are left
+     * out while it is the current one (`listsUnchanged`), and a client that sends none gets them every time.
+     */
+    events({ sessionId, after = 0, limit, reasoning = false, lists }: { sessionId: string; after?: number; limit: number; reasoning?: boolean; lists?: string }) {
       const current = row(sessionId);
       const rows = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), gt(chatEvents.id, after), reasoning ? undefined : ne(chatEvents.kind, 'reasoning'))).orderBy(asc(chatEvents.id)).limit(limit).all();
       const live = lives.get(sessionId);
+      const options = live?.conversation.options ?? [];
+      const commands = live?.conversation.commands ?? [];
+      const listsRev = createHash('sha1').update(JSON.stringify([options, commands])).digest('hex').slice(0, 16);
       return {
         // an option event's data has the option's own `id`, which must not take the place of the row's: a client reads `id` as the cursor
         events: rows.map(({ id, at, kind, data }) => (kind === 'option' ? { id, at, kind, option: data.id, value: data.value } : { id, at, kind, ...data })),
@@ -1259,8 +1266,9 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         streaming: live?.streaming ?? '',
         progress: progress.get(sessionId) ?? null,
         approvals: [...(live?.approvals.values() ?? [])],
-        options: live?.conversation.options ?? [],
-        commands: live?.conversation.commands ?? [],
+        listsRev,
+        // the keys are named in both replies so they have one type; JSON drops the undefined ones
+        ...(lists === listsRev ? { listsUnchanged: true as const, options: undefined, commands: undefined } : { listsUnchanged: undefined, options, commands }),
       };
     },
 

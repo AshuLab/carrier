@@ -20,6 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - When "Carrier can read it" fails with a 404 on a repo, the fix also says Carrier can read as another identity (`orchestratorProfile`, Settings > Engine > GitHub identity), and not only to install the App.
 - Carrier no longer grows in memory while it sits open: about 1 MB a minute went to what the connection to the engine left behind, and it is freed on every poll now.
+- An open conversation uses less CPU: the app reads and decodes each answer of the chat host once, where it went over a long answer again at every read and took it apart twice.
+- The chat host sends a session's options and slash commands only when they change, not again at every poll of an open conversation: they were most of what it sent.
 - The role summary in Settings is built without the `Text +` that macOS 26 deprecates; it looks the same.
 - A session's pull request shows in the sidebar when its agent moved the worktree to another branch: it is looked for on the branch checked out now, not the one the worktree was cut with.
 

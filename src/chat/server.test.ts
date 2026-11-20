@@ -46,7 +46,7 @@ const controls = (): ChatControls => ({
   stopTask: async ({ sessionId, taskId }) => ({ sessionId, taskId }),
   setOption: async ({ option, value }) => ({ option, value }),
   agentOptions: async ({ agent }) => ({ agent }),
-  events: ({ after = 0, reasoning }) => ({ after, ...(reasoning !== undefined && { reasoning }) }),
+  events: ({ after = 0, reasoning, lists }) => ({ after, ...(reasoning !== undefined && { reasoning }), ...(lists !== undefined && { lists }) }),
   close: async () => ({}),
   archive: async ({ archived }) => ({ archived }),
   delete: async () => ({}),
@@ -106,7 +106,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'listsRev'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -121,6 +121,8 @@ test.each([
   ['a health refresh that is not a boolean', '{"id":8,"cmd":"health","refresh":"yes"}', 8],
   ['a health with an extra field', '{"id":10,"cmd":"health","agent":"claude"}', 10],
   ['providers with a field', '{"id":12,"cmd":"providers","refresh":true}', 12],
+  ['events with a lists that is not a string', `{"id":50,"cmd":"events","sessionId":"${uuid}","limit":10,"lists":7}`, 50],
+  ['events with an empty lists', `{"id":51,"cmd":"events","sessionId":"${uuid}","limit":10,"lists":""}`, 51],
   ['events asking for reasoning with a non-boolean', `{"id":11,"cmd":"events","sessionId":"${uuid}","limit":10,"reasoning":"yes"}`, 11],
   ['usage with a range that is not offered', '{"id":20,"cmd":"usage","days":10}', 20],
   ['usage with a provider that is not one', '{"id":21,"cmd":"usage","provider":"gemini"}', 21],
@@ -148,6 +150,12 @@ test.each([
   const c = await client();
   expect(await c.ask(line)).toEqual({ id, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":9,"cmd":"list"}')).toMatchObject({ id: 9, ok: true });
+});
+
+test('events takes the lists revision the client has and passes it on', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"events","sessionId":"${uuid}","limit":10,"lists":"abc123"}`)).toEqual({ id: 1, ok: true, data: { after: 0, lists: 'abc123' } });
 });
 
 test('events takes an optional reasoning and passes it on', async () => {

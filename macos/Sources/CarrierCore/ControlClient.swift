@@ -32,7 +32,13 @@ public func protocolMatch(_ host: Int) -> ProtocolMatch {
 /// and a path that does not fit is refused here instead of crashing the process.
 public final class ControlClient {
     private let fd: Int32
-    private var buffer = Data()
+    private var buffer: [UInt8] = []
+    /// How much of `buffer` has been searched for the end of a line, so a long reply read in several pieces is searched once.
+    private var scanned = 0
+    /// What the searches for the end of a line have looked at in all, and how many replies took one parse: the tests tell a search that
+    /// goes over the buffer again at each read, or a reply parsed twice, from these.
+    private(set) var bytesScanned = 0
+    private(set) var repliesParsedOnce = 0
     private var lastId = 0
     private var isOpen = true
     private let maxLineBytes = 8 * 1024 * 1024
@@ -84,7 +90,7 @@ public final class ControlClient {
     public enum Capability: String, CaseIterable {
         case sessions, events, epic, files, fileDiff, availableRepos, availableReposPaged, resumeEpic, reload
         case agents, list, open, resume, send, answer, interrupt, setOption, agentOptions, close, archive, delete, deletePreview, stop
-        case workspace, fetch, suggestName, checkName, cloneRepo, createProject, githubRepos, repoBranches, health, providers, plan, reasoning, rename, regenerateTitle, usage, usageOverride, accountIdentity, accountPalette, switchAgent, stopTask
+        case workspace, fetch, suggestName, checkName, cloneRepo, createProject, githubRepos, repoBranches, health, providers, plan, reasoning, rename, regenerateTitle, usage, usageOverride, accountIdentity, accountPalette, switchAgent, stopTask, listsRev
     }
 
     /// What the last `hello()` said Carrier can do; empty until then.
@@ -115,6 +121,32 @@ public final class ControlClient {
     /// Sends the command with the next id and waits for its reply; returns the reply's `data`, as JSON bytes, `null` when it has none.
     /// `fields` is more of the request object, already JSON (`,"lines":60`); only this file's callers build it, from checked values.
     public func request(_ command: String, fields: String = "") throws -> Data {
+        try exchange(command, fields) { try answer($0) }
+    }
+
+    /// `request`, but the reply's `data` is decoded into `Reply`: the whole line is parsed once, where handing the bytes of `data` back
+    /// takes it apart and puts it together again first. A reply that is not the one waited for, an error or an empty `data` goes the
+    /// long way, as `request` does. nil, with nothing sent, when the engine did not say it can answer.
+    public func request<Reply: Decodable>(_ command: String, requires capability: Capability, fields: String = "", as type: Reply.Type) throws -> Reply? {
+        guard capabilities.contains(capability) else { return nil }
+        return try exchange(command, fields) { line in
+            if let whole = try? JSONDecoder().decode(Answer<Reply>.self, from: line), whole.id == lastId, whole.ok == true, let data = whole.data {
+                repliesParsedOnce += 1
+                return data
+            }
+            guard let data = try answer(line) else { return nil }
+            do { return try JSONDecoder().decode(Reply.self, from: data) } catch { throw ControlError.badLine }
+        }
+    }
+
+    private struct Answer<Payload: Decodable>: Decodable {
+        let id: Int?
+        let ok: Bool?
+        let data: Payload?
+    }
+
+    /// Sends the request and reads lines until `take` says one is the answer.
+    private func exchange<Result>(_ command: String, _ fields: String, take: (Data) throws -> Result?) throws -> Result {
         // requests come from several threads at once, so each interval has its own id
         let signpost = Signposts.poll.beginInterval("request", id: Signposts.poll.makeSignpostID(), "\(command, privacy: .public)")
         var bytes = 0
@@ -124,14 +156,20 @@ public final class ControlClient {
         while true {
             let line = try readLine()
             bytes += line.count
-            let reply = try json(line)
-            let id = reply["id"] as? Int
-            // a reply to an earlier request that gave up is skipped; an error with no id can only be about this one
-            guard id == lastId || (id == nil && reply["ok"] as? Bool == false) else { continue }
-            guard reply["ok"] as? Bool == true else { throw ControlError.remote(reply["error"] as? String ?? "unknown error") }
-            guard let data = reply["data"] else { return Data("null".utf8) }
-            return try JSONSerialization.data(withJSONObject: data, options: .fragmentsAllowed)
+            if let result = try take(line) { return result }
         }
+    }
+
+    /// The `data` of the reply to the last request, `null` when it has none; nil for a line that is not that reply (a reply to an earlier
+    /// request that gave up is skipped); an error reply throws.
+    private func answer(_ line: Data) throws -> Data? {
+        let reply = try json(line)
+        let id = reply["id"] as? Int
+        // an error with no id can only be about this one
+        guard id == lastId || (id == nil && reply["ok"] as? Bool == false) else { return nil }
+        guard reply["ok"] as? Bool == true else { throw ControlError.remote(reply["error"] as? String ?? "unknown error") }
+        guard let data = reply["data"] else { return Data("null".utf8) }
+        return try JSONSerialization.data(withJSONObject: data, options: .fragmentsAllowed)
     }
 
     /// The last `lines` meaningful lines of an execution's output. Only a UUID goes on the wire, as Carrier accepts nothing else.
@@ -157,23 +195,39 @@ public final class ControlClient {
 
     private func readLine() throws -> Data {
         while true {
-            if let end = buffer.firstIndex(of: 0x0A) {
-                let line = buffer[buffer.startIndex..<end]
-                buffer.removeSubrange(buffer.startIndex...end)
-                return Data(line)
+            if let end = endOfLine() {
+                let line = Data(buffer[..<end])
+                buffer.removeSubrange(...end)
+                return line
             }
             guard buffer.count <= maxLineBytes else { throw ControlError.badLine }
-            var chunk = [UInt8](repeating: 0, count: 4096)
-            let n = read(fd, &chunk, chunk.count)
+            var failure: Int32 = 0
+            let n = withUnsafeTemporaryAllocation(of: UInt8.self, capacity: 32 * 1024) { space -> Int in
+                let n = read(fd, space.baseAddress, space.count)
+                if n > 0 { buffer.append(contentsOf: space[..<n]) } else if n < 0 { failure = errno }
+                return n
+            }
             if n > 0 {
-                buffer.append(contentsOf: chunk[..<n])
-            } else if n < 0 && errno == EINTR {
                 continue
-            } else if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) {
+            } else if n < 0 && failure == EINTR {
+                continue
+            } else if n < 0 && (failure == EAGAIN || failure == EWOULDBLOCK) {
                 throw ControlError.timeout
             } else {
                 throw ControlError.closed
             }
         }
+    }
+
+    /// Where the first line in `buffer` ends, looking only at what no earlier search has seen.
+    private func endOfLine() -> Int? {
+        let fresh = buffer.count - scanned
+        guard fresh > 0 else { return nil }
+        bytesScanned += fresh
+        let found = buffer.withUnsafeBufferPointer { bytes in
+            memchr(bytes.baseAddress! + scanned, 0x0A, fresh).map { bytes.baseAddress!.distance(to: $0.assumingMemoryBound(to: UInt8.self)) }
+        }
+        scanned = found == nil ? buffer.count : 0
+        return found
     }
 }

@@ -121,9 +121,12 @@ test('the pull request of a worktree is looked for on the branch checked out now
   expect(s.calls.find((call) => call.command === 'rev-parse --abbrev-ref HEAD')?.folder).toBe('/wt/fix');
 });
 
-test('a worktree whose branch cannot be read falls back to the one it was cut with', async () => {
+test.each([
+  ['detached', { 'rev-parse --abbrev-ref HEAD': 'HEAD\n' }],
+  ['unreadable', {}],
+])('a worktree whose branch is %s falls back to the one it was cut with', async (_case, head) => {
   const s = setup(
-    { [ORIGIN]: 'git@github.com:AshuLab/carrier.git', 'rev-parse --abbrev-ref HEAD': 'HEAD\n', [DEFAULT]: 'origin/main' },
+    { [ORIGIN]: 'git@github.com:AshuLab/carrier.git', ...head, [DEFAULT]: 'origin/main' },
     { folder: '/wt/fix', workspaceKind: 'worktree', worktreeBranch: 'carrier/fix', worktreeFrom: 'main', worktreeBase: '/work/app', worktreePath: '/wt/fix' },
   );
   s.pulls.found['AshuLab/carrier:carrier/fix'] = pr(7);

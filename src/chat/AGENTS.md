@@ -40,13 +40,13 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   `McpSessionRegistry`: a bearer token per live conversation, kept hashed in memory, revoked by `invocationId` when `sessions.ts` closes, loses or fails that conversation.
   `defineTool`: every tool declares its access level.
   A tool is listed and callable only for a token with the capability its access level needs: `delegate_start` (`mcp/delegate.ts`, `actsAsSession`) needs `act`, which a session with no parent gets.
-  A tool marked `delegation` is also listed only while `sessions.delegationRefusal` (`levels.ts`: a mode that asks, on the scale, Codex app-server 0.122.0 or later) finds none, and that check runs again on the call; `agents` says the same words as `notOffered`.
+  A tool marked `delegation` is also listed only while `sessions.delegationRefusal` (`levels.ts`: options on the scale in any mode, Codex app-server 0.122.0 or later) finds none, and that check runs again on the call; `agents` says the same words as `notOffered`.
   The approval of `delegate_start` carries `input` (never stored, dropped by `boundEvent`), from which `sessions.ts` words the approval and holds the call to the level shown.
   Claude names the tools that read in `allowedTools`, no wildcard, so `delegate_start` asks, with Allow, Deny and an allowance with the destination `session` (`HONOURS_SESSION_ALLOWANCE`).
   `delegate_wait` (`readsAsSession`) waits for the caller's children through `waitChildren` of `sessions.ts` (live state, else how the child's one turn ended), and `history` also reads a child or the parent (`related`).
   The toolkits are under `mcp/`; the adapters take the `mcp` argument of `ChatRunner.open`.
 - `handoff.ts`: `buildHandoff`, the pure builder of a switched session's handoff from its stored events, 16,000 bytes at most (ADR 0032, linked above); it travels as `ChatRunner.open`'s `instructions` (Claude appends it to its system prompt, Codex sends `developerInstructions`).
-- `levels.ts`: the permission scale as pure data (`levelOf`, `childOptions`), for the options a child may have (ADR 0033, linked above).
+- `levels.ts`: the permission scale of four levels as pure data (`levelOf`, `childOptions`), for the options a child may have: those of its agent at or under its parent's level (ADR 0033, linked above, and [ADR 0036](../../docs/adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)).
 - `health.ts`: the `health` request (whether `git`, `gh` and each agent's CLI work and are signed in, as `ready`, `missing`, `signedOut` or `unknown`, only the verdicts; [spec](../../docs/specs/chat-host.md)).
 - `git.ts`: the port to the machine's git (`realGit` in production, `FakeGit` in `fake.ts`).
 - `workspace.ts`: what a folder is as a repository, and its fetch.

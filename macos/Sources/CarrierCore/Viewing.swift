@@ -51,3 +51,8 @@ public let conversationTurnWait: TimeInterval = 0.25
 /// The longest a conversation goes without asking while nobody looks: a wake-up that gets lost costs one ask every 30 seconds, and the chat
 /// host, which closes a session that nobody asked about for a minute, still hears from the app.
 public let conversationPause: TimeInterval = 30
+
+/// Whether the menu bar icon's bar may bounce: the person left it on, the screens and the Mac are awake (nobody sees it otherwise) and it is not
+/// Low Power Mode. Not about the window: the bounce is there to be seen with the window closed. It costs the window server about four points of a
+/// core, measured, for a bar of four points.
+public func iconAnimates(setting: Bool, state: ViewingState, lowPower: Bool) -> Bool { setting && state != .asleep && lowPower == false }

@@ -42,3 +42,13 @@ import Testing
     #expect(changes.withLock { $0 } == 2 && viewing.state == .hidden && viewing.lowPower && viewing.animates == false)
     #expect(pace.seconds == PollPace.lowPowerSeconds && pace.looking == false)
 }
+
+@Test func theBarOfTheMenuIconBouncesOnlyWhenTheSettingIsOnTheMacIsAwakeAndNotInLowPower() {
+    // the window being hidden does not stop it: it is there to be seen with the window closed
+    for state in [ViewingState.focused, .visible, .hidden] {
+        #expect(iconAnimates(setting: true, state: state, lowPower: false), "\(state)")
+        #expect(iconAnimates(setting: true, state: state, lowPower: true) == false, "\(state) in Low Power")
+        #expect(iconAnimates(setting: false, state: state, lowPower: false) == false, "\(state) switched off")
+    }
+    #expect(iconAnimates(setting: true, state: .asleep, lowPower: false) == false)
+}

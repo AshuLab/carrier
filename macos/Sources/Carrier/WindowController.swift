@@ -543,6 +543,7 @@ final class WindowController: NSObject, NSWindowDelegate {
                 lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled
             )
             _ = AppUsage.refresher.setAttentive(Viewing.shared.state == .focused)
+            IconController.shared?.reloadSettings()
         }
     }
 

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Dragging the thumbnail of a macOS screenshot onto the message box attaches the picture; before, the box refused it. A picture dragged from a web page or another app that offers only its image data attaches too.
+
 ### Changed
 
 - The selected row of the sidebar is your accent in a deeper shade on dark appearance, so the white words keep their contrast.

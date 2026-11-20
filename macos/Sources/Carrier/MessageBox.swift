@@ -1,5 +1,6 @@
 import CarrierCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The message box of the draft and of an open session: a roomy text area with a hint and the send button, which is Stop while the
 /// agent answers, and beside it at the left the button of what the session runs with. The key chosen in Settings sends (Return or ⌘Return), the other
@@ -155,7 +156,7 @@ struct MessageBox<Selects: View>: View {
             .overlay { if dropping { dropVeil } }
             .offset(y: dropping ? -3 : 0)
             .animation(.smooth(duration: 0.2), value: dropping)
-            .dropDestination(for: URL.self) { urls, _ in attach(urls) } isTargeted: { dropping = $0 }
+            .onDrop(of: [.fileURL, .image], isTargeted: $dropping) { drop($0) }
             if let failure = dictation.session.failure(for: dictationOwner) {
                 Text(failure.cause).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled)
             }
@@ -217,6 +218,34 @@ struct MessageBox<Selects: View>: View {
     }
 
     private var carrier: String { carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()) }
+
+    /// What was dragged onto the box: files go as they are; a picture that comes only as data (a screenshot's thumbnail) is written to a file first.
+    private func drop(_ providers: [NSItemProvider]) -> Bool {
+        var taken = false
+        for provider in providers {
+            // a file of the Mac; a picture dragged from a web page also carries a web address, and goes by the other branch
+            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                taken = true
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    Task { @MainActor in _ = attach([url]) }
+                }
+            } else if let type = provider.registeredTypeIdentifiers.compactMap({ UTType($0) }).first(where: { $0.conforms(to: .image) }) {
+                taken = true
+                provider.loadDataRepresentation(forTypeIdentifier: type.identifier) { data, error in
+                    guard let data, let file = droppedImageFile(data, ext: type.preferredFilenameExtension ?? "png") else {
+                        NSLog("Carrier: a dropped picture could not be read: %@", String(describing: error))
+                        return
+                    }
+                    Task { @MainActor in
+                        _ = attach([file])
+                        try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
+                    }
+                }
+            }
+        }
+        return taken
+    }
 
     /// Dropped files become chips, the ones already there kept once. Only what is a file of the Mac counts, and each is copied into Carrier's own
     /// folder at once, so the message keeps its file when the original is moved or deleted.

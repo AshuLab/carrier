@@ -1860,6 +1860,42 @@ test('a restart stops the live orphan before launching, resumes its session and 
   expect(runner.tasks.map((t) => t.epic)).toEqual([1, 2]);
 });
 
+// A check can arrive while the start recovers (the control socket opens before the recovery): it must wait for that recovery, not run a second one.
+async function startWhileRecovering() {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'interrupted' });
+  let open1!: () => void;
+  const gate = new Promise<void>((resolve) => (open1 = resolve));
+  workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
+  runner.behavior = () => ({ exit: 'hang' });
+  settings = { pollIntervalMs: 5 * MIN, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
+  watched = repos;
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, places: enginePlacesOf(dir) });
+  const started = engine.start();
+  const checked = engine.pollNow();
+  await settle();
+  open1();
+  await Promise.all([started, checked]);
+  await settle();
+  return engine;
+}
+
+test('a check asked while the start recovers shares that recovery: one agent per interrupted epic', async () => {
+  await startWhileRecovering();
+  expect(runner.tasks).toHaveLength(1);
+});
+
+test('a check asked while the start recovers leaves one chain of polls, not two', async () => {
+  const engine = await startWhileRecovering();
+  const before = github.calls;
+  await clock.advance(5 * MIN);
+  expect(github.calls - before).toBe(repos.length); // one listing per repo for the interval
+  await clock.advance(5 * MIN);
+  expect(github.calls - before).toBe(2 * repos.length);
+  engine.stop();
+});
+
 test('a restart leaves alone a live agent this root never launched', async () => {
   const db = open();
   seedEpic(db, 1);

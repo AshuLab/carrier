@@ -43,3 +43,4 @@ A status that names a later record means that record changed part or all of this
 | 0033 | [An agent delegates to another agent through child sessions, and every delegation asks the person](0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) | accepted |
 | 0034 | [The Carrier folder keeps the edited files at the top and splits each process's folder by lifecycle](0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md) | accepted |
 | 0035 | [A worktree's folder goes when its work is done, and its branch stays](0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md) | accepted |
+| 0036 | [A session delegates in every mode, and a child runs at its parent's permission level](0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) | accepted |

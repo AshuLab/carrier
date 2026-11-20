@@ -1,6 +1,6 @@
 # 0033 - An agent delegates to another agent through child sessions, and every delegation asks the person
 
-- Status: accepted; both harnesses were observed asking for one tool of a server, Claude with a real model and Codex's approval layers with a scripted one ([research](../research/switch-and-delegate-spike.md))
+- Status: accepted; amended by [0036](0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md): a delegation no longer asks and the scale covers the modes that never ask; both harnesses were observed asking for one tool of a server, Claude with a real model and Codex's approval layers with a scripted one ([research](../research/switch-and-delegate-spike.md))
 - Date: 2026-11-16
 
 ## Context

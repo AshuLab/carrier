@@ -46,3 +46,17 @@ Delegating to an agent of another provider is a different feature, `delegate_tas
 
 - No test or document says how well a switched conversation keeps going; the release notes only call the handoff lossy.
 - Whether the design document's native resume on return is built.
+
+## How `delegate_task` is approved and how a child's mode is set
+
+> Added 2026-11-19, for [delegate-from-any-mode](../specs/delegate-from-any-mode.md).
+> Source: the same repository at `main` on that date, read and not run.
+
+- On Claude, `claudeMcpQueryOverrides` (`ClaudeAdapterV2.ts`) puts the wildcard `mcp__t3-code__*` in `allowedTools`, so `delegate_task` runs with no approval in every mode.
+  In a read-only sandbox it lists instead the tools that read, and `delegate_task` is not one of them, so a read-only parent does not delegate.
+- On Codex the adapter sets no approval mode for its server that was found, so what Codex does is not known from the source; `delegate_task` and `t3_thread_wait` are registered a second time as direct-only tools so that Codex's code mode does not nest them.
+- A child's runtime mode is the parent's unless a narrower one is asked for, and a broader one is refused with `runtime_mode_escalation_denied` (`delegatedTaskModes.ts`).
+  The ranks are `approval-required`, `auto-accept-edits`, `auto` and `full-access`, and the interaction mode `plan` cannot become `default`.
+  A mode that the target provider does not offer steps down to the broadest one it does.
+- The adapter turns the thread's mode into the harness's own option (`permissionModeForClaudeRuntimePolicy`): `auto` becomes Claude's `auto`, `plan` becomes `plan`, and a read-only sandbox becomes `dontAsk`.
+- Not read: how `delegate_task` behaves in `plan`.

@@ -36,6 +36,7 @@ Specs of one area that build on each other are listed oldest first.
 - [session-prepared-on-first-message](session-prepared-on-first-message.md): a new session is a plan prepared when the first message is sent. Implemented (v0.1.0).
 - [chat-mcp-engine](chat-mcp-engine.md): the chat host serves an MCP to the agents of its sessions. Implemented (unreleased); its exclusion of a tool that sees another session is lifted in part by switch-and-delegate-between-agents, for a parent and its children's `history`.
 - [switch-and-delegate-between-agents](switch-and-delegate-between-agents.md): a session changes agent and hands work to other agents. Spec, epic #1024.
+- [delegate-from-any-mode](delegate-from-any-mode.md): a session delegates in any mode, with no approval, and a child runs at its parent's permission level. Spec, epic #1129.
 
 ## Usage
 

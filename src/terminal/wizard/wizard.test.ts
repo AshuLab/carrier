@@ -131,7 +131,7 @@ test('the recap lists what will be saved, and declining it writes nothing', asyn
   const spy: Ui = { ...ui, note: (m, title) => void (notes[title] = m) };
   await expect(runInit({ repo: ['A/b'], out: join(dir, 'u.json') }, spy, deps)).rejects.toBeInstanceOf(Cancelled);
   expect(written).toEqual({});
-  expect(notes['This is what will be saved']).toMatch(/Repos {9}A\/b\nAccounts {6}claude, codex\nAuthor {8}artanis-agent · claude \(Claude Code\) · sonnet\nReviewer {6}tassadar-agent · codex \(Codex\) · gpt-test\nConfig {8}/);
+  expect(notes['This is what will be saved']).toMatch(/Repos {9}A\/b\nOrchestrator {2}artanis-agent\nAccounts {6}claude, codex\nAuthor {8}artanis-agent · claude \(Claude Code\) · sonnet\nReviewer {6}tassadar-agent · codex \(Codex\) · gpt-test\nConfig {8}/);
 });
 
 test('--yes skips the recap and the start question', async () => {
@@ -465,4 +465,32 @@ test('the identity step is explained before it is asked, unless both profiles ca
   expect(note).toContain('Agent Forge bot');
   expect(note).toContain('(diego)'); // the gh login shown is the one found
   expect(await noteFor({ out: join(dir, 'ident-2.json'), authorProfile: 'gh', reviewerProfile: 'forge:artanis-agent' })).toBeUndefined();
+});
+
+test('the orchestrator is asked before the author and the reviewer, and its answer is the one written', async () => {
+  const { deps, written } = fakeDeps();
+  const order: string[] = [];
+  const { ui } = quietUi({ 'GitHub identity for the orchestrator': 'gh' });
+  const spy: Ui = { ...ui, select: async (o) => (order.push(o.message), ui.select(o)) };
+  const out = join(dir, 'orch.json');
+  await runInit({ repo: ['A/b'], out }, spy, deps);
+  expect(order.filter((m) => m.startsWith('GitHub identity for'))).toEqual(['GitHub identity for the orchestrator', 'GitHub identity for the author', 'GitHub identity for the reviewer']);
+  const config = JSON.parse(written[out]!);
+  expect(config.orchestratorProfile).toBe('gh');
+  expect(config.profiles.gh).toEqual({ kind: 'gh' });
+  expect(config.agents.author.profile).toBe('artanis-agent'); // the orchestrator's answer does not move the author's
+});
+
+test('editing a config starts the orchestrator from the file, and an unattended run makes it the author', async () => {
+  const { deps } = fakeDeps({ exists: () => true, readConfig: asFiles(existing) });
+  const seen: (string | undefined)[] = [];
+  const { ui } = quietUi({ [existingKey]: 'edit' });
+  const spy: Ui = { ...ui, select: async (o) => (o.message === 'GitHub identity for the orchestrator' && seen.push(String(o.initialValue)), ui.select(o)) };
+  await withHome(() => runInit({}, spy, deps));
+  expect(seen).toEqual(['forge:tassadar-agent']);
+
+  const { deps: unattended, written } = fakeDeps();
+  const out = join(dir, 'q.json');
+  await runInit({ repo: ['A/b'], authorProfile: 'gh', reviewerProfile: 'forge:artanis-agent', author: 'claude:m1', reviewer: 'codex:m2', out, yes: true }, quietUi().ui, unattended);
+  expect(JSON.parse(written[out]!).orchestratorProfile).toBe('gh');
 });

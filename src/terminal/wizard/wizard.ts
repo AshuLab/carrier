@@ -25,7 +25,7 @@ import { failoverLine, foundLines, summary, tilde } from './summary.ts';
 export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps, folder = carrierHome()) {
   ui.intro('Carrier setup');
   const interactive = ui.interactive && !flags.yes; // --yes never asks, whatever the terminal
-  if (interactive) ui.note('Carrier works through your GitHub epics with AI agents: one writes the code, another reviews it.\nI look at this Mac first, then ask what is missing:\n  1. The repos to watch\n  2. Your AI accounts\n  3. For the author and the reviewer: GitHub identity, account and model\n  4. Where to save it\nBefore anything is written you see the whole picture and can change it.', 'What this does');
+  if (interactive) ui.note('Carrier works through your GitHub epics with AI agents: one writes the code, another reviews it.\nI look at this Mac first, then ask what is missing:\n  1. The repos to watch\n  2. Your AI accounts\n  3. Who Carrier reads GitHub as, then for the author and the reviewer: GitHub identity, account and model\n  4. Where to save it\nBefore anything is written you see the whole picture and can change it.', 'What this does');
 
   const forge = { agents: [] as ForgeAgent[] };
   const readForge = () => {
@@ -100,13 +100,14 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
 
     if (!unattended) providers = await askProviders(ui, providers, harnesses, locals, deps, keepAccounts ? 'file' : 'found');
 
-    // 2. GitHub identities: one per role; picking the same one twice shares it, and the recap says so
+    // 2. GitHub identities: the orchestrator's first, then one per role; picking the same one twice shares it, and the recap says so
     readForge();
-    if (interactive && !(flags.authorProfile && flags.reviewerProfile)) {
+    const asking = interactive && !(flags.authorProfile && flags.reviewerProfile);
+    if (asking) {
       ui.note(
         [
           'Carrier works on GitHub for you: it pushes branches, opens pull requests, labels epics and posts review comments.',
-          'Every one of those actions is done as a GitHub identity. You pick one for the author and one for the reviewer:',
+          'Every one of those actions is done as a GitHub identity. You pick one for the orchestrator, which only reads issues and PRs and changes labels, then one for the author and one for the reviewer:',
           '',
           "• Agent Forge bot: a separate GitHub App account. What it does shows under the bot's name, with access only to the repos it is installed on. The best choice: author and reviewer are different accounts, so the review is a real second look.",
           '',
@@ -115,6 +116,8 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
         'GitHub identities',
       );
     }
+    // Not asked (--yes or the profile flags): the orchestrator is the author's identity, as when the key is left out.
+    const orchestrator = asking ? await askIdentity(ui, 'orchestrator', forge, readForge, login, undefined, deps, interactive, from?.orchestrator) : undefined;
     const authorIdentity = flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, readForge, login, undefined, deps, interactive, from?.author.identity);
     const reviewerIdentity = flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, readForge, login, authorIdentity, deps, interactive, from?.reviewer.identity);
 
@@ -175,7 +178,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
               locals,
               deps,
             );
-    return { repos, providers, author, reviewer, ...(leadReviewer && { leadReviewer }), ...(failover && { failover }) };
+    return { repos, providers, ...(orchestrator && { orchestrator }), author, reviewer, ...(leadReviewer && { leadReviewer }), ...(failover && { failover }) };
   };
 
   const make = (answers: Prior) => {
@@ -191,7 +194,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   if (!settled && deps.exists(out) && !flags.yes && !(await ui.confirm(`${out} exists. Overwrite it?`, false))) throw new Error(`${out} already exists`);
   // The recap is the way back: changing an answer asks everything again, starting from these answers.
   while (interactive) {
-    ui.note(summary(answers.repos, answers.author, answers.reviewer, answers.providers, answers.failover, out, providersPath, answers.leadReviewer), 'This is what will be saved');
+    ui.note(summary(answers.repos, answers.author, answers.reviewer, answers.providers, answers.failover, out, providersPath, answers.leadReviewer, answers.orchestrator), 'This is what will be saved');
     const next = await ui.select({
       message: 'Save it?',
       options: [

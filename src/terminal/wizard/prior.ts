@@ -1,11 +1,11 @@
 import { defaults, loadConfig } from '../../config/load.ts';
 import { loadProviders } from '../../config/providers.ts';
 import type { Config } from '../../config/schema.ts';
-import type { AIProvider, Failover, Role } from './build-config.ts';
+import type { AIProvider, Failover, Identity, Role } from './build-config.ts';
 import { tilde } from './summary.ts';
 
 /** What an existing config already says, to start from when editing it. */
-export type Prior = { repos: string[]; providers: Record<string, AIProvider>; failover?: Failover; author: Role; reviewer: Role; leadReviewer?: Role };
+export type Prior = { repos: string[]; providers: Record<string, AIProvider>; failover?: Failover; orchestrator?: Identity; author: Role; reviewer: Role; leadReviewer?: Role };
 
 /** `raw` is the parsed `engine.json`, `rawProviders` the parsed `providers.json` (`{}` when there is none). */
 export function priorFrom(raw: unknown, rawProviders: unknown): Prior | undefined {
@@ -21,6 +21,7 @@ export function priorFrom(raw: unknown, rawProviders: unknown): Prior | undefine
     repos: config.repos.map((r) => r.name),
     providers,
     ...(config.failover && { failover: config.failover }),
+    orchestrator: config.profiles[config.orchestratorProfile]!,
     author: role(config.agents.author),
     reviewer: role(config.agents.reviewer),
     ...(config.agents.leadReviewer ? { leadReviewer: role(config.agents.leadReviewer) } : {}),

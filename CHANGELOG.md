@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The logs and agent sessions of an epic in ready-for-test are no longer deleted after 30 days while it waits for its merge; the 30 days count from the merge or the close. Purges also stop going through the sessions of the agents' CLIs again every day for epics that were already cleaned.
 - The Usage page no longer leaves out the epics' usage when it happens to read while the engine is writing: both databases are in WAL mode, where a reader neither waits on a commit nor is refused by it.
 
 ## [0.16.0] - 2026-11-20

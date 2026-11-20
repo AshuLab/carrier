@@ -51,22 +51,44 @@ const sessionFolder = (name: string) => join(dirname(claudeSession(`s-${name}`))
 const gone = (name: string) => !existsSync(logs(`x-${name}`)) && !existsSync(result(`x-${name}`)) && session(`s-${name}`).every((f) => !existsSync(f)) && !existsSync(sessionFolder(name));
 const kept = (name: string) => existsSync(logs(`x-${name}`)) && existsSync(result(`x-${name}`)) && session(`s-${name}`).every((f) => existsSync(f)) && existsSync(sessionFolder(name));
 
-test('deletes logs and sessions of finished epics at 30 days, not before, whatever the finished status', () => {
+test('deletes logs and sessions of merged and cancelled epics at 30 days, not before', () => {
   const now = 100 * DAY;
-  seed('ready', 'ready_for_test', now - retentionMs);
   seed('merged', 'merged', now - 90 * DAY);
   seed('cancelled', 'cancelled', now - 31 * DAY);
+  seed('exact', 'merged', now - retentionMs);
   seed('recent', 'merged', now - retentionMs + 1);
   purgeExpired(db, places(), now, dirs);
-  expect([gone('ready'), gone('merged'), gone('cancelled'), kept('recent')]).toEqual([true, true, true, true]);
+  expect([gone('merged'), gone('cancelled'), gone('exact'), kept('recent')]).toEqual([true, true, true, true]);
 });
 
-test('keeps everything of queued, running, needs_human and repo_removed epics, however old', () => {
+test('keeps everything of queued, running, needs_human, repo_removed and ready_for_test epics, however old: the last one still waits for its merge', () => {
   const now = 1000 * DAY;
-  for (const status of ['queued', 'running', 'needs_human', 'repo_removed'] as const) seed(status, status, 0);
+  for (const status of ['queued', 'running', 'needs_human', 'repo_removed', 'ready_for_test'] as const) seed(status, status, 0);
   seed('nofinish', 'cancelled', null);
   purgeExpired(db, places(), now, dirs);
-  for (const name of ['queued', 'running', 'needs_human', 'repo_removed', 'nofinish']) expect(kept(name)).toBe(true);
+  for (const name of ['queued', 'running', 'needs_human', 'repo_removed', 'ready_for_test', 'nofinish']) expect(kept(name)).toBe(true);
+});
+
+test('a purge does not repeat what it purged: the next one deletes nothing and does not walk the sessions of the CLIs again', () => {
+  const now = 100 * DAY;
+  seed('old', 'merged', 0);
+  expect(purgeExpired(db, places(), now, dirs).length).toBeGreaterThan(0);
+  expect(gone('old')).toBe(true);
+  // a session the person resumed by hand after the purge: the next purge is not looking for it
+  for (const file of session('s-old')) {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, '{}');
+  }
+  expect(purgeExpired(db, places(), now + DAY, dirs)).toEqual([]);
+  expect(session('s-old').every((file) => existsSync(file))).toBe(true);
+});
+
+test('a purge cut short is finished the next day: the logs are removed last, so they are what says it is not done', () => {
+  const now = 100 * DAY;
+  seed('old', 'merged', 0);
+  rmSync(result('x-old')); // what a purge that died after the results left behind: the logs and the sessions are still there
+  purgeExpired(db, places(), now + DAY, dirs);
+  expect(gone('old')).toBe(true);
 });
 
 test('deletes the stored events with the logs they were read from, and only those', () => {
@@ -160,6 +182,7 @@ test('a folder named like a session id is only removed beside its transcript, an
   purgeExpired(db, places(), 100 * DAY, dirs);
   expect(existsSync(lone)).toBe(true); // no s-old-lone.jsonl next to it
   db.update(executions).set({ sessionId: 's-old' }).run();
+  mkdirSync(logs('x-old'), { recursive: true }); // the logs go last, so a purge that is not done yet still has them: it is looked at again
   purgeExpired(db, places(), 100 * DAY, dirs);
   expect(existsSync(join(outside, 's-old.jsonl'))).toBe(true);
   expect(existsSync(claudeSession('s-old'))).toBe(false);

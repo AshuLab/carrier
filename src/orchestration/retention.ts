@@ -1,4 +1,4 @@
-import { readdirSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join, sep } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
@@ -12,8 +12,9 @@ import type { Clock } from './clock.ts';
 
 const DAY = 24 * 60 * 60 * 1000;
 export const retentionMs = 30 * DAY;
-// Only an epic that is over expires; queued, running, needs_human and repo_removed keep everything.
-const finished = ['ready_for_test', 'merged', 'cancelled'] as const;
+// Only an epic that is over expires; queued, running, needs_human, repo_removed and ready_for_test (it still waits for its merge) keep everything.
+// The 30 days count from the merge or the close: `finishedAt` is written again when an epic leaves ready_for_test.
+const finished = ['merged', 'cancelled'] as const;
 // Ids come from SQLite but end up in a path: an allowlist keeps `..` and separators out.
 const safeId = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
@@ -70,16 +71,20 @@ function sessionFiles({ claude, codex }: SessionDirs, ids: string[]): string[] {
 
 /**
  * Deletes the execution logs (`<logs>/executions/<executionId>/`), the results (`<state>/results/<executionId>.json`) and the sessions the CLIs saved
- * for them, of epics finished or cancelled 30 days or more before `now`, and the events stored from those logs.
+ * for them, of epics merged or cancelled 30 days or more before `now`, and the events stored from those logs.
  * Never touches other SQLite rows nor workspaces; a symlink is removed itself, never followed. Returns the paths deleted.
+ * An execution that was purged is not purged again: see `pending`.
  */
 export function purgeExpired(db: Db, places: Pick<EnginePlaces, 'logs' | 'state'>, now: number, sessionDirs: SessionDirs = sessionDirsFrom()): string[] {
-  const rows = db
+  const expired = db
     .select({ executionId: executions.executionId, sessionId: executions.sessionId, configDir: executions.configDir })
     .from(executions)
     .innerJoin(epics, eq(epics.id, executions.epicId))
     .where(and(inArray(epics.status, finished), isNotNull(epics.finishedAt), lte(epics.finishedAt, now - retentionMs)))
     .all();
+  // A purge removes the logs last (below), so an execution whose logs are gone was purged whole: there is nothing left to walk the CLIs' folders for.
+  // shortcut: one existsSync per expired execution, every day; a `purgedAt` column is the upgrade if that ever shows in a profile.
+  const rows = expired.filter((row) => existsSync(join(places.logs, 'executions', row.executionId)));
 
   // The events are a copy of the logs: they go when the logs do.
   db.transaction((tx) => {

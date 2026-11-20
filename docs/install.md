@@ -50,11 +50,12 @@ That deletes everything in it, for good: `engine.json`; `chat.json`; `providers.
 
 Carrier's folder is `~/.carrier/` (override it with `CARRIER_HOME`). The engine's config is `~/.carrier/engine.json`. The accounts, one per login of an agent CLI, are in `~/.carrier/providers.json` ([ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md)): the one file besides `engine.json` that both the engine and the chat host read (the engine when it starts and on each reload, the chat host at each request), and the app writes it. The engine's schema is `src/config/schema.ts`, the accounts' is `src/config/providers.ts` and the chat's is `src/chat/config.ts`. The chat keeps everything else it owns in `~/.carrier/chat/`:
 
-- `chat/state/` — the chat host's `chat.db`, `chat.sock` and lock; `chat/logs/` — its logs; `chat/projects/` — the repositories it clones; `chat/worktrees/` — the worktrees of the sessions that ask for one; `chat.json`, at the top of the folder — its optional settings ([configuration](configuration.md#chat-configuration)).
+- `chat/state/` — the chat host's `chat.db` (with its `-wal` and `-shm` files while it is open), `chat.sock` and lock; `chat/logs/` — its logs; `chat/projects/` — the repositories it clones; `chat/worktrees/` — the worktrees of the sessions that ask for one; `chat.json`, at the top of the folder — its optional settings ([configuration](configuration.md#chat-configuration)).
 
 The engine keeps its files in `~/.carrier/engine/`, in the same Carrier folder; only Carrier writes there, and `--config` changes which config file is read, never this folder:
 
-- `engine/state/` — `carrier.db` (SQLite), `control.sock` and `carrier.lock`.
-- `engine/logs/` — `orchestrator.log`, `executions/<id>/` with each agent's full output, and `start.log`. Logs and sessions of a finished or cancelled epic are deleted after 30 days; SQLite and worktrees are never touched.
+- `engine/state/` — `carrier.db` (SQLite; `carrier.db-wal` and `carrier.db-shm` are part of it, so keep them with it), `control.sock` and `carrier.lock`.
+- `engine/logs/` — `orchestrator.log`, `executions/<id>/` with each agent's full output, and `start.log`. Logs and sessions of a merged or cancelled epic are deleted 30 days after the merge or the close.
+  An epic still waiting in ready-for-test keeps them; SQLite and worktrees are never touched.
 - `engine/repos/<org>/<repo>/` — managed clones; `engine/reviews/<repo>/<epic>/` — the reviewer's separate checkout.
 - `engine/worktrees/<repo>/<feature>/` — where Carrier keeps an epic's worktree by default; any other place works, since Carrier finds a worktree with git.

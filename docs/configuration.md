@@ -51,7 +51,7 @@ What each part of `engine/` holds:
 
 | Folder | Holds |
 |--------|-------|
-| `state/` | `carrier.db` (SQLite, the authority), `control.sock` (the control socket the CLI and the app use), `carrier.lock` (one engine per folder), the results of each execution (deleted with its logs), and `forge-cwd/<owner>/<name>` (the stub folder Forge runs in before a repo's first clone). |
+| `state/` | `carrier.db` (SQLite, the authority, in WAL mode: `carrier.db-wal` and `carrier.db-shm` appear beside it while it is open and are part of it, so do not delete them or copy `carrier.db` alone while Carrier runs; `.backup` of `sqlite3` takes a consistent copy), `control.sock` (the control socket the CLI and the app use), `carrier.lock` (one engine per folder), the results of each execution (deleted with its logs), and `forge-cwd/<owner>/<name>` (the stub folder Forge runs in before a repo's first clone). |
 | `logs/` | `orchestrator.log`, `executions/<id>/` (each agent run's full output), and `start.log` (what a detached Carrier prints; the macOS app's start writes `app-start.log`). |
 | `repos/` | Carrier's clones, `<owner>/<repo>`. |
 | `reviews/` | The reviewer's separate checkouts, `<repo>/<epic>/`. |

@@ -101,7 +101,13 @@ function liveHints(db: Db, epicId: number): Map<number, { lane: number | null; a
     .get();
   if (running === undefined) return hints;
   const newest = (kind: 'task' | 'tool_start') =>
-    db.select().from(executionEvents).where(and(eq(executionEvents.executionId, running.executionId), eq(executionEvents.kind, kind))).orderBy(desc(executionEvents.id)).limit(MAX_LIVE_EVENTS).all();
+    db
+      .select({ agentId: executionEvents.agentId, status: executionEvents.status, payload: executionEvents.payload, tool: executionEvents.tool, arg: executionEvents.arg })
+      .from(executionEvents)
+      .where(and(eq(executionEvents.executionId, running.executionId), eq(executionEvents.kind, kind)))
+      .orderBy(desc(executionEvents.id))
+      .limit(MAX_LIVE_EVENTS)
+      .all();
   const calls = newest('tool_start');
   const seen = new Set<string>();
   for (const task of newest('task')) {

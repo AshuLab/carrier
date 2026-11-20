@@ -162,6 +162,13 @@
       "when": 1794966601379,
       "tag": "0022_gorgeous_crystal",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1795208240224,
+      "tag": "0023_clear_rage",
+      "breakpoints": true
     }
   ]
 }

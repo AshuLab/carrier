@@ -2,6 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
@@ -312,4 +314,21 @@ test('the read of events is bounded to the running execution: other executions a
   db.insert(executionEvents).values(rows).run();
   // the agent's only call fell out of the newest 500: no activity, and no scan to find it
   expect(reply().slices[0]).toMatchObject({ lane: null, activity: null });
+});
+
+test('the live hints read the events of a run by their kind, not by walking all of them', () => {
+  const id = epicRow({ status: 'running', finishedAt: null });
+  db.insert(epicSlices).values({ epicId: id, number: 10, title: 'S', state: 'in_progress', blockedBy: [], prNumber: null, closedAt: null, readAt: 1 }).run();
+  db.insert(executions).values({ executionId: 'live', epicId: id, stage: 'ship', status: 'running', resultPath: '/r.json', startedAt: 3, harness: 'claude', model: 'm', provider: null, workspace: '/w' }).run();
+  db.insert(executionEvents).values(Array.from({ length: 300 }, (_, n) => ({ executionId: 'live', at: n, kind: n % 100 === 0 ? ('task' as const) : ('say' as const), agentId: 'a', payload: { slice: 10 } }))).run();
+  const statements: string[] = [];
+  const traced = drizzle(new Database(join(dir, 'carrier.db'), { readonly: true, verbose: (sql) => statements.push(String(sql)) }));
+  epicOf(traced, 'AshuLab/a', 1);
+  const reads = statements.filter((sql) => /^\s*select\b/i.test(sql) && /\bfrom "(executions|execution_events)"/.test(sql));
+  expect(reads.length).toBeGreaterThan(0);
+  // the kind is in the index, so a run that says a lot and calls a task now and then is not read through to find the tasks
+  const plans = reads.flatMap((sql) => (traced.$client.prepare(`explain query plan ${sql}`).all() as { detail: string }[]).map((row) => row.detail));
+  traced.$client.close();
+  expect(plans.filter((detail) => /\bSCAN (executions|execution_events)\b/.test(detail))).toEqual([]);
+  expect(plans.some((detail) => /USING (COVERING )?INDEX execution_events_kind/.test(detail))).toBe(true);
 });

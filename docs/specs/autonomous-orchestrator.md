@@ -121,7 +121,7 @@ An informational panel drawn with ANSI sequences without dependencies, in the sa
 21. If I remove a repo from the configuration, on restart its pending epics are stopped with the reason and are recovered when it is configured again, except those that required intervention.
 22. I see in the panel slots, queue and, per epic, stage, round, blockers, time in stage, last activity, links, errors and intervention reasons; without an interactive terminal I get plain lines.
 23. Process logs and the full output of each execution end up in files under `<folder>/engine/logs/` and `<folder>/engine/state/`, without tokens and without interfering with the panel.
-24. An ended or cancelled epic's logs and sessions are deleted 30 days later; those of a pending, interrupted or in-intervention epic are kept, and SQLite and the workspaces are not touched.
+24. A merged or cancelled epic's logs and sessions are deleted 30 days later; those of a pending, interrupted, ready-for-test or in-intervention epic are kept, and SQLite and the workspaces are not touched.
 
 ## Decisions
 

@@ -142,8 +142,7 @@ struct SessionRowView: View {
                 .frame(height: Self.detailLine)
                 if third {
                     HStack(spacing: 8) {
-                        if let pullRequest = content.pullRequest { SessionPullRequestChip(pr: pullRequest) }
-                        if let diff = content.diff { DiffText(diff: diff) }
+                        SessionWorkPill(pr: content.pullRequest, diff: content.diff)
                         Spacer(minLength: 4)
                         ProviderMarks(names: content.providers)
                     }
@@ -226,7 +225,11 @@ extension EnvironmentValues {
     /// Whether the row the view is in is selected or hovered: its project icon wears its colour then and is neutral otherwise. True
     /// outside the sidebar's rows, where the icon is always coloured.
     @Entry var rowActive = true
+    /// How the sidebar row the view is in stands: at rest, under the pointer, or selected. At rest outside the sidebar's rows.
+    @Entry var rowState = RowState.resting
 }
+
+enum RowState { case resting, hovered, selected }
 
 /// The project's icon: its initials in white on a colour that is the same every time (from its name, so a session's folder and an epic's
 /// repository that are one project look alike), in a rounded square of glass tinted with it. A bright arc goes round its edge while an agent works (`WorkingRing`).

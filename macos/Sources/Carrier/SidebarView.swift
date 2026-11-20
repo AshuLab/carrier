@@ -605,6 +605,7 @@ private struct SelectableSidebarRow: ViewModifier {
             .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.themeAccent.opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
             .contentShape(RoundedRectangle(cornerRadius: 8))
             .environment(\.rowActive, selected || hovered)
+            .environment(\.rowState, selected ? .selected : hovered ? .hovered : .resting)
             .onTapGesture(perform: action)
             .onHover { hovered = $0 }
             .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)

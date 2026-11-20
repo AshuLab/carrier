@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A session's pull request and changed lines in the sidebar share one quiet capsule: the state is a dot, the words are grey, and the capsule is dark on the selected row so it reads on any accent. Draft, Merged and Closed start with a capital.
 - Every "Check again" and "Check now" button (Usage, Carrier, Providers, Health, Repos) works the same: it shows "Checking…" while it runs, then "Up to date" with a green mark (or "Check failed" in red) for three seconds.
 
 ## [0.16.0] - 2026-11-20

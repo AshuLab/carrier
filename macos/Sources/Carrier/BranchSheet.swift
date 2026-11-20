@@ -138,11 +138,12 @@ struct BranchSheet: View {
             },
             fill: chosen ? Color.themeAccent.opacity(0.18) : nil
         ) { hovering in
-            rowContent(row, chosen: chosen, hovering: hovering, notOnOrigin: tab == .local && row.localOnly)
+            rowContent(row, chosen: chosen, hovering: hovering, notOnOrigin: tab == .local && row.localOnly, counted: tab == .local)
         }
     }
 
-    private func rowContent(_ row: BranchRow, chosen: Bool, hovering: Bool, notOnOrigin: Bool = false) -> some View {
+    /// `counted` is the Local tab: only there is a branch compared with its copy on `origin`.
+    private func rowContent(_ row: BranchRow, chosen: Bool, hovering: Bool, notOnOrigin: Bool = false, counted: Bool = false) -> some View {
         let cut = row.name.lastIndex(of: "/").map { row.name.index(after: $0) } ?? row.name.startIndex
         return HStack(spacing: 10) {
             Glyph(.gitBranch).foregroundStyle(chosen ? Color.themeAccent : .secondary).frame(width: 18).accessibilityHidden(true)
@@ -151,6 +152,8 @@ struct BranchSheet: View {
             if row.isDefault { Badge(text: "default", icon: .starFilled, tint: .themeAccent) }
             if row.checkedOut { Badge(text: browsing ? "current" : "checked out", icon: .checkCircle, tint: browsing ? .themeAccent : .secondary) }
             if notOnOrigin { Badge(text: "not on origin", icon: .cloud, tint: .secondary) }
+            if counted, let behind = row.behindText { Badge(text: behind, icon: .arrowDown, tint: .orange) }
+            if counted, let notPushed = row.notPushedText { Badge(text: notPushed, icon: .arrowUp, tint: .orange) }
             Spacer(minLength: 8)
             if chosen { Glyph(.check, label: "Chosen").foregroundStyle(Color.themeAccent) }
             else { RowHint(text: "Select", shown: hovering) }
@@ -175,6 +178,16 @@ struct BranchSheet: View {
     }
 
     private var newBranch: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            newBranchLine
+            if let warning = model.startWarning { ProblemLine(text: warning, font: .subheadline) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12).background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
+        .padding(.horizontal, 16).padding(.bottom, 16)
+    }
+
+    private var newBranchLine: some View {
         HStack(spacing: 8) {
             Glyph(.circlePlus).foregroundStyle(.secondary).accessibilityHidden(true)
             Text("New branch").font(.subheadline).foregroundStyle(.secondary)
@@ -184,8 +197,6 @@ struct BranchSheet: View {
                 .lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 0)
         }
-        .padding(12).background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
-        .padding(.horizontal, 16).padding(.bottom, 16)
     }
 
     @ViewBuilder private func footer(_ picker: BranchPicker?) -> some View {
@@ -207,11 +218,14 @@ struct BranchSheet: View {
         let stale = at.map { Date().timeIntervalSince1970 - Double($0) / 1000 > staleAfter } ?? true
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Glyph(stale ? .warningFilled : .history)
-                    .foregroundStyle(stale ? Color.orange : .secondary).accessibilityHidden(true)
+                Glyph(stale || picker?.unreachable != nil ? .warningFilled : .history)
+                    .foregroundStyle(stale || picker?.unreachable != nil ? Color.orange : .secondary).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(picker?.fetched ?? "").font(.subheadline)
-                    if stale { Text("The remote branches may be out of date.").font(.subheadline).foregroundStyle(.orange) }
+                    // the fetch that choosing the project started could not reach origin: said here and nowhere else
+                    if let unreachable = picker?.unreachable {
+                        Text(unreachable).font(.subheadline).foregroundStyle(.orange)
+                    } else if stale { Text("The remote branches may be out of date.").font(.subheadline).foregroundStyle(.orange) }
                 }
                 Button { Task { await model.fetchNow() } } label: {
                     Label { Text(model.fetching ? "Fetching…" : "Fetch now") } icon: {

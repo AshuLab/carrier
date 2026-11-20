@@ -88,7 +88,8 @@ struct NewSessionView: View {
                     }
                     .buttonStyle(.plain).accessibilityLabel("Clear workspace").help("Clear the workspace")
                 }
-                if model.loadingBranches { ProgressView().controlSize(.small) }
+                // GitHub's branches are being read, or the fetch that choosing a project starts is bringing its own up to date
+                if model.loadingBranches || model.fetching { ProgressView().controlSize(.small).accessibilityLabel(model.fetching ? "Fetching branches" : "Reading branches") }
                 if model.folder != nil {
                     if model.offersWorktree {
                         Text("on")

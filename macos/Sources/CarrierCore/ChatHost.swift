@@ -226,7 +226,9 @@ public protocol ChatHost {
     /// What a folder is as a git repository (`WorkspaceInfo.git` is false for a plain folder); refused for a folder the host will not open.
     func workspace(_ folder: String) async throws -> WorkspaceInfo
     /// Fetches the folder's `origin` and answers what the folder is after it; a fetch that fails or takes too long is refused in words.
-    func fetch(_ folder: String) async throws -> WorkspaceInfo
+    /// With `ifStale` a host that lists `fetchIfStale` skips the git call when the last fetch is within its window and answers all the same;
+    /// a host that does not is never sent it.
+    func fetch(_ folder: String, ifStale: Bool) async throws -> WorkspaceInfo
     /// A free generated name for a worktree of the folder: the part after `carrier/`.
     func suggestName(_ folder: String) async throws -> String
     /// Whether a typed name (the part after `carrier/`) is valid and free, and why not.
@@ -389,10 +391,13 @@ public struct SocketChatHost: ChatHost {
         return try await Task.detached { try chatRequest(path, "workspace", requires: .workspace, fields: fields) }.value
     }
 
-    public func fetch(_ folder: String) async throws -> WorkspaceInfo {
+    public func fetch(_ folder: String, ifStale: Bool) async throws -> WorkspaceInfo {
         let fields = ",\"folder\":\(jsonString(folder))"
         let path = socketPath()
-        return try await Task.detached { try chatRequest(path, "fetch", requires: .fetch, fields: fields) }.value
+        // the host gives a fetch 60 seconds, so the wait is longer than that
+        return try await Task.detached {
+            try chatRequest(path, "fetch", requires: .fetch, fields: fields, also: ifStale ? (.fetchIfStale, ",\"ifStale\":true") : nil, timeout: 70)
+        }.value
     }
 
     public func suggestName(_ folder: String) async throws -> String {

@@ -72,7 +72,27 @@ A repository from GitHub has its own step that fetches or clones, so it does not
 A host whose hello lacks `worktreeStart` takes no `startFrom`: a Remote choice is sent as `branch: origin/<name>`, as the app always could, and a Local one as `branch: <name>` (`worktreeRequest`; `NewSessionTests`).
 A repository that is not on this Mac yet has no local side: no tabs, the two sections it always had, and a plan with no `startFrom`.
 The sheet of a session in the person's own folder (`browsing`) is not changed, and neither is its pick.
-How far behind `origin` a local branch is, and the fetch on choosing a project, are other changes of the same epic.
+
+## Choosing a project fetches it
+
+Choosing a folder, or a repository already in the projects folder, that is a git repository with an `origin` fetches it in the background (`NewSessionModel.choose(folder:)`, then `fetch(whenChosen:)`).
+Only a host whose hello lists `fetchIfStale` is asked (`hostFetchesIfStale`); the app sends it `fetch` with `ifStale: true`, which the host answers without a git call when the last fetch is within its window (five minutes).
+An older host is not asked and not sent the field: choosing fetches nothing and Fetch now works as it always did.
+A folder that is not a git repository, a bare one, one with no `origin` (`WorkspaceInfo.hasOrigin`: the host names a GitHub remote as `repo`, and any remote shows by its `origin/*` branches on disk) and a repository still to clone are not fetched.
+This is the one place where choosing a folder writes to it, and only `FETCH_HEAD` and the `origin/*` refs, never a branch, the index or the working tree ([0036](../adr/0036-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md)).
+The branches show at once from what is on disk, and the spinner beside the project's chip (the one that marks GitHub's branches loading) turns while the fetch runs (`NewSessionModel.fetching`); when it ends the picker shows the refreshed branches, and a fetch inside the window ends it at once with nothing changed.
+A fetch that cannot reach the remote shows no error and asks for nothing: it sets `unreachable`, and the picker's footer says "Could not reach origin" in orange under "Fetched 3 days ago" (or "Never fetched"), in place of the "may be out of date" line (`BranchPicker.unreachable`).
+Fetch now ignores the window, fetches again whatever the footer says, shows its own failure in red as before, and clears `unreachable` when it works.
+Choosing another workspace drops the answer of a fetch left behind (`fetchRuns`), so a slow one never fills the picker of a project chosen after it.
+The request waits 70 seconds for the answer, ten more than the host gives a fetch.
+
+## Behind and not pushed
+
+A local branch that has a counterpart on `origin` carries `behind` (commits of `origin/<name>` it lacks) and `ahead` (commits not pushed) in the `workspace` and `fetch` replies (`WorkspaceInfo.Branch`; both optional, since a host that does not count, and a branch with no counterpart, send neither).
+In the Local tab a row shows "N behind origin" and "N not pushed" in orange (`Badge`, with an arrow down and up) when they are not zero (`BranchRow.behindText`, `notPushedText`); a branch level with its copy shows nothing, and one with no counterpart shows only "not on origin".
+The summary under the list names the ref the worktree is cut from, and under it a warning (`ProblemLine`, `startWarning`) says, with Local chosen, that the branch is N commits behind `origin/<name>` so the worktree starts without them, and, with Remote chosen, that the local branch has N commits not pushed to `origin/<name>` that the worktree will not have.
+A branch with nothing to say, a branch on one side only and a repository to clone have no warning.
+The fixtures carry the states: `/Users/dev/carrier` has `main` behind (2, then 12 after the fetch), `feat/retry-sync` not pushed (1) and `wip/spike` on neither, `/Users/dev/web` has a branch level with `origin`, and the fetch of `/Users/dev/work/web` fails, so the footer says it could not reach origin.
 
 ## Sending and the preparation
 

@@ -300,7 +300,7 @@ test('setOption changes an option of a live session: the adapter applies it, an 
   const events = sessions.events({ sessionId: id, limit: 10 });
   // `id` is the event's own, a number the client uses as a cursor; the option is `option`
   expect(events.events).toMatchObject([{ id: expect.any(Number), kind: 'option', option: 'mode', value: 'default' }]);
-  expect(events.options.map((o) => o.current)).toEqual(['default', 'haiku']);
+  expect(events.options?.map((o) => o.current)).toEqual(['default', 'haiku']);
   expect(rows('sessions')[0].options).toBe(JSON.stringify({ mode: 'default' })); // the session records the options it runs with
 });
 
@@ -335,6 +335,27 @@ test('a failure of agentOptions is not kept: the next ask tries again', async ()
   await expect(sessions.agentOptions({ agent: 'claude' })).rejects.toThrow('claude is not logged in');
   claude.refuseWith = undefined;
   await expect(sessions.agentOptions({ agent: 'claude' })).resolves.toBeDefined();
+});
+
+test('the options and the commands are left out of the events while the client has the current listsRev, and sent again when they change', async () => {
+  const { sessions, conversation, id } = await openOne();
+  conversation.commands = [{ id: 'review', name: 'review', description: 'Review', kind: 'skill' }];
+  const first = sessions.events({ sessionId: id, limit: 10 });
+  expect(first.commands).toEqual(conversation.commands);
+  expect(first.listsUnchanged).toBeUndefined();
+  // a client that sends the rev it got gets none of them, and the rev again
+  const same = sessions.events({ sessionId: id, limit: 10, lists: first.listsRev });
+  expect(same).toMatchObject({ listsRev: first.listsRev, listsUnchanged: true });
+  expect(JSON.stringify(same)).not.toContain('"commands"');
+  expect(JSON.stringify(same)).not.toContain('"options"');
+  // an older rev, or none, gets them whole
+  expect(sessions.events({ sessionId: id, limit: 10, lists: 'old' }).commands).toEqual(conversation.commands);
+  expect(sessions.events({ sessionId: id, limit: 10 }).commands).toEqual(conversation.commands);
+  // a change of either list is a new rev, and the client that sends the old one gets the new lists
+  conversation.commands = [...conversation.commands, { id: 'pdf', name: 'pdf', description: 'PDFs', kind: 'skill' }];
+  const changed = sessions.events({ sessionId: id, limit: 10, lists: first.listsRev });
+  expect(changed.listsRev).not.toBe(first.listsRev);
+  expect(changed.commands).toHaveLength(2);
 });
 
 test('a command the session lists is invoked by its id: the person sees a slash and its name, the adapter gets the command, and the events list the commands', async () => {

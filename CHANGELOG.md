@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Carrier no longer grows in memory while it sits open: about 1 MB a minute went to what the connection to the engine left behind, and it is freed on every poll now.
 - An open conversation uses less CPU: the app reads and decodes each answer of the chat host once, where it went over a long answer again at every read and took it apart twice.
+- An open conversation uses even less CPU: the chat host no longer sends the session's options and slash commands again at every poll while they have not changed, which was most of what it sent.
 - The role summary in Settings is built without the `Text +` that macOS 26 deprecates; it looks the same.
 
 ## [0.14.1] - 2026-11-19

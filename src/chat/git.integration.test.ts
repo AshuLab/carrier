@@ -73,8 +73,15 @@ describe.skipIf(!enabled)('the workspace of a folder, with the real git', () => 
     git(clone, 'remote', 'set-url', 'origin', 'git@github.com:acme/app.git');
     const info = await inspectFolder(realGit, realpathSync(clone));
     expect(info).toMatchObject({ git: true, repo: { owner: 'acme', name: 'app' }, branch: 'mine', defaultBranch: 'release' });
-    expect(info.branches).toEqual([{ name: 'mine', remote: false }, { name: 'release', remote: false }, { name: 'origin/main', remote: true }, { name: 'origin/release', remote: true }]);
+    expect(info.branches).toEqual([{ name: 'mine', remote: false }, { name: 'release', remote: false, ahead: 0, behind: 0 }, { name: 'origin/main', remote: true }, { name: 'origin/release', remote: true }]);
     expect(info.fetchedAt).toBeGreaterThan(Date.now() - 60_000);
+    git(clone, 'checkout', '-q', 'release');
+    git(clone, 'commit', '-q', '--allow-empty', '-m', 'local only');
+    git(origin, 'commit', '-q', '--allow-empty', '-m', 'remote one');
+    git(origin, 'commit', '-q', '--allow-empty', '-m', 'remote two');
+    git(bare, 'fetch', '-q', origin, 'release:release'); // the origin the clone follows moves two ahead
+    git(clone, 'fetch', '-q', bare, '+release:refs/remotes/origin/release'); // by path: `origin` is a GitHub URL by now
+    expect((await inspectFolder(realGit, realpathSync(clone))).branches).toContainEqual({ name: 'release', remote: false, ahead: 1, behind: 2 });
     git(clone, 'remote', 'set-url', 'origin', 'https://gitlab.com/acme/app.git');
     expect((await inspectFolder(realGit, realpathSync(clone))).repo).toBeNull();
   });

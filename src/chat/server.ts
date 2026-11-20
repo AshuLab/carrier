@@ -15,8 +15,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette' | 'switchAgent' | 'stopTask' | 'worktreeStart';
-export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette' | 'switchAgent' | 'stopTask' | 'worktreeStart' | 'fetchIfStale';
+export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -59,7 +59,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('delete'), sessionId }),
   z.strictObject({ id, cmd: z.literal('rename'), sessionId, title: z.string().max(1000) }),
   z.strictObject({ id, cmd: z.literal('workspace'), folder: z.string().min(1) }),
-  z.strictObject({ id, cmd: z.literal('fetch'), folder: z.string().min(1) }),
+  z.strictObject({ id, cmd: z.literal('fetch'), folder: z.string().min(1), ifStale: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('suggestName'), folder: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('checkName'), folder: z.string().min(1), name: z.string().max(1000) }),
   z.strictObject({ id, cmd: z.literal('deletePreview'), sessionIds: z.array(sessionId).min(1).max(500) }),
@@ -165,7 +165,7 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
     case 'workspace':
       return controls.workspace({ folder: request.folder });
     case 'fetch':
-      return controls.fetch({ folder: request.folder });
+      return controls.fetch({ folder: request.folder, ifStale: request.ifStale });
     case 'suggestName':
       return controls.suggestName({ folder: request.folder });
     case 'checkName':

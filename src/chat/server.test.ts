@@ -106,7 +106,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -273,13 +273,15 @@ test('workspace takes a folder and nothing else', async () => {
   expect(await c.ask('{"id":4,"cmd":"workspace","folder":"/x","fetch":true}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
 });
 
-test('fetch takes a folder and nothing else', async () => {
+test('fetch takes a folder and an optional boolean ifStale, and nothing else', async () => {
   await open();
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"fetch","folder":"/some/where"}')).toEqual({ id: 1, ok: true, data: { folder: '/some/where', fetched: true } });
   expect(await c.ask('{"id":2,"cmd":"fetch"}')).toEqual({ id: 2, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":3,"cmd":"fetch","folder":""}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":4,"cmd":"fetch","folder":"/x","prune":false}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  for (const ifStale of [true, false]) expect(await c.ask(`{"id":5,"cmd":"fetch","folder":"/x","ifStale":${ifStale}}`)).toMatchObject({ ok: true });
+  for (const ifStale of ['"true"', '1', 'null', '{}']) expect(await c.ask(`{"id":6,"cmd":"fetch","folder":"/x","ifStale":${ifStale}}`)).toEqual({ id: 6, ok: false, error: 'invalid request' });
 });
 
 test('suggestName takes a folder, checkName a folder and a name, and nothing else', async () => {

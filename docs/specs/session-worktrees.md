@@ -22,6 +22,12 @@ The chat host learns git, with the `git` on the machine and nothing else. It ins
 
 **Where a plan's worktree starts.** A new worktree of a plan is cut from the remote copy of the branch by default ([0036](../adr/0036-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md), [the spec](worktrees-start-from-remote.md)): `git worktree add --no-track -b carrier/<name> <path> refs/remotes/origin/<branch>`, from whatever `origin/<branch>` the repository has on disk. The plan's `worktree` takes an optional `startFrom`, `remote` or `local` (anything else is refused by the strict schema); without it the host applies `worktreeStart` of `chat.json` ([configuration](../configuration.md)), read at each plan. `local` cuts from the local branch and refuses, as for any branch the repository does not list, a branch that has none. A branch that exists only locally is cut from it with a remote start, with no notice and no failure. A `branch` that already carries `origin/` is cut from that ref whatever `startFrom` says. The session records the ref it was cut from (`origin/main` or `main`) as its worktree's start. The host lists the capability `worktreeStart`, because an older host refuses the field: a client sends `startFrom` only to a host that lists it. The older `open` request keeps its own `worktree: { from, name }`, which names the exact ref.
 
+**Fetch if stale, and the counts.** `fetch` takes an optional boolean `ifStale` (anything else is refused by the strict schema).
+With `ifStale: true` and a last fetch of `origin` within `FETCH_FRESH_MS` (the window of "The fetch before the cut") the host runs no `git fetch` and answers with the current `workspace` reply; with an older fetch, none on record, or no `ifStale`, it fetches as before.
+The host lists the capability `fetchIfStale`, because an older host refuses the field: a client sends `ifStale` only to a host that lists it.
+In the `workspace` reply a local branch that has `origin/<name>` carries `behind` (commits of the remote one it lacks) and `ahead` (its commits not on the remote one, the ones not pushed); a local branch without one carries neither, and neither does a remote branch.
+The host reads every branch and its commit in one `git for-each-ref`, takes the two copies that print the same commit as 0 and 0 with no further call, and runs one `git rev-list --left-right --count` for each branch whose copies differ, eight at a time; a count git cannot make leaves that branch without counts and the reply stands.
+
 **The fetch before the cut.** For a folder the person already had (a GitHub project keeps its own `clone` or `fetch` step, which fails the session when GitHub cannot be reached), a remote start runs the plan's `fetch` step ahead of the `worktree` step when `origin/<branch>` is on disk and the last fetch of `origin` (`fetchedAt` of `workspace`) is older than five minutes, one constant of the host, `FETCH_FRESH_MS`. It is the same `git fetch origin --prune` as `fetch`, with its timeout and no credential prompt. A fresh fetch, a local start, a branch with no `origin/<branch>` on disk and a `branch` that carries `origin/` run none. If the fetch fails, times out or removes `origin/<branch>`, the worktree is cut from the local branch, the `fetch` step still ends as `done` (the app lists it as "Updating the repository" and shows a reason only for a failed step), the send goes on, and the session stores a `notice` that names the branch, says why and, when `origin/<branch>` is known, how many commits the local branch is behind it (`git rev-list --count refs/heads/<branch>..refs/remotes/origin/<branch>`). A branch with no local copy is then cut from the `origin/<branch>` the last fetch left, with a notice saying so. A folder's session is never refused because the remote could not be reached.
 
 **The list.** Each session in `list` says whether it works in the base folder or in a worktree and, for a worktree, its branch, where it started from, its path and the base folder, so the sidebar can show the branch and group the session under its repository.
@@ -52,7 +58,7 @@ The requests and replies, as the contract the app builds against. All requests a
 ```ts
 // new requests
 { cmd: 'workspace'; folder: string }
-{ cmd: 'fetch'; folder: string }
+{ cmd: 'fetch'; folder: string; ifStale?: boolean }        // capability `fetchIfStale`
 { cmd: 'suggestName'; folder: string }                        // -> { name: string }, the part after carrier/
 { cmd: 'checkName'; folder: string; name: string }            // -> NameCheck
 { cmd: 'deletePreview'; sessionIds: string[] }                // 1..500 ids
@@ -73,7 +79,7 @@ type WorkspaceInfo = {
   branch: string | null;           // checked out; null when detached
   defaultBranch: string | null;    // origin/HEAD, else main or master when one exists
   dirty: number;                   // files with uncommitted changes, tracked or not
-  branches: { name: string; remote: boolean }[];    // local first, then remote as "origin/x"; "origin/HEAD" left out
+  branches: { name: string; remote: boolean; ahead?: number; behind?: number }[];  // local first, then remote as "origin/x"; "origin/HEAD" left out; ahead and behind only on a local branch that has an origin/<name>
   fetchedAt: number | null;        // ms since epoch of the last fetch of origin
 };
 type NameCheck = { valid: boolean; free: boolean; reason?: string };

@@ -562,7 +562,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     let why: string;
     let known = true; // whether `origin/<branch>` is still there to count against
     try {
-      const after = await fetchFolder(git, folder, signal);
+      const after = await fetchFolder(git, folder, { signal });
       stepEvent(sessionId, 'fetch', 'done');
       if (after.branches.some((listed) => listed.name === remote)) return 'remote';
       why = `${remote} is no longer on origin`;
@@ -1425,7 +1425,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     workspace: async ({ folder }: { folder: string }) => inspectFolder(git, checkFolder(folder, carrierHome())),
 
     /** Fetches `origin` of a folder and answers what it is after it. */
-    fetch: async ({ folder }: { folder: string }) => fetchFolder(git, checkFolder(folder, carrierHome())),
+    fetch: async ({ folder, ifStale }: { folder: string; ifStale?: boolean }) => fetchFolder(git, checkFolder(folder, carrierHome()), ifStale === true ? { now: clock.now() } : {}),
 
     /** A free name for a worktree of a folder, from the StarCraft word lists. */
     suggestName: async ({ folder }: { folder: string }) => suggestName(git, checkFolder(folder, carrierHome())),

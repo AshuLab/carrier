@@ -153,36 +153,29 @@ struct SessionsTabView: View {
     /// Writes the file, read again just now; nothing while a field is refused (its line says why).
     private func save() {
         guard draft != saved, problems.isEmpty else { return }
-        do {
-            guard let updated = applyingSessionAges(draft, to: try currentChatConfig()) else {
-                failure = "chat.json is not a JSON object, so it was not changed."
-                return
-            }
-            try writeCurrentChatConfig(updated)
-            saved = draft
-            failure = nil
-        } catch {
-            FileHandle.standardError.write(Data("carrier: saving chat.json failed: \(error)\n".utf8))
-            failure = "Could not save chat.json: \(error.localizedDescription)"
-        }
+        if rewriteChatConfig({ applyingSessionAges(draft, to: $0) }) { saved = draft }
     }
 
-    /// Writes `worktreeStart`, the file read again just now.
+    /// Writes `worktreeStart`, the file read again just now; when it cannot, the row shows what the host will use and not the choice that was not written.
     private func saveStart() {
+        guard worktreeStart(chatJSON: (try? currentChatConfig()) ?? nil) != start else { return }
+        if rewriteChatConfig({ applyingWorktreeStart(start, to: $0) }) == false { start = worktreeStart(chatJSON: (try? currentChatConfig()) ?? nil) }
+    }
+
+    /// Reads `chat.json` again, lets `apply` change it and writes it back; false, with the reason in `failure`, when it was not written.
+    private func rewriteChatConfig(_ apply: (Data?) -> Data?) -> Bool {
         do {
-            let file = try currentChatConfig()
-            guard worktreeStart(chatJSON: file) != start else { return }
-            guard let updated = applyingWorktreeStart(start, to: file) else {
+            guard let updated = apply(try currentChatConfig()) else {
                 failure = "chat.json is not a JSON object, so it was not changed."
-                start = worktreeStart(chatJSON: file) // the row shows what the host will use, not the choice that was not written
-                return
+                return false
             }
             try writeCurrentChatConfig(updated)
             failure = nil
+            return true
         } catch {
             FileHandle.standardError.write(Data("carrier: saving chat.json failed: \(error)\n".utf8))
             failure = "Could not save chat.json: \(error.localizedDescription)"
-            start = (try? currentChatConfig()).map { worktreeStart(chatJSON: $0) } ?? .remote
+            return false
         }
     }
 }

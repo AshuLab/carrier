@@ -109,6 +109,31 @@ test('a turn counts the lines of a worktree from where it was cut, and says noth
   expect(s.calls.find((call) => call.command === ORIGIN)?.folder).toBe('/work/app');
 });
 
+test('the pull request of a worktree is looked for on the branch checked out now, not the one it was cut with', async () => {
+  const s = setup(
+    { [ORIGIN]: 'git@github.com:AshuLab/carrier.git', 'rev-parse --abbrev-ref HEAD': 'fix/renamed\n', [DEFAULT]: 'origin/main' },
+    { folder: '/wt/fix', workspaceKind: 'worktree', worktreeBranch: 'carrier/fix', worktreeFrom: 'main', worktreeBase: '/work/app', worktreePath: '/wt/fix' },
+  );
+  s.pulls.found['AshuLab/carrier:fix/renamed'] = pr(1138);
+  await s.data.afterTurn(s.id);
+  expect(s.pulls.finds).toEqual(['AshuLab/carrier:fix/renamed']);
+  expect(s.data.view(s.row()).pr).toMatchObject({ number: 1138 });
+  expect(s.calls.find((call) => call.command === 'rev-parse --abbrev-ref HEAD')?.folder).toBe('/wt/fix');
+});
+
+test.each([
+  ['detached', { 'rev-parse --abbrev-ref HEAD': 'HEAD\n' }],
+  ['unreadable', {}],
+])('a worktree whose branch is %s falls back to the one it was cut with', async (_case, head) => {
+  const s = setup(
+    { [ORIGIN]: 'git@github.com:AshuLab/carrier.git', ...head, [DEFAULT]: 'origin/main' },
+    { folder: '/wt/fix', workspaceKind: 'worktree', worktreeBranch: 'carrier/fix', worktreeFrom: 'main', worktreeBase: '/work/app', worktreePath: '/wt/fix' },
+  );
+  s.pulls.found['AshuLab/carrier:carrier/fix'] = pr(7);
+  await s.data.afterTurn(s.id);
+  expect(s.data.view(s.row()).pr).toMatchObject({ number: 7 });
+});
+
 test('a folder on the default branch counts what is not committed, one on its own branch counts from where it left the default', async () => {
   const onMain = setup({ [ORIGIN]: 'https://github.com/AshuLab/carrier', 'rev-parse --abbrev-ref HEAD': 'main\n', [DEFAULT]: 'origin/main', 'diff --numstat --no-ext-diff --no-textconv --no-renames HEAD --': '1\t1\tx\n' });
   await onMain.data.afterTurn(onMain.id);

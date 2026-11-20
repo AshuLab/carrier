@@ -6,7 +6,7 @@ import type { ForgeAgent } from '../forge-registry.ts';
 const addBot = '\0add';
 
 /** Which GitHub identity a role acts as: a Forge bot or the person's own gh login. The same one as another role is allowed (they then share it); the default is one the other role does not have. */
-export async function askIdentity(ui: Ui, role: 'author' | 'reviewer' | 'lead reviewer', forge: { agents: ForgeAgent[] }, readForge: () => void, login: string | undefined, other: Identity | undefined, deps: InitDeps, interactive: boolean, current?: Identity): Promise<Identity> {
+export async function askIdentity(ui: Ui, role: 'orchestrator' | 'author' | 'reviewer' | 'lead reviewer', forge: { agents: ForgeAgent[] }, readForge: () => void, login: string | undefined, other: Identity | undefined, deps: InitDeps, interactive: boolean, current?: Identity): Promise<Identity> {
   for (;;) {
     const options: Option<string>[] = [
       ...forge.agents.map((a) => ({ value: `forge:${a.name}`, label: a.name, hint: a.label && a.label !== a.name ? a.label : 'Agent Forge bot' })),

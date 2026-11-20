@@ -204,3 +204,64 @@ private func object(_ data: Data) -> [String: Any]? { try? JSONSerialization.jso
     _ = try client.hello()
     #expect(object(try #require(try client.request("events", requires: .events)))?["n"] as? Int == 7)
 }
+
+private struct Count: Decodable, Equatable { let n: Int }
+
+@Test func aLongReplyIsSearchedForItsEndOnceNotAtEveryRead() throws {
+    // 600 KB: many reads of 32 KB, and a search that starts over at each of them goes over the first bytes again and again
+    let filler = String(repeating: "x", count: 600_000)
+    let server = TestServer { connection in
+        connection.send(hello)
+        guard let id = connection.readRequestId() else { return }
+        let text = reply(id, data: "{\"n\":5,\"filler\":\"\(filler)\"}")
+        var rest = Substring(text)
+        while rest.isEmpty == false {
+            connection.send(String(rest.prefix(20_000)))
+            rest = rest.dropFirst(20_000)
+            usleep(1_000)
+        }
+    }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    _ = try client.hello()
+    let before = client.bytesScanned
+    #expect(try client.request("snapshot").count > 600_000)
+    #expect(client.bytesScanned - before <= 600_100)
+}
+
+@Test func aReplyDecodedIntoItsTypeIsParsedOnceAndAStaleOrFailedOneTakesTheLongWay() throws {
+    let server = TestServer { connection in
+        connection.send(hello)
+        // the first request is answered whole; the second after a stale reply of another shape; the third with an error
+        if let id = connection.readRequestId() { connection.send(reply(id, data: "{\"n\":1}")) }
+        if let id = connection.readRequestId() { connection.send(reply(1, data: "[\"late\"]") + reply(id, data: "{\"n\":2}")) }
+        if let id = connection.readRequestId() { connection.send("{\"id\":\(id),\"ok\":false,\"error\":\"nope\"}\n") }
+    }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    _ = try client.supportedHello()
+    client.capabilities = [.events]
+    #expect(try client.request("events", requires: .events, as: Count.self) == Count(n: 1))
+    #expect(client.repliesParsedOnce == 1)
+    #expect(try client.request("events", requires: .events, as: Count.self) == Count(n: 2))
+    #expect(client.repliesParsedOnce == 2)
+    #expect(throws: ControlError.remote("nope")) { try client.request("events", requires: .events, as: Count.self) }
+    #expect(client.repliesParsedOnce == 2)
+}
+
+@Test func aReplyOfTheWrongShapeIsABadLineAndAnUnlistedRequestSendsNothing() throws {
+    let server = TestServer { connection in
+        connection.send(hello)
+        guard let id = connection.readRequestId() else { return }
+        connection.send(reply(id, data: "[1,2]"))
+    }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    _ = try client.hello()
+    #expect(try client.request("events", requires: .events, as: Count.self) == nil)
+    client.capabilities = [.events]
+    #expect(throws: ControlError.badLine) { try client.request("events", requires: .events, as: Count.self) }
+}

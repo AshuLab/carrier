@@ -725,10 +725,10 @@ fileprivate func chatRequest<Reply: Decodable>(
     _ = try client.supportedHello()
     // fields only a host that lists their capability understands: an older one is not sent them
     let sent = fields + (also.flatMap { client.capabilities.contains($0.capability) ? $0.fields : nil } ?? "")
-    guard let data = try client.request(command, requires: capability, fields: sent) else {
+    guard let reply = try client.request(command, requires: capability, fields: sent, as: Reply.self) else {
         throw ControlError.remote("the chat host does not support \(command)")
     }
-    do { return try JSONDecoder().decode(Reply.self, from: data) } catch { throw ControlError.badLine }
+    return reply
 }
 
 /// `chatRequest`, but a host that does not list the request is told in the words of what to do about it.

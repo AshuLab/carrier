@@ -1882,8 +1882,9 @@ async function startWhileRecovering() {
 }
 
 test('a check asked while the start recovers shares that recovery: one agent per interrupted epic', async () => {
-  await startWhileRecovering();
+  const engine = await startWhileRecovering();
   expect(runner.tasks).toHaveLength(1);
+  engine.stop();
 });
 
 test('a check asked while the start recovers leaves one chain of polls, not two', async () => {
@@ -2756,7 +2757,7 @@ test('resumeEpic with GitHub failing is refused as github unavailable and the ep
   expect(await refusal(engine.resumeEpic('AshuLab/a', 1))).toBe('github unavailable');
 });
 
-test('a resume asked while the start recovers does not count that recovery in its thirty seconds', async () => {
+test('a resume asked while the start recovers waits for it up to thirty seconds, and a longer one is refused before the label goes on', async () => {
   const db = open();
   seedEpic(db, 1);
   seedExecution(db, 'e0', 1, { status: 'interrupted' });
@@ -2769,15 +2770,23 @@ test('a resume asked while the start recovers does not count that recovery in it
   settings = { pollIntervalMs: 5 * MIN, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
   watched = repos;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, places: enginePlacesOf(dir) });
+  const setLabels = vi.spyOn(github, 'setLabels');
   const started = engine.start();
-  const resumed = refusal(engine.resumeEpic('AshuLab/a', 2));
+  const refused = refusal(engine.resumeEpic('AshuLab/a', 2));
   await flush();
-  await clock.advance(60_000); // longer than the resume's own wait, with the recovery still going
+  await clock.advance(30_000); // the recovery is still going: the client would give up soon, so the resume says so now
+  expect(await refused).toBe('did not restart');
+  expect(setLabels).not.toHaveBeenCalledWith('AshuLab/a', 2, expect.anything()); // nothing was changed
+  expect(rows(db).find((r) => r.issue === 2)).toMatchObject({ status: 'needs_human' });
+
   open1();
   await started;
-  await vi.waitFor(() => expect(rows(db).find((r) => r.issue === 2)).toMatchObject({ status: 'running' }));
+  const resumed = engine.resumeEpic('AshuLab/a', 2); // the recovery is over: it has its own thirty seconds
+  await flush();
   await clock.advance(1000);
-  expect(await resumed).toBeNull();
+  await resumed;
+  expect(rows(db).find((r) => r.issue === 2)).toMatchObject({ status: 'running' });
+  engine.stop();
 });
 
 test('resumeEpic on an epic that has not restarted thirty seconds after the label answers did not restart and leaves the label on', async () => {

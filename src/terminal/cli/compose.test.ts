@@ -229,14 +229,25 @@ test('the control socket answers while the start recovers, the snapshot says it 
   expect(arrived).toHaveBeenCalledOnce();
   client.close();
 
+  // A start that fails while the socket is open: the socket was there, and it is gone after.
   const failing = fakes();
+  let fail!: () => void;
+  const failure = new Promise<void>((resolve) => (fail = resolve));
   failing.runner.listActive = async () => {
+    await failure;
     throw new Error('boom');
   };
   const other = mkdtempSync(join(tmpdir(), 'carrier-compose-sock-'));
-  await expect(startCarrier(config(), other, sameConfig, failing.deps)).rejects.toThrow('boom');
-  await expect(connectControl(join(other, 'engine', 'state', 'control.sock'))).rejects.toThrow('not-running');
-  rmSync(other, { recursive: true, force: true });
+  try {
+    const sockOther = join(other, 'engine', 'state', 'control.sock');
+    const failed = expect(startCarrier(config(), other, sameConfig, failing.deps)).rejects.toThrow('boom');
+    (await vi.waitFor(() => connectControl(sockOther))).close();
+    fail();
+    await failed;
+    await expect(connectControl(sockOther)).rejects.toThrow('not-running');
+  } finally {
+    rmSync(other, { recursive: true, force: true });
+  }
 });
 
 test('onArrived fires once the engine is up and before the panel draws; a startup failure never announces it', async () => {

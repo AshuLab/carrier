@@ -339,6 +339,8 @@ extension ChatHost {
 /// socket work off the caller's thread. A host that is not there, or goes away mid-call, is `ControlError.closed`; an error reply is `.remote`.
 public struct SocketChatHost: ChatHost {
     private let socketPath: () -> String
+    /// What each session's options and commands were when the host last sent them, so the host can leave them out of the next answers.
+    private let lists = ListsMemory()
 
     public init(socketPath: @escaping () -> String = { chatSocketPath() }) { self.socketPath = socketPath }
 
@@ -461,7 +463,12 @@ public struct SocketChatHost: ChatHost {
     public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         let fields = ",\"sessionId\":\"\(try wireId(id))\",\"after\":\(after),\"limit\":\(limit)"
         let path = socketPath()
-        return try await Task.detached { try chatRequest(path, "events", requires: .events, fields: fields, also: (.reasoning, ",\"reasoning\":true")) }.value
+        let kept = lists.kept(id)
+        let known = kept.map { ",\"lists\":\"\($0.rev)\"" } ?? ""
+        let reply: ChatEvents = try await Task.detached {
+            try chatRequest(path, "events", requires: .events, fields: fields, also: [(.reasoning, ",\"reasoning\":true"), (.listsRev, known)])
+        }.value
+        return lists.filled(reply, for: id, kept: kept)
     }
 
     public func resume(_ id: String) async throws {
@@ -713,9 +720,38 @@ private struct DeletePreviewReply: Decodable { let sessions: [SessionDeletePrevi
 
 private struct ChatSessionsReply: Decodable { let sessions: [ChatSession] }
 
+/// The options and the commands of each session as the host last sent them, with its name for that version (`listsRev`): the one thing of a
+/// reply that is most of its bytes and almost never changes. A reference, so every copy of the host that holds it shares what was kept.
+private final class ListsMemory: @unchecked Sendable {
+    struct Kept { let rev: String; let options: [ChatOption]; let commands: [ChatCommand] }
+
+    private let lock = NSLock()
+    private var kept: [String: Kept] = [:]
+
+    func kept(_ session: String) -> Kept? { lock.withLock { kept[session] } }
+
+    /// The reply with its lists: the ones that came, kept for the next ask, or the ones kept when the host said they had not changed.
+    /// A name that is not plain hex is not kept (it goes into the next request as it is), and a host that gives none is asked in full.
+    func filled(_ reply: ChatEvents, for session: String, kept before: Kept?) -> ChatEvents {
+        if reply.listsUnchanged {
+            // nothing was kept to send back, so the host had no reason to say it: what it left out is not an empty list to keep
+            guard let before else { return reply }
+            return reply.with(options: before.options, commands: before.commands)
+        }
+        lock.withLock {
+            if let rev = reply.listsRev, rev.isEmpty == false, rev.count <= 64, rev.allSatisfy(\.isHexDigit) {
+                kept[session] = Kept(rev: rev, options: reply.options, commands: reply.commands)
+            } else {
+                kept[session] = nil
+            }
+        }
+        return reply
+    }
+}
+
 /// Connects, reads the hello, makes one request the host said it can answer and decodes its reply.
 fileprivate func chatRequest<Reply: Decodable>(
-    _ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String = "", also: (capability: ControlClient.Capability, fields: String)? = nil,
+    _ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String = "", also: [(capability: ControlClient.Capability, fields: String)] = [],
     timeout: TimeInterval = 5
 ) throws -> Reply {
     let signpost = Signposts.poll.beginInterval("chat request", id: Signposts.poll.makeSignpostID(), "\(command, privacy: .public)")
@@ -724,11 +760,11 @@ fileprivate func chatRequest<Reply: Decodable>(
     defer { client.close() }
     _ = try client.supportedHello()
     // fields only a host that lists their capability understands: an older one is not sent them
-    let sent = fields + (also.flatMap { client.capabilities.contains($0.capability) ? $0.fields : nil } ?? "")
-    guard let data = try client.request(command, requires: capability, fields: sent) else {
+    let sent = fields + also.filter { client.capabilities.contains($0.capability) }.map(\.fields).joined()
+    guard let reply = try client.request(command, requires: capability, fields: sent, as: Reply.self) else {
         throw ControlError.remote("the chat host does not support \(command)")
     }
-    do { return try JSONDecoder().decode(Reply.self, from: data) } catch { throw ControlError.badLine }
+    return reply
 }
 
 /// `chatRequest`, but a host that does not list the request is told in the words of what to do about it.

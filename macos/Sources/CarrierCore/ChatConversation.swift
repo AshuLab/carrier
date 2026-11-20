@@ -164,10 +164,15 @@ public struct ChatEvents: Decodable, Equatable {
     public let preparation: ChatSession.Preparation?
     /// The latest line of git's own progress while a clone runs; nil when there is none or the host leaves it out.
     public let progress: String?
+    /// The host's name for this version of `options` and `commands`; nil from a host that does not say. Sent back in the next request, it makes
+    /// the host leave both out while they stay as they are.
+    public let listsRev: String?
+    /// The host left `options` and `commands` out because they are the ones of `listsRev`, which the caller sent: they are empty here, not gone.
+    public let listsUnchanged: Bool
 
     public init(
         events: [ChatEvent], cursor: Int, streaming: String = "", state: ChatSession.State? = nil, pending: Set<String> = [], options: [ChatOption] = [],
-        commands: [ChatCommand] = [], preparation: ChatSession.Preparation? = nil, progress: String? = nil
+        commands: [ChatCommand] = [], preparation: ChatSession.Preparation? = nil, progress: String? = nil, listsRev: String? = nil, listsUnchanged: Bool = false
     ) {
         self.events = events
         self.cursor = cursor
@@ -178,9 +183,19 @@ public struct ChatEvents: Decodable, Equatable {
         self.commands = commands
         self.preparation = preparation
         self.progress = progress
+        self.listsRev = listsRev
+        self.listsUnchanged = listsUnchanged
     }
 
-    private enum CodingKeys: String, CodingKey { case events, cursor, streaming, session, approvals, options, commands, progress }
+    /// The same reply with the lists the caller kept for `listsRev`, when the host left them out.
+    func with(options: [ChatOption], commands: [ChatCommand]) -> ChatEvents {
+        ChatEvents(
+            events: events, cursor: cursor, streaming: streaming, state: state, pending: pending, options: options, commands: commands,
+            preparation: preparation, progress: progress, listsRev: listsRev, listsUnchanged: false
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey { case events, cursor, streaming, session, approvals, options, commands, progress, listsRev, listsUnchanged }
     private struct Summary: Decodable {
         let state: ChatSession.State
         let preparation: ChatSession.Preparation?
@@ -207,6 +222,8 @@ public struct ChatEvents: Decodable, Equatable {
         pending = Set(try values.decodeIfPresent([Approval].self, forKey: .approvals)?.map(\.approvalId) ?? [])
         options = try values.decodeIfPresent([ChatOption].self, forKey: .options) ?? []
         commands = try values.decodeIfPresent([ChatCommand].self, forKey: .commands) ?? []
+        listsRev = try values.decodeIfPresent(String.self, forKey: .listsRev)
+        listsUnchanged = try values.decodeIfPresent(Bool.self, forKey: .listsUnchanged) ?? false
     }
 }
 

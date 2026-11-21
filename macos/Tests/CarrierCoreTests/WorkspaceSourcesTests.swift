@@ -144,3 +144,31 @@ private struct ProjectFolderFixture: Decodable {
         #expect(projectFolderRefusal(target, carrierFolder: carrier) == entry.refusal, Comment(rawValue: entry.name))
     }
 }
+
+private struct WorktreeClashFixture: Decodable {
+    struct Other: Decodable {
+        let path: String
+        let name: String?
+        let repo: String?
+    }
+
+    struct Case: Decodable {
+        let name: String
+        let folder: String
+        let repo: String?
+        let others: [Other]
+        let refusal: String?
+    }
+
+    let cases: [Case]
+}
+
+@Test func worktreeClashRefusalMatchesTheSharedTableTheHostChecksToo() throws {
+    let url = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/worktree-clash.json")
+    let fixture = try JSONDecoder().decode(WorktreeClashFixture.self, from: Data(contentsOf: url))
+    for entry in fixture.cases {
+        let others = entry.others.map { ProjectRow(path: $0.path, name: $0.name ?? projectFolderName($0.path), repo: $0.repo) }
+        #expect(worktreeClashRefusal(folder: entry.folder, repo: entry.repo, among: others) == entry.refusal, Comment(rawValue: entry.name))
+    }
+}

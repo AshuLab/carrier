@@ -1,0 +1,11 @@
+{
+  "cases": [
+    { "name": "the same repository in two folders", "folder": "/work/a/app", "repo": "acme/app", "others": [{ "path": "/work/b/app-copy", "name": "App copy", "repo": "acme/app" }], "refusal": "The worktrees of App copy already use the folder acme/app; two projects cannot share it" },
+    { "name": "two local folders with one name", "folder": "/work/a/tool", "others": [{ "path": "/work/b/tool" }], "refusal": "The worktrees of tool already use the folder local/tool; two projects cannot share it" },
+    { "name": "two repositories with one name under different owners", "folder": "/work/a/app", "repo": "acme/app", "others": [{ "path": "/work/b/app", "repo": "other/app" }], "refusal": null },
+    { "name": "a local folder and a repository with one name", "folder": "/work/a/app", "others": [{ "path": "/work/b/app", "repo": "acme/app" }], "refusal": null },
+    { "name": "the same folder is already a project, not a clash", "folder": "/work/a/app", "repo": "acme/app", "others": [{ "path": "/work/a/app", "repo": "acme/app" }], "refusal": null },
+    { "name": "owners that differ only in case clash", "folder": "/work/a/app", "repo": "Acme/App", "others": [{ "path": "/work/b/app", "repo": "acme/app" }], "refusal": "The worktrees of app already use the folder acme/app; two projects cannot share it" },
+    { "name": "no other project", "folder": "/work/a/app", "repo": "acme/app", "others": [], "refusal": null }
+  ]
+}

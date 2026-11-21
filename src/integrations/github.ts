@@ -187,7 +187,8 @@ export class GhGitHub implements GitHub {
     const [owner = '', name = ''] = repo.split('/');
     const body = await this.api(repo, ['graphql', '-f', `query=${pullRequestQuery}`, '-f', `owner=${owner}`, '-f', `name=${name}`, '-F', `number=${number}`]);
     const response = pullRequestResponse.parse(JSON.parse(body));
-    return { pr: pullRequestOf(response), ...threadsOf(response) };
+    // the state is not part of the block that is kept (it is a cache): it travels beside it, for whoever needs to know whether the PR ended
+    return { pr: pullRequestOf(response), ...threadsOf(response), state: response.data.repository.pullRequest.state.toLowerCase() as 'open' | 'closed' | 'merged' };
   }
 
   async getIssue(repo: string, issue: number) {

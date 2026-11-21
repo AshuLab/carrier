@@ -102,7 +102,7 @@ export interface GitHub {
   /** The first hundred slices of an epic in one query; `truncated` when it has more. Throws GitHubUnavailable like the call above. */
   readSlices(repo: string, issue: number): Promise<{ slices: EpicSlice[]; truncated: boolean }>;
   /** One query: the pull request's merge state, review decision and checks, and its first hundred review threads (`truncated` when it has more); null when it does not exist. Throws GitHubUnavailable like the call above. */
-  readPullRequest(repo: string, number: number): Promise<{ pr: PullRequestBlock; threads: ReviewThread[]; truncated: boolean } | null>;
+  readPullRequest(repo: string, number: number): Promise<{ pr: PullRequestBlock; threads: ReviewThread[]; truncated: boolean; state: 'open' | 'closed' | 'merged' } | null>;
   /** Throws GitHubUnavailable like every call below. */
   getIssue(repo: string, issue: number): Promise<{ state: 'open' | 'closed'; labels: string[] }>;
   /** Null when the PR does not exist; `closed` is closed without merge, a merged PR is `merged`. `headRef` is the branch it comes from. */

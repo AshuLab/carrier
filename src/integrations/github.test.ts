@@ -343,6 +343,15 @@ describe('readPullRequest', () => {
     expect(calls()[0]!.args).toEqual(expect.arrayContaining(['graphql', 'owner=AshuLab', 'name=demo', 'number=14035']));
   });
 
+  test('it says whether the pull request is open, closed or merged, beside the block and not inside it', async () => {
+    for (const [state, expected] of [['OPEN', 'open'], ['CLOSED', 'closed'], ['MERGED', 'merged']] as const) {
+      const { github } = setup([{ match: 'graphql', stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${recorded.replace(/"state":\s*"(OPEN|CLOSED|MERGED)"/, `"state": "${state}"`)}` }]);
+      const read = await github.readPullRequest(repo, 14035);
+      expect(read!.state, state).toBe(expected);
+      expect(read!.pr).not.toHaveProperty('state');
+    }
+  });
+
   test('the same call returns the review threads and that the list is partial', async () => {
     const withThreads = readFileSync(new URL('./github-graphql-fixtures/pr-review-threads.json', import.meta.url), 'utf8');
     const { github, calls } = setup([{ match: 'graphql', stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${withThreads}` }]);

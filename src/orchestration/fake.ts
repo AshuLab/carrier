@@ -83,7 +83,7 @@ export class FakeGitHub implements GitHub {
     const found = this.pullRequestBlocks[`${repo}#${number}`];
     if (found === undefined) return null;
     const read = this.reviewThreads[`${repo}#${number}`];
-    return { pr: { ...found, checks: found.checks && { ...found.checks } }, threads: read?.threads.map((t) => ({ ...t })) ?? [], truncated: read?.truncated ?? false };
+    return { pr: { ...found, checks: found.checks && { ...found.checks } }, threads: read?.threads.map((t) => ({ ...t })) ?? [], truncated: read?.truncated ?? false, state: this.pulls[`${repo}#${number}`]?.state ?? 'open' };
   }
 
   async getIssue(repo: string, issue: number) {

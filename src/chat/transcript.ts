@@ -1,4 +1,5 @@
 import { boundOutput, clean } from '../execution/events.ts';
+import { redact } from '../logging/redact.ts';
 import type { StepEvent } from './plan.ts';
 import type { ChatEvent } from './runner.ts';
 
@@ -55,8 +56,19 @@ const pastedBlock = /^(`{3,})pasted\n([\s\S]*?)\n\1[ \t]*$/gm;
 /** The message as a title or a preview reads it: each pasted block is "[Pasted text · 87 lines]". */
 export const withoutPasted = (text: string) => text.replace(pastedBlock, (_block, _fence, body: string) => `[Pasted text · ${body.split('\n').length} lines]`);
 
-/** What a list says of a session's last message: its words on one line, cut. */
-export const previewOf = (text: string) => clean(withoutPasted(text).replace(/\s+/g, ' ').trim(), chatCaps.preview);
+/**
+ * What a list says of a session's last message: its words on one line, cut.
+ * Only the start of the message is read (a message can be 64,000 characters and a list asks for every session), as much as it takes for
+ * the words, redacted, to run twice the preview past its cut: a secret that straddles the cut is whole in what was read, and a private
+ * key block that was cut is redacted to the end (`redact`).
+ */
+export const previewOf = (text: string) => {
+  const plain = withoutPasted(text);
+  for (let take = 2_000; ; take *= 8) {
+    const words = plain.slice(0, take).replace(/\s+/g, ' ').trim();
+    if (take >= plain.length || redact(words).length >= chatCaps.preview * 2) return clean(words, chatCaps.preview);
+  }
+};
 
 /** The title of a session: the first line of its first message, cut. */
 export const titleOf = (text: string) => clean(withoutPasted(text).trim().split('\n')[0]!, chatCaps.title);

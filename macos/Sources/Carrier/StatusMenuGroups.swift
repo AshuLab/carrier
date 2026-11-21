@@ -20,7 +20,7 @@ import CarrierCore
     func rebuild(_ menu: NSMenu) {
         for item in menu.items where item.tag == Self.tag { menu.removeItem(item) }
         guard let anchor = menu.items.firstIndex(where: { $0.tag == Self.anchorTag }) else { return }
-        let items = sessionItems()
+        let items = sessionItems() + terminalItems()
         for (offset, item) in items.enumerated() {
             item.tag = Self.tag
             menu.insertItem(item, at: anchor + offset)
@@ -68,6 +68,38 @@ import CarrierCore
     }
 
     @objc private func newSession() { WindowController.shared.show(.newSession) }
+
+    // MARK: terminals
+
+    private func terminalItems() -> [NSMenuItem] {
+        // the store is alive while the app is, window or not; it is only started here if nothing has touched it yet
+        let terminals = CarrierTerminalStore.shared.standaloneTerminals()
+        var items = [NSMenuItem.sectionHeader(title: terminals.isEmpty ? "Terminals" : "Terminals · \(terminals.count)")]
+        items += terminals.prefix(5).map(terminalItem)
+        if terminals.count > 5 {
+            let parent = NSMenuItem(title: "More terminals", action: nil, keyEquivalent: "")
+            let submenu = NSMenu(title: "More terminals")
+            for terminal in terminals.dropFirst(5).prefix(12) { submenu.addItem(terminalItem(terminal)) }
+            parent.submenu = submenu
+            items.append(parent)
+        }
+        if terminals.isEmpty { items.append(disabled("No terminals")) }
+        items.append(plain("New terminal", symbol: "plus", action: #selector(newTerminal)))
+        items.append(.separator())
+        return items
+    }
+
+    private func terminalItem(_ terminal: StandaloneTerminalSummary) -> NSMenuItem {
+        let item = rowItem(terminal.title, secondary: abbreviatedTerminalPath(terminal.workingDirectory), symbol: "terminal", action: #selector(openTerminal(_:)))
+        item.representedObject = terminal.id
+        return item
+    }
+
+    @objc private func openTerminal(_ item: NSMenuItem) {
+        if let id = item.representedObject as? UUID { WindowController.shared.show(.terminal(id: id)) }
+    }
+
+    @objc private func newTerminal() { WindowController.shared.openNewTerminal() }
 
     // MARK: pieces
 

@@ -64,7 +64,7 @@ swift build && swift test
 
 The shell's layers have no automated tests (`CarrierTests` only checks that the icon's layer host takes no clicks); the logic behind them is tested in `CarrierCoreTests`.
 Its smoke check is the self-test flag: it runs the menu's actions from code, one a second (pause, resume and check now are sent to a running Carrier, resume putting back the pause state it found; Stop is only checked, as it would end the Carrier under test), appends a line per step to the file and ends with a line saying the process was still alive.
-It also opens each page of Settings in turn (`settings page <name>`), so a page that cannot be drawn ends the process before that last line.
+It also opens each page of Settings in turn (`settings page <name>`), so a page that cannot be drawn ends the process before that last line (under `--fixture` also the screen of the first project).
 
 ```sh
 ./Carrier.app/Contents/MacOS/Carrier --selftest /tmp/carrier-selftest.log
@@ -87,6 +87,7 @@ So the Sessions + is enabled and a selected session shows a conversation.
 `folder` defaults to the copy of the golden files that `build-app.sh` puts in `Carrier.app/Contents/Resources/Fixtures`; give one when running without the bundle.
 That copy is `Tests/Fixtures` with the content taken out: `AppFixture` holds one chat session, "Notices", which is not a conversation but `NoticesGalleryView`: every notice the conversation and its message box can show (queued message, asleep, archived, a question, a permission, background work, a failed turn, a refusal, a stopped epic…), drawn by the real views with made-up data, one under the other; and a snapshot of Carrier with no epics, no queue and no watched repositories. What the app needs to work (agents, providers, usage, workspaces) is still the golden files'. A second one, "Just a conversation" (`chat-events-text.json`), is plain text: a question, an answer, the context it ends with and the message box, to look at those alone. Add what a view needs to be looked at to `AppFixture`, one thing at a time; the tests keep their own sessions and epics in `Tests/Fixtures`.
 The temporary folder is removed when the app quits.
+It holds a `projects.json` with four projects (a GitHub origin, a very long name, a folder that is not a repository and a folder that is not there) for the Projects page; to look at a file that does not match, change it by hand while the app runs and the page follows.
 It combines with `--selftest`.
 `--fixture-long-transcript` (with `--fixture`) answers `events` with a made-up transcript of 3,600 events (edits with diffs, passing and failing commands with output) instead of the golden file, to scroll a long one, and every session of the chat host with a made-up conversation of 3,500 events (`longChatEvents`).
 

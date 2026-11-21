@@ -121,3 +121,14 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     await #expect(throws: ControlError.remote("The agent \"claude-beta\" is not found on this machine")) { try await host.switchAgent(idle.id, to: "claude-beta") }
     await #expect(throws: ControlError.remote("This session is working; interrupt it or wait, then switch its agent")) { try await host.switchAgent(working.id, to: "codex") }
 }
+
+@Test func theFixtureHomeCarriesProjectsThatTheListShowsWithTheirRemotes() throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let rows = projectRows(try ProjectsFile(folder: server.home).read())
+    #expect(rows.count == 4)
+    #expect(rows.first?.line == "AshuLab/carrier")
+    #expect(rows[1].name.count > 60 && rows[1].repo?.hasSuffix("/" + rows[1].path.split(separator: "/").last!) == true)
+    // a folder that is not a repository shows its path, and so does one that is not there
+    #expect(rows[2].line == rows[2].path && rows[3].line == "/Users/demo/gone")
+}

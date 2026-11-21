@@ -3,7 +3,7 @@
 Settings in its own window, its sidebar, its search and where each group of pages is described.
 
 Settings is a window of its own (`Carrier/SettingsWindow.swift`: an `NSWindow` hosting a `NavigationSplitView`, as the main window is), not a sheet: it does not stop the main window being used, it keeps its place, size and last page (`CarrierSettingsWindow` autosave, `SettingsNavigator`), and ⌘W closes it.
-The sidebar lists seventeen pages in four groups, each page a colored tile with its symbol (`SettingsPage`, `SettingsSidebar`): App (General, Providers, Appearance, Notifications, Keybindings, Dictation, Keep awake; no heading, and Providers is here because both the engine and the chat host read its accounts), Workspace (Chat, Sessions, Sidebar, Terminal), Carrier (Agents, Repos, Behavior) and System (Engine, Health, About, last).
+The sidebar lists eighteen pages in four groups, each page a colored tile with its symbol (`SettingsPage`, `SettingsSidebar`): App (General, Providers, Appearance, Notifications, Keybindings, Dictation, Keep awake; no heading, and Providers is here because both the engine and the chat host read its accounts), Workspace (Chat, Sessions, Projects, Sidebar, Terminal), Carrier (Agents, Repos, Behavior) and System (Engine, Health, About, last).
 The chosen page is on the right under the window's toolbar: the page's name as its title and its line as its subtitle, ‹ › to go back and forward through the pages visited (⌘[ and ⌘], `SettingsHistory`), the page's note (why Behavior cannot save, with Ask Carrier again) and, on a page that has a Reset, a ⋯ menu with Reset this page….
 The menu's Settings…, ⌘, and the sidebar's Settings row open it on the page it was left on (`WindowController.showSettings`; it opens the main window too when it was closed, since the pages read what Carrier answers to it), or on the page a caller asks for (the Open Settings button of the stopped-Carrier view asks for Engine, and a reason that points to Health opens Health).
 
@@ -27,7 +27,7 @@ What Carrier is missing (`carrier` or `node` not found, or being looked for) sho
 ## The pages
 
 - App: [settings-app](settings-app.md) (General, Providers, Appearance, Notifications, Keybindings), [dictation](dictation.md#the-dictation-page) (Dictation, after Keybindings: it is global, not of the chat) and [keep-awake](keep-awake.md) (Keep awake, last of the group).
-- Workspace: [Sessions](#sessions-page) below (Chat, Sessions, Sidebar) and [Terminal](settings-app.md#terminal).
+- Workspace: [Sessions](#sessions-page) below (Chat, Sessions, Sidebar), [Projects](#projects-page) and [Terminal](settings-app.md#terminal).
 - Carrier: [settings-carrier](settings-carrier.md) (Agents, Repos, Behavior).
 - System: [settings-carrier](settings-carrier.md) (Engine), [settings-health](settings-health.md) (Health) and About.
 - About (`Carrier/AboutTab.swift`, last of the sidebar): the app's icon, name and version with the links of the About panel (`aboutLinks`: Release notes, Documentation, GitHub) and a row Star Carrier on GitHub with its button (it opens the repository, `repositoryURL`); Updates (Check now or the step of an update found, Check by itself, Install by itself and Update delay: None, 1, 3, 7, 14 or 30 days, `updates.delayDays`, `updateDelayChoices`); and the engine's own update with Try again.
@@ -56,6 +56,20 @@ A change of an age is saved as it is made (`applyingSessionAges` in `CarrierCore
 Delete is off, with the reason, while archive is Never, and an age that breaks the host's rule (a number under 1, or delete not greater than archive) is not saved and the field says why (`sessionAgeProblems`, `deleteAgeOffReason`).
 With these ages says in dates what the ages do to a session left alone from today (`sessionAgesLine` in `CarrierCore/SessionAges.swift`, given the date of the day: "Is archived on Nov 28 and deleted on Dec 13. Both ages count from its last activity", with the year only for a date that is not in this year; never archived or deleted with Archive at Never; archived and never deleted with Delete at Never; not shown while an age is refused), and, always, that a session that is working, waiting for you or open is looked at again later.
 Reset (the toolbar's, with its question) puts back "Starts with", "Work in", "Start from" (to Remote, in `chat.json`), "Sleep after" (to 10 minutes, in `chat.json`), the delete question and the two ages to 15 and 30 days in `chat.json`; the Reset of Chat does not touch them.
+
+## Projects page
+
+Settings has a Projects page (`Carrier/ProjectsTab.swift`, `SettingsPage.projects`, in the Workspace group between Sessions and Sidebar, "The folders you work in"), the list of the projects a person works on ([the spec](../specs/projects.md), [0038](../adr/0038-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md)).
+It is a full-width list, found in the search by its name.
+With no projects it shows an empty state with Add project; with some it shows a row each, in the order of `projects.json`, with the project's tile, its name (the folder's name when none is set), the GitHub `owner/name` of its `origin` or else its path, and a chevron, and an Add project button above them.
+The remote is read from the repository each time (`originRepo(ofFolder:)` in `CarrierCore/ProjectsList.swift`, the `origin` of its `.git/config`) and is never stored; an `origin` that is not GitHub's, or no repository, shows the path.
+Add project opens the system's folder panel and writes the chosen folder as an entry with `origin` `added` and the folder's name (`ProjectsFile.add`: the file is read again just before, and every other entry and key is kept); it shows in the list at once.
+A folder that already is a project, written any way (`~`, a trailing slash, a symlink), writes nothing and opens that project's page.
+Choosing a row opens the project as a screen of its own, a place of the window's history (‹ goes back to the list) in a centred column, with the project's name and its remote or path in the toolbar.
+The screen shows the folder with Reveal in Finder (off when the folder is not there) and the remote with Open on GitHub, only when there is one.
+The list follows the file while the page is open: `ProjectsModel.follow` reads it again every second, so what the chat host or an editor writes shows without reopening the page.
+A file that does not match its schema, or cannot be read, shows each problem on the page with its field named (`projects.json: projects.0.name must not be blank`) in place of the list, and the page writes nothing while it is wrong.
+`--fixture` has four projects: one with a GitHub origin, one whose name and remote are very long, a folder that is not a repository and one that is not there.
 
 ## Changes apply without a restart
 

@@ -141,6 +141,31 @@ public func applyingProjectEdit(path: String, key: String, value: Any?, to json:
     return data
 }
 
+/// What adding a folder did: it became an entry, or it already was one (its path as the file has it).
+public enum ProjectAdd: Equatable, Sendable {
+    case added(String)
+    case existing(String)
+}
+
+/// The same folder written two ways: `~` expanded, symlinks resolved, no trailing slash. A project is its folder, so `~/work/a` and `/Users/me/work/a/` are one.
+public func isSameFolder(_ a: String, _ b: String) -> Bool {
+    func normal(_ path: String) -> String { URL(fileURLWithPath: (path as NSString).expandingTildeInPath).resolvingSymlinksInPath().path }
+    return normal(a) == normal(b)
+}
+
+/// Adding the folder `folder` as a project of origin `added` named after it, in `json`: the bytes to write, nil when it already is a project (nothing
+/// to write). The file is checked before and after, as an edit is, and every key it has is kept.
+public func applyingProjectAdd(folder: String, to json: Data?) throws -> (outcome: ProjectAdd, write: Data?) {
+    var object = try parse(json)
+    var projects = object["projects"] as? [[String: Any]] ?? []
+    if let known = projects.first(where: { isSameFolder($0["path"] as? String ?? "", folder) })?["path"] as? String { return (.existing(known), nil) }
+    projects.append(["path": folder, "name": (folder as NSString).lastPathComponent, "origin": "added"])
+    object["projects"] = projects
+    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    _ = try parse(data)
+    return (.added(folder), data)
+}
+
 /// The file on disk.
 public struct ProjectsFile {
     public let url: URL
@@ -154,6 +179,16 @@ public struct ProjectsFile {
     private func bytes() throws -> Data? { FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil }
 
     public func read() throws -> [ProjectEntry] { try readProjects(bytes()) }
+
+    /// Reads the file again now and adds `folder` as a project, or says it already is one and writes nothing. Makes the Carrier folder when it is not there yet.
+    public func add(folder: String) throws -> ProjectAdd {
+        let (outcome, data) = try applyingProjectAdd(folder: folder, to: bytes())
+        if let data {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url, options: .atomic)
+        }
+        return outcome
+    }
 
     /// Reads the file again now, changes one key of one project and writes the whole file through a temporary file that replaces it.
     public func update(path: String, key: String, value: Any?) throws {

@@ -16,7 +16,7 @@ public enum FixtureError: Error, Equatable {
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; `switchAgent` gives an idle session another listed agent and a notice that says so; anything else is an error.
-/// It owns a temporary home (`home`) holding an `engine.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
+/// It owns a temporary home (`home`) holding an `engine.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents, a `projects.json` with four projects (`writeProjects`) and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 /// The `engine.json` of the fixture home: the repos of the fixture snapshot, the profiles and the three global roles, and one repo that
 /// overrides the reviewer's model, so the Repos page shows an inherited role and a mixed one.
@@ -201,6 +201,7 @@ public final class FixtureServer {
             // the accounts of the golden reply, without Antigravity: it is found and has no account, so the page shows its Add row
             let accounts = #"{"providers":{"claude":{"harness":"claude"},"claude-work":{"harness":"claude","displayName":"Work","configDir":"/Users/demo/.claude-work"},"codex":{"harness":"codex","command":"/opt/homebrew/bin/codex"}}}"#
             try ProvidersFile(folder: home).write(Data(accounts.utf8))
+            try Self.writeProjects(home: home)
             listener = try Self.listen(path: places.controlSocket)
             do { chatListener = try Self.listen(path: places.chatSocket) } catch {
                 Darwin.close(listener)
@@ -212,6 +213,27 @@ public final class FixtureServer {
         }
         Thread.detachNewThread { [self] in accept(listener, chat: false) }
         Thread.detachNewThread { [self] in accept(chatListener, chat: true) }
+    }
+
+    /// The Projects page's list: a project with a GitHub origin, one whose name and remote are very long, a folder that is not a repository, and one
+    /// that is not there. The folders are made in the home, so the remote is read from a real `.git/config`.
+    private static func writeProjects(home: String) throws {
+        let long = "a-project-with-a-name-so-long-that-the-row-has-to-cut-it-before-it-reaches-the-chevron"
+        var entries: [[String: Any]] = []
+        for (folder, remote) in [("carrier", "git@github.com:AshuLab/carrier.git"), (long, "https://github.com/some-organisation-with-a-long-name/" + long + ".git"), ("notes", "")] {
+            let path = home + "/projects/" + folder
+            try FileManager.default.createDirectory(atPath: path + "/.git", withIntermediateDirectories: true)
+            if remote.isEmpty == false {
+                try Data("[core]\n\tbare = false\n[remote \"origin\"]\n\turl = \(remote)\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n".utf8).write(to: URL(fileURLWithPath: path + "/.git/config"))
+            } else {
+                try FileManager.default.removeItem(atPath: path + "/.git")
+            }
+            entries.append(["path": path, "origin": "added"] as [String: Any])
+        }
+        entries[1]["name"] = "A project with a name so long that the row has to cut it before it reaches the chevron"
+        entries.append(["path": "/Users/demo/gone", "name": "Moved away", "origin": "cloned"])
+        let file = try JSONSerialization.data(withJSONObject: ["projects": entries], options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        try file.write(to: URL(fileURLWithPath: CarrierPlaces(folder: home).projects))
     }
 
     public func stop() {

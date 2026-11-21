@@ -60,7 +60,13 @@ The rows are `providersPage(_:config:chat:)` and the list's `providersDirectory`
 
 ### Projects file
 
-`projects.json` is read, checked and edited by `CarrierCore/ProjectsFile.swift` (`ProjectsFileTests`); the same rules as `src/config/projects.ts` are run over `Tests/Fixtures/projects.json` by `ContractTests`. No view uses it yet.
+`projects.json` is read, checked, edited and added to by `CarrierCore/ProjectsFile.swift` (`ProjectsFileTests`, `ProjectsListTests`); the same rules as `src/config/projects.ts` are run over `Tests/Fixtures/projects.json` by `ContractTests`.
+
+### Projects page
+
+What the person sees: [settings](../docs/macos/settings.md#projects-page).
+
+The rows, the remote read from `.git/config` and the add are pure functions in `CarrierCore/ProjectsList.swift` and `ProjectsFile.swift`, and `ProjectsModel` follows the file (`ProjectsListTests`, including a write by another process and a file that does not match); `--fixture` writes its projects in `FixtureServer.writeProjects` (`FixtureServerTests`); the view `Carrier/ProjectsTab.swift` is untested, only drawn by `--selftest`, and the page is in `SettingsIndexDriftTests`'s reach by its name.
 
 ### Agents page
 

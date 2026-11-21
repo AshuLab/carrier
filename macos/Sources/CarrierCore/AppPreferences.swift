@@ -706,8 +706,8 @@ public struct AppPreferences {
             ]
         case .keybindings: [ShortcutTable.key]
         case .keepAwake: [awakeScreenKey, awakeMinutesKey, awakeAgentsKey, awakeGraceKey, awakeBatteryKey, awakeNotifyKey, awakeShortcutKey]
-        // the Providers page only reads, the About page writes Sparkle's own preferences, the Carrier pages write engine.json or (Engine) a few switches that have no Reset, and the Health page keeps its own settings
-        case .providers, .about, .engine, .behavior, .repos, .agents, .health: []
+        // the Providers and Projects pages only read (projects.json is the person's, never reset), the About page writes Sparkle's own preferences, the Carrier pages write engine.json or (Engine) a few switches that have no Reset, and the Health page keeps its own settings
+        case .providers, .projects, .about, .engine, .behavior, .repos, .agents, .health: []
         }
     }
 }

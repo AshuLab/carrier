@@ -566,9 +566,9 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
         let json = #"{"id":"s","agent":"claude","harness":"claude","folder":"/x","state":"idle","createdAt":1,"lastActiveAt":1,"archived":\#(archived),"live":\#(live && archived == false)}"#
         return [try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))]
     }
-    /// What the summary of an `events` reply says of the session, when the host does.
+    /// What the summary of an `events` reply says of the session, when the host does: as it is, an archived session that was resumed says `live`.
     private var facts: SessionFacts? {
-        summaryHasLive ? SessionFacts(agent: "claude", archived: archivedSession, live: live && archivedSession == false, background: background) : nil
+        summaryHasLive ? SessionFacts(agent: "claude", archived: archivedSession, live: live, background: background) : nil
     }
     func resume(_ id: String) async throws {
         resumed += 1
@@ -803,6 +803,18 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
     await model.poll()
     #expect(host.listed.isEmpty && model.archived && model.live == false && model.agent == "claude" && model.background.isEmpty)
+}
+
+@MainActor @Test func anArchivedSessionTheHostSaysIsLiveStaysArchivedWithNoBackgroundAndNotAsleep() async {
+    // close, archive, then resume: the host's summary says archived and live, with what the agent waits for
+    let host = ScriptedHost()
+    host.archivedSession = true
+    host.live = true
+    host.background = [BackgroundTask(id: "b", kind: "local_bash", description: "pnpm build")]
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hi")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(host.listed.isEmpty && model.archived && model.live == false && model.background.isEmpty && model.asleep == false)
 }
 
 @MainActor @Test func aSessionBeingPreparedIsNotShownAsClosedWhenTheSummaryOfItsEventsSaysSo() async {

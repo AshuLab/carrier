@@ -879,14 +879,15 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             if let facts = reply.facts {
                 // the summary of the reply says it, and the session answered: no list is asked
                 if let named = facts.agent { agent = named }
-                // the host never reports an archived session as live, nor with background tasks
-                live = facts.live
+                // as the lists said it: a session in the archive is not live and waits for nothing, though the host's `events` say what it has
+                // (a session closed, archived and resumed is archived and live)
+                live = facts.live && !facts.archived
                 archived = facts.archived
                 // `events` also answers for a child session, which the list leaves out and so never read as unknown; the app opens no child
                 // (every id it has comes from that list), so `known` is always true here
                 known = true
                 preparingSession = reply.state == .preparing
-                background = facts.background
+                background = facts.archived ? [] : facts.background
             } else {
                 try await readSessionFromLists()
             }

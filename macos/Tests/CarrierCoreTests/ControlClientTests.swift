@@ -265,6 +265,20 @@ private struct Count: Decodable, Equatable { let n: Int }
     #expect(client.repliesParsedOnce == 1)
 }
 
+@Test func aRefusalThatAlsoCarriesDataOfTheRightShapeIsARefusalNotAnAnswer() throws {
+    let server = TestServer { connection in
+        connection.send(hello)
+        guard let id = connection.readRequestId() else { return }
+        connection.send("{\"id\":\(id),\"ok\":false,\"data\":{\"n\":1},\"error\":\"x\"}\n")
+    }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    _ = try client.hello()
+    #expect(throws: ControlError.remote("x")) { try client.request("events", as: Count.self) }
+    #expect(client.repliesParsedOnce == 0)
+}
+
 @Test func aReplyOfTheWrongShapeIsABadLineAndAnUnlistedRequestSendsNothing() throws {
     let server = TestServer { connection in
         connection.send(hello)

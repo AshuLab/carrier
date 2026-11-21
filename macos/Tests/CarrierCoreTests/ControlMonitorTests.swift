@@ -137,6 +137,19 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     #expect(log == ["snapshot", "tick", "snapshot", "tick"])
 }
 
+@Test func aPollReadsTheSnapshotFromTheReplyOnceNotThreeTimes() throws {
+    let snapshot = String(decoding: try fixture(), as: UTF8.self)
+    let server = TestServer { connection in
+        connection.send(hello())
+        guard let id = connection.readRequestId() else { return }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(snapshot)}\n")
+    }
+    defer { server.stop() }
+    var parsedOnce = -1
+    ControlMonitor(socketPath: { server.path }, wait: { _ in false }, log: { _ in }, tick: { parsedOnce = $0.repliesParsedOnce }, onChange: { _ in }).run()
+    #expect(parsedOnce == 1)
+}
+
 @Test func theMenuAndTheCardShowTheSentenceOfTheSideToUpdate() {
     let state = ConnectionState.incompatible(update: "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier.")
     #expect(state.menuStatus.detail == "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier.")

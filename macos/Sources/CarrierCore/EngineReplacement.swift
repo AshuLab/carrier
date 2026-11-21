@@ -11,7 +11,7 @@ public enum EngineReplaced: Equatable {
     case failed(String)
 }
 
-private struct EngineState {
+struct EngineState {
     let version: String
     let paused: Bool
     let inFlight: Int
@@ -20,6 +20,11 @@ private struct EngineState {
 private func readEngine(_ path: String) throws -> EngineState {
     guard let client = ControlClient.connect(path: path) else { throw ControlError.closed }
     defer { client.close() }
+    return try readEngine(from: client)
+}
+
+/// The engine's version, intake and executions in flight, from a connection that has not said hello yet.
+func readEngine(from client: ControlClient) throws -> EngineState {
     let version = try client.supportedHello().version ?? ""
     let snapshot = try client.snapshot()
     return EngineState(version: version, paused: snapshot.paused, inFlight: snapshot.sessions?.count ?? snapshot.runningEpics)

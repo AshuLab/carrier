@@ -70,12 +70,20 @@ export async function limited<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
+/** One git process in a slot of `limited`, its input closed at once (execFile leaves a pipe open: a command that read it would wait for the timeout). */
+export const runGit = (cwd: string, args: string[], maxBuffer: number) =>
+  limited(() => {
+    const run = execFileAsync('git', args, { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
+    run.child.stdin?.end();
+    return run;
+  });
+
 /** git in a folder; null when the folder is gone (expected: an epic's worktree is removed when it ends) or git failed (logged). */
 export async function git(cwd: string, args: string[]): Promise<string | null> {
   if (existsSync(cwd) === false) return null;
   try {
     // no optional locks: reading an agent's worktree must not refresh its index under the agent's own commit
-    const { stdout } = await limited(() => execFileAsync('git', args, { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }));
+    const { stdout } = await runGit(cwd, args, 32 * 1024 * 1024);
     return stdout;
   } catch (error) {
     log.warn('git failed in an epic worktree', { cwd, args: args[0], error: String(error) });
@@ -208,6 +216,11 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
     });
     open = blockers;
   }
+  // read with the rows above, before git is waited for: the reply is one cut of the database, not one that a poll can change in between
+  const slices = db.select().from(epicSlices).where(eq(epicSlices.epicId, epic.id)).orderBy(epicSlices.number).all();
+  const threads = db.select().from(epicReviewThreads).where(eq(epicReviewThreads.epicId, epic.id)).orderBy(epicReviewThreads.position).all();
+  const hints = liveHints(db, epic.id);
+
   const hitLimit = epic.status === 'needs_human' && epic.needsHumanReason?.startsWith('review limit') === true;
   const rounds = await Promise.all(found.slice(-MAX_ROUNDS).map(async ({ round, attempt: of, fixed }) => {
     // Nothing answered it and nothing follows: the epic stopped there for the limit.
@@ -239,8 +252,5 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   // the row records the branch once ship is validated; before that the worktree's HEAD is the only place it is
   const branch = epic.branch ?? (epic.workspace === null ? null : ((await git(epic.workspace, ['symbolic-ref', '--short', 'HEAD']))?.trim() || null));
 
-  const slices = db.select().from(epicSlices).where(eq(epicSlices.epicId, epic.id)).orderBy(epicSlices.number).all();
-  const threads = db.select().from(epicReviewThreads).where(eq(epicReviewThreads.epicId, epic.id)).orderBy(epicReviewThreads.position).all();
-  const hints = liveHints(db, epic.id);
   return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt, lane: null, activity: null, ...(state === 'in_progress' && hints.get(number)) })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, options: optionsOf(epic), pr: epic.pr };
 }

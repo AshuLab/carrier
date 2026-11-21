@@ -16,7 +16,7 @@ import { executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { epics } from '../storage/schema.ts';
-import { epicOf, limited, MAX_ROUNDS } from './epic.ts';
+import { epicOf, git as engineGit, limited, MAX_ROUNDS } from './epic.ts';
 import { enginePlacesOf } from '../config/places.ts';
 
 const MIN = 60_000;
@@ -382,4 +382,8 @@ test('limited never lets a job slip in beside the four when one finishes and ano
   }
   await Promise.all(all);
   expect(peak).toBe(4);
+});
+
+test('git sees its input closed: a command that reads it ends instead of waiting for the timeout', async () => {
+  expect(await engineGit(dir, ['hash-object', '--stdin'])).toBe('e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\n'); // the empty blob
 });

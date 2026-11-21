@@ -1,8 +1,6 @@
-import { execFile } from 'node:child_process';
 import { existsSync, lstatSync, realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { promisify } from 'node:util';
 import { and, eq, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
 import type { Db } from '../storage/db.ts';
@@ -10,7 +8,7 @@ import { callerResults } from '../storage/caller-results.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import { redact } from '../logging/redact.ts';
-import { git, limited } from './epic.ts';
+import { git, runGit } from './epic.ts';
 import type { FileDiffReply, FilesReply } from './replies.ts';
 
 // The reply is bounded: with these it weighs at most about 400 KB, far under the client's 8 MiB line, and says so when it cut.
@@ -23,8 +21,6 @@ const MAX_UNTRACKED_BYTES = 1024 * 1024;
 const MAX_DIFF_BYTES = 4 * 1024 * 1024;
 export const MAX_DIFF_ROWS = 1_000;
 export const MAX_LINE = 2_000;
-
-const execFileAsync = promisify(execFile);
 
 type Row = { path: string; added: number; removed: number };
 
@@ -247,7 +243,7 @@ export async function filesOf(db: Db, reposDir: string, repo: string, issue: num
 /** The diff text of one file over a range; past the byte cap, the whole lines read so far and `cut`. Nothing the repository configures runs: no driver, no textconv. */
 async function diffText({ cwd, range, guard }: Card, path: string): Promise<{ text: string; cut: boolean }> {
   try {
-    const { stdout } = await limited(() => execFileAsync('git', [...guard, 'diff', ...SAFE_DIFF, '-U3', ...range, '--', `:(literal)${path}`], { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer: MAX_DIFF_BYTES, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }));
+    const { stdout } = await runGit(cwd, [...guard, 'diff', ...SAFE_DIFF, '-U3', ...range, '--', `:(literal)${path}`], MAX_DIFF_BYTES);
     return { text: stdout, cut: false };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {

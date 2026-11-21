@@ -1,7 +1,7 @@
-import type { GitHub } from './github.ts';
+import type { GitHub, PullRequestState } from './github.ts';
 
 /** What the poll that asks already read about the epic: its final PR's state and whether the repo's open list had its issue. */
-export type KnownOfEpic = { prState?: 'open' | 'closed' | 'merged'; issueOpen?: boolean };
+export type KnownOfEpic = { prState?: PullRequestState; issueOpen?: boolean };
 
 /**
  * Did the epic end outside Carrier? Only the epic issue and the final PR (the one saved when `ship`

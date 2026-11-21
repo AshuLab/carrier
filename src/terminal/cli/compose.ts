@@ -34,6 +34,9 @@ import { CliError } from './cli-error.ts';
 import { stopOnSigint } from './interrupt.ts';
 import { openUrl } from './open-url.ts';
 
+/** How often a panel that writes to something that is not a terminal looks at the snapshot, when the caller gives no interval. */
+const PLAIN_PANEL_MS = 10_000;
+
 export class InstanceBusy extends Error {}
 
 /** Everything that touches the outside world, replaceable so a test runs the whole startup without GitHub or agents. */
@@ -214,7 +217,8 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
           now: () => deps.clock.now(),
           controls: { ...controls, detail },
         })
-      // Detached (`carrier start`) nobody watches the lines it writes to start.log: every ten seconds is plenty, and a terminal still redraws every second.
-      : startPanel(snapshot, deps.panelOut, deps.panelOut.isTTY ? deps.panelIntervalMs : (deps.panelIntervalMs ?? 10_000), (s, columns) => renderDashboard(s, { columns, detail }));
+      // Not a terminal (a detached `carrier start` writes to start.log, and nobody watches it): a line per change, looked for every ten seconds, so a state that
+      // lasts less than that does not show; a terminal still redraws every second.
+      : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs ?? (deps.panelOut.isTTY ? undefined : PLAIN_PANEL_MS), (s, columns) => renderDashboard(s, { columns, detail }));
   return { engine, db, close };
 }

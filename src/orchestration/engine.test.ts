@@ -1760,13 +1760,28 @@ async function parkedWithPullRequests(count: number, { listed = true }: { listed
   return { engine, getPullRequest: vi.spyOn(github, 'getPullRequest'), getIssue: vi.spyOn(github, 'getIssue') };
 }
 
-test('a poll asks GitHub twice for a live epic with a pull request, and never for what it just read', async () => {
+test('a poll reads the pull request of each live epic once and does not ask GitHub again for what it read', async () => {
   const { getPullRequest, getIssue } = await parkedWithPullRequests(3);
-  github.calls = 0;
   github.pullRequestReads.length = 0;
   await clock.advance(5 * MIN);
-  expect(github.pullRequestReads).toHaveLength(3);
-  expect([getPullRequest.mock.calls.length, getIssue.mock.calls.length]).toEqual([0, 0]);
+  expect(github.pullRequestReads).toHaveLength(3); // one read per epic, the graphql that carries the state
+  expect([getPullRequest.mock.calls.length, getIssue.mock.calls.length]).toEqual([0, 0]); // what used to be two more calls per epic
+});
+
+test('a pull request state read for the epic\'s old final PR does not end the epic whose PR is another one by the time it is decided', async () => {
+  const { engine, getPullRequest } = await parkedWithPullRequests(1);
+  pull(51, { state: 'merged' }, 1); // the old final PR is merged...
+  pull(77, {}, 1);
+  const read = github.readPullRequest.bind(github);
+  vi.spyOn(github, 'readPullRequest').mockImplementation(async (repo, number) => {
+    const answer = await read(repo, number);
+    engine.db.update(epics).set({ prNumber: 77 }).where(eq(epics.issue, 1)).run(); // ...and a restart imported another one while the poll was reading
+    return answer;
+  });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', prNumber: 77 });
+  expect(getPullRequest).toHaveBeenCalledWith('AshuLab/a', 77); // asked about the PR it has now
 });
 
 test('a final PR that the poll read as merged ends the epic with no other question', async () => {

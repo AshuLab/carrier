@@ -2,8 +2,7 @@ import { expect, test, vi } from 'vitest';
 import { agyAdapter } from './agy.ts';
 import { claudeAdapter } from './claude.ts';
 import { codexAdapter } from './codex.ts';
-import { parseJsonLine } from './common.ts';
-import { splitLines } from './host-runner.ts';
+import { parseJsonLine, splitLines } from './common.ts';
 import { createEventState } from '../execution/events.ts';
 
 /** What the reader used to do: the whole of what is pending is searched again with each chunk. */
@@ -43,6 +42,17 @@ test('a line of ten megabytes in chunks of 64 KB comes out whole and once, and r
   expect(reader.rest()).toBe('');
 });
 
+test('a line that has no newline yet is not split or searched again by the chunks that follow it', () => {
+  const split = vi.spyOn(String.prototype, 'split');
+  const reader = splitLines();
+  const chunk = 'y'.repeat(65_536);
+  for (let i = 0; i < 160; i++) reader.push(chunk); // ten megabytes, no newline
+  const calls = split.mock.calls.length;
+  reader.push('\n');
+  split.mockRestore();
+  expect(calls).toBe(0); // the old reader split pending + chunk 160 times
+});
+
 test('a line goes through the events and the signal of an adapter with one JSON.parse, and a line that is not JSON gives the same error to both', () => {
   const parse = vi.spyOn(JSON, 'parse');
   const lines = {
@@ -62,6 +72,16 @@ test('a line goes through the events and the signal of an adapter with one JSON.
   expect(() => parseJsonLine(text)).toThrow(SyntaxError);
   expect(() => parseJsonLine(text)).toThrow(SyntaxError); // the same line again: the same error, not a value
   expect(codexAdapter.parseLine(text)).toEqual({ sessionUnavailable: true });
+});
+
+test('both readers of a line share its parse and then it is forgotten, so reading it again parses again', () => {
+  const parse = vi.spyOn(JSON, 'parse');
+  parseJsonLine('{"b":1}');
+  parseJsonLine('{"b":1}');
+  expect(parse.mock.calls.length).toBe(1);
+  parseJsonLine('{"b":1}'); // a third reading is another line, as far as the memo knows
+  expect(parse.mock.calls.length).toBe(2);
+  parse.mockRestore();
 });
 
 test('a different line is parsed again, and what comes back is the line\'s own value', () => {

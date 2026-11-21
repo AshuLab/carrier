@@ -108,10 +108,12 @@ let lastParse: { value: unknown } | { error: unknown } = { value: undefined };
 
 /**
  * `JSON.parse` of an output line, remembered for the next call with the same line: the runner gives each line to `parseEvents` and then to `parseLine`, and it is
- * parsed once, the second one getting the same value or the same error. The adapters only read what this returns, so sharing it is safe.
+ * parsed once, the second one getting the same value or the same error, and the line is forgotten with it. The adapters only read what this returns, so sharing it is safe.
+ * ponytail: one entry for the whole process, which only works while the two calls for a line come one after the other; a line only one of them reads (stderr) stays until the next.
  */
 export function parseJsonLine(line: string): unknown {
-  if (line !== lastLine) {
+  const seen = line === lastLine;
+  if (!seen) {
     lastLine = undefined; // a throw below must not leave the old line paired with the new answer
     try {
       lastParse = { value: JSON.parse(line) };
@@ -120,6 +122,37 @@ export function parseJsonLine(line: string): unknown {
     }
     lastLine = line;
   }
-  if ('error' in lastParse) throw lastParse.error;
-  return lastParse.value;
+  const answer = lastParse;
+  if (seen) {
+    lastLine = undefined; // both readers have it: a line of ten megabytes is not kept after the run
+    lastParse = { value: undefined };
+  }
+  if ('error' in answer) throw answer.error;
+  return answer.value;
+}
+
+/**
+ * The lines of a stream that arrives in chunks: `push` gives the complete lines a chunk finishes, and what is left of the last one waits in pieces, so a line of
+ * ten megabytes is joined once when its newline comes and not searched again with every chunk. `rest` is what has no newline yet.
+ */
+export function splitLines() {
+  let pieces: string[] = [];
+  return {
+    push(chunk: string): string[] {
+      const last = chunk.lastIndexOf('\n');
+      if (last === -1) {
+        if (chunk !== '') pieces.push(chunk);
+        return [];
+      }
+      const lines = (pieces.join('') + chunk.slice(0, last)).split('\n');
+      const after = chunk.slice(last + 1);
+      pieces = after === '' ? [] : [after];
+      return lines;
+    },
+    rest(): string {
+      const rest = pieces.join('');
+      pieces = [];
+      return rest;
+    },
+  };
 }

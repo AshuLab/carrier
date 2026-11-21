@@ -11,7 +11,7 @@ import { createEventState, type AgentEvent } from '../execution/events.ts';
 import { claudeAdapter } from './claude.ts';
 import { agyAdapter } from './agy.ts';
 import { codexAdapter } from './codex.ts';
-import { resolveBinary, type AgentCommand, type HarnessAdapter, type LineSignal } from './common.ts';
+import { resolveBinary, splitLines, type AgentCommand, type HarnessAdapter, type LineSignal } from './common.ts';
 
 const exec = promisify(execFile);
 
@@ -235,30 +235,4 @@ export class HostAgentRunner implements AgentRunner {
     if (pid === undefined) return;
     await terminate(pid, this.options.graceMs ?? 5000);
   }
-}
-
-/**
- * The lines of a stream that arrives in chunks: `push` gives the complete lines a chunk finishes, and what is left of the last one waits in pieces, so a line of
- * ten megabytes is joined once when its newline comes and not searched again with every chunk. `rest` is what has no newline yet.
- */
-export function splitLines() {
-  let pieces: string[] = [];
-  return {
-    push(chunk: string): string[] {
-      const last = chunk.lastIndexOf('\n');
-      if (last === -1) {
-        if (chunk !== '') pieces.push(chunk);
-        return [];
-      }
-      const lines = (pieces.join('') + chunk.slice(0, last)).split('\n');
-      const after = chunk.slice(last + 1);
-      pieces = after === '' ? [] : [after];
-      return lines;
-    },
-    rest(): string {
-      const rest = pieces.join('');
-      pieces = [];
-      return rest;
-    },
-  };
 }

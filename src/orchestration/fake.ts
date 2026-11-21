@@ -1,5 +1,5 @@
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
+import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type PullRequestState, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
   /** What rateLimit answers. */
@@ -32,7 +32,7 @@ export class FakeGitHub implements GitHub {
   /** Makes setLabels fail while the rest works. */
   setLabelsUnavailable: GitHubUnavailable | null = null;
   issues: Record<string, { state: 'open' | 'closed'; labels: string[] }> = {};
-  pulls: Record<string, { state: 'open' | 'closed' | 'merged'; body: string; headSha: string; headRef?: string }> = {};
+  pulls: Record<string, { state: PullRequestState; body: string; headSha: string; headRef?: string }> = {};
   repoLabels: Record<string, string[]> = {};
   created: string[] = [];
   /** The colour and description each label was created with. */

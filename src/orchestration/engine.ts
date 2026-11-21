@@ -26,7 +26,7 @@ import { latestBlockers, latestObservations } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
 import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
-import { AuthError, GitHubRejected, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub, type Slices } from './github.ts';
+import { AuthError, GitHubRejected, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub, type PullRequestState, type Slices } from './github.ts';
 import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak } from './retry.ts';
@@ -67,8 +67,8 @@ const resumeTickMs = 1_000;
 const sliceWindowMs = 10_000;
 const sliceTimerMs = 60_000;
 const liveStatuses: Epic['status'][] = ['running', 'needs_human', 'ready_for_test'];
-/** What one poll read about the epics: the state of each final PR, and the issues each repo listed as open. */
-type SeenThisPoll = { prState: Map<number, 'open' | 'closed' | 'merged'>; openIssues: Map<string, Set<number>> };
+/** What one poll read about the epics: the state of each final PR (with its number: the epic's PR may be another one by the time it is used), and the issues each repo listed as open. */
+type SeenThisPoll = { prState: Map<number, { number: number; state: PullRequestState }>; openIssues: Map<string, Set<number>> };
 
 export type RepoCheck = { at: number; ok: boolean; error: string | null };
 
@@ -650,7 +650,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   async function stopEnded(seen: SeenThisPoll) {
     for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos().map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
       await forRepo(epic.repo, async () => {
-        const end = await endOf(github, epic, { prState: seen.prState.get(epic.id), issueOpen: seen.openIssues.get(epic.repo)?.has(epic.issue) === true });
+        const read = seen.prState.get(epic.id);
+        const end = await endOf(github, epic, { prState: read?.number === epic.prNumber ? read?.state : undefined, issueOpen: seen.openIssues.get(epic.repo)?.has(epic.issue) === true });
         if (!end) return;
         const ended = db.update(epics)
           .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason }), finishedAt: clock.now(), labelPending: true })
@@ -964,7 +965,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         const read = await github.readPullRequest(repo, prNumber);
         if (read === null) continue;
         const { pr, threads, truncated, state } = read;
-        seen.prState.set(id, state);
+        seen.prState.set(id, { number: prNumber, state });
         const readAt = clock.now();
         db.transaction((tx) => {
           tx.update(epics).set({ pr }).where(eq(epics.id, id)).run();

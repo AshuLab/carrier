@@ -75,6 +75,9 @@ The screen has an Actions row showing how many actions are set ("None" or "N act
 The Actions screen has two groups, New worktree and After clone, each listing its actions in order and ending in Add action, where each action has a name, an on switch, a delete button, a monospaced command field and an "If it fails" choice of Warn and continue or Stop the session.
 Each valid edit writes at once to the project's `actions` in `projects.json` (omitting `on` when on and `onFail` when Warn and continue), while a blank name or command is not written and is shown as a problem.
 The screen also shows the folder with Reveal in Finder (off when the folder is not there) and the remote with Open on GitHub, only when there is one.
+Its last row is Remove…, which asks "Remove <name> from Carrier?" and says that the folder, the worktrees and the sessions stay where they are and that watching is not changed (`projectRemovalWords`).
+Confirming takes the entry out of `projects.json` and deletes the project's image copy in `app/project-icons` unless another project names it (`ProjectsModel.remove`, `applyingProjectRemoval`: the file is read again just before and every other entry and key is kept), then goes back to the list.
+It never writes `engine.json`, so a watched project stays watched, and it touches nothing on disk but those two; the sessions keep their folder and group as a plain folder would.
 The list and each project's screen follow the file while the page is open: `ProjectsModel.follow` reads it again every second, so what the chat host or an editor writes shows without reopening the page.
 A file that does not match its schema, or cannot be read, shows each problem on the page with its field named (`projects.json: projects.0.name must not be blank`) in place of the list, and the page writes nothing while it is wrong.
 A project's name and icon show wherever the project does, not only on its page.

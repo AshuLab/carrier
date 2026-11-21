@@ -202,6 +202,18 @@ public func applyingProjectAdd(folder: String, to json: Data?) throws -> (outcom
     return (.added(folder), data)
 }
 
+/// `json` without the project at `path`; every other entry and key is kept. The folder is not this file's to touch, only the entry goes.
+public func applyingProjectRemoval(path: String, to json: Data?) throws -> Data {
+    var object = try parse(json)
+    var projects = object["projects"] as? [[String: Any]] ?? []
+    guard let index = projects.firstIndex(where: { $0["path"] as? String == path }) else { throw ProjectsFileError.missing(path) }
+    projects.remove(at: index)
+    object["projects"] = projects
+    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    _ = try parse(data)
+    return data
+}
+
 /// The file on disk.
 public struct ProjectsFile {
     public let folder: String
@@ -228,6 +240,11 @@ public struct ProjectsFile {
             try data.write(to: url, options: .atomic)
         }
         return outcome
+    }
+
+    /// Reads the file again now, takes the project at `path` out and writes the whole file atomically.
+    public func remove(path: String) throws {
+        try applyingProjectRemoval(path: path, to: bytes()).write(to: url, options: .atomic)
     }
 
     /// Reads the file again now, changes one key of one project and writes the whole file through a temporary file that replaces it.

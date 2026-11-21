@@ -463,3 +463,38 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     #expect(order == ProjectOrder(key: .name, ascending: true))
     #expect(order.clicked(.name) == ProjectOrder(key: .name, ascending: false))
 }
+
+@MainActor @Test func removingAProjectTakesOnlyItsEntryAndItsImageAndLeavesTheEngineConfigFolderAndWorktreesAlone() throws {
+    let carrier = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: carrier) }
+    let project = carrier + "/work/app", worktree = carrier + "/chat/worktrees/acme/app/one"
+    for folder in [project, worktree] { try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true) }
+    try Data("keep".utf8).write(to: URL(fileURLWithPath: worktree + "/file.txt"))
+    // a watched project: the engine's file names its repository
+    let engine = Data(#"{"repos":["acme/app"]}"#.utf8)
+    let places = CarrierPlaces(folder: carrier)
+    try engine.write(to: URL(fileURLWithPath: places.engineConfig))
+    let file = ProjectsFile(folder: carrier)
+    let store = ProjectIconStore(folder: carrier)
+    try FileManager.default.createDirectory(at: store.directory, withIntermediateDirectories: true)
+    for name in ["gone.png", "shared.png"] { try Data("x".utf8).write(to: store.directory.appendingPathComponent(name)) }
+    let initial = #"""
+    {"projects":[
+      {"path":"\#(project)","origin":"cloned","icon":{"image":"gone.png"},"actions":[{"name":"i","command":"pnpm i","when":"newWorktree"}]},
+      {"path":"/b/other","origin":"added","tags":["x"],"icon":{"image":"shared.png"}}
+    ]}
+    """#
+    try Data(initial.utf8).write(to: file.url)
+    let model = ProjectsModel(file: file) { _ in "acme/app" }
+    model.reload()
+
+    #expect(model.remove(path: project))
+    #expect(model.rows.map(\.path) == ["/b/other"])
+    #expect(try file.read()[0].tags == ["x"])
+    #expect(store.existingURL(for: "gone.png") == nil && store.existingURL(for: "shared.png") != nil)
+    #expect(try Data(contentsOf: URL(fileURLWithPath: places.engineConfig)) == engine)
+    #expect(FileManager.default.fileExists(atPath: project) && FileManager.default.fileExists(atPath: worktree + "/file.txt"))
+    // gone already: nothing to remove, nothing written
+    #expect(model.remove(path: project) == false)
+    #expect(try file.read().count == 1)
+}

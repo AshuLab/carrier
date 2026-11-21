@@ -84,27 +84,98 @@ struct GlobalDictationGroup: View {
     }
 }
 
-/// The Widget group: how the widget looks (its style, seen as a small drawing of each) and where it opens, with a preview of the chosen style listening to a
-/// sample, right under what changes it. Drawn at 40% while Dictation or Dictate in any app is off.
+/// The Widget group: how the widget looks (its style and its theme, each seen as a small drawing, and whether it shows the words) and where it opens (a place, or
+/// where the person dragged it), with a preview of the chosen look listening to a sample, right under what changes it. Drawn at 40% while Dictation or Dictate in
+/// any app is off.
 struct WidgetGroup: View {
     var dictation = DictationController.shared
     @AppStorage(AppPreferences.dictationGlobalKey) private var global = AppPreferences.defaultDictationGlobal
     @AppStorage(AppPreferences.dictationActivationKey) private var activation = DictationActivation.toggle
     @AppStorage(AppPreferences.dictationWidgetStyleKey) private var widgetStyle = DictationWidgetStyle.medium
     @AppStorage(AppPreferences.dictationWidgetPositionKey) private var widgetPosition = DictationWidgetPosition.bottom
+    @AppStorage(AppPreferences.dictationWidgetThemeKey) private var widgetTheme = DictationWidgetTheme.accent
+    @AppStorage(AppPreferences.dictationWidgetPreviewKey) private var livePreview = true
+    @AppStorage(AppPreferences.dictationWidgetSpotKey) private var spotText = ""
     @AppStorage(AppPreferences.dictationShortcutKey) private var shortcutText = ""
+
+    /// What the Position row chooses among: the two places, and Custom while the person has dragged the widget somewhere.
+    private enum Place: Hashable { case top, bottom, custom }
 
     var body: some View {
         SettingsGroup(title: "Widget") {
             SettingsStackedRow(title: "Widget style", detail: "Pill is a badge with a microphone and no text; Small, Medium and Large are a box of 2, 3 and 4 lines", first: true) {
                 WidgetStylePicker(selection: $widgetStyle)
             }
-            SettingsTabRow(title: "Position", detail: "Top centre under the menu bar or bottom centre above the Dock, on the display of the window in front") {
-                SegmentedChoice(options: DictationWidgetPosition.allCases.map { ($0, $0.title, nil) }, selection: $widgetPosition).accessibilityLabel("Widget position")
+            SettingsStackedRow(title: "Widget theme", detail: "Default takes the app's accent. Theme glow wears the colours of the dictation line") {
+                WidgetThemePicker(selection: $widgetTheme)
             }
-            SettingsPreview { DictationWidgetPreview(style: widgetStyle, hint: dictationHint(shortcut: AppPreferences().dictationShortcut, activation: activation)) }
+            SettingsTabRow(title: "Live text", detail: "Show the words as you say them. Off, the widget keeps its box with the time and the keys, and no words") {
+                Toggle("Live text", isOn: $livePreview).labelsHidden().toggleStyle(.switch)
+            }
+            SettingsTabRow(title: "Position", detail: "Top or bottom centre, on the display of the window in front. Drag the widget while you dictate to leave it anywhere") {
+                SegmentedChoice(options: places, selection: place).accessibilityLabel("Widget position")
+            }
+            SettingsPreview {
+                DictationWidgetPreview(
+                    style: widgetStyle, theme: widgetTheme, livePreview: livePreview, hint: dictationHint(shortcut: AppPreferences().dictationShortcut, activation: activation))
+            }
         }
         .live(.globalSwitch, enabled: dictation.enabled && global)
+    }
+
+    private var places: [(Place, String, AppIcon?)] {
+        [(.top, "Top", nil), (.bottom, "Bottom", nil)] + (DictationWidgetSpot(text: spotText) == nil ? [] : [(.custom, "Custom", nil)])
+    }
+
+    /// Choosing Top or Bottom lets go of the spot the widget was dragged to; Custom is only what it reads while there is one.
+    private var place: Binding<Place> {
+        Binding(
+            get: { DictationWidgetSpot(text: spotText) == nil ? (widgetPosition == .top ? .top : .bottom) : .custom },
+            set: {
+                switch $0 {
+                case .top: widgetPosition = .top
+                case .bottom: widgetPosition = .bottom
+                case .custom: return
+                }
+                spotText = ""
+            })
+    }
+}
+
+/// The five themes of the widget as five small drawings over a backdrop that shows the glass, the chosen one with the accent's edge and its words under it.
+private struct WidgetThemePicker: View {
+    @Binding var selection: DictationWidgetTheme
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ForEach(DictationWidgetTheme.allCases, id: \.self) { theme in
+                let on = theme == selection
+                Button { selection = theme } label: {
+                    VStack(spacing: 8) {
+                        swatch(theme).frame(height: 44)
+                        Text(theme.title).font(.scaled(11, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                    .padding(.vertical, 10).padding(.horizontal, 6).frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Color.themeAccent.opacity(0.16) : Color.primary.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: on ? 1.5 : 0))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).accessibilityLabel(theme.title).accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .accessibilityElement(children: .contain).accessibilityLabel("Widget theme")
+    }
+
+    /// The widget's own surface over a bright backdrop, with a microphone in the way its text would be drawn.
+    private func swatch(_ theme: DictationWidgetTheme) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        return ZStack {
+            shape.fill(LinearGradient(colors: [.pink.opacity(0.7), .orange.opacity(0.7), .teal.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            Glyph(.microphone, size: 14).foregroundStyle(theme == .clear ? Color.primary.opacity(0.8) : Color.white.opacity(0.9))
+                .frame(width: 34, height: 22)
+                .modifier(WidgetSurface(shape: RoundedRectangle(cornerRadius: 7, style: .continuous), theme: theme))
+        }
+        .frame(maxWidth: .infinity).clipShape(shape)
     }
 }
 

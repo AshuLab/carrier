@@ -177,6 +177,45 @@ test('open refuses, in words, an unknown agent, a harness with no runner, a bad 
   expect(rows('sessions')).toEqual([]);
 });
 
+describe('what a turn ends by reading', () => {
+  /** A session with an open pull request, and GitHub that counts what it is asked. */
+  async function withPullRequest() {
+    const asked: string[] = [];
+    const pulls = { find: async () => (asked.push('find'), null), states: async () => (asked.push('states'), new Map()) };
+    const s = await openOne(setup(undefined, { pulls }));
+    s.db.update(schemaSessions).set({ prRepo: 'AshuLab/carrier', prNumber: 7, prUrl: 'https://github.com/AshuLab/carrier/pull/7', prState: 'open', prCheckedAt: 1 }).where(eq(schemaSessions.id, s.id)).run();
+    const turn = async (...events: ChatEvent[]) => {
+      asked.length = 0;
+      s.sessions.send({ sessionId: s.id, text: 'go' });
+      s.conversation.emit(...events, { kind: 'turn_end', outcome: 'ok' });
+      await new Promise((resolve) => setTimeout(resolve, 30)); // the reads that follow a turn are not awaited by it
+      return [...asked];
+    };
+    return { turn };
+  }
+  const shell = (callId: string, arg: string, status: 'ok' | 'err' = 'ok'): ChatEvent[] => [{ kind: 'tool_start', callId, tool: 'Bash', arg }, { kind: 'tool_end', callId, tool: 'Bash', output: [''], status }];
+
+  test('a turn that ran no git or gh command asks GitHub for nothing, and one that pushed asks for the state of its pull request', async () => {
+    const { turn } = await withPullRequest();
+    expect(await turn({ kind: 'assistant', text: 'just talking' })).toEqual([]);
+    expect(await turn(...shell('c1', 'pnpm test'), ...shell('c2', 'git commit -m x'))).toEqual([]);
+    expect(await turn(...shell('c3', 'git add . && git push -u origin HEAD'))).toEqual(['states']);
+  });
+
+  test('a push that failed, or that never ended, asks for nothing', async () => {
+    const { turn } = await withPullRequest();
+    expect(await turn(...shell('c1', 'git push', 'err'))).toEqual([]);
+    // a call that never ended is not a command that succeeded
+    expect(await turn({ kind: 'tool_start', callId: 'c2', tool: 'Bash', arg: 'git push' })).toEqual([]);
+  });
+
+  test('Codex says its commands as `command`, and one a subagent ran counts as the turn\'s', async () => {
+    const { turn } = await withPullRequest();
+    expect(await turn({ kind: 'tool_start', callId: 'c1', tool: 'command', arg: '/bin/zsh -lc "git push"' }, { kind: 'tool_end', callId: 'c1', tool: 'command', status: 'ok' })).toEqual(['states']);
+    expect(await turn({ kind: 'tool_start', callId: 'c2', tool: 'Bash', arg: 'gh pr merge 7', parentCallId: 'sub' }, { kind: 'tool_end', callId: 'c2', tool: 'Bash', status: 'ok', parentCallId: 'sub' })).toEqual(['states']);
+  });
+});
+
 test('reasoning is stored redacted and bounded, and served only to a client that asks for it', async () => {
   const { sessions, conversation, id } = await openOne();
   const token = 'ghp_' + 'a'.repeat(36);

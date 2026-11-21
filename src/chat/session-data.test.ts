@@ -8,6 +8,7 @@ import { openChatDatabase } from './db.ts';
 import type { Git, GitResult } from './git.ts';
 import { infoOf, pickPullRequest, pullRequestKey, type PullRequestInfo, type PullRequests } from './pull-requests.ts';
 import { sessions } from './schema.ts';
+import { githubWorkOf } from './shell-effects.ts';
 import { createSessionData, DIFF_TTL_MS, DISCOVER_EVERY_MS, IDLE_DIFF_TTL_MS, IDLE_DISCOVER_EVERY_MS, parseNumstat, STATE_TTL_MS, SWEEP_EVERY_MS } from './session-data.ts';
 
 let dir: string;
@@ -189,6 +190,65 @@ test('the pull request of the branch is looked for when a turn ends and kept: th
   expect(s.pulls.finds).toHaveLength(1);
   expect(s.pulls.asked).toEqual([['ashulab/carrier#983']]);
   expect(s.data.view(s.row()).pr).toMatchObject({ state: 'open', checks: 'passing' });
+});
+
+/** What a turn that ran these shell commands tells `afterTurn`. */
+const ran = (...commands: string[]) => ({ acted: true, github: githubWorkOf(commands) });
+const LINKED = { prRepo: 'AshuLab/carrier', prNumber: 983, prUrl: 'https://github.com/AshuLab/carrier/pull/983', prState: 'open', prChecks: 'pending', prCheckedAt: 1 } as const;
+const ON_BRANCH = { [ORIGIN]: 'git@github.com:AshuLab/carrier.git', 'rev-parse --abbrev-ref HEAD': 'feat/x\n', [DEFAULT]: 'origin/main' };
+
+test('a turn that only talked reads nothing: no lines and no request to GitHub', async () => {
+  const s = setup(ON_BRANCH, LINKED);
+  s.pulls.open['ashulab/carrier#983'] = pr(983, 'open', 'passing');
+  await s.data.afterTurn(s.id, { acted: false, github: githubWorkOf([]) });
+  expect(s.pulls.finds).toEqual([]);
+  expect(s.pulls.asked).toEqual([]);
+  expect(s.calls.filter((call) => call.command.startsWith('diff'))).toEqual([]);
+});
+
+test('a turn that ran commands but none of git or gh reads the lines and asks GitHub for nothing', async () => {
+  const s = setup(ON_BRANCH);
+  s.pulls.found['AshuLab/carrier:feat/x'] = pr(983, 'draft');
+  await s.data.afterTurn(s.id, ran('pnpm test', 'git commit -m x', 'git status'));
+  expect(s.calls.some((call) => call.command.startsWith('diff'))).toBe(true);
+  expect(s.pulls.finds).toEqual([]);
+  expect(s.data.view(s.row()).pr).toBeNull();
+});
+
+test('a push asks for the state of the pull request the session has, one request and no look for another', async () => {
+  const s = setup(ON_BRANCH, LINKED);
+  s.pulls.open['ashulab/carrier#983'] = pr(983, 'open', 'passing');
+  await s.data.afterTurn(s.id, ran('git push'));
+  expect(s.pulls.asked).toEqual([['ashulab/carrier#983']]);
+  expect(s.pulls.finds).toEqual([]);
+  expect(s.data.view(s.row()).pr).toMatchObject({ checks: 'passing' });
+});
+
+test('a push, or gh pr create, on a session with no pull request looks for the one of the branch, and a commit does not', async () => {
+  const s = setup(ON_BRANCH);
+  s.pulls.found['AshuLab/carrier:feat/x'] = pr(1189, 'draft');
+  await s.data.afterTurn(s.id, ran('git commit -am x'));
+  expect(s.pulls.finds).toEqual([]);
+  await s.data.afterTurn(s.id, ran('git commit -am x', 'gh pr create --draft'));
+  expect(s.pulls.finds).toEqual(['AshuLab/carrier:feat/x']);
+  expect(s.data.view(s.row()).pr?.number).toBe(1189);
+});
+
+test('a closed pull request gives way to the open one of the branch the turn moved to, and not to a turn that did not move', async () => {
+  const s = setup(ON_BRANCH, { ...LINKED, prNumber: 1188, prState: 'closed', prChecks: null });
+  s.pulls.found['AshuLab/carrier:feat/x'] = pr(1189, 'draft');
+  await s.data.afterTurn(s.id, ran('git status'));
+  expect(s.data.view(s.row()).pr?.number).toBe(1188);
+  await s.data.afterTurn(s.id, ran('git switch -c feat/x', 'git push -u origin feat/x'));
+  expect(s.data.view(s.row()).pr).toMatchObject({ number: 1189, state: 'draft' });
+});
+
+test('a merge asks for the state of the pull request the session has', async () => {
+  const s = setup(ON_BRANCH, LINKED);
+  s.pulls.open['ashulab/carrier#983'] = pr(983, 'merged');
+  await s.data.afterTurn(s.id, ran('gh pr merge 983 --merge'));
+  expect(s.pulls.asked).toEqual([['ashulab/carrier#983']]);
+  expect(s.data.view(s.row()).pr).toMatchObject({ state: 'merged' });
 });
 
 test('no pull request is looked for on the default branch, detached, or without a GitHub origin', async () => {

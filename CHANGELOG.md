@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- When a session's turn ends, its row reads again only what the turn can have changed. A turn that only talked reads nothing. One that ran commands reads the lines it changed, and asks GitHub only after a `git push`, a new branch, `gh pr create` or `gh pr merge`, and only for what they move: the pull request of the branch, or the state of the one the session has. Before, every turn end asked GitHub, even after a plain answer.
 - An open session no longer asks the chat host for the whole list of sessions at each read: the reply of its events already says whether it runs and what it waits for. With 100 sessions that is 74 KB less to build and parse at each read (about 19 ms of the host), four times a second while the agent works, and one request less per read (two for an archived session).
 - The engine's snapshot is read from the reply once and not three times: 3.6 ms instead of 6.3 ms for a snapshot of 90 epics (205 KB), on every poll of the menu and the window.
 

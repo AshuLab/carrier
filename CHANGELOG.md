@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The logs and agent sessions of an epic in ready-for-test are no longer deleted after 30 days while it waits for its merge; the 30 days count from the merge or the close.
 - `carrier start` and the app see the engine as soon as it starts, instead of after it has recovered every running epic: with several running epics the socket used to answer seconds late (the app said "Carrier stopped", and `carrier start` could give up at 15 seconds with the engine still starting). Until the first check is armed the panel says `starting`.
 - After a crash, the chat host ends the agents it left running in parallel, so its socket opens within one grace period instead of one per agent.
+- A chat host that crashes now ends its agents before it exits, instead of leaving them running until the next host starts.
 - The Usage page no longer leaves out the epics' usage when it reads while the engine is writing. Both databases now keep a `-wal` and a `-shm` file beside them while Carrier runs: they are part of the database, so do not delete them or copy the `.db` alone.
 
 ## [0.16.0] - 2026-11-20

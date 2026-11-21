@@ -1431,7 +1431,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     /** Closes every live session: the host's stop. */
     async closeAll() {
       closed = true;
-      for (const sessionId of [...lives.keys()]) await close({ sessionId });
+      // At once: each agent's group has its own grace before the SIGKILL, and a host that ends in a hurry (a crash) must signal them all first.
+      await Promise.all([...lives.keys()].map((sessionId) => close({ sessionId })));
       await Promise.all(ending);
     },
   };

@@ -53,3 +53,31 @@ private let unannounced: [ControlClient.Capability: String] = [
         #expect((config.problems[path.last!] == nil) == valid, "\(field) = \(item["value"]!)")
     }
 }
+
+// projects.json: src/config/projects.test.ts writes the files and what the engine side reads from each (entries) or refuses in each (the fields).
+@Test func theAppReadsTheEntriesTheHostReadsFromEveryValidProjectsFile() throws {
+    let cases = try #require(try golden("projects.json")["valid"] as? [[String: Any]])
+    #expect(cases.isEmpty == false)
+    for item in cases {
+        let name = try #require(item["name"] as? String)
+        let entries = try #require(item["entries"] as? [[String: Any]])
+        let read = try readProjects(JSONSerialization.data(withJSONObject: try #require(item["file"])))
+        #expect(read == entries.map(ProjectEntry.init(json:)), "\(name)")
+    }
+}
+
+@Test func theAppRefusesEveryProjectsFileTheHostRefusesNamingTheSameFields() throws {
+    let cases = try #require(try golden("projects.json")["invalid"] as? [[String: Any]])
+    #expect(cases.isEmpty == false)
+    for item in cases {
+        let name = try #require(item["name"] as? String), fields = try #require(item["fields"] as? [String])
+        let data = try JSONSerialization.data(withJSONObject: try #require(item["file"]))
+        do {
+            _ = try readProjects(data)
+            Issue.record("\(name) was accepted")
+        } catch let error as ProjectsFileError {
+            guard case .invalid(let found) = error else { Issue.record("\(name): \(error)"); continue }
+            #expect(found.map(\.path) == fields, "\(name)")
+        }
+    }
+}

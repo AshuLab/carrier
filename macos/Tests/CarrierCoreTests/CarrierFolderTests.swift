@@ -24,7 +24,7 @@ import Testing
 
 @Test func theTopHoldsTheEditedFilesAndEachProcessSplitsItsFolderByLifecycle() {
     let places = CarrierPlaces(folder: "/h")
-    #expect([places.engineConfig, places.chatConfig, places.providers] == ["/h/engine.json", "/h/chat.json", "/h/providers.json"])
+    #expect([places.engineConfig, places.chatConfig, places.providers, places.projects] == ["/h/engine.json", "/h/chat.json", "/h/providers.json", "/h/projects.json"])
     #expect([places.engineLogs, places.engineStartLog, places.controlSocket] == ["/h/engine/logs", "/h/engine/logs/app-start.log", "/h/engine/state/control.sock"])
     #expect([places.chatSocket, places.chatStartLog, places.chatWorktrees, places.chatProjects, places.chatPending] == [
         "/h/chat/state/chat.sock", "/h/chat/logs/app-start.log", "/h/chat/worktrees", "/h/chat/projects", "/h/chat/pending",

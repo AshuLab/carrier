@@ -27,7 +27,7 @@ What changes is the scale, which now carries the modes that never ask, so that e
 | 2 | `acceptEdits` | `workspace-write` with `on-request` or `never` |
 | 3 | `auto` | none |
 
-A parent in `plan` or `dontAsk` has a child that only reads, and a parent in `auto` has a Claude child in `auto` and a Codex child at level 2, the broadest Codex has.
+A parent in `plan` or `dontAsk` has a child that only reads, and a parent in `auto` has a Claude child in `auto` and a Codex child at level 2, the broadest Codex has, as long as the child's agent does not cap it lower (see the amendment below).
 A parent in `default` or `acceptEdits` has a child that asks the person for what the parent would ask, and the person answers those approvals as before.
 Claude's `bypassPermissions` and Codex's `danger-full-access` are still not options of the chat, so no level is above 3.
 
@@ -64,3 +64,13 @@ The person's own Claude settings can still add a rule that denies or asks for th
 A person who says "launch two agents" from a session in `default` may then answer the questions of those agents, as the approvals of a child already reach them.
 
 Whether a pre-approved `delegate_start` runs in Claude's `plan` mode is not known: in the spike the model refused to call a tool there ([research](../research/switch-and-delegate-spike.md)).
+
+## Amendment (2026-11-21): an agent that sets no permission takes the parent's level
+
+The rule above lowers the options of the child's own agent, and an agent with no permission option was read as `default`, level 1.
+So under a parent in `auto` the four agents of a person who had configured none all gave a child at level 1, which asks the person before almost every shell command, and a read-only delegation stopped waiting for an approval.
+That default is the adapter's, not a choice of the person, so it is no cap.
+An agent that sets none of `permissionMode` (Claude), `sandbox` or `approvalPolicy` (Codex) now gives a child at the parent's level, at most 2 for Codex.
+An agent that sets one, `default` included, keeps it as its cap, and the child is still never above its parent.
+`agents` shows the level each would have, and `delegate_wait` says what a child that waits for an approval asks for.
+A way for the parent to ask for a level of its own is not added: it would raise a child above what its agent allows.

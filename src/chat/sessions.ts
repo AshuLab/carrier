@@ -40,6 +40,9 @@ export const IDLE_CLOSE_MS = 10 * 60_000;
 const MAX_RUNNING_CHILDREN = 4;
 /** How much of a done child's last message `delegate_wait` answers. */
 const CHILD_MESSAGE = 4000;
+/** How many of the approvals a child waits for, and how much of each one's argument, `delegate_wait` says. */
+const CHILD_APPROVALS = 4;
+const CHILD_APPROVAL_ARG = 500;
 /** How long a session whose last subagent just ended waits for the turn the SDK opens by itself (it follows at once) before it is idle. */
 export const FOLLOW_UP_MS = 3_000;
 
@@ -882,7 +885,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const report = { childId, agent: child.agent };
     const live = lives.get(childId);
     if (live?.state === 'working') return { ...report, state: 'working' };
-    if (live?.state === 'waiting_approval') return { ...report, state: 'needs_approval' };
+    if (live?.state === 'waiting_approval') return { ...report, state: 'needs_approval', waitingFor: [...live.approvals.values()].slice(0, CHILD_APPROVALS).map(({ tool, arg }) => ({ tool, ...(arg !== undefined && { arg: arg.slice(0, CHILD_APPROVAL_ARG) }) })) };
     const since = db.select({ id: chatEvents.id }).from(chatEvents).where(and(eq(chatEvents.sessionId, childId), eq(chatEvents.kind, 'user'))).orderBy(desc(chatEvents.id)).limit(1).get()?.id ?? 0;
     const turn = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, childId), gt(chatEvents.id, since), inArray(chatEvents.kind, ['assistant', 'error', 'turn_end']))).orderBy(asc(chatEvents.id)).all();
     const end = turn.find((event) => event.kind === 'turn_end');

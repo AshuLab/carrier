@@ -67,6 +67,8 @@ Every mode is on the scale, so a session in any of them can delegate; the scale 
 A level of Codex is a pair of sandbox and approval policy: `read-only` is level 0 whatever the policy, and `workspace-write` is level 1 with `untrusted` and level 2 with `on-request` or `never`.
 A parent in `auto` has a Claude child in `auto` and a Codex child at level 2, the broadest Codex has.
 A child runs at the lower of the level of its own agent's options and the parent's level, with the options of its own harness at that level, so it is never raised.
+An agent that sets no permission option (`permissionMode` for Claude, `sandbox` or `approvalPolicy` for Codex; the model and the effort are not one) has no level of its own to cap it: its child runs at the parent's level, which for Codex is at most 2.
+The adapter's default is not a choice the person made, so it is not taken for one; an agent configured with `default` keeps level 1.
 A child belongs to the parent session and not to the agent that holds it, so the parent can be switched, or closed and resumed, and still wait for its children.
 The list of sessions leaves children out, and the clock that archives and deletes sessions ages a parent and its children as one.
 
@@ -135,6 +137,7 @@ The events are the shared language of the adapters, the host and the stored tran
 | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; questions?: ChatQuestion[] }
 
 type ChildState = 'working' | 'needs_approval' | 'done' | 'error' | 'usage_limit' | 'interrupted';
+type ChildReport = { childId: string; agent: string; state: ChildState; message?: string; waitingFor?: { tool: string; arg?: string }[] };
 ```
 
 `boundEvent` in `src/chat/transcript.ts` keeps only `text` for an `error` today, so it has to keep `reason`, `resetsAt` and `resetText` (the last one cut like the rest), or a usage limit is lost when it is stored.
@@ -192,7 +195,7 @@ The approvals of a child that runs at a level that asks are its own, and they re
 **`delegate_start` and `delegate_wait`.**
 `delegate_start` takes `agent`, `task` of up to `chatCaps.message` characters, an optional `model` and an optional `requestId`; it opens the child, sends it the task as its first message and answers with its id as soon as that is done, and it fails with words when the agent is not configured, not found or signed out, when the model is not one it lists, when four children are running or when the session's options are off the scale.
 `delegate_wait` takes between one and four child ids of the caller and a timeout that defaults to 30 seconds and is at most 45, and answers as soon as no child is working, counting a child that waits for an approval as stopped, or when the time ends.
-A child is `needs_approval` while its session waits for an approval, and when it is idle it is `usage_limit` if its last error says so, `error` for another error, `interrupted` after an interrupt and `done` otherwise, with its last assistant message cut to 4,000 characters.
+A child is `needs_approval` while its session waits for an approval, and then `waitingFor` lists up to four of them, each the tool and its command as the host stored it (redacted) cut to 500 characters, so the parent can tell the person what is held; when it is idle it is `usage_limit` if its last error says so, `error` for another error, `interrupted` after an interrupt and `done` otherwise, with its last assistant message cut to 4,000 characters.
 A child whose last turn never ended, because it was closed or its process died in the middle, is `interrupted`.
 `agent` and `model` are bounded names, `requestId` has at most 64 characters, and a child id that is not the caller's is refused with the same words as one that does not exist.
 

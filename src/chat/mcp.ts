@@ -119,7 +119,9 @@ export type McpSessions = {
 };
 
 export type ChildState = 'working' | 'needs_approval' | 'done' | 'error' | 'usage_limit' | 'interrupted';
-export type ChildReport = { childId: string; agent: string; state: ChildState; message?: string };
+/** What a child waits for the person to approve: the tool and, as the host stored it (redacted), the command or argument, cut. */
+export type ChildApproval = { tool: string; arg?: string };
+export type ChildReport = { childId: string; agent: string; state: ChildState; message?: string; waitingFor?: ChildApproval[] };
 
 export type StoredEvent = { position: number; kind: string; data: Record<string, unknown> };
 

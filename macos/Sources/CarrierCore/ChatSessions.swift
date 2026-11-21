@@ -59,7 +59,8 @@ public func openMenuItems(_ row: SessionRow) -> [OpenItem] {
 }
 
 /// Asks the host for the sessions: `poll()` is called at the pace of `PollPace` and lists the active ones every time and the archived ones
-/// when `archivedEvery` seconds have passed since they were last read. A host that does not answer the list changes nothing: the rows stay
+/// when `archivedEvery` seconds have passed since they were last read (the host builds the whole archived list each time, and an archive, a restore or a
+/// delete from the app reads it again at once through `invalidateArchived`). A host that does not answer the list changes nothing: the rows stay
 /// as they were and the archived list is read again when it answers; one that fails only on the archived list keeps the last archived
 /// rows it had.
 public final class ChatSessionsPoller {
@@ -75,7 +76,7 @@ public final class ChatSessionsPoller {
 
     public init(
         host: ChatHost,
-        archivedEvery: TimeInterval = 5,
+        archivedEvery: TimeInterval = 60,
         now: @escaping () -> Date = Date.init,
         onAuthoritativeSessionIds: @escaping (Set<String>) -> Void = { _ in },
         onChange: @escaping ([SessionRow]) -> Void

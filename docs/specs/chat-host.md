@@ -170,6 +170,10 @@ A session's pull request is looked for once, by its branch, with the person's ow
 After that only its state is asked again, by number and in one GraphQL request for all the open ones, at most once a minute.
 A merged or closed one is final, and gives way only to a newer open one on the same branch.
 The lines changed come from `git diff --numstat`, read-only and with the repository's own diff and text filters off.
+A sweep reads them again after a minute, and looks again after three for the pull request of a session that has none.
+An idle session whose `lastActiveAt` has not moved since they were read waits ten minutes for the first and thirty for the second, since nothing the agent did can have changed them; one that works or waits for an answer (a long silent tool sends no event) keeps the minute and the three.
+A change made by hand in an idle session shows up to ten minutes late, and a pull request opened by hand up to thirty (a turn that ends looks at once).
+A row's `lastMessage` is cut from the start of the message: a list reads at most the first 2,000 characters of it.
 Without `gh`, a network or an origin on GitHub, a row simply has no pull request.
 
 Testing seams, by story:

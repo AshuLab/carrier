@@ -286,6 +286,24 @@ private func rig(_ host: FakeHost) -> (ChatSessionsPoller, Clock, () -> [Session
     #expect(host.calls == [false, true, false, false, false, false, false, true, false])
 }
 
+@Test func theArchivedListIsReadEveryMinuteUnlessTheAppChangedIt() async throws {
+    let host = FakeHost()
+    let clock = Clock()
+    let poller = ChatSessionsPoller(host: host, now: { clock.now }) { _ in } // the default pace
+    await poller.poll()
+    clock.now.addTimeInterval(59)
+    await poller.poll()
+    #expect(host.calls == [false, true, false])
+    clock.now.addTimeInterval(1)
+    await poller.poll()
+    #expect(host.calls == [false, true, false, false, true])
+    // an archive, a restore or a delete made in the app reads it at once
+    clock.now.addTimeInterval(1)
+    poller.invalidateArchived()
+    await poller.poll()
+    #expect(host.calls.suffix(2) == [false, true])
+}
+
 @Test func theRowsHoldTheActiveAndTheArchivedSessionsAndTheArchivedCountIsFromTheArchivedList() async throws {
     let host = FakeHost()
     host.active = [try session("a"), try session("b")]

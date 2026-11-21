@@ -283,6 +283,16 @@ test('a conversation resumes by the native id and keeps the context', async () =
   expect((await turn(conversation, events, resumed[0]!.text)).find((e) => e.kind === 'assistant')).toEqual({ kind: 'assistant', text: 'PINEAPPLE' });
 });
 
+test('the size of the window is the one model the result lists even when its key is not the name the messages carried', async () => {
+  const call: Line = { type: 'assistant', message: { model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: 1, cache_read_input_tokens: 10 } } };
+  const result = (modelUsage: Line): Line => ({ type: 'result', subtype: 'success', is_error: false, usage: {}, modelUsage });
+  const one = await openWith([{ text: 'a', lines: [call, result({ 'claude-sonnet-5-5[1m]': { contextWindow: 1_000_000 } })] }]);
+  expect((await turn(one.conversation, one.events, 'a')).find((e) => e.kind === 'turn_end')).toMatchObject({ usage: { context_window: 1_000_000 } });
+  // two models and neither is the one that answered: nothing is guessed
+  const two = await openWith([{ text: 'b', lines: [call, result({ 'other-a': { contextWindow: 200_000 }, 'other-b': { contextWindow: 1_000_000 } })] }]);
+  expect((await turn(two.conversation, two.events, 'b')).find((e) => e.kind === 'turn_end')).not.toHaveProperty('usage.context_window');
+});
+
 test('a line it does not know is ignored and never throws', async () => {
   const unknown: Line[] = [{ type: 'brand_new' }, { type: 'assistant', message: 7 }, { type: 'user', message: { content: [null, { type: 'tool_result' }] } }, { type: 'stream_event', event: 3 }, { type: 'system', subtype: 'hook_started' }, { type: 'result', usage: 'x', modelUsage: null }];
   const { conversation, events } = await openWith([{ text: 'hi', lines: unknown }]);

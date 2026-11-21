@@ -32,6 +32,21 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
     }
 }
 
+@MainActor @Test func whatAsksOftenReadsTheHostAgainOnlyAfterItsMinute() async throws {
+    let host = try host()
+    let store = UsageStore(host: host)
+    await store.loadUnlessRecent()
+    #expect(host.queries.count == 1 && store.loadedAt != nil)
+    // inside the minute the host would answer the same quotas, so it is not asked; at the minute it is
+    await store.loadUnlessRecent(now: Date().addingTimeInterval(59))
+    #expect(host.queries.count == 1)
+    await store.loadUnlessRecent(now: Date().addingTimeInterval(61))
+    #expect(host.queries.count == 2)
+    // the page's own refresh never waits
+    await store.load()
+    #expect(host.queries.count == 3)
+}
+
 @MainActor @Test func clearingTheFiltersLeavesTheMetricAndTheRange() throws {
     let store = UsageStore(host: try host())
     store.metric = .tokens

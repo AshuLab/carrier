@@ -17,26 +17,19 @@ struct ContextUsageButton: View {
 
     var body: some View {
         let usage = usage
-        let limit = usage?.five ?? usage?.weekly ?? usage?.monthly
+        let words = contextRingWords(context: context, usage: usage)
         Button { open.toggle() } label: { EmptyView() }
-            .buttonStyle(ContextRingStyle(context: context?.share, limit: limit?.used, stale: usage?.stale == true))
-            .help(summary(limit: limit))
+            .buttonStyle(ContextRingStyle(context: context?.share, limit: usage?.ringWindow?.shape.used, stale: usage?.stale == true))
+            .help(words)
             .accessibilityLabel("Context and usage limits")
-            .accessibilityValue(summary(limit: limit))
+            .accessibilityValue(words)
             .popover(isPresented: $open, arrowEdge: .top) { ContextUsageDetail(context: context, account: account, store: store, usage: usage, close: { open = false }) }
-            .task { await store.load() }
-            .onChange(of: busy) { _, working in if working == false { Task { await store.load() } } }
-            .onChange(of: open) { _, now in if now { Task { await store.load() } } }
-    }
-
-    /// `Context 23% · 5h 28%`: the ring in words, for the tooltip and for VoiceOver.
-    private func summary(limit: MeterShape?) -> String {
-        let parts = [context?.share.map { "Context \(percent($0))" }, limit.map { "5h \(percent($0.used))" }].compactMap { $0 }
-        return parts.isEmpty ? "Context and usage limits" : parts.joined(separator: " · ")
+            // asked when it appears, when a turn ends and when the popover opens, and never more than once a minute (the host's own)
+            .task { await store.loadUnlessRecent() }
+            .onChange(of: busy) { _, working in if working == false { Task { await store.loadUnlessRecent() } } }
+            .onChange(of: open) { _, now in if now { Task { await store.loadUnlessRecent() } } }
     }
 }
-
-private func percent(_ share: Double) -> String { "\(Int((share * 100).rounded()))%" }
 
 /// The ring in the microphone's 36 point frame and its round hover, so the two sit as one pair.
 private struct ContextRingStyle: ButtonStyle {
@@ -125,7 +118,11 @@ private struct ContextUsageDetail: View {
 
     /// Why there are no meters: the account is signed out, the check is still on its way, or the account has no limits to tell (a local server).
     private var limitsWords: String {
-        guard let quota = store.quotas.first(where: { $0.account == account }) else { return store.isLoading || store.quotas.isEmpty ? "Checking the limits…" : "No limits to show for this account." }
-        return quota.status == .signedOut ? "\(quota.displayName ?? account) is signed out." : "No limits to show for this account."
+        // an ask that failed (a host too old for `usage`, one that did not answer) is not "still checking": Usage says why
+        if let quota = store.quotas.first(where: { $0.account == account }) {
+            return quota.status == .signedOut ? "\(quota.displayName ?? account) is signed out." : "No limits to show for this account."
+        }
+        if store.error != nil { return "The limits could not be read. Open Usage to see why." }
+        return store.isLoading || store.snapshot == nil ? "Checking the limits…" : "No limits to show for this account."
     }
 }

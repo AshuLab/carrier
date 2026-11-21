@@ -77,7 +77,12 @@ Each valid edit writes at once to the project's `actions` in `projects.json` (om
 The screen also shows the folder with Reveal in Finder (off when the folder is not there) and the remote with Open on GitHub, only when there is one.
 The list and each project's screen follow the file while the page is open: `ProjectsModel.follow` reads it again every second, so what the chat host or an editor writes shows without reopening the page.
 A file that does not match its schema, or cannot be read, shows each problem on the page with its field named (`projects.json: projects.0.name must not be blank`) in place of the list, and the page writes nothing while it is wrong.
-`--fixture` has five projects: one pinned with tags, a colour and a mark, two actions and a GitHub origin, one whose name and remote are very long, a folder with a colour that is not a repository, one that is not there with a missing image copy that falls back to colour and mark, and one with a copied icon image.
+A project's name and icon show wherever the project does, not only on its page.
+A sidebar group, the rows of a session (in the sidebar, the Sessions home and the archive) and its hover card take the title and tile of the project whose folder is the session's base folder, and the rows and card of an epic take the tile of the project whose `origin` is the epic's repository (`owner/name`, case aside).
+Two projects with one name keep the parent folder added to the title of their groups (`dev/Site`, `me/Site`), as two folders do.
+A folder that is not a project, and a project with nothing set, draw as they always did: the folder's name and initials on a colour made from it, and an epic of a repository no project has as its `origin` draws as before.
+The Repos page is unchanged.
+`--fixture` has eight projects: one pinned with tags, a colour and a mark, two actions and a GitHub origin, one whose name and remote are very long, a folder with a colour that is not a repository, one that is not there with a missing image copy that falls back to colour and mark, one with a copied icon image whose origin is `acme/web` (the fixture's epic repository), and the folders of the fixture's sessions: one with a name, colour and mark, one with the same image and one with nothing set.
 
 ## Changes apply without a restart
 

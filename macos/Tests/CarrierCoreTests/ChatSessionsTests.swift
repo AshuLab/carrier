@@ -166,6 +166,29 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(rows.map(\.providers) == [["codex"], ["codex"]])
 }
 
+@Test func aGroupIsTitledWithTheProjectsNameAndTwoNamesKeepTheirParentFolder() throws {
+    let projects = projectRows(
+        try readProjects(Data(#"{"projects":[{"path":"/Users/dev/web","origin":"added","name":"Site"},{"path":"/Users/dev/api","origin":"added"}]}"#.utf8)),
+        remote: { _ in nil }
+    )
+    let rows = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/dev/api"), try session("c", folder: "/Users/dev/other")])
+    #expect(retitled(rows, projects: projects).map(\.workspace) == ["Site", "api", "other"])
+    #expect(retitled(rows, projects: []).map(\.workspace) == rows.map(\.workspace))
+
+    // one name on two folders: the parent folder is added to each, whether the name is the project's or the folder's
+    let clash = projectRows(
+        try readProjects(Data(#"{"projects":[{"path":"/Users/dev/web","origin":"added","name":"api"}]}"#.utf8)), remote: { _ in nil }
+    )
+    let apis = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/me/api")])
+    #expect(retitled(apis, projects: clash).map(\.workspace) == ["dev/api", "me/api"])
+    let twoNames = projectRows(
+        try readProjects(Data(#"{"projects":[{"path":"/Users/dev/web","origin":"added","name":"Site"},{"path":"/Users/me/web","origin":"added","name":"Site"}]}"#.utf8)),
+        remote: { _ in nil }
+    )
+    let moved = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/me/web")])
+    #expect(retitled(moved, projects: twoNames).map(\.workspace) == ["dev/Site", "me/Site"])
+}
+
 @Test func aSessionThatIsNotLiveIsIdle() throws {
     let rows = sessionRows([try session("w", state: "working", live: false), try session("a", state: "waiting_approval", live: false)])
     #expect(rows.map(\.state) == [.idle, .idle])

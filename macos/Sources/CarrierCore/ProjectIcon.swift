@@ -69,20 +69,23 @@ public func projectTile(
     )
 }
 
-/// The tile for `path` looked up in `projects`: uses the entry's name, colour and mark when found, else the folder's name and hashed colour.
-public func projectTile(path: String, in projects: [ProjectEntry], paletteCount: Int = 24) -> ProjectTile {
-    if let entry = projects.first(where: { isSameFolder($0.path, path) }) {
-        let name = entry.name ?? projectFolderName(entry.path)
-        return projectTile(
-            name: name,
-            colorKey: projectColorKey(entry.path),
-            color: entry.iconColor.flatMap(ProjectColor.init(rawValue:)),
-            mark: entry.iconMark.flatMap(AppIcon.init(rawValue:)),
-            image: entry.iconImage,
-            paletteCount: paletteCount
-        )
-    }
-    return projectTile(name: projectFolderName(path), colorKey: projectColorKey(path), paletteCount: paletteCount)
+/// What a project looks like wherever it shows: its tile and the title of its group.
+public struct ProjectIdentity: Equatable, Sendable {
+    public let tile: ProjectTile
+    public let title: String
+}
+
+/// The identity of the folder `path` among `projects`: the project's name and its chosen colour, mark or image when it is one, else the folder's own
+/// name and a colour made from it, which is what a folder that is not a project, and a project with nothing set, have always had.
+public func projectIdentity(path: String, in projects: [ProjectRow]) -> ProjectIdentity {
+    if let project = projects.first(where: { isSameFolder($0.path, path) }) { return ProjectIdentity(tile: project.tile, title: project.name) }
+    let name = projectFolderName(path)
+    return ProjectIdentity(tile: projectTile(name: name, colorKey: projectColorKey(path)), title: name)
+}
+
+/// The identity of the project whose `origin` is the GitHub repository `repo` (`owner/name`, case aside); nil when no project is, and the epic draws as before.
+public func projectIdentity(repo: String, in projects: [ProjectRow]) -> ProjectIdentity? {
+    projects.first { $0.repo?.caseInsensitiveCompare(repo) == .orderedSame }.map { ProjectIdentity(tile: $0.tile, title: $0.name) }
 }
 
 /// Which of `count` colours a project has: the same one in every launch and for every session of it (`hashValue` is not, it changes

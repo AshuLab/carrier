@@ -174,6 +174,52 @@ private func link(_ engine: ScriptEngine, pace: TimeInterval = 3600) -> EngineLi
     #expect(await listener.take(1).compactMap(nowOf).isEmpty == false)
 }
 
+/// The highest `now` a listener was told, kept by a task that iterates it.
+private final class Seen: @unchecked Sendable {
+    private let lock = NSLock()
+    private var most = 0
+    var value: Int { lock.lock(); defer { lock.unlock() }; return most }
+    func keep(_ stream: AsyncStream<ConnectionState>) -> Task<Void, Never> {
+        Task {
+            for await state in stream {
+                guard let now = nowOf(state) else { continue }
+                lock.lock()
+                most = max(most, now)
+                lock.unlock()
+            }
+        }
+    }
+}
+
+@Test func aListenerThatJoinsWhileAReadIsPublishedIsNotGivenAnOlderStateThanOneAlreadyTold() async {
+    let engine = ScriptEngine()
+    defer { engine.stop() }
+    let link = link(engine, pace: 0.005)
+    let seen = Seen()
+    let keeper = seen.keep(link.states())
+    defer { keeper.cancel() }
+    #expect(await until { seen.value >= 1 })
+    // the new listener is registered and not yet told the last state: give the reader the time to publish a newer one
+    let toldBefore = Mutex2(1)
+    let atRelease = LockedInt()
+    link.beforeReplay = {
+        guard toldBefore.take() else { return }
+        let before = seen.value
+        let deadline = Date().addingTimeInterval(0.3)
+        while seen.value <= before && Date() < deadline { usleep(1000) }
+        atRelease.set(seen.value)
+    }
+    let first = await Listener(link.states()).take(1).compactMap(nowOf)
+    #expect(first.count == 1 && first[0] >= atRelease.value)
+}
+
+private final class LockedInt: @unchecked Sendable {
+    private let lock = NSLock()
+    private var number = 0
+    var value: Int { lock.lock(); defer { lock.unlock() }; return number }
+    func set(_ new: Int) { lock.lock(); number = new; lock.unlock() }
+}
+
 @Test func aListenerThatNeverReadsHoldsOnlyTheNewestState() async {
     let engine = ScriptEngine()
     defer { engine.stop() }
@@ -190,7 +236,8 @@ private func link(_ engine: ScriptEngine, pace: TimeInterval = 3600) -> EngineLi
 @Test func anEngineThatGoesIsStoppedForEveryoneAndTheLastRunningStateIsNotKeptAsCurrent() async {
     let engine = ScriptEngine()
     let path = engine.path
-    let link = EngineLink(path: { path }, pace: { 0.01 }, retry: 0.02, log: { _ in })
+    // the retry is an hour: the `.stopped` the newcomer is given can only be the one kept, not a new read
+    let link = EngineLink(path: { path }, pace: { 0.01 }, retry: 3600, log: { _ in })
     let menu = Listener(link.states())
     #expect(await menu.take(1).compactMap(nowOf).isEmpty == false)
     engine.stop()
@@ -282,11 +329,14 @@ private func link(_ engine: ScriptEngine, pace: TimeInterval = 3600) -> EngineLi
     _ = await listener.take(1)
     link.setTick { client in _ = try client.request("files", requires: .files, fields: ",\"repo\":\"a/b\",\"issue\":1") }
     #expect(await until { engine.asks("files") == 1 })
-    // the engine answers a connection in order: the files the tick waits for are not between the menu and its snapshot
+    // the engine answers a connection in order: the files the tick waits for are not between the menu and its snapshot,
+    // and the link's lock is not held across it (a refresh and a snapshot would wait for the 5 s the files request takes to run out)
+    let start = ContinuousClock.now
     link.refresh()
     #expect(await listener.take(1, seconds: 2).compactMap(nowOf) == [2])
     link.refresh()
     #expect(await listener.take(1, seconds: 2).compactMap(nowOf) == [3])
+    #expect(ContinuousClock.now - start < .seconds(2))
     engine.release()
 }
 
@@ -310,6 +360,54 @@ private func link(_ engine: ScriptEngine, pace: TimeInterval = 3600) -> EngineLi
     try? await Task.sleep(for: .milliseconds(100))
     #expect(engine.asks("epic") == after)
     #expect(await until { weakHeld == nil })
+}
+
+@Test func aTickSetTwiceWithoutBeingTakenAwayReplacesTheFirstAndTakingItAwayEndsThePoll() async {
+    let engine = ScriptEngine()
+    defer { engine.stop() }
+    let link = link(engine, pace: 0.01)
+    let listener = Listener(link.states())
+    _ = await listener.take(1)
+    final class Held: @unchecked Sendable {}
+    weak var weakFirst: Held?
+    let second = LockedInt()
+    do {
+        let held = Held()
+        weakFirst = held
+        link.setTick { _ in _ = held }
+    }
+    link.setTick { _ in second.set(second.value + 1) }
+    #expect(await until { second.value >= 3 })
+    #expect(await until { weakFirst == nil })
+    // one connection for the poll, and one thread that taking the tick away ends
+    #expect(engine.connections == 2)
+    link.setTick(nil)
+    #expect(await until { engine.open == 1 })
+    let after = second.value
+    try? await Task.sleep(for: .milliseconds(100))
+    #expect(second.value == after)
+}
+
+@Test func aPollTakenAwayBeforeItsTurnNeverOpensAConnection() async {
+    let engine = ScriptEngine()
+    defer { engine.stop() }
+    let link = link(engine, pace: 0.01)
+    let listener = Listener(link.states())
+    _ = await listener.take(1)
+    let inside = DispatchSemaphore(value: 0), leave = DispatchSemaphore(value: 0)
+    link.setTick { _ in
+        inside.signal()
+        _ = leave.wait(timeout: .now() + 5)
+    }
+    #expect(inside.wait(timeout: .now() + 3) == .success)
+    // the window closes, opens and closes again while the first poll is under way: the second thread waits its turn with its flag already set
+    link.setTick(nil)
+    link.setTick { _ in }
+    link.setTick(nil)
+    leave.signal()
+    #expect(await until { engine.open == 1 })
+    try? await Task.sleep(for: .milliseconds(200))
+    #expect(engine.connections == 2)
 }
 
 private final class Overlap: @unchecked Sendable {

@@ -66,8 +66,8 @@ Every other request (pause, resume, check now, reload, available repos, resume e
 
 - **One read for everyone.** The first listener starts the reads and the last one stops them (the menu listens for as long as the app runs).
   A listener that comes later is given the last state at once, and one that does not keep up is given only the newest.
-- **Nothing old is told as current.** A connection that breaks is told once as `stopped`, and that replaces the running state for whoever listens next; when the last listener leaves the last state is dropped, and a read that was under way then is not told to the next one.
-- **The window opens on a read of its own.** `refresh()` ends the wait, so the window shows the state of that moment and not the last read of the menu, up to 5 s old (10 in Low Power Mode).
+- **Nothing old is told as current.** A connection that breaks is told as `stopped` (again at each retry while the engine is away), and that replaces the running state for whoever listens next; when the last listener leaves the last state is dropped, and a read that was under way then is not told to the next one.
+- **The window opens on a read of its own.** It is given the last state at once and `refresh()` ends the wait, so a fresh read follows within milliseconds and the last one, up to 5 s old (10 in Low Power Mode), is not what stays on screen.
 - **The pace** is `PollPace.seconds`, as for the chat host: 2 s in front, 5 s otherwise, 10 s in Low Power Mode.
   An engine that is not there is tried again every 3 seconds.
 - **The epic view has a connection of its own.** The engine answers each connection in order, and a `files` or an `epic` waits on git (up to its 5 s limit), so on the snapshot's connection it would hold the menu's state back, and past the app's own 5 s timeout it would read as the engine being stopped.

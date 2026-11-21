@@ -7,8 +7,8 @@ import Synchronization
 /// The app's one reader of the engine's control socket.
 /// The menu and the window both want the engine's state: `states()` gives it to each, and one `ControlMonitor` reads it for them all, so the engine builds
 /// and serializes one `snapshot` a read and not one per listener. The first listener starts the reads and the last one stops them; one that comes later is
-/// given the last state at once, and `refresh` reads again now and not at the end of the wait (the window opens on a state of the moment, not of the last read).
-/// The wait is the app's `PollPace`, which follows who is looking; a connection that breaks is told once as `.stopped` and tried again every `retry` seconds.
+/// given the last state at once, and `refresh` reads again now and not at the end of the wait (the window shows the last state, then the read it asked for).
+/// The wait is the app's `PollPace`, which follows who is looking; a connection that breaks is told as `.stopped` (again on each try, every `retry` seconds, while the engine is away).
 ///
 /// The engine answers each connection in order, and a `files` or an `epic` waits on git for as long as seconds, so the epic view's requests do not share the
 /// connection of the snapshots: they would hold the menu's state back (and past the client's timeout, which reads as the engine being stopped).
@@ -35,6 +35,8 @@ public final class EngineLink: @unchecked Sendable {
     private let state = Mutex(State())
     /// Held for as long as the epic view's connection lives, so a tick put back after one taken away starts when that one is done: the epic poller is for one thread at a time.
     private let epicThread = NSLock()
+    /// Test seam: runs in `states()` once the listener is registered and before it is told the last state.
+    var beforeReplay: (() -> Void)?
 
     public init(
         path: @escaping () -> String, pace: @escaping () -> TimeInterval = { PollPace.shared.seconds }, retry: TimeInterval = 3,
@@ -49,17 +51,19 @@ public final class EngineLink: @unchecked Sendable {
     /// The state of the engine as of the last read, then each read after it, until what iterates it ends. A listener that does not keep up is given only the newest.
     public func states() -> AsyncStream<ConnectionState> {
         let (stream, continuation) = AsyncStream.makeStream(of: ConnectionState.self, bufferingPolicy: .bufferingNewest(1))
-        let (id, latest, start) = state.withLock { state -> (Int, ConnectionState?, StopFlag?) in
+        let (id, start) = state.withLock { state -> (Int, StopFlag?) in
             let id = state.nextListener
             state.nextListener += 1
             state.listeners[id] = continuation
-            guard state.reading == nil else { return (id, state.latest, nil) }
+            // told under the lock: a read published between the registering and this would be overwritten by the older state (`yield` does not wait)
+            beforeReplay?()
+            if let latest = state.latest { continuation.yield(latest) }
+            guard state.reading == nil else { return (id, nil) }
             let flag = StopFlag()
             state.reading = flag
-            return (id, state.latest, flag)
+            return (id, flag)
         }
         continuation.onTermination = { [weak self] _ in self?.stopListening(id) }
-        if let latest { continuation.yield(latest) }
         if let start { Thread.detachNewThread { self.read(until: start) } }
         return stream
     }

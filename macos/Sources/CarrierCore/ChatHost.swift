@@ -210,6 +210,9 @@ public struct RepoBranches: Decodable, Equatable {
 public protocol ChatHost {
     func agents() async throws -> [ChatAgent]
     func list(archived: Bool) async throws -> [ChatSession]
+    /// The sessions as the host reports them, one update at each read and the last one at once: the active list, the archived one, and whether
+    /// the host answered (`SessionsUpdate`). The reads are shared by everyone who asks and end with the task that iterates.
+    func sessionUpdates() async -> AsyncStream<SessionsUpdate>
     /// Creates a session from the plan, in one request that carries the first message, and returns its id at once: the host prepares it in
     /// the background (the `step` events of its conversation say how far). Only for a host whose hello lists `plan`. The host refuses a
     /// folder inside Carrier's own folders, a provider that is not logged in, and a message over its limit.
@@ -292,6 +295,23 @@ public protocol ChatHost {
 }
 
 extension ChatHost {
+    /// A host that is not the socket's reads `list` by itself, at the pace of `PollPace`, by the same rules as the link's.
+    public func sessionUpdates() async -> AsyncStream<SessionsUpdate> {
+        let reader = SessionsReader()
+        let (stream, continuation) = AsyncStream.makeStream(of: SessionsUpdate.self, bufferingPolicy: .bufferingNewest(1))
+        let task = Task {
+            var failures = 0
+            while Task.isCancelled == false {
+                let (update, _) = await reader.read { try await self.list(archived: $0) }
+                continuation.yield(update)
+                failures = update.stale ? failures + 1 : 0
+                try? await Task.sleep(for: .seconds(sessionsPollWait(pace: PollPace.shared.seconds, failures: failures, looking: PollPace.shared.looking)))
+            }
+        }
+        continuation.onTermination = { _ in task.cancel() }
+        return stream
+    }
+
     /// An answer that is only a choice, the one every approval but a question has.
     public func answer(_ id: String, approval: String, choice: String) async throws {
         try await answer(id, approval: approval, choice: choice, answers: nil)
@@ -337,8 +357,9 @@ extension ChatHost {
     public func send(_ id: String, _ text: String, command: String?) async throws { try await send(id, text) }
 }
 
-/// The chat host over its socket: one connection per call (a host with no client attached may end itself), with the blocking
-/// socket work off the caller's thread. A host that is not there, or goes away mid-call, is `ControlError.closed`; an error reply is `.remote`.
+/// The chat host over its socket, with the blocking socket work off the caller's thread. What the app reads over and over (`list`, `events`, the
+/// hello's capabilities and the updates of the sessions) goes through the one connection `ChatLink` keeps for the socket; everything else is an
+/// action, one connection per call. A host that is not there, or goes away mid-call, is `ControlError.closed`; an error reply is `.remote`.
 public struct SocketChatHost: ChatHost {
     private let socketPath: () -> String
     /// What each session's options and commands were when the host last sent them, so the host can leave them out of the next answers.
@@ -353,11 +374,14 @@ public struct SocketChatHost: ChatHost {
         return agents
     }
 
-    public func list(archived: Bool) async throws -> [ChatSession] {
-        let path = socketPath()
-        let reply: ChatSessionsReply = try await Task.detached { try chatRequest(path, "list", requires: .list, fields: ",\"archived\":\(archived)") }.value
-        return reply.sessions
-    }
+    public func list(archived: Bool) async throws -> [ChatSession] { try await link.list(archived: archived) }
+
+    public func sessionUpdates() async -> AsyncStream<SessionsUpdate> { await link.sessions() }
+
+    /// Reads the list now and not at the end of the wait; with `archived`, the archived list too (after an archive, a restore or a delete).
+    public func refreshSessions(archived: Bool) { link.refresh(archived: archived) }
+
+    private var link: ChatLink { ChatLink.link(for: socketPath()) }
 
     public func open(plan: SessionPlan) async throws -> String {
         let fields = ",\"plan\":" + plan.wire
@@ -415,15 +439,8 @@ public struct SocketChatHost: ChatHost {
         return try await Task.detached { try chatRequest(path, "checkName", requires: .checkName, fields: fields) }.value
     }
 
-    public func capabilities() async throws -> Set<ControlClient.Capability> {
-        let path = socketPath()
-        return try await Task.detached {
-            guard let client = ControlClient.connect(path: path) else { throw ControlError.closed }
-            defer { client.close() }
-            _ = try client.supportedHello()
-            return client.capabilities
-        }.value
-    }
+    /// From the hello of the connection the link keeps, which was read once.
+    public func capabilities() async throws -> Set<ControlClient.Capability> { try await link.capabilities() }
 
     /// A page has the host's 30 seconds for `gh`, so the wait for the reply is longer than the 5 seconds of the other requests.
     public func githubRepos(page: Int) async throws -> GithubReposPage {
@@ -467,12 +484,9 @@ public struct SocketChatHost: ChatHost {
 
     public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         let fields = ",\"sessionId\":\"\(try wireId(id))\",\"after\":\(after),\"limit\":\(limit)"
-        let path = socketPath()
         let kept = lists.kept(id)
         let known = kept.map { ",\"lists\":\"\($0.rev)\"" } ?? ""
-        let reply: ChatEvents = try await Task.detached {
-            try chatRequest(path, "events", requires: .events, fields: fields, also: [(.reasoning, ",\"reasoning\":true"), (.listsRev, known)])
-        }.value
+        let reply: ChatEvents = try await link.read("events", requires: .events, fields: fields, also: [(.reasoning, ",\"reasoning\":true"), (.listsRev, known)])
         return lists.filled(reply, for: id, kept: kept)
     }
 
@@ -726,7 +740,7 @@ private struct AnyReply: Decodable { init(from decoder: Decoder) throws {} }
 
 private struct DeletePreviewReply: Decodable { let sessions: [SessionDeletePreview] }
 
-private struct ChatSessionsReply: Decodable { let sessions: [ChatSession] }
+struct ChatSessionsReply: Decodable { let sessions: [ChatSession] }
 
 /// The options and the commands of each session as the host last sent them, with its name for that version (`listsRev`): the one thing of a
 /// reply that is most of its bytes and almost never changes. A reference, so every copy of the host that holds it shares what was kept.
@@ -757,6 +771,19 @@ private final class ListsMemory: @unchecked Sendable {
     }
 }
 
+/// Makes one request the host said it can answer, on a connection whose hello was read, and decodes its reply.
+func chatExchange<Reply: Decodable>(
+    _ client: ControlClient, _ command: String, requires capability: ControlClient.Capability, fields: String = "",
+    also: [(capability: ControlClient.Capability, fields: String)] = []
+) throws -> Reply {
+    // fields only a host that lists their capability understands: an older one is not sent them
+    let sent = fields + also.filter { client.capabilities.contains($0.capability) }.map(\.fields).joined()
+    guard let reply = try client.request(command, requires: capability, fields: sent, as: Reply.self) else {
+        throw ControlError.remote("the chat host does not support \(command)")
+    }
+    return reply
+}
+
 /// Connects, reads the hello, makes one request the host said it can answer and decodes its reply.
 fileprivate func chatRequest<Reply: Decodable>(
     _ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String = "", also: [(capability: ControlClient.Capability, fields: String)] = [],
@@ -767,12 +794,7 @@ fileprivate func chatRequest<Reply: Decodable>(
     guard let client = ControlClient.connect(path: path, timeout: timeout) else { throw ControlError.closed }
     defer { client.close() }
     _ = try client.supportedHello()
-    // fields only a host that lists their capability understands: an older one is not sent them
-    let sent = fields + also.filter { client.capabilities.contains($0.capability) }.map(\.fields).joined()
-    guard let reply = try client.request(command, requires: capability, fields: sent, as: Reply.self) else {
-        throw ControlError.remote("the chat host does not support \(command)")
-    }
-    return reply
+    return try chatExchange(client, command, requires: capability, fields: fields, also: also)
 }
 
 /// `chatRequest`, but a host that does not list the request is told in the words of what to do about it.

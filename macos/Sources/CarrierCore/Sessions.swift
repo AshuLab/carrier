@@ -60,7 +60,7 @@ extension SessionPullRequest {
         }
     }
 
-    /// What its chip says: "#983 · Draft", "#412 · ✓", "#979 · CI ✕", "#88 · Merged"; the number alone while it is open and has no checks.
+    /// What its chip says: "#983 · Draft", "#412 · ✓", "#979 · CI ✕", "#412 · CI running", "#88 · Merged"; the number alone while it is open and has no checks.
     public var chipText: String {
         switch state {
         case .merged: "#\(number) · Merged"
@@ -70,7 +70,7 @@ extension SessionPullRequest {
             switch checks {
             case .passing?: "#\(number) · ✓"
             case .failing?: "#\(number) · CI ✕"
-            case .pending?: "#\(number) · …"
+            case .pending?: "#\(number) · CI running"
             case nil: "#\(number)"
             }
         }

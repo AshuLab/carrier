@@ -62,7 +62,7 @@ ditto .build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sp
 # the golden files `--fixture` serves
 mkdir -p "$APP/Contents/Resources"
 cp -R Tests/Fixtures "$APP/Contents/Resources/Fixtures"
-# the chat sessions `--fixture` shows are AppFixture's one session with every state, not the tests' set (those stay in Tests/Fixtures)
+# what `--fixture` shows is AppFixture's (no sessions, no epics, yet), not the tests' set (those stay in Tests/Fixtures)
 rm "$APP"/Contents/Resources/Fixtures/chat-events-*.json
 cp AppFixture/*.json "$APP/Contents/Resources/Fixtures/"
 # the app's icon (made by scripts/make-icon.swift)

@@ -8,6 +8,8 @@ final class EpicMenuSection: NSObject, NSMenuDelegate {
 
     /// Marks the items this section owns, so a rebuild removes exactly them.
     static let tag = 0x4550
+    /// Marks the separator that ends the Carrier group: the epics go before it, under the controls.
+    static let anchorTag = 0x4541
 
     private var state = ConnectionState.stopped
 
@@ -22,20 +24,19 @@ final class EpicMenuSection: NSObject, NSMenuDelegate {
         }
     }
 
-    /// Replaces the section: it goes after the first separator, under the status line and the controls.
+    /// Replaces the section: it goes under the Carrier group's controls, before the separator that ends the group.
     private func rebuild(_ menu: NSMenu) {
         for item in menu.items where item.tag == Self.tag { menu.removeItem(item) }
         guard case .running(let snapshot) = state,
               let section = epicMenu(snapshot, showEpics: AppPreferences().showsEpics),
-              let separator = menu.items.firstIndex(where: \.isSeparatorItem)
+              let end = menu.items.firstIndex(where: { $0.tag == Self.anchorTag })
         else { return }
 
         var items = section.items.map(menuItem)
         if let more = section.more { items.append(NSMenuItem(title: more, action: nil, keyEquivalent: "")) }
-        items.append(.separator())
         for (offset, item) in items.enumerated() {
             item.tag = Self.tag
-            menu.insertItem(item, at: separator + 1 + offset)
+            menu.insertItem(item, at: end + offset)
         }
     }
 

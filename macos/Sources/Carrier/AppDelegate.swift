@@ -52,25 +52,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.register(defaults: [showEpicsKey: true])
         let menu = NSMenu()
         menu.delegate = EpicMenuSection.shared
-        // a view of its own, not a title: a line with no action is drawn grey
+        // the groups (Sessions, Terminals, Dictation: StatusMenuGroups) go before the Sleep row
+        KeepAwakeMenu.shared.install(in: menu)
+        menu.addItem(.separator())
+        // the Carrier group: its title like the other groups', the state (a view of its own, not a title: a line with no action is drawn grey),
+        // its controls and its latest epics, which EpicMenuSection puts before the separator that ends the group
+        menu.addItem(.sectionHeader(title: "Carrier"))
         let stateLine = menu.addItem(withTitle: ConnectionState.stopped.menuLine, action: nil, keyEquivalent: "")
         stateLine.view = header
         header.show(ConnectionState.stopped.menuStatus)
-        // the epics go after this separator (EpicMenuSection), above the controls
-        menu.addItem(.separator())
-        // the groups (Sessions, Terminals, Dictation: StatusMenuGroups) go here, before the Sleep row; Carrier's own controls are one row
-        KeepAwakeMenu.shared.install(in: menu)
-        let engine = NSMenu(title: "Carrier")
-        MenuControls.shared.install(in: engine)
-        let engineItem = menu.addItem(withTitle: "Carrier", action: nil, keyEquivalent: "")
-        engineItem.submenu = engine
-        showIcon("gearshape.2", on: engineItem)
-        menu.addItem(.separator())
+        MenuControls.shared.install(in: menu)
+        let groupEnd = NSMenuItem.separator()
+        groupEnd.tag = EpicMenuSection.anchorTag
+        menu.addItem(groupEnd)
         // the first touch of the window controller builds the panel's model, the epic store and the agent offers
         let windowController = Signposts.launch.beginInterval("window controller")
         WindowController.shared.addMenuItem(to: menu)
         Signposts.launch.endInterval("window controller", windowController)
-        if fixtureServer != nil { EmptyStatesWindowController.shared.addMenuItem(to: menu) }
         WindowController.shared.addSettingsItem(to: menu)
         WindowController.shared.addAboutItem(to: menu)
         let quit = menu.addItem(withTitle: "Quit Carrier", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")

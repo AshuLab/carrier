@@ -46,7 +46,7 @@ public struct EpicMenuItem: Equatable {
 }
 
 public struct EpicMenu: Equatable {
-    public static let limit = 20
+    public static let limit = 3
 
     public var items: [EpicMenuItem]
     /// "… and 3 more" when the snapshot has more than `limit` epics.

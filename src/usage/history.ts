@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { basename, sep } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { eq, gte, isNotNull } from 'drizzle-orm';
 import type { ChatDb } from '../chat/db.ts';
@@ -113,9 +113,14 @@ interface Cached<T> {
   state: T;
 }
 
-/** Reads the new complete lines of a JSONL file into its state; a file that was not just appended to is read again from its start. */
-async function scanLines<T>(ports: HistoryPorts, cache: Map<string, Cached<T>>, path: string, fresh: () => T, onLine: (state: T, line: string) => void): Promise<T> {
+/**
+ * Reads the new complete lines of a JSONL file into its state; a file that was not just appended to is read again from its start.
+ * A file not written since `since` is not read and gives undefined: its records are older than the window, each one's time being written before the
+ * file's last write. It is not forgotten, a longer window reads it. A file whose modification time was set back by hand would be missed.
+ */
+async function scanLines<T>(ports: HistoryPorts, cache: Map<string, Cached<T>>, path: string, since: number, fresh: () => T, onLine: (state: T, line: string) => void): Promise<T | undefined> {
   const stat = await ports.files.stat(path);
+  if (stat.mtimeMs < since) return undefined;
   const prev = cache.get(path);
   if (prev !== undefined && prev.size === stat.size && prev.mtimeMs === stat.mtimeMs) return prev.state;
   let state = fresh();
@@ -156,13 +161,20 @@ function listed(ports: HistoryPorts, root: string, suffix: string): Promise<stri
   });
 }
 
-async function scanRoots<T>(ports: HistoryPorts, cache: Map<string, Cached<T>>, roots: string[], suffix: string, fresh: () => T, onLine: (state: T, line: string, path: string) => void): Promise<[string, T][]> {
+/** Forgets the cached files that are gone from the folders that were listed; those of folders that were not asked about (another account's) stay. */
+function forgetGone<V>(cache: Map<string, V>, roots: string[], listedPaths: Set<string>) {
+  const folders = roots.map((root) => (root.endsWith(sep) ? root : root + sep));
+  for (const path of cache.keys()) if (listedPaths.has(path) === false && folders.some((folder) => path.startsWith(folder))) cache.delete(path);
+}
+
+async function scanRoots<T>(ports: HistoryPorts, cache: Map<string, Cached<T>>, roots: string[], suffix: string, since: number, fresh: () => T, onLine: (state: T, line: string, path: string) => void): Promise<[string, T][]> {
   const paths = new Set((await Promise.all(roots.map((root) => listed(ports, root, suffix)))).flat());
-  for (const path of cache.keys()) if (paths.has(path) === false) cache.delete(path);
+  forgetGone(cache, roots, paths);
   const states: [string, T][] = [];
   for (const path of paths) {
     try {
-      states.push([path, await scanLines(ports, cache, path, fresh, (state, line) => onLine(state, line, path))]);
+      const state = await scanLines(ports, cache, path, since, fresh, (state, line) => onLine(state, line, path));
+      if (state !== undefined) states.push([path, state]);
     } catch (error) {
       log.warn('a usage file could not be read', { name: error instanceof Error ? error.name : typeof error });
     }
@@ -171,6 +183,7 @@ async function scanRoots<T>(ports: HistoryPorts, cache: Map<string, Cached<T>>, 
 }
 
 function claudeLine(state: Map<string, External>, line: string, path: string) {
+  if (line.includes('"assistant"') === false) return; // a superset of the types read below: a new branch adds its literal here
   const event = object(JSON.parse(line));
   const message = object(event.message);
   const usage = object(message.usage);
@@ -195,6 +208,7 @@ interface CodexState {
 }
 
 function codexLine(state: CodexState, line: string) {
+  if (['"token_count"', '"session_meta"', '"turn_context"'].some((type) => line.includes(type)) === false) return; // a superset of the types read below: a new branch adds its literal here
   const event = object(JSON.parse(line));
   const payload = object(event.payload);
   if (event.type === 'session_meta') {
@@ -317,14 +331,14 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
     const taken = new Set([...epic.keys, ...chat.keys]);
 
     const merged = new Map<string, External>();
-    for (const [, records] of await scanRoots(ports, claudeCache, roots.claude, '.jsonl', () => new Map<string, External>(), claudeLine)) {
+    for (const [, records] of await scanRoots(ports, claudeCache, roots.claude, '.jsonl', since, () => new Map<string, External>(), claudeLine)) {
       for (const [key, record] of records) {
         const seen = merged.get(key);
         if (seen === undefined) merged.set(key, { ...record, tokens: { ...record.tokens } });
         else mergeMax(seen.tokens, record.tokens); // a forked or resumed file writes the same message again
       }
     }
-    const codex = await scanRoots(ports, codexCache, roots.codex, '.jsonl', (): CodexState => ({ sessionId: '', model: 'unknown', workspace: '', records: [] }), codexLine);
+    const codex = await scanRoots(ports, codexCache, roots.codex, '.jsonl', since, (): CodexState => ({ sessionId: '', model: 'unknown', workspace: '', records: [] }), codexLine);
     const external = [...merged.values(), ...codex.flatMap(([path, state]) => state.records.map((r) => ({ ...r, sessionId: r.sessionId || basename(path, '.jsonl') }))), ...(await scanAgy(roots.agy))];
     for (const r of external) {
       if (taken.has(`${r.harness}:${r.sessionId}`) === false) turns.push({ at: r.at, source: 'external', harness: r.harness, model: r.model, workspace: r.workspace, isLocal: false, tokens: r.tokens, reportedCostUsd: null });
@@ -335,7 +349,7 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
 
   async function scanAgy(dirs: string[]): Promise<External[]> {
     const paths = new Set((await Promise.all(dirs.map((dir) => listed(ports, dir, '.db')))).flat());
-    for (const path of agyCache.keys()) if (paths.has(path) === false) agyCache.delete(path);
+    forgetGone(agyCache, dirs, paths);
     const found: External[] = [];
     for (const path of paths) {
       try {

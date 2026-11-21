@@ -85,6 +85,8 @@ public final class FixtureServer {
     private var chatConversations: [String: (events: [[String: Any]], streaming: String)] = [:]
     /// What the provider offers in each golden conversation that lists options; `setOption` changes the current value here.
     private var chatOptions: [String: [[String: Any]]] = [:]
+    /// How many times the chat socket was asked each request, for the tests that count what the app asks (read with `lock`).
+    private var chatAsked: [String: Int] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
     let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\"]}\n".utf8)
@@ -281,8 +283,12 @@ public final class FixtureServer {
         return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown request\"}")
     }
 
+    /// What the chat socket was asked so far, by request name.
+    var chatRequests: [String: Int] { locked { chatAsked } }
+
     private func chatReply(to line: Data) -> Data {
         let request = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]
+        if let cmd = request?["cmd"] as? String { locked { chatAsked[cmd, default: 0] += 1 } }
         guard let id = request?["id"] as? Int else { return Self.line("{\"id\":null,\"ok\":false,\"error\":\"invalid request\"}") }
         switch request?["cmd"] as? String {
         case "agents":
@@ -309,6 +315,8 @@ public final class FixtureServer {
                     let listed = chatSessions.first { $0["id"] as? String == session }
                     var summary: [String: Any] = ["state": listed?["state"] as? String ?? "idle"]
                     if let preparation = listed?["preparation"] as? String { summary["preparation"] = preparation }
+                    // what the real host adds to the summary of `events`, from the row its list gives
+                    for key in ["agent", "archived", "live", "background"] { summary[key] = listed?[key] }
                     return summary
                 },
             ]

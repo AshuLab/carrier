@@ -1,6 +1,8 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { existsSync, lstatSync, realpathSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import { promisify } from 'node:util';
 import { and, eq, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
 import type { Db } from '../storage/db.ts';
@@ -8,7 +10,7 @@ import { callerResults } from '../storage/caller-results.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import { redact } from '../logging/redact.ts';
-import { git } from './epic.ts';
+import { git, limited } from './epic.ts';
 import type { FileDiffReply, FilesReply } from './replies.ts';
 
 // The reply is bounded: with these it weighs at most about 400 KB, far under the client's 8 MiB line, and says so when it cut.
@@ -22,6 +24,8 @@ const MAX_DIFF_BYTES = 4 * 1024 * 1024;
 export const MAX_DIFF_ROWS = 1_000;
 export const MAX_LINE = 2_000;
 
+const execFileAsync = promisify(execFile);
+
 type Row = { path: string; added: number; removed: number };
 
 /** `git diff --numstat --no-renames -z`: `added<TAB>removed<TAB>path` per record; a binary file counts `-`, taken as 0. */
@@ -34,8 +38,8 @@ function parseNumstat(out: string): Row[] {
 
 // a driver or a textconv the repository configures never runs: it is the repository's code, and it would skew the numbers
 const SAFE_DIFF = ['--no-color', '--no-ext-diff', '--no-textconv', '--no-renames'];
-const numstat = (card: Pick<Card, 'cwd' | 'range' | 'guard'>) => {
-  const out = git(card.cwd, [...card.guard, 'diff', '--numstat', ...SAFE_DIFF, '-z', ...card.range, '--']);
+const numstat = async (card: Pick<Card, 'cwd' | 'range' | 'guard'>) => {
+  const out = await git(card.cwd, [...card.guard, 'diff', '--numstat', ...SAFE_DIFF, '-z', ...card.range, '--']);
   return out === null ? null : parseNumstat(out);
 };
 
@@ -44,39 +48,42 @@ const numstat = (card: Pick<Card, 'cwd' | 'range' | 'guard'>) => {
  * the clean filter (or the long-running `process`) its attributes name, and refreshes through the fsmonitor hook. Every filter the
  * config defines is emptied and not required, so git reads the bytes as they are.
  */
-function guardOf(cwd: string): string[] {
-  const keys = (git(cwd, ['config', '--list', '--name-only']) ?? '').split('\n');
+async function guardOf(cwd: string): Promise<string[]> {
+  const keys = ((await git(cwd, ['config', '--list', '--name-only'])) ?? '').split('\n');
   const filters = new Set(keys.flatMap((key) => (/^filter\.(.+)\.(?:clean|smudge|process|required)$/i.exec(key)?.[1] ?? [])));
   return ['-c', 'core.fsmonitor=false', ...[...filters].flatMap((name) => ['clean=', 'smudge=', 'process=', 'required=false'].flatMap((set) => ['-c', `filter.${name}.${set}`]))];
 }
 
 /** An untracked file as `files` counts it: its text, or why it has none. A symlink is not followed: it could point anywhere. */
-function readUntracked(cwd: string, path: string): string | 'binary' | 'too-big' | 'gone' {
+async function readUntracked(cwd: string, path: string): Promise<string | 'binary' | 'too-big' | 'gone'> {
   try {
     const file = join(cwd, path);
     const stat = lstatSync(file);
     if (stat.isFile() === false) return 'binary';
     if (stat.size > MAX_UNTRACKED_BYTES) return 'too-big';
-    const bytes = readFileSync(file);
+    const bytes = await readFile(file);
     return bytes.includes(0) ? 'binary' : bytes.toString('utf8');
   } catch {
     return 'gone'; // between the listing and the read: the agent is working
   }
 }
 const lineCount = (text: string) => text.split('\n').length - 1 + (text.length > 0 && text.endsWith('\n') === false ? 1 : 0);
-const untrackedPaths = (card: Card) => (git(card.cwd, [...card.guard, 'ls-files', '--others', '--exclude-standard', '-z']) ?? '').split('\0').filter(Boolean).slice(0, MAX_FILES);
+const untrackedPaths = async (card: Card) => ((await git(card.cwd, [...card.guard, 'ls-files', '--others', '--exclude-standard', '-z'])) ?? '').split('\0').filter(Boolean).slice(0, MAX_FILES);
 
 /** New files a lane has not added yet: no diff exists for them, so lines are counted; a binary or big file counts 0. */
-function untracked(card: Card): Row[] {
-  return untrackedPaths(card).map((path) => {
-    const text = readUntracked(card.cwd, path);
-    return { path, added: text === 'binary' || text === 'too-big' || text === 'gone' ? 0 : lineCount(text), removed: 0 };
-  });
+async function untracked(card: Card): Promise<Row[]> {
+  const rows: Row[] = [];
+  // one file at a time: up to MAX_FILES files of up to 1 MB are not all held at once
+  for (const path of await untrackedPaths(card)) {
+    const text = await readUntracked(card.cwd, path);
+    rows.push({ path, added: text === 'binary' || text === 'too-big' || text === 'gone' ? 0 : lineCount(text), removed: 0 });
+  }
+  return rows;
 }
 
 /** The base the pull request will have: the remote's HEAD, then the usual names; null when the clone has none of them. */
-function defaultBase(cwd: string): string | null {
-  const refs = new Set((git(cwd, ['for-each-ref', '--format=%(refname)', 'refs/remotes/origin', 'refs/heads/main', 'refs/heads/master']) ?? '').split('\n'));
+async function defaultBase(cwd: string): Promise<string | null> {
+  const refs = new Set(((await git(cwd, ['for-each-ref', '--format=%(refname)', 'refs/remotes/origin', 'refs/heads/main', 'refs/heads/master'])) ?? '').split('\n'));
   return ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/master', 'refs/heads/main', 'refs/heads/master'].find((ref) => refs.has(ref)) ?? null;
 }
 
@@ -119,18 +126,19 @@ type Card = { id: string; kind: FilesReply['sections'][number]['kind']; title: s
  * over `<sha>^1..<sha>` of a merged slice, and over the two heads of a fix round. `filesOf` counts over it and `fileDiff` diffs over it,
  * so the two cannot drift apart. null for an unknown epic, 'none' for one whose worktree git does not list for the engine's clone.
  */
-function cardsOf(db: Db, reposDir: string, repo: string, issue: number, executionId?: string): { workspace: string; head: string; base: string | null; cards: Card[] } | 'none' | null {
+type Cards = { workspace: string; head: string; base: string | null; cards: Card[] } | 'none' | null;
+async function cardsOf(db: Db, reposDir: string, repo: string, issue: number, executionId?: string): Promise<Cards> {
   const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
   if (epic === undefined) return null;
   const workspace = epic.workspace === null ? null : real(epic.workspace);
   // the folder comes from the database, but it is only read when git lists it for the engine's clone of the repo; asked once per request
   if (workspace === null) return 'none';
-  const list = git(join(reposDir, repo), ['worktree', 'list', '--porcelain']); // null: no clone yet
+  const list = await git(join(reposDir, repo), ['worktree', 'list', '--porcelain']); // null: no clone yet
   if (list === null || listedByGit(list, workspace) === false) return 'none';
-  const branch = git(workspace, ['symbolic-ref', '--short', 'HEAD'])?.trim();
+  const branch = (await git(workspace, ['symbolic-ref', '--short', 'HEAD']))?.trim();
   if (branch === undefined || branch === '') return 'none';
   const head = `refs/heads/${branch}`;
-  const base = defaultBase(workspace);
+  const base = await defaultBase(workspace);
   const cards: Card[] = [];
 
   const runs = db
@@ -152,12 +160,12 @@ function cardsOf(db: Db, reposDir: string, repo: string, issue: number, executio
   }
 
   if (executionId === undefined) {
-    for (const { lane, path } of lanes(list, workspace)) {
-      const fork = git(path, ['merge-base', head, 'HEAD'])?.trim();
-      if (fork) cards.push({ id: `lane-${lane}`, kind: 'lane', title: `Lane ${lane}`, cwd: path, range: [fork], guard: guardOf(path) });
+    const found = await Promise.all(lanes(list, workspace).map(async ({ lane, path }) => ({ lane, path, fork: (await git(path, ['merge-base', head, 'HEAD']))?.trim(), guard: await guardOf(path) })));
+    for (const { lane, path, fork, guard } of found) {
+      if (fork) cards.push({ id: `lane-${lane}`, kind: 'lane', title: `Lane ${lane}`, cwd: path, range: [fork], guard });
     }
     if (base !== null) {
-      const merges = git(workspace, ['log', '--first-parent', '--merges', `--max-count=${MAX_SLICES}`, '--format=%H%x00%s', `${base}..${head}`]) ?? '';
+      const merges = (await git(workspace, ['log', '--first-parent', '--merges', `--max-count=${MAX_SLICES}`, '--format=%H%x00%s', `${base}..${head}`])) ?? '';
       for (const line of merges.split('\n')) {
         const [sha = '', subject = ''] = line.split('\0');
         // GitHub's own merge subject: `Merge pull request #<pr> from <owner>/<namespace>/<slice number>-<slug>`
@@ -171,21 +179,42 @@ function cardsOf(db: Db, reposDir: string, repo: string, issue: number, executio
 }
 
 /**
+ * Remembers the cards of an epic for a few seconds, so the diff of each file a person opens does not rebuild them (a worktree list, the
+ * refs, a merge-base and the config of every lane) and two requests at once wait for the same read. A read that fails is not kept.
+ */
+export type CardsMemo = <T>(key: string, read: () => Promise<T>) => Promise<T>;
+const MEMO_MS = 5_000;
+export function cardsMemo(now: () => number): CardsMemo {
+  const kept = new Map<string, { at: number; cards: Promise<unknown> }>();
+  return <T>(key: string, read: () => Promise<T>) => {
+    const known = kept.get(key);
+    if (known !== undefined && now() - known.at < MEMO_MS) return known.cards as Promise<T>;
+    for (const [other, { at }] of kept) if (now() - at >= MEMO_MS) kept.delete(other); // the memo does not grow with every epic it ever saw
+    const cards = read();
+    kept.set(key, { at: now(), cards });
+    cards.catch(() => kept.get(key)?.cards === cards && kept.delete(key));
+    return cards;
+  };
+}
+const cardsFor = (db: Db, reposDir: string, repo: string, issue: number, executionId: string | undefined, memo: CardsMemo | undefined) =>
+  memo === undefined || executionId !== undefined ? cardsOf(db, reposDir, repo, issue, executionId) : memo(`${repo}#${issue}`, () => cardsOf(db, reposDir, repo, issue));
+
+/**
  * The files an epic changed, from git and never from GitHub: the lanes' work so far (against the fork point, uncommitted work included),
  * each merged slice (the first-parent merge commits on the epic branch), each fix round (between the heads of its review and its fix),
  * and the epic branch against the default branch as `total`. An epic without a worktree git lists has nothing to show: empty, not an error.
  * With `executionId`, only that fix round.
- * ponytail: nothing is cached, git is asked on every request (tens of ms); cache a few seconds if the app ever polls faster.
+ * The cards (which lanes, which merged slices) come from `memo` when one is given: a few seconds old at most, and never for a fix round's own request.
  */
-export function filesOf(db: Db, reposDir: string, repo: string, issue: number, executionId?: string): FilesReply | null {
-  const found = cardsOf(db, reposDir, repo, issue, executionId);
+export async function filesOf(db: Db, reposDir: string, repo: string, issue: number, executionId?: string, memo?: CardsMemo): Promise<FilesReply | null> {
+  const found = await cardsFor(db, reposDir, repo, issue, executionId, memo);
   if (found === null) return null;
   if (found === 'none') return { sections: [], total: null, truncated: false };
   const { workspace, head, base } = found;
-  const drafts = found.cards.flatMap((card) => {
-    const rows = numstat(card);
-    return rows === null ? [] : [{ ...card, rows: card.kind === 'lane' ? [...rows, ...untracked(card)] : rows }];
-  });
+  const drafts = (await Promise.all(found.cards.map(async (card) => {
+    const rows = await numstat(card);
+    return rows === null ? [] : [{ ...card, rows: card.kind === 'lane' ? [...rows, ...(await untracked(card))] : rows }];
+  }))).flat();
 
   // a file two lanes touch says so in both
   const laneFiles = new Map(drafts.filter((d) => d.kind === 'lane').map((d) => [d.id, new Set(d.rows.map((r) => r.path))]));
@@ -203,18 +232,18 @@ export function filesOf(db: Db, reposDir: string, repo: string, issue: number, e
     };
   });
 
-  const all = base === null ? null : numstat({ cwd: workspace, range: [`${base}...${head}`], guard: [] });
+  const all = base === null ? null : await numstat({ cwd: workspace, range: [`${base}...${head}`], guard: [] });
   const total = all === null ? null : { files: all.length, added: all.reduce((sum, r) => sum + r.added, 0), removed: all.reduce((sum, r) => sum + r.removed, 0) };
   return { sections, total, truncated };
 }
 
 /** The diff text of one file over a range; past the byte cap, the whole lines read so far and `cut`. Nothing the repository configures runs: no driver, no textconv. */
-function diffText({ cwd, range, guard }: Card, path: string): { text: string; cut: boolean } {
+async function diffText({ cwd, range, guard }: Card, path: string): Promise<{ text: string; cut: boolean }> {
   try {
-    const text = execFileSync('git', [...guard, 'diff', ...SAFE_DIFF, '-U3', ...range, '--', `:(literal)${path}`], { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer: MAX_DIFF_BYTES, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
-    return { text, cut: false };
+    const { stdout } = await limited(() => execFileAsync('git', [...guard, 'diff', ...SAFE_DIFF, '-U3', ...range, '--', `:(literal)${path}`], { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer: MAX_DIFF_BYTES, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }));
+    return { text: stdout, cut: false };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOBUFS') {
+    if ((error as NodeJS.ErrnoException).code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
       const partial = String((error as { stdout?: string }).stdout ?? '');
       return { text: partial.slice(0, partial.lastIndexOf('\n') + 1), cut: true }; // the last line may be half read
     }
@@ -228,16 +257,16 @@ function diffText({ cwd, range, guard }: Card, path: string): { text: string; cu
  * a `..` or a NUL byte never reaches git. A lane's untracked file is read as `files` counts it, every line a '+'.
  * Redacted as a whole, then cut at MAX_DIFF_ROWS and MAX_LINE.
  */
-export function fileDiff(db: Db, reposDir: string, repo: string, issue: number, section: string, path: string): FileDiffReply | null {
-  const found = cardsOf(db, reposDir, repo, issue);
+export async function fileDiff(db: Db, reposDir: string, repo: string, issue: number, section: string, path: string, memo?: CardsMemo): Promise<FileDiffReply | null> {
+  const found = await cardsFor(db, reposDir, repo, issue, undefined, memo);
   const card = found === null || found === 'none' ? undefined : found.cards.find((c) => c.id === section);
   if (card === undefined || path.length > MAX_PATH) return null;
   let out: string;
   let cut = false;
-  if (numstat(card)?.some((r) => r.path === path) === true) {
-    ({ text: out, cut } = diffText(card, path));
-  } else if (card.kind === 'lane' && untrackedPaths(card).includes(path)) {
-    const text = readUntracked(card.cwd, path);
+  if ((await numstat(card))?.some((r) => r.path === path) === true) {
+    ({ text: out, cut } = await diffText(card, path));
+  } else if (card.kind === 'lane' && (await untrackedPaths(card)).includes(path)) {
+    const text = await readUntracked(card.cwd, path);
     if (text === 'binary' || text === 'too-big') return { rows: [], truncated: false, note: text };
     const count = text === 'gone' ? 0 : lineCount(text);
     if (text === 'gone' || count === 0) return { rows: [], truncated: false, note: 'no-changes' };

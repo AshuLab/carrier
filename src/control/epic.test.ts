@@ -16,7 +16,7 @@ import { executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { epics } from '../storage/schema.ts';
-import { epicOf, MAX_ROUNDS } from './epic.ts';
+import { epicOf, limited, MAX_ROUNDS } from './epic.ts';
 import { enginePlacesOf } from '../config/places.ts';
 
 const MIN = 60_000;
@@ -36,7 +36,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const reply = () => epicOf(db, 'AshuLab/a', 1)!;
+const reply = async () => (await epicOf(db, 'AshuLab/a', 1))!;
 const titles = (round: { blockers: { title: string; mark: string }[] }) => round.blockers.map((b) => `${b.mark}:${b.title}`);
 
 // --- the engine with its fakes: ship, then reviews that ask for the given blockers (or approve), a fix after each one ---
@@ -77,7 +77,7 @@ async function drive(script: (string[] | 'approved')[], { maxReviews = 5, flaky 
 
 test('approved in the first round: one round with no blockers, the reviewer, the timeline and the worktrees', async () => {
   await drive(['approved']);
-  const epic = reply();
+  const epic = await reply();
   expect(epic.rounds).toEqual([
     expect.objectContaining({ round: 1, reviewer: { harness: 'codex', model: 'r', provider: null }, verdict: 'approved', blockers: [], fixedSha: null, reviewedSha: SHA, commits: [] }),
   ]);
@@ -96,7 +96,7 @@ test('fixed in two rounds: the second review approves and marks what the first a
   const reviews = runner.tasks.filter((t) => t.stage === 'review');
   expect(reviews[0]!.context.blockers).toBeUndefined(); // round one has nothing earlier
   expect(reviews[1]!.context.blockers?.map((b) => b.title)).toEqual(['Token expiry is not checked', 'Missing test']);
-  const { rounds, stages } = reply();
+  const { rounds, stages } = await reply();
   expect(rounds.map((r) => [r.round, r.verdict])).toEqual([[1, 'changes_requested'], [2, 'approved']]);
   expect(titles(rounds[0]!)).toEqual(['new:Token expiry is not checked', 'new:Missing test']);
   expect(rounds[0]!.blockers.every((b) => b.approximate === false && b.id === null)).toBe(true);
@@ -107,37 +107,37 @@ test('fixed in two rounds: the second review approves and marks what the first a
 
 test('the limit: the last round is limit_reached, and the marks cover persisting, fixed and new, and a title changed only by case or spaces', async () => {
   await drive([['Token expiry', 'Missing test', 'Log leak'], ['token   EXPIRY ', 'Missing test', 'Brand new']], { maxReviews: 2 });
-  const { rounds, stages } = reply();
+  const { rounds, stages } = await reply();
   expect(rounds.map((r) => [r.round, r.verdict])).toEqual([[1, 'changes_requested'], [2, 'limit_reached']]);
   expect(titles(rounds[1]!)).toEqual(['carried:token   EXPIRY ', 'carried:Missing test', 'new:Brand new', 'fixed:Log leak']);
   expect(stages.map((s) => s.stage)).toEqual(['queued', 'ship', 'review', 'fix', 'review']);
   expect(stages.at(-1)!.endedAt).not.toBeNull(); // the epic stopped
 });
 
-test('with ids the marks are exact for a persisting, a fixed and a new blocker; without them they stay approximate', () => {
+test('with ids the marks are exact for a persisting, a fixed and a new blocker; without them they stay approximate', async () => {
   const id = epicRow();
   const review = (round: number, blockers: object[], extra: object = {}) =>
     run(id, 'review', round * 10, round * 10 + 1, { outcome: 'changes_requested', ...pr(SHA), blockers, ...extra }, round);
   review(1, [{ id: 'a', title: 'Token expiry' }, { id: 'b', title: 'Missing test' }, { id: 'c', title: 'Log leak' }]);
   // the persisting one is reworded (ids settle it), b is fixed and said so, c just disappeared, d is new
   review(2, [{ id: 'a', title: 'The token never expires' }, { id: 'd', title: 'Brand new' }], { resolved: ['b'] });
-  const marks = (round: number) => reply().rounds[round]!.blockers.map((b) => [b.id, b.mark, b.approximate]);
-  expect(marks(0)).toEqual([['a', 'new', false], ['b', 'new', false], ['c', 'new', false]]);
-  expect(marks(1)).toEqual([['a', 'carried', false], ['d', 'new', false], ['b', 'fixed', false], ['c', 'fixed', false]]);
+  const marks = async (round: number) => (await reply()).rounds[round]!.blockers.map((b) => [b.id, b.mark, b.approximate]);
+  expect(await marks(0)).toEqual([['a', 'new', false], ['b', 'new', false], ['c', 'new', false]]);
+  expect(await marks(1)).toEqual([['a', 'carried', false], ['d', 'new', false], ['b', 'fixed', false], ['c', 'fixed', false]]);
 
   // a later round with no ids at all falls back to titles and says so
   review(3, [{ title: 'brand   NEW' }, { title: 'Another' }]);
-  expect(marks(2)).toEqual([[null, 'carried', true], [null, 'new', true], ['a', 'fixed', true]]);
+  expect(await marks(2)).toEqual([[null, 'carried', true], [null, 'new', true], ['a', 'fixed', true]]);
 });
 
-test('a round carries the observations its completed review listed, in order; a round without any, or from before the field, has none', () => {
+test('a round carries the observations its completed review listed, in order; a round without any, or from before the field, has none', async () => {
   const id = epicRow();
   run(id, 'review', 10, 11, { outcome: 'changes_requested', ...pr(SHA), blockers: [{ title: 'A blocker' }] }, 1);
   run(id, 'fix', 12, 13, { outcome: 'completed', ...pr(SHA) }, 1);
   run(id, 'review', 20, 21, { outcome: 'completed', ...pr(SHA), observations: [{ id: 'o1', title: 'Rename x', url: 'https://github.com/o/r/pull/50#c1' }, { title: 'No id, no url' }, { id: 'o3', title: 'Long link', url: `https://github.com/o/r/${'u'.repeat(600)}` }] }, 2);
   run(id, 'review', 30, 31, { outcome: 'completed', ...pr(SHA), observations: [] }, 3);
   run(id, 'review', 40, 41, { outcome: 'completed', ...pr(SHA) }, 4);
-  expect(reply().rounds.map((r) => r.observations)).toEqual([
+  expect((await reply()).rounds.map((r) => r.observations)).toEqual([
     [],
     [{ id: 'o1', title: 'Rename x', url: 'https://github.com/o/r/pull/50#c1' }, { id: null, title: 'No id, no url', url: null }, { id: 'o3', title: 'Long link', url: null }],
     [],
@@ -147,7 +147,7 @@ test('a round carries the observations its completed review listed, in order; a 
 
 test('technical retries inside a round do not make a round', async () => {
   await drive([['Only blocker'], 'approved'], { flaky: true });
-  const { rounds } = reply();
+  const { rounds } = await reply();
   expect(rounds.map((r) => [r.round, r.verdict])).toEqual([[1, 'changes_requested'], [2, 'approved']]);
   const retried = db.select().from(executions).all().filter((e) => e.status === 'failed');
   expect(retried.length).toBeGreaterThanOrEqual(3); // review 1, fix 1 and review 2 each failed once
@@ -156,19 +156,19 @@ test('technical retries inside a round do not make a round', async () => {
 
 test('an epic put back in the queue starts its rounds again, and the old ones stay readable', async () => {
   const { again, runner } = await drive([['One'], ['One']], { maxReviews: 2 });
-  expect(reply().rounds.map((r) => r.verdict)).toEqual(['changes_requested', 'limit_reached']);
+  expect((await reply()).rounds.map((r) => r.verdict)).toEqual(['changes_requested', 'limit_reached']);
 
   const old = runner.behavior;
   runner.behavior = (task) => (task.stage === 'review' ? { write: { executionId: task.executionId, repo: task.repo, epic: task.epic, stage: 'review', summary: 'ok', outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } } } : old(task));
   await again();
-  const epic = reply();
+  const epic = await reply();
   expect(epic.rounds.map((r) => [r.round, r.verdict])).toEqual([[1, 'changes_requested'], [2, 'limit_reached'], [1, 'approved']]);
   expect(titles(epic.rounds[2]!)).toEqual([]); // nothing carried over from the old attempt
   expect(epic.stages.map((s) => s.stage)).toEqual(['queued', 'ship', 'review', 'ready']); // the timeline is the current attempt's
 });
 
-test('an unknown epic is null', () => {
-  expect(epicOf(db, 'AshuLab/a', 99)).toBeNull();
+test('an unknown epic is null', async () => {
+  expect(await epicOf(db, 'AshuLab/a', 99)).toBeNull();
 });
 
 // --- rows written by hand, for exact times, a real repository and sizes ---
@@ -186,7 +186,7 @@ const pr = (headSha: string) => ({ pr: { number: 50, headSha } });
 
 const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' }).trim();
 
-test('durations, shas and the commits between them come from the executions and a real repository; a missing worktree gives none', () => {
+test('durations, shas and the commits between them come from the executions and a real repository; a missing worktree gives none', async () => {
   const repo = join(dir, 'worktree');
   execFileSync('git', ['init', '-q', '-b', 'feat/epic', repo]);
   const commit = (subject: string) => (git(repo, 'commit', '-q', '--allow-empty', '-m', subject), git(repo, 'rev-parse', 'HEAD'));
@@ -199,7 +199,7 @@ test('durations, shas and the commits between them come from the executions and 
   run(id, 'fix', 9_000, 15_000, { outcome: 'completed', ...pr(last) }, 1);
   run(id, 'review', 15_000, 18_000, { outcome: 'completed', ...pr(last) }, 2);
 
-  const epic = reply();
+  const epic = await reply();
   expect(epic.stages).toEqual([
     { stage: 'queued', startedAt: 500, endedAt: 1_000 },
     { stage: 'ship', startedAt: 1_000, endedAt: 5_000 },
@@ -215,26 +215,26 @@ test('durations, shas and the commits between them come from the executions and 
   expect(epic.rounds[1]).toMatchObject({ reviewMs: 3_000, fixMs: null, fixedSha: null, commits: [] });
 
   db.update(epics).set({ workspace: join(dir, 'gone') }).run();
-  const gone = reply();
+  const gone = await reply();
   expect(gone.rounds[0]).toMatchObject({ reviewedSha: first, fixedSha: last, commits: [] });
   expect(gone.branch).toBeNull();
   expect(gone.worktrees[0]!.path).toBe(join(dir, 'gone'));
 });
 
-test('a queued epic has only its queue time, and a running one has an open stage', () => {
+test('a queued epic has only its queue time, and a running one has an open stage', async () => {
   const id = epicRow({ status: 'queued', startedAt: null, finishedAt: null });
-  expect(reply()).toMatchObject({ stages: [{ stage: 'queued', startedAt: 500, endedAt: null }], rounds: [], worktrees: [], branch: null });
+  expect(await reply()).toMatchObject({ stages: [{ stage: 'queued', startedAt: 500, endedAt: null }], rounds: [], worktrees: [], branch: null });
   db.update(epics).set({ status: 'running', startedAt: 1_000, stage: 'ship' }).run();
   run(id, 'ship', 1_100, null);
-  expect(reply().stages).toEqual([{ stage: 'queued', startedAt: 500, endedAt: 1_000 }, { stage: 'ship', startedAt: 1_000, endedAt: null }]);
+  expect((await reply()).stages).toEqual([{ stage: 'queued', startedAt: 500, endedAt: 1_000 }, { stage: 'ship', startedAt: 1_000, endedAt: null }]);
 });
 
-test('a merged epic answers like any other: its history closed at the merge, no ready stage, nothing live', () => {
+test('a merged epic answers like any other: its history closed at the merge, no ready stage, nothing live', async () => {
   const id = epicRow({ status: 'merged', finishedAt: 20_000 });
   run(id, 'ship', 1_000, 5_000);
   run(id, 'review', 5_000, 9_000, { outcome: 'completed', ...pr('a'.repeat(40)) }, 1);
   db.insert(epicSlices).values({ epicId: id, number: 10, title: 'S', state: 'closed', blockedBy: [], prNumber: 30, closedAt: 6_000, readAt: 1 }).run();
-  expect(reply()).toMatchObject({
+  expect(await reply()).toMatchObject({
     stages: [
       { stage: 'queued', startedAt: 500, endedAt: 1_000 },
       { stage: 'ship', startedAt: 1_000, endedAt: 5_000 },
@@ -245,7 +245,7 @@ test('a merged epic answers like any other: its history closed at the merge, no 
   });
 });
 
-test('the reply of an epic with far more rounds than the cap, with the largest blockers, stays under the client line limit', () => {
+test('the reply of an epic with far more rounds than the cap, with the largest blockers, stays under the client line limit', async () => {
   const id = epicRow();
   const long = (c: string, size: number) => c.repeat(size);
   const blockers = Array.from({ length: 80 }, (_, i) => ({ title: `${i} ${long('t', 400)}`, url: `https://github.com/o/r/pull/50#${long('u', 800)}` }));
@@ -254,19 +254,19 @@ test('the reply of an epic with far more rounds than the cap, with the largest b
     run(id, 'review', round * 10_000, round * 10_000 + 1, { outcome: 'changes_requested', ...pr(SHA), blockers }, round);
     run(id, 'fix', round * 10_000 + 2, round * 10_000 + 3, { outcome: 'completed', ...pr('b'.repeat(40)) }, round);
   }
-  const epic = reply();
+  const epic = await reply();
   expect(epic.rounds).toHaveLength(MAX_ROUNDS);
   expect(epic.rounds.at(-1)!.round).toBe(MAX_ROUNDS + 10);
   expect(Math.max(...epic.rounds.map((r) => r.blockers.length))).toBeLessThanOrEqual(50);
   expect(Buffer.byteLength(JSON.stringify({ id: 1, ok: true, data: epic }))).toBeLessThan(CLIENT_LINE_LIMIT);
 });
 
-test('a slice in progress shows the lane and the latest call of the agent building it, each slice its own agent; every other slice has none', () => {
+test('a slice in progress shows the lane and the latest call of the agent building it, each slice its own agent; every other slice has none', async () => {
   const id = epicRow({ status: 'running', finishedAt: null });
   const slice = (number: number, state: 'in_progress' | 'waiting') => db.insert(epicSlices).values({ epicId: id, number, title: `S${number}`, state, blockedBy: [], prNumber: null, closedAt: null, readAt: 1 }).run();
   [10, 11, 12, 13].forEach((number) => slice(number, 'in_progress'));
   slice(14, 'waiting');
-  const hints = () => reply().slices.map(({ number, lane, activity }) => [number, lane, activity]);
+  const hints = async () => (await reply()).slices.map(({ number, lane, activity }) => [number, lane, activity]);
   const noHints = [[10, null, null], [11, null, null], [12, null, null], [13, null, null], [14, null, null]];
 
   // no running author execution: nothing, even with events stored for an earlier one
@@ -275,7 +275,7 @@ test('a slice in progress shows the lane and the latest call of the agent buildi
     db.insert(executionEvents).values({ executionId, at: 1, kind, agentId, ...fields }).run();
   add('old', 'task', 'a-old', { payload: { slice: 10 } });
   add('old', 'tool_start', 'a-old', { tool: 'Bash', arg: 'ls' });
-  expect(hints()).toEqual(noHints);
+  expect(await hints()).toEqual(noHints);
 
   db.insert(executions).values({ executionId: 'live', epicId: id, stage: 'ship', status: 'running', resultPath: '/r.json', startedAt: 3, harness: 'claude', model: 'm', provider: null, workspace: '/w' }).run();
   const task = (agentId: string, slice: number, ended = false) => add('live', 'task', agentId, { payload: { text: `Build slice #${slice}`, slice }, ...(ended && { status: 'ok' as const }) });
@@ -291,7 +291,7 @@ test('a slice in progress shows the lane and the latest call of the agent buildi
   add('live', 'tool_start', 'a-10', { tool: 'Bash', arg: `pnpm test\n${'x'.repeat(100)}` }); // the latest of a-10: long, on two lines
   add('live', 'tool_start', 'a-11', { tool: 'Grep', arg: 'todo', payload: { lane: 3 } }); // the lane from the payload
   add('live', 'tool_start', 'a-99', { tool: 'Bash', arg: 'unrelated' });
-  expect(hints()).toEqual([
+  expect(await hints()).toEqual([
     [10, 2, `Bash pnpm test ${'x'.repeat(100)}`.slice(0, 80)],
     [11, 3, 'Grep todo'],
     [12, null, null],
@@ -301,10 +301,10 @@ test('a slice in progress shows the lane and the latest call of the agent buildi
 
   // an agent that has not made a call yet: no activity, and the lane stays null
   task('a-13', 13);
-  expect(reply().slices.find((s) => s.number === 13)).toMatchObject({ lane: null, activity: null });
+  expect((await reply()).slices.find((s) => s.number === 13)).toMatchObject({ lane: null, activity: null });
 });
 
-test('the read of events is bounded to the running execution: other executions and events beyond the cap do not count', () => {
+test('the read of events is bounded to the running execution: other executions and events beyond the cap do not count', async () => {
   const id = epicRow({ status: 'running', finishedAt: null });
   db.insert(epicSlices).values({ epicId: id, number: 10, title: 'S', state: 'in_progress', blockedBy: [], prNumber: null, closedAt: null, readAt: 1 }).run();
   db.insert(executions).values({ executionId: 'live', epicId: id, stage: 'ship', status: 'running', resultPath: '/r.json', startedAt: 3, harness: 'claude', model: 'm', provider: null, workspace: '/w' }).run();
@@ -313,17 +313,17 @@ test('the read of events is bounded to the running execution: other executions a
   const rows = Array.from({ length: 600 }, () => ({ executionId: 'live', at: 2, kind: 'tool_start' as const, agentId: 'b', tool: 'Bash', arg: 'other agent' }));
   db.insert(executionEvents).values(rows).run();
   // the agent's only call fell out of the newest 500: no activity, and no scan to find it
-  expect(reply().slices[0]).toMatchObject({ lane: null, activity: null });
+  expect((await reply()).slices[0]).toMatchObject({ lane: null, activity: null });
 });
 
-test('the live hints read the events of a run by their kind, not by walking all of them', () => {
+test('the live hints read the events of a run by their kind, not by walking all of them', async () => {
   const id = epicRow({ status: 'running', finishedAt: null });
   db.insert(epicSlices).values({ epicId: id, number: 10, title: 'S', state: 'in_progress', blockedBy: [], prNumber: null, closedAt: null, readAt: 1 }).run();
   db.insert(executions).values({ executionId: 'live', epicId: id, stage: 'ship', status: 'running', resultPath: '/r.json', startedAt: 3, harness: 'claude', model: 'm', provider: null, workspace: '/w' }).run();
   db.insert(executionEvents).values(Array.from({ length: 300 }, (_, n) => ({ executionId: 'live', at: n, kind: n % 100 === 0 ? ('task' as const) : ('say' as const), agentId: 'a', payload: { slice: 10 } }))).run();
   const statements: string[] = [];
   const traced = drizzle(new Database(join(dir, 'carrier.db'), { readonly: true, verbose: (sql) => statements.push(String(sql)) }));
-  epicOf(traced, 'AshuLab/a', 1);
+  await epicOf(traced, 'AshuLab/a', 1);
   const reads = statements.filter((sql) => /^\s*select\b/i.test(sql) && /\bfrom "(executions|execution_events)"/.test(sql));
   expect(reads.length).toBeGreaterThan(0);
   // the kind is in the index, so a run that says a lot and calls a task now and then is not read through to find the tasks
@@ -331,4 +331,28 @@ test('the live hints read the events of a run by their kind, not by walking all 
   traced.$client.close();
   expect(plans.filter((detail) => /\bSCAN (executions|execution_events)\b/.test(detail))).toEqual([]);
   expect(plans.some((detail) => /USING (COVERING )?INDEX execution_events_kind/.test(detail))).toBe(true);
+});
+
+test('limited runs at most four jobs at once and finishes all of them, a rejected one included', async () => {
+  let running = 0;
+  let peak = 0;
+  const gates: (() => void)[] = [];
+  const job = (fail: boolean) =>
+    limited(async () => {
+      peak = Math.max(peak, ++running);
+      await new Promise<void>((open) => gates.push(open));
+      running--;
+      if (fail) throw new Error('boom');
+      return 'done';
+    });
+  const results = Array.from({ length: 10 }, (_, i) => job(i % 3 === 2).then((r) => r, (e: Error) => e.message));
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(gates).toHaveLength(4); // the others wait their turn
+  while (gates.length > 0) {
+    gates.splice(0).forEach((open) => open());
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  expect(peak).toBe(4);
+  expect(await Promise.all(results)).toEqual(['done', 'done', 'boom', 'done', 'done', 'boom', 'done', 'done', 'boom', 'done']);
+  expect(running).toBe(0);
 });

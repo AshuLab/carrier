@@ -48,7 +48,7 @@ struct PanelView: View {
         let ref = EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)
         var running = false
         if case .active(let active) = epic.subject { running = active.status == .running }
-        var focus = epicFocus(ref, running: running, data: model.epics.data[ref], folds: model.epics.folds)
+        var focus = epicFocus(ref, running: running, data: model.epics.data[ref], folds: model.epics.folds, filesShown: model.epics.filesTabShown)
         focus.openFiles = model.epics.filesTabShown ? model.epics.openFiles[ref] ?? [] : []
         return focus
     }

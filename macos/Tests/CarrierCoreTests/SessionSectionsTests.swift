@@ -183,6 +183,19 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
     #expect(epicFocus(ref, running: true, data: nil, folds: folds) == EpicFocus(epic: ref, epicRunning: true, filesTabVisible: true))
 }
 
+@Test func theFilesAreAskedUntilTheyAnsweredAndAfterThatOnlyWhileTheTabIsOnScreen() {
+    let ref = EpicRef(repo: "acme/web", issue: 12)
+    let folds = SessionFolds()
+    var data = EpicData()
+    // nothing read yet: asked, for the tab's count, though the tab is not open
+    #expect(epicFocus(ref, running: true, data: nil, folds: folds, filesShown: false).filesTabVisible)
+    #expect(epicFocus(ref, running: true, data: data, folds: folds, filesShown: false).filesTabVisible)
+    // answered: no more while the tab is hidden, and at once when it opens
+    data.files = FilesReply(sections: [], total: nil, truncated: false)
+    #expect(epicFocus(ref, running: true, data: data, folds: folds, filesShown: false).filesTabVisible == false)
+    #expect(epicFocus(ref, running: true, data: data, folds: folds, filesShown: true).filesTabVisible)
+}
+
 // MARK: loading and lazy bodies
 
 @Test func aSessionWhoseEventsHaveNotArrivedIsLoadingAndOneWithNoEventsIsEmpty() {

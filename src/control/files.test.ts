@@ -8,7 +8,7 @@ import { callerResults } from '../storage/caller-results.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
-import { fileDiff, filesOf, MAX_DIFF_ROWS, MAX_FILES_PER_SECTION, MAX_LINE } from './files.ts';
+import { cardsMemo, fileDiff, filesOf, MAX_DIFF_ROWS, MAX_FILES_PER_SECTION, MAX_LINE } from './files.ts';
 
 // A real temporary repository, as the `epic` request's commit-list test does: the expectations are literals and git's own numbers.
 const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
@@ -72,7 +72,7 @@ function lane(number: number, branch: string | null) {
   return path;
 }
 
-test('sections come from git: two lanes with uncommitted work, three merged slices, a fix round and the total; a free lane has none', () => {
+test('sections come from git: two lanes with uncommitted work, three merged slices, a fix round and the total; a free lane has none', async () => {
   slice(101, 201, { 'a.ts': lines(5, 'a'), 'shared.ts': lines(12, 'shared') }); // +5 a.ts, +2 shared.ts
   slice(102, 202, { 'b.ts': lines(3, 'b') });
   const first = lane(1, 'feat/x/104-d');
@@ -101,7 +101,7 @@ test('sections come from git: two lanes with uncommitted work, three merged slic
   run(id, 'review', reviewed, 1);
   const fixId = run(id, 'fix', fixed, 1);
 
-  const reply = filesOf(db, repos, 'AshuLab/a', 1)!;
+  const reply = (await filesOf(db, repos, 'AshuLab/a', 1))!;
   const byId = Object.fromEntries(reply.sections.map((s) => [s.id, s]));
   expect(reply.sections.map((s) => s.id)).toEqual(['lane-1', 'lane-2', 'slice-103', 'slice-102', 'slice-101', fixId]);
   expect(reply.truncated).toBe(false);
@@ -138,11 +138,11 @@ test('sections come from git: two lanes with uncommitted work, three merged slic
   expect(reply.total).toEqual({ files: 6, added: 7 + 3 + 7 + 6, removed: 6 });
 
   // a fix round asked for by itself
-  expect(filesOf(db, repos, 'AshuLab/a', 1, fixId)!.sections.map((s) => s.id)).toEqual([fixId]);
-  expect(filesOf(db, repos, 'AshuLab/a', 1, '00000000-0000-4000-8000-ffffffffffff')!.sections).toEqual([]);
+  expect((await filesOf(db, repos, 'AshuLab/a', 1, fixId))!.sections.map((s) => s.id)).toEqual([fixId]);
+  expect((await filesOf(db, repos, 'AshuLab/a', 1, '00000000-0000-4000-8000-ffffffffffff'))!.sections).toEqual([]);
 });
 
-test('a file two working lanes touch names the other lane; a merged slice is never named; a rename counts as the old path leaving and the new one arriving', () => {
+test('a file two working lanes touch names the other lane; a merged slice is never named; a rename counts as the old path leaving and the new one arriving', async () => {
   slice(101, 201, { 'shared.ts': lines(12, 'shared') }); // merged before the lanes fork
   const first = lane(1, 'feat/x/104-d');
   const second = lane(2, 'feat/x/105-e');
@@ -155,7 +155,7 @@ test('a file two working lanes touch names the other lane; a merged slice is nev
   writeFileSync(join(second, 'shared.ts'), lines(13, 'shared'));
   writeFileSync(join(third, 'renamed.ts'), lines(2, 'other'));
 
-  const sections = Object.fromEntries(filesOf(db, repos, 'AshuLab/a', 1)!.sections.map((s) => [s.id, s]));
+  const sections = Object.fromEntries((await filesOf(db, repos, 'AshuLab/a', 1))!.sections.map((s) => [s.id, s]));
   const also = (section: string) => Object.fromEntries(sections[section]!.files.map((f) => [f.path, f.alsoIn]));
   expect(also('lane-1')).toEqual({ 'base.ts': ['lane-2'], 'renamed.ts': ['lane-3'], 'shared.ts': ['lane-2'] });
   expect(also('lane-2')).toEqual({ 'base.ts': ['lane-1'], 'shared.ts': ['lane-1'] });
@@ -163,28 +163,28 @@ test('a file two working lanes touch names the other lane; a merged slice is nev
   expect(also('slice-101')).toEqual({ 'shared.ts': [] }); // merged work is never flagged, and never named in a lane
 });
 
-test('an unknown epic is null; a missing, unset or unlisted worktree gives no sections and no error', () => {
-  expect(filesOf(db, repos, 'AshuLab/a', 1)).toBeNull();
+test('an unknown epic is null; a missing, unset or unlisted worktree gives no sections and no error', async () => {
+  expect(await filesOf(db, repos, 'AshuLab/a', 1)).toBeNull();
   const empty = { sections: [], total: null, truncated: false };
   const id = epicRow(join(root, 'worktrees', 'a', 'gone'));
-  expect(filesOf(db, repos, 'AshuLab/a', 1)).toEqual(empty);
+  expect(await filesOf(db, repos, 'AshuLab/a', 1)).toEqual(empty);
   db.update(epics).set({ workspace: null }).run();
-  expect(filesOf(db, repos, 'AshuLab/a', 1)).toEqual(empty);
+  expect(await filesOf(db, repos, 'AshuLab/a', 1)).toEqual(empty);
   // a real repository inside the engine's reach, but git does not list it for the clone: never inspected
   const unlisted = join(root, 'worktrees', 'a', 'unlisted');
   execFileSync('git', ['init', '-q', '-b', 'main', unlisted]);
   db.update(epics).set({ workspace: unlisted }).where(eq(epics.id, id)).run();
-  expect(filesOf(db, repos, 'AshuLab/a', 1)).toEqual(empty);
+  expect(await filesOf(db, repos, 'AshuLab/a', 1)).toEqual(empty);
   // nor through a link that leads to it
   symlinkSync(unlisted, join(root, 'worktrees', 'a', 'link'));
   db.update(epics).set({ workspace: join(root, 'worktrees', 'a', 'link') }).where(eq(epics.id, id)).run();
-  expect(filesOf(db, repos, 'AshuLab/a', 1)).toEqual(empty);
+  expect(await filesOf(db, repos, 'AshuLab/a', 1)).toEqual(empty);
   // a repo with no clone yet
   db.update(epics).set({ workspace: epic }).where(eq(epics.id, id)).run();
-  expect(filesOf(db, join(root, 'no-clones'), 'AshuLab/a', 1)).toEqual(empty);
+  expect(await filesOf(db, join(root, 'no-clones'), 'AshuLab/a', 1)).toEqual(empty);
 });
 
-test('a worktree git lists outside the engine folder is read, with its lanes and merged slices; a link is compared by its real path', () => {
+test('a worktree git lists outside the engine folder is read, with its lanes and merged slices; a link is compared by its real path', async () => {
   const outside = realpathSync(mkdtempSync(join(tmpdir(), 'carrier-outside-')));
   const listed = join(outside, 'x');
   git(clone, 'worktree', 'add', '-q', '-b', 'feat/y/epic', listed, 'main');
@@ -199,37 +199,37 @@ test('a worktree git lists outside the engine folder is read, with its lanes and
   git(clone, 'worktree', 'add', '-q', '-b', 'feat/y/102-t', work, 'feat/y/epic');
   writeFileSync(join(work, 'b.ts'), lines(3, 'b'));
 
-  const ids = () => filesOf(db, repos, 'AshuLab/a', 1)!.sections.map((s) => s.id);
-  expect(ids()).toEqual(['lane-1', 'slice-101']);
-  expect(filesOf(db, repos, 'AshuLab/a', 1)!.sections[0]).toMatchObject({ added: 3, files: [{ path: 'b.ts' }] });
+  const ids = async () => (await filesOf(db, repos, 'AshuLab/a', 1))!.sections.map((s) => s.id);
+  expect(await ids()).toEqual(['lane-1', 'slice-101']);
+  expect((await filesOf(db, repos, 'AshuLab/a', 1))!.sections[0]).toMatchObject({ added: 3, files: [{ path: 'b.ts' }] });
   // reached through a symlink whose real path is the listed one
   symlinkSync(listed, join(root, 'link'));
   db.update(epics).set({ workspace: join(root, 'link') }).where(eq(epics.id, id)).run();
-  expect(ids()).toEqual(['lane-1', 'slice-101']);
+  expect(await ids()).toEqual(['lane-1', 'slice-101']);
   // a link to a folder git does not list is refused, even when it is a worktree of the same repository on disk
   rmSync(join(root, 'link'));
   symlinkSync(outside, join(root, 'link'));
-  expect(ids()).toEqual([]);
+  expect(await ids()).toEqual([]);
   // a listed worktree deleted from disk answers none and does not fail
   db.update(epics).set({ workspace: listed }).where(eq(epics.id, id)).run();
   rmSync(outside, { recursive: true, force: true });
-  expect(filesOf(db, repos, 'AshuLab/a', 1)).toEqual({ sections: [], total: null, truncated: false });
+  expect(await filesOf(db, repos, 'AshuLab/a', 1)).toEqual({ sections: [], total: null, truncated: false });
 });
 
-test('a lane is only found beside the epic worktree, named after it', () => {
+test('a lane is only found beside the epic worktree, named after it', async () => {
   epicRow();
   const elsewhere = join(root, 'elsewhere--lane-1');
   git(clone, 'worktree', 'add', '-q', '-b', 'feat/x/106-f', elsewhere, BRANCH);
   writeFileSync(join(elsewhere, 'f.ts'), lines(2, 'f'));
   git(clone, 'worktree', 'add', '-q', '-b', 'feat/x/107-g', join(root, 'worktrees', 'a', 'x--lane-one'), BRANCH);
-  expect(filesOf(db, repos, 'AshuLab/a', 1)!.sections).toEqual([]);
+  expect((await filesOf(db, repos, 'AshuLab/a', 1))!.sections).toEqual([]);
 });
 
-test('a diff of thousands of files is cut and says so, while the numbers still count every file', () => {
+test('a diff of thousands of files is cut and says so, while the numbers still count every file', async () => {
   const files = Object.fromEntries(Array.from({ length: 3_000 }, (_, i) => [`f${i}.txt`, 'one\n']));
   slice(101, 201, files);
   epicRow();
-  const reply = filesOf(db, repos, 'AshuLab/a', 1)!;
+  const reply = (await filesOf(db, repos, 'AshuLab/a', 1))!;
   expect(reply.truncated).toBe(true);
   expect(reply.sections).toHaveLength(1);
   expect(reply.sections[0]!.files).toHaveLength(MAX_FILES_PER_SECTION);
@@ -249,13 +249,13 @@ function fixRound(epicId: number, files: Record<string, string>) {
 }
 const diffOf = (section: string, path: string) => fileDiff(db, repos, 'AshuLab/a', 1, section, path);
 
-test('fileDiff answers the hunks of a merged slice and of a fix round, with an @ row before each and three lines of context', () => {
+test('fileDiff answers the hunks of a merged slice and of a fix round, with an @ row before each and three lines of context', async () => {
   slice(101, 201, { 'shared.ts': lines(10, 'shared').replace('shared1\n', 'one\n').replace('shared9\n', 'nine\nten\n'), 'a.ts': lines(2, 'a') });
   const id = epicRow();
   const fixId = fixRound(id, { 'base.ts': lines(10, 'base').replace('base5\n', '') });
 
   const ctx = (...names: string[]) => names.map((text) => ({ sign: ' ', text }));
-  expect(diffOf('slice-101', 'shared.ts')).toEqual({
+  expect(await diffOf('slice-101', 'shared.ts')).toEqual({
     rows: [
       { sign: '@', text: '@@ -1,5 +1,5 @@' }, ...ctx('shared0'), { sign: '-', text: 'shared1' }, { sign: '+', text: 'one' }, ...ctx('shared2', 'shared3', 'shared4'),
       { sign: '@', text: '@@ -7,4 +7,5 @@' }, ...ctx('shared6', 'shared7', 'shared8'), { sign: '-', text: 'shared9' }, { sign: '+', text: 'nine' }, { sign: '+', text: 'ten' },
@@ -263,19 +263,19 @@ test('fileDiff answers the hunks of a merged slice and of a fix round, with an @
     truncated: false,
     note: null,
   });
-  expect(diffOf('slice-101', 'a.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -0,0 +1,2 @@' }, { sign: '+', text: 'a0' }, { sign: '+', text: 'a1' }], truncated: false, note: null });
-  expect(diffOf(fixId, 'base.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -3,7 +3,6 @@' }, ...ctx('base2', 'base3', 'base4'), { sign: '-', text: 'base5' }, ...ctx('base6', 'base7', 'base8')], truncated: false, note: null });
+  expect(await diffOf('slice-101', 'a.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -0,0 +1,2 @@' }, { sign: '+', text: 'a0' }, { sign: '+', text: 'a1' }], truncated: false, note: null });
+  expect(await diffOf(fixId, 'base.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -3,7 +3,6 @@' }, ...ctx('base2', 'base3', 'base4'), { sign: '-', text: 'base5' }, ...ctx('base6', 'base7', 'base8')], truncated: false, note: null });
 
   // the rows add up to the numbers `files` reports for the same card and file
-  for (const section of filesOf(db, repos, 'AshuLab/a', 1)!.sections) {
+  for (const section of (await filesOf(db, repos, 'AshuLab/a', 1))!.sections) {
     for (const file of section.files) {
-      const rows = diffOf(section.id, file.path)!.rows;
+      const rows = (await diffOf(section.id, file.path))!.rows;
       expect([rows.filter((r) => r.sign === '+').length, rows.filter((r) => r.sign === '-').length]).toEqual([file.added, file.removed]);
     }
   }
 });
 
-test('a binary file, a diff past the byte cap, and a diff past the row caps', () => {
+test('a binary file, a diff past the byte cap, and a diff past the row caps', async () => {
   slice(101, 201, {
     'image.png': 'PNG\0\x01\x02',
     'big.txt': `${'y'.repeat(99)}\n`.repeat(50_000), // 5 MB
@@ -283,33 +283,33 @@ test('a binary file, a diff past the byte cap, and a diff past the row caps', ()
     'wide.txt': `${'w'.repeat(MAX_LINE + 50)}\n`,
   });
   epicRow();
-  expect(diffOf('slice-101', 'image.png')).toEqual({ rows: [], truncated: false, note: 'binary' });
+  expect(await diffOf('slice-101', 'image.png')).toEqual({ rows: [], truncated: false, note: 'binary' });
   // a tracked diff past the byte cap opens at its first rows and says it was cut
-  const big = diffOf('slice-101', 'big.txt')!;
+  const big = (await diffOf('slice-101', 'big.txt'))!;
   expect(big).toMatchObject({ truncated: true, note: null });
   expect(big.rows).toHaveLength(MAX_DIFF_ROWS);
   expect(big.rows[0]).toEqual({ sign: '@', text: '@@ -0,0 +1,50000 @@' });
   expect(big.rows[1]).toEqual({ sign: '+', text: 'y'.repeat(99) });
-  const long = diffOf('slice-101', 'long.txt')!;
+  const long = (await diffOf('slice-101', 'long.txt'))!;
   expect(long).toMatchObject({ truncated: true, note: null });
   expect(long.rows).toHaveLength(MAX_DIFF_ROWS);
-  const wide = diffOf('slice-101', 'wide.txt')!;
+  const wide = (await diffOf('slice-101', 'wide.txt'))!;
   expect(wide).toMatchObject({ truncated: true, note: null });
   expect(wide.rows[1]!.text).toHaveLength(MAX_LINE);
 });
 
-test('a file whose diff over the range is empty says it has no changes', () => {
+test('a file whose diff over the range is empty says it has no changes', async () => {
   const id = epicRow();
   const reviewed = git(epic, 'rev-parse', 'HEAD');
   chmodSync(join(epic, 'base.ts'), 0o755);
   git(epic, 'commit', '-q', '-am', 'fix: executable');
   run(id, 'review', reviewed, 1);
   const fixId = run(id, 'fix', git(epic, 'rev-parse', 'HEAD'), 1);
-  expect(filesOf(db, repos, 'AshuLab/a', 1)!.sections[0]!.files).toEqual([{ path: 'base.ts', added: 0, removed: 0, alsoIn: [] }]);
-  expect(diffOf(fixId, 'base.ts')).toEqual({ rows: [], truncated: false, note: 'no-changes' });
+  expect((await filesOf(db, repos, 'AshuLab/a', 1))!.sections[0]!.files).toEqual([{ path: 'base.ts', added: 0, removed: 0, alsoIn: [] }]);
+  expect(await diffOf(fixId, 'base.ts')).toEqual({ rows: [], truncated: false, note: 'no-changes' });
 });
 
-test('the diff is redacted as a whole before it is split into rows: no secret survives, a key block across lines included', () => {
+test('the diff is redacted as a whole before it is split into rows: no secret survives, a key block across lines included', async () => {
   const secrets = [
     'ghp_abcdefghijklmnopqrstuvwxyz0123456789',
     'github_pat_11ABCDEFG0123456789_abcdefghijklmnop',
@@ -336,14 +336,14 @@ test('the diff is redacted as a whole before it is split into rows: no secret su
   ].join('\n') + '\n';
   slice(101, 201, { 'secrets.txt': text });
   epicRow();
-  const reply = diffOf('slice-101', 'secrets.txt')!;
+  const reply = (await diffOf('slice-101', 'secrets.txt'))!;
   const all = JSON.stringify(reply);
   for (const secret of secrets) expect(all).not.toContain(secret);
   expect(reply.rows.at(-1)).toEqual({ sign: '+', text: 'after' });
   expect(reply.rows.some((r) => r.text === '[redacted]')).toBe(true);
 });
 
-test('a lane answers its own range, uncommitted work and untracked files included: the rows add up to what files counts, and a file two lanes edit answers each lane\'s own lines', () => {
+test('a lane answers its own range, uncommitted work and untracked files included: the rows add up to what files counts, and a file two lanes edit answers each lane\'s own lines', async () => {
   const first = lane(1, 'feat/x/104-d');
   const second = lane(2, 'feat/x/105-e');
   epicRow();
@@ -360,26 +360,26 @@ test('a lane answers its own range, uncommitted work and untracked files include
   writeFileSync(join(first, 'nul.bin'), 'a\0b\n');
 
   const ctx = (...names: string[]) => names.map((text) => ({ sign: ' ', text }));
-  expect(diffOf('lane-1', 'shared.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -1,5 +1,5 @@' }, ...ctx('shared0'), { sign: '-', text: 'shared1' }, { sign: '+', text: 'one' }, ...ctx('shared2', 'shared3', 'shared4')], truncated: false, note: null });
-  expect(diffOf('lane-2', 'shared.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -6,5 +6,4 @@' }, ...ctx('shared5', 'shared6', 'shared7'), { sign: '-', text: 'shared8' }, ...ctx('shared9')], truncated: false, note: null });
-  expect(diffOf('lane-1', 'd.ts')!.rows).toEqual([{ sign: '@', text: '@@ -0,0 +1,2 @@' }, { sign: '+', text: 'd0' }, { sign: '+', text: 'd1' }]);
-  expect(diffOf('lane-1', 'new.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -0,0 +1,3 @@' }, { sign: '+', text: 'n0' }, { sign: '+', text: 'n1' }, { sign: '+', text: 'n2' }], truncated: false, note: null });
-  expect(diffOf('lane-1', 'link.ts')).toEqual({ rows: [], truncated: false, note: 'binary' });
-  expect(diffOf('lane-1', 'huge.txt')).toEqual({ rows: [], truncated: false, note: 'too-big' });
-  expect(diffOf('lane-1', 'nul.bin')).toEqual({ rows: [], truncated: false, note: 'binary' });
-  expect(diffOf('lane-2', 'new.ts')).toBeNull(); // another lane's file
+  expect(await diffOf('lane-1', 'shared.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -1,5 +1,5 @@' }, ...ctx('shared0'), { sign: '-', text: 'shared1' }, { sign: '+', text: 'one' }, ...ctx('shared2', 'shared3', 'shared4')], truncated: false, note: null });
+  expect(await diffOf('lane-2', 'shared.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -6,5 +6,4 @@' }, ...ctx('shared5', 'shared6', 'shared7'), { sign: '-', text: 'shared8' }, ...ctx('shared9')], truncated: false, note: null });
+  expect((await diffOf('lane-1', 'd.ts'))!.rows).toEqual([{ sign: '@', text: '@@ -0,0 +1,2 @@' }, { sign: '+', text: 'd0' }, { sign: '+', text: 'd1' }]);
+  expect(await diffOf('lane-1', 'new.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -0,0 +1,3 @@' }, { sign: '+', text: 'n0' }, { sign: '+', text: 'n1' }, { sign: '+', text: 'n2' }], truncated: false, note: null });
+  expect(await diffOf('lane-1', 'link.ts')).toEqual({ rows: [], truncated: false, note: 'binary' });
+  expect(await diffOf('lane-1', 'huge.txt')).toEqual({ rows: [], truncated: false, note: 'too-big' });
+  expect(await diffOf('lane-1', 'nul.bin')).toEqual({ rows: [], truncated: false, note: 'binary' });
+  expect(await diffOf('lane-2', 'new.ts')).toBeNull(); // another lane's file
 
-  const sections = filesOf(db, repos, 'AshuLab/a', 1)!.sections;
+  const sections = (await filesOf(db, repos, 'AshuLab/a', 1))!.sections;
   expect(sections.map((s) => [s.id, s.files.map((f) => f.path).sort()])).toEqual([['lane-1', ['d.ts', 'huge.txt', 'link.ts', 'new.ts', 'nul.bin', 'shared.ts']], ['lane-2', ['shared.ts']]]);
   for (const section of sections) {
     for (const file of section.files) {
-      const rows = diffOf(section.id, file.path)!.rows;
+      const rows = (await diffOf(section.id, file.path))!.rows;
       expect([rows.filter((r) => r.sign === '+').length, rows.filter((r) => r.sign === '-').length]).toEqual([file.added, file.removed]);
     }
   }
 });
 
-test('a lane\'s worktree is read without the clean filter or the fsmonitor hook the repository configures', () => {
+test('a lane\'s worktree is read without the clean filter or the fsmonitor hook the repository configures', async () => {
   const marker = join(root, 'marker');
   const tool = join(root, 'tool.sh');
   writeFileSync(tool, `#!/bin/sh\ntouch '${marker}'\ncat\n`);
@@ -392,27 +392,27 @@ test('a lane\'s worktree is read without the clean filter or the fsmonitor hook 
   writeFileSync(join(git(work, 'rev-parse', '--git-common-dir'), 'info', 'attributes'), '* filter=evil\n*.ts filter=odd.name\n');
   epicRow();
   writeFileSync(join(work, 'base.ts'), lines(11, 'base'));
-  expect(filesOf(db, repos, 'AshuLab/a', 1)!.sections[0]!.files.map((f) => f.path)).toEqual(['base.ts']);
-  expect(diffOf('lane-1', 'base.ts')!.rows.filter((r) => r.sign === '+')).toEqual([{ sign: '+', text: 'base10' }]);
+  expect((await filesOf(db, repos, 'AshuLab/a', 1))!.sections[0]!.files.map((f) => f.path)).toEqual(['base.ts']);
+  expect((await diffOf('lane-1', 'base.ts'))!.rows.filter((r) => r.sign === '+')).toEqual([{ sign: '+', text: 'base10' }]);
   expect(existsSync(marker)).toBe(false);
 });
 
-test('an unknown epic, card, or a path not in the card\'s own list is null, a pathspec or a .. or a NUL byte included', () => {
+test('an unknown epic, card, or a path not in the card\'s own list is null, a pathspec or a .. or a NUL byte included', async () => {
   slice(101, 201, { 'a.ts': lines(2, 'a'), ':(glob)x': 'odd\n' });
-  expect(diffOf('slice-101', 'a.ts')).toBeNull(); // no epic row yet
+  expect(await diffOf('slice-101', 'a.ts')).toBeNull(); // no epic row yet
   epicRow();
   const work = lane(1, 'feat/x/104-d');
   writeFileSync(join(work, 'a.ts'), lines(3, 'a'));
-  expect(filesOf(db, repos, 'AshuLab/a', 1)!.sections.map((s) => s.id)).toEqual(['lane-1', 'slice-101']);
-  expect(diffOf('lane-1', 'a.ts')!.rows.filter((r) => r.sign === '+')).toEqual([{ sign: '+', text: 'a2' }]);
-  for (const path of ['base.ts', ':(glob)*', '*', 'b/../a.ts', '../a.ts', 'a.ts\0', ':(top)a.ts']) expect(diffOf('lane-1', path)).toBeNull();
-  expect(diffOf('slice-999', 'a.ts')).toBeNull();
-  for (const path of ['base.ts', ':(glob)*', '*', 'b/../a.ts', '../a.ts', 'a.ts\0', '\0', ':(top)a.ts', 'A.TS']) expect(diffOf('slice-101', path)).toBeNull();
+  expect((await filesOf(db, repos, 'AshuLab/a', 1))!.sections.map((s) => s.id)).toEqual(['lane-1', 'slice-101']);
+  expect((await diffOf('lane-1', 'a.ts'))!.rows.filter((r) => r.sign === '+')).toEqual([{ sign: '+', text: 'a2' }]);
+  for (const path of ['base.ts', ':(glob)*', '*', 'b/../a.ts', '../a.ts', 'a.ts\0', ':(top)a.ts']) expect(await diffOf('lane-1', path)).toBeNull();
+  expect(await diffOf('slice-999', 'a.ts')).toBeNull();
+  for (const path of ['base.ts', ':(glob)*', '*', 'b/../a.ts', '../a.ts', 'a.ts\0', '\0', ':(top)a.ts', 'A.TS']) expect(await diffOf('slice-101', path)).toBeNull();
   // a file whose name looks like a pathspec is itself in the list, and is read literally
-  expect(diffOf('slice-101', ':(glob)x')!.rows).toEqual([{ sign: '@', text: '@@ -0,0 +1 @@' }, { sign: '+', text: 'odd' }]);
+  expect((await diffOf('slice-101', ':(glob)x'))!.rows).toEqual([{ sign: '@', text: '@@ -0,0 +1 @@' }, { sign: '+', text: 'odd' }]);
 });
 
-test('a diff driver or textconv the repository configures never runs', () => {
+test('a diff driver or textconv the repository configures never runs', async () => {
   const marker = join(root, 'marker');
   const tool = join(root, 'tool.sh');
   writeFileSync(tool, `#!/bin/sh\ntouch '${marker}'\ncat "$1" 2>/dev/null\n`);
@@ -422,7 +422,59 @@ test('a diff driver or textconv the repository configures never runs', () => {
   git(epic, 'config', 'diff.external', tool);
   slice(101, 201, { '.gitattributes': '* diff=evil\n', 'a.ts': lines(2, 'a') });
   epicRow();
-  expect(filesOf(db, repos, 'AshuLab/a', 1)!.sections[0]!.files.map((f) => f.path)).toEqual(['.gitattributes', 'a.ts']);
-  expect(diffOf('slice-101', 'a.ts')!.rows).toHaveLength(3);
+  expect((await filesOf(db, repos, 'AshuLab/a', 1))!.sections[0]!.files.map((f) => f.path)).toEqual(['.gitattributes', 'a.ts']);
+  expect((await diffOf('slice-101', 'a.ts'))!.rows).toHaveLength(3);
   expect(existsSync(marker)).toBe(false);
+});
+
+test('the event loop turns while files and a diff wait for git', async () => {
+  for (const [n, pr] of [[101, 201], [102, 202], [103, 203]] as const) slice(n, pr, { [`s${n}.ts`]: lines(5, 's') });
+  epicRow();
+  // the turns counted at the moment the answer arrives: a synchronous git answers before any timer had its turn
+  let turns = 0;
+  const tick = setInterval(() => turns++, 0);
+  const turnsDuring = async <T>(work: Promise<T>) => {
+    turns = 0;
+    const value = await work;
+    return { value, turns };
+  };
+  const files = await turnsDuring(filesOf(db, repos, 'AshuLab/a', 1));
+  const diff = await turnsDuring(diffOf('slice-101', 's101.ts'));
+  clearInterval(tick);
+  expect(files.value!.sections).toHaveLength(3);
+  expect(files.turns).toBeGreaterThan(0);
+  expect(diff.value!.rows.length).toBeGreaterThan(0);
+  expect(diff.turns).toBeGreaterThan(0);
+});
+
+test('the cards of an epic are read once inside the memo window, once for two requests at once, and again after it', async () => {
+  let now = 1_000;
+  const memo = cardsMemo(() => now);
+  slice(101, 201, { 'a.ts': lines(2, 'a') });
+  epicRow();
+  const ids = async () => (await filesOf(db, repos, 'AshuLab/a', 1, undefined, memo))!.sections.map((s) => s.id);
+  expect(await ids()).toEqual(['slice-101']);
+  slice(102, 202, { 'b.ts': lines(2, 'b') });
+  expect(await ids()).toEqual(['slice-101']); // the memo still has the cards of the first read
+  expect((await fileDiff(db, repos, 'AshuLab/a', 1, 'slice-101', 'a.ts', memo))!.rows).toHaveLength(3);
+  now += 5_000;
+  expect(await ids()).toEqual(['slice-102', 'slice-101']);
+  // without a memo, every request reads again
+  slice(103, 203, { 'c.ts': lines(2, 'c') });
+  expect(await filesOf(db, repos, 'AshuLab/a', 1).then((r) => r!.sections.map((s) => s.id))).toEqual(['slice-103', 'slice-102', 'slice-101']);
+});
+
+test('cardsMemo: one read for two at once, a read apart per key, and a failed read is not kept', async () => {
+  let now = 0;
+  const memo = cardsMemo(() => now);
+  let reads = 0;
+  const read = async () => ++reads;
+  expect(await Promise.all([memo('a', read), memo('a', read)])).toEqual([1, 1]);
+  expect(await memo('b', read)).toBe(2);
+  now = 4_999;
+  expect(await memo('a', read)).toBe(1);
+  now = 5_000;
+  expect(await memo('a', read)).toBe(3);
+  await expect(memo('f', () => Promise.reject(new Error('git failed')))).rejects.toThrow('git failed');
+  expect(await memo('f', read)).toBe(4);
 });

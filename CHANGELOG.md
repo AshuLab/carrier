@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The dictation shortcut in the draft of a new session, before it starts, dictates into its message box as it does in an open session; it used to open the widget.
+
 ### Changed
 
 - An open session no longer asks the chat host for the whole list of sessions at each read: the reply of its events already says whether it runs and what it waits for. With 100 sessions that is 74 KB less to build and parse at each read (about 19 ms of the host), four times a second while the agent works, and one request less per read (two for an archived session).

@@ -233,7 +233,7 @@ private struct SessionHomeRow: View {
     var body: some View {
         let active = hovered || highlighted
         HStack(alignment: .top, spacing: 12) {
-            ProjectIcon(base: row.base, working: row.isWorking, background: row.isWorking && row.state != .working)
+            ProjectIcon(base: row.base, name: row.workspace, colorKey: projectColorKey(row.base), working: row.isWorking, background: row.isWorking && row.state != .working)
                 .environment(\.rowActive, active)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {

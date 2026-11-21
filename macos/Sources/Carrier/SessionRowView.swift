@@ -122,7 +122,8 @@ struct SessionRowView: View {
         HStack(alignment: .top, spacing: SidebarMetrics.inset) {
             if content.showsIcon {
                 ProjectIcon(
-                    base: row.base, working: row.isWorking, background: row.isWorking && row.state != .working, finished: ringKept && !row.isWorking
+                    base: row.base, name: row.workspace, colorKey: projectColorKey(row.base), working: row.isWorking, background: row.isWorking && row.state != .working,
+                    finished: ringKept && !row.isWorking
                 )
             }
             VStack(alignment: .leading, spacing: roomy ? density.sessionLineGap : SidebarMetrics.lineGap) {
@@ -315,18 +316,15 @@ struct ProjectIcon: View {
         self.finished = finished
     }
 
-    /// The icon of the project whose folder is `base`: what the person set on it, else as any folder's.
-    @MainActor init(base: String, working: Bool = false, background: Bool = false, finished: Bool = false) {
-        self.init(tile: projectIdentity(path: base, in: ProjectsModel.shared.rows).tile, working: working, background: background, finished: finished)
+    /// The icon of the project whose folder is `base`: what the person set on it, else made from `name` and `colorKey` as it was before projects.
+    @MainActor init(base: String, name: String, colorKey: String, working: Bool = false, background: Bool = false, finished: Bool = false) {
+        let tile = projectTile(path: base, in: ProjectsModel.shared.rows, fallback: projectTile(name: name, colorKey: colorKey))
+        self.init(tile: tile, working: working, background: background, finished: finished)
     }
 
-    /// The icon of an epic's repository `owner/name`: its project's when one has it as its `origin`, else as before, made from `name`.
-    @MainActor init(repo: String, name: String, working: Bool = false) {
-        if let project = projectIdentity(repo: repo, in: ProjectsModel.shared.rows) {
-            self.init(tile: project.tile, working: working)
-        } else {
-            self.init(name: name, colorKey: projectColorKey(repo), working: working)
-        }
+    /// The icon of an epic's repository `owner/name`: its project's when one has it as its `origin`, else made from `name` and `colorKey` as it was before projects.
+    @MainActor init(repo: String, name: String, colorKey: String, working: Bool = false) {
+        self.init(tile: projectTile(repo: repo, in: ProjectsModel.shared.rows, fallback: projectTile(name: name, colorKey: colorKey)), working: working)
     }
 
     private var hashedIndex: Int?

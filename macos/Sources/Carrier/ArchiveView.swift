@@ -142,7 +142,7 @@ private struct ArchiveRow: View {
     var body: some View {
         let active = hovered || actionsFocused
         HStack(alignment: .top, spacing: 12) {
-            ProjectIcon(base: row.base).environment(\.rowActive, active)
+            ProjectIcon(base: row.base, name: row.workspace, colorKey: projectColorKey(row.base)).environment(\.rowActive, active)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)

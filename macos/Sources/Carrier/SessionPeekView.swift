@@ -29,7 +29,7 @@ struct SessionPeekView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
-                ProjectIcon(base: card.base, working: card.tone == .working || card.tone == .background, background: card.tone == .background)
+                ProjectIcon(base: card.base, name: card.name, colorKey: projectColorKey(card.name), working: card.tone == .working || card.tone == .background, background: card.tone == .background)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(card.title).font(.scaled(14, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(card.subtitle).font(SidebarMetrics.detail).fontWeight(card.tone == .quiet ? .regular : .medium).foregroundStyle(tone)

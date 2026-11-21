@@ -68,3 +68,16 @@ private func projectRowList(_ json: String) throws -> [ProjectRow] {
     #expect(projectIdentity(repo: "acme/other", in: projects) == nil)
     #expect(projectIdentity(repo: "acme/app", in: []) == nil)
 }
+
+@Test func whatIsNotAProjectDrawsWithTheTileItHadBeforeProjects() throws {
+    let projects = try projectRowList(#"{"projects":[{"path":"/a/app","origin":"added","name":"The App","icon":{"color":"blue"}}]}"#)
+    // an epic's repository with no project: the colour comes from the name the card shows, as before
+    let epic = projectTile(name: "widgets", colorKey: projectColorKey("widgets"))
+    #expect(projectTile(repo: "acme/other-repo", in: projects, fallback: epic) == epic)
+    #expect(projectTile(repo: "acme/other-repo", in: projects, fallback: epic) != projectTile(name: "widgets", colorKey: projectColorKey("acme/other-repo")))
+    #expect(projectTile(repo: "acme/app", in: projects, fallback: epic).name == "The App")
+    // a session's folder that is not a project: the peek's colour comes from the card's name, not the folder
+    let peek = projectTile(name: "Name", colorKey: projectColorKey("Name"))
+    #expect(projectTile(path: "/elsewhere/folder", in: projects, fallback: peek) == peek)
+    #expect(projectTile(path: "/a/app", in: projects, fallback: peek).color == .named(.blue))
+}

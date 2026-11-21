@@ -88,6 +88,16 @@ public func projectIdentity(repo: String, in projects: [ProjectRow]) -> ProjectI
     projects.first { $0.repo?.caseInsensitiveCompare(repo) == .orderedSame }.map { ProjectIdentity(tile: $0.tile, title: $0.name) }
 }
 
+/// The tile of the project whose folder is `path`, else `fallback`: the tile the caller drew before projects, so what is not a project draws as it did.
+public func projectTile(path: String, in projects: [ProjectRow], fallback: ProjectTile) -> ProjectTile {
+    projects.first(where: { isSameFolder($0.path, path) })?.tile ?? fallback
+}
+
+/// The tile of the project whose `origin` is the GitHub repository `repo`, else `fallback`.
+public func projectTile(repo: String, in projects: [ProjectRow], fallback: ProjectTile) -> ProjectTile {
+    projectIdentity(repo: repo, in: projects)?.tile ?? fallback
+}
+
 /// Which of `count` colours a project has: the same one in every launch and for every session of it (`hashValue` is not, it changes
 /// at each launch). FNV-1a over the project's folder.
 public func projectColorIndex(_ folder: String, count: Int) -> Int {

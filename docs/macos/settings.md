@@ -33,6 +33,12 @@ What Carrier is missing (`carrier` or `node` not found, or being looked for) sho
 - About (`Carrier/AboutTab.swift`, last of the sidebar): the app's icon, name and version with the links of the About panel (`aboutLinks`: Release notes, Documentation, GitHub) and a row Star Carrier on GitHub with its button (it opens the repository, `repositoryURL`); Updates (Check now or the step of an update found, Check by itself, Install by itself and Update delay: None, 1, 3, 7, 14 or 30 days, `updates.delayDays`, `updateDelayChoices`); and the engine's own update with Try again.
 The delay holds back, for that many days after its date in the appcast, a release that Sparkle finds on its own (`UpdateDelay`, the updater's delegate, ending that check as "no update" and not as a failure, so the pill shows nothing); Check now and a critical update ignore it, and a release with no date is offered.
 
+## Chat text
+
+The Chat page's Conversation group has Message text size (11 to 20 pt, 13 by default), Line spacing (Tight, Normal, Loose) and Message spacing (Compact, Comfortable, Spacious: 8, 12 and 20 pt between messages), each apart from the app's Text size and Density (user defaults `chat.textSize`, `chat.lineSpacing` and `chat.messageSpacing`).
+Text size and Density in Appearance no longer reach the messages' text or the gap between them; the rest of a conversation (tool rows, times, notices, the fields of a structured report) still follows the app's Text size, and the command pills of the bubble keep their fixed size.
+The agent's answer (`MarkdownView`, its tables at 12.5/13 of the size, and its link hit areas, laid out again when a setting changes), the person's bubble and a subagent's brief read them through `.chatText()` (`ScaledFont.swift`); the two bubbles add no room between their lines at Normal, as before, and only what Loose has over it; the preview under the group follows each change, and Reset on the page restores them.
+
 ## Sessions page
 
 Settings has a Sessions page (`Carrier/SessionsTab.swift`, `SettingsPage.sessions`, in the Chat group after Sidebar, "How sessions start and age out") with everything a person sets about how a session starts, ages and is deleted; the Chat page keeps only the message box and the conversation.

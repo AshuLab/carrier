@@ -1,0 +1,80 @@
+{
+  "sessionId": "b4000000-0000-4000-8000-000000000002",
+  "events": [
+    {
+      "at": 1792000000000,
+      "kind": "user",
+      "text": "I am deciding how to name the folders of a new project. Do you prefer short names or descriptive ones?",
+      "id": 1
+    },
+    {
+      "at": 1792000004000,
+      "kind": "assistant",
+      "text": "Descriptive, as long as they stay short enough to read in one glance. A name like \"billing\" tells you what is inside and costs nothing to type, while \"b\" or \"module-2\" sends you to open the folder to find out.\n\nThe test I use: if someone new reads the list of folders with no explanation, can they guess where to look for a given piece of work? If yes, the names are good enough. If you find yourself writing a README just to explain the names, they are too short.",
+      "id": 2
+    },
+    {
+      "at": 1792000005000,
+      "kind": "turn_end",
+      "outcome": "ok",
+      "model": "claude-sonnet-5-5",
+      "usage": {
+        "input_tokens": 1200,
+        "output_tokens": 160,
+        "cache_read_input_tokens": 6000,
+        "context_tokens": 74000,
+        "context_window": 200000
+      },
+      "id": 3
+    }
+  ],
+  "cursor": 3,
+  "streaming": "",
+  "options": [
+    {
+      "id": "model",
+      "label": "Model",
+      "values": [
+        {
+          "id": "sonnet",
+          "label": "Sonnet"
+        },
+        {
+          "id": "opus",
+          "label": "Opus"
+        }
+      ],
+      "current": "sonnet"
+    },
+    {
+      "id": "effort",
+      "label": "Effort",
+      "values": [
+        {
+          "id": "medium",
+          "label": "Medium"
+        },
+        {
+          "id": "high",
+          "label": "High"
+        }
+      ],
+      "current": "high"
+    },
+    {
+      "id": "permissionMode",
+      "label": "Permissions",
+      "values": [
+        {
+          "id": "default",
+          "label": "Ask first"
+        },
+        {
+          "id": "acceptEdits",
+          "label": "Accept edits"
+        }
+      ],
+      "current": "default"
+    }
+  ]
+}

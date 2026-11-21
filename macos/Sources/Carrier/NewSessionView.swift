@@ -9,11 +9,15 @@ struct NewSessionView: View {
     /// Opens the Health tab of Settings.
     let openHealth: () -> Void
     let opened: (String) -> Void
+    /// The last shortcut that asked something of the box (focus it, dictate into it), as the conversation's.
+    var request: ConversationRequest?
     @State private var foldersOpen = false
     @State private var branchesOpen = false
     @State private var currentBranchOpen = false
     @State private var whereOpen = false
     @State private var boxFocused = false
+    /// The times the global shortcut asked the box to dictate.
+    @State private var dictations = 0
 
     var body: some View {
         VStack(spacing: 14) {
@@ -50,6 +54,13 @@ struct NewSessionView: View {
             await model.loadOptions()
         }
         .onAppear { boxFocused = true }
+        .onChange(of: request) {
+            switch request?.action {
+            case .focusBox: boxFocused = true
+            case .dictate: dictations += 1
+            default: break
+            }
+        }
         // the health arrives after the draft opened, or changes when the app comes back active: the provider follows what can be chosen
         // `git` goes missing while a worktree is chosen: back to the current folder
         .onChange(of: model.gitMissing) { Task { await model.useWorktree(false) } }
@@ -218,7 +229,7 @@ struct NewSessionView: View {
         MessageBox(
             text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
             canSend: model.canSend, canSendWithText: model.canSendWithText, sendHelp: model.canSend ? "Send" : model.hostOlder ? NewSessionModel.olderHostNotice : model.noAgentReason ?? "Choose a workspace and write a message",
-            focus: $boxFocused, commands: model.agentCommands, dictationOwner: "new-session", send: send
+            focus: $boxFocused, commands: model.agentCommands, dictationOwner: "new-session", dictateRequest: dictations, send: send
         ) {
             ComposerMenuButton(
                 providers: model.agents.map { ProviderTab(name: $0.name, icon: $0.harness, available: $0.available, note: $0.note) }, agent: model.agent ?? "",

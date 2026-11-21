@@ -18,7 +18,7 @@ struct ConversationView: View {
     /// Whether the feed has been taken to its end after it loaded: until then it is not drawn, so the way down is not seen.
     @State private var positioned = false
     @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
-    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    @AppStorage(AppPreferences.chatMessageSpacingKey) private var messageSpacing = AppPreferences.defaultChatMessageSpacing
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
     @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
     @State private var position = ScrollPosition()
@@ -94,7 +94,7 @@ struct ConversationView: View {
         // derived once per evaluation: the feed the tools' mode and the reasoning setting leave, with the closing lines folded into their messages
         let shown = foldingClosingLines(visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning))
         return ScrollView {
-            LazyVStack(alignment: .leading, spacing: density.messageGap) {
+            LazyVStack(alignment: .leading, spacing: messageSpacing.gap) {
                 if model.loaded {
                     if model.steps.isEmpty == false {
                         PreparationStepsView(steps: model.steps, preparation: model.preparation, refusal: model.preparationRefusal, retry: { Task { await model.retryPreparation() } }, cancel: {
@@ -358,7 +358,7 @@ struct FeedRowView: View {
                     .padding(.bottom, 3)
                 }
                 if sent.text.isEmpty == false {
-                    messageText(sent.text, commands: commands).textSelection(.enabled)
+                    messageText(sent.text, commands: commands).chatText(bubble: true).textSelection(.enabled)
                         .padding(.horizontal, 13).padding(.vertical, 8)
                         .chatSurface(.regular.tint(Color.themeAccent.opacity(0.1)), flat: Color.themeAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: 16))
                 }

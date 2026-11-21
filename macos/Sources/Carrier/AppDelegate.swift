@@ -201,31 +201,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// The chat sessions notify with the window closed, so they are read for the life of the app, beside the engine's monitor. A host
-    /// that does not answer (not started yet, or stopped) is not an event: the last list is kept and the next answer is compared to it.
+    /// that does not answer (not started yet, or stopped) is not an event: the link tells it once, and the last list is kept and the next answer is compared to it.
     private func watchChatSessions() {
         let host = SocketChatHost()
         Task.detached {
-            // a host that does not answer is asked less and less often (up to every 30 s), and the first miss after an answer is logged
-            var wait = PollPace.shared.seconds
-            var answering = true
-            while true {
-                do {
-                    let rows = sessionRows(try await host.list(archived: false))
-                    await MainActor.run {
-                        NotificationWatcher.app.react(toSessions: rows)
-                        StatusMenuGroups.shared.react(toSessions: rows)
-                        KeepAwakeController.shared.sessions(working: rows.filter(\.isWorking).count)
-                    }
-                    wait = PollPace.shared.seconds
-                    answering = true
-                } catch {
-                    if answering { NSLog("Carrier: the chat host does not answer, asking again in a while: %@", String(describing: error)) }
+            for await update in await host.sessionUpdates() {
+                guard update.stale == false else {
                     // a host that is not there works on nothing: its last list must not keep the Mac awake
                     await MainActor.run { KeepAwakeController.shared.sessions(working: 0) }
-                    answering = false
-                    wait = min(wait * 2, 30)
+                    continue
                 }
-                try? await Task.sleep(for: .seconds(wait))
+                let rows = sessionRows(update.active)
+                await MainActor.run {
+                    NotificationWatcher.app.react(toSessions: rows)
+                    StatusMenuGroups.shared.react(toSessions: rows)
+                    KeepAwakeController.shared.sessions(working: rows.filter(\.isWorking).count)
+                }
             }
         }
     }

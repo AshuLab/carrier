@@ -356,3 +356,30 @@ test('limited runs at most four jobs at once and finishes all of them, a rejecte
   expect(await Promise.all(results)).toEqual(['done', 'done', 'boom', 'done', 'done', 'boom', 'done', 'done', 'boom', 'done']);
   expect(running).toBe(0);
 });
+
+test('limited never lets a job slip in beside the four when one finishes and another is waiting', async () => {
+  let running = 0;
+  let peak = 0;
+  const gates: (() => void)[] = [];
+  const job = () =>
+    limited(async () => {
+      peak = Math.max(peak, ++running);
+      await new Promise<void>((open) => gates.push(open));
+      running--;
+    });
+  const all = Array.from({ length: 8 }, job);
+  await new Promise((resolve) => setImmediate(resolve));
+  // a job starts at every possible moment after one finished, the way a handler would in the same turn
+  for (let delay = 0; delay < 6; delay++) {
+    gates.shift()!();
+    for (let turn = 0; turn < delay; turn++) await Promise.resolve();
+    all.push(job());
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  while (gates.length > 0) {
+    gates.splice(0).forEach((open) => open());
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  await Promise.all(all);
+  expect(peak).toBe(4);
+});

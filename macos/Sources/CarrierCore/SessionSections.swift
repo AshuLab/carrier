@@ -592,13 +592,13 @@ public func sessionList(
 
 /// What the poller should ask for to fill this list: the events of the open running session (live) and, once, those of the
 /// finished ones shown (for their counts), and those of the older ones while their row is open.
-public func epicFocus(_ epic: EpicRef, running: Bool, data: EpicData?, folds: SessionFolds, filesShown: Bool = true) -> EpicFocus {
+public func epicFocus(_ epic: EpicRef, running: Bool, data: EpicData?, folds: SessionFolds, filesShown: Bool) -> EpicFocus {
     let list = sessionList(data?.sessions)
     return EpicFocus(
         epic: epic,
         epicRunning: running,
-        // the tab's count shows before the tab is opened, so the files are asked until a reply came; after that, only while the tab is on screen
-        filesTabVisible: filesShown || data?.files == nil,
+        // the tab's count shows before the tab is opened, so the files are asked until a reply with its totals came (an epic with no worktree yet has none); after that, only while the tab is on screen
+        filesTabVisible: filesShown || data?.files?.total == nil,
         transcript: list.sections.first { $0.state == .running && folds.isOpen($0) }?.id,
         // newest first: it is the one a person opens
         counting: list.sections.reversed().filter { $0.state != .running }.map(\.id)

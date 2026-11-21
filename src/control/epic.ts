@@ -59,13 +59,14 @@ const MAX_GIT = 4;
 let running = 0;
 const queue: (() => void)[] = [];
 export async function limited<T>(work: () => Promise<T>): Promise<T> {
-  if (running >= MAX_GIT) await new Promise<void>((go) => queue.push(go));
-  running++;
+  if (running >= MAX_GIT) await new Promise<void>((go) => queue.push(go)); // the slot is handed over: `running` stays as it was
+  else running++;
   try {
     return await work();
   } finally {
-    running--;
-    queue.shift()?.();
+    const next = queue.shift();
+    if (next === undefined) running--;
+    else next();
   }
 }
 

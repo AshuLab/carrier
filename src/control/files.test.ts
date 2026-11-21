@@ -478,3 +478,43 @@ test('cardsMemo: one read for two at once, a read apart per key, and a failed re
   await expect(memo('f', () => Promise.reject(new Error('git failed')))).rejects.toThrow('git failed');
   expect(await memo('f', read)).toBe(4);
 });
+
+test('a filter the repository configures after the cards were remembered is still not run', async () => {
+  const marker = join(root, 'marker');
+  const tool = join(root, 'tool.sh');
+  writeFileSync(tool, `#!/bin/sh\ntouch '${marker}'\ncat\n`);
+  chmodSync(tool, 0o755);
+  const work = lane(1, 'feat/x/104-d');
+  epicRow();
+  let now = 0;
+  const memo = cardsMemo(() => now);
+  writeFileSync(join(work, 'base.ts'), lines(11, 'base'));
+  expect((await filesOf(db, repos, 'AshuLab/a', 1, undefined, memo))!.sections[0]!.files.map((f) => f.path)).toEqual(['base.ts']);
+  // the agent's worktree gets a filter while the memo still holds the lane: the guard is worked out again for every request
+  git(work, 'config', 'filter.evil.clean', tool);
+  git(work, 'config', 'filter.evil.required', 'true');
+  writeFileSync(join(git(work, 'rev-parse', '--git-common-dir'), 'info', 'attributes'), '* filter=evil\n');
+  writeFileSync(join(work, 'base.ts'), lines(12, 'base'));
+  expect((await fileDiff(db, repos, 'AshuLab/a', 1, 'lane-1', 'base.ts', memo))!.rows.filter((r) => r.sign === '+')).toEqual([{ sign: '+', text: 'base10' }, { sign: '+', text: 'base11' }]);
+  expect((await filesOf(db, repos, 'AshuLab/a', 1, undefined, memo))!.sections[0]!.files.map((f) => f.path)).toEqual(['base.ts']);
+  expect(existsSync(marker)).toBe(false);
+});
+
+test('an epic whose worktree git did not list is not remembered as having none', async () => {
+  const memo = cardsMemo(() => 0);
+  slice(101, 201, { 'a.ts': lines(2, 'a') });
+  const id = epicRow(null);
+  expect(await filesOf(db, repos, 'AshuLab/a', 1, undefined, memo)).toEqual({ sections: [], total: null, truncated: false });
+  db.update(epics).set({ workspace: epic }).where(eq(epics.id, id)).run();
+  expect((await filesOf(db, repos, 'AshuLab/a', 1, undefined, memo))!.sections.map((s) => s.id)).toEqual(['slice-101']);
+});
+
+test('cardsMemo keeps only what the caller says is worth keeping', async () => {
+  const memo = cardsMemo(() => 0);
+  let reads = 0;
+  const read = async () => (++reads < 2 ? null : reads);
+  expect(await memo('k', read, (value) => value !== null)).toBeNull();
+  expect(await memo('k', read, (value) => value !== null)).toBe(2);
+  expect(await memo('k', read, (value) => value !== null)).toBe(2);
+  expect(reads).toBe(2);
+});

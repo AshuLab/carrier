@@ -118,7 +118,7 @@ function lanes(list: string, workspace: string): { lane: number; path: string }[
   }).sort((a, b) => a.lane - b.lane);
 }
 
-/** `guard` goes before every git command run in `cwd` (`guardOf`); empty where git only reads commits. */
+/** `guard` goes before every git command run in `cwd` (`guardOf`); empty where git only reads commits, and in a lane's card until `guarded`. */
 type Card = { id: string; kind: FilesReply['sections'][number]['kind']; title: string; cwd: string; range: string[]; guard: string[] };
 
 /**
@@ -160,9 +160,10 @@ async function cardsOf(db: Db, reposDir: string, repo: string, issue: number, ex
   }
 
   if (executionId === undefined) {
-    const found = await Promise.all(lanes(list, workspace).map(async ({ lane, path }) => ({ lane, path, fork: (await git(path, ['merge-base', head, 'HEAD']))?.trim(), guard: await guardOf(path) })));
-    for (const { lane, path, fork, guard } of found) {
-      if (fork) cards.push({ id: `lane-${lane}`, kind: 'lane', title: `Lane ${lane}`, cwd: path, range: [fork], guard });
+    const found = await Promise.all(lanes(list, workspace).map(async ({ lane, path }) => ({ lane, path, fork: (await git(path, ['merge-base', head, 'HEAD']))?.trim() })));
+    // a lane's guard is not part of the card: it is worked out for every request (`guarded`), never remembered
+    for (const { lane, path, fork } of found) {
+      if (fork) cards.push({ id: `lane-${lane}`, kind: 'lane', title: `Lane ${lane}`, cwd: path, range: [fork], guard: [] });
     }
     if (base !== null) {
       const merges = (await git(workspace, ['log', '--first-parent', '--merges', `--max-count=${MAX_SLICES}`, '--format=%H%x00%s', `${base}..${head}`])) ?? '';
@@ -182,22 +183,27 @@ async function cardsOf(db: Db, reposDir: string, repo: string, issue: number, ex
  * Remembers the cards of an epic for a few seconds, so the diff of each file a person opens does not rebuild them (a worktree list, the
  * refs, a merge-base and the config of every lane) and two requests at once wait for the same read. A read that fails is not kept.
  */
-export type CardsMemo = <T>(key: string, read: () => Promise<T>) => Promise<T>;
+export type CardsMemo = <T>(key: string, read: () => Promise<T>, keeps?: (value: T) => boolean) => Promise<T>;
 const MEMO_MS = 5_000;
 export function cardsMemo(now: () => number): CardsMemo {
   const kept = new Map<string, { at: number; cards: Promise<unknown> }>();
-  return <T>(key: string, read: () => Promise<T>) => {
+  return <T>(key: string, read: () => Promise<T>, keeps: (value: T) => boolean = () => true) => {
     const known = kept.get(key);
     if (known !== undefined && now() - known.at < MEMO_MS) return known.cards as Promise<T>;
     for (const [other, { at }] of kept) if (now() - at >= MEMO_MS) kept.delete(other); // the memo does not grow with every epic it ever saw
     const cards = read();
     kept.set(key, { at: now(), cards });
-    cards.catch(() => kept.get(key)?.cards === cards && kept.delete(key));
+    // not kept: a read that failed, and one the caller does not want kept (git answers null when it fails, and that is not a fact worth five seconds)
+    const forget = () => kept.get(key)?.cards === cards && kept.delete(key);
+    cards.then((value) => keeps(value) || forget(), forget);
     return cards;
   };
 }
 const cardsFor = (db: Db, reposDir: string, repo: string, issue: number, executionId: string | undefined, memo: CardsMemo | undefined) =>
-  memo === undefined || executionId !== undefined ? cardsOf(db, reposDir, repo, issue, executionId) : memo(`${repo}#${issue}`, () => cardsOf(db, reposDir, repo, issue));
+  memo === undefined || executionId !== undefined ? cardsOf(db, reposDir, repo, issue, executionId) : memo(`${repo}#${issue}`, () => cardsOf(db, reposDir, repo, issue), (found) => found !== null && found !== 'none');
+
+/** A lane's card with the guard of this moment: what a worktree's config says now, not what it said when the cards were remembered. */
+const guarded = async (card: Card): Promise<Card> => (card.kind === 'lane' ? { ...card, guard: await guardOf(card.cwd) } : card);
 
 /**
  * The files an epic changed, from git and never from GitHub: the lanes' work so far (against the fork point, uncommitted work included),
@@ -211,7 +217,8 @@ export async function filesOf(db: Db, reposDir: string, repo: string, issue: num
   if (found === null) return null;
   if (found === 'none') return { sections: [], total: null, truncated: false };
   const { workspace, head, base } = found;
-  const drafts = (await Promise.all(found.cards.map(async (card) => {
+  const drafts = (await Promise.all(found.cards.map(async (plain) => {
+    const card = await guarded(plain);
     const rows = await numstat(card);
     return rows === null ? [] : [{ ...card, rows: card.kind === 'lane' ? [...rows, ...(await untracked(card))] : rows }];
   }))).flat();
@@ -259,8 +266,9 @@ async function diffText({ cwd, range, guard }: Card, path: string): Promise<{ te
  */
 export async function fileDiff(db: Db, reposDir: string, repo: string, issue: number, section: string, path: string, memo?: CardsMemo): Promise<FileDiffReply | null> {
   const found = await cardsFor(db, reposDir, repo, issue, undefined, memo);
-  const card = found === null || found === 'none' ? undefined : found.cards.find((c) => c.id === section);
-  if (card === undefined || path.length > MAX_PATH) return null;
+  const listed = found === null || found === 'none' ? undefined : found.cards.find((c) => c.id === section);
+  if (listed === undefined || path.length > MAX_PATH) return null;
+  const card = await guarded(listed);
   let out: string;
   let cut = false;
   if ((await numstat(card))?.some((r) => r.path === path) === true) {

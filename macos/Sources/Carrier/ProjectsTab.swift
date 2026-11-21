@@ -18,9 +18,9 @@ struct ProjectsTabView: View {
         let chosen = place.path.first.flatMap { path in model.rows.first { $0.path == path } }
         SettingsPageBody {
             if model.problems.isEmpty {
-                if let failure = model.failure { ProblemLine(text: failure) }
                 if let chosen {
                     if showingActions {
+                        if let failure = model.failure { ProblemLine(text: failure) }
                         ProjectActionsView(
                             savedActions: chosen.actions,
                             save: { model.saveActions(path: chosen.path, actions: $0) }
@@ -30,6 +30,7 @@ struct ProjectsTabView: View {
                         projectScreen(chosen)
                     }
                 } else {
+                    if let failure = model.failure { ProblemLine(text: failure) }
                     list
                 }
             } else {

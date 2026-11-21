@@ -169,9 +169,13 @@ public func applyingProjectAdd(folder: String, to json: Data?) throws -> (outcom
 
 /// The file on disk.
 public struct ProjectsFile {
+    public let folder: String
     public let url: URL
 
-    public init(folder: String) { url = URL(fileURLWithPath: CarrierPlaces(folder: folder).projects) }
+    public init(folder: String) {
+        self.folder = folder
+        url = URL(fileURLWithPath: CarrierPlaces(folder: folder).projects)
+    }
 
     /// The file of the folder the app works with (`CARRIER_HOME`, else `~/.carrier`), looked up each time.
     public static func current() -> ProjectsFile { ProjectsFile(folder: currentCarrierFolder()) }

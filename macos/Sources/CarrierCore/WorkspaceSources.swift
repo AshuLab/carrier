@@ -51,16 +51,82 @@ public func projectsFolder(chatJSON: Data?, carrierFolder: String, home: String)
     return chosen.hasPrefix("~/") ? home + chosen.dropFirst() : chosen
 }
 
+private func realOfNearest(_ path: String) -> String {
+    let clean = (path as NSString).standardizingPath
+    if let resolved = realpath(clean, nil) {
+        let real = String(cString: resolved)
+        free(resolved)
+        return real
+    }
+    let ns = clean as NSString
+    let parent = ns.deletingLastPathComponent
+    if parent == clean || parent.isEmpty { return clean }
+    return (realOfNearest(parent) as NSString).appendingPathComponent(ns.lastPathComponent)
+}
+
+private func ownCarrierFolders(carrierFolder: String) -> [(name: String, path: String)] {
+    let places = CarrierPlaces(folder: realOfNearest(carrierFolder))
+    return [places.engine, places.chatState, places.chatLogs, places.chatWorktrees, places.chatPending, places.chatSessions].map { own in
+        (name: String(own.dropFirst(places.folder.count + 1)), path: own)
+    }
+}
+
 /// Why `folder` cannot be the projects folder, in words; nil when it can. The host's own rule (src/chat/folder.ts): an absolute path
-/// that is not the Carrier folder's `engine` or the chat's own `state`, `logs` or `worktrees`, or inside one, symlinks resolved.
+/// that is not the Carrier folder's `engine` or the chat's own `state`, `logs`, `worktrees`, `pending` or `sessions`, or inside one, symlinks resolved.
 public func projectsFolderRefusal(_ folder: String, carrierFolder: String) -> String? {
     guard folder.hasPrefix("/") else { return "The projects folder must be an absolute path" }
-    let real = URL(fileURLWithPath: folder).resolvingSymlinksInPath().path
-    let places = CarrierPlaces(folder: URL(fileURLWithPath: carrierFolder).resolvingSymlinksInPath().path)
-    for own in [places.engine, places.chatState, places.chatLogs, places.chatWorktrees] {
-        let name = String(own.dropFirst(places.folder.count + 1))
+    let real = realOfNearest(folder)
+    for (name, own) in ownCarrierFolders(carrierFolder: carrierFolder) {
         if real == own || real.hasPrefix(own + "/") { return "That folder is inside Carrier's own \(name) folder; the chat never works there" }
     }
+    return nil
+}
+
+/// Whether `folder` (an existing, readable real path) is inside a git worktree linked to another repository.
+private func isLinkedWorktree(_ folder: String) -> Bool {
+    var dir = folder
+    while true {
+        let dotGit = (dir as NSString).appendingPathComponent(".git")
+        var info = stat()
+        if stat(dotGit, &info) == 0 {
+            if (info.st_mode & S_IFMT) == S_IFDIR { return false }
+            guard (info.st_mode & S_IFMT) == S_IFREG,
+                  let text = try? String(contentsOfFile: dotGit, encoding: .utf8),
+                  let line = text.split(whereSeparator: \.isNewline).first(where: { $0.hasPrefix("gitdir:") })
+            else { return false }
+            let target = line.dropFirst("gitdir:".count).trimmingCharacters(in: .whitespaces)
+            guard target.isEmpty == false else { return false }
+            let gitDir = URL(fileURLWithPath: target, relativeTo: URL(fileURLWithPath: dir, isDirectory: true)).standardized.path
+            let commondir = (gitDir as NSString).appendingPathComponent("commondir")
+            guard let common = try? String(contentsOfFile: commondir, encoding: .utf8) else { return false }
+            let resolved = URL(fileURLWithPath: common.trimmingCharacters(in: .whitespacesAndNewlines), relativeTo: URL(fileURLWithPath: gitDir, isDirectory: true)).standardized.path
+            return resolved != gitDir
+        }
+        let parent = (dir as NSString).deletingLastPathComponent
+        if parent == dir || parent.isEmpty { return false }
+        dir = parent
+    }
+}
+
+/// Why `folder` cannot be added as a project, in words; nil when it can. The host's `checkProjectFolder` rule (src/chat/folder.ts):
+/// an existing, readable folder that is not inside Carrier's own folders (symlinks resolved) and not a worktree linked to another project.
+public func projectFolderRefusal(_ folder: String, carrierFolder: String = currentCarrierFolder()) -> String? {
+    guard folder.hasPrefix("/") else { return "The folder must be an absolute path" }
+    guard let resolved = realpath(folder, nil) else {
+        return errno == EACCES || errno == EPERM ? "That folder cannot be read" : "That folder does not exist"
+    }
+    let real = String(cString: resolved)
+    free(resolved)
+    var info = stat()
+    guard stat(real, &info) == 0 else {
+        return errno == EACCES || errno == EPERM ? "That folder cannot be read" : "That folder does not exist"
+    }
+    guard (info.st_mode & S_IFMT) == S_IFDIR else { return "That path is not a folder" }
+    guard access(real, R_OK | X_OK) == 0 else { return "That folder cannot be read" }
+    for (name, own) in ownCarrierFolders(carrierFolder: carrierFolder) {
+        if real == own || real.hasPrefix(own + "/") { return "That folder is inside Carrier's own \(name) folder; a project cannot live there" }
+    }
+    if isLinkedWorktree(real) { return "That folder is a worktree linked to another project" }
     return nil
 }
 

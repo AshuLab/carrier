@@ -135,21 +135,25 @@ private func temporaryFolder() throws -> String {
 
 @MainActor @Test func modelSavesActionsAndUpdatesRows() throws {
     let home = try temporaryFolder()
-    defer { try? FileManager.default.removeItem(atPath: home) }
+    let repo = try temporaryFolder()
+    defer {
+        try? FileManager.default.removeItem(atPath: home)
+        try? FileManager.default.removeItem(atPath: repo)
+    }
 
     let file = ProjectsFile(folder: home)
     let model = ProjectsModel(file: file) { _ in nil }
-    #expect(model.add(folder: "/Users/ana/app") == .added("/Users/ana/app"))
+    #expect(model.add(folder: repo) == .added(repo))
     #expect(model.rows.first?.actions == [])
 
     let actions = [
         ProjectAction(name: "Install", command: "pnpm i", when: .newWorktree),
         ProjectAction(name: "Setup", command: "make", when: .afterClone, on: false, onFail: .stop),
     ]
-    #expect(model.saveActions(path: "/Users/ana/app", actions: actions) == true)
+    #expect(model.saveActions(path: repo, actions: actions) == true)
     #expect(model.rows.first?.actions == actions)
 
     // blank action is not written and keeps previous actions
-    #expect(model.saveActions(path: "/Users/ana/app", actions: [ProjectAction(name: " ", command: "make", when: .afterClone)]) == false)
+    #expect(model.saveActions(path: repo, actions: [ProjectAction(name: " ", command: "make", when: .afterClone)]) == false)
     #expect(model.rows.first?.actions == actions)
 }

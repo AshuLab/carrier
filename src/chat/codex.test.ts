@@ -285,6 +285,18 @@ test('a conversation resumes by the native id and keeps the context', async () =
   expect(seen.unexpected).toEqual([]);
 });
 
+test('a turn ends with the size of the model\'s window that the token updates carry, and the next one starts without it', async () => {
+  const { events, transport } = await openWith(main);
+  const update = (window?: number) => ({ method: 'thread/tokenUsage/updated', params: { tokenUsage: { last: { inputTokens: 1_000 }, ...(window !== undefined && { modelContextWindow: window }) } } });
+  transport.play(update(258_400));
+  transport.play({ method: 'turn/completed', params: { turn: { status: 'completed' } } });
+  expect(events.at(-1)).toMatchObject({ kind: 'turn_end', outcome: 'ok', usage: { contextTokens: 1_000, contextWindow: 258_400 } });
+  // a window that is not a positive number is not one
+  transport.play(update(0));
+  transport.play({ method: 'turn/completed', params: { turn: { status: 'completed' } } });
+  expect(events.at(-1)).not.toHaveProperty('usage.contextWindow');
+});
+
 test('a line it does not know is ignored and never throws; a server request it does not know is answered', async () => {
   const { conversation, events, seen, transport } = await openWith(main);
   const before = seen.written.length;

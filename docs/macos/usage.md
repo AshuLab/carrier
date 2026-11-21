@@ -22,3 +22,7 @@ A period or a filter with no turns draws an empty state instead, `Nothing matche
 The Map sheet offers `$0.00 local`, a catalog model (`catalogModels`), custom `$/1M` rates (input and output required, cached read and cache write optional, each finite, from 0 to 10 000) and `Clear` for a model already priced; `UsageOverrideDraft.check` validates before `usageOverride` is called and says which field is wrong, the sheet keeps what was typed when the host refuses, and a save asks `usage` again so the cost follows.
 `CarrierCore/UsageModels.swift` holds the tolerant `Codable` mirror of the reply and the `usageOverride` request; `ChatHost.usage` and `usageOverride` check the hello's `usage` and `usageOverride` capabilities and, with an older host, say to restart it (`usageNeedsNewerHost`).
 Under `--fixture` the host answers `Tests/Fixtures/chat-usage.json`.
+
+## In the conversation
+
+The meters of `5h`, `Weekly` and `Monthly` of the Providers page (`AccountUsageMeters`, `UsageMeterLine`) are also what the ring beside the message box's microphone opens to ([sessions](sessions.md#context-and-limits-beside-the-microphone)), so a limit reads the same everywhere.

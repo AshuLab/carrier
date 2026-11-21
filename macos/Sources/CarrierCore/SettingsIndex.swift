@@ -139,6 +139,7 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
             ("Send with", "The other key makes a new line"), ("While the agent works", "Hold the message, or stop the turn and send it"),
             ("Writing Tools", "The system's offer to rewrite or proofread what you select"), ("Check spelling", "Underline words that look misspelled"),
             ("Correct spelling automatically", "Fix a misspelled word as you type it"),
+            ("Context and limits", "A ring beside the microphone: how full the context is and how much of the 5h limit is used"),
         ]) + page(.chat, "Conversation", [
             ("Follow new output", "Scroll to what arrives while you are at the end"), ("Message times", "When a message shows the time it was written"),
             ("Tool output", "Nothing, each run folded, or every call open"), ("Open the calls that failed", "A call that failed opens by itself"),

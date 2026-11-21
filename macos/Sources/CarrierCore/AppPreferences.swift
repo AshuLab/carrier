@@ -28,6 +28,7 @@ public struct AppPreferences {
     public static let writingToolsKey = "chat.writingTools"
     public static let checksSpellingKey = "chat.checkSpelling"
     public static let correctsSpellingKey = "chat.correctSpelling"
+    public static let showsContextUsageKey = "chat.showsContextUsage"
     public static let followsOutputKey = "chat.followOutput"
     public static let messageTimesKey = "chat.messageTimes"
     public static let toolOutputKey = "chat.toolOutput"
@@ -110,6 +111,7 @@ public struct AppPreferences {
     public static let defaultWritingTools = false
     public static let defaultChecksSpelling = true
     public static let defaultCorrectsSpelling = false
+    public static let defaultShowsContextUsage = true
     public static let defaultFollowsOutput = true
     public static let defaultMessageTimes = MessageTimes.hover
     public static let defaultToolOutput = ToolOutputMode.collapsed
@@ -285,6 +287,12 @@ public struct AppPreferences {
     public var correctsSpelling: Bool {
         get { defaults.object(forKey: Self.correctsSpellingKey) as? Bool ?? Self.defaultCorrectsSpelling }
         nonmutating set { defaults.set(newValue, forKey: Self.correctsSpellingKey) }
+    }
+
+    /// Whether an open session's message box shows the ring of the context and the limits beside the microphone.
+    public var showsContextUsage: Bool {
+        get { defaults.object(forKey: Self.showsContextUsageKey) as? Bool ?? Self.defaultShowsContextUsage }
+        nonmutating set { defaults.set(newValue, forKey: Self.showsContextUsageKey) }
     }
 
     /// Whether a conversation scrolls to new output while the person is at its end.
@@ -610,7 +618,7 @@ public struct AppPreferences {
         case .terminal: terminalKeys
         case .chat:
             [
-                sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
+                sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, showsContextUsageKey, followsOutputKey, messageTimesKey,
                 toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey, messageWidthKey, chatSurfaceKey,
             ]
         // the ages of the session clock live in chat.json: the page's own Reset writes them back

@@ -42,7 +42,7 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
         "allowed: Allowed Bash pnpm lint · Allow · by you",
         "tools: Worked | 1 command",
         "agent: The page is two componen",
-        "end: sonnet 5.5 · 12s · 10.8k in · 436 out",
+        "end: sonnet 5.5 · 12s · 46.8k context · 436 out",
         "user: Now run the tests.",
         "error: The turn failed",
         "end: sonnet 5.5 · 1s",
@@ -1046,6 +1046,29 @@ private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case 
     let ask = ChatEvent(id: 3, at: 3, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [])
     let answered = chatFeed([user, think, ask, ChatEvent(id: 4, at: 4, kind: "approval_answered", approvalId: "p", choiceId: "y")])
     #expect(workInProgress(in: answered) == "e2")
+}
+
+@Test func theContextInUseIsTheLastTurnThatToldItWithTheWindowItCameWith() {
+    func end(_ usage: [String: Double]?, id: Int) -> ChatEvent { ChatEvent(id: id, at: id * 1000, kind: "turn_end", outcome: "ok", model: "m", usage: usage) }
+    // Claude says it in snake case and Codex in camel case; the share is of the window the same turn reported
+    let claude = chatFeed([end(["context_tokens": 50_000, "context_window": 200_000], id: 1)])
+    #expect(contextUse(claude) == ContextUse(tokens: 50_000, window: 200_000))
+    #expect(contextUse(claude)?.share == 0.25)
+    #expect(contextUse(chatFeed([end(["contextTokens": 95_000, "contextWindow": 190_000], id: 1)]))?.share == 0.5)
+    // a later turn that did not tell it (cut short) leaves the one before, and the newest that did wins
+    #expect(contextUse(chatFeed([end(["context_tokens": 10_000, "context_window": 100_000], id: 1), end(["output_tokens": 5], id: 2)]))?.tokens == 10_000)
+    #expect(contextUse(chatFeed([end(["context_tokens": 10_000, "context_window": 100_000], id: 1), end(["context_tokens": 40_000, "context_window": 100_000], id: 2)]))?.tokens == 40_000)
+    // without the window there is a count and no share; past it the share stops at all of it; before any turn there is nothing
+    #expect(contextUse(chatFeed([end(["context_tokens": 10_000], id: 1)])) == ContextUse(tokens: 10_000, window: nil))
+    #expect(ContextUse(tokens: 10_000).share == nil)
+    #expect(ContextUse(tokens: 300_000, window: 200_000).share == 1)
+    #expect(ContextUse(tokens: 1, window: 0).share == nil)
+    #expect(contextUse([]) == nil)
+    // the words: a window of a million is `1M`, not `1000.0k`
+    #expect(ContextUse(tokens: 45_700, window: 1_000_000).text == "45.7k of 1M")
+    #expect(ContextUse(tokens: 45_700, window: 200_000).text == "45.7k of 200.0k")
+    #expect(ContextUse(tokens: 1_250_000, window: 1_500_000).text == "1.3M of 1.5M")
+    #expect(ContextUse(tokens: 900).text == "900")
 }
 
 @Test func aClosingLineThatStaysARowSaysTheModelAsAPersonDoes() {

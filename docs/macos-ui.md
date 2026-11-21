@@ -66,6 +66,15 @@ Work the agent did (calls, thoughts, messages, an error) is drawn with the chat'
 - **Open and fold a card with `flipCard`**: smooth, and none with Reduce Motion.
 - **One thing, one card**: what a card's rows were checked by is its foot (a line under a divider), not a second card under it.
 
+## The ring beside the microphone
+
+`ContextUsageButton` (`ContextUsageButton.swift`), in the message box's row of an open session, left of the microphone and in the same 36 pt frame with the same round hover, so the two read as a pair; the draft has none (nothing to count yet), and Settings > Chat > Message box > Context and limits turns it off.
+Two rings in the colors of `QuotaBar`: outside the context (`ContextUse.share`, what the last turn ended with over the model's window), inside the account's 5h (or Weekly, or Monthly, when it has no 5h); the theme's accent, orange from 90 % and no other color, over a `primary` 12 % track.
+A share that is not known (no turn yet, a host that does not send the window, an account that is signed out) leaves that ring as its track alone, and the numbers of a stale check stay at half strength.
+A click opens the system popover, which is glass without drawing anything: the context as a `UsageMeterLine` with its tokens under it, then the account's `AccountUsageMeters` (the Providers page's own, the bars hatched where the next reset gives the use back, the `Stale` chip, `Resets in …`), then Open Usage.
+It does not repeat the account: the box's own pill names it.
+Do not draw a third kind of meter for a percentage: the popover reuses `UsageMeterLine` and `AccountUsageMeters`.
+
 ## Rows of a feed
 
 A feed that is a column of the window (the Agent output of an epic) is not made of boxes.

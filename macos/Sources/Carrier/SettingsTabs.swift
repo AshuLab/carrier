@@ -1117,6 +1117,7 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
     @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
     @AppStorage(AppPreferences.correctsSpellingKey) private var correctsSpelling = AppPreferences.defaultCorrectsSpelling
+    @AppStorage(AppPreferences.showsContextUsageKey) private var showsContextUsage = AppPreferences.defaultShowsContextUsage
     @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
     @AppStorage(AppPreferences.messageTimesKey) private var messageTimes = AppPreferences.defaultMessageTimes
     @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
@@ -1168,6 +1169,9 @@ struct ChatTabView: View {
                 }
                 SettingsTabRow(title: "Correct spelling automatically", detail: "Fix a misspelled word as you type it") {
                     Toggle("Correct spelling automatically", isOn: $correctsSpelling).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Context and limits", detail: "A ring beside the microphone: how full the context is and how much of the 5h limit is used") {
+                    Toggle("Context and limits", isOn: $showsContextUsage).labelsHidden().toggleStyle(.switch)
                 }
             }
             SettingsGroup(title: "Conversation") {

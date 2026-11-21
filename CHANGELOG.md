@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A ring beside the microphone in an open session shows how full the conversation's context is (the outer ring) and how much of the account's 5h limit is used (the inner one), in the Usage page's colors: the theme's accent, orange from 90 %. A click opens the detail: the context in tokens, the account's `5h`, `Weekly` and `Monthly` meters with when they reset and whether they are stale, and a button to the Usage page. Settings > Chat > Message box > Context and limits turns it off. Claude and Codex now report the size of the model's window with the turn's context so the app can say how full it is.
+
 ### Changed
 
 - An open conversation asks the chat host less often when nothing is happening: every 2 seconds instead of four times a second while idle with the app in front, every 5 seconds behind another app, and almost never with the window hidden or the Mac asleep. It still reads every quarter of a second while the agent works, and at once after you send.

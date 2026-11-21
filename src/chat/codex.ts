@@ -130,6 +130,8 @@ class CodexConversation implements ChatConversation {
   private usage: ChatUsage = {};
   /** What the turn's last model call read (its `inputTokens` already holds what came from the cache): the context at the turn's end, which the sum of the calls is not. */
   private lastContext: number | undefined;
+  /** The size of the model's window, which the token updates carry (`modelContextWindow`), to say how full the context is. */
+  private lastContextWindow: number | undefined;
   private closing = false;
   private chosen: Record<string, string>;
   private binary: string;
@@ -218,6 +220,7 @@ class CodexConversation implements ChatConversation {
     this.turning = true;
     this.usage = {};
     this.lastContext = undefined;
+    this.lastContextWindow = undefined;
     this.turnId = undefined;
     const overrides = this.overrides;
     this.overrides = {};
@@ -436,6 +439,7 @@ class CodexConversation implements ChatConversation {
         // One update per model call: the turn's usage is what its calls added up to.
         for (const [key, value] of Object.entries((params?.tokenUsage?.last ?? {}) as Record<string, unknown>)) if (typeof value === 'number') this.usage[key] = (this.usage[key] ?? 0) + value;
         if (typeof params?.tokenUsage?.last?.inputTokens === 'number') this.lastContext = params.tokenUsage.last.inputTokens;
+        if (typeof params?.tokenUsage?.modelContextWindow === 'number' && params.tokenUsage.modelContextWindow > 0) this.lastContextWindow = params.tokenUsage.modelContextWindow;
         return [];
       case 'turn/completed': {
         if (this.limit === undefined && isUsageLimit(params?.turn?.error)) this.limit = this.announceLimit(params.turn.error.message);
@@ -481,7 +485,9 @@ class CodexConversation implements ChatConversation {
     const outcome = turn?.status === 'completed' ? 'ok' : turn?.status === 'interrupted' ? 'interrupted' : 'error';
     const usage = this.usage;
     if (this.lastContext !== undefined) usage.contextTokens = this.lastContext;
+    if (this.lastContextWindow !== undefined) usage.contextWindow = this.lastContextWindow;
     this.lastContext = undefined;
+    this.lastContextWindow = undefined;
     this.turning = false;
     this.turnId = undefined;
     this.usage = {};

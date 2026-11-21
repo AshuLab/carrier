@@ -23,6 +23,8 @@ struct MessageBox<Selects: View>: View {
     var dictation = DictationController.shared
     /// Counts the times the global shortcut asked this box to dictate: each change focuses the box and starts the dictation or stops the one that listens.
     var dictateRequest = 0
+    /// What goes beside the microphone: the ring of the context and the limits in an open session; nothing in the draft, which has neither yet.
+    var meter: AnyView?
     var send: () -> Void
     var stop: () -> Void = {}
     @ViewBuilder var selects: () -> Selects
@@ -125,15 +127,16 @@ struct MessageBox<Selects: View>: View {
                 HStack(spacing: 8) {
                     selects()
                     Spacer(minLength: 0)
-                    if let presentation = dictationPresentation {
+                    if let caption = dictationPresentation?.caption {
                         // the caption goes first when the row is tight
-                        if let caption = presentation.caption {
-                            ViewThatFits(in: .horizontal) {
-                                Text(caption).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
-                                Color.clear.frame(width: 0, height: 0)
-                            }
-                            .layoutPriority(-1)
+                        ViewThatFits(in: .horizontal) {
+                            Text(caption).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+                            Color.clear.frame(width: 0, height: 0)
                         }
+                        .layoutPriority(-1)
+                    }
+                    if let meter { meter }
+                    if let presentation = dictationPresentation {
                         DictationButton(presentation: presentation, level: dictation.level, action: dictate)
                             // Escape from the microphone, which holds the focus when a keyboard user came to it, cancels what it listens to
                             .onExitCommand { _ = dictation.cancel(ownedBy: dictationOwner) }

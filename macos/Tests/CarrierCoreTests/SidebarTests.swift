@@ -156,7 +156,7 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(SidebarStore(defaults: defaults).width == 420)
     // what the column cannot be is not kept
     SidebarStore(defaults: defaults).width = 100
-    #expect(SidebarStore(defaults: defaults).width == 260)
+    #expect(SidebarStore(defaults: defaults).width == 280)
     SidebarStore(defaults: defaults).width = 900
     #expect(SidebarStore(defaults: defaults).width == 800)
 }

@@ -139,8 +139,7 @@ struct ReposTabView: View {
                         Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: status.clonePath)]) } label: { Label("Reveal clone", icon: .folder).labelStyle(.titleAndIcon) }
                             .buttonStyle(HoverTextButtonStyle(tint: nil))
                     }
-                    Button(action: runDoctor) { Label(doctor.state == .running ? "Checking…" : "Check again", icon: .refresh).labelStyle(.titleAndIcon) }
-                        .buttonStyle(HoverTextButtonStyle(tint: nil)).disabled(doctor.state == .running)
+                    CheckButton(skin: .text, checking: doctor.state == .running, failed: doctor.state.failedToAnswer, action: runDoctor)
                 }
                 RepoStatusCard(row: row, status: status)
                 let roles = configData.flatMap { repoRoles(json: $0, repo: row.name) }

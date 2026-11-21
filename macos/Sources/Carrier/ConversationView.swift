@@ -57,7 +57,8 @@ struct ConversationView: View {
     }
 
     var body: some View {
-        conversation
+        // the fixture's one session that is not a conversation: all the notices together, to look at them
+        (NoticesGalleryView.shows(model.sessionId) ? AnyView(NoticesGalleryView()) : AnyView(conversation))
             // the conversation stays mounted under the subagent view, so Back finds its feed and its place as they were, but it is not drawn: the
             // subagent view replaces it, and nothing of it shows through the window's translucent surfaces; nothing under it takes keys or taps
             .opacity(subagents.isEmpty ? 1 : 0)
@@ -141,7 +142,7 @@ struct ConversationView: View {
                 } else if model.failure == nil {
                     LoadingRow()
                 }
-                if let failure = model.failure { Text(failure).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled) }
+                if let failure = model.failure { ProblemNotice(text: failure, failed: true) }
             }
             .scrollTargetLayout()
             .padding(.horizontal, 40).padding(.vertical, 16)
@@ -230,10 +231,7 @@ struct ConversationView: View {
     /// An archived session is read only: a notice with Resume, which takes it out of the archive (the next poll gives the box back).
     private var archivedBox: some View {
         // two lines at most: with no limit this detail made the whole window lay out taller than it is, the notice below its edge
-        NoticeCard(symbol: .archive, tint: .gray, title: archivedSessionNotice.title, detail: archivedSessionNotice.detail, detailLines: 2) {
-            Button("Resume") { Task { if let refusal = await actions.restore(model.sessionId) { tell(refusal) } } }
-                .buttonStyle(HoverTextButtonStyle(tint: .themeAccent))
-        }
+        ArchivedSessionNotice(resume: { Task { if let refusal = await actions.restore(model.sessionId) { tell(refusal) } } })
         .padding(.horizontal, 40).padding(.vertical, 12)
         .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
     }
@@ -287,18 +285,22 @@ private struct ConversationBox: View {
                 send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
                 ComposerMenuButton(
-                    providers: model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: AgentAccounts.harness(of: model.agent))], agent: model.agent, locked: true,
+                    // the agents the host can switch the session to; with none listed (an older host) the panel shows the session's own
+                    providers: model.switchTargets.isEmpty
+                        ? (model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: AgentAccounts.harness(of: model.agent))])
+                        : model.switchTargets.map { ProviderTab(name: $0.name, icon: $0.harness, available: $0.available, note: $0.note) },
+                    agent: model.agent, locked: model.canSwitchNow == false,
                     options: model.shownOptions,
                     // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
                     // never saw running lists nothing, and the panel says so
                     emptyNote: model.asleep ? "The provider lists these once the session is awake. Send a message to wake it up." : "Reading what the provider offers…",
-                    busy: model.busy, chooseAgent: { _ in }, choose: { option, value in Task { await model.setOption(option, value) } }
+                    busy: model.busy, chooseAgent: { name in Task { await model.switchAgent(name) } }, choose: { option, value in Task { await model.setOption(option, value) } }
                 )
             }
-            if let refusal = model.optionRefusal { Text(refusal).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled) }
+            if let refusal = model.optionRefusal { ProblemNotice(text: refusal) }
             if let refusal = model.refusal {
                 if model.refusedText == nil {
-                    Text(refusal).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled)
+                    ProblemNotice(text: refusal)
                 } else {
                     BannerView(banner: refusalBanner(agent: ProviderIdentityStore.shared.shortName(of: model.agent), reason: refusal), agent: model.agent, copyDetails: false, retry: { Task { await model.retry() } })
                 }
@@ -546,9 +548,9 @@ struct BannerView: View {
                         copied = false
                     }
                 } label: { Label(copied ? "Copied" : "Copy details", icon: copied ? .check : .copy) }
-                    .buttonStyle(HoverTextButtonStyle(tint: copied ? .green : nil))
+                    .buttonStyle(NoticeActionStyle(quiet: true))
             }
-            if let retry { Button(action: retry) { Label("Try again", icon: .refresh) }.buttonStyle(HoverTextButtonStyle(tint: tint)) }
+            if let retry { Button(action: retry) { Label("Try again", icon: .refresh) }.buttonStyle(NoticeActionStyle()) }
         }
     }
 }
@@ -563,7 +565,7 @@ struct WorkState {
 /// The message held while the agent answers: when it goes, and what it says under it. Clicking the message puts it back in the box to
 /// edit; Send now stops the turn and sends it (not offered when sending already stops the turn, which is what the setting says); the
 /// cross drops it.
-private struct QueuedMessageCard: View {
+struct QueuedMessageCard: View {
     let text: String
     let interrupts: Bool
     let edit: () -> Void
@@ -576,17 +578,56 @@ private struct QueuedMessageCard: View {
             detail: messagePreview(text), detailLines: 2, onTap: edit
         ) {
             if interrupts == false {
-                Button("Send now", action: sendNow).buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).help("Stop the agent and send it now")
+                Button("Send now", action: sendNow).buttonStyle(NoticeActionStyle()).help("Stop the agent and send it now")
             }
             Button(action: cancel) { Glyph(.close, size: 10) }
-                .buttonStyle(HoverTextButtonStyle(tint: nil)).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
+                .buttonStyle(NoticeActionStyle(quiet: true)).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
         }
         .help("Click the message to edit it")
     }
 }
 
+/// A problem the person is told of, as a notice like the others and not a plain coloured line: orange for what is theirs to solve (wait, interrupt, choose
+/// again, a name that cannot be used), red for what failed. `init(text:)` is the host's own sentence under a title of ours, and `init(sentences:)` splits
+/// one sentence into title and detail (`splitNotice`).
+struct ProblemNotice: View {
+    let title: String
+    let detail: String?
+    var failed = false
+    var symbol = AppIcon.exclamation
+
+    init(title: String, detail: String?, failed: Bool = false, symbol: AppIcon = .exclamation) {
+        (self.title, self.detail, self.failed, self.symbol) = (title, detail, failed, symbol)
+    }
+
+    init(text: String, failed: Bool = false) {
+        self.init(title: failed ? "Couldn't read this session" : "Couldn't do that", detail: text, failed: failed)
+    }
+
+    init(sentences text: String, failed: Bool = false) {
+        let parts = splitNotice(text)
+        self.init(title: parts.title, detail: parts.detail, failed: failed)
+    }
+
+    var body: some View {
+        NoticeCard(symbol: symbol, tint: failed ? .red : .orange, title: title, detail: detail) {}
+    }
+}
+
+/// An archived session is read only: a notice with Resume, which takes it out of the archive.
+struct ArchivedSessionNotice: View {
+    let resume: () -> Void
+
+    var body: some View {
+        // two lines at most: with no limit this detail made the whole window lay out taller than it is, the notice below its edge
+        NoticeCard(symbol: .archive, tint: .gray, title: archivedSessionNotice.title, detail: archivedSessionNotice.detail, detailLines: 2) {
+            Button("Resume", action: resume).buttonStyle(NoticeActionStyle())
+        }
+    }
+}
+
 /// A session whose agent is not running: what it means and what a message does, above the box, in the colour of night.
-private struct ClosedSessionNotice: View {
+struct ClosedSessionNotice: View {
     /// Whether the person already chose something that will apply when the session wakes.
     let chosen: Bool
 

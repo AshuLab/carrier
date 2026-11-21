@@ -62,6 +62,9 @@ ditto .build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sp
 # the golden files `--fixture` serves
 mkdir -p "$APP/Contents/Resources"
 cp -R Tests/Fixtures "$APP/Contents/Resources/Fixtures"
+# what `--fixture` shows is AppFixture's (no sessions, no epics, yet), not the tests' set (those stay in Tests/Fixtures)
+rm "$APP"/Contents/Resources/Fixtures/chat-events-*.json
+cp AppFixture/*.json "$APP/Contents/Resources/Fixtures/"
 # the app's icon of its channel, compiled from Resources/AppIcon.icon or AppIconDev.icon (the one with the pink mark) by scripts/make-icon.sh:
 # Assets.car is the layered icon of macOS 26 and the .icns is for what reads the file. It is not compiled here: see make-icon.sh
 cp "Resources/Compiled/$ICON/Assets.car" "Resources/Compiled/$ICON/$ICON.icns" "$APP/Contents/Resources/"

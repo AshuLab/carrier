@@ -114,7 +114,7 @@ import IOKit.pwr_mgt
         if decision.isManual { stopManual() } else { start(minutes: settings.defaultMinutes) }
     }
 
-    /// The switch "While agents work", from the menu or from the page.
+    /// The switch "While agents work" of the Keep awake page.
     func setFollowsAgents(_ on: Bool) {
         defaults.set(on, forKey: AppPreferences.awakeAgentsKey)
         settingsChanged()

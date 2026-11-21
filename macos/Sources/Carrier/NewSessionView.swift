@@ -29,16 +29,13 @@ struct NewSessionView: View {
                 sentence
                 box
                 if let warning = model.warning { uncommittedNotice(warning) }
-                if let reason = model.noAgentReason { Text(reason).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
-                if model.hostOlder { Text(NewSessionModel.olderHostNotice).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
+                if let reason = model.noAgentReason { ProblemNotice(sentences: reason) }
+                if model.hostOlder { ProblemNotice(sentences: NewSessionModel.olderHostNotice) }
                 if model.gitMissing { HealthFixButton(tool: .git, state: .missing) }
                 if model.sendSteps.isEmpty == false { sendSteps }
                 if let refusal = model.refusal {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(refusal).foregroundStyle(.red).textSelection(.enabled)
-                        if let hint = signInLine(refusal: refusal) { Text(hint).foregroundStyle(.secondary) }
-                    }
-                    .font(.callout)
+                    // the same banner the conversation shows for a refused send, with the line that says where to sign in when that is why
+                    BannerView(banner: refusalBanner(agent: ProviderIdentityStore.shared.shortName(of: model.agent ?? ""), reason: refusal), agent: model.agent, copyDetails: false, retry: nil)
                 }
             }
             // never narrower than 320: the window asks for its smallest size with no width, and the notes under the sentence would be a word a line
@@ -107,23 +104,17 @@ struct NewSessionView: View {
             if model.branchesPartial { Text("Only the first branches GitHub lists are offered; the others can be checked out once the repository is on this Mac.").font(.subheadline).foregroundStyle(.secondary) }
             if let note = model.projectNote { Label(note, icon: .folderPlus).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
             if case .problem(let reason) = model.nameState, model.worktree {
-                Text(reason).font(.callout).foregroundStyle(.red).textSelection(.enabled)
+                ProblemNotice(title: "That name cannot be used", detail: reason)
             }
-            if let problem = model.workspaceProblem { Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
+            if let problem = model.workspaceProblem { ProblemNotice(title: "Couldn't use this folder", detail: problem, failed: true) }
         }
     }
 
     /// The uncommitted files of the folder, under the box where the other notes about sending are: the first sentence is the title, the rest
     /// what to do, and a worktree is one tap away.
     private func uncommittedNotice(_ warning: String) -> some View {
-        let split = warning.range(of: ". ")
-        let title = split.map { String(warning[..<$0.lowerBound]) } ?? warning
-        let detail = split.map { String(warning[$0.upperBound...]) }
-        return NoticeCard(symbol: .exclamation, tint: .orange, title: title, detail: detail) {
-            if model.offersWorktree, model.worktree == false {
-                Button("Use a worktree") { Task { await model.useWorktree(true) } }.buttonStyle(HoverTextButtonStyle(tint: .primary))
-            }
-        }
+        let parts = splitNotice(warning)
+        return UncommittedNotice(title: parts.title, detail: parts.detail, offersWorktree: model.offersWorktree && model.worktree == false, useWorktree: { Task { await model.useWorktree(true) } })
     }
 
     /// The branch the chosen folder is on: a chip that opens its local branches, like the other controls.
@@ -246,5 +237,19 @@ struct NewSessionView: View {
 
     private func send() {
         Task { if let id = await model.send() { opened(id) } }
+    }
+}
+
+/// The uncommitted files of the folder, as a notice under the box: the first sentence is the title, the rest what to do, and a worktree is one tap away.
+struct UncommittedNotice: View {
+    let title: String
+    let detail: String?
+    let offersWorktree: Bool
+    let useWorktree: () -> Void
+
+    var body: some View {
+        NoticeCard(symbol: .exclamation, tint: .orange, title: title, detail: detail) {
+            if offersWorktree { Button("Use a worktree", action: useWorktree).buttonStyle(NoticeActionStyle()) }
+        }
     }
 }

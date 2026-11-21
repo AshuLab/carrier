@@ -85,8 +85,8 @@ A second socket, `<home>/chat/state/chat.sock`, is a fake chat host (the app fin
 `switchAgent` gives an idle listed session another listed agent and a notice with `switched`, and is refused in words for a working or waiting one, the agent it has, one that is not listed and one that is not found.
 So the Sessions + is enabled and a selected session shows a conversation.
 `folder` defaults to the copy of the golden files that `build-app.sh` puts in `Carrier.app/Contents/Resources/Fixtures`; give one when running without the bundle.
+That copy is `Tests/Fixtures` with the content taken out: `AppFixture` holds one chat session, "Notices", which is not a conversation but `NoticesGalleryView`: every notice the conversation and its message box can show (queued message, asleep, archived, a question, a permission, background work, a failed turn, a refusal, a stopped epic…), drawn by the real views with made-up data, one under the other; and a snapshot of Carrier with no epics, no queue and no watched repositories. What the app needs to work (agents, providers, usage, workspaces) is still the golden files'. Add what a view needs to be looked at to `AppFixture`, one thing at a time; the tests keep their own sessions and epics in `Tests/Fixtures`.
 The temporary folder is removed when the app quits.
-In this mode the menu also has "Empty states", a window listing the empty states (`CarrierCore/EmptyStates.swift`).
 It combines with `--selftest`.
 `--fixture-long-transcript` (with `--fixture`) answers `events` with a made-up transcript of 3,600 events (edits with diffs, passing and failing commands with output) instead of the golden file, to scroll a long one, and every session of the chat host with a made-up conversation of 3,500 events (`longChatEvents`).
 

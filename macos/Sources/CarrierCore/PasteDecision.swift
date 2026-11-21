@@ -26,7 +26,7 @@ extension PasteReason {
     public var explanation: String {
         switch self {
         case .noField: "No text field has the cursor, so the text was not pasted."
-        case .noPermission: "Accessibility is off for Carrier, so the text was not pasted."
+        case .noPermission: "Accessibility is off for Carrier, or macOS dropped it when the app updated, so the text was not pasted."
         case .secureField: "The field is secure, so the text was not pasted."
         }
     }

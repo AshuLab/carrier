@@ -57,12 +57,18 @@ struct GlobalDictationGroup: View {
     private var accessibilityRow: some View {
         SettingsTabRow(
             title: "Accessibility",
-            detail: trusted ? "Carrier can see which field has the cursor and paste into it" : "Without it the text goes on the clipboard instead of being pasted"
+            detail: trusted
+                ? "Carrier can see which field has the cursor and paste into it"
+                : "Without it the text goes on the clipboard instead of being pasted. Already allowed? macOS drops it when Carrier updates: reset it"
         ) {
             HStack(spacing: 8) {
                 StatusChip(text: trusted ? "Allowed" : "Not allowed", tint: trusted ? .green : .orange)
                 Button { FocusedField.openSettings() } label: { Label("Open System Settings", icon: .settings) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                if trusted == false {
+                    Button { FocusedField.resetPermission() } label: { Label("Reset", icon: .refresh) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Removes Carrier from Accessibility and asks again")
+                }
             }
         }
     }

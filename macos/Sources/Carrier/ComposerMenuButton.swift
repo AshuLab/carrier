@@ -30,7 +30,7 @@ struct ProviderTab: Identifiable {
 struct ComposerMenuButton: View {
     let providers: [ProviderTab]
     let agent: String
-    /// The provider of a session that already started cannot change: the other tabs are off.
+    /// The provider cannot change now (a session that is answering, or one whose host cannot switch): the other tabs are off.
     var locked = false
     let options: [ChatOption]
     /// What the panel says in place of the lists while the provider lists none.

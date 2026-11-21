@@ -15,6 +15,10 @@ public struct ResumeCard: Equatable {
     public var sheet: [String]
     /// False for an engine that cannot be asked: the card still gives the reason and the words.
     public var showsButton: Bool
+
+    public init(title: String, words: String, attention: Attention, sheet: [String], showsButton: Bool) {
+        (self.title, self.words, self.attention, self.sheet, self.showsButton) = (title, words, attention, sheet, showsButton)
+    }
 }
 
 /// nil unless the epic is stopped in needs-human. `canResume`: the engine's hello lists `resumeEpic`.

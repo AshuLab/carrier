@@ -33,7 +33,7 @@ A list the host does not answer (not started yet, being replaced) changes nothin
 When the check of the chat host at open answers, the window's session list is read at once and not at the next tick.
 
 A row of the sidebar's list has room around its lines (`Density.sessionRowPadding`: 12 points, 7 compact) and the branch in monospace.
-A session that has a pull request, or lines it changed, has a third line: the pull request's chip (`SessionPullRequestChip`: "#412 · ✓", "#979 · CI ✕", "#983 · draft", "#88 · merged", tinted green, red, grey or purple, and a click opens it), the lines it changed as "+86 −12" and the providers, which go down from the second line with it; with only one of the two, the line has only that one.
+A session that has a pull request, or lines it changed, has a third line: one capsule (`SessionWorkPill`) with the pull request ("#412 · ✓", "#979 · CI ✕", "#983 · Draft", "#88 · Merged"; a click opens it) and the lines it changed as "+86 −12", then the providers, which go down from the second line with it; with only one of the two, the capsule has only that one. The only colour is a dot before the pull request (green open, red failing, purple merged, a hollow grey ring for a draft or a closed one); the words are grey. The capsule is always laid out, so nothing moves: it has no fill at rest, a quiet one under the pointer and a lighter one on the selected row.
 Without either the row has two lines, as before.
 Both come from the host's `list` (`pr` and `diff`, read by git on this Mac and by the person's own `gh`; the host does not wait for them, so a row has them a few seconds after it appears); a host that does not say leaves the row as it was, and the Archive section draws its rows without the third line.
 Settings › Sidebar › Session rows has a switch for the chip (Pull request) and one for the lines (Lines changed), both on (`SidebarStore.showsPullRequestKey`, `showsDiffKey`; `SessionRowParts`, `SessionRowContent.hasThirdLine`): with one off the third line has only the other, and with both off the row has two lines again.
@@ -102,6 +102,10 @@ The conversation's title bar is the window's: the title (`conversationTitle`, "N
 Markdown: SwiftUI's `AttributedString` parses what is inside a line (bold, italics, inline code, links) and covers what the agents write there; the blocks around it are `markdownBlocks` (`CarrierCore/SessionSections.swift`), the line-by-line reader the epics' Agent output already used, which now also reads fenced code as a block of its own (language after the fence, an open fence runs to the end, as in a message being written).
 `CodeBlockView` draws it with the language and a Copy button (`CopyButton`, the one of the console blocks).
 Numbered lists and tables are not read as blocks: a numbered item shows as a line with its number.
+
+### Changing the agent
+
+The button at the left of the message box (`ComposerMenuButton`) opens a panel whose tabs are the host's agents, the session's own underlined. A tab changes the session's agent (`ConversationModel.switchAgent`, the host's `switchAgent`, [switch and delegate](../specs/switch-and-delegate-between-agents.md)): the session keeps its transcript, folder and worktree, and the new agent goes on from a selection of the newest messages (up to 16,000 bytes, with the first one) and can read the rest through the chat MCP's `history`; its reasoning and tool state do not carry over. The transcript says it with a notice ("The agent changed from … to …"). The tabs are off while the agent answers or a switch is under way, for an archived session and for a host that does not list `switchAgent`; an agent that is not installed or signed out is listed, off, with why. A refusal of the host (waiting for an approval, preparing, a model the harness does not list) is said in its words under the box. What was chosen for the old agent while the session was asleep is let go.
 
 ## The epic's Agent output
 

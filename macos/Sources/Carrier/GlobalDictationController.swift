@@ -86,6 +86,10 @@ import CarrierCore
         }
     }
 
+    /// "Dictate now" of the status menu: the press of the shortcut, from a click. No release follows a click, so even in Hold the take ends with a
+    /// second press, as in Toggle.
+    func dictateFromMenu() { shortcutPressed() }
+
     private func shortcutReleased() {
         if asking {
             heldUp = preferences.dictationActivation == .hold

@@ -1,0 +1,28 @@
+{
+  "now": 100000,
+  "startedAt": 40000,
+  "repos": 0,
+  "nextCheckAt": 160000,
+  "paused": false,
+  "slots": {
+    "busy": 0,
+    "total": 3
+  },
+  "engine": {
+    "version": "0.1.0",
+    "pollIntervalMs": 300000,
+    "maxConcurrentEpics": 3,
+    "rateLimit": {
+      "remaining": 4812,
+      "limit": 5000,
+      "resetAt": 130000,
+      "profile": "orchestrator"
+    }
+  },
+  "watched": [],
+  "queue": [],
+  "done": [],
+  "sessions": [],
+  "finished": [],
+  "epics": []
+}

@@ -24,22 +24,8 @@ struct SessionsHomeView: View {
         let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         VStack(spacing: 0) {
             if ChatHostStarter.shared.restartAdvised {
-                Label {
-                    VStack(alignment: .leading) {
-                        Text(chatHostRestartNotice.title).bold()
-                        Text(chatHostRestartNotice.line).foregroundStyle(.secondary)
-                    }
-                } icon: { Glyph(.refresh) }
-                    .padding(.horizontal, 20).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
-            }
-            if let notice = ChatHostStarter.shared.upgradeNotice {
-                Label {
-                    VStack(alignment: .leading) {
-                        Text(notice.title).bold()
-                        Text(notice.line).foregroundStyle(.secondary).textSelection(.enabled)
-                    }
-                } icon: { Glyph(.warning) }
-                    .padding(.horizontal, 20).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
+                ProblemNotice(title: chatHostRestartNotice.title, detail: chatHostRestartNotice.line, symbol: .refresh)
+                    .padding(.horizontal, 20).padding(.vertical, 8)
             }
             sessionsContent(page: page, searched: searched)
         }

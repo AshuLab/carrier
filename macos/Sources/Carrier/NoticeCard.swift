@@ -44,6 +44,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
         }
         .padding(.horizontal, 13).padding(.vertical, 11)
         .chatSurface(.regular.tint(tint.opacity(0.3)), flat: tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
+        .environment(\.noticeTint, tint)
         .accessibilityElement(children: .contain)
     }
 
@@ -60,14 +61,14 @@ struct NoticeCard<Actions: View, Below: View>: View {
                             .background(Capsule().fill(Color.primary.opacity(0.1)))
                     }
                     if let detail {
-                        let line = Text(detail).font(.scaled(11.5)).foregroundStyle(.secondary).lineSpacing(1.5).lineLimit(detailLines).multilineTextAlignment(.leading)
+                        let line = Text(detail).font(.scaled(11.5)).foregroundStyle(Color.primary.opacity(0.78)).lineSpacing(1.5).lineLimit(detailLines).multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                         // a text that is a button is not selectable: the click is the point
                         if onTap == nil { line.textSelection(.enabled) } else { line }
                     }
                 }
             }
-            if let hint { Text(hint).font(.scaled(11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            if let hint { Text(hint).font(.scaled(11.5)).foregroundStyle(Color.primary.opacity(0.78)).fixedSize(horizontal: false, vertical: true) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -83,6 +84,42 @@ extension NoticeCard where Below == EmptyView {
             symbol: symbol, tint: tint, title: title, detail: detail, hint: hint, tag: tag, detailLines: detailLines, edge: edge, account: account,
             onTap: onTap, actions: actions, below: { EmptyView() }
         )
+    }
+}
+
+extension EnvironmentValues {
+    /// The colour of the `NoticeCard` the view is in, for its actions (`NoticeActionStyle`).
+    @Entry var noticeTint = Color.gray
+}
+
+/// An action of a `NoticeCard`, in the card's own colour so it reads on the glass the card is filled with and does not depend on the accent
+/// the person chose: the card's colour, lighter on dark and deeper on light, on a pill of that colour. `quiet` is the secondary action (Copy
+/// details, the cross that drops a message): near-primary words and a pill only under the pointer.
+struct NoticeActionStyle: ButtonStyle {
+    var quiet = false
+
+    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration, quiet: quiet) }
+
+    private struct Face: View {
+        let configuration: ButtonStyleConfiguration
+        let quiet: Bool
+        @Environment(\.noticeTint) private var tint
+        @Environment(\.colorScheme) private var scheme
+        @Environment(\.isEnabled) private var enabled
+        @State private var hovered = false
+
+        var body: some View {
+            let words = quiet ? Color.primary.opacity(0.78) : tint.mix(with: scheme == .dark ? .white : .black, by: scheme == .dark ? 0.4 : 0.45)
+            let pill = quiet ? Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.14 : 0) : tint.opacity(configuration.isPressed ? 0.46 : hovered ? 0.38 : 0.24)
+            configuration.label
+                .font(.scaled(12, weight: .medium)).foregroundStyle(words)
+                .padding(.horizontal, 10).frame(minWidth: 26, minHeight: 26)
+                .background(Capsule().fill(pill))
+                .opacity(enabled ? 1 : 0.4)
+                .contentShape(Capsule())
+                .onHover { hovered = $0 }
+                .animation(.easeOut(duration: 0.12), value: hovered)
+        }
     }
 }
 

@@ -138,13 +138,13 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
 
 @Test func aPullRequestSaysItsStateAndHowItsChecksWent() {
     func pr(_ state: PullRequestState, _ checks: PullRequestChecks? = nil) -> SessionPullRequest { SessionPullRequest(number: 412, url: "u", state: state, checks: checks) }
-    #expect(pr(.draft).chipText == "#412 · draft" && pr(.draft).tone == .quiet)
+    #expect(pr(.draft).chipText == "#412 · Draft" && pr(.draft).tone == .quiet)
     #expect(pr(.open).chipText == "#412" && pr(.open).tone == .open)
     #expect(pr(.open, .passing).chipText == "#412 · ✓" && pr(.open, .passing).tone == .open)
     #expect(pr(.open, .failing).chipText == "#412 · CI ✕" && pr(.open, .failing).tone == .failing)
     #expect(pr(.open, .pending).chipText == "#412 · …" && pr(.open, .pending).tone == .open)
-    #expect(pr(.merged).chipText == "#412 · merged" && pr(.merged).tone == .merged)
-    #expect(pr(.closed).chipText == "#412 · closed" && pr(.closed).tone == .quiet)
+    #expect(pr(.merged).chipText == "#412 · Merged" && pr(.merged).tone == .merged)
+    #expect(pr(.closed).chipText == "#412 · Closed" && pr(.closed).tone == .quiet)
     #expect(pr(.open, .passing).spoken == "Pull request 412, open, checks passing")
     #expect(pr(.merged).spoken == "Pull request 412, merged")
 }

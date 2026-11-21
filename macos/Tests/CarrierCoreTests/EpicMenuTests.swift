@@ -36,11 +36,12 @@ private func snapshot(
         done: [.init(repo: "acme/web", issue: 4, prNumber: 9, finishedAt: nil, executionId: nil)]
     )
     let menu = try #require(epicMenu(all, showEpics: true))
-    #expect(menu.more == nil)
-    #expect(menu.items.map(\.state) == [EpicMenuState.needsYou, .running, .waiting, .ready])
-    #expect(menu.items.map(\.title) == ["web #2", "web #1", "api #3", "web #4"])
-    #expect(menu.items.map(\.detail) == ["review limit", "review · round 2/5", "waiting", "ready for test · PR #9"])
-    #expect(menu.items.map(\.badge) == ["1/4", "2/5", nil, nil])
+    // the menu has room for three: the least urgent (the one ready for test) is what "… and 1 more" stands for
+    #expect(menu.more == "… and 1 more")
+    #expect(menu.items.map(\.state) == [EpicMenuState.needsYou, .running, .waiting])
+    #expect(menu.items.map(\.title) == ["web #2", "web #1", "api #3"])
+    #expect(menu.items.map(\.detail) == ["review limit", "review · round 2/5", "waiting"])
+    #expect(menu.items.map(\.badge) == ["1/4", "2/5", nil])
 }
 
 @Test func theBadgeIsSlicesWhileShippingAndTheRoundWhileReviewing() throws {
@@ -60,11 +61,11 @@ private func snapshot(
     #expect([EpicMenuState.needsYou, .running, .waiting, .ready].map(\.colorName) == ["orange", "green", "gray", "blue"])
 }
 
-@Test func moreThanTwentyShowTwentyAndHowManyAreLeft() throws {
-    let many = snapshot((1...23).map { epic($0) })
+@Test func moreThanThreeShowThreeAndHowManyAreLeft() throws {
+    let many = snapshot((1...8).map { epic($0) })
     let menu = try #require(epicMenu(many, showEpics: true))
-    #expect(menu.items.count == 20)
-    #expect(menu.items.last?.issue == 20)
-    #expect(menu.more == "… and 3 more")
-    #expect(try #require(epicMenu(snapshot((1...20).map { epic($0) }), showEpics: true)).more == nil)
+    #expect(menu.items.count == 3)
+    #expect(menu.items.last?.issue == 3)
+    #expect(menu.more == "… and 5 more")
+    #expect(try #require(epicMenu(snapshot((1...3).map { epic($0) }), showEpics: true)).more == nil)
 }

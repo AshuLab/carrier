@@ -1,0 +1,20 @@
+{
+  "sessions": [
+    {
+      "id": "b4000000-0000-4000-8000-000000000001",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Notices",
+      "nativeId": "n-notices",
+      "state": "idle",
+      "createdAgo": 3600000,
+      "lastActiveAgo": 5000,
+      "archived": false,
+      "live": true
+    }
+  ]
+}

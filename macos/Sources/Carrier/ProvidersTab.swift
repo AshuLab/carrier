@@ -64,8 +64,7 @@ struct ProvidersTabView: View {
 
     /// Check again, on every screen that has none of its own: after Carrier starts a server or a CLI is installed, the page can be asked to look.
     private var checkButton: some View {
-        Button { Task { await look(refresh: true) } } label: { Label(looking ? "Checking…" : "Check again", icon: .refresh).labelStyle(.titleAndIcon) }
-            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(looking).fixedSize()
+        CheckButton(checking: looking) { Task { await look(refresh: true) } }
     }
 
     private var checkGroup: some View {

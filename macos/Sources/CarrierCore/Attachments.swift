@@ -105,6 +105,18 @@ public func attachedCopy(of url: URL, carrierFolder: String, fileManager: FileMa
     return file
 }
 
+/// A picture dragged in as data and nothing else (a screenshot's thumbnail offers only that): written to a folder of its own, named as the Mac
+/// names a screenshot, so that it goes as any file does. The caller attaches it (which copies it) and removes the folder.
+public func droppedImageFile(_ data: Data, ext: String, now: Date = Date(), fileManager: FileManager = .default) -> URL? {
+    let stamp = DateFormatter()
+    stamp.locale = Locale(identifier: "en_US_POSIX")
+    stamp.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+    let folder = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let file = folder.appendingPathComponent("Image \(stamp.string(from: now)).\(ext)")
+    guard (try? fileManager.createDirectory(at: folder, withIntermediateDirectories: true)) != nil, (try? data.write(to: file)) != nil else { return nil }
+    return file
+}
+
 /// The files about to go with a message, each with the copy Carrier keeps: one whose copy the host swept after a day in the box is copied again from
 /// where the person dropped it, as the original is at this moment (an edited file goes in its new version). When the original cannot go either, the
 /// file comes back with its problem (`.missing`, too big, Carrier's own), and `lostInRefresh` says so.

@@ -268,6 +268,8 @@ private struct DictationWidgetView: View {
         HStack {
             if reason == .noPermission {
                 Button { FocusedField.openSettings() } label: { Label("Open System Settings", icon: .settings) }
+                Button { FocusedField.resetPermission() } label: { Label("Reset permission", icon: .refresh) }
+                    .help("Already allowed in System Settings? macOS drops the permission when Carrier updates. This removes it and asks again.")
             }
             Spacer()
             Button {

@@ -14,8 +14,6 @@ import Observation
     private(set) var restartAdvised = false
     /// Where the upgrade of the installed `carrier` stands. A failure changed nothing and is not retried by itself: the Updates page has a button.
     private(set) var engineUpdate = EngineUpdateState.unknown
-    /// Why the installed `carrier` older than the app could not be upgraded with Homebrew.
-    var upgradeNotice: ChatHostNotice? { engineUpdate.notice }
     /// What the last version check used, so the button can look again.
     private var lastCheck: (command: StartCommand, homebrews: Bool)?
     /// The installed `carrier` is asked its version once per launch, and its Homebrew file is not run again while it is the same one.

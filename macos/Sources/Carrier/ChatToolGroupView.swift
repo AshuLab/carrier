@@ -118,8 +118,11 @@ struct ChatToolGroupView: View {
         return "\(group.title) \(group.summary)"
     }
 
+    /// The words after the chip: none while the chip already says Thinking, which they would only repeat.
+    private var showsLabel: Bool { group.chip(waiting: waiting) != .thinking }
+
     private var liveAccessibility: String {
-        if let chip = group.chip(waiting: waiting) { return "Working, \(chip.label), \(liveLabel)" }
+        if let chip = group.chip(waiting: waiting) { return showsLabel ? "Working, \(chip.label), \(liveLabel)" : "Working, \(chip.label)" }
         return "Working, \(liveLabel)"
     }
 
@@ -132,8 +135,10 @@ struct ChatToolGroupView: View {
         if live {
             HStack(spacing: 8) {
                 if let chip = group.chip(waiting: waiting) { KindChipView(chip: chip) }
-                Text(liveLabel).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
-                    .modifier(Shimmer(active: reduceMotion == false))
+                if showsLabel {
+                    Text(liveLabel).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
+                        .modifier(Shimmer(active: reduceMotion == false))
+                }
             }
         } else {
             HStack(spacing: 8) {

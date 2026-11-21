@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Carrier has a new app icon, and the dev build ("Carrier Dev") has its own with a pink mark, so it is easy to tell from the installed one in the Dock and the app switcher.
+- The sidebar's title bar has the Carrier logo: the mark and the name beside it, or the mark alone, centred, when an update shows and the sidebar is narrow.
+- The sidebar can no longer be dragged narrower than 280 points: its minimum was 140 in practice, whatever the code asked for.
 - An open conversation asks the chat host less often when nothing is happening: every 2 seconds instead of four times a second while idle with the app in front, every 5 seconds behind another app, and almost never with the window hidden or the Mac asleep. It still reads every quarter of a second while the agent works, and at once after you send.
 - The working animations (the glow on a card's edge, the sweep over "Thinking…", the spark) and the running clocks stop while the window is minimized, covered or the Mac asleep, and run at most 30 frames a second otherwise: a session that works no longer keeps the app at tens of percent of a core with its window minimized.
 - The glow around the message box while you dictate is drawn 30 times a second instead of 60, so it asks less of the Mac while it listens.
@@ -26,6 +28,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A restarted chat host no longer reads every Claude and Codex log again for the Usage page: it keeps what it read in `chat.db` (the session ids, folders, models and token counts of each log, never a line's text) and reads only what was added since. `chat.db` grows by about 1% of the logs it indexes (15 MB for 1.4 GB of logs).
 - Opening the app no longer starts every chat agent to list its models when it already knows them: it asks only for the agents it has nothing kept for, one at a time, and the new-session draft and the model picker refresh the list when they open.
 - The app no longer runs the installed `carrier --version` at every launch while the Homebrew `carrier` is the same file.
+- What the host refuses, a session that cannot be read, a failed dictation and the notes of New Session (no provider ready, an older chat host, a refused send, a name or a folder that cannot be used) are notices like the others instead of plain red or orange lines.
+- In a session, the button of the message box lists every agent (not only the session's) and changes the session to another one: the transcript stays and the new agent goes on from a selection of what was said, with the rest readable through `history`.
+- The menu bar item's menu is grouped: Sessions (what waits for you first, at most four), Terminals, and Dictation (Dictate now, Copy last transcript and the last five transcripts), then a Sleep row and the Carrier group: its state, its controls (Pause, Check, Stop) and its latest three epics.
+- The notices above the message box (a queued message, an archived or asleep session, a failed turn) read better: their buttons take the colour of the notice instead of the accent, and their text is brighter.
+- The selected row of the sidebar is your accent in a deeper shade on dark appearance, so the white words keep their contrast.
+- A session's pull request and changed lines in the sidebar share one quiet capsule: the state is a dot, the words are grey, and the capsule is a lighter patch on the selected row so it reads on any accent. Draft, Merged and Closed start with a capital.
+- Every "Check again" and "Check now" button (Usage, Carrier, Providers, Health, Repos) works the same: it shows "Checking…" while it runs, then "Up to date" with a green mark (or "Check failed" in red) for three seconds.
 
 ### Fixed
 
@@ -34,6 +43,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - After a crash, the chat host ends the agents it left running in parallel, so its socket opens within one grace period instead of one per agent.
 - A chat host that crashes now ends its agents before it exits, instead of leaving them running until the next host starts.
 - The Usage page no longer leaves out the epics' usage when it reads while the engine is writing. Both databases now keep a `-wal` and a `-shm` file beside them while Carrier runs: they are part of the database, so do not delete them or copy the `.db` alone.
+- "Carrier could not be updated" no longer shows above the sessions, in the sidebar or on the Sessions home; it is in Settings › About, where it can be tried again.
+- Dictation in any app: when macOS drops Carrier's Accessibility permission after an update (the switch still reads on and the text is only copied), the widget and Settings › Dictation offer "Reset permission", which removes it and asks again.
+- The live line of a run that is only thinking said "Thinking" twice (the chip and the words beside it); it says it once.
+- Dragging the thumbnail of a macOS screenshot onto the message box attaches the picture; before, the box refused it. A picture dragged from a web page or another app that offers only its image data attaches too.
 
 ## [0.16.0] - 2026-11-20
 

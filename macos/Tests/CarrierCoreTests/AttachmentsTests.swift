@@ -123,3 +123,11 @@ private func temporaryFolder() throws -> URL {
     let dir = attachedCopy(of: sub, carrierFolder: carrier)
     #expect(refreshedCopies([dir], carrierFolder: carrier) == [dir])
 }
+
+@Test func aPictureDraggedAsDataIsWrittenToAFileNamedByItsTime() throws {
+    let now = Date(timeIntervalSince1970: 1_700_000_000)
+    let file = try #require(droppedImageFile(Data([1, 2, 3]), ext: "png", now: now))
+    defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+    #expect(file.pathExtension == "png" && file.lastPathComponent.hasPrefix("Image 2023-11-"))
+    #expect(try Data(contentsOf: file) == Data([1, 2, 3]))
+}

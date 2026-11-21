@@ -13,6 +13,31 @@ enum FocusedField {
         if let url = URL(string: settingsURL) { NSWorkspace.shared.open(url) }
     }
 
+    /// Forgets what macOS holds of Accessibility for this app and asks again. Carrier is signed ad hoc, so macOS ties the permission to this exact
+    /// build: after an update the switch in System Settings still reads on and `AXIsProcessTrusted()` is false. Removing the entry and asking again
+    /// is what fixes it; the person then turns the switch on once more.
+    @MainActor static func resetPermission() {
+        let bundleId = Bundle.main.bundleIdentifier ?? "dev.ashulab.carrier"
+        Task {
+            let status = await Task.detached { () -> Int32? in
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+                process.arguments = ["reset", "Accessibility", bundleId]
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+                    return process.terminationStatus
+                } catch {
+                    NSLog("Carrier: tccutil could not run: %@", String(describing: error))
+                    return nil
+                }
+            }.value
+            if status != 0 { NSLog("Carrier: tccutil reset Accessibility %@ ended with %@", bundleId, String(describing: status)) }
+            // macOS asks, and lists Carrier in Privacy & Security › Accessibility for the person to allow
+            _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
+        }
+    }
+
     /// Where a dictation that ends now goes. Never reads the value of the field, which for a password holds the secret.
     static func decision() -> PasteDecision {
         let trusted = AXIsProcessTrusted()

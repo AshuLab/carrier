@@ -678,13 +678,13 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var canSwitchAgent = false
     public private(set) var switchTargets: [AgentChoice] = []
     public private(set) var switching = false
-    /// The session's agent, as the host's list names it; what the app saw last until the first answer, empty for a session that was never seen.
+    /// The session's agent, as the summary of the host's `events` names it (its list, for a host that does not say); what the app saw last until the first answer, empty for a session that was never seen.
     public private(set) var agent = ""
     /// Whether the session's agent process runs; a session that is not live shows the closed notice and resumes when a message is sent.
     public private(set) var live = true
     /// Whether the session is asleep: closed, and not on its way to another state (being archived, prepared or woken by a send). Only then the
     /// closed notice shows. It holds at once the first time the session is read; after that a session has to stay closed for a second, as
-    /// archiving closes it a moment before the host's list says it is archived.
+    /// archiving closes it a moment before the host says it is archived.
     public private(set) var asleep = false
     /// Whether a send is waking the session.
     public private(set) var waking = false
@@ -697,7 +697,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     private static let settle: TimeInterval = 1
     /// Whether the session is in the archive: its transcript is read only and the box gives way to a notice with Resume.
     public private(set) var archived = false
-    /// What the agent waits for after its turn ended, from the host's list: the card over the box says it.
+    /// What the agent waits for after its turn ended, from the summary of the host's `events` (its list, for an older host): the card over the box says it.
     public private(set) var background: [BackgroundTask] = []
     /// Whether the host can stop one of those tasks by itself (it lists `stopTask`): read from its hello once.
     public private(set) var canStopTask = false
@@ -879,11 +879,14 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             if let facts = reply.facts {
                 // the summary of the reply says it, and the session answered: no list is asked
                 if let named = facts.agent { agent = named }
-                live = facts.live && facts.archived == false
+                // the host never reports an archived session as live, nor with background tasks
+                live = facts.live
                 archived = facts.archived
+                // `events` also answers for a child session, which the list leaves out and so never read as unknown; the app opens no child
+                // (every id it has comes from that list), so `known` is always true here
                 known = true
                 preparingSession = reply.state == .preparing
-                background = facts.archived ? [] : facts.background
+                background = facts.background
             } else {
                 try await readSessionFromLists()
             }

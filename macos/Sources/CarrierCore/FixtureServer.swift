@@ -316,7 +316,7 @@ public final class FixtureServer {
                     var summary: [String: Any] = ["state": listed?["state"] as? String ?? "idle"]
                     if let preparation = listed?["preparation"] as? String { summary["preparation"] = preparation }
                     // what the real host adds to the summary of `events`, from the row its list gives
-                    for key in ["agent", "archived", "live", "background"] { summary[key] = listed?[key] }
+                    for key in ["agent", "archived", "live", "background"] { if let value = listed?[key] { summary[key] = value } }
                     return summary
                 },
             ]

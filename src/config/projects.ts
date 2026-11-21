@@ -92,6 +92,3 @@ export function updateProjectsFile(change: (current: ProjectEntry[]) => ProjectE
   }
   return next;
 }
-
-/** The error a person sees when `projects.json` is wrong: the file and each field with what is wrong with it. */
-export const projectsProblem = (folder: string, errors: ProjectsError[]) => `Invalid projects file ${projectsPathOf(folder)}:\n${errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`;

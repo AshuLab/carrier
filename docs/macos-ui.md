@@ -53,7 +53,7 @@ Work the agent did (calls, thoughts, messages, an error) is drawn with the chat'
 - **Subagent view (`SubagentView`)**: what replaces the conversation when a subagent row is tapped, one component that takes `SubagentWork` (header description, brief and flow items) and so serves the epic's slice card (`SliceCardView`, a row that opens it) unchanged.
   It is the brief as a bubble on the right with the label "Brief from the main agent" (`chatSurface`, tinted), then `FlowItemView` for the subagent's own groups, thoughts and messages (the same live line and chip, and the rows of the subagents it launched, which open in turn), and in the message box's place `SubagentNote`: a `workCard()` with "Subagent work is read-only." and a ‹ Back to chat button (‹ Back to Agent output from a slice card).
   All three are on `chatSurface` or the work card shell, so Settings > Chat > Surfaces applies.
-  Its **header** is the window's toolbar (`PanelView`): the sidebar's round button, then a round ‹ Back button (one level up), then `SubagentTitle` (the description, 13 pt semibold, over "<type> · Subagent of <session title>", 11 pt `secondary`), and where the worktree pill is `SubagentStatePill` (Running with a timer, Finished · duration, Failed or Stopped); the panel button stays; a slice card's has the epic's title in the subtitle ("Builder · <epic>") and the pill where the epic's links are, and no Stop.
+  Its **header** is the window's toolbar (`PanelView`): the sidebar's round button, a round ‹ Back button (one level up) in the place of the window's own ‹ › (back and forward through the places chosen, which a subagent view does not draw, so there are never two ‹), then `SubagentTitle` (the description, 13 pt semibold, over "<type> · Subagent of <session title>", 11 pt `secondary`), and where the worktree pill is `SubagentStatePill` (Running with a timer, Finished · duration, Failed or Stopped); the panel button stays; a slice card's has the epic's title in the subtitle ("Builder · <epic>") and the pill where the epic's links are, and no Stop.
   While the subagent runs, a Stop `ToolbarPillButton` (red stop icon, on its own glass capsule) follows the state pill; it is gone once the subagent ended and never drawn for a host that does not list `stopTask`, nor for a slice card's subagent.
   `SubagentTitle` is 34 pt high (the round buttons') and cuts a long title on one line, so the header is as high as the conversation's at any width (`SubagentHeaderTests`, 480, 560 and 900 pt, four states, a 120-character title; a slice card's, Builder and Reviewer, three states).
   Its two lines follow the text size up to 14 and 12 pt and no further, because at 130 % they would be 39 pt and spill out of the toolbar (`theTitleLinesFitTheHeaderAtEveryTextSize`).
@@ -65,6 +65,15 @@ Work the agent did (calls, thoughts, messages, an error) is drawn with the chat'
 - **Say a kind in a word, not in a dot** (`BLOCKER`, `SUGGESTION`): a colour alone is not read by everyone.
 - **Open and fold a card with `flipCard`**: smooth, and none with Reduce Motion.
 - **One thing, one card**: what a card's rows were checked by is its foot (a line under a divider), not a second card under it.
+
+## The ring beside the microphone
+
+`ContextUsageButton` (`ContextUsageButton.swift`), in the message box's row of an open session, left of the microphone and in the same 36 pt frame with the same round hover, so the two read as a pair; the draft has none (nothing to count yet), and Settings > Chat > Message box > Context and limits turns it off.
+Two rings in the colors of `QuotaBar`: outside the context (`ContextUse.share`, what the last turn ended with over the model's window), inside the account's 5h (or Weekly, or Monthly, when it has no 5h); the theme's accent, orange from 90 % and no other color, over a `primary` 12 % track.
+A share that is not known (no turn yet, a host that does not send the window, an account that is signed out) leaves that ring as its track alone, and the numbers of a stale check stay at half strength.
+A click opens the system popover, which is glass without drawing anything: the context as a `UsageMeterLine` with its tokens under it, then the account's `AccountUsageMeters` (the Providers page's own, the bars hatched where the next reset gives the use back, the `Stale` chip, `Resets in …`), then Open Usage.
+It does not repeat the account: the box's own pill names it.
+Do not draw a third kind of meter for a percentage: the popover reuses `UsageMeterLine` and `AccountUsageMeters`.
 
 ## Rows of a feed
 

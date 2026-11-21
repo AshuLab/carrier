@@ -162,8 +162,10 @@ private func freshTable() -> ShortcutTable {
 @Test func theArchiveAndSessionShortcutsRunTheirActions() {
     let table = freshTable()
     #expect(shortcutAction(key: "4", modifiers: .command, in: table) == .select(.archive))
-    #expect(shortcutAction(key: "]", modifiers: .command, in: table) == .nextSession)
-    #expect(shortcutAction(key: "[", modifiers: .command, in: table) == .previousSession)
+    #expect(shortcutAction(key: KeyCombo.downArrow, modifiers: [.command, .option], in: table) == .nextSession)
+    #expect(shortcutAction(key: KeyCombo.upArrow, modifiers: [.command, .option], in: table) == .previousSession)
+    #expect(shortcutAction(key: "]", modifiers: .command, in: table) == .forward)
+    #expect(shortcutAction(key: "[", modifiers: .command, in: table) == .back)
     #expect(shortcutAction(key: "a", modifiers: [.command, .shift], in: table) == .archiveSession)
     #expect(shortcutAction(key: "A", modifiers: [.command, .shift], in: table) == .archiveSession)
     #expect(shortcutAction(key: "a", modifiers: .command, in: table) == nil)
@@ -302,4 +304,78 @@ private let fakeSessions = [
     shell.openSubagent("c1")
     shell.reset()
     #expect(shell.subagents.isEmpty)
+}
+
+@Test func backAndForwardWalkTheSelectionsVisitedAndAddNothingThemselves() {
+    let shell = WindowShell()
+    shell.selection = .sessions
+    shell.selection = .session(id: "s1")
+    #expect(shell.history.canGoBack && !shell.history.canGoForward)
+    shell.goBack()
+    #expect(shell.selection == .sessions && shell.history.canGoForward)
+    shell.goBack()
+    shell.goBack()
+    #expect(shell.selection == .home && !shell.history.canGoBack)
+    shell.goForward()
+    shell.goForward()
+    shell.goForward()
+    #expect(shell.selection == .session(id: "s1") && !shell.history.canGoForward)
+    // choosing from the middle drops what was ahead
+    shell.goBack()
+    shell.selection = .archive
+    #expect(shell.history.places == [.home, .sessions, .archive] && !shell.history.canGoForward)
+    shell.reset()
+    #expect(!shell.history.canGoBack)
+}
+
+@Test func aSessionThatIsGoneLeavesTheHistory() {
+    let shell = WindowShell()
+    shell.selection = .session(id: "s1")
+    shell.selection = .terminals
+    shell.selection = .session(id: "s1")
+    shell.sessionRemoved("s1")
+    #expect(shell.selection == .newSession)
+    #expect(shell.history.places == [.home, .terminals, .newSession])
+    shell.goBack()
+    #expect(shell.selection == .terminals)
+    shell.goBack()
+    #expect(shell.selection == .home)
+}
+
+@Test func forgettingAPlaceMergesTheNeighboursItLeavesEqual() {
+    var history = SelectionHistory(.home)
+    history.visit(.sessions)
+    history.visit(.session(id: "s1"))
+    history.visit(.sessions)
+    history.visit(.archive)
+    history.forget(.session(id: "s1"))
+    #expect(history.places == [.home, .sessions, .archive] && history.current == .archive)
+}
+
+@Test func goingBackToTheNewSessionDraftDoesNotOpenItAgain() {
+    let shell = WindowShell()
+    shell.selection = .newSession
+    #expect(shell.newSessionOpened == 1)
+    shell.selection = .session(id: "s1")
+    shell.goBack()
+    #expect(shell.selection == .newSession && shell.newSessionOpened == 1)
+    shell.goForward()
+    shell.goBack()
+    #expect(shell.newSessionOpened == 1)
+    // opening it from the sidebar or the menu is still a fresh start
+    shell.selection = .newSession
+    #expect(shell.newSessionOpened == 2)
+}
+
+@Test func aClosedTerminalLeavesTheHistory() {
+    let shell = WindowShell()
+    let first = UUID(), second = UUID()
+    shell.selection = .terminal(id: first)
+    shell.selection = .terminal(id: second)
+    // the window moves to the one left, then the terminal is forgotten
+    shell.selection = .terminal(id: first)
+    shell.terminalRemoved(second)
+    #expect(shell.history.places == [.home, .terminal(id: first)])
+    shell.goBack()
+    #expect(shell.selection == .home)
 }

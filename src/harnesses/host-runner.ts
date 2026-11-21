@@ -11,7 +11,7 @@ import { createEventState, type AgentEvent } from '../execution/events.ts';
 import { claudeAdapter } from './claude.ts';
 import { agyAdapter } from './agy.ts';
 import { codexAdapter } from './codex.ts';
-import { resolveBinary, type AgentCommand, type HarnessAdapter, type LineSignal } from './common.ts';
+import { resolveBinary, splitLines, type AgentCommand, type HarnessAdapter, type LineSignal } from './common.ts';
 
 const exec = promisify(execFile);
 
@@ -155,17 +155,17 @@ export class HostAgentRunner implements AgentRunner {
       };
       // Some errors (Codex's lost session) only show on stderr, so both streams go through the adapter.
       const lineReader = (stream: 'stdout' | 'stderr') => {
-        let pending = '';
+        const splitter = splitLines();
         return {
           push: (chunk: string) => {
             emit(stream, chunk);
-            const lines = (pending + chunk).split('\n');
-            pending = lines.pop()!;
+            const lines = splitter.push(chunk);
             batch = [];
             lines.forEach((line) => readLine(line, stream));
             reportEvents();
           },
           flush: () => {
+            const pending = splitter.rest();
             if (!pending) return;
             batch = [];
             readLine(pending, stream);

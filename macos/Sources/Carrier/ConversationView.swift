@@ -250,6 +250,7 @@ private struct ConversationBox: View {
     var dictations: Int
     @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+    @AppStorage(AppPreferences.showsContextUsageKey) private var showsContextUsage = AppPreferences.defaultShowsContextUsage
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -279,7 +280,9 @@ private struct ConversationBox: View {
             MessageBox(
                 text: $model.draft, placeholder: "Message the agent", minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, canSendWithText: true, busy: model.busy,
-                focus: $boxFocused, commands: model.shownCommands, dictationOwner: "session:\(model.sessionId)", dictateRequest: dictations, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
+                focus: $boxFocused, commands: model.shownCommands, dictationOwner: "session:\(model.sessionId)", dictateRequest: dictations,
+                meter: showsContextUsage ? AnyView(ContextUsageButton(context: contextUse(model.rows), account: model.agent, store: AppUsage.store, busy: model.busy)) : nil,
+                send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
                 ComposerMenuButton(
                     // the agents the host can switch the session to; with none listed (an older host) the panel shows the session's own

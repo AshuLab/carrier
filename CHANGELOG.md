@@ -6,8 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A ring beside the microphone in an open session shows how full the conversation's context is (the outer ring) and how much of the account's 5h limit is used (the inner one), in the Usage page's colors: the theme's accent, orange from 90 %. A click opens the detail: the context in tokens, the account's `5h`, `Weekly` and `Monthly` meters with when they reset and whether they are stale, and a button to the Usage page. Settings > Chat > Message box > Context and limits turns it off. Claude and Codex now report the size of the model's window with the turn's context so the app can say how full it is.
+
 ### Changed
 
+- Carrier has a new app icon, and the dev build ("Carrier Dev") has its own with a pink mark, so it is easy to tell from the installed one in the Dock and the app switcher.
 - The sidebar's title bar has the Carrier logo: the mark and the name beside it, or the mark alone, centred, when an update shows and the sidebar is narrow.
 - The sidebar can no longer be dragged narrower than 280 points: its minimum was 140 in practice, whatever the code asked for.
 - An open conversation asks the chat host less often when nothing is happening: every 2 seconds instead of four times a second while idle with the app in front, every 5 seconds behind another app, and almost never with the window hidden or the Mac asleep. It still reads every quarter of a second while the agent works, and at once after you send.
@@ -16,6 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The little bar that bounces in the menu bar icon stops in Low Power Mode and while the screens or the Mac are asleep; it cost the system about four percent of a core.
 - With the window hidden or the Mac asleep, the app stops reading the epic you had open and reads the sidebar's session list about every 30 seconds instead of every 5; the list is up to date as the window shows and the epic within a few seconds. Notifications keep their pace (every 10 seconds in Low Power Mode).
 - In Low Power Mode the app asks the engine and the chat host less often (every 10 seconds) while nobody is in the app.
+- Chat sessions you are not looking at now close their agent ten minutes after you leave them, even with the app open, so idle agents and their MCP servers stop holding memory; sending a message wakes them as before. The one on screen, and any that works or waits for you, stay open. A terminal chat left at its prompt keeps its session open by asking after it every 20 seconds (an older `carrier chat` left at its prompt for ten minutes will say "This session is closed" when you send).
+- Settings › Sessions has "Sleep after", to choose how long a session you do not open keeps its agent running before it is put to sleep: 10 minutes (the default), 30 minutes or 1 hour. It is the new `idleCloseMinutes` of `chat.json`, and the search finds it.
+- The engine asks GitHub half as often about each live epic that has a pull request (two calls per poll instead of four, using what the same poll just read), parses each line an agent prints once, and an engine whose output is not a terminal (a detached one writes to `start.log`) builds its panel every ten seconds instead of every second.
 - The Usage page reads fewer logs: it skips those not written since the range began and drops lines it does not count before parsing them, and an account filter no longer makes each refresh read every other log again.
 - A restarted chat host no longer reads every Claude and Codex log again for the Usage page: it keeps what it read in `chat.db` (the session ids, folders, models and token counts of each log, never a line's text) and reads only what was added since. `chat.db` grows by about 1% of the logs it indexes (15 MB for 1.4 GB of logs).
 - Opening the app no longer starts every chat agent to list its models when it already knows them: it asks only for the agents it has nothing kept for, one at a time, and the new-session draft and the model picker refresh the list when they open.
@@ -33,6 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The logs and agent sessions of an epic in ready-for-test are no longer deleted after 30 days while it waits for its merge; the 30 days count from the merge or the close.
 - `carrier start` and the app see the engine as soon as it starts, instead of after it has recovered every running epic: with several running epics the socket used to answer seconds late (the app said "Carrier stopped", and `carrier start` could give up at 15 seconds with the engine still starting). Until the first check is armed the panel says `starting`.
 - After a crash, the chat host ends the agents it left running in parallel, so its socket opens within one grace period instead of one per agent.
+- A chat host that crashes now ends its agents before it exits, instead of leaving them running until the next host starts.
 - The Usage page no longer leaves out the epics' usage when it reads while the engine is writing. Both databases now keep a `-wal` and a `-shm` file beside them while Carrier runs: they are part of the database, so do not delete them or copy the `.db` alone.
 - "Carrier could not be updated" no longer shows above the sessions, in the sidebar or on the Sessions home; it is in Settings › About, where it can be tried again.
 - Dictation in any app: when macOS drops Carrier's Accessibility permission after an update (the switch still reads on and the text is only copied), the widget and Settings › Dictation offer "Reset permission", which removes it and asks again.
@@ -45,6 +54,7 @@ A new worktree starts from the remote branch, with a Remote and Local choice in 
 
 ### Added
 
+- The window's toolbar has ‹ and › after the sidebar's button: they go back and forward through the places you chose in the sidebar (Home, a session, a terminal, an epic…), as a browser's do, with ⌘[ and ⌘] (what the back and forward buttons of a mouse send), in the View menu and in Settings › Keybindings. Next and previous session, which had ⌘] and ⌘[, are now ⌥⌘↓ and ⌥⌘↑; one you had changed stays as you set it. A session you archived or deleted is left out of the way back.
 - Settings › Sessions › New sessions has a "Start from" choice: a new worktree starts from the remote branch (the latest, the default) or from your local one.
 - The branch picker of a new session has Remote and Local tabs, shows how many commits a local branch is behind its remote copy or has not pushed, and says where the worktree will start.
 - Choosing a project in a new session brings its branches up to date in the background, and the picker says when the remote could not be reached.

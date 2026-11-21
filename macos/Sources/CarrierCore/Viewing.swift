@@ -57,8 +57,8 @@ public let conversationTurnWait: TimeInterval = 0.25
 /// on screen should not outlast it by long.
 public let conversationRetryCeiling: TimeInterval = 5
 
-/// The longest a conversation goes without asking while nobody looks: a wake-up that gets lost costs one ask every 30 seconds, and the chat
-/// host, which closes a session that nobody asked about for a minute, still hears from the app.
+/// The longest a conversation goes without asking while nobody looks: a wake-up that gets lost costs one ask every 30 seconds. That ask is also what
+/// keeps the open session awake in the chat host, which closes an idle one that no request names for ten minutes: this has to stay well under half of that.
 public let conversationPause: TimeInterval = 30
 
 /// Whether the menu bar icon's bar may bounce: the person left it on, the screens and the Mac are awake (nobody sees it otherwise) and it is not

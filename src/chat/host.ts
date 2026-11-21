@@ -22,7 +22,7 @@ import { McpSessionRegistry, startMcpServer, type McpServer } from './mcp.ts';
 import { startChatServer } from './server.ts';
 import { realMachine, type Machine } from '../doctor/detect.ts';
 import { realProbes, type HealthProbes } from './health.ts';
-import { binaryFound, createSessions, type ChatSessionsDeps, type LiveSettings } from './sessions.ts';
+import { binaryFound, createSessions, IDLE_CLOSE_MS, type ChatSessionsDeps, type LiveSettings } from './sessions.ts';
 import { realProcesses, sweepDeadHost, type Processes } from './sweep.ts';
 import { createUsage, type UsageDeps } from '../usage/service.ts';
 import { realHistoryPorts, realUsagePorts } from '../usage/real.ts';
@@ -42,6 +42,8 @@ export interface ChatHostDeps {
   idleMs?: number;
   /** Whether SIGINT, SIGTERM and SIGHUP end the host. */
   signals: boolean;
+  /** Registers what runs when an exception reaches the top, so the agents are closed before the host exits; with signals, and none given, it is `process.on('uncaughtException')`. */
+  onCrash?: (handler: (error: unknown) => void) => void;
   /** The runner of each harness. */
   runners: ChatSessionsDeps['runners'];
   env: NodeJS.ProcessEnv;
@@ -105,7 +107,9 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   };
   const usage = createUsage({ ports: { ...deps.usage.ports, clock: deps.clock }, history: deps.usage.history, db, folder: carrierHome(), agents: () => chatAgentsOf(settings.agents), env: deps.env });
   const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock });
-  const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, pulls: deps.pulls, onLiveChange: () => idle?.recheck(), mcp: { registry: mcpRegistry, url: () => mcpServer?.url, tools: mcpTools.map((tool) => tool.name) } });
+  // the last value read, not the file: a conversation names its session several times a second (`list` and the clock pass read the file)
+  const idleCloseMs = () => (ages.idleCloseMinutes === undefined ? IDLE_CLOSE_MS : ages.idleCloseMinutes * 60_000);
+  const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), idleCloseMs, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, pulls: deps.pulls, onLiveChange: () => idle?.recheck(), mcp: { registry: mcpRegistry, url: () => mcpServer?.url, tools: mcpTools.map((tool) => tool.name) } });
   // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
   let cancelPass = () => {};
   let stopped = false;
@@ -114,8 +118,10 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     sweepPending(deps.clock.now());
     try {
       const current = readChatConfig();
-      if (current.ok) await sessions.applyClock(current.settings);
-      else log.error('the session lifecycle pass was skipped', new Error(chatConfigProblem(carrierHome(), current.errors)));
+      if (current.ok) {
+        ages = current.settings;
+        await sessions.applyClock(current.settings);
+      } else log.error('the session lifecycle pass was skipped', new Error(chatConfigProblem(carrierHome(), current.errors)));
     } catch (error) {
       log.error('the session lifecycle pass failed', error);
     }
@@ -137,14 +143,14 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     lock.release();
   };
   let stopping: Promise<void> | undefined;
-  const stop = () =>
+  const stop = (code = 0) =>
     (stopping ??= (async () => {
       stopped = true;
       await sessions.closeAll(); // also tells the pass in flight to leave the next session alone
       await passInFlight; // so the database is not closed under a worktree that is half removed
       close();
       log.info('chat host stopped');
-      deps.exit(0);
+      deps.exit(code);
     })());
   idle = idleExit({ clock: deps.clock, afterMs: deps.idleMs, live: sessions.liveCount, exit: stop });
   // The MCP is up before the socket answers; one that cannot bind leaves the host without it, and each session says so.
@@ -155,8 +161,8 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   }
   try {
     const clients = {
-      joined: () => void (idle?.joined(), sessions.clientJoined()),
-      left: () => void (idle?.left(), sessions.clientLeft()),
+      joined: () => void idle?.joined(),
+      left: () => void idle?.left(),
     };
     closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, cloneRepo: projects.cloneRepo, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
   } catch (error) {
@@ -164,6 +170,16 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     throw error;
   }
   if (deps.signals) for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(signal, () => void stop());
+  // Node would end at once, and the agents are in their own process groups: they would run on until the next host sweeps them.
+  const onCrash = deps.onCrash ?? (deps.signals ? (handler: (error: unknown) => void) => void process.on('uncaughtException', handler) : undefined);
+  onCrash?.((error) => {
+    log.error('the chat host crashed; closing its sessions before it exits', error);
+    setTimeout(() => deps.exit(1), 10_000).unref(); // a stop that hangs still ends the process
+    stop(1).catch((failure) => {
+      log.error('stopping the chat host after a crash failed', failure);
+      deps.exit(1);
+    });
+  });
   await clockPass();
   log.info('chat host started', { folder: carrierHome() });
   return { stop };

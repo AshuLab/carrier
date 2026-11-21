@@ -29,7 +29,7 @@ Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also ha
 
 1. `src/chat/config.ts`: `chatConfigSchema` **and** the hand-written `ChatSettings` type and what `loadChatConfig` returns.
    The chat has no reload: the host reads the file again when it needs it.
-2. Swift: `macos/Sources/CarrierCore/SessionAges.swift` for the ages it edits and `WorktreeStart.swift` for `worktreeStart`.
+2. Swift: `macos/Sources/CarrierCore/SessionAges.swift` for the ages it edits, `WorktreeStart.swift` for `worktreeStart` and `IdleClose.swift` for `idleCloseMinutes`; the row is also listed in `SettingsIndex.swift`, or the Settings search cannot find it.
 
 All three: `docs/configuration.md`, the Settings pages in `docs/macos/` if Settings shows it, and `CHANGELOG.md`.
 The app's writers keep keys they do not know, and send `reload` after saving `engine.json` or `providers.json`.

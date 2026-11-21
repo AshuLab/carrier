@@ -283,6 +283,16 @@ test('a conversation resumes by the native id and keeps the context', async () =
   expect((await turn(conversation, events, resumed[0]!.text)).find((e) => e.kind === 'assistant')).toEqual({ kind: 'assistant', text: 'PINEAPPLE' });
 });
 
+test('the size of the window is the one model the result lists even when its key is not the name the messages carried', async () => {
+  const call: Line = { type: 'assistant', message: { model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: 1, cache_read_input_tokens: 10 } } };
+  const result = (modelUsage: Line): Line => ({ type: 'result', subtype: 'success', is_error: false, usage: {}, modelUsage });
+  const one = await openWith([{ text: 'a', lines: [call, result({ 'claude-sonnet-5-5[1m]': { contextWindow: 1_000_000 } })] }]);
+  expect((await turn(one.conversation, one.events, 'a')).find((e) => e.kind === 'turn_end')).toMatchObject({ usage: { context_window: 1_000_000 } });
+  // two models and neither is the one that answered: nothing is guessed
+  const two = await openWith([{ text: 'b', lines: [call, result({ 'other-a': { contextWindow: 200_000 }, 'other-b': { contextWindow: 1_000_000 } })] }]);
+  expect((await turn(two.conversation, two.events, 'b')).find((e) => e.kind === 'turn_end')).not.toHaveProperty('usage.context_window');
+});
+
 test('a line it does not know is ignored and never throws', async () => {
   const unknown: Line[] = [{ type: 'brand_new' }, { type: 'assistant', message: 7 }, { type: 'user', message: { content: [null, { type: 'tool_result' }] } }, { type: 'stream_event', event: 3 }, { type: 'system', subtype: 'hook_started' }, { type: 'result', usage: 'x', modelUsage: null }];
   const { conversation, events } = await openWith([{ text: 'hi', lines: unknown }]);
@@ -296,11 +306,12 @@ test('a turn ends with the context of its last model call, not the sum of the ca
     // a subagent's call is its own context, not the turn's
     call({ input_tokens: 5, cache_read_input_tokens: 400_000, cache_creation_input_tokens: 0 }, 'toolu_sub'),
     call({ input_tokens: 4, cache_read_input_tokens: 92_000, cache_creation_input_tokens: 500 }),
-    { type: 'result', subtype: 'success', is_error: false, usage: { input_tokens: 7, cache_read_input_tokens: 182_000, cache_creation_input_tokens: 1_500, output_tokens: 20 } },
+    { type: 'result', subtype: 'success', is_error: false, usage: { input_tokens: 7, cache_read_input_tokens: 182_000, cache_creation_input_tokens: 1_500, output_tokens: 20 }, modelUsage: { 'claude-sonnet-5-5': { contextWindow: 1_000_000 } } },
   ];
   const { conversation, events } = await openWith([{ text: 'hi', lines }]);
   const end = (await turn(conversation, events, 'hi')).find((e) => e.kind === 'turn_end');
-  expect(end).toMatchObject({ usage: { context_tokens: 92_504, cache_read_input_tokens: 182_000 } });
+  // and the size of the model's window, so the app can say how full it is
+  expect(end).toMatchObject({ usage: { context_tokens: 92_504, cache_read_input_tokens: 182_000, context_window: 1_000_000 } });
   // the next turn starts clean: a result that no call came before has no context
   const next = await openWith([{ text: 'a', lines: [call({ input_tokens: 1, cache_read_input_tokens: 10 }), { type: 'result', subtype: 'success', is_error: false, usage: {} }] }, { text: 'b', lines: [{ type: 'result', subtype: 'success', is_error: false, usage: {} }] }]);
   await turn(next.conversation, next.events, 'a');

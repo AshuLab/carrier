@@ -9,6 +9,8 @@ struct SessionsTabView: View {
     @State private var draft = SessionAges()
     /// `worktreeStart` of chat.json, as the file says
     @State private var start = defaultWorktreeStart
+    /// `idleCloseMinutes` of chat.json, as the file says
+    @State private var idle = defaultIdleClose
     /// fields whose text is not a number yet
     @State private var unparsable: Set<String> = []
     @State private var failure: String?
@@ -82,6 +84,15 @@ struct SessionsTabView: View {
                 .foregroundStyle(startOff == nil ? Color.primary : Color.secondary)
             }
             SettingsGroup(
+                title: "Idle sessions",
+                footer: "An idle session you do not open for this long puts its agent to sleep, which frees its memory. It stays in the list, and a message wakes it where it left off. The session you have open stays awake, and so does one that is working or waiting for you."
+            ) {
+                SettingsTabRow(title: "Sleep after", detail: "How long an idle session nobody opens keeps its agent running", first: true) {
+                    ChoicePopUp(label: "Sleep after", options: IdleClose.allCases.map { (value: $0, title: $0.title) }, selection: $idle)
+                        .disabled(unreadable)
+                }
+            }
+            SettingsGroup(
                 title: "Archive and delete",
                 footer: "Ages count from a session’s last activity. Delete is off while Archive is Never. Deleting removes the session’s worktree; work that is not saved is kept."
             ) {
@@ -102,6 +113,7 @@ struct SessionsTabView: View {
         .onAppear(perform: load)
         .onChange(of: draft) { save() }
         .onChange(of: start) { saveStart() }
+        .onChange(of: idle) { saveIdle() }
     }
 
     private func row(_ title: String, _ detail: String, _ field: SessionAgeField, off: String?, first: Bool = false, age: Binding<SessionAge>, fallback: Int) -> some View {
@@ -133,6 +145,7 @@ struct SessionsTabView: View {
             unparsable = []
             draft = SessionAges()
             start = defaultWorktreeStart
+            idle = defaultIdleClose
         }
     }
 
@@ -142,6 +155,7 @@ struct SessionsTabView: View {
             saved = sessionAges(chatJSON: file)
             draft = saved
             start = worktreeStart(chatJSON: file)
+            idle = idleClose(chatJSON: file)
             failure = nil
             unreadable = false
         } catch {
@@ -160,6 +174,12 @@ struct SessionsTabView: View {
     private func saveStart() {
         guard worktreeStart(chatJSON: (try? currentChatConfig()) ?? nil) != start else { return }
         if rewriteChatConfig({ applyingWorktreeStart(start, to: $0) }) == false { start = worktreeStart(chatJSON: (try? currentChatConfig()) ?? nil) }
+    }
+
+    /// Writes `idleCloseMinutes`, the file read again just now; when it cannot, the row shows what the host will use and not the choice that was not written.
+    private func saveIdle() {
+        guard idleClose(chatJSON: (try? currentChatConfig()) ?? nil) != idle else { return }
+        if rewriteChatConfig({ applyingIdleClose(idle, to: $0) }) == false { idle = idleClose(chatJSON: (try? currentChatConfig()) ?? nil) }
     }
 
     /// Reads `chat.json` again, lets `apply` change it and writes it back; false, with the reason in `failure`, when it was not written.

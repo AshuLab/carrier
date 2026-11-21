@@ -14,7 +14,7 @@ import { chatEvents, chatTurns, sessions as schemaSessions } from './schema.ts';
 import type { HealthProbes } from './health.ts';
 import { capabilities } from './mcp/capabilities.ts';
 import { McpSessionRegistry } from './mcp.ts';
-import { createSessions, FOLLOW_UP_MS, type LiveSettings } from './sessions.ts';
+import { createSessions, FOLLOW_UP_MS, IDLE_CLOSE_MS, type LiveSettings } from './sessions.ts';
 
 let dir: string;
 let work: string;
@@ -522,13 +522,13 @@ test('a question approval takes answers keyed by its questions and refuses the r
   expect(() => sessions.answer({ sessionId: id, approvalId: 'a1', choiceId: 'allow', answers: { x: 'y' } })).toThrow('asks no questions');
 });
 
-test('a live session that is idle with no client is closed after a minute: the runner closes it and the row stays; a working one is kept', async () => {
+test('a live session that is idle and that no request names is closed after the idle time: the runner closes it and the row stays; a working one is kept', async () => {
   const s = setup();
   const idleOne = await openOne(s);
   const { session: busy } = await s.sessions.open({ agent: 'claude', folder: work });
   s.sessions.send({ sessionId: busy.id, text: 'work' });
   s.onLiveChange.mockClear();
-  await s.clock.advance(59_999);
+  await s.clock.advance(IDLE_CLOSE_MS - 1);
   expect(idleOne.conversation.closed).toBe(false);
   await s.clock.advance(1);
   expect(idleOne.conversation.closed).toBe(true);
@@ -537,9 +537,9 @@ test('a live session that is idle with no client is closed after a minute: the r
   expect(s.onLiveChange).toHaveBeenCalled();
   expect(rows('sessions').map((r) => r.id).sort()).toEqual([idleOne.id, busy.id].sort());
   expect(s.sessions.events({ sessionId: idleOne.id, limit: 1 }).options).toEqual([]); // closed: nothing live
-  // the working one becomes idle when its turn ends, and then the minute runs
+  // the working one becomes idle when its turn ends, and then the idle time runs
   s.claude.conversations[1]!.emit({ kind: 'turn_end', outcome: 'ok' });
-  await s.clock.advance(60_000);
+  await s.clock.advance(IDLE_CLOSE_MS);
   expect(s.claude.conversations[1]!.closed).toBe(true);
 });
 
@@ -567,10 +567,10 @@ test('a session that waits for background work is not closed for being idle, and
   const s = setup();
   const one = await openOne(s);
   one.conversation.emit(bg('a'));
-  await s.clock.advance(10 * 60_000);
+  await s.clock.advance(3 * IDLE_CLOSE_MS);
   expect(one.conversation.closed).toBe(false);
   one.conversation.emit(bg());
-  await s.clock.advance(59_999);
+  await s.clock.advance(IDLE_CLOSE_MS - 1);
   expect(one.conversation.closed).toBe(false);
   await s.clock.advance(1);
   expect(one.conversation.closed).toBe(true);
@@ -658,16 +658,83 @@ test('a task can be stopped by itself: only the one named, refused in words when
   await expect(s.sessions.stopTask({ sessionId: 'unknown', taskId: 'a' })).rejects.toThrow();
 });
 
-test('with a client attached nothing is closed; the minute counts from the client leaving', async () => {
-  const { sessions, conversation, clock } = await openOne();
-  sessions.clientJoined();
-  await clock.advance(10 * 60_000);
-  expect(conversation.closed).toBe(false);
-  sessions.clientLeft();
-  await clock.advance(59_999);
+test('a session that is read stays, listing the sessions keeps none, and the idle time counts from the last request that named it', async () => {
+  const s = setup();
+  const a = await openOne(s);
+  const { session: other } = await s.sessions.open({ agent: 'claude', folder: work });
+  const b = s.claude.conversations[1]!;
+  await s.clock.advance(IDLE_CLOSE_MS / 2);
+  s.sessions.events({ sessionId: a.id, limit: 1 });
+  s.sessions.list({});
+  await s.clock.advance(IDLE_CLOSE_MS / 2);
+  expect([a.conversation.closed, b.closed]).toEqual([false, true]); // `a` was read half-way, `other` only listed
+  await s.clock.advance(IDLE_CLOSE_MS / 2);
+  expect(a.conversation.closed).toBe(true); // and it goes too, the idle time after its last read
+  expect(rows('sessions').map((r) => r.id).sort()).toEqual([a.id, other.id].sort());
+});
+
+test('the idle time is what the host says each time a session is armed: a longer one is kept, and a change applies from the next request that names the session', async () => {
+  let idleCloseMs = 3 * IDLE_CLOSE_MS;
+  const s = setup(undefined, { idleCloseMs: () => idleCloseMs });
+  const one = await openOne(s);
+  await s.clock.advance(3 * IDLE_CLOSE_MS - 1);
+  expect(one.conversation.closed).toBe(false);
+  await s.clock.advance(1);
+  expect(one.conversation.closed).toBe(true);
+
+  idleCloseMs = 6 * IDLE_CLOSE_MS;
+  const { session } = await s.sessions.open({ agent: 'claude', folder: work });
+  const two = s.claude.conversations.at(-1)!;
+  await s.clock.advance(3 * IDLE_CLOSE_MS);
+  idleCloseMs = IDLE_CLOSE_MS; // the person chose less, and the session is read: its time is the new one from here
+  s.sessions.events({ sessionId: session.id, limit: 1 });
+  await s.clock.advance(IDLE_CLOSE_MS);
+  expect(two.closed).toBe(true);
+});
+
+test('changing an option of a live session keeps it as reading it does', async () => {
+  const { sessions, conversation, clock, id } = await openOne();
+  conversation.options = [{ id: 'model', label: 'Model', values: [{ id: 'haiku', label: 'Haiku' }], current: 'haiku' }];
+  await clock.advance(IDLE_CLOSE_MS - 1);
+  await sessions.setOption({ sessionId: id, option: 'model', value: 'haiku' });
+  await clock.advance(IDLE_CLOSE_MS - 1);
   expect(conversation.closed).toBe(false);
   await clock.advance(1);
   expect(conversation.closed).toBe(true);
+});
+
+test('a session that is not idle is never closed for being idle, read or not: it is working, waits for an approval or waits for a task it started', async () => {
+  const s = setup();
+  const working = await openOne(s);
+  working.sessions.send({ sessionId: working.id, text: 'go' });
+  const { session: waiting } = await s.sessions.open({ agent: 'claude', folder: work });
+  s.sessions.send({ sessionId: waiting.id, text: 'go' });
+  s.claude.conversations[1]!.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', arg: 'ls', choices: [{ id: 'allow', label: 'Allow', allow: true }] });
+  const { session: background } = await s.sessions.open({ agent: 'claude', folder: work });
+  s.claude.conversations[2]!.emit(bg('t1'));
+  await s.clock.advance(3 * IDLE_CLOSE_MS);
+  expect(s.claude.conversations.map((c) => c.closed)).toEqual([false, false, false]);
+  expect(s.sessions.liveCount()).toBe(3);
+  expect(waiting.id).not.toBe(background.id);
+});
+
+test('a resume while the agent of that session is still ending waits for it, so two agents never hold one conversation', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  one.conversation.close = async () => {
+    one.conversation.closed = true;
+    await gate;
+  };
+  const closing = s.sessions.close({ sessionId: one.id });
+  const resuming = s.sessions.resume({ sessionId: one.id });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(s.claude.conversations).toHaveLength(1); // the old one has not ended: no second one yet
+  release();
+  await closing;
+  await resuming;
+  expect(s.claude.conversations).toHaveLength(2);
 });
 
 test('close keeps the row, ends the conversation once, and closeAll closes every live session', async () => {
@@ -911,10 +978,10 @@ test('a session that works only because of a task is refused by archive and by d
   expect(stateOf(s, id)).toBe('working');
   await expect(s.sessions.archive({ sessionId: id, archived: true })).rejects.toThrow(/working; interrupt or close it first, then archive it/);
   await expect(s.sessions.delete({ sessionId: id })).rejects.toThrow(/working; interrupt or close it first, then delete it/);
-  await s.clock.advance(10 * 60_000);
+  await s.clock.advance(3 * IDLE_CLOSE_MS);
   expect(conversation.closed).toBe(false);
   conversation.emit(task('a', 'completed'));
-  await s.clock.advance(FOLLOW_UP_MS + 60_000); // idle after the wait for a follow-up turn: then the minute runs
+  await s.clock.advance(FOLLOW_UP_MS + IDLE_CLOSE_MS); // idle after the wait for a follow-up turn: then the idle time runs
   expect(conversation.closed).toBe(true);
 });
 
@@ -2920,6 +2987,17 @@ test('waitChildren answers working when the time ends, and done with the last me
   expect(await wait(1000)).toEqual([{ childId, agent: 'edit', state: 'done', message: 'x'.repeat(4000) }]); // answers at once, with no time passing
 });
 
+test('a child whose turn ended closes when nobody reads it for the idle time, and waitChildren still says it is done, from what was stored', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit');
+  const child = s.claude.conversations.at(-1)!;
+  child.emit({ kind: 'assistant', text: 'all done' }, { kind: 'turn_end', outcome: 'ok' });
+  await s.clock.advance(IDLE_CLOSE_MS);
+  expect(child.closed).toBe(true);
+  expect(await s.sessions.mcpView.waitChildren(parent.id, [childId], 1000)).toEqual([{ childId, agent: 'edit', state: 'done', message: 'all done' }]);
+});
+
 test('waitChildren waits for every child that works, and counts one that waits for an approval as stopped', async () => {
   const s = delegation();
   const parent = await s.parent();
@@ -3308,7 +3386,7 @@ test('while a switch runs, a message, a resume, a close, an option, an interrupt
   await expect(s.sessions.delete({ sessionId: id })).rejects.toThrow(refused);
   await expect(s.sessions.archive({ sessionId: id, archived: true })).rejects.toThrow(refused);
   await expect(s.sessions.switchAgent({ sessionId: id, agent: 'other' })).rejects.toThrow(refused);
-  s.clock.time += 2 * IDLE_AFTER; // no client is attached: the idle close would fire
+  await s.clock.advance(2 * IDLE_CLOSE_MS); // nobody reads it: the idle close would fire
   expect(old.closed).toBe(false);
   // reads still work
   expect(s.sessions.events({ sessionId: id, limit: 10 }).session).toMatchObject({ id });
@@ -3319,7 +3397,6 @@ test('while a switch runs, a message, a resume, a close, an option, an interrupt
   expect(s.codex.conversations[0]!.sent).toEqual(['now it works']);
   expect(s.codex.conversations[0]!.closed).toBe(false);
 });
-const IDLE_AFTER = 60_000;
 
 test('the old conversation stays recorded as the session\'s process until it ends, and the new one is recorded after', async () => {
   const s = switching();

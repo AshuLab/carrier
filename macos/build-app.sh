@@ -14,14 +14,14 @@ for arg in "$@"; do
   if [ "$arg" = "--open" ]; then OPEN=true; else VERSION="$arg"; GIVEN=true; fi
 done
 if [ "$GIVEN" = true ]; then
-  CHANNEL=release; NAME=Carrier; BUNDLE_ID=dev.ashulab.carrier
+  CHANNEL=release; NAME=Carrier; BUNDLE_ID=dev.ashulab.carrier; ICON=AppIcon
   # the updater starts only from a bundle with a feed (AppUpdater.start), so a dev build has none
   UPDATER="<key>SUFeedURL</key><string>https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml</string>
 <key>SUPublicEDKey</key><string>$(tr -d '[:space:]' < update-key.pub)</string>
 <key>SUEnableAutomaticChecks</key><true/>
 <key>SUScheduledCheckInterval</key><integer>3600</integer>"
 else
-  CHANNEL=dev; NAME="Carrier Dev"; BUNDLE_ID=dev.ashulab.carrier.dev; UPDATER=""
+  CHANNEL=dev; NAME="Carrier Dev"; BUNDLE_ID=dev.ashulab.carrier.dev; ICON=AppIconDev; UPDATER=""
 fi
 # the version lands in the plist as XML, so only X.Y.Z gets in
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "error: version '$VERSION' is not X.Y.Z" >&2; exit 1; }
@@ -65,8 +65,9 @@ cp -R Tests/Fixtures "$APP/Contents/Resources/Fixtures"
 # what `--fixture` shows is AppFixture's (no sessions, no epics, yet), not the tests' set (those stay in Tests/Fixtures)
 rm "$APP"/Contents/Resources/Fixtures/chat-events-*.json
 cp AppFixture/*.json "$APP/Contents/Resources/Fixtures/"
-# the app's icon (made by scripts/make-icon.swift)
-cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# the app's icon of its channel, compiled from Resources/AppIcon.icon or AppIconDev.icon (the one with the pink mark) by scripts/make-icon.sh:
+# Assets.car is the layered icon of macOS 26 and the .icns is for what reads the file. It is not compiled here: see make-icon.sh
+cp "Resources/Compiled/$ICON/Assets.car" "Resources/Compiled/$ICON/$ICON.icns" "$APP/Contents/Resources/"
 # SwiftPM's resource bundle of CarrierCore: the file icons and the licence text that goes with them
 cp -R .build/release/Carrier_CarrierCore.bundle "$APP/Contents/Resources/"
 # GhosttyTerminal's bundled shell integration and terminfo database
@@ -90,7 +91,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>CFBundleName</key><string>$NAME</string>
 <key>CFBundleDisplayName</key><string>$NAME</string>
 <key>CarrierChannel</key><string>$CHANNEL</string>
-<key>CFBundleIconFile</key><string>AppIcon</string>
+<key>CFBundleIconFile</key><string>$ICON</string>
+<key>CFBundleIconName</key><string>$ICON</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>$VERSION</string>
 <key>CFBundleVersion</key><string>$BUILD</string>

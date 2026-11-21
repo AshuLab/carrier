@@ -8,6 +8,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { chatPlacesOf } from '../../../config/places.ts';
 import { FakeChatRunner, type FakeConversation } from '../../../chat/fake.ts';
 import { startChatHost } from '../../../chat/host.ts';
+import { IDLE_CLOSE_MS } from '../../../chat/sessions.ts';
 import { FakeClock } from '../../../orchestration/fake.ts';
 import { CliError } from '../cli-error.ts';
 import { connectControl } from '../control-client.ts';
@@ -31,9 +32,9 @@ afterEach(async () => {
 });
 
 const claude = new FakeChatRunner();
-const host = async () => {
+const host = async (clock = new FakeClock()) => {
   const exit = vi.fn();
-  const { stop } = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit, signals: false, runners: { claude } });
+  const { stop } = await startChatHost({ installLogging: () => {}, clock, exit, signals: false, runners: { claude } });
   stops.push(stop);
   return exit;
 };
@@ -246,6 +247,28 @@ test('--resume of a session whose conversation the provider lost says so in the 
 test('--resume of an unknown session shows the refusal in words', async () => {
   await host();
   await expect(chatCommand({ resume: '00000000-0000-4000-8000-000000000000' }, { input: typed('/quit') })).rejects.toMatchObject({ code: 1, lines: ['There is no such session'] });
+});
+
+test('a chat left at the prompt for longer than the host keeps an idle session still sends: nothing else asks after the session, so the chat does', async () => {
+  const clock = new FakeClock();
+  await host(clock);
+  const work = join(root, 'work');
+  mkdirSync(work);
+  claude.conversations.length = 0;
+  claude.setup = (conversation) => void (conversation.reply = (_text, c) => c.emit({ kind: 'assistant', text: 'still here' }, { kind: 'turn_end', outcome: 'ok' }));
+  const input = new PassThrough();
+  const running = chatCommand({ workspace: work }, { input, pollMs: 5, keepMs: 5 });
+  await vi.waitFor(() => expect(written.join('').endsWith('> ')).toBe(true));
+  for (let waited = 0; waited < 2 * IDLE_CLOSE_MS; waited += IDLE_CLOSE_MS / 12) {
+    await clock.advance(IDLE_CLOSE_MS / 12);
+    await new Promise((resolve) => setTimeout(resolve, 20)); // the chat asks in real time, the host's clock is the test's
+  }
+  expect(claude.conversations[0]!.closed).toBe(false);
+  input.write('anyone?\n');
+  await vi.waitFor(() => expect(written.join('')).toContain('still here'));
+  input.write('/quit\n');
+  expect(await running).toBe(0);
+  expect(claude.conversations[0]!.sent).toEqual(['anyone?']);
 });
 
 test('Ctrl+C while a turn runs interrupts it and returns to the prompt, where the next message is answered; Ctrl+C at the prompt leaves with the session open', async () => {

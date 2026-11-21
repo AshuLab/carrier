@@ -96,6 +96,8 @@ private let idle = PanelSnapshot(
 @Test func theMessageBoxDefaultsAreReturnToSendNoWritingToolsSpellCheckOnCorrectionOff() {
     let store = AppPreferences(defaults: UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!)
     #expect(store.sendKey == .return && store.writingTools == false && store.checksSpelling && store.correctsSpelling == false)
+    // the ring beside the microphone is on until the person turns it off
+    #expect(store.showsContextUsage)
 }
 
 @Test func theMessageBoxChoicesSurviveARelaunchAndABadSavedKeyReadsAsTheDefault() {
@@ -105,8 +107,9 @@ private let idle = PanelSnapshot(
     first.writingTools = true
     first.checksSpelling = false
     first.correctsSpelling = true
+    first.showsContextUsage = false
     let second = AppPreferences(defaults: UserDefaults(suiteName: name)!)
-    #expect(second.sendKey == .commandReturn && second.writingTools && second.checksSpelling == false && second.correctsSpelling)
+    #expect(second.sendKey == .commandReturn && second.writingTools && second.checksSpelling == false && second.correctsSpelling && second.showsContextUsage == false)
     let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
     defaults.set("enter", forKey: AppPreferences.sendKeyKey)
     #expect(AppPreferences(defaults: defaults).sendKey == .return)
@@ -119,9 +122,10 @@ private let idle = PanelSnapshot(
     store.writingTools = true
     store.checksSpelling = false
     store.correctsSpelling = true
+    store.showsContextUsage = false
     store.confirmStop = false
     store.reset(.chat)
-    #expect(store.sendKey == .return && store.writingTools == false && store.checksSpelling && store.correctsSpelling == false)
+    #expect(store.sendKey == .return && store.writingTools == false && store.checksSpelling && store.correctsSpelling == false && store.showsContextUsage)
     #expect(store.confirmStop == false)
 }
 

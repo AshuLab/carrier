@@ -510,6 +510,32 @@ private func decided(_ approval: ChatEvent, choice: String?, answers: [String: S
     return .decided(id: id, text: "\(chosen.allow ? "Allowed" : "Declined") \(what(approval)) · \(chosen.label) · by you", allow: chosen.allow)
 }
 
+/// How full a session's context is: what its last turn ended with and the size of the model's window, when the host said both.
+public struct ContextUse: Equatable {
+    public var tokens: Double
+    public var window: Double?
+
+    public init(tokens: Double, window: Double? = nil) { (self.tokens, self.window) = (tokens, window) }
+
+    /// The share of the window in use, `0...1`; nil without a window.
+    public var share: Double? { window.flatMap { $0 > 0 ? min(tokens / $0, 1) : nil } }
+
+    /// `45.7k of 1M`; just the count when the window is not known.
+    public var text: String { window.map { "\(Self.count(tokens)) of \(Self.count($0))" } ?? Self.count(tokens) }
+
+    private static func count(_ tokens: Double) -> String {
+        tokens >= 1_000_000 ? String(format: "%g", (tokens / 100_000).rounded() / 10) + "M" : TurnSummary.tokens(tokens)
+    }
+}
+
+/// The context of the last turn that told it (a turn that was cut short, or a host that does not say it, leaves the one before).
+public func contextUse(_ rows: [FeedRow]) -> ContextUse? {
+    for row in rows.reversed() {
+        if case .turnEnd(_, let summary) = row, let tokens = summary.contextTokens { return ContextUse(tokens: tokens, window: summary.contextWindow) }
+    }
+    return nil
+}
+
 /// "claude-sonnet-5-5 · 12s · 1.8k in · 436 out": each part only when the host or the provider gave it.
 /// What closes a turn: the model, how long it took and the tokens the provider reported. `text` is all of it as one line.
 public struct TurnSummary: Equatable {
@@ -523,10 +549,12 @@ public struct TurnSummary: Equatable {
     /// What the turn's last model call read: the context at the turn's end. The three counts above add every call of the turn up, and each call
     /// reads the whole context again, so they are many times it; nil from a host that does not say it.
     public var contextTokens: Double?
+    /// The size of the model's window, which says how full `contextTokens` is; nil from a host that does not say it.
+    public var contextWindow: Double?
 
-    public init(model: String? = nil, duration: String? = nil, input: Double? = nil, cacheRead: Double? = nil, cacheWrite: Double? = nil, output: Double? = nil, contextTokens: Double? = nil) {
+    public init(model: String? = nil, duration: String? = nil, input: Double? = nil, cacheRead: Double? = nil, cacheWrite: Double? = nil, output: Double? = nil, contextTokens: Double? = nil, contextWindow: Double? = nil) {
         (self.model, self.duration, self.input, self.cacheRead, self.cacheWrite, self.output) = (model, duration, input, cacheRead, cacheWrite, output)
-        self.contextTokens = contextTokens
+        (self.contextTokens, self.contextWindow) = (contextTokens, contextWindow)
     }
 
     init?(_ end: ChatEvent, turnStart: Int?) {
@@ -535,7 +563,7 @@ public struct TurnSummary: Equatable {
             model: end.model, duration: turnStart.map { formatDuration(end.at - $0) },
             input: count("input_tokens", "inputTokens"), cacheRead: count("cache_read_input_tokens", "cacheReadInputTokens"),
             cacheWrite: count("cache_creation_input_tokens", "cacheCreationInputTokens"), output: count("output_tokens", "outputTokens"),
-            contextTokens: count("context_tokens", "contextTokens")
+            contextTokens: count("context_tokens", "contextTokens"), contextWindow: count("context_window", "contextWindow")
         )
         if text.isEmpty { return nil }
     }
@@ -730,6 +758,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     }
 
     /// Polls until the task is cancelled or `sleep` throws, as often as who is looking and what the agent is doing call for.
+    /// These `events` are what keeps the session awake in the host, which closes an idle one that no request names for ten minutes: the wait must stay well under half of that.
     public func run() async {
         running = true
         defer { running = false }

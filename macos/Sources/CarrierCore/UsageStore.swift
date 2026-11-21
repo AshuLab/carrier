@@ -13,6 +13,8 @@ import Observation
     public private(set) var isRefreshing = false
     /// Why the last ask did not answer, in words; nil when it did. The last snapshot, if any, stays.
     public private(set) var error: String?
+    /// When the last ask was answered; nil before the first one (an ask that failed does not set it).
+    public private(set) var loadedAt: Date?
 
     // The filters are the person's; changing one is followed by `load`. The metric only changes what the page draws.
     public var metric = UsageMetric.cost
@@ -88,10 +90,18 @@ import Observation
                 snapshot = reply
                 quotas = all ?? reply.quotas
                 error = nil
+                loadedAt = Date()
             }
         } catch {
             if mine == asked { self.error = ConversationModel.words(error) }
         }
+    }
+
+    /// Asks only when the last answer is older than `seconds`: the host keeps the quotas for a minute, so a sooner ask would read its history again to be
+    /// told the same numbers. For what asks often (the ring beside a conversation's microphone), not for the Usage page's own refresh.
+    public func loadUnlessRecent(within seconds: TimeInterval = 60, now: Date = Date()) async {
+        if let loadedAt, now.timeIntervalSince(loadedAt) < seconds { return }
+        await load()
     }
 
     /// Prices a model by the person's rule and asks again, so the cost on the page follows. Returns why it did not, in words; nil when it did.

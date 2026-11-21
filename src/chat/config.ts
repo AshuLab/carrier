@@ -34,6 +34,8 @@ const chatConfigSchema = z.strictObject({
   /** When the clock's pass removes a session's worktree folder, keeping its branch; both off by default. */
   /** Which copy of a branch a new worktree is cut from when the plan does not say (ADR 0037). */
   worktreeStart: z.enum(['remote', 'local']).default('remote'),
+  /** Minutes an idle session that no request names stays open before its agent is closed; it wakes with the next message. */
+  idleCloseMinutes: z.union([z.literal(10), z.literal(30), z.literal(60)], { error: 'must be 10, 30 or 60 (minutes)' }).default(10),
   worktreeCleanup: z.strictObject({ afterPrMerged: z.boolean().default(false), afterInactiveDays: days.default('never') }).default({ afterPrMerged: false, afterInactiveDays: 'never' }),
 }).refine((c) => typeof c.archiveAfterDays !== 'number' || typeof c.deleteAfterDays !== 'number' || c.deleteAfterDays > c.archiveAfterDays, {
   path: ['deleteAfterDays'],
@@ -43,7 +45,7 @@ const chatConfigSchema = z.strictObject({
 
 /** The chat's settings once the defaults are in. */
 /** `agents` is undefined when `chat.json` lists none: the agents are then the accounts of `providers.json` (see `chatAgentsOf`). */
-export type ChatSettings = { agents: ChatAgent[] | undefined; projectsFolder: string; githubCallTimeoutSeconds: number; logLevel: LogLevel; archiveAfterDays: number | 'never'; deleteAfterDays: number | 'never'; worktreeStart: 'remote' | 'local'; worktreeCleanup: WorktreeCleanup };
+export type ChatSettings = { agents: ChatAgent[] | undefined; projectsFolder: string; githubCallTimeoutSeconds: number; logLevel: LogLevel; archiveAfterDays: number | 'never'; deleteAfterDays: number | 'never'; worktreeStart: 'remote' | 'local'; idleCloseMinutes: 10 | 30 | 60; worktreeCleanup: WorktreeCleanup };
 export type WorktreeCleanup = { afterPrMerged: boolean; afterInactiveDays: number | 'never' };
 export type ChatConfigError = { path: string; message: string };
 export type ChatConfigResult = { ok: true; settings: ChatSettings } | { ok: false; errors: ChatConfigError[] };
@@ -52,8 +54,8 @@ export type ChatConfigResult = { ok: true; settings: ChatSettings } | { ok: fals
 export function loadChatConfig(user: unknown, folder = carrierHome()): ChatConfigResult {
   const parsed = chatConfigSchema.safeParse(user);
   if (parsed.success === false) return { ok: false, errors: parsed.error.issues.map((issue) => ({ path: issue.path.join('.') || '(root)', message: issue.message })) };
-  const { agents, projectsFolder = chatPlacesOf(folder).projects, githubCallTimeoutSeconds = 30, logLevel = LogLevel.INFO, archiveAfterDays, deleteAfterDays, worktreeStart, worktreeCleanup } = parsed.data;
-  return { ok: true, settings: { agents: agents && Object.entries(agents).map(([name, agent]) => ({ name, ...agent })), projectsFolder, githubCallTimeoutSeconds, logLevel, archiveAfterDays, deleteAfterDays, worktreeStart, worktreeCleanup } };
+  const { agents, projectsFolder = chatPlacesOf(folder).projects, githubCallTimeoutSeconds = 30, logLevel = LogLevel.INFO, archiveAfterDays, deleteAfterDays, worktreeStart, idleCloseMinutes, worktreeCleanup } = parsed.data;
+  return { ok: true, settings: { agents: agents && Object.entries(agents).map(([name, agent]) => ({ name, ...agent })), projectsFolder, githubCallTimeoutSeconds, logLevel, archiveAfterDays, deleteAfterDays, worktreeStart, idleCloseMinutes, worktreeCleanup } };
 }
 
 /** `chat.json` read and validated; a file that is not there is the defaults, one that cannot be read or does not match is an error naming the key. */

@@ -1744,6 +1744,82 @@ test('a final PR closed without merge cancels the epic with the reason and stops
   expect(labelsOf(1)).toEqual([]);
 });
 
+// --- an epic that ended outside Carrier is found with what the same poll read, and GitHub is asked only for what that poll did not bring ---
+
+/** Epics parked in ready-for-test with a final PR, each listed as open and with its pull request block, as the poll reads them. */
+async function parkedWithPullRequests(count: number, { listed = true }: { listed?: boolean } = {}) {
+  const db = open();
+  for (let n = 1; n <= count; n++) {
+    seedEpic(db, n, { status: 'ready_for_test', stage: null, prNumber: 50 + n });
+    pull(50 + n, {}, n);
+    github.pullRequestBlocks[`AshuLab/a#${50 + n}`] = { number: 50 + n, url: `https://github.com/AshuLab/a/pull/${50 + n}`, draft: false, mergeState: 'CLEAN', reviewDecision: null, checks: null };
+    github.issue('AshuLab/a', n).labels = ['solve:epic', 'solve:epic:ready-for-test'];
+  }
+  if (listed) github.openEpics = { 'AshuLab/a': Array.from({ length: count }, (_, i) => ({ issue: i + 1, slices: null })) };
+  const engine = await start(0, [repos[0]!]);
+  return { engine, getPullRequest: vi.spyOn(github, 'getPullRequest'), getIssue: vi.spyOn(github, 'getIssue') };
+}
+
+test('a poll reads the pull request of each live epic once and does not ask GitHub again for what it read', async () => {
+  const { getPullRequest, getIssue } = await parkedWithPullRequests(3);
+  github.pullRequestReads.length = 0;
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toHaveLength(3); // one read per epic, the graphql that carries the state
+  expect([getPullRequest.mock.calls.length, getIssue.mock.calls.length]).toEqual([0, 0]); // what used to be two more calls per epic
+});
+
+test('a pull request state read for the epic\'s old final PR does not end the epic whose PR is another one by the time it is decided', async () => {
+  const { engine, getPullRequest } = await parkedWithPullRequests(1);
+  pull(51, { state: 'merged' }, 1); // the old final PR is merged...
+  pull(77, {}, 1);
+  const read = github.readPullRequest.bind(github);
+  vi.spyOn(github, 'readPullRequest').mockImplementation(async (repo, number) => {
+    const answer = await read(repo, number);
+    engine.db.update(epics).set({ prNumber: 77 }).where(eq(epics.issue, 1)).run(); // ...and a restart imported another one while the poll was reading
+    return answer;
+  });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', prNumber: 77 });
+  expect(getPullRequest).toHaveBeenCalledWith('AshuLab/a', 77); // asked about the PR it has now
+});
+
+test('a final PR that the poll read as merged ends the epic with no other question', async () => {
+  const { engine, getPullRequest } = await parkedWithPullRequests(2);
+  pull(51, { state: 'merged' }, 1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db).map((r) => r.status)).toEqual(['merged', 'ready_for_test']);
+  expect(getPullRequest).not.toHaveBeenCalled();
+});
+
+test('an epic that the poll did not list as open is asked about: closed ends it, and one that only lost its label stays', async () => {
+  const { engine, getIssue } = await parkedWithPullRequests(2);
+  github.openEpics = { 'AshuLab/a': [] }; // neither is listed: `solve:epic` came off one, the other was closed
+  github.issue('AshuLab/a', 2).state = 'closed';
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db).map((r) => r.status)).toEqual(['ready_for_test', 'cancelled']);
+  expect(getIssue.mock.calls.map((c) => c[1]).sort()).toEqual([1, 2]);
+});
+
+test('with the open list unavailable every live epic is asked about, as before', async () => {
+  const { getIssue } = await parkedWithPullRequests(2);
+  github.openEpicsUnavailable = new GitHubUnavailable('network', 'down');
+  await clock.advance(5 * MIN);
+  expect(getIssue.mock.calls.map((c) => c[1]).sort()).toEqual([1, 2]);
+});
+
+test('with the pull request read unavailable the final PR is asked about, as before', async () => {
+  const { engine, getPullRequest } = await parkedWithPullRequests(1);
+  github.pullRequestUnavailable = new GitHubUnavailable('network', 'down');
+  pull(51, { state: 'merged' }, 1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(getPullRequest).toHaveBeenCalledOnce();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'merged' });
+});
+
 test('a closed epic issue cancels the epic even before it has a final PR', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   runner.behavior = () => ({ exit: 'hang' });

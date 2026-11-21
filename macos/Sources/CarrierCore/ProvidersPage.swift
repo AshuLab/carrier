@@ -264,6 +264,20 @@ public enum ProvidersOutcome: Equatable {
     }
 }
 
+/// What the host answered when asked to title earlier sessions (`regenerateTitles`).
+public enum RetitleOutcome: Equatable {
+    case started(Int)
+    case refused(String)
+
+    public var words: String {
+        switch self {
+        case .started(0): "Nothing to title: every session already has a title"
+        case .started(let n): "Started \(n) \(n == 1 ? "session" : "sessions") in the background"
+        case .refused(let reason): reason
+        }
+    }
+}
+
 /// The last answer of `providers`; asked when the page opens and again on request, and only of a host that lists it.
 @MainActor @Observable public final class ProvidersStore {
     public private(set) var outcome = ProvidersOutcome.unasked
@@ -282,6 +296,12 @@ public enum ProvidersOutcome: Equatable {
     public private(set) var paletteEditable = false
     /// Whether the host knows `textGenerators` (its hello lists it). An older `carrier` refuses a `providers.json` with the keys, so none is written until it does.
     public private(set) var generatorEditable = false
+    /// Whether the host can title earlier sessions in the background (`regenerateTitles` in its hello).
+    public private(set) var canRegenerateTitles = false
+    /// True while `regenerateTitles` is waiting for the host's answer.
+    public private(set) var retitling = false
+    /// What the last `regenerateTitles` answered, or nil before it ran or after leaving or changing the generator.
+    public private(set) var retitleOutcome: RetitleOutcome?
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let file: () -> ProvidersFile
@@ -358,6 +378,7 @@ public enum ProvidersOutcome: Equatable {
     public func dismissProblem() {
         editProblem = nil
         editNote = nil
+        retitleOutcome = nil
     }
 
     /// What the engine answered to a write: a problem is `editProblem`, a plain fact `editNote`.
@@ -394,7 +415,21 @@ public enum ProvidersOutcome: Equatable {
             editProblem = "The chat host does not know text generators yet. Update carrier (brew upgrade carrier) and restart the chat host."
             return false
         }
+        retitleOutcome = nil
         return await change("choose a text generator") { try applyingTextGenerator(choice, to: $0) }
+    }
+
+    /// Asks the host to title earlier sessions whose title is still their first line, in the background. Only sent while the host lists `regenerateTitles`.
+    public func regenerateTitles() async {
+        guard canRegenerateTitles else { return }
+        retitling = true
+        retitleOutcome = nil
+        defer { retitling = false }
+        do {
+            retitleOutcome = .started(try await host.regenerateTitles())
+        } catch {
+            retitleOutcome = .refused(ConversationModel.words(error))
+        }
     }
 
     /// Reads the file and writes what `make` returns; a refusal writes nothing. It gives back as soon as the file is written, so the editor closes
@@ -451,12 +486,16 @@ public enum ProvidersOutcome: Equatable {
             identityEditable = false
             paletteEditable = false
             generatorEditable = false
+            canRegenerateTitles = false
+            retitleOutcome = nil
             outcome = .noHost
             return
         }
         identityEditable = capabilities.contains(.accountIdentity)
         paletteEditable = capabilities.contains(.accountPalette)
         generatorEditable = capabilities.contains(.textGenerators)
+        canRegenerateTitles = capabilities.contains(.regenerateTitles)
+        if canRegenerateTitles == false { retitleOutcome = nil }
         guard capabilities.contains(.providers) else {
             outcome = .tooOld
             return

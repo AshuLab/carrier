@@ -1334,6 +1334,114 @@ test('a row from before the column, with no source, is first_line when its title
   expect(s.sessions.list({}).sessions[0]).not.toHaveProperty('titleSource');
 });
 
+test('regenerateTitles answers at once how many first-line sessions (active, archived and legacy) it started, skips children, renamed, generated and untitled ones, and writes one at a time in the background', async () => {
+  const s = titleSetup();
+  const active = await openOne(s);
+  const archived = await openOne({ ...s, sessions: s.sessions });
+  const legacyFirstLine = await openOne({ ...s, sessions: s.sessions });
+  const legacyRenamed = await openOne({ ...s, sessions: s.sessions });
+  const renamed = await openOne({ ...s, sessions: s.sessions });
+  const generated = await openOne({ ...s, sessions: s.sessions });
+  const untitled = await openOne({ ...s, sessions: s.sessions });
+  await talked(active, 'Fix the sidebar\ndetails', 'Looked at Sidebar.swift');
+  await talked({ ...archived, conversation: s.claude.conversations[1]! }, 'Archive bug', 'Fixed it');
+  await s.sessions.archive({ sessionId: archived.id, archived: true });
+  await talked(legacyFirstLine, 'Legacy first line\nsecond line');
+  s.db.update(schemaSessions).set({ title: 'Legacy first line', titleSource: null }).where(eq(schemaSessions.id, legacyFirstLine.id)).run();
+  await talked(legacyRenamed, 'Old message');
+  s.db.update(schemaSessions).set({ title: 'Legacy renamed', titleSource: null }).where(eq(schemaSessions.id, legacyRenamed.id)).run();
+  await talked(renamed, 'Some message');
+  s.sessions.rename({ sessionId: renamed.id, title: 'Renamed by user' });
+  await talked(generated, 'Another message');
+  s.generator.answer = 'Already generated';
+  await s.sessions.regenerateTitle({ sessionId: generated.id });
+  s.generator.calls.length = 0;
+
+  // A child with a first-line title is never retitled by the bulk action.
+  const childId = '00000000-0000-4000-8000-00000000c11d';
+  s.db.insert(schemaSessions).values({ id: childId, agent: 'claude', harness: 'claude', folder: work, title: 'Child task', titleSource: 'first_line', state: 'idle', createdAt: 1, lastActiveAt: 1, parentSessionId: active.id }).run();
+  s.db.insert(chatEvents).values({ sessionId: childId, at: 1, kind: 'user', data: { text: 'Child task' } }).run();
+
+  s.generator.held = [];
+  s.generator.answer = 'Generated bulk title';
+  expect(s.sessions.regenerateTitles()).toEqual({ started: 3 });
+
+  for (let i = 0; i < 3; i++) {
+    await vi.waitFor(() => expect(s.generator.held).toHaveLength(1));
+    s.generator.held.shift()!();
+  }
+  await vi.waitFor(() => {
+    expect(storedTitle(s, active.id)).toEqual({ title: 'Generated bulk title', titleSource: 'generated' });
+    expect(storedTitle(s, archived.id)).toEqual({ title: 'Generated bulk title', titleSource: 'generated' });
+    expect(storedTitle(s, legacyFirstLine.id)).toEqual({ title: 'Generated bulk title', titleSource: 'generated' });
+  });
+  expect(s.generator.mostRunning).toBe(1);
+  expect(s.generator.calls).toHaveLength(3);
+  expect(storedTitle(s, legacyRenamed.id)).toEqual({ title: 'Legacy renamed', titleSource: null });
+  expect(storedTitle(s, renamed.id)).toEqual({ title: 'Renamed by user', titleSource: 'renamed' });
+  expect(storedTitle(s, generated.id)).toEqual({ title: 'Already generated', titleSource: 'generated' });
+  expect(storedTitle(s, untitled.id)).toEqual({ title: null, titleSource: null });
+  expect(storedTitle(s, childId)).toEqual({ title: 'Child task', titleSource: 'first_line' });
+  expect(s.sessions.regenerateTitles()).toEqual({ started: 0 });
+  expect(s.generator.calls).toHaveLength(3);
+});
+
+test('regenerateTitles logs and skips a session that fails, goes on with the rest, and drops one deleted meanwhile without error', async () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const s = titleSetup();
+  const failing = await openOne(s);
+  const deletedInFlight = await openOne({ ...s, sessions: s.sessions });
+  const deletedBeforeStart = await openOne({ ...s, sessions: s.sessions });
+  const succeeding = await openOne({ ...s, sessions: s.sessions });
+  // newest lastActiveAt runs first: failing -> deletedInFlight -> deletedBeforeStart -> succeeding
+  for (const [id, at] of [[failing.id, 4000], [deletedInFlight.id, 3000], [deletedBeforeStart.id, 2000], [succeeding.id, 1000]] as const) {
+    s.db.update(schemaSessions).set({ lastActiveAt: at }).where(eq(schemaSessions.id, id)).run();
+    s.sessions.send({ sessionId: id, text: `First message ${at}` });
+  }
+  await s.sessions.close({ sessionId: deletedInFlight.id });
+  await s.sessions.close({ sessionId: deletedBeforeStart.id });
+
+  s.generator.held = [];
+  s.generator.fail = 'LM Studio is not answering';
+  expect(s.sessions.regenerateTitles()).toEqual({ started: 4 });
+
+  // 1. failing: rejects and logs, title stays first-line
+  await vi.waitFor(() => expect(s.generator.held).toHaveLength(1));
+  s.generator.held.shift()!();
+  await vi.waitFor(() => expect(errors).toHaveBeenCalledTimes(1));
+
+  // 2. deletedInFlight: starts, and while it waits we delete both it and deletedBeforeStart
+  await vi.waitFor(() => expect(s.generator.held).toHaveLength(1));
+  await s.sessions.delete({ sessionId: deletedInFlight.id });
+  await s.sessions.delete({ sessionId: deletedBeforeStart.id });
+  s.generator.fail = undefined;
+  s.generator.answer = 'Recovered title';
+  s.generator.held.shift()!();
+
+  // 3. deletedBeforeStart is skipped without calling the generator; succeeding gets its title
+  await vi.waitFor(() => expect(s.generator.held).toHaveLength(1));
+  s.generator.held.shift()!();
+  await vi.waitFor(() => expect(storedTitle(s, succeeding.id)).toEqual({ title: 'Recovered title', titleSource: 'generated' }));
+  expect(storedTitle(s, failing.id)).toEqual({ title: 'First message 4000', titleSource: 'first_line' });
+  expect(s.generator.calls).toHaveLength(3);
+  expect(errors).toHaveBeenCalledTimes(1);
+  errors.mockRestore();
+});
+
+test('regenerateTitles refuses with no generator chosen and starts nothing', async () => {
+  const s = setup();
+  const a = await openOne(s);
+  s.sessions.send({ sessionId: a.id, text: 'Fix the sidebar' });
+  expect(() => s.sessions.regenerateTitles()).toThrow(/choose one in Providers/);
+
+  const t = titleSetup();
+  const b = await openOne(t);
+  t.sessions.send({ sessionId: b.id, text: 'Fix the sidebar' });
+  t.generator.fail = 'no text generator is chosen; choose one in Providers';
+  expect(() => t.sessions.regenerateTitles()).toThrow(/choose one in Providers/);
+  expect(t.generator.calls).toEqual([]);
+});
+
 const DAY = 86_400_000;
 const ages = (archiveAfterDays: number | 'never' = 15) => ({ archiveAfterDays, deleteAfterDays: 'never' as const });
 const archivedIds = (s: { sessions: ReturnType<typeof createSessions> }) => s.sessions.list({ archived: true }).sessions.map((x) => x.id);

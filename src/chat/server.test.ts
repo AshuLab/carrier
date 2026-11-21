@@ -55,6 +55,10 @@ const controls = (): ChatControls => ({
     if (sessionId === '00000000-0000-4000-8000-000000000000') throw new ChatRefused('Could not write a title: no text generator is chosen; choose one in Providers');
     return { title: 'A generated title' };
   },
+  regenerateTitles: () => {
+    if (refuseBulkTitles) throw new ChatRefused('Could not write titles: no text generator is chosen; choose one in Providers');
+    return { started: 3 };
+  },
   deletePreview: async ({ sessionIds }) => ({ sessionIds }),
   workspace: async ({ folder }) => ({ folder }),
   fetch: async ({ folder }) => ({ folder, fetched: true }),
@@ -76,7 +80,9 @@ const controls = (): ChatControls => ({
   },
 });
 const seen: AbortSignal[] = [];
+let refuseBulkTitles = false;
 async function open({ stop = async () => {}, clients = noClients } = {}) {
+  refuseBulkTitles = false;
   const server = await startChatServer({ stateDir: dir, startedAt: 1234, controls: controls(), stop, clients });
   closers.push(server.close);
 }
@@ -110,7 +116,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'textGenerators', 'regenerateTitle'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'textGenerators', 'regenerateTitle', 'regenerateTitles'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -272,6 +278,15 @@ test('regenerateTitle takes a session id, strict, and a refusal reaches the clie
   expect(await c.ask('{"id":3,"cmd":"regenerateTitle"}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":4,"cmd":"regenerateTitle","sessionId":"../x"}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
   expect(await c.ask(`{"id":5,"cmd":"regenerateTitle","sessionId":"${uuid}","title":"x"}`)).toEqual({ id: 5, ok: false, error: 'invalid request' });
+});
+
+test('regenerateTitles takes no fields, answers how many it started, and a refusal reaches the client in its words', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"regenerateTitles"}')).toEqual({ id: 1, ok: true, data: { started: 3 } });
+  expect(await c.ask(`{"id":2,"cmd":"regenerateTitles","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  refuseBulkTitles = true;
+  expect(await c.ask('{"id":3,"cmd":"regenerateTitles"}')).toEqual({ id: 3, ok: false, error: 'Could not write titles: no text generator is chosen; choose one in Providers' });
 });
 
 test('deletePreview takes one to 500 session ids and nothing else', async () => {

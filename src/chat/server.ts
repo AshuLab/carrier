@@ -15,8 +15,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette' | 'switchAgent' | 'stopTask' | 'worktreeStart' | 'fetchIfStale' | 'listsRev' | 'textGenerators' | 'regenerateTitle';
-export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'textGenerators', 'regenerateTitle'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette' | 'switchAgent' | 'stopTask' | 'worktreeStart' | 'fetchIfStale' | 'listsRev' | 'textGenerators' | 'regenerateTitle' | 'regenerateTitles';
+export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'textGenerators', 'regenerateTitle', 'regenerateTitles'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -59,6 +59,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('delete'), sessionId }),
   z.strictObject({ id, cmd: z.literal('rename'), sessionId, title: z.string().max(1000) }),
   z.strictObject({ id, cmd: z.literal('regenerateTitle'), sessionId }),
+  z.strictObject({ id, cmd: z.literal('regenerateTitles') }),
   z.strictObject({ id, cmd: z.literal('workspace'), folder: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('fetch'), folder: z.string().min(1), ifStale: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('suggestName'), folder: z.string().min(1) }),
@@ -107,6 +108,8 @@ export type ChatControls = {
   rename(args: Args<'rename'>): unknown;
   /** Writes the session's title again with the chosen text generator and answers `{ title }`; refused in words when no generator is chosen or it fails, the title as it was. */
   regenerateTitle(args: Args<'regenerateTitle'>): Promise<unknown>;
+  /** Starts writing a title with the chosen text generator for every session of the list and the archive whose title is still its first line, one at a time in the background, and answers `{ started }`; refused in words when no generator is chosen. */
+  regenerateTitles(): unknown;
   workspace(args: Args<'workspace'>): Promise<unknown>;
   fetch(args: Args<'fetch'>): Promise<unknown>;
   suggestName(args: Args<'suggestName'>): Promise<unknown>;
@@ -167,6 +170,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.rename({ sessionId: request.sessionId, title: request.title });
     case 'regenerateTitle':
       return controls.regenerateTitle({ sessionId: request.sessionId });
+    case 'regenerateTitles':
+      return controls.regenerateTitles();
     case 'workspace':
       return controls.workspace({ folder: request.folder });
     case 'fetch':

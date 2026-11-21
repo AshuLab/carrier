@@ -36,6 +36,8 @@ The state is the chat host's `providers` reply (`ProvidersStore`, asked when the
   An entry the person wrote by hand stays, and so does every other key; a file that is not a JSON object, or whose `textGenerators` is not a map, is never overwritten.
   After the write the engine is asked to reload as after any other save of the page, and a refusal shows under the group with the key it names.
   Nothing is written, and no choice is offered, while the host's hello does not list `textGenerators` (an older `carrier` would refuse the whole file): the group says to update carrier and restart the chat host.
+  Once a generator is chosen and the host's hello lists `regenerateTitles`, the group also shows "Titles of earlier sessions" with a Write titles button (`ProvidersStore.regenerateTitles`) that starts titling every active and archived session whose title is still its first line in the background, and says how many it started, that nothing needed a title, or the host's refusal.
+  The new titles appear in the sidebar as the host writes them, with no progress bar of its own.
 
 `providers.json` is the app's to create (`CarrierCore/ProvidersFile.swift`, `ProvidersStore`).
 When the app opens (once the chat host answers) and the file is missing, `createFileIfMissing` writes one account per harness the host found, named after it, and nothing when none was found; with a file there it writes nothing, so an account the person removed stays removed.

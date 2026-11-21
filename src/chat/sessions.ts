@@ -283,6 +283,11 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     generating = run.catch(() => {});
     return run;
   };
+  const generateTitleFor = async (sessionId: string, first: { id: number; text: string }) => {
+    const title = titleOf(await generate({ system: titleSystemMessage, text: titleText(first.text, firstReply(sessionId, first.id)) }));
+    if (title === '') throw new TextGeneratorFailed('the text generator answered with no text');
+    return title;
+  };
 
   // Worktrees are made one at a time: what a request checked (a free name) is still true when git adds.
   let making: Promise<unknown> = Promise.resolve();
@@ -1397,14 +1402,48 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       if (first === undefined || first.text.trim() === '') throw new ChatRefused('This session has no message to write a title from yet');
       let title: string;
       try {
-        title = titleOf(await generate({ system: titleSystemMessage, text: titleText(first.text, firstReply(sessionId, first.id)) }));
-        if (title === '') throw new TextGeneratorFailed('the text generator answered with no text');
+        title = await generateTitleFor(sessionId, first);
       } catch (error) {
         log.error('the text generator could not write a title', error, { sessionId });
         throw new ChatRefused(`Could not write a title: ${error instanceof TextGeneratorFailed ? error.message : 'the text generator failed'}`);
       }
       db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, sessionId)).run();
       return { title };
+    },
+
+    /** Starts writing a title with the chosen text generator for every session of the list and the archive whose title is still its first line, one at a time in the background, and answers how many it started. */
+    regenerateTitles() {
+      try {
+        textGenerator.chosen?.();
+      } catch (error) {
+        throw new ChatRefused(`Could not write titles: ${error instanceof TextGeneratorFailed ? error.message : 'no text generator is chosen; choose one in Providers'}`);
+      }
+      const candidates: { id: string; first: { id: number; text: string } }[] = [];
+      for (const found of db.select().from(sessions).where(isNull(sessions.parentSessionId)).orderBy(desc(sessions.lastActiveAt)).all()) {
+        if (deleting.has(found.id) || titleSourceOf(found) !== 'first_line') continue;
+        const first = firstMessage(found.id);
+        if (first !== undefined && first.text.trim() !== '') candidates.push({ id: found.id, first });
+      }
+      if (candidates.length > 0) {
+        void (async () => {
+          for (const { id, first } of candidates) {
+            if (closed) return;
+            const current = db.select().from(sessions).where(eq(sessions.id, id)).get();
+            if (current === undefined || deleting.has(id) || titleSourceOf(current) !== 'first_line') continue;
+            try {
+              const title = await generateTitleFor(id, first);
+              if (closed) return;
+              const latest = db.select().from(sessions).where(eq(sessions.id, id)).get();
+              if (latest === undefined || deleting.has(id) || titleSourceOf(latest) !== 'first_line') continue;
+              db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, id)).run();
+            } catch (error) {
+              if (closed) return;
+              log.error('the text generator could not write a title', error, { sessionId: id });
+            }
+          }
+        })();
+      }
+      return { started: candidates.length };
     },
 
     /** Where the session's title came from, for the automatic title and the bulk one: `first_line`, `generated` or `renamed`, null when it has no title. */

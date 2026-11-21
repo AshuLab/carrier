@@ -91,7 +91,9 @@ public final class FixtureServer {
     private var chatConnected = 0
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\",\"textGenerators\",\"regenerateTitle\"]}\n".utf8)
+    /// Sessions already titled by `regenerateTitle` or `regenerateTitles`, so a second bulk ask sees 0 left.
+    private var regeneratedSessionIds: Set<String> = []
+    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\",\"textGenerators\",\"regenerateTitle\",\"regenerateTitles\"]}\n".utf8)
     private let data: [String: Data]
     let hello: Data
     private var stopped = false
@@ -438,8 +440,31 @@ public final class FixtureServer {
             return locked {
                 guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return Self.refused(id, "There is no such session") }
                 if let refusal = chatSessions[at]["fixtureRefuseTitle"] as? String { return Self.refused(id, refusal) }
+                regeneratedSessionIds.insert(session)
                 chatSessions[at]["title"] = "Regenerated title"
                 return Self.answer(id, ["title": "Regenerated title"])
+            }
+        case "regenerateTitles":
+            let whole = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
+                .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+            let chosen = whole?["textGenerator"] as? String
+            let declared = (whole?["textGenerators"] as? [String: Any])?[chosen ?? ""] != nil
+            guard chosen != nil, declared else {
+                return Self.refused(id, "Could not write titles: no text generator is chosen; choose one in Providers")
+            }
+            return locked {
+                var started = 0
+                for index in chatSessions.indices {
+                    guard chatSessions[index]["parentSessionId"] as? String == nil,
+                        chatSessions[index]["fixtureRefuseTitle"] == nil,
+                        let sessionId = chatSessions[index]["id"] as? String,
+                        regeneratedSessionIds.contains(sessionId) == false
+                    else { continue }
+                    regeneratedSessionIds.insert(sessionId)
+                    chatSessions[index]["title"] = "Regenerated title"
+                    started += 1
+                }
+                return Self.answer(id, ["started": started])
             }
         case "archive", "delete":
             let verb = request?["cmd"] as? String ?? ""

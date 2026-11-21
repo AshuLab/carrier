@@ -64,11 +64,17 @@ private final class ProvidersHost: ChatHost, @unchecked Sendable {
     var capabilitiesAnswer: Set<ControlClient.Capability> = [.providers]
     var reply: HostProviders
     var asked = 0
+    var regenerateTitlesCalls = 0
+    var regenerateTitlesResult: Result<Int, Error> = .success(0)
 
     init(_ json: String) throws { reply = try JSONDecoder().decode(HostProviders.self, from: Data(json.utf8)) }
 
     func capabilities() async throws -> Set<ControlClient.Capability> { capabilitiesAnswer }
     func providers() async throws -> HostProviders { asked += 1; return reply }
+    func regenerateTitles() async throws -> Int {
+        regenerateTitlesCalls += 1
+        return try regenerateTitlesResult.get()
+    }
 
     func agents() async throws -> [ChatAgent] { [] }
     func open(plan: SessionPlan) async throws -> String { "" }
@@ -649,6 +655,55 @@ private func object(_ data: Data) throws -> [String: Any] { try #require(JSONSer
     host.capabilitiesAnswer = []
     await store.load()
     #expect(store.generatorEditable == false)
+}
+
+@MainActor @Test func earlierTitlesActionIsGatedByCapabilityAndReportsStartedZeroOrRefusal() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    let host = try ProvidersHost(replyJSON(accounts: [account("codex", found: true)]))
+    let store = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { .applied })
+
+    // without regenerateTitles in hello, nothing is asked
+    host.capabilitiesAnswer = [.providers, .textGenerators]
+    await store.load()
+    #expect(store.canRegenerateTitles == false)
+    await store.regenerateTitles()
+    #expect(host.regenerateTitlesCalls == 0 && store.retitleOutcome == nil)
+
+    // with regenerateTitles in hello, started count, 0, and refusal are recorded
+    host.capabilitiesAnswer = [.providers, .textGenerators, .regenerateTitles]
+    await store.load()
+    #expect(store.canRegenerateTitles)
+    host.regenerateTitlesResult = .success(3)
+    await store.regenerateTitles()
+    #expect(host.regenerateTitlesCalls == 1 && store.retitleOutcome == .started(3))
+    #expect(store.retitleOutcome?.words == "Started 3 sessions in the background")
+
+    host.regenerateTitlesResult = .success(0)
+    await store.regenerateTitles()
+    #expect(store.retitleOutcome == .started(0))
+    #expect(store.retitleOutcome?.words == "Nothing to title: every session already has a title")
+
+    host.regenerateTitlesResult = .failure(ControlError.remote("Could not write titles: no text generator is chosen; choose one in Providers"))
+    await store.regenerateTitles()
+    #expect(store.retitleOutcome == .refused("Could not write titles: no text generator is chosen; choose one in Providers"))
+
+    // changing the generator or dismissing clears the previous outcome
+    #expect(await store.chooseTextGenerator((server: "ollama", model: "qwen3:8b")))
+    #expect(store.retitleOutcome == nil)
+    await store.regenerateTitles()
+    #expect(store.retitleOutcome != nil)
+    store.dismissProblem()
+    #expect(store.retitleOutcome == nil)
+
+    // losing the capability clears it too
+    host.regenerateTitlesResult = .success(1)
+    await store.regenerateTitles()
+    #expect(store.retitleOutcome == .started(1))
+    host.capabilitiesAnswer = [.providers, .textGenerators]
+    await store.load()
+    #expect(store.canRegenerateTitles == false && store.retitleOutcome == nil)
 }
 
 @MainActor @Test func labelIconAndColorAreOfferedOnlyWhileTheHostSaysItKnowsThem() async throws {

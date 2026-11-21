@@ -1157,7 +1157,11 @@ const storedTitle = (s: { db: ReturnType<typeof setup>['db'] }, id: string) => {
   return found;
 };
 /** A session with its first message and, when given, its first reply. */
-const talked = async (s: Awaited<ReturnType<typeof openOne>>, message: string, reply?: string) => {
+const openNext = async (s: ReturnType<typeof titleSetup>) => {
+  const { session } = await s.sessions.open({ agent: 'claude', folder: work });
+  return { ...s, id: session.id, conversation: s.claude.conversations.at(-1)! };
+};
+const talked = async (s: { sessions: ReturnType<typeof setup>['sessions']; id: string; conversation: FakeConversation }, message: string, reply?: string) => {
   s.sessions.send({ sessionId: s.id, text: message });
   if (reply !== undefined) s.conversation.emit({ kind: 'assistant', text: reply }, { kind: 'turn_end', outcome: 'ok' });
 };
@@ -1172,7 +1176,7 @@ test('regenerateTitle writes the generator\'s title over a renamed one, stores i
   expect(await s.sessions.regenerateTitle({ sessionId: a.id })).toEqual({ title: 'Error en List.tsx' });
   expect(storedTitle(s, a.id)).toEqual({ title: 'Error en List.tsx', titleSource: 'generated' });
   expect(s.sessions.list({}).sessions[0]).toMatchObject({ title: 'Error en List.tsx' });
-  expect(s.generator.calls).toEqual([{ system: titleSystemMessage, text: '<first_message>\nok, mira esto:\nstack trace\n</first_message>\n\n<first_reply>\nIt is a null pointer in List.tsx\n</first_reply>' }]);
+  expect(s.generator.calls.at(-1)).toEqual({ system: titleSystemMessage, text: '<first_message>\nok, mira esto:\nstack trace\n</first_message>\n\n<first_reply>\nIt is a null pointer in List.tsx\n</first_reply>' });
 });
 
 test('the title is the first line of the answer, cleaned and cut at 80 characters, and what the text asks for is only text to title', async () => {
@@ -1343,8 +1347,14 @@ test('regenerateTitles answers at once how many first-line sessions (active, arc
   const renamed = await openOne({ ...s, sessions: s.sessions });
   const generated = await openOne({ ...s, sessions: s.sessions });
   const untitled = await openOne({ ...s, sessions: s.sessions });
+  // Simulate earlier sessions whose first turn ran before a generator was chosen, so they still hold first-line titles.
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  s.generator.fail = 'no text generator is chosen; choose one in Providers';
   await talked(active, 'Fix the sidebar\ndetails', 'Looked at Sidebar.swift');
   await talked({ ...archived, conversation: s.claude.conversations[1]! }, 'Archive bug', 'Fixed it');
+  await vi.waitFor(() => expect(errors).toHaveBeenCalledTimes(2));
+  s.generator.fail = undefined;
+  errors.mockRestore();
   await s.sessions.archive({ sessionId: archived.id, archived: true });
   await talked(legacyFirstLine, 'Legacy first line\nsecond line');
   s.db.update(schemaSessions).set({ title: 'Legacy first line', titleSource: null }).where(eq(schemaSessions.id, legacyFirstLine.id)).run();
@@ -1440,6 +1450,186 @@ test('regenerateTitles refuses with no generator chosen and starts nothing', asy
   t.generator.fail = 'no text generator is chosen; choose one in Providers';
   expect(() => t.sessions.regenerateTitles()).toThrow(/choose one in Providers/);
   expect(t.generator.calls).toEqual([]);
+});
+
+test('when the first turn ends well and the title is still the first line, the host writes a generated title in the background and never rewrites it on later turns', async () => {
+  const s = titleSetup();
+  const a = await openOne(s);
+  s.generator.answer = 'Null pointer in List.tsx';
+  await talked(a, 'ok, mira esto:\nstack trace', 'It is a null pointer in List.tsx');
+  await vi.waitFor(() => expect(storedTitle(s, a.id)).toEqual({ title: 'Null pointer in List.tsx', titleSource: 'generated' }));
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ title: 'Null pointer in List.tsx' });
+  expect(s.generator.calls).toEqual([{ system: titleSystemMessage, text: '<first_message>\nok, mira esto:\nstack trace\n</first_message>\n\n<first_reply>\nIt is a null pointer in List.tsx\n</first_reply>' }]);
+  s.generator.answer = 'Another title';
+  s.sessions.send({ sessionId: a.id, text: 'Second question' });
+  a.conversation.emit({ kind: 'assistant', text: 'Second answer' }, { kind: 'turn_end', outcome: 'ok' });
+  await Promise.resolve();
+  expect(s.generator.calls).toHaveLength(1);
+  expect(storedTitle(s, a.id)).toEqual({ title: 'Null pointer in List.tsx', titleSource: 'generated' });
+});
+
+test('a legacy row with a first-line title is titled after an ok turn, while one with another title is treated as renamed and kept', async () => {
+  const s = titleSetup();
+  const a = await openNext(s);
+  const b = await openNext(s);
+  await talked(a, 'Fix the sidebar\nsecond line');
+  await talked(b, 'Fix the header');
+  s.db.update(schemaSessions).set({ title: 'Fix the sidebar', titleSource: null }).where(eq(schemaSessions.id, a.id)).run();
+  s.db.update(schemaSessions).set({ title: 'Custom name', titleSource: null }).where(eq(schemaSessions.id, b.id)).run();
+  s.generator.answer = 'Sidebar layout fix';
+  a.conversation.emit({ kind: 'assistant', text: 'Fixed it' }, { kind: 'turn_end', outcome: 'ok' });
+  b.conversation.emit({ kind: 'assistant', text: 'Fixed header' }, { kind: 'turn_end', outcome: 'ok' });
+  await vi.waitFor(() => expect(storedTitle(s, a.id)).toEqual({ title: 'Sidebar layout fix', titleSource: 'generated' }));
+  expect(s.generator.calls).toHaveLength(1);
+  expect(storedTitle(s, b.id)).toEqual({ title: 'Custom name', titleSource: null });
+});
+
+test('nothing waits for the title: the session is idle and takes the next message while it is written, and a hanging generator never keeps a turn open', async () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const s = titleSetup();
+  const a = await openNext(s);
+  s.generator.held = [];
+  s.generator.answer = 'Generated while idle';
+  await talked(a, 'First question', 'First reply');
+  await vi.waitFor(() => expect(s.generator.held).toHaveLength(1));
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'idle', title: 'First question' });
+  s.sessions.send({ sessionId: a.id, text: 'Next message while titling' });
+  expect(s.claude.conversations[0]!.sent).toEqual(['First question', 'Next message while titling']);
+  s.generator.held.shift()!();
+  await vi.waitFor(() => expect(storedTitle(s, a.id)).toEqual({ title: 'Generated while idle', titleSource: 'generated' }));
+
+  const b = await openNext(s);
+  s.generator.held = undefined;
+  s.generator.hang = true;
+  await talked(b, 'Hanging title', 'Reply');
+  await vi.waitFor(() => expect(s.generator.running).toBe(1));
+  expect(s.sessions.list({}).sessions.find((row) => row.id === b.id)).toMatchObject({ state: 'idle', title: 'Hanging title' });
+  expect(s.db.select().from(chatTurns).where(eq(chatTurns.sessionId, b.id)).all()).toHaveLength(1);
+  s.sessions.send({ sessionId: b.id, text: 'Follow-up while hanging' });
+  await s.clock.advance(30_000);
+  await vi.waitFor(() => expect(errors).toHaveBeenCalledTimes(1));
+  expect(errors.mock.calls.flat().join(' ')).toMatch(/did not answer within 30 seconds/);
+  expect(storedTitle(s, b.id)).toEqual({ title: 'Hanging title', titleSource: 'first_line' });
+  errors.mockRestore();
+});
+
+test('a renamed title is never replaced, even if renamed before the turn ends or while the title is being written', async () => {
+  const s = titleSetup();
+  const a = await openNext(s);
+  s.sessions.send({ sessionId: a.id, text: 'Initial message' });
+  s.sessions.rename({ sessionId: a.id, title: 'Renamed early' });
+  a.conversation.emit({ kind: 'assistant', text: 'Reply' }, { kind: 'turn_end', outcome: 'ok' });
+  await Promise.resolve();
+  expect(s.generator.calls).toEqual([]);
+  expect(storedTitle(s, a.id)).toEqual({ title: 'Renamed early', titleSource: 'renamed' });
+
+  const b = await openNext(s);
+  s.generator.held = [];
+  s.generator.answer = 'Should not win';
+  await talked(b, 'Race question', 'Race reply');
+  await vi.waitFor(() => expect(s.generator.held).toHaveLength(1));
+  s.sessions.rename({ sessionId: b.id, title: 'Renamed mid-flight' });
+  s.generator.held.shift()!();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(storedTitle(s, b.id)).toEqual({ title: 'Renamed mid-flight', titleSource: 'renamed' });
+});
+
+test('a child session started by delegation keeps its given title and is never automatically titled', async () => {
+  const generator = new FakeTextGenerator();
+  const s = delegation({ textGenerator: generator });
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit', 'Inspect the database schema');
+  s.claude.conversations.at(-1)!.emit({ kind: 'assistant', text: 'Done inspecting' }, { kind: 'turn_end', outcome: 'ok' });
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(generator.calls).toEqual([]);
+  expect(storedTitle(s, childId)).toEqual({ title: 'Inspect the database schema', titleSource: 'first_line' });
+});
+
+test('a turn ending in error or interrupted, or one with no agent reply yet, is not titled until a later turn ends well with a reply', async () => {
+  const s = titleSetup();
+  const a = await openNext(s);
+  s.sessions.send({ sessionId: a.id, text: 'Investigate bug' });
+  a.conversation.emit({ kind: 'assistant', text: 'Partial' }, { kind: 'turn_end', outcome: 'error' });
+  await Promise.resolve();
+  expect(s.generator.calls).toEqual([]);
+  expect(storedTitle(s, a.id)).toEqual({ title: 'Investigate bug', titleSource: 'first_line' });
+
+  const b = await openNext(s);
+  s.sessions.send({ sessionId: b.id, text: 'Run checks' });
+  b.conversation.emit({ kind: 'assistant', text: 'Working' });
+  await b.sessions.interrupt({ sessionId: b.id });
+  await Promise.resolve();
+  expect(s.generator.calls).toEqual([]);
+
+  const c = await openNext(s);
+  s.sessions.send({ sessionId: c.id, text: 'Wait for reply' });
+  c.conversation.emit({ kind: 'assistant', text: 'Subagent only', parentCallId: 'call-1' }, { kind: 'turn_end', outcome: 'ok' });
+  await Promise.resolve();
+  expect(s.generator.calls).toEqual([]);
+  expect(storedTitle(s, c.id)).toEqual({ title: 'Wait for reply', titleSource: 'first_line' });
+
+  s.generator.answer = 'Wait for reply resolved';
+  c.conversation.emit({ kind: 'turn_start' }, { kind: 'assistant', text: 'Main agent answer' }, { kind: 'turn_end', outcome: 'ok' });
+  await vi.waitFor(() => expect(storedTitle(s, c.id)).toEqual({ title: 'Wait for reply resolved', titleSource: 'generated' }));
+});
+
+test('when the generator fails, answers empty or none is chosen, the title stays first_line, the cause is logged, and the next turn tries again', async () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const none = setup();
+  const n = await openOne(none);
+  await talked(n, 'No generator configured', 'First answer');
+  await vi.waitFor(() => expect(errors).toHaveBeenCalledTimes(1));
+  expect(errors.mock.calls.flat().join(' ')).toMatch(/no text generator is chosen/);
+  expect(storedTitle(none, n.id)).toEqual({ title: 'No generator configured', titleSource: 'first_line' });
+
+  const s = titleSetup();
+  const a = await openNext(s);
+  s.generator.fail = 'LM Studio is not answering at http://localhost:1234; start its server';
+  await talked(a, 'Debug startup crash', 'Check port binding');
+  await vi.waitFor(() => expect(errors).toHaveBeenCalledTimes(2));
+  expect(errors.mock.calls.at(-1)!.flat().join(' ')).toMatch(/LM Studio is not answering/);
+  expect(storedTitle(s, a.id)).toEqual({ title: 'Debug startup crash', titleSource: 'first_line' });
+
+  s.generator.fail = 'Ollama does not have the model "missing"';
+  s.sessions.send({ sessionId: a.id, text: 'Try another turn' });
+  a.conversation.emit({ kind: 'assistant', text: 'Second answer' }, { kind: 'turn_end', outcome: 'ok' });
+  await vi.waitFor(() => expect(errors).toHaveBeenCalledTimes(3));
+  expect(errors.mock.calls.at(-1)!.flat().join(' ')).toMatch(/does not have the model.*missing/);
+  expect(storedTitle(s, a.id)).toEqual({ title: 'Debug startup crash', titleSource: 'first_line' });
+
+  s.generator.fail = undefined;
+  s.generator.answer = '   ';
+  s.sessions.send({ sessionId: a.id, text: 'Third turn' });
+  a.conversation.emit({ kind: 'assistant', text: 'Third answer' }, { kind: 'turn_end', outcome: 'ok' });
+  await vi.waitFor(() => expect(errors).toHaveBeenCalledTimes(4));
+  expect(errors.mock.calls.at(-1)!.flat().join(' ')).toMatch(/answered with no text/);
+  expect(storedTitle(s, a.id)).toEqual({ title: 'Debug startup crash', titleSource: 'first_line' });
+
+  s.generator.answer = 'Startup crash debugging';
+  s.sessions.send({ sessionId: a.id, text: 'Fourth turn' });
+  a.conversation.emit({ kind: 'assistant', text: 'Fourth answer' }, { kind: 'turn_end', outcome: 'ok' });
+  await vi.waitFor(() => expect(storedTitle(s, a.id)).toEqual({ title: 'Startup crash debugging', titleSource: 'generated' }));
+  expect(s.generator.calls.at(-1)!.text).toBe('<first_message>\nDebug startup crash\n</first_message>\n\n<first_reply>\nCheck port binding\n</first_reply>');
+  errors.mockRestore();
+});
+
+test('if the session is deleted while its title is being written, nothing is written and nothing fails', async () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const s = titleSetup();
+  const a = await openOne(s);
+  s.generator.held = [];
+  s.generator.answer = 'Ghost title';
+  await talked(a, 'Delete me soon', 'Okay');
+  await vi.waitFor(() => expect(s.generator.held).toHaveLength(1));
+  await s.sessions.delete({ sessionId: a.id });
+  s.generator.held.shift()!();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(s.db.select().from(schemaSessions).all()).toEqual([]);
+  expect(errors).not.toHaveBeenCalled();
+  errors.mockRestore();
 });
 
 const DAY = 86_400_000;

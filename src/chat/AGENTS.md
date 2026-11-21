@@ -23,6 +23,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   Children open with `child: true` (Allow/Deny only, no `act` on their MCP token).
   `switchAgent` ([ADR 0032](../../docs/adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md)) moves an idle session to another agent: opens the new conversation with the handoff as `instructions`, closes the old only after MCP succeeds, guards with `switching`, detaches the old conversation and stores a `switched` notice (rebuilding handoff from events before it).
   `regenerateTitle` ([ADR 0038](../../docs/adr/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md)) rewrites one title with the text generator, and `regenerateTitles` queues non-child active and archived first-line sessions in the background (`title_source`, `titleSourceOf`).
+  After any `ok` turn of a non-child session with a reply and a `first_line` title, `autoTitle` writes one in the background and logs failures so the next turn retries.
 - `text-generator.ts`: text-generator port, `realTextGenerator` (`/v1/chat/completions`), `FakeTextGenerator` in `fake.ts`; `title-prompt.ts`: fixed system message and prompt text.
 - `session-data.ts`, `pull-requests.ts`: `diff` and `pr` of `list`, read in background sweep ([spec](../../docs/specs/chat-host.md)).
 - `plan.ts`: plan schema and step types.

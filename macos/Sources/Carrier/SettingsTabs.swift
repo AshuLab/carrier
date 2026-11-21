@@ -817,7 +817,7 @@ struct AppearanceTabView: View {
                 SettingsTabRow(title: "Color scheme", detail: "System follows the Mac", first: true) {
                     ChoicePopUp(label: "Color scheme", options: ColorSchemeChoice.allCases.map { (value: $0, title: $0.title) }, selection: $colorScheme)
                 }
-                SettingsTabRow(title: "Text size", detail: "The size of the text of the whole app, \(textSize)%") {
+                SettingsTabRow(title: "Text size", detail: "The size of the text of the interface, \(textSize)%; the messages have their own in Chat") {
                     Slider(
                         value: Binding(get: { Double(textSize) }, set: { textSize = Int($0) }),
                         in: Double(TypeScale.range.lowerBound)...Double(TypeScale.range.upperBound), step: 5

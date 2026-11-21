@@ -17,6 +17,12 @@ expect SUScheduledCheckInterval "$(plist SUScheduledCheckInterval)" 3600
 expect CFBundleShortVersionString "$(plist CFBundleShortVersionString)" 1.2.3
 expect "bundle id of a release" "$(plist CFBundleIdentifier)" dev.ashulab.carrier
 expect "channel of a release" "$(plist CarrierChannel)" release
+# the compiled icons are committed, so each must come from the .icon as it is now (scripts/make-icon.sh writes them)
+for name in AppIcon AppIconDev; do
+  expect "compiled $name is of its .icon (run scripts/make-icon.sh)" "$(cat "Resources/Compiled/$name/source.sha256")" "$(scripts/make-icon.sh --hash "$name")"
+done
+expect "icon of a release" "$(plist CFBundleIconName)" AppIcon
+[ -f Carrier.app/Contents/Resources/Assets.car ] && [ -f Carrier.app/Contents/Resources/AppIcon.icns ] || fail "a release lacks its compiled icon"
 expect "CFBundleVersion for 1.2.3" "$(plist CFBundleVersion)" 10203
 [ -n "$(plutil -extract NSMicrophoneUsageDescription raw "$PLIST")" ] || fail "NSMicrophoneUsageDescription is missing or empty"
 otool -l Carrier.app/Contents/MacOS/Carrier | grep -A2 LC_RPATH | grep -q "path @executable_path/../Frameworks " || fail "no rpath @executable_path/../Frameworks"
@@ -45,6 +51,8 @@ expect "CFBundleVersion for no version" "$(plist CFBundleVersion)" 1
 expect "CFBundleShortVersionString for no version" "$(plist CFBundleShortVersionString)" 0.1.0
 expect "bundle id of a dev build" "$(plist CFBundleIdentifier)" dev.ashulab.carrier.dev
 expect "channel of a dev build" "$(plist CarrierChannel)" dev
+expect "icon of a dev build" "$(plist CFBundleIconName)" AppIconDev
+[ -f Carrier.app/Contents/Resources/Assets.car ] && [ -f Carrier.app/Contents/Resources/AppIconDev.icns ] || fail "a dev build lacks its compiled icon"
 plist SUFeedURL >/dev/null 2>&1 && fail "a dev build has SUFeedURL, so its updater would start"
 
 for v in 1.100.0 1.0.100; do

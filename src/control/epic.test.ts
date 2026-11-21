@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
@@ -18,6 +18,13 @@ import { epicSlices } from '../storage/epic-slices.ts';
 import { epics } from '../storage/schema.ts';
 import { epicOf, git as engineGit, limited, MAX_ROUNDS } from './epic.ts';
 import { enginePlacesOf } from '../config/places.ts';
+
+// the binary `withGit` hands over, replaced for the test that checks it is the one started
+const handed = vi.hoisted(() => ({ binary: undefined as string | undefined }));
+vi.mock('../execution/git-binary.ts', async (original) => {
+  const real = await original<typeof import('../execution/git-binary.ts')>();
+  return { ...real, withGit: <T>(start: (binary: string) => Promise<T>) => real.withGit((binary) => start(handed.binary ?? binary)) };
+});
 
 const MIN = 60_000;
 const CLIENT_LINE_LIMIT = 8 * 1024 * 1024; // macos/Sources/CarrierCore/ControlClient.swift maxLineBytes
@@ -386,4 +393,14 @@ test('limited never lets a job slip in beside the four when one finishes and ano
 
 test('git sees its input closed: a command that reads it ends instead of waiting for the timeout', async () => {
   expect(await engineGit(dir, ['hash-object', '--stdin'])).toBe('e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\n'); // the empty blob
+});
+
+test('git starts the binary the machine hands over', async () => {
+  handed.binary = join(dir, 'no-such-git');
+  try {
+    expect(await engineGit(dir, ['--version'])).toBeNull(); // not there: git failed, logged
+  } finally {
+    handed.binary = undefined;
+  }
+  expect(await engineGit(dir, ['--version'])).toMatch(/^git version /);
 });

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
@@ -8,7 +8,7 @@ import { callerResults } from '../storage/caller-results.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
-import { cardsMemo, fileDiff, filesOf, MAX_DIFF_ROWS, MAX_FILES_PER_SECTION, MAX_LINE } from './files.ts';
+import { cardsMemo, fact, fileDiff, filesOf, MAX_DIFF_ROWS, MAX_FACTS, MAX_FILES, MAX_FILES_PER_SECTION, MAX_LINE } from './files.ts';
 
 // A real temporary repository, as the `epic` request's commit-list test does: the expectations are literals and git's own numbers.
 const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
@@ -517,4 +517,110 @@ test('cardsMemo keeps only what the caller says is worth keeping', async () => {
   expect(await memo('k', read, (value) => value !== null)).toBe(2);
   expect(await memo('k', read, (value) => value !== null)).toBe(2);
   expect(reads).toBe(2);
+});
+
+/** How many git processes `work` starts: git's own trace logs one `start` event for each. */
+async function spawnsOf(work: () => Promise<unknown>) {
+  const trace = join(root, 'trace.json');
+  writeFileSync(trace, '');
+  process.env.GIT_TRACE2_EVENT = trace;
+  try {
+    await work();
+  } finally {
+    delete process.env.GIT_TRACE2_EVENT;
+  }
+  return readFileSync(trace, 'utf8').split('\n').filter((line) => line.includes('"event":"start"')).length;
+}
+
+/** Two lanes with work in them, three merged slices and a fix round: the epic of the first test, with nothing asked twice. */
+function busyEpic() {
+  slice(101, 201, { 'a.ts': lines(5, 'a') });
+  slice(102, 202, { 'b.ts': lines(3, 'b') });
+  slice(103, 203, { 'c.ts': lines(7, 'c') });
+  const id = epicRow();
+  fixRound(id, { 'fix.ts': lines(6, 'fix') });
+  const first = lane(1, 'feat/x/104-d');
+  const second = lane(2, 'feat/x/105-e');
+  writeFileSync(join(first, 'd.ts'), lines(4, 'd'));
+  writeFileSync(join(second, 'e.ts'), lines(2, 'e'));
+  return { id, first, second };
+}
+
+test('files starts 16 git processes the first time and 8 the second: what two commits fix is asked once, a worktree is read every time', async () => {
+  busyEpic();
+  // first: the worktree list and the refs, the merges and a fork point per lane, per lane its config, numbers and new files,
+  // then a card's numbers for each of three slices and one round, and the total
+  expect(await spawnsOf(() => filesOf(db, repos, 'AshuLab/a', 1))).toBe(16);
+  // second: the list and the refs, and the three of each lane
+  expect(await spawnsOf(() => filesOf(db, repos, 'AshuLab/a', 1))).toBe(8);
+});
+
+test('what an epic and its lanes did after the first read is read again: a new slice, a lane commit and an edit are never served from what was asked before', async () => {
+  const { first } = busyEpic();
+  const before = (await filesOf(db, repos, 'AshuLab/a', 1))!;
+  expect(before.sections.map((s) => s.id)).toHaveLength(6);
+  expect(before.total).toEqual({ files: 4, added: 5 + 3 + 7 + 6, removed: 0 });
+
+  slice(104, 204, { 'g.ts': lines(2, 'g') }); // a new head for the epic
+  git(first, 'add', '.');
+  git(first, 'commit', '-q', '-m', 'feat: d'); // a new head for the lane
+  writeFileSync(join(first, 'd.ts'), lines(9, 'd')); // and an edit
+  const after = (await filesOf(db, repos, 'AshuLab/a', 1))!;
+  expect(after.sections.map((s) => s.id).slice(0, 3)).toEqual(['lane-1', 'lane-2', 'slice-104']);
+  expect(after.sections[0]).toMatchObject({ added: 9, files: [{ path: 'd.ts', added: 9 }] });
+  expect(after.total).toEqual({ files: 5, added: 5 + 3 + 7 + 6 + 2, removed: 0 });
+
+  // a lane put back on an older commit has another fork point with the same epic head
+  git(first, 'reset', '-q', '--hard', 'main');
+  const reset = (await filesOf(db, repos, 'AshuLab/a', 1))!;
+  expect(reset.sections[0]).toMatchObject({ id: 'lane-1', added: 0, removed: 0, files: [] });
+});
+
+test('a card whose commits git could not read is asked again, not remembered as empty', async () => {
+  const id = epicRow();
+  const reviewed = git(epic, 'rev-parse', 'HEAD');
+  // a fix that is in another clone only: this one cannot read its range yet
+  const other = join(root, 'other');
+  git(root, 'clone', '-q', clone, other);
+  git(other, 'checkout', '-q', '-b', 'fixed', `origin/${BRANCH}`);
+  writeFileSync(join(other, 'fix.ts'), lines(4, 'fix'));
+  git(other, 'add', '.');
+  git(other, 'commit', '-q', '-m', 'fix: answer the review');
+  const fixed = git(other, 'rev-parse', 'HEAD');
+  run(id, 'review', reviewed, 1);
+  const fixId = run(id, 'fix', fixed, 1);
+  expect((await filesOf(db, repos, 'AshuLab/a', 1))!.sections).toEqual([]);
+  git(clone, 'fetch', '-q', other, 'fixed');
+  expect((await filesOf(db, repos, 'AshuLab/a', 1))!.sections.map((s) => [s.id, s.added])).toEqual([[fixId, 4]]);
+});
+
+test('an epic worktree on a detached head has nothing to show', async () => {
+  epicRow();
+  git(epic, 'checkout', '-q', '--detach');
+  expect(await filesOf(db, repos, 'AshuLab/a', 1)).toEqual({ sections: [], total: null, truncated: false });
+});
+
+test('the numbers of more files than a reply holds are not remembered', async () => {
+  slice(101, 201, Object.fromEntries(Array.from({ length: MAX_FILES + 1 }, (_, i) => [`f${i}.txt`, 'one\n'])));
+  epicRow();
+  const first = await spawnsOf(() => filesOf(db, repos, 'AshuLab/a', 1));
+  // the merges are remembered, the numbers of the slice and the total are asked again
+  expect(await spawnsOf(() => filesOf(db, repos, 'AshuLab/a', 1))).toBe(first - 1);
+});
+
+test('fact: one read for two at once, kept for the same key, a failure or null forgotten, the least recently asked dropped past the cap', async () => {
+  const key = (name: string) => `${root}\0${name}`;
+  let reads = 0;
+  const read = async () => ++reads;
+  expect(await Promise.all([fact(key('a'), read), fact(key('a'), read)])).toEqual([1, 1]);
+  expect(await fact(key('a'), read)).toBe(1);
+  await expect(fact(key('f'), () => Promise.reject(new Error('git failed')))).rejects.toThrow('git failed');
+  expect(await fact(key('f'), read)).toBe(2);
+  expect(await fact(key('n'), async () => null)).toBeNull();
+  expect(await fact(key('n'), read)).toBe(3);
+  for (let i = 0; i < MAX_FACTS - 3; i++) await fact(key(`fill${i}`), async () => i); // a, f and n are in: the memory is full
+  await fact(key('a'), read); // a is the newest again
+  await fact(key('one more'), read); // the oldest is out
+  expect(await fact(key('a'), read)).toBe(1);
+  expect(await fact(key('f'), read)).toBe(5); // dropped, read again (4 was `one more`)
 });

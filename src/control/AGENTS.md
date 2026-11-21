@@ -16,7 +16,7 @@ The same steps serve the engine's `control.sock` and the chat host's `chat.sock`
 3. `src/control/server.ts`, in this order:
    a `z.strictObject` in `request`;
    the name in `Capability` (the `Exclude` in `control()` makes `answer()` handle it);
-   a method on `Controls` (one that waits on git or GitHub returns a promise: `epic`, `files`, `fileDiff` and `availableRepos` do, and `answer()` replies when it settles, in the order of its connection, with the engine running meanwhile; the `git` of `epic.ts` runs at most four processes at once);
+   a method on `Controls` (one that waits on git or GitHub returns a promise: `epic`, `files`, `fileDiff` and `availableRepos` do, and `answer()` replies when it settles, in the order of its connection, with the engine running meanwhile; the `git` of `epic.ts` runs at most four processes at once, and `files.ts` asks what git says about commits once, `fact`);
    the `if (parsed.data.cmd === ...)` branch in `answer()`;
    the name in the hello's `capabilities` in `startControlServer`.
    Chat: `src/chat/server.ts`, a `z.strictObject` in `chatRequest`, the name in **both** `ChatCapability` and the `capabilities` array, a method on `ChatControls` and a `case` in `run()`.

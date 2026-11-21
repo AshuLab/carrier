@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
+import { withGit } from '../execution/git-binary.ts';
 import type { Db } from '../storage/db.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
@@ -72,11 +73,13 @@ export async function limited<T>(work: () => Promise<T>): Promise<T> {
 
 /** One git process in a slot of `limited`, its input closed at once (execFile leaves a pipe open: a command that read it would wait for the timeout). */
 export const runGit = (cwd: string, args: string[], maxBuffer: number) =>
-  limited(() => {
-    const run = execFileAsync('git', args, { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
-    run.child.stdin?.end();
-    return run;
-  });
+  limited(() =>
+    withGit((binary) => {
+      const run = execFileAsync(binary, args, { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
+      run.child.stdin?.end();
+      return run;
+    }),
+  );
 
 /** git in a folder; null when the folder is gone (expected: an epic's worktree is removed when it ends) or git failed (logged). */
 export async function git(cwd: string, args: string[]): Promise<string | null> {

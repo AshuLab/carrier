@@ -32,7 +32,9 @@ import Testing
     #expect([places.terminals, places.dictations, places.dictationStatistics, places.dictationAudio] == [
         "/h/app/state/terminals.json", "/h/app/state/dictations.jsonl", "/h/app/state/dictation-statistics.json", "/h/app/state/audio",
     ])
-    #expect([places.dictationLog, places.speechModels, places.zshShim] == ["/h/app/logs/dictation.log", "/h/app/cache/models", "/h/app/cache/zsh-bottom-prompt"])
+    #expect([places.dictationLog, places.speechModels, places.zshShim, places.projectIcons] == [
+        "/h/app/logs/dictation.log", "/h/app/cache/models", "/h/app/cache/zsh-bottom-prompt", "/h/app/project-icons",
+    ])
 }
 
 @Test func theAppCacheIsMadeAndKeptOutOfBackups() throws {

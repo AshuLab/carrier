@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 public enum FixtureError: Error, Equatable {
@@ -215,12 +216,17 @@ public final class FixtureServer {
         Thread.detachNewThread { [self] in accept(chatListener, chat: true) }
     }
 
-    /// The Projects page's list: a project with a GitHub origin, one whose name and remote are very long, a folder that is not a repository, and one
-    /// that is not there. The folders are made in the home, so the remote is read from a real `.git/config`.
+    /// The Projects page's list: a project with a GitHub origin, one whose name and remote are very long, a folder that is not a repository, one
+    /// that is not there (with a missing image copy that falls back to colour and mark), and one with a copied icon image.
     private static func writeProjects(home: String) throws {
         let long = "a-project-with-a-name-so-long-that-the-row-has-to-cut-it-before-it-reaches-the-chevron"
         var entries: [[String: Any]] = []
-        for (folder, remote) in [("carrier", "git@github.com:AshuLab/carrier.git"), (long, "https://github.com/some-organisation-with-a-long-name/" + long + ".git"), ("notes", "")] {
+        for (folder, remote) in [
+            ("carrier", "git@github.com:AshuLab/carrier.git"),
+            (long, "https://github.com/some-organisation-with-a-long-name/" + long + ".git"),
+            ("notes", ""),
+            ("studio", "git@github.com:AshuLab/studio.git"),
+        ] {
             let path = home + "/projects/" + folder
             try FileManager.default.createDirectory(atPath: path + "/.git", withIntermediateDirectories: true)
             if remote.isEmpty == false {
@@ -239,9 +245,28 @@ public final class FixtureServer {
         ]
         entries[1]["name"] = "A project with a name so long that the row has to cut it before it reaches the chevron"
         entries[2]["icon"] = ["color": "orange"]
-        entries.append(["path": "/Users/demo/gone", "name": "Moved away", "origin": "cloned"])
+        if let iconImage = Self.fixtureProjectIconImage(), let saved = try? ProjectIconStore(folder: home).save(cgImage: iconImage) {
+            entries[3]["icon"] = ["image": saved]
+        }
+        let studio = entries.remove(at: 3)
+        entries.append(["path": "/Users/demo/gone", "name": "Moved away", "origin": "cloned", "icon": ["color": "purple", "mark": "star", "image": "missing.png"]])
+        entries.append(studio)
         let file = try JSONSerialization.data(withJSONObject: ["projects": entries], options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         try file.write(to: URL(fileURLWithPath: CarrierPlaces(folder: home).projects))
+    }
+
+    private static func fixtureProjectIconImage() -> CGImage? {
+        let size = 128
+        let space = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
+            space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.setFillColor(red: 0.16, green: 0.44, blue: 0.68, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: size, height: size))
+        context.setFillColor(red: 0.96, green: 0.72, blue: 0.24, alpha: 1)
+        context.fillEllipse(in: CGRect(x: 28, y: 28, width: 72, height: 72))
+        return context.makeImage()
     }
 
     public func stop() {

@@ -119,9 +119,10 @@ export type McpSessions = {
 };
 
 export type ChildState = 'working' | 'needs_approval' | 'done' | 'error' | 'usage_limit' | 'interrupted';
-/** What a child waits for the person to approve: the tool and, as the host stored it (redacted), the command or argument, cut. */
-export type ChildApproval = { tool: string; arg?: string };
-export type ChildReport = { childId: string; agent: string; state: ChildState; message?: string; waitingFor?: ChildApproval[] };
+/** What a child waits for the person to approve: the tool and, as the host stored it (redacted), the command or argument, or the first question it asks, each cut with an ellipsis. */
+export type ChildApproval = { tool: string; arg?: string; question?: string };
+/** `waitingFor` lists the first approvals of a child that needs one, and `more` counts the ones it leaves out. */
+export type ChildReport = { childId: string; agent: string; state: ChildState; message?: string; waitingFor?: ChildApproval[]; more?: number };
 
 export type StoredEvent = { position: number; kind: string; data: Record<string, unknown> };
 

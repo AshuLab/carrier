@@ -84,7 +84,7 @@ test('a child is never above its parent or its own agent, across both harnesses 
         const child = childOptions(harness, own, parent);
         expect(child.level).toBeLessThanOrEqual(parent);
         // an agent that sets no permission has no level to cap it: the parent's (Codex has nothing above 2)
-        const sets = Object.keys(own).some((id) => ['permissionMode', 'sandbox', 'approvalPolicy'].includes(id));
+        const sets = Object.keys(own).length > 0; // every list above sets a permission but the empty one
         expect(child.level).toBe(Math.min(parent, harness === 'codex' ? 2 : 3, ...(sets === false || levelOf(harness, own) === undefined ? [] : [levelOf(harness, own)!])));
         expect(levelOf(harness, child.options)).toBe(child.level);
         expect(child.lowered).toBe(sets && (levelOf(harness, own) === undefined || levelOf(harness, own)! > parent));

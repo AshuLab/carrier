@@ -3025,22 +3025,40 @@ test('waitChildren waits for every child that works, and counts one that waits f
   expect((await waiting).map((report) => report.state)).toEqual(['done', 'needs_approval']);
 });
 
-test('a child that waits for an approval says what for: the tool and the command, redacted and cut, and the first four', async () => {
+test('a child that waits for an approval says what for: the tool and the command, redacted and cut with an ellipsis, the first four and how many more', async () => {
   const s = delegation();
   const parent = await s.parent();
   const { childId } = await s.start(parent.id, 'edit');
   const child = s.claude.conversations.at(-1)!;
   const token = `ghp_${'a1B2'.repeat(9)}`;
   const ask = (n: number, arg?: string) => ({ ...approval, approvalId: `a${n}`, ...(arg !== undefined && { arg }) });
-  child.emit(ask(1, 'cd /tmp && ls && cat notes.md'), ask(2, `curl -H "Authorization: ${token}" https://example.com`), ask(3, 'x'.repeat(5000)), ask(4), ask(5, 'five'));
+  child.emit(ask(1, 'cd /tmp && ls && cat notes.md'), ask(2, `curl -H "Authorization: ${token}" https://example.com`), ask(3, 'x'.repeat(5000)), ask(4), ask(5, 'five'), ask(6, 'six'));
   const [report] = await s.sessions.mcpView.waitChildren(parent.id, [childId], 1000);
-  expect(report).toMatchObject({ childId, state: 'needs_approval' });
+  expect(report).toMatchObject({ childId, state: 'needs_approval', more: 2 });
   expect(report!.waitingFor).toHaveLength(4);
-  expect(report!.waitingFor![0]).toEqual({ tool: 'Bash', arg: 'cd /tmp && ls && cat notes.md' });
+  expect(report!.waitingFor![0]).toEqual({ tool: 'Bash', arg: 'cd /tmp && ls && cat notes.md' }); // short: no ellipsis
   expect(JSON.stringify(report)).not.toContain(token);
-  expect(report!.waitingFor![2]!.arg).toHaveLength(500);
+  expect(report!.waitingFor![2]!.arg).toBe(`${'x'.repeat(499)}…`);
   expect(report!.waitingFor![3]).toEqual({ tool: 'Bash' }); // a call with no argument says only the tool
-  // answered, it is no longer waiting for it and a report of another state carries no `waitingFor`
+  // a cut never splits a character: 600 emoji are 1,200 UTF-16 units and are cut at 500 whole ones
+  const emoji = await s.start(parent.id, 'edit');
+  s.claude.conversations.at(-1)!.emit(ask(7, '😀'.repeat(600)));
+  const [cutEmoji] = await s.sessions.mcpView.waitChildren(parent.id, [emoji.childId], 1000);
+  expect([...cutEmoji!.waitingFor![0]!.arg!]).toEqual([...'😀'.repeat(499), '…']);
+  expect(cutEmoji).not.toHaveProperty('more');
+});
+
+test('a child that asks the person a question says the question, and once everything is answered it is no longer waiting and carries no list', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit');
+  const child = s.claude.conversations.at(-1)!;
+  const choices = [{ id: 'allow', label: 'Answer', allow: true }];
+  const questions = [{ question: 'Which branch do I review?', header: 'Branch', options: [{ label: 'main', description: 'm' }, { label: 'dev', description: 'd' }], multiSelect: false }];
+  child.emit({ kind: 'approval', approvalId: 'q1', tool: 'AskUserQuestion', choices, questions }, { ...approval, approvalId: 'b1', arg: 'pnpm test' });
+  expect((await s.sessions.mcpView.waitChildren(parent.id, [childId], 1000))[0]!.waitingFor).toEqual([{ tool: 'AskUserQuestion', question: 'Which branch do I review?' }, { tool: 'Bash', arg: 'pnpm test' }]);
+  s.sessions.answer({ sessionId: childId, approvalId: 'b1', choiceId: 'allow' });
+  s.sessions.answer({ sessionId: childId, approvalId: 'q1', choiceId: 'allow', answers: { 'Which branch do I review?': 'main' } });
   child.emit({ kind: 'turn_end', outcome: 'ok' });
   expect(await s.sessions.mcpView.waitChildren(parent.id, [childId], 1000)).toEqual([{ childId, agent: 'edit', state: 'done' }]);
 });

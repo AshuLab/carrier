@@ -17,7 +17,7 @@ A session with no parent receives the `act` capability whatever its mode, so the
 What still refuses is what the mechanism cannot do: a child, which never delegates, and a Codex app-server older than the floor of [0024](0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)'s pre-approval.
 
 A child has the parent's permissions: the options of its own agent, lowered to the broadest option of its harness that is at or under the parent's level, never raised.
-That rule is 0033's.
+That rule is 0033's, with the amendment below for an agent that sets no permission.
 What changes is the scale, which now carries the modes that never ask, so that every session has a level.
 
 | Level | Claude | Codex |
@@ -74,3 +74,7 @@ An agent that sets none of `permissionMode` (Claude), `sandbox` or `approvalPoli
 An agent that sets one, `default` included, keeps it as its cap, and the child is still never above its parent.
 `agents` shows the level each would have, and `delegate_wait` says what a child that waits for an approval asks for.
 A way for the parent to ask for a level of its own is not added: it would raise a child above what its agent allows.
+The cap that the Consequences above rely on now binds only an agent the person configured.
+An agent left without options runs its child at the parent's level, and a person who wants one to stay careful sets `permissionMode: default` on it.
+An agent that sets only one of Codex's two options keeps the other at the adapter's default, as the person left it, and that default caps it.
+Whether Claude's `auto` is available on every account and model is not known: where it is not, a child that used to open at level 1 may fail to open under a parent in `auto`.

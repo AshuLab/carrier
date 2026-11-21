@@ -166,7 +166,7 @@ The model of an agent, whether configured or asked for, is checked against what 
 Claude adds an unknown id to its list when a conversation opens, so a check against the opened conversation does not catch it, and the switch and `delegate_start` use the probe's list; a probe that fails refuses the call with words.
 
 **The scale.**
-A pure module holds it as data: it gives the level of a harness's options, `undefined` for what is off the scale, and the options of a harness that are at or under a level for the child's own agent options, which are the agent's configured ones or the adapter's defaults.
+A pure module holds it as data: it gives the level of a harness's options, `undefined` for what is off the scale, and the options of a harness that are at or under a level for the child's own agent options, which are the agent's configured ones (an agent that sets no permission has none to cap it, and its child takes the parent's level, as the amendment of ADR 0036 says).
 An agent whose options are off the scale is lowered to the broadest option of its harness at or under the parent's level, which always exists because level 0 does.
 
 **Requests on a session that has a parent or that switches.**

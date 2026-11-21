@@ -43,6 +43,11 @@ const CHILD_MESSAGE = 4000;
 /** How many of the approvals a child waits for, and how much of each one's argument, `delegate_wait` says. */
 const CHILD_APPROVALS = 4;
 const CHILD_APPROVAL_ARG = 500;
+/** `text` of at most `max` characters, ending in an ellipsis when it was cut, and never in the middle of a character. */
+const cut = (text: string, max: number) => {
+  const characters = [...text];
+  return characters.length > max ? `${characters.slice(0, max - 1).join('')}…` : text;
+};
 /** How long a session whose last subagent just ended waits for the turn the SDK opens by itself (it follows at once) before it is idle. */
 export const FOLLOW_UP_MS = 3_000;
 
@@ -885,7 +890,11 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const report = { childId, agent: child.agent };
     const live = lives.get(childId);
     if (live?.state === 'working') return { ...report, state: 'working' };
-    if (live?.state === 'waiting_approval') return { ...report, state: 'needs_approval', waitingFor: [...live.approvals.values()].slice(0, CHILD_APPROVALS).map(({ tool, arg }) => ({ tool, ...(arg !== undefined && { arg: arg.slice(0, CHILD_APPROVAL_ARG) }) })) };
+    if (live?.state === 'waiting_approval') {
+      const asked = [...live.approvals.values()];
+      const waitingFor = asked.slice(0, CHILD_APPROVALS).map(({ tool, arg, questions }) => ({ tool, ...(arg !== undefined && { arg: cut(arg, CHILD_APPROVAL_ARG) }), ...(questions?.[0] !== undefined && { question: cut(questions[0].question, CHILD_APPROVAL_ARG) }) }));
+      return { ...report, state: 'needs_approval', waitingFor, ...(asked.length > CHILD_APPROVALS && { more: asked.length - CHILD_APPROVALS }) };
+    }
     const since = db.select({ id: chatEvents.id }).from(chatEvents).where(and(eq(chatEvents.sessionId, childId), eq(chatEvents.kind, 'user'))).orderBy(desc(chatEvents.id)).limit(1).get()?.id ?? 0;
     const turn = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, childId), gt(chatEvents.id, since), inArray(chatEvents.kind, ['assistant', 'error', 'turn_end']))).orderBy(asc(chatEvents.id)).all();
     const end = turn.find((event) => event.kind === 'turn_end');

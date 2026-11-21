@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- The dictation widget has a theme, chosen in Settings > Dictation > Widget: Default (the app's accent as glass, as it was), Black, Dark glass, Clear glass (the system's glass with no tint) and Theme glow (the colours of the dictation line's glow as a gradient from one side to the other, over glass). The preview under the rows shows the one chosen.
+- Settings > Dictation > Widget > Live text turns the words off: the widget keeps its box, with the time and the keys, and shows no words; an error or a copied text still show theirs.
+- The dictation widget can be dragged anywhere on the screen, and it opens there the next time. The Position row reads Custom while it holds a dragged place, and choosing Top or Bottom there puts it back.
+
+### Fixed
+
+- The dictation shortcut in the draft of a new session, before it starts, dictates into its message box as it does in an open session; it used to open the widget.
+
 ### Changed
 
 - An open session no longer asks the chat host for the whole list of sessions at each read: the reply of its events already says whether it runs and what it waits for. With 100 sessions that is 74 KB less to build and parse at each read (about 19 ms of the host), four times a second while the agent works, and one request less per read (two for an archived session).

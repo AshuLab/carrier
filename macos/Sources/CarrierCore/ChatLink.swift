@@ -22,9 +22,11 @@ public struct SessionsUpdate: Equatable, Sendable {
     }
 }
 
-/// The wait before the next read of the sessions: the pace while the host answers, doubled by each read in a row that failed, up to 30 seconds.
-func sessionsPollWait(pace: TimeInterval, failures: Int) -> TimeInterval {
-    failures == 0 ? pace : min(pace * Double(1 << min(failures, 5)), 30)
+/// The wait before the next read of the sessions: the pace while the host answers, and once for each read in a row that failed, double the last wait
+/// (the first miss waits twice the pace: 4 seconds at a pace of 2), up to 10 seconds while someone can see the window (a host restarted by hand shows
+/// within that, as the window's own poll did) and up to 30 when nobody can.
+func sessionsPollWait(pace: TimeInterval, failures: Int, looking: Bool) -> TimeInterval {
+    failures == 0 ? pace : min(pace * Double(1 << min(failures, 5)), looking ? 10 : 30)
 }
 
 /// The rules for reading the sessions. The active list is read every time. The archived one every `archivedEvery` seconds (the host builds all of
@@ -109,6 +111,9 @@ final class ChatConnection: @unchecked Sendable {
     /// Runs `work` on the connection, which is opened (and the hello read) when there is none, the host went away, or the path is another one.
     /// A connection that broke is dropped, and a request that finds it closed is made once more on a new one (the host may have been replaced
     /// since the last one); an error reply is the caller's, and the connection stays.
+    /// Two known costs: requests run one at a time, so a host that takes the connection and does not answer holds each queued one for its own timeout in turn
+    /// (the last of N waits about N times the timeout, and the timeout drops the connection); and a caller that is cancelled still waits for its reply, which the
+    /// continuation cannot be told to stop waiting for.
     func perform<Value>(path: String, _ work: @escaping @Sendable (ControlClient) throws -> Value) async throws -> Value {
         try await withCheckedThrowingContinuation { continuation in
             queue.async { continuation.resume(with: Result { try self.perform(path, work) }) }
@@ -178,9 +183,12 @@ public actor ChatLink {
     private let reader: SessionsReader
     private let nap = PollNap()
     private let pace: @Sendable () -> TimeInterval
+    private let looking: @Sendable () -> Bool
     private let sleep: (@Sendable (TimeInterval) async -> Void)?
     private let log: @Sendable (String) -> Void
-    private var reads: [Bool: Task<[ChatSession], Error>] = [:]
+    private var reads: [Bool: (generation: Int, task: Task<[ChatSession], Error>)] = [:]
+    /// Bumped by each `refresh`: a read that began under an older one cannot say how things are after what the refresh was told of.
+    private nonisolated let refreshes = Mutex(0)
     private var listeners: [Int: AsyncStream<SessionsUpdate>.Continuation] = [:]
     private var listenerCount = 0
     private var latest: SessionsUpdate?
@@ -190,12 +198,14 @@ public actor ChatLink {
     /// `sleep` replaces the wait between two reads of the sessions (the tests'); without it the wait is a nap that `refresh` cuts short.
     init(
         path: String, archivedEvery: TimeInterval = 60, now: @escaping @Sendable () -> Date = Date.init,
-        pace: @escaping @Sendable () -> TimeInterval = { PollPace.shared.seconds }, sleep: (@Sendable (TimeInterval) async -> Void)? = nil,
+        pace: @escaping @Sendable () -> TimeInterval = { PollPace.shared.seconds }, looking: @escaping @Sendable () -> Bool = { PollPace.shared.looking },
+        sleep: (@Sendable (TimeInterval) async -> Void)? = nil,
         log: @escaping @Sendable (String) -> Void = { NSLog("Carrier: %@", $0) }
     ) {
         self.path = path
         reader = SessionsReader(archivedEvery: archivedEvery, now: now)
         self.pace = pace
+        self.looking = looking
         self.sleep = sleep
         self.log = log
     }
@@ -225,6 +235,7 @@ public actor ChatLink {
     /// Reads the sessions now and not at the end of the wait; with `archived`, the archived list too (after an archive, a restore or a delete).
     /// A wake that comes while a read is under way makes the next wait return at once.
     public nonisolated func refresh(archived: Bool) {
+        refreshes.withLock { $0 += 1 }
         if archived { reader.invalidateArchived() }
         nap.wake()
     }
@@ -244,7 +255,7 @@ public actor ChatLink {
                 answering = true
             }
             publish(update)
-            let wait = sessionsPollWait(pace: pace(), failures: failures)
+            let wait = sessionsPollWait(pace: pace(), failures: failures, looking: looking())
             if let sleep { await sleep(wait) } else { await nap.sleep(seconds: wait) }
         }
     }
@@ -256,15 +267,17 @@ public actor ChatLink {
         for listener in listeners.values { listener.yield(update) }
     }
 
-    /// The sessions the host lists, active or archived. Two asks at the same time share one request.
+    /// The sessions the host lists, active or archived. Two asks at the same time share one request, unless a `refresh` came between them: the read
+    /// that began before it still answers its own callers, and the ask after it makes a read of its own.
     public func list(archived: Bool) async throws -> [ChatSession] {
-        if let read = reads[archived] { return try await read.value }
+        let generation = refreshes.withLock { $0 }
+        if let read = reads[archived], read.generation == generation { return try await read.task.value }
         let read = Task<[ChatSession], Error> {
-            defer { reads[archived] = nil }
+            defer { if reads[archived]?.generation == generation { reads[archived] = nil } }
             let reply: ChatSessionsReply = try await self.read("list", requires: .list, fields: ",\"archived\":\(archived)")
             return reply.sessions
         }
-        reads[archived] = read
+        reads[archived] = (generation, read)
         return try await read.value
     }
 

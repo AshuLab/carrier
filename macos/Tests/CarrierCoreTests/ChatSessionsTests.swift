@@ -453,10 +453,14 @@ private func ids(_ update: SessionsUpdate) -> [String] { (update.active + update
     #expect(ids(update) == ["a"])
 }
 
-@Test func theWaitBetweenReadsDoublesWithEachMissUpToHalfAMinute() {
-    #expect(sessionsPollWait(pace: 2, failures: 0) == 2)
-    #expect((1...6).map { sessionsPollWait(pace: 2, failures: $0) } == [4, 8, 16, 30, 30, 30])
-    #expect(sessionsPollWait(pace: 10, failures: 1) == 20 && sessionsPollWait(pace: 10, failures: 2) == 30)
+@Test func theWaitBetweenReadsDoublesWithEachMissUpToHalfAMinuteWhileNobodyLooksAndTenSecondsWhileSomeoneDoes() {
+    #expect(sessionsPollWait(pace: 2, failures: 0, looking: false) == 2 && sessionsPollWait(pace: 2, failures: 0, looking: true) == 2)
+    #expect((1...6).map { sessionsPollWait(pace: 5, failures: $0, looking: false) } == [10, 20, 30, 30, 30, 30])
+    #expect((1...6).map { sessionsPollWait(pace: 2, failures: $0, looking: false) } == [4, 8, 16, 30, 30, 30])
+    #expect(sessionsPollWait(pace: 10, failures: 1, looking: false) == 20 && sessionsPollWait(pace: 10, failures: 2, looking: false) == 30)
+    // someone looks: a host restarted by hand shows within 10 seconds, as the window's own poll did
+    #expect((1...6).map { sessionsPollWait(pace: 2, failures: $0, looking: true) } == [4, 8, 10, 10, 10, 10])
+    #expect(sessionsPollWait(pace: 5, failures: 1, looking: true) == 10 && sessionsPollWait(pace: 10, failures: 3, looking: true) == 10)
 }
 
 /// The poller over the updates a host gives.

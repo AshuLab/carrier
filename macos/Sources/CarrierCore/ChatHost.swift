@@ -305,7 +305,7 @@ extension ChatHost {
                 let (update, _) = await reader.read { try await self.list(archived: $0) }
                 continuation.yield(update)
                 failures = update.stale ? failures + 1 : 0
-                try? await Task.sleep(for: .seconds(sessionsPollWait(pace: PollPace.shared.seconds, failures: failures)))
+                try? await Task.sleep(for: .seconds(sessionsPollWait(pace: PollPace.shared.seconds, failures: failures, looking: PollPace.shared.looking)))
             }
         }
         continuation.onTermination = { _ in task.cancel() }

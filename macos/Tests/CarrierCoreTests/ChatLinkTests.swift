@@ -40,9 +40,10 @@ private final class ScriptHost: @unchecked Sendable {
                     asked[command, default: 0] += 1
                     return command == "list" ? gate : nil
                 }
-                wait?.wait()
+                // the answer is what the host held when it was asked, however long it is held
                 let wanted = request?["archived"] as? Bool ?? false
                 let rows = locked { (wanted ? archivedIds : activeIds).map { row($0, archived: wanted) }.joined(separator: ",") }
+                wait?.wait()
                 connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"sessions\":[\(rows)]}}\n")
             }
         }
@@ -171,6 +172,29 @@ private func ids(_ update: SessionsUpdate) -> [String] { (update.active + update
     #expect(host.asks("list") == 3)
 }
 
+@Test func aReadThatBeganBeforeARefreshIsNotJoinedByTheReadTheRefreshAsksFor() async throws {
+    let host = ScriptHost()
+    defer { host.stop() }
+    host.set(active: [], archived: ["old"])
+    host.hold()
+    let link = ChatLink(path: host.path)
+    // a read of the archived list under way (an older host's fallback, the new-session screen's) ...
+    let before = Task { try await link.list(archived: true) }
+    #expect(await until { host.asks("list") == 1 })
+    // ... the app archives a session and says so
+    host.set(active: [], archived: ["old", "new"])
+    link.refresh(archived: true)
+    let after = Task { try await link.list(archived: true) }
+    try await Task.sleep(for: .milliseconds(50))
+    host.release()
+    // the one that began before still answers its own caller, and the one after the refresh is a read of its own
+    #expect(try await before.value.map(\.id) == ["old"])
+    #expect(try await after.value.map(\.id) == ["old", "new"] && host.asks("list") == 2)
+    // the next ask, with nothing in between, is a read again and not the old one
+    _ = try await link.list(archived: true)
+    #expect(host.asks("list") == 3)
+}
+
 @Test func aConnectionTheHostClosedIsOpenedAgainWithItsHelloAndTheRequestStillAnswers() async throws {
     let host = ScriptHost()
     defer { host.stop() }
@@ -214,11 +238,11 @@ private struct Rig {
     let ticker = Ticker()
     let clock = LinkClock()
 
-    init(path: String? = nil, archivedEvery: TimeInterval = 60, pace: TimeInterval = 2) {
+    init(path: String? = nil, archivedEvery: TimeInterval = 60, pace: TimeInterval = 2, looking: Bool = false, log: @escaping @Sendable (String) -> Void = { _ in }) {
         host = ScriptHost(path: path)
         let ticker = ticker
         let clock = clock
-        link = ChatLink(path: host.path, archivedEvery: archivedEvery, now: { clock.now }, pace: { pace }, sleep: { await ticker.park($0) }, log: { _ in })
+        link = ChatLink(path: host.path, archivedEvery: archivedEvery, now: { clock.now }, pace: { pace }, looking: { looking }, sleep: { await ticker.park($0) }, log: log)
     }
 }
 
@@ -306,6 +330,58 @@ private struct Rig {
     #expect(rig.host.asks("list") == 6 && ids(update) == ["a", "b"])
 }
 
+@Test func anArchiveOfTheAppReadsTheArchivedListOnceAndNotInEveryCycleAfterIt() async throws {
+    let rig = Rig()
+    defer { rig.host.stop() }
+    rig.host.set(active: ["a"], archived: ["x"])
+    var updates = await rig.link.sessions().makeAsyncIterator()
+    _ = await updates.next()
+    #expect(rig.host.asks("list") == 2)
+    rig.link.refresh(archived: true)
+    await rig.ticker.release()
+    #expect(try #require(await updates.next()).authoritative && rig.host.asks("list") == 4)
+    // the minute has not passed and nothing left the active list: this cycle reads the active list only
+    await rig.ticker.release()
+    let next = try #require(await updates.next())
+    #expect(next.authoritative == false && rig.host.asks("list") == 5)
+}
+
+@Test func aSessionOfSomeoneElseCreatedAndArchivedWithinTheMinuteIsSeenAsArchivedAtOnce() async throws {
+    let rig = Rig()
+    defer { rig.host.stop() }
+    rig.host.set(active: ["a"])
+    var updates = await rig.link.sessions().makeAsyncIterator()
+    _ = await updates.next()
+    // `b` appears and the archived list is not due: the cycle must still remember `b` as active
+    rig.host.set(active: ["a", "b"])
+    await rig.ticker.release()
+    #expect(try #require(await updates.next()).authoritative == false)
+    // something else archives `b` before the archived list is read again
+    rig.host.set(active: ["a"], archived: ["b"])
+    await rig.ticker.release()
+    let update = try #require(await updates.next())
+    #expect(ids(update) == ["a", "b"] && update.authoritative && update.archived.map(\.id) == ["b"])
+}
+
+@Test func aListenerThatNeverReadsHoldsOnlyTheNewestUpdate() async throws {
+    let rig = Rig()
+    defer { rig.host.stop() }
+    rig.host.set(active: ["a"])
+    let idle = await rig.link.sessions()
+    let collected = Collected()
+    let driving = Task { for await update in await rig.link.sessions() { collected.add(update) } }
+    defer { driving.cancel() }
+    #expect(await until { collected.updates.count == 1 })
+    for (count, active) in [["a", "b"], ["a", "b", "c"]].enumerated() {
+        rig.host.set(active: active)
+        await rig.ticker.release()
+        #expect(await until { collected.updates.count == count + 2 })
+    }
+    var iterator = idle.makeAsyncIterator()
+    let newest = try #require(await iterator.next())
+    #expect(newest.active.map(\.id) == ["a", "b", "c"])
+}
+
 /// Every update a listener was given.
 private final class Collected: @unchecked Sendable {
     private let lock = NSLock()
@@ -346,9 +422,24 @@ private final class Collected: @unchecked Sendable {
     listening.cancel()
 }
 
+@Test func whileSomeoneLooksTheWaitAfterAMissNeverPassesTenSeconds() async throws {
+    let rig = Rig(looking: true)
+    rig.host.set(active: ["a"])
+    let listening = Task { for await _ in await rig.link.sessions() {} }
+    defer { listening.cancel() }
+    #expect(await until { await rig.ticker.waits.count == 1 })
+    rig.host.stop()
+    for count in 2...6 {
+        await rig.ticker.release()
+        #expect(await until { await rig.ticker.waits.count == count })
+    }
+    // a host restarted by hand is seen within 10 seconds, as the window's own poll did
+    #expect(await rig.ticker.waits == [2, 4, 8, 10, 10, 10])
+}
+
 @Test func aHostThatWasNeverThereGivesOneStaleUpdateWithNoSessions() async throws {
     let ticker = Ticker()
-    let link = ChatLink(path: "/tmp/cc-missing-\(UUID().uuidString.prefix(8)).sock", pace: { 2 }, sleep: { await ticker.park($0) }, log: { _ in })
+    let link = ChatLink(path: "/tmp/cc-missing-\(UUID().uuidString.prefix(8)).sock", pace: { 2 }, looking: { false }, sleep: { await ticker.park($0) }, log: { _ in })
     var updates = await link.sessions().makeAsyncIterator()
     let update = try #require(await updates.next())
     #expect(update.stale && update.active.isEmpty && update.archived.isEmpty)
@@ -359,7 +450,7 @@ private final class Collected: @unchecked Sendable {
     host.set(active: ["a"])
     let ticker = Ticker()
     let logged = LockedLog()
-    let link = ChatLink(path: host.path, pace: { 2 }, sleep: { await ticker.park($0) }, log: { logged.add($0) })
+    let link = ChatLink(path: host.path, pace: { 2 }, looking: { false }, sleep: { await ticker.park($0) }, log: { logged.add($0) })
     var updates = await link.sessions().makeAsyncIterator()
     _ = await updates.next()
     host.stop()
@@ -374,6 +465,30 @@ private final class LockedLog: @unchecked Sendable {
     private var all: [String] = []
     func add(_ line: String) { lock.lock(); all.append(line); lock.unlock() }
     var lines: [String] { lock.lock(); defer { lock.unlock() }; return all }
+}
+
+@Test func aSecondOutageAfterARecoveryIsLoggedAgain() async throws {
+    let logged = LockedLog()
+    let rig = Rig(log: { logged.add($0) })
+    rig.host.set(active: ["a"])
+    let path = rig.host.path
+    let collected = Collected()
+    let stream = await rig.link.sessions()
+    let listening = Task { for await update in stream { collected.add(update) } }
+    defer { listening.cancel() }
+    #expect(await until { collected.updates.count == 1 })
+    rig.host.stop()
+    await rig.ticker.release()
+    #expect(await until { collected.updates.count == 2 })
+    #expect(logged.lines.count == 1)
+    let back = ScriptHost(path: path)
+    back.set(active: ["a"])
+    await rig.ticker.release()
+    #expect(await until { collected.updates.count == 3 })
+    back.stop()
+    await rig.ticker.release()
+    #expect(await until { collected.updates.count == 4 })
+    #expect(logged.lines.count == 2)
 }
 
 @Test func theReadsStopWhenTheLastListenerLeavesAndStartAgainWithTheNextOne() async throws {
@@ -497,7 +612,7 @@ private final class Attempts: @unchecked Sendable {
 }
 
 /// A link that waits as it does in the app (the nap `refresh` cuts), and what it was told.
-private func napping(path: String, pace: TimeInterval = 10) -> ChatLink { ChatLink(path: path, pace: { pace }, log: { _ in }) }
+private func napping(path: String, pace: TimeInterval = 10) -> ChatLink { ChatLink(path: path, pace: { pace }, looking: { false }, log: { _ in }) }
 
 @Test func aRefreshCutsTheWaitOfTheNormalPaceAndTheListIsReadAtOnce() async throws {
     let host = ScriptHost()

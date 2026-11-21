@@ -93,7 +93,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .interrupt, .stopTask, .worktreeStart, .fetchIfStale])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .interrupt, .stopTask, .worktreeStart, .fetchIfStale, .projects])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -195,6 +195,8 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     let first = try await host.githubRepos(page: 1)
     #expect(first.login == "vemec" && first.hasMore && first.repos.count == 6)
     #expect(first.repos[0] == AvailableRepo(name: "AshuLab/carrier", isPrivate: true, pushedAt: "2026-10-28T15:40:00Z"))
+    // the host's listing carries the description, which the sheet shows; a repository with none has nil
+    #expect(first.repos[1].about == "The marketing site and the docs" && first.repos[3].about == nil)
     #expect(first.repos[5] == AvailableRepo(name: "vemec/dotfiles", isPrivate: false, pushedAt: nil))
     let second = try await host.githubRepos(page: 2)
     #expect(second.login == nil && second.hasMore == false && second.repos.map(\.name) == ["optyra/docs", "vemec/old-experiments"])
@@ -508,4 +510,67 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
 
     for _ in 0..<2 { _ = try await host.events("0509fe2a-2637-4bdd-840c-5727696d6a3e", after: 0, limit: 50) }
     #expect(asked.all.allSatisfy { $0.contains("\"lists\"") == false && $0.contains("\"cmd\":\"stop\"") == false })
+}
+
+// MARK: the projects capability (docs/specs/projects.md, "What the host answers")
+
+@Test func theFixtureHostListsItsClonesAndStartsSharesAndDismissesThem() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    #expect(try await host.capabilities().contains(.projects))
+    // the golden reply: one clone running with git's progress line, one failed with its reason
+    let listed = try await host.projectClones()
+    #expect(listed == [
+        ProjectClone(repo: "acme/docs", folder: "/tmp/carrier-projects/acme/docs", state: .cloning, progress: "Receiving objects: 62%"),
+        ProjectClone(repo: "acme/private-tools", folder: "/tmp/carrier-projects/acme/private-tools", state: .failed, error: "acme/private-tools was not found, or your GitHub login cannot see it"),
+    ])
+    // a repository the person's listing has starts cloning in the projects folder, or in the parent chosen for it
+    let started = try await host.cloneProject("vemec/encaja", into: nil)
+    #expect(started.state == .cloning && started.folder.hasSuffix("/chat/projects/vemec/encaja"))
+    // asking again, even for another folder, is the clone that runs
+    #expect(try await host.cloneProject("Vemec/Encaja", into: "/tmp/elsewhere") == started)
+    #expect(try await host.projectClones().count == 3)
+    await #expect(throws: ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")) { _ = try await host.cloneProject("AshuLab/nope", into: nil) }
+    // a failed clone goes when it is dismissed, a running one stays
+    #expect(try await host.dismissClone("acme/private-tools").map(\.repo) == ["acme/docs", "vemec/encaja"])
+    #expect(try await host.dismissClone("acme/docs").count == 2)
+}
+
+@Test func theProjectsRequestsGoOnTheWireWithStringsEscapedAndOnlyForAHostThatListsThem() async throws {
+    var wire: [String] = []
+    let reply = #"{"repo":"acme/app","folder":"/w/acme/app","state":"cloning"}"#
+    let server = TestServer { connection in
+        connection.send(hello("\"projects\""))
+        for _ in 0..<2 {
+            guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+            wire.append(line)
+            connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(wire.count == 1 ? reply : #"{"clones":[]}"#)}\n")
+        }
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    _ = try await host.cloneProject("acme/app", into: "/w \"x\"")
+    _ = try await host.dismissClone("acme/app")
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(wire[0].utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "cloneProject" && sent["repo"] as? String == "acme/app" && sent["parent"] as? String == "/w \"x\"" && sent.keys.sorted() == ["cmd", "id", "parent", "repo"])
+    let dismissed = try #require(try JSONSerialization.jsonObject(with: Data(wire[1].utf8)) as? [String: Any])
+    #expect(dismissed["cmd"] as? String == "dismissClone" && dismissed.keys.sorted() == ["cmd", "id", "repo"])
+
+    // the host's own limits are checked before anything is sent
+    await #expect(throws: ControlError.remote("\"../x\" is not a repository; write it as owner/name")) { _ = try await host.cloneProject("../x", into: nil) }
+    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.cloneProject("acme/app", into: "") }
+
+    // a host without the capability is told it is older, and is sent nothing
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    let old = SocketChatHost(socketPath: { older.path })
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await old.cloneProject("acme/app", into: nil) }
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await old.projectClones() }
+    #expect(asked == false)
+    #expect(projectsNeedNewerHost.contains("older") && projectsNeedNewerHost.contains("Restart"))
 }

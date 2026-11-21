@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -404,4 +404,123 @@ test('a folder that cannot be made is not reported as one that is already there'
   } finally {
     chmodSync(owner, 0o755);
   }
+});
+
+// A clone started from Settings (the `projects` capability): it runs in the background and the folder is registered in projects.json when it ends.
+const registered = () => JSON.parse(readFileSync(join(root, 'projects.json'), 'utf8')).projects;
+const held = () => {
+  let release!: () => void;
+  git.clonePending = new Promise<void>((resolve) => (release = resolve));
+  return release;
+};
+
+test('cloneProject answers at once, lists the clone with git\'s progress, and registers a project with origin cloned when it ends', async () => {
+  const release = held();
+  const clock = new FakeClock();
+  const host = fakeProjects(git, clock);
+  const dest = join(projects(), 'acme', 'app');
+  expect(host.cloneProject({ repo: 'acme/app' })).toEqual({ repo: 'acme/app', folder: dest, state: 'cloning' });
+  await vi.waitFor(() => expect(clones()).toHaveLength(1));
+  git.emitProgress('Receiving objects: 45% (45/100)');
+  expect(host.projectClones()).toEqual({ clones: [{ repo: 'acme/app', folder: dest, state: 'cloning', progress: 'Receiving objects: 45%' }] });
+  expect(existsSync(join(root, 'projects.json'))).toBe(false);
+  release();
+  await vi.waitFor(() => expect(host.projectClones()).toEqual({ clones: [] }));
+  expect(registered()).toEqual([{ path: dest, origin: 'cloned' }]);
+});
+
+test('a second clone of the same repository while one runs is shared, even for another folder', async () => {
+  const release = held();
+  const host = fakeProjects(git);
+  const first = host.cloneProject({ repo: 'acme/app' });
+  const second = host.cloneProject({ repo: 'Acme/App', parent: join(root, 'elsewhere') });
+  expect(second).toEqual(first);
+  await vi.waitFor(() => expect(clones()).toHaveLength(1));
+  release();
+  await vi.waitFor(() => expect(host.projectClones().clones).toHaveLength(0));
+  expect(clones()).toHaveLength(1);
+  expect(registered()).toHaveLength(1);
+});
+
+test('a clone for this once goes to <parent>/<owner>/<repo> and leaves chat.json as it was', async () => {
+  const host = fakeProjects(git);
+  const parent = join(root, 'work');
+  expect(host.cloneProject({ repo: 'acme/app', parent }).folder).toBe(join(parent, 'acme', 'app'));
+  await vi.waitFor(() => expect(host.projectClones().clones).toHaveLength(0));
+  expect(clones()[0]!.args.at(-1)).toBe(join(parent, 'acme', 'app'));
+  expect(registered()).toEqual([{ path: join(parent, 'acme', 'app'), origin: 'cloned' }]);
+  expect(JSON.parse(readFileSync(chatJson(), 'utf8'))).toEqual({});
+});
+
+test('a failed clone stays listed with its reason, never what git said, until it is dismissed, and a new one can start', async () => {
+  const dest = join(projects(), 'acme', 'app');
+  git.failures.set(`clone -- https://github.com/acme/app.git ${dest}`, { ok: false, code: 128, stderr: 'fatal: something with https://x:ghp_secrettoken@github.com/acme/app.git/' });
+  const host = fakeProjects(git);
+  host.cloneProject({ repo: 'acme/app' });
+  await vi.waitFor(() => expect(host.projectClones().clones[0]?.state).toBe('failed'));
+  expect(host.projectClones()).toEqual({ clones: [{ repo: 'acme/app', folder: dest, state: 'failed', error: 'git could not clone acme/app' }] });
+  expect(existsSync(join(root, 'projects.json'))).toBe(false);
+  expect(host.dismissClone({ repo: 'acme/app' })).toEqual({ clones: [] });
+  git.failures.clear();
+  host.cloneProject({ repo: 'acme/app' });
+  await vi.waitFor(() => expect(registered()).toHaveLength(1));
+});
+
+test('dismissClone leaves a clone that is running', async () => {
+  const release = held();
+  const host = fakeProjects(git);
+  host.cloneProject({ repo: 'acme/app' });
+  expect(host.dismissClone({ repo: 'acme/app' }).clones).toHaveLength(1);
+  release();
+  await vi.waitFor(() => expect(host.projectClones().clones).toHaveLength(0));
+});
+
+test('a repository already there is fetched and registered as added, not cloned', async () => {
+  const dest = join(projects(), 'acme', 'app');
+  mkdirSync(join(dest, '.git'), { recursive: true });
+  git.repos.set(dest, { head: 'main', branches: ['main'], origin: 'https://github.com/acme/app.git' });
+  const host = fakeProjects(git);
+  host.cloneProject({ repo: 'acme/app' });
+  await vi.waitFor(() => expect(registered()).toEqual([{ path: dest, origin: 'added' }]));
+  expect(clones()).toHaveLength(0);
+});
+
+test('a repository that is already a project is refused at once, and the entries already there are kept', async () => {
+  const dest = join(projects(), 'acme', 'app');
+  writeFileSync(join(root, 'projects.json'), JSON.stringify({ projects: [{ path: dest, origin: 'added', name: 'Mine' }] }));
+  const host = fakeProjects(git);
+  expect(() => host.cloneProject({ repo: 'acme/app' })).toThrow('acme/app is already a project');
+  expect(clones()).toHaveLength(0);
+  host.cloneProject({ repo: 'acme/other' });
+  await vi.waitFor(() => expect(registered()).toHaveLength(2));
+  expect(registered()[0]).toEqual({ path: dest, origin: 'added', name: 'Mine' });
+});
+
+test('a parent inside Carrier\'s own folders and a name that is not owner/name never reach git', () => {
+  const host = fakeProjects(git);
+  expect(() => host.cloneProject({ repo: 'acme/app', parent: join(root, 'chat', 'worktrees') })).toThrow("Carrier's own");
+  expect(() => host.cloneProject({ repo: 'acme/app', parent: 'relative' })).toThrow('absolute');
+  expect(() => host.cloneProject({ repo: '../x' })).toThrow('not a repository');
+  expect(git.calls).toHaveLength(0);
+  expect(host.projectClones()).toEqual({ clones: [] });
+});
+
+test('a projects.json that does not match is not written over: the clone stays and the failure says to fix the file', async () => {
+  writeFileSync(join(root, 'projects.json'), '{"projects":[{"path":"/x"}]}');
+  const host = fakeProjects(git);
+  host.cloneProject({ repo: 'acme/app' });
+  await vi.waitFor(() => expect(host.projectClones().clones[0]?.state).toBe('failed'));
+  expect(host.projectClones().clones[0]!.error).toContain('fix the file');
+  expect(readFileSync(join(root, 'projects.json'), 'utf8')).toBe('{"projects":[{"path":"/x"}]}');
+});
+
+test('stop aborts the running clones and removes what they made', async () => {
+  held();
+  const host = fakeProjects(git);
+  host.cloneProject({ repo: 'acme/app' });
+  await vi.waitFor(() => expect(existsSync(join(projects(), 'acme', 'app'))).toBe(true));
+  expect(host.cloningCount()).toBe(1);
+  await host.stop();
+  expect(existsSync(join(projects(), 'acme', 'app'))).toBe(false);
+  expect(host.cloningCount()).toBe(0);
 });

@@ -93,6 +93,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public let iconImage: String?
     /// Actions run in a new worktree or after a clone, from `projects.json`.
     public let actions: [ProjectAction]
+    /// Set on a row that stands for a clone the host is running or that failed: it is not a project yet and cannot be opened.
+    public let clone: ProjectClone?
 
     public init(
         path: String,
@@ -104,7 +106,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         iconColor: ProjectColor? = nil,
         iconMark: AppIcon? = nil,
         iconImage: String? = nil,
-        actions: [ProjectAction] = []
+        actions: [ProjectAction] = [],
+        clone: ProjectClone? = nil
     ) {
         self.path = path
         self.name = name
@@ -116,13 +119,28 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         self.iconMark = iconMark
         self.iconImage = iconImage
         self.actions = actions
+        self.clone = clone
     }
+
+    /// The list's row for a clone started from Settings: named as the repository, at the folder it is made in.
+    public init(clone: ProjectClone) {
+        self.init(path: clone.folder, name: clone.repo.split(separator: "/").last.map(String.init) ?? clone.repo, repo: clone.repo, clone: clone)
+    }
+
+    /// Whether a click on the row opens the project's page: not while it is cloning or after its clone failed.
+    public var isOpenable: Bool { clone == nil }
 
     public var id: String { path }
     /// The folder's own name (what the Name field falls back to when emptied).
     public var folderName: String { projectFolderName(path) }
     /// What the row says under the name: the repository, else where the folder is.
-    public var line: String { repo ?? path }
+    public var line: String {
+        switch clone?.state {
+        case .cloning: clone?.progress ?? "Cloning…"
+        case .failed: clone?.error ?? "The clone failed"
+        case nil: repo ?? path
+        }
+    }
     /// What its tile's colour is made from, so it matches the project's sessions.
     public var colorKey: String { projectColorKey(path) }
     /// What the project's tile draws: its chosen colour and mark, else initials on a colour made from the name.
@@ -262,6 +280,9 @@ extension ProjectsProblem {
     public private(set) var projectsPath: String
     /// Why the last Change… of the default folder was refused, in words; the old folder stands.
     public private(set) var projectsFolderProblem: String?
+    /// The clones the host runs or that failed, as it last said (`refreshClones`).
+    public private(set) var clones: [ProjectClone] = []
+    @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let file: ProjectsFile
     @ObservationIgnored private let remote: (String) -> String?
     @ObservationIgnored private let readChatConfig: () throws -> Data?
@@ -269,12 +290,14 @@ extension ProjectsProblem {
     @ObservationIgnored private let home: String
 
     public init(
+        host: ChatHost = SocketChatHost(),
         file: ProjectsFile = .current(),
         remote: @escaping (String) -> String? = originRepo(ofFolder:),
         readChatConfig: @escaping () throws -> Data? = currentChatConfig,
         writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
         home: String = NSHomeDirectory()
     ) {
+        self.host = host
         self.file = file
         self.remote = remote
         self.readChatConfig = readChatConfig
@@ -300,12 +323,38 @@ extension ProjectsProblem {
         if problems != newProblems { problems = newProblems }
     }
 
-    /// Reloads now and then again each `interval`, until the task is cancelled. ponytail: a poll of a small file, which also sees an edit made in place; a file watcher if it ever costs.
+    /// Reloads now and then again each `interval`, until the task is cancelled. The host is asked for its clones once, and again at each turn only
+    /// while one is running, so a page with none open does not talk to it. ponytail: a poll of a small file, which also sees an edit made in place; a file watcher if it ever costs.
     public func follow(every interval: Duration = .seconds(1)) async {
+        await refreshClones()
         while Task.isCancelled == false {
             reload()
             try? await Task.sleep(for: interval)
+            if clones.contains(where: { $0.state == .cloning }) { await refreshClones() }
         }
+    }
+
+    /// The rows of the clones that are running or failed, to show among the projects: they are not projects yet.
+    public var cloneRows: [ProjectRow] { clones.map(ProjectRow.init(clone:)) }
+
+    /// Asks the host which clones run or failed. A host that is not running, or is older, leaves what was known: the clones are the host's, and what
+    /// it cannot say is not a reason to forget them. The file is read after, so a clone that just finished is a project when it stops being a clone.
+    public func refreshClones() async {
+        guard let latest = try? await host.projectClones() else { return }
+        if clones != latest { clones = latest }
+        reload()
+    }
+
+    /// Starts cloning `repo` into `parent` (nil: the projects folder) and puts the clone in the list at once; throws the host's words when it refuses.
+    @discardableResult public func startClone(_ repo: String, into parent: String?) async throws -> ProjectClone {
+        let started = try await host.cloneProject(repo, into: parent)
+        clones = clones.filter { $0.id != started.id } + [started]
+        return started
+    }
+
+    /// Forgets a failed clone: the host drops it and the row goes.
+    public func dismissClone(_ repo: String) async {
+        if let left = try? await host.dismissClone(repo) { clones = left }
     }
 
     /// Adds `folder` as a project, or says it already is one and writes nothing. nil when it could not be written: `problems` says why when the file does not

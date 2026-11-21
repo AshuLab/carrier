@@ -14,8 +14,12 @@ struct ProjectsTabView: View {
         let chosen = place.path.first.flatMap { path in model.rows.first { $0.path == path } }
         SettingsPageBody {
             if model.problems.isEmpty {
-                if let failure = model.failure { ProblemLine(text: failure) }
-                if let chosen { projectScreen(chosen) } else { list }
+                if let chosen {
+                    projectScreen(chosen)
+                } else {
+                    if let failure = model.failure { ProblemLine(text: failure) }
+                    list
+                }
             } else {
                 problems
             }

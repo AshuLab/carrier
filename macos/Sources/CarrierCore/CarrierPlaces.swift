@@ -47,6 +47,7 @@ public struct CarrierPlaces: Sendable, Equatable {
     /// The app's copies of the files a person attaches, until the message goes: `<id>/<name>`. The host then moves each one into
     /// `chat/sessions/<session>/attachments/` and sweeps what was never sent after a day.
     public var chatPending: String { chat + "/pending" }
+    public var chatSessions: String { chat + "/sessions" }
 
     // The app's: state it keeps, its logs, and a cache that can be deleted and comes back.
     public var app: String { folder + "/app" }

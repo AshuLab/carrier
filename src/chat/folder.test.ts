@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, expect, test } from 'vitest';
-import { checkFolder, checkProjectsFolder } from './folder.ts';
+import { checkFolder, checkProjectFolder, checkProjectsFolder } from './folder.ts';
 
 let base: string;
 let home: string;
@@ -62,4 +63,49 @@ test("a projects folder may not exist yet, but not be relative nor lie in the en
   expect(() => checkProjectsFolder(join(work, 'link', 'x'), home)).toThrow("inside Carrier's own engine folder");
   symlinkSync(join(home, 'chat', 'state'), join(work, 'state-link'));
   expect(() => checkProjectsFolder(join(work, 'state-link', 'x'), home)).toThrow(/chat.state folder/);
+});
+
+type ProjectFolderFixture = {
+  carrier: string;
+  layout: {
+    dirs: string[];
+    files: Record<string, string>;
+    symlinks: Record<string, string>;
+    unreadable: string[];
+  };
+  cases: {
+    name: string;
+    path: string;
+    carrier?: string;
+    relative?: boolean;
+    refusal: string | null;
+  }[];
+};
+
+const projectFolderFixture = JSON.parse(readFileSync(fileURLToPath(new URL('../../macos/Tests/Fixtures/project-folder.json', import.meta.url)), 'utf8')) as ProjectFolderFixture;
+
+test.each(projectFolderFixture.cases)('checkProjectFolder: $name', (entry) => {
+  const root = mkdtempSync(join(tmpdir(), 'pf-'));
+  try {
+    for (const dir of projectFolderFixture.layout.dirs) mkdirSync(join(root, dir), { recursive: true });
+    for (const [file, body] of Object.entries(projectFolderFixture.layout.files)) {
+      mkdirSync(dirname(join(root, file)), { recursive: true });
+      writeFileSync(join(root, file), body);
+    }
+    for (const [link, target] of Object.entries(projectFolderFixture.layout.symlinks)) {
+      symlinkSync(join(root, target), join(root, link));
+    }
+    for (const dir of projectFolderFixture.layout.unreadable) chmodSync(join(root, dir), 0o000);
+
+    const carrier = join(root, entry.carrier ?? projectFolderFixture.carrier);
+    const target = entry.relative === true ? entry.path : join(root, entry.path);
+    if (entry.refusal === null) {
+      expect(checkProjectFolder(target, carrier)).toBe(realpathSync(target));
+    } else {
+      expect(() => checkProjectFolder(target, carrier)).toThrow(entry.refusal);
+    }
+  } finally {
+    for (const dir of projectFolderFixture.layout.unreadable) chmodSync(join(root, dir), 0o755);
+    rmSync(root, { recursive: true, force: true });
+  }
 });

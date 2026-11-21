@@ -33,7 +33,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `plan.ts`: the plan's request schema and the step types.
 - `runner.ts`: the chat runner port, with `fake.ts` its test double; `claude.ts` and `codex.ts` are the Claude and Codex adapters.
   Codex's usage limit (`usageLimitExceeded`, not retried) is an `error` with `reason: 'usage_limit'`: its `resetsAt` is read from `account/rateLimits/read` and `resetText` is the error's own `try again at ...` when that gives none; the error is emitted before the turn's `turn_end`.
-- `folder.ts`: the check of a session's folder, never inside `<folder>/engine/` (and `checkProjectsFolder`, the same rule for the projects folder).
+- `folder.ts`: the check of a session's folder, never inside `<folder>/engine/`, `checkProjectsFolder` for the projects folder, and `checkProjectFolder` for a project (its shared table in `macos/Tests/Fixtures/project-folder.json`).
 - `projects.ts`: what the chat brings onto the Mac with the person's own `gh` login, under the projects folder ([ADR 0015](../../docs/adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)).
   `cloneRepo` (waiters share one clone, which stops when nobody waits; only git's progress lines pass on, one a second), `createProject`, the `githubRepos` listing and `repoBranches`.
 - `providers.ts`: the `providers` request (the accounts with their state, `unadded` for a harness found with no account, the local servers, or `problem` when `providers.json` does not match; built from `doctor/detect.ts`).

@@ -247,8 +247,25 @@ extension ProjectColor {
     }
 }
 
-/// The project's icon: its chosen mark or initials in white on its chosen colour or one made from its name, in a rounded square of glass
-/// tinted with it. A bright arc goes round its edge while an agent works (`WorkingRing`).
+/// Loads and caches copied project icon PNGs from `project-icons`, returning nil when the file is missing or unreadable so the tile falls back to color and mark.
+@MainActor enum ProjectIconImageCache {
+    private static let cache = NSCache<NSString, NSImage>()
+
+    static func image(named fileName: String?, in store: ProjectIconStore = .current()) -> NSImage? {
+        guard let url = store.existingURL(for: fileName) else {
+            if let stale = store.fileURL(for: fileName) { cache.removeObject(forKey: stale.path as NSString) }
+            return nil
+        }
+        let key = url.path as NSString
+        if let cached = cache.object(forKey: key) { return cached }
+        guard let loaded = NSImage(contentsOf: url), loaded.isValid, loaded.size.width > 0, loaded.size.height > 0 else { return nil }
+        cache.setObject(loaded, forKey: key)
+        return loaded
+    }
+}
+
+/// The project's icon: its chosen image, or its chosen mark or initials in white on its chosen colour or one made from its name, in a rounded
+/// square of glass tinted with it. A bright arc goes round its edge while an agent works (`WorkingRing`).
 /// In a sidebar row it is neutral until the row is selected or hovered (`rowActive`).
 struct ProjectIcon: View {
     let name: String
@@ -256,6 +273,8 @@ struct ProjectIcon: View {
     let colorKey: String
     var customColor: ProjectColor? = nil
     var mark: AppIcon? = nil
+    var image: String? = nil
+    var imageFolder: String? = nil
     var working = false
     /// The ring is the cyan of a session that waits for something it started, not the violet of one that works.
     var background = false
@@ -272,22 +291,26 @@ struct ProjectIcon: View {
         (0.542, 0.36, 0.50), (0.625, 0.36, 0.50), (0.708, 0.36, 0.50), (0.792, 0.36, 0.50), (0.875, 0.36, 0.50), (0.958, 0.36, 0.50),
     ].map { Color(hue: $0.0, saturation: $0.1, brightness: $0.2) }
 
-    init(name: String, colorKey: String, customColor: ProjectColor? = nil, mark: AppIcon? = nil, working: Bool = false, background: Bool = false, finished: Bool = false) {
+    init(name: String, colorKey: String, customColor: ProjectColor? = nil, mark: AppIcon? = nil, image: String? = nil, imageFolder: String? = nil, working: Bool = false, background: Bool = false, finished: Bool = false) {
         self.name = name
         self.colorKey = colorKey
         self.customColor = customColor
         self.mark = mark
+        self.image = image
+        self.imageFolder = imageFolder
         self.working = working
         self.background = background
         self.finished = finished
     }
 
-    init(tile: ProjectTile, working: Bool = false, background: Bool = false, finished: Bool = false) {
+    init(tile: ProjectTile, imageFolder: String? = nil, working: Bool = false, background: Bool = false, finished: Bool = false) {
         self.name = tile.name
         self.colorKey = ""
         self.customColor = if case .named(let color) = tile.color { color } else { nil }
         self.hashedIndex = if case .hashed(let index) = tile.color { index } else { nil }
         self.mark = if case .mark(let icon) = tile.content { icon } else { nil }
+        self.image = tile.image
+        self.imageFolder = imageFolder
         self.working = working
         self.background = background
         self.finished = finished
@@ -301,22 +324,45 @@ struct ProjectIcon: View {
         return Self.palette[index % Self.palette.count]
     }
 
+    private var loadedImage: NSImage? {
+        guard let image else { return nil }
+        let store = imageFolder.map(ProjectIconStore.init(folder:)) ?? .current()
+        return ProjectIconImageCache.image(named: image, in: store)
+    }
+
     var body: some View {
-        Color.clear
-            .frame(width: Self.size, height: Self.size)
-            .glassEffect(active ? .regular.tint(tileColor) : .regular, in: .rect(cornerRadius: Self.radius))
-            .overlay {
-                if let mark {
-                    Glyph(mark, size: 15, bold: true).foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
-                } else {
-                    let initials = projectInitials(name)
-                    Text(initials).font(.scaled(initials.count > 2 ? 10.5 : 12, weight: .semibold)).tracking(initials.count > 2 ? 0 : 0.3)
-                        .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
-                }
+        Group {
+            if let loadedImage {
+                Color.clear
+                    .frame(width: Self.size, height: Self.size)
+                    .glassEffect(.regular, in: .rect(cornerRadius: Self.radius))
+                    .overlay {
+                        Image(nsImage: loadedImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: Self.size, height: Self.size)
+                            .clipShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
+                            .saturation(active ? 1 : 0)
+                            .opacity(active ? 1 : 0.72)
+                    }
+            } else {
+                Color.clear
+                    .frame(width: Self.size, height: Self.size)
+                    .glassEffect(active ? .regular.tint(tileColor) : .regular, in: .rect(cornerRadius: Self.radius))
+                    .overlay {
+                        if let mark {
+                            Glyph(mark, size: 15, bold: true).foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
+                        } else {
+                            let initials = projectInitials(name)
+                            Text(initials).font(.scaled(initials.count > 2 ? 10.5 : 12, weight: .semibold)).tracking(initials.count > 2 ? 0 : 0.3)
+                                .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
+                        }
+                    }
             }
-            .animation(.easeOut(duration: 0.15), value: active)
-            .overlay { if working || finished { WorkingRing(finished: finished && working == false, background: background).transition(.opacity) } }
-            .animation(.easeOut(duration: 0.3), value: finished)
+        }
+        .animation(.easeOut(duration: 0.15), value: active)
+        .overlay { if working || finished { WorkingRing(finished: finished && working == false, background: background).transition(.opacity) } }
+        .animation(.easeOut(duration: 0.3), value: finished)
     }
 }
 

@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Observation
 
@@ -263,10 +264,13 @@ extension ProjectsProblem {
     /// Why the last Change… of the default folder was refused, in words; the old folder stands.
     public private(set) var projectsFolderProblem: String?
     @ObservationIgnored private let file: ProjectsFile
+    @ObservationIgnored private let imageStore: ProjectIconStore
     @ObservationIgnored private let remote: (String) -> String?
     @ObservationIgnored private let readChatConfig: () throws -> Data?
     @ObservationIgnored private let writeChatConfig: (Data) throws -> Void
     @ObservationIgnored private let home: String
+
+    public var carrierFolder: String { file.folder }
 
     public init(
         file: ProjectsFile = .current(),
@@ -276,6 +280,7 @@ extension ProjectsProblem {
         home: String = NSHomeDirectory()
     ) {
         self.file = file
+        self.imageStore = ProjectIconStore(folder: file.folder)
         self.remote = remote
         self.readChatConfig = readChatConfig
         self.writeChatConfig = writeChatConfig
@@ -357,19 +362,76 @@ extension ProjectsProblem {
         write { try file.updateTags(path: path) { removingProjectTag(tag, from: $0) } }
     }
 
-    /// Sets or clears the project's icon colour, keeping every other key in `icon` and the entry.
+    /// Sets or clears the project's icon colour, clearing any image and deleting its copy while keeping every other key.
     @discardableResult public func setIconColor(_ color: ProjectColor?, path: String) -> Bool {
-        write { try file.updateIcon(path: path, changes: ["color": color?.rawValue]) }
+        editIconClearingImage(path: path, changes: ["color": color?.rawValue])
     }
 
-    /// Sets or clears the project's icon mark, keeping every other key in `icon` and the entry.
+    /// Sets or clears the project's icon mark, clearing any image and deleting its copy while keeping every other key.
     @discardableResult public func setIconMark(_ mark: AppIcon?, path: String) -> Bool {
-        write { try file.updateIcon(path: path, changes: ["mark": mark?.rawValue]) }
+        editIconClearingImage(path: path, changes: ["mark": mark?.rawValue])
     }
 
-    /// Clears both the project's icon colour and mark, keeping `image` and every other key of the entry.
+    /// Clears the project's icon colour, mark and image, deleting any copied image file while keeping every other key of the entry.
     @discardableResult public func resetIcon(path: String) -> Bool {
-        write { try file.updateIcon(path: path, changes: ["color": nil, "mark": nil]) }
+        editIconClearingImage(path: path, changes: ["color": nil, "mark": nil])
+    }
+
+    /// Copies and reduces the image at `sourceURL` into `project-icons`, points `icon.image` at it, and deletes any previous copy.
+    @discardableResult public func setIconImage(from sourceURL: URL, path: String) -> Bool {
+        saveIconImage(path: path) { try $0.save(from: sourceURL) }
+    }
+
+    /// Scales and saves `image` into `project-icons`, points `icon.image` at it, and deletes any previous copy.
+    @discardableResult public func setIconImage(cgImage image: CGImage, path: String) -> Bool {
+        saveIconImage(path: path) { try $0.save(cgImage: image) }
+    }
+
+    private func editIconClearingImage(path: String, changes: [String: String?]) -> Bool {
+        var entries: [ProjectEntry] = []
+        var previousImage: String?
+        var merged = changes
+        merged["image"] = .some(nil)
+        let wrote = write {
+            entries = try file.read()
+            previousImage = entries.first { $0.path == path }?.iconImage
+            try file.updateIcon(path: path, changes: merged)
+            return true
+        }
+        if wrote, let previousImage, entries.contains(where: { $0.path != path && $0.iconImage == previousImage }) == false {
+            imageStore.delete(previousImage)
+        }
+        return wrote
+    }
+
+    private func saveIconImage(path: String, save: (ProjectIconStore) throws -> String) -> Bool {
+        var savedName: String?
+        do {
+            let entries = try file.read()
+            guard let entry = entries.first(where: { $0.path == path }) else {
+                throw ProjectsFileError.missing(path)
+            }
+            let previous = entry.iconImage
+            let name = try save(imageStore)
+            savedName = name
+            try file.updateIcon(path: path, changes: ["image": name])
+            if let previous, previous != name, entries.contains(where: { $0.path != path && $0.iconImage == previous }) == false {
+                imageStore.delete(previous)
+            }
+            failure = nil
+            reload()
+            return true
+        } catch ProjectsFileError.invalid(let found) {
+            if let savedName { imageStore.delete(savedName) }
+            problems = found
+        } catch let error as ProjectIconStoreError {
+            if let savedName { imageStore.delete(savedName) }
+            failure = error.localizedDescription
+        } catch {
+            if let savedName { imageStore.delete(savedName) }
+            failure = "projects.json cannot be written: \(error.localizedDescription)"
+        }
+        return false
     }
 
     /// Writes `actions` on the project at `path` and reloads the list; returns false without writing when any action is invalid or the file failed.

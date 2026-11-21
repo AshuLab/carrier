@@ -673,6 +673,25 @@ test('a session that is read stays, listing the sessions keeps none, and the idl
   expect(rows('sessions').map((r) => r.id).sort()).toEqual([a.id, other.id].sort());
 });
 
+test('the idle time is what the host says each time a session is armed: a longer one is kept, and a change applies from the next request that names the session', async () => {
+  let idleCloseMs = 3 * IDLE_CLOSE_MS;
+  const s = setup(undefined, { idleCloseMs: () => idleCloseMs });
+  const one = await openOne(s);
+  await s.clock.advance(3 * IDLE_CLOSE_MS - 1);
+  expect(one.conversation.closed).toBe(false);
+  await s.clock.advance(1);
+  expect(one.conversation.closed).toBe(true);
+
+  idleCloseMs = 6 * IDLE_CLOSE_MS;
+  const { session } = await s.sessions.open({ agent: 'claude', folder: work });
+  const two = s.claude.conversations.at(-1)!;
+  await s.clock.advance(3 * IDLE_CLOSE_MS);
+  idleCloseMs = IDLE_CLOSE_MS; // the person chose less, and the session is read: its time is the new one from here
+  s.sessions.events({ sessionId: session.id, limit: 1 });
+  await s.clock.advance(IDLE_CLOSE_MS);
+  expect(two.closed).toBe(true);
+});
+
 test('changing an option of a live session keeps it as reading it does', async () => {
   const { sessions, conversation, clock, id } = await openOne();
   conversation.options = [{ id: 'model', label: 'Model', values: [{ id: 'haiku', label: 'Haiku' }], current: 'haiku' }];

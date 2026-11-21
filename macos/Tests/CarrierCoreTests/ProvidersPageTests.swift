@@ -105,6 +105,24 @@ private let config = data("""
     #expect(bare.servers.allSatisfy { $0.running == false })
 }
 
+@Test func theTextGeneratorsGroupSaysWhichServersCanBeChosenAndWhichModelIsInUse() throws {
+    // the golden reply: LM Studio does not answer, Ollama has two models, none chosen
+    let none = providersPage(try reply(), config: nil, chat: nil)
+    #expect(none.textGenerator == nil && none.generatorInUse == nil)
+    #expect(none.servers.map(\.generatorNote) == ["Not running", nil])
+    #expect(none.servers[1].generatorModels == ["qwen3:8b", "llama3.2:3b"] && none.servers[1].generatorModel == nil)
+    // a running server with no model says so and has nothing to choose
+    let empty = providersPage(try reply(#"{"accounts":[],"unadded":[],"servers":[{"kind":"lmstudio","running":true,"models":[]}]}"#), config: nil, chat: nil)
+    #expect(empty.servers[0].generatorNote == "No model loaded" && empty.servers[0].generatorModels.isEmpty)
+    // the one the host reports is in use on its server, in words
+    let chosen = providersPage(try reply(#"{"accounts":[],"unadded":[],"servers":[{"kind":"ollama","running":true,"models":["qwen3:8b"]},{"kind":"lmstudio","running":true,"models":["gemma"]}],"textGenerator":{"name":"ollama","kind":"ollama","model":"qwen3:8b"}}"#), config: nil, chat: nil)
+    #expect(chosen.generatorInUse == "qwen3:8b on Ollama")
+    #expect(chosen.servers.map(\.generatorModel) == [nil, "qwen3:8b"] && chosen.servers[0].generatorModel == nil)
+    // a model the server no longer lists stays in its choices, so the row still shows what is in use
+    let gone = providersPage(try reply(#"{"accounts":[],"unadded":[],"servers":[{"kind":"ollama","running":true,"models":["a"]}],"textGenerator":{"name":"local","kind":"ollama","model":"b"}}"#), config: nil, chat: nil)
+    #expect(gone.servers[1].generatorModels == ["a", "b"] && gone.generatorInUse == "b on Ollama")
+}
+
 @Test func withoutAReplyThePageSaysWhyInWordsAndAProblemFileSaysWhichKey() throws {
     #expect(ProvidersOutcome.noHost.note?.contains("not running") == true)
     #expect(ProvidersOutcome.tooOld.note?.contains("too old") == true)

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The two rings beside the microphone are centered on each other: they sat half a pixel off, so the inner one looked pushed to a side.
+
 ### Changed
 
 - An open session no longer asks the chat host for the whole list of sessions at each read: the reply of its events already says whether it runs and what it waits for. With 100 sessions that is 74 KB less to build and parse at each read (about 19 ms of the host), four times a second while the agent works, and one request less per read (two for an archived session).

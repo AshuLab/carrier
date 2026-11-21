@@ -11,7 +11,7 @@ let package = Package(
         .package(url: "https://github.com/Lakr233/libghostty-spm.git", exact: "2.2.2026111302"),
     ],
     targets: [
-        .target(name: "CarrierCore", resources: [.copy("Resources/FileIcons"), .copy("Resources/ProviderIcons"), .copy("Resources/TablerIcons"), .copy("Resources/LucideIcons")]),
+        .target(name: "CarrierCore", resources: [.copy("Resources/FileIcons"), .copy("Resources/ProviderIcons"), .copy("Resources/TablerIcons"), .copy("Resources/LucideIcons"), .copy("Resources/Brand")]),
         .executableTarget(name: "Carrier", dependencies: [
             "CarrierCore",
             .product(name: "Sparkle", package: "Sparkle"),

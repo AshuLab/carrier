@@ -63,6 +63,7 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
         return page(.providers, "Accounts that need attention", [("Accounts that need attention", "Signed out, or near the limit of the 5h window")])
             + page(.providers, "AI providers", [("AI providers", "The tools of this Mac, each with its accounts")])
             + page(.providers, "Local servers", [("Local servers", "LM Studio and Ollama, and the models they have loaded")])
+            + page(.providers, "Text generators", [("Text generators", "The local model that writes text for Carrier, chosen from LM Studio or Ollama")])
     case .appearance:
         return page(.appearance, "Theme", [("Theme", "Nine themes, each in light and dark")])
             + page(.appearance, "Look", [

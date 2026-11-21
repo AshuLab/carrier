@@ -30,6 +30,13 @@ public struct HostProviders: Decodable, Equatable {
         public let models: [String]
     }
 
+    /// The text generator in use, as the host reads it from `providers.json`.
+    public struct TextGenerator: Decodable, Equatable {
+        public let name: String
+        public let kind: String
+        public let model: String
+    }
+
     /// `providers.json` does not match: why, with no accounts.
     public struct Problem: Decodable, Equatable {
         public let path: String
@@ -42,6 +49,8 @@ public struct HostProviders: Decodable, Equatable {
     public let accounts: [Account]
     public let unadded: [Unadded]
     public let servers: [Server]
+    /// Absent when the file names none, and from a host that does not list `textGenerators`.
+    public let textGenerator: TextGenerator?
     public let problem: Problem?
 }
 
@@ -169,13 +178,30 @@ public struct ProviderServer: Equatable, Identifiable {
     public let title: String
     public let running: Bool
     public let models: [String]
+    /// The model of the text generator in use, when it is on this server.
+    public let generatorModel: String?
 
     public var status: String { running ? "Running · " + (models.count == 1 ? "1 model" : "\(models.count) models") : "Not running" }
+
+    /// Why this server cannot be chosen as a text generator, in the words of its row; nil when it lists models.
+    public var generatorNote: String? { running == false ? "Not running" : (models.isEmpty ? "No model loaded" : nil) }
+
+    /// What the server offers as a text generator: its models, and the one in use when the server no longer lists it, so the row still shows it.
+    public var generatorModels: [String] {
+        guard running else { return [] }
+        return models + (generatorModel.map { models.contains($0) ? [] : [$0] } ?? [])
+    }
 }
 
 public struct ProvidersPage: Equatable {
     public let tools: [ProviderTool]
     public let servers: [ProviderServer]
+    public let textGenerator: HostProviders.TextGenerator?
+
+    /// The generator in use in words, "qwen3:8b on Ollama"; nil when none is chosen.
+    public var generatorInUse: String? {
+        textGenerator.map { generator in "\(generator.model) on \(localServers.first { $0.id == generator.kind }?.title ?? generator.kind)" }
+    }
 }
 
 private let harnesses: [(id: String, title: String, icon: String)] = [("claude", "Claude Code", "claude"), ("codex", "Codex", "codex"), ("agy", "Antigravity", "antigravity")]
@@ -210,9 +236,9 @@ public func providersPage(_ reply: HostProviders, config: Data?, chat: Data?) ->
     }
     let servers = localServers.map { local -> ProviderServer in
         let seen = reply.servers.first { $0.kind == local.id }
-        return ProviderServer(id: local.id, title: local.title, running: seen?.running ?? false, models: seen?.models ?? [])
+        return ProviderServer(id: local.id, title: local.title, running: seen?.running ?? false, models: seen?.models ?? [], generatorModel: reply.textGenerator.flatMap { $0.kind == local.id ? $0.model : nil })
     }
-    return ProvidersPage(tools: tools, servers: servers)
+    return ProvidersPage(tools: tools, servers: servers, textGenerator: reply.textGenerator)
 }
 
 /// What the app got when it asked the host: the reply, or why there is none.
@@ -254,6 +280,8 @@ public enum ProvidersOutcome: Equatable {
     public private(set) var identityEditable = false
     /// Whether the host also knows the later icons and colors (`accountPalette`); an `accountIdentity` host refuses a file with one.
     public private(set) var paletteEditable = false
+    /// Whether the host knows `textGenerators` (its hello lists it). An older `carrier` refuses a `providers.json` with the keys, so none is written until it does.
+    public private(set) var generatorEditable = false
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let file: () -> ProvidersFile
@@ -360,6 +388,15 @@ public enum ProvidersOutcome: Equatable {
         await change("remove \(name)") { try applyingRemoval(name: name, uses: try self.uses()[name] ?? [], to: $0) }
     }
 
+    /// Choose the text generator (a model of a local server), or clear the choice with nil; written only while the host lists `textGenerators`.
+    @discardableResult public func chooseTextGenerator(_ choice: (server: String, model: String)?) async -> Bool {
+        guard generatorEditable else {
+            editProblem = "The chat host does not know text generators yet. Update carrier (brew upgrade carrier) and restart the chat host."
+            return false
+        }
+        return await change("choose a text generator") { try applyingTextGenerator(choice, to: $0) }
+    }
+
     /// Reads the file and writes what `make` returns; a refusal writes nothing. It gives back as soon as the file is written, so the editor closes
     /// at once: the engine is asked, and the host looked at again, in the background, and a `problem` it answers is what the page shows (`settled`).
     private func change(_ what: String, _ make: (Data?) throws -> Data) async -> Bool {
@@ -413,11 +450,13 @@ public enum ProvidersOutcome: Equatable {
         do { capabilities = try await host.capabilities() } catch {
             identityEditable = false
             paletteEditable = false
+            generatorEditable = false
             outcome = .noHost
             return
         }
         identityEditable = capabilities.contains(.accountIdentity)
         paletteEditable = capabilities.contains(.accountPalette)
+        generatorEditable = capabilities.contains(.textGenerators)
         guard capabilities.contains(.providers) else {
             outcome = .tooOld
             return

@@ -54,7 +54,7 @@ const describeOption = (o: Option) => `${o.label} (${o.id}): ${o.current}\n    o
 
 /**
  * Opens a conversation, or resumes a session, and runs it in plain lines: one line in, the answer out as it streams. `/quit` leaves and the
- * session stays open. Ctrl+C (`sigint`) while a turn runs interrupts it and returns to the prompt; at the prompt it leaves.
+ * session stays open until the host closes it for being idle. Ctrl+C (`sigint`) while a turn runs interrupts it and returns to the prompt; at the prompt it leaves.
  */
 async function converse(client: CarrierClient, { start, input, pollMs, keepMs, sigint }: { start: { cmd: 'open'; agent: string; folder: string } | { cmd: 'resume'; sessionId: string }; input: Readable; pollMs: number; keepMs: number; sigint: EventEmitter }) {
   const write = (text: string) => void process.stdout.write(text);
@@ -65,7 +65,7 @@ async function converse(client: CarrierClient, { start, input, pollMs, keepMs, s
     throw new CliError(1, error instanceof Error ? error.message : String(error));
   }
   const sessionId = opened.session.id;
-  write(`Chat ${sessionId} with ${opened.session.agent} in ${opened.session.folder}. /options, /option <id> <value>, /agent <name>, /quit leaves it open.\n`);
+  write(`Chat ${sessionId} with ${opened.session.agent} in ${opened.session.folder}. /options, /option <id> <value>, /agent <name>, /quit leaves it open for a while.\n`);
 
   let cursor = 0;
   let printed = 0; // characters of the message being written that are already on screen
@@ -180,10 +180,10 @@ async function converse(client: CarrierClient, { start, input, pollMs, keepMs, s
     }
   };
 
-  let keep: NodeJS.Timeout | undefined;
+  // A session that no request names closes after a while, and at the prompt nothing else asks: it is asked after the cursor, as /options does, so nothing waiting to be shown is consumed.
+  // A failed ask is not said: the next real request tells the person the host is gone or the session closed.
+  const keep = setInterval(() => void client.request('events', { sessionId, after: cursor, limit: 1 }).catch(() => {}), keepMs);
   try {
-    // A session that no request names closes after a while, and at the prompt nothing else asks: it is asked after the cursor, as /options does, so nothing waiting to be shown is consumed.
-    keep = setInterval(() => void client.request('events', { sessionId, after: cursor, limit: 1 }).catch(() => {}), keepMs);
     if (waitingOn) {
       turning = true;
       try {

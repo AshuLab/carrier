@@ -699,6 +699,25 @@ test('a session that is not idle is never closed for being idle, read or not: it
   expect(waiting.id).not.toBe(background.id);
 });
 
+test('a resume while the agent of that session is still ending waits for it, so two agents never hold one conversation', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  one.conversation.close = async () => {
+    one.conversation.closed = true;
+    await gate;
+  };
+  const closing = s.sessions.close({ sessionId: one.id });
+  const resuming = s.sessions.resume({ sessionId: one.id });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(s.claude.conversations).toHaveLength(1); // the old one has not ended: no second one yet
+  release();
+  await closing;
+  await resuming;
+  expect(s.claude.conversations).toHaveLength(2);
+});
+
 test('close keeps the row, ends the conversation once, and closeAll closes every live session', async () => {
   const s = setup();
   const a = await openOne(s);
@@ -2949,6 +2968,17 @@ test('waitChildren answers working when the time ends, and done with the last me
   expect(await wait(1000)).toEqual([{ childId, agent: 'edit', state: 'done', message: 'x'.repeat(4000) }]); // answers at once, with no time passing
 });
 
+test('a child whose turn ended closes when nobody reads it for the idle time, and waitChildren still says it is done, from what was stored', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit');
+  const child = s.claude.conversations.at(-1)!;
+  child.emit({ kind: 'assistant', text: 'all done' }, { kind: 'turn_end', outcome: 'ok' });
+  await s.clock.advance(IDLE_CLOSE_MS);
+  expect(child.closed).toBe(true);
+  expect(await s.sessions.mcpView.waitChildren(parent.id, [childId], 1000)).toEqual([{ childId, agent: 'edit', state: 'done', message: 'all done' }]);
+});
+
 test('waitChildren waits for every child that works, and counts one that waits for an approval as stopped', async () => {
   const s = delegation();
   const parent = await s.parent();
@@ -3337,7 +3367,7 @@ test('while a switch runs, a message, a resume, a close, an option, an interrupt
   await expect(s.sessions.delete({ sessionId: id })).rejects.toThrow(refused);
   await expect(s.sessions.archive({ sessionId: id, archived: true })).rejects.toThrow(refused);
   await expect(s.sessions.switchAgent({ sessionId: id, agent: 'other' })).rejects.toThrow(refused);
-  s.clock.time += 2 * IDLE_CLOSE_MS; // nobody reads it: the idle close would fire
+  await s.clock.advance(2 * IDLE_CLOSE_MS); // nobody reads it: the idle close would fire
   expect(old.closed).toBe(false);
   // reads still work
   expect(s.sessions.events({ sessionId: id, limit: 10 }).session).toMatchObject({ id });

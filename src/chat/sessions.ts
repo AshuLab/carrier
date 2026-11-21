@@ -261,7 +261,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     live.cancelIdle?.();
     live.cancelIdle = live.state === 'idle' && live.background.length === 0 && !switching.has(sessionId)
       ? clock.after(IDLE_CLOSE_MS, async () => {
-          log.info('closed a session that no request had named', { sessionId });
+          log.info('closing a session that no request had named', { sessionId });
           await close({ sessionId });
         })
       : undefined;
@@ -385,6 +385,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
   /** The agents that were told to end and have not yet: a close that does not wait leaves them here, and the host's stop waits for them. */
   const ending = new Set<Promise<void>>();
+  /** The agents that are being closed: a resume of the same session waits for its own, so two agents never hold one conversation. */
+  const closing = new Map<string, Promise<void>>();
 
   /** Closes a live session: it is no longer live as soon as this runs, and the agent's end (SIGTERM, then SIGKILL) is waited for unless `wait` is false. */
   async function close({ sessionId }: { sessionId: string }, { wait = true }: { wait?: boolean } = {}) {
@@ -397,16 +399,22 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     db.update(sessions).set({ state: 'idle', pid: null, pgid: null, command: null }).where(eq(sessions.id, sessionId)).run();
     notifyWaiters();
     const failed = (error: unknown) => log.error('closing a conversation failed', error);
+    let finish!: () => void;
+    const finished = new Promise<void>((resolve) => (finish = resolve));
+    closing.set(sessionId, finished);
+    const done = () => (finish(), closing.get(sessionId) === finished && closing.delete(sessionId));
     if (wait) {
       try {
         await live.conversation.close();
       } catch (error) {
         failed(error);
+      } finally {
+        done();
       }
     } else {
       const ended = live.conversation.close().catch(failed);
       ending.add(ended);
-      void ended.then(() => ending.delete(ended));
+      void ended.then(() => (ending.delete(ended), done()));
     }
     onLiveChange();
     return {};
@@ -945,6 +953,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (listAgents().find((candidate) => candidate.name === agent)?.found !== true) throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
 
     switching.add(sessionId);
+    lives.get(sessionId)?.cancelIdle?.(); // the new agent is being opened: the old one may not close under it, and a refused switch leaves the session as it was
     try {
       const verdict = (await health({})).agents.find((candidate) => candidate.name === agent)?.state;
       if (verdict === 'signedOut') throw new ChatRefused(`The agent "${agent}" is signed out`);
@@ -1143,6 +1152,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       refuseChild(sessionId, 'resumed');
       notSwitching(sessionId);
       const current = row(sessionId);
+      const inFlight = closing.get(sessionId);
+      if (inFlight !== undefined) await inFlight; // an agent of this session that is still ending; with none, nothing awaits and the checks below run in the same turn
       if (current.plan !== null) throw new ChatRefused('This session did not finish preparing');
       const present = lives.get(sessionId);
       if (present !== undefined) return { session: summary(current), options: present.conversation.options };

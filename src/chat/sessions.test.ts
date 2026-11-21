@@ -2715,7 +2715,8 @@ test('a child opens at the lower of its agent\'s level and its parent\'s, across
   expect(await levelOfChild('main', 'reader')).toMatchObject({ level: 0, options: { permissionMode: 'dontAsk' } }); // an agent that reads stays reading
   expect(await levelOfChild('careful', 'edit')).toMatchObject({ level: 1, options: { permissionMode: 'default' } }); // lowered
   expect(await levelOfChild('cxread', 'edit')).toMatchObject({ level: 0, options: { permissionMode: 'dontAsk', model: 'haiku' } });
-  expect(await levelOfChild('main', 'plain')).toMatchObject({ level: 1, options: { permissionMode: 'default' } }); // none set: the adapter's default
+  expect(await levelOfChild('main', 'plain')).toMatchObject({ level: 2, options: { permissionMode: 'acceptEdits' } }); // none set: the parent's level
+  expect(await levelOfChild('careful', 'plain')).toMatchObject({ level: 1, options: { permissionMode: 'default' } });
   expect(await levelOfChild('main', 'planner')).toMatchObject({ level: 0, options: { permissionMode: 'plan' } }); // plan reads: it stays
   expect(await levelOfChild('main', 'cx')).toMatchObject({ level: 2, options: { sandbox: 'workspace-write', approvalPolicy: 'on-request' } });
   expect(await levelOfChild('careful', 'cx')).toMatchObject({ level: 1, options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' } });
@@ -3022,6 +3023,26 @@ test('waitChildren waits for every child that works, and counts one that waits f
   first.emit({ kind: 'turn_end', outcome: 'ok' });
   second.emit(approval);
   expect((await waiting).map((report) => report.state)).toEqual(['done', 'needs_approval']);
+});
+
+test('a child that waits for an approval says what for: the tool and the command, redacted and cut, and the first four', async () => {
+  const s = delegation();
+  const parent = await s.parent();
+  const { childId } = await s.start(parent.id, 'edit');
+  const child = s.claude.conversations.at(-1)!;
+  const token = `ghp_${'a1B2'.repeat(9)}`;
+  const ask = (n: number, arg?: string) => ({ ...approval, approvalId: `a${n}`, ...(arg !== undefined && { arg }) });
+  child.emit(ask(1, 'cd /tmp && ls && cat notes.md'), ask(2, `curl -H "Authorization: ${token}" https://example.com`), ask(3, 'x'.repeat(5000)), ask(4), ask(5, 'five'));
+  const [report] = await s.sessions.mcpView.waitChildren(parent.id, [childId], 1000);
+  expect(report).toMatchObject({ childId, state: 'needs_approval' });
+  expect(report!.waitingFor).toHaveLength(4);
+  expect(report!.waitingFor![0]).toEqual({ tool: 'Bash', arg: 'cd /tmp && ls && cat notes.md' });
+  expect(JSON.stringify(report)).not.toContain(token);
+  expect(report!.waitingFor![2]!.arg).toHaveLength(500);
+  expect(report!.waitingFor![3]).toEqual({ tool: 'Bash' }); // a call with no argument says only the tool
+  // answered, it is no longer waiting for it and a report of another state carries no `waitingFor`
+  child.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(await s.sessions.mcpView.waitChildren(parent.id, [childId], 1000)).toEqual([{ childId, agent: 'edit', state: 'done' }]);
 });
 
 test('a child in each situation is answered as it is: needs_approval, error, usage_limit and interrupted, and a child closed in the middle of a turn is interrupted and not done', async () => {

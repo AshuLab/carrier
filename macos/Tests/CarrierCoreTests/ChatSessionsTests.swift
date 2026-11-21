@@ -200,6 +200,18 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(sessionGroups(rows).map(\.title) == ["web"])
 }
 
+@Test func theSessionsOfARemovedProjectStayGroupedUnderItsFolderAsAPlainFolderWould() throws {
+    let rows = sessionRows([
+        try session("tree", folder: "/Users/dev/.carrier/worktrees/web/fix", base: "/Users/dev/web"), try session("plain", folder: "/Users/dev/web"),
+    ])
+    let list = Data(#"{"projects":[{"path":"/Users/dev/web","origin":"added","name":"Web"}]}"#.utf8)
+    let after = try applyingProjectRemoval(path: "/Users/dev/web", to: list)
+    #expect(try readProjects(after).isEmpty)
+    // the grouping reads the sessions' base folders, never the projects list: the same rows, the same group
+    #expect(rows.map(\.base) == ["/Users/dev/web", "/Users/dev/web"])
+    #expect(sessionGroups(rows).map(\.title) == ["web"] && sessionGroups(rows)[0].rows.count == 2)
+}
+
 @Test func twoGroupsWithTheSameNameShowTheirParentFolderAndOthersDoNot() throws {
     let rows = sessionRows([
         try session("1", folder: "/Users/dev/web"), try session("2", folder: "/Users/dev/work/web"), try session("3", folder: "/Users/dev/carrier"),

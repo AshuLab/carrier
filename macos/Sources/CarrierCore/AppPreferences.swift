@@ -66,6 +66,9 @@ public struct AppPreferences {
     public static let dictationActivationKey = "dictation.activation"
     public static let dictationWidgetStyleKey = "dictation.widget.style"
     public static let dictationWidgetPositionKey = "dictation.widget.position"
+    public static let dictationWidgetThemeKey = "dictation.widget.theme"
+    public static let dictationWidgetPreviewKey = "dictation.widget.preview"
+    public static let dictationWidgetSpotKey = "dictation.widget.spot"
     public static let dictationStartSoundOnKey = "dictation.sound.start.on"
     public static let dictationStartSoundKey = "dictation.sound.start"
     public static let dictationEndSoundOnKey = "dictation.sound.end.on"
@@ -526,6 +529,26 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationWidgetPositionKey) }
     }
 
+    /// The widget's theme: the accent's glass until the person chooses another.
+    public var dictationWidgetTheme: DictationWidgetTheme {
+        get { defaults.string(forKey: Self.dictationWidgetThemeKey).flatMap(DictationWidgetTheme.init(rawValue:)) ?? .accent }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationWidgetThemeKey) }
+    }
+
+    /// Whether the widget shows the words as they are said; on until the person turns it off.
+    public var dictationWidgetPreview: Bool {
+        get { defaults.object(forKey: Self.dictationWidgetPreviewKey) as? Bool ?? true }
+        nonmutating set { defaults.set(newValue, forKey: Self.dictationWidgetPreviewKey) }
+    }
+
+    /// Where the person dragged the widget; nil until they do, and again when they choose Top or Bottom. A stored value that cannot be read is nil.
+    public var dictationWidgetSpot: DictationWidgetSpot? {
+        get { defaults.string(forKey: Self.dictationWidgetSpotKey).flatMap(DictationWidgetSpot.init(text:)) }
+        nonmutating set {
+            if let newValue { defaults.set(newValue.text, forKey: Self.dictationWidgetSpotKey) } else { defaults.removeObject(forKey: Self.dictationWidgetSpotKey) }
+        }
+    }
+
     /// The Sounds group of the Dictation page; a saved sound that is not on offer reads as the default, and the volume as 0 to 100.
     public var dictationSounds: DictationSounds {
         get {
@@ -672,6 +695,9 @@ public struct AppPreferences {
                 dictationActivationKey,
                 dictationWidgetStyleKey,
                 dictationWidgetPositionKey,
+                dictationWidgetThemeKey,
+                dictationWidgetPreviewKey,
+                dictationWidgetSpotKey,
                 dictationStartSoundOnKey,
                 dictationStartSoundKey,
                 dictationEndSoundOnKey,

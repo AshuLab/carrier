@@ -259,7 +259,7 @@ struct PanelView: View {
                         } else if shell.selection == .usage {
                             UsageView(store: AppUsage.store)
                         } else if shell.selection == .newSession {
-                            NewSessionView(model: model.newSession, openHealth: { WindowController.shared.showSettings(.health) }) { shell.selection = .session(id: $0) }
+                            NewSessionView(model: model.newSession, openHealth: { WindowController.shared.showSettings(.health) }, opened: { shell.selection = .session(id: $0) }, request: shell.conversationRequest)
                         } else if let emptyPage {
                             EmptyStateView(state: emptyPage)
                         } else if case .session(let id) = shell.selection {

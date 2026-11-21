@@ -81,6 +81,37 @@ extension EnvironmentValues {
     @Entry var settingsReset: SettingsReset?
     /// Where a screen that edits something puts its Save for the toolbar (`SettingsSave`).
     @Entry var settingsSave: SettingsSave?
+    /// Where a screen puts a toggle or action button in the toolbar (`SettingsHeaderAction`), such as Pin on a project's page.
+    @Entry var settingsHeaderAction: SettingsHeaderAction?
+}
+
+/// A toggle or action pill a screen puts in the Settings window's toolbar (Pin on a project's page): set while the screen is open, cleared when it goes.
+@MainActor @Observable final class SettingsHeaderAction {
+    private(set) var title: String?
+    private(set) var icon = AppIcon.pin
+    private(set) var active = false
+    private(set) var help = ""
+    private(set) var run: (() -> Void)?
+    @ObservationIgnored private var owner: UUID?
+
+    func set(_ owner: UUID, title: String, icon: AppIcon, active: Bool, help: String = "", run: @escaping () -> Void) {
+        self.owner = owner
+        self.title = title
+        self.icon = icon
+        self.active = active
+        self.help = help
+        self.run = run
+    }
+
+    /// Only the screen that set it clears it: the next screen may have set its own before this one has gone.
+    func clear(_ owner: UUID) {
+        guard self.owner == owner else { return }
+        self.owner = nil
+        title = nil
+        active = false
+        help = ""
+        run = nil
+    }
 }
 
 /// The save of the screen that is open (an account's editor): set by the screen while it has something to save, read by the toolbar's button.

@@ -37,25 +37,109 @@ public func originRepo(ofFolder folder: String) -> String? {
     return nil
 }
 
+/// The folder's own name from a project path (the last path component).
+public func projectFolderName(_ path: String) -> String {
+    (path as NSString).lastPathComponent
+}
+
+/// What the Name field writes to `projects.json`: trimmed, or nil when empty or blank so the entry goes back to the folder's name and a
+/// blank name is never written.
+public func normalizedProjectName(_ raw: String) -> String? {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+}
+
+/// One tag normalized for `projects.json`: trimmed and lower case, or nil when empty or blank.
+public func normalizedProjectTag(_ raw: String) -> String? {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    return trimmed.isEmpty ? nil : trimmed
+}
+
+/// Tags normalized for `projects.json`: trimmed, lower case, blanks dropped, and duplicates removed while keeping order.
+public func normalizedProjectTags(_ raw: [String]) -> [String] {
+    var seen = Set<String>()
+    var result: [String] = []
+    for item in raw {
+        guard let tag = normalizedProjectTag(item), seen.insert(tag).inserted else { continue }
+        result.append(tag)
+    }
+    return result
+}
+
+/// Adds `raw` to `tags` following the tag rules (trimmed, lower case, no repeats, blank ignored).
+public func addingProjectTag(_ raw: String, to tags: [String]) -> [String] {
+    normalizedProjectTags(tags + [raw])
+}
+
+/// Removes `tag` from `tags`.
+public func removingProjectTag(_ tag: String, from tags: [String]) -> [String] {
+    tags.filter { $0 != tag }
+}
+
 /// One project of the list.
 public struct ProjectRow: Equatable, Identifiable, Sendable {
     /// The project's identity, as the file has it.
     public let path: String
     /// The name set on it, else the folder's.
     public let name: String
+    /// The custom name stored in `projects.json`, nil when absent.
+    public let customName: String?
     /// `owner/name` of its GitHub `origin`, when it has one.
     public let repo: String?
+    public let pinned: Bool
+    public let tags: [String]
+    public let iconColor: ProjectColor?
+    public let iconMark: AppIcon?
+    public let iconImage: String?
+
+    public init(
+        path: String,
+        name: String,
+        customName: String? = nil,
+        repo: String?,
+        pinned: Bool = false,
+        tags: [String] = [],
+        iconColor: ProjectColor? = nil,
+        iconMark: AppIcon? = nil,
+        iconImage: String? = nil
+    ) {
+        self.path = path
+        self.name = name
+        self.customName = customName
+        self.repo = repo
+        self.pinned = pinned
+        self.tags = tags
+        self.iconColor = iconColor
+        self.iconMark = iconMark
+        self.iconImage = iconImage
+    }
 
     public var id: String { path }
+    /// The folder's own name (what the Name field falls back to when emptied).
+    public var folderName: String { projectFolderName(path) }
     /// What the row says under the name: the repository, else where the folder is.
     public var line: String { repo ?? path }
     /// What its tile's colour is made from, so it matches the project's sessions.
     public var colorKey: String { projectColorKey(path) }
+    /// What the project's tile draws: its chosen colour and mark, else initials on a colour made from the name.
+    public var tile: ProjectTile { projectTile(name: name, colorKey: colorKey, color: iconColor, mark: iconMark, image: iconImage) }
 }
 
 /// A row for each entry, in the file's order; `remote` says the GitHub `owner/name` of a folder, if any.
 public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? = originRepo(ofFolder:)) -> [ProjectRow] {
-    entries.map { ProjectRow(path: $0.path, name: $0.name ?? ($0.path as NSString).lastPathComponent, repo: remote($0.path)) }
+    entries.map {
+        ProjectRow(
+            path: $0.path,
+            name: $0.name ?? projectFolderName($0.path),
+            customName: $0.name,
+            repo: remote($0.path),
+            pinned: $0.pinned,
+            tags: $0.tags,
+            iconColor: $0.iconColor.flatMap(ProjectColor.init(rawValue:)),
+            iconMark: $0.iconMark.flatMap(AppIcon.init(rawValue:)),
+            iconImage: $0.iconImage
+        )
+    }
 }
 
 extension ProjectsProblem {
@@ -104,16 +188,57 @@ extension ProjectsProblem {
     /// Adds `folder` as a project, or says it already is one and writes nothing. nil when it could not be written: `problems` says why when the file does not
     /// match its schema, `failure` when the disk refused.
     @discardableResult public func add(folder: String) -> ProjectAdd? {
+        var added: ProjectAdd?
+        _ = write { added = try file.add(folder: folder) }
+        return added
+    }
+
+    /// Sets the project's name, or removes `name` when `raw` is empty or blank so it goes back to the folder's name.
+    @discardableResult public func setName(_ raw: String, path: String) -> Bool {
+        write { try file.update(path: path, key: "name", value: normalizedProjectName(raw)) }
+    }
+
+    /// Pins or unpins the project; unpinned leaves `pinned` out of the entry.
+    @discardableResult public func setPinned(_ pinned: Bool, path: String) -> Bool {
+        write { try file.update(path: path, key: "pinned", value: pinned ? true : nil) }
+    }
+
+    /// Adds a tag (trimmed, lower case, no repeats, blank ignored) to the project's entry.
+    @discardableResult public func addTag(_ raw: String, path: String) -> Bool {
+        write { try file.updateTags(path: path) { addingProjectTag(raw, to: $0) } }
+    }
+
+    /// Removes `tag` from the project's entry.
+    @discardableResult public func removeTag(_ tag: String, path: String) -> Bool {
+        write { try file.updateTags(path: path) { removingProjectTag(tag, from: $0) } }
+    }
+
+    /// Sets or clears the project's icon colour, keeping every other key in `icon` and the entry.
+    @discardableResult public func setIconColor(_ color: ProjectColor?, path: String) -> Bool {
+        write { try file.updateIcon(path: path, changes: ["color": color?.rawValue]) }
+    }
+
+    /// Sets or clears the project's icon mark, keeping every other key in `icon` and the entry.
+    @discardableResult public func setIconMark(_ mark: AppIcon?, path: String) -> Bool {
+        write { try file.updateIcon(path: path, changes: ["mark": mark?.rawValue]) }
+    }
+
+    /// Clears both the project's icon colour and mark, keeping `image` and every other key of the entry.
+    @discardableResult public func resetIcon(path: String) -> Bool {
+        write { try file.updateIcon(path: path, changes: ["color": nil, "mark": nil]) }
+    }
+
+    private func write(_ operation: () throws -> Void) -> Bool {
         do {
-            let added = try file.add(folder: folder)
+            try operation()
             failure = nil
             reload()
-            return added
+            return true
         } catch ProjectsFileError.invalid(let found) {
             problems = found
         } catch {
             failure = "projects.json cannot be written: \(error.localizedDescription)"
         }
-        return nil
+        return false
     }
 }

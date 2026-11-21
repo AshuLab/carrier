@@ -106,6 +106,7 @@ struct SettingsRoot: View {
     @State private var query = ""
     @State private var resetter = SettingsReset()
     @State private var saver = SettingsSave()
+    @State private var headerAction = SettingsHeaderAction()
     @State private var title: SettingsTitle?
     @State private var confirmingReset = false
 
@@ -129,6 +130,19 @@ struct SettingsRoot: View {
                             .disabled(navigator.history.canGoForward == false).keyboardShortcut("]", modifiers: .command).help("Forward")
                     }
                     if let headerNote { ToolbarItem(placement: .primaryAction) { SettingsNoteView(note: headerNote) } }
+                    if let actionTitle = headerAction.title {
+                        ToolbarItem(placement: .primaryAction) {
+                            ToolbarPillButton(
+                                title: actionTitle,
+                                icon: headerAction.icon,
+                                iconTint: headerAction.active ? Color.themeAccent : nil
+                            ) { headerAction.run?() }
+                            .glassEffect(.regular, in: .capsule)
+                            .help(headerAction.help.isEmpty ? actionTitle : headerAction.help)
+                            .accessibilityAddTraits(headerAction.active ? .isSelected : [])
+                        }
+                        .sharedBackgroundVisibility(.hidden)
+                    }
                     // the save of a screen that edits something (an account): on its own glass pill, as the window's other actions
                     if let saveTitle = saver.title {
                         ToolbarItem(placement: .primaryAction) {
@@ -151,6 +165,7 @@ struct SettingsRoot: View {
         }
         .environment(\.settingsReset, resetter)
         .environment(\.settingsSave, saver)
+        .environment(\.settingsHeaderAction, headerAction)
         // the session rows of the Sidebar page's preview read what the main window gives its own
         .environment(model.actions)
         .alert("Reset \(navigator.page.rawValue)?", isPresented: $confirmingReset) {

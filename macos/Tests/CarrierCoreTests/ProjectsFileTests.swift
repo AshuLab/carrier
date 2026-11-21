@@ -70,3 +70,28 @@ private let twoProjects = #"""
     #expect(entries.map(\.path) == ["/a", "~/b", "/c"] && entries.map(\.pinned) == [true, true, false])
     #expect(try FileManager.default.contentsOfDirectory(atPath: folder) == ["projects.json"])
 }
+
+@Test func iconAndTagEditsKeepEveryOtherKeyAndSubkey() throws {
+    let withMark = try applyingProjectIconEdit(path: "/a", changes: ["mark": "bolt", "color": "blue"], to: Data(twoProjects.utf8))
+    var entries = try readProjects(withMark)
+    #expect(entries[0].iconColor == "blue" && entries[0].iconMark == "bolt" && entries[0].iconImage == "a.png")
+    #expect(entries[0].json["defaults"] != nil && entries[0].json["actions"] != nil && entries[0].name == "A")
+    #expect(entries[1].tags == ["x", "y"] && entries[1].hidden)
+
+    // clearing colour and mark keeps image; clearing everything on an entry with no image drops the icon key
+    let cleared = try applyingProjectIconEdit(path: "/a", changes: ["color": nil, "mark": nil], to: withMark)
+    entries = try readProjects(cleared)
+    #expect(entries[0].iconColor == nil && entries[0].iconMark == nil && entries[0].iconImage == "a.png")
+
+    let secondWithIcon = try applyingProjectIconEdit(path: "~/b", changes: ["color": "red"], to: cleared)
+    let secondCleared = try applyingProjectIconEdit(path: "~/b", changes: ["color": nil], to: secondWithIcon)
+    #expect(try readProjects(secondCleared)[1].json["icon"] == nil)
+
+    // tag edits keep every other key and remove the tags key when empty
+    let tagged = try applyingProjectTagsEdit(path: "/a", to: cleared) { $0 + ["  Swift ", "MACOS", "swift"] }
+    entries = try readProjects(tagged)
+    #expect(entries[0].tags == ["swift", "macos"] && entries[0].iconImage == "a.png" && entries[0].json["actions"] != nil)
+
+    let untagged = try applyingProjectTagsEdit(path: "/a", to: tagged) { _ in [] }
+    #expect(try readProjects(untagged)[0].json["tags"] == nil)
+}

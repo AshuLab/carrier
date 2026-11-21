@@ -123,3 +123,87 @@ private func temporaryFolder() throws -> String {
     #expect(model.add(folder: "/a") == nil)
     #expect(try Data(contentsOf: file.url) == bad)
 }
+
+@Test func theNameRuleTrimsAndTurnsBlankIntoNil() {
+    #expect(normalizedProjectName("") == nil)
+    #expect(normalizedProjectName("   \t\n ") == nil)
+    #expect(normalizedProjectName("  Carrier App  ") == "Carrier App")
+    #expect(normalizedProjectName("notes") == "notes")
+}
+
+@Test func theTagRulesTrimLowercaseDropBlanksAndPreventRepeats() {
+    #expect(normalizedProjectTag("  Swift ") == "swift")
+    #expect(normalizedProjectTag("   \n") == nil)
+    #expect(normalizedProjectTags(["  Swift ", "MACOS", "swift", "  ", "macos", "cli"]) == ["swift", "macos", "cli"])
+    #expect(addingProjectTag("  Work ", to: ["swift"]) == ["swift", "work"])
+    #expect(addingProjectTag("SWIFT", to: ["swift", "work"]) == ["swift", "work"])
+    #expect(addingProjectTag("   ", to: ["swift"]) == ["swift"])
+    #expect(removingProjectTag("swift", from: ["swift", "work"]) == ["work"])
+}
+
+@Test func aRowCarriesItsTilePinAndTagsFromTheEntry() throws {
+    let entries = try readProjects(Data(#"""
+    {"projects":[
+      {"path":"/a/carrier","origin":"cloned","name":"Carrier","pinned":true,"tags":["swift"],"icon":{"color":"teal","mark":"bolt"}},
+      {"path":"/a/notes","origin":"added"}
+    ]}
+    """#.utf8))
+    let rows = projectRows(entries) { _ in nil }
+    #expect(rows[0].pinned && rows[0].tags == ["swift"] && rows[0].customName == "Carrier")
+    #expect(rows[0].tile == ProjectTile(name: "Carrier", color: .named(.teal), content: .mark(.bolt)))
+    #expect(rows[1].pinned == false && rows[1].tags.isEmpty && rows[1].customName == nil && rows[1].folderName == "notes")
+    #expect(rows[1].tile == ProjectTile(name: "notes", color: .hashed(projectColorIndex("notes", count: 24)), content: .initials("NO")))
+}
+
+@MainActor @Test func editingIdentityWritesAtOnceKeepsUnknownKeysAndReflectsExternalChanges() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProjectsFile(folder: folder)
+    let initial = #"""
+    {"projects":[
+      {"path":"/a/carrier","origin":"cloned","name":"Old Name","icon":{"image":"keep.png"},"defaults":{"workIn":"worktree"},"actions":[{"name":"Install","command":"pnpm i","when":"newWorktree"}]}
+    ]}
+    """#
+    try Data(initial.utf8).write(to: file.url)
+    let model = ProjectsModel(file: file) { _ in nil }
+    model.reload()
+
+    // blank name is not written and emptying goes back to the folder's name
+    #expect(model.setName("   ", path: "/a/carrier"))
+    #expect(model.rows[0].customName == nil && model.rows[0].name == "carrier")
+    #expect(try file.read()[0].name == nil)
+
+    #expect(model.setName("  My Carrier  ", path: "/a/carrier"))
+    #expect(model.rows[0].name == "My Carrier" && model.rows[0].customName == "My Carrier")
+
+    // pin, tags, and icon colour/mark
+    #expect(model.setPinned(true, path: "/a/carrier"))
+    #expect(model.addTag("  Swift ", path: "/a/carrier"))
+    #expect(model.addTag("SWIFT", path: "/a/carrier"))
+    #expect(model.addTag("macOS", path: "/a/carrier"))
+    #expect(model.setIconColor(.teal, path: "/a/carrier"))
+    #expect(model.setIconMark(.terminal, path: "/a/carrier"))
+    #expect(model.rows[0].pinned && model.rows[0].tags == ["swift", "macos"])
+    #expect(model.rows[0].tile == ProjectTile(name: "My Carrier", color: .named(.teal), content: .mark(.terminal), image: "keep.png"))
+
+    // other keys on the entry are preserved
+    let entry = try #require(try file.read().first)
+    #expect(entry.iconImage == "keep.png")
+    #expect(entry.json["defaults"] != nil && entry.json["actions"] != nil)
+
+    // removing a tag and resetting icon
+    #expect(model.removeTag("swift", path: "/a/carrier"))
+    #expect(model.resetIcon(path: "/a/carrier"))
+    #expect(model.rows[0].tags == ["macos"])
+    #expect(model.rows[0].iconColor == nil && model.rows[0].iconMark == nil && model.rows[0].iconImage == "keep.png")
+
+    // external edit while following shows on the model
+    let following = Task { await model.follow(every: .milliseconds(10)) }
+    defer { following.cancel() }
+    let external = #"{"projects":[{"path":"/a/carrier","origin":"cloned","name":"From Disk","pinned":false,"tags":["external"],"icon":{"color":"purple","mark":"star"}}]}"#
+    try Data(external.utf8).write(to: file.url, options: .atomic)
+    for _ in 0..<300 where model.rows.first?.name != "From Disk" { try? await Task.sleep(for: .milliseconds(10)) }
+    #expect(model.rows[0].name == "From Disk")
+    #expect(model.rows[0].pinned == false && model.rows[0].tags == ["external"])
+    #expect(model.rows[0].tile == ProjectTile(name: "From Disk", color: .named(.purple), content: .mark(.star)))
+}

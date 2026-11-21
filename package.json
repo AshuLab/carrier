@@ -1,6 +1,6 @@
 {
   "name": "@ashulab/carrier",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "Autonomous epic orchestrator: ships and reviews Solve epics with AI agents on your machine.",
   "author": "Diego Ghersi",
   "license": "MIT",

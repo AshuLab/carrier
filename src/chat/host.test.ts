@@ -9,6 +9,7 @@ import { acquireLock } from '../storage/lock.ts';
 import type { Machine } from '../doctor/detect.ts';
 import { FakeChatRunner, FakeGit } from './fake.ts';
 import { ChatConfigInvalid, HostBusy, startChatHost } from './host.ts';
+import { IDLE_CLOSE_MS } from './sessions.ts';
 
 let root: string;
 let stops: (() => Promise<void>)[];
@@ -117,6 +118,25 @@ test('the host exits a minute after its start, and a client connected keeps it u
     await clock.advance(60_000);
     expect(exit).toHaveBeenCalledWith(0);
   });
+});
+
+test('a client that lists the sessions every few seconds keeps the host up but not the idle sessions: the one nobody reads closes, the one read stays', async () => {
+  const claude = new FakeChatRunner();
+  const { clock, exit } = await host(new FakeClock(), claude);
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const work = join(root, 'w');
+  mkdirSync(work);
+  const forgotten = ((await client.request('open', { agent: 'claude', folder: work })) as { session: { id: string } }).session.id;
+  const looked = ((await client.request('open', { agent: 'claude', folder: work })) as { session: { id: string } }).session.id;
+  for (let waited = 0; waited <= IDLE_CLOSE_MS + 30_000; waited += 30_000) {
+    await clock.advance(30_000);
+    await client.request('list'); // what the app does for the sidebar, for as long as it runs
+    await client.request('events', { sessionId: looked, limit: 1 }); // the conversation on screen
+  }
+  expect(claude.conversations.map((c) => c.closed)).toEqual([true, false]);
+  expect(forgotten).not.toBe(looked);
+  expect(exit).not.toHaveBeenCalled(); // the client is connected: the host stays
+  client.close();
 });
 
 // A host that crashes (an exception nobody caught) has to end the agents it started: their groups would run on with no owner until the next host sweeps them.

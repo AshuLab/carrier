@@ -721,6 +721,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     }
 
     /// Polls until the task is cancelled or `sleep` throws, as often as who is looking and what the agent is doing call for.
+    /// These `events` are what keeps the session awake in the host, which closes an idle one that no request names for ten minutes: the wait must stay well under half of that.
     public func run() async {
         running = true
         defer { running = false }

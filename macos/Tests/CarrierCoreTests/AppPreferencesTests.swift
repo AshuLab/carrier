@@ -701,3 +701,25 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     defaults.set("middle", forKey: AppPreferences.dictationWidgetPositionKey)
     #expect(store.dictationWidgetStyle == .medium && store.dictationWidgetPosition == .bottom)
 }
+
+@Test func theWidgetsThemeLiveTextAndSpotAreKeptAndPutBackByReset() {
+    let defaults = UserDefaults(suiteName: "widget-look-\(UUID().uuidString)")!
+    let store = AppPreferences(defaults: defaults)
+    #expect(AppPreferences.dictationWidgetThemeKey == "dictation.widget.theme" && AppPreferences.dictationWidgetPreviewKey == "dictation.widget.preview")
+    #expect(AppPreferences.dictationWidgetSpotKey == "dictation.widget.spot")
+    #expect(store.dictationWidgetTheme == .accent && store.dictationWidgetPreview && store.dictationWidgetSpot == nil)
+    let spot = DictationWidgetSpot(x: 0.3, fromTop: false, gap: 140)
+    store.dictationWidgetTheme = .glow
+    store.dictationWidgetPreview = false
+    store.dictationWidgetSpot = spot
+    let relaunched = AppPreferences(defaults: defaults)
+    #expect(relaunched.dictationWidgetTheme == .glow && relaunched.dictationWidgetPreview == false && relaunched.dictationWidgetSpot == spot)
+    store.dictationWidgetSpot = nil
+    #expect(defaults.object(forKey: AppPreferences.dictationWidgetSpotKey) == nil)
+    store.dictationWidgetSpot = spot
+    store.reset(.dictation)
+    #expect(store.dictationWidgetTheme == .accent && store.dictationWidgetPreview && store.dictationWidgetSpot == nil)
+    defaults.set("neon", forKey: AppPreferences.dictationWidgetThemeKey)
+    defaults.set("somewhere", forKey: AppPreferences.dictationWidgetSpotKey)
+    #expect(store.dictationWidgetTheme == .accent && store.dictationWidgetSpot == nil)
+}

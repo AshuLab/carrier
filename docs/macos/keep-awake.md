@@ -53,7 +53,7 @@ One power assertion for the system (`PreventUserIdleSystemSleep`) and one for th
 They are the system's own: they go when the app quits or dies, with no child process and no password.
 
 - The decision, the time left and the words are pure functions in `CarrierCore/KeepAwake.swift` (`awakeDecision`, `awakeStatus`, `awakeRemaining`, `awakeToggleTitle`, `nextAwakeChange`, `awakeMenuKey`, the notices), tested in `KeepAwakeTests`.
-- The controller feeds them the epics running (from the engine's snapshot, in `AppDelegate.watchCarrier`), the chat sessions working (from the host's list, in `watchChatSessions`; zero when the host does not answer), the battery (`IOPSNotificationCreateRunLoopSource`) and the settings, and a timer wakes it at the end of a length or of the grace.
+- The controller feeds them the epics running (from the engine's snapshot, in `AppDelegate.watchCarrier`), the chat sessions working (from the host's list, in `watchChatSessions`; zero when the host does not answer: a stale update), the battery (`IOPSNotificationCreateRunLoopSource`) and the settings, and a timer wakes it at the end of a length or of the grace.
   It is started on the shared instance only, and not under a self-test or a smoke run.
 - `KeepAwakeControllerTests` give the controller a clock, a battery and a notification of their own, and ask the system itself (`IOPMCopyAssertionsByProcess`) what the process holds, so an assertion never let go is seen.
   They also register a real shortcut twice to see the refusal.

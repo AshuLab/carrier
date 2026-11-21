@@ -199,3 +199,66 @@ func theWidgetIsCentredUnderTheMenuBarOrAboveTheDockOfTheVisibleFrame(position: 
     #expect(dictationKeptNotices(reason: reason, notCleaned: nil) == ["\(reason.explanation) It is on the clipboard."])
     #expect(dictationKeptNotices(reason: reason, notCleaned: "the model did not answer in time").last == "It was not cleaned: the model did not answer in time")
 }
+
+@Test(arguments: [DictationWidgetState.working, .listening, .cleaning, .pasted, .pastedRaw, .cancelled])
+func withTheLiveTextOffTheBoxIsTheSameWidthWithTheTimeAndTheKeysAndNoLinesOfText(state: DictationWidgetState) {
+    for style in [DictationWidgetStyle.small, .medium, .large] {
+        let on = dictationWidgetLook(state, style: style).box!
+        let off = dictationWidgetLook(state, style: style, livePreview: false).box!
+        #expect(on.showsText && off.showsText == false)
+        #expect(off.width == on.width && off.text == on.text)
+        // the foot row alone: the box's padding and the row, as high as the box with its lines minus them
+        #expect(off.height(textSize: off.text) == 52)
+    }
+    #expect(dictationWidgetLook(state, style: .pill, livePreview: false).box == nil)
+}
+
+@Test(arguments: [DictationWidgetState.failed, .copied])
+func aFailureAndACopiedTextKeepTheirTextWithTheLiveTextOff(state: DictationWidgetState) {
+    #expect(dictationWidgetLook(state, style: .medium, livePreview: false) == dictationWidgetLook(state, style: .medium))
+    let pill = dictationWidgetLook(state, style: .pill, livePreview: false)
+    #expect(pill.box?.showsText == true && pill.opensAsSmall)
+}
+
+@Test func aDarkThemeDrawsItsTextInTheDarkAppearanceAndTheDefaultAndTheClearGlassFollowTheSystem() {
+    #expect(DictationWidgetTheme.accent.appearance == nil && DictationWidgetTheme.clear.appearance == nil)
+    for theme in [DictationWidgetTheme.black, .glassDark, .glow] { #expect(theme.appearance == .dark) }
+    #expect(Set(DictationWidgetTheme.allCases.map(\.title)).count == DictationWidgetTheme.allCases.count)
+}
+
+@Test func aSpotIsKeptAsTextAndOnlyAReadableOneIsKept() {
+    let spot = DictationWidgetSpot(x: 0.25, fromTop: true, gap: 80)
+    #expect(spot?.text == "0.25,top,80.0")
+    #expect(spot.flatMap { DictationWidgetSpot(text: $0.text) } == spot)
+    for bad in ["", "0.5", "0.5,left,10", "1.5,top,10", "-0.1,top,10", "0.5,top,-1", "nan,top,1", "0.5,top,inf", "a,top,1", "0.5,top,10,1"] { #expect(DictationWidgetSpot(text: bad) == nil) }
+}
+
+@Test func aWidgetLeftNearTheBottomHangsFromTheBottomAndOneNearTheTopFromTheTop() {
+    let area = CGRect(x: 100, y: 50, width: 1000, height: 800)
+    let low = DictationWidgetSpot(frame: CGRect(x: 300, y: 120, width: 400, height: 90), in: area)
+    #expect(low.fromTop == false && low.gap == 70 && low.x == 0.4)
+    let high = DictationWidgetSpot(frame: CGRect(x: 300, y: 700, width: 400, height: 90), in: area)
+    #expect(high.fromTop && high.gap == 60)
+}
+
+@Test func theBoxOpensWhereItWasLeftWhateverItsSizeAndGrowsAwayFromItsEdge() {
+    let area = CGRect(x: 100, y: 50, width: 1000, height: 800)
+    let low = DictationWidgetSpot(x: 0.5, fromTop: false, gap: 70)!
+    let high = DictationWidgetSpot(x: 0.5, fromTop: true, gap: 60)!
+    // the Pill, then a taller box in the same place: the bottom stays for the first and the top for the second
+    let pill = CGSize(width: 76, height: 38), box = CGSize(width: 420, height: 120)
+    #expect(dictationWidgetOrigin(size: pill, in: area, position: .bottom, spot: low) == CGPoint(x: 600 - 38, y: 120))
+    #expect(dictationWidgetOrigin(size: box, in: area, position: .bottom, spot: low) == CGPoint(x: 600 - 210, y: 120))
+    #expect(dictationWidgetOrigin(size: pill, in: area, position: .bottom, spot: high).y == CGFloat(752))
+    #expect(dictationWidgetOrigin(size: box, in: area, position: .bottom, spot: high).y == CGFloat(670))
+}
+
+@Test func aSpotFromAnotherDisplayIsPutBackInsideTheOneThatLeavesLess() {
+    let small = CGRect(x: 0, y: 0, width: 800, height: 500)
+    let size = CGSize(width: 420, height: 120)
+    let edge = DictationWidgetSpot(x: 1, fromTop: true, gap: 900)!
+    let origin = dictationWidgetOrigin(size: size, in: small, position: .top, spot: edge)
+    #expect(origin == CGPoint(x: 380, y: 0))
+    // no spot is the place chosen, as before
+    #expect(dictationWidgetOrigin(size: size, in: small, position: .top) == CGPoint(x: 190, y: 500 - 120 - 24))
+}

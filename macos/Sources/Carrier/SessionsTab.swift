@@ -85,9 +85,9 @@ struct SessionsTabView: View {
             }
             SettingsGroup(
                 title: "Idle sessions",
-                footer: "A session you do not open for this long puts its agent to sleep, which frees its memory. It stays in the list, and a message wakes it where it left off. The session you have open stays awake."
+                footer: "An idle session you do not open for this long puts its agent to sleep, which frees its memory. It stays in the list, and a message wakes it where it left off. The session you have open stays awake, and so does one that is working or waiting for you."
             ) {
-                SettingsTabRow(title: "Sleep after", detail: "How long a session nobody opens keeps its agent running", first: true) {
+                SettingsTabRow(title: "Sleep after", detail: "How long an idle session nobody opens keeps its agent running", first: true) {
                     ChoicePopUp(label: "Sleep after", options: IdleClose.allCases.map { (value: $0, title: $0.title) }, selection: $idle)
                         .disabled(unreadable)
                 }

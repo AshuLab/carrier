@@ -63,7 +63,7 @@ import Testing
 }
 
 @Test func theSearchFindsTheSleepAfterRowByWhatAPersonWouldTypeForIt() {
-    for query in ["sleep", "sleep after", "idle", "memory", "asleep", "agent", "close", "minutes", "hour", "idle sessions"] {
+    for query in ["sleep", "sleep after", "idle", "memory", "asleep", "agent", "close", "minutes", "hour", "idle sessions", "timeout", "inactive", "inactivity timeout"] {
         #expect(settingsResults(query).contains { $0.page == .sessions && $0.group == "Idle sessions" && $0.title == "Sleep after" }, Comment(rawValue: query))
     }
     // the row is on the Sessions page, in its own group between the new-session choices and the ages

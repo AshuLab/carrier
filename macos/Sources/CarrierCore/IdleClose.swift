@@ -25,9 +25,7 @@ private let idleCloseKey = "idleCloseMinutes"
 /// The time `chat.json` says; ten minutes when the key is missing or is not one of the three values (the host refuses any other). nil `chatJSON` is no file yet.
 public func idleClose(chatJSON: Data?) -> IdleClose {
     let object = chatJSON.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
-    // a JSON number that is not a whole one (30.5) is a Double and not an Int, and `true` is a Bool: neither is a choice
-    guard let number = object?[idleCloseKey] as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(), number.doubleValue == Double(number.intValue) else { return defaultIdleClose }
-    return IdleClose(rawValue: number.intValue) ?? defaultIdleClose
+    return (object?[idleCloseKey] as? Int).flatMap(IdleClose.init(rawValue:)) ?? defaultIdleClose
 }
 
 /// `json` with `idleCloseMinutes` set; the file's other keys are left as they were, and the default is left out. `json` nil is a `chat.json` that is

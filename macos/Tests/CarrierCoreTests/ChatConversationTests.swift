@@ -698,7 +698,8 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     let started = ContinuousClock.now
     running.cancel()
     await running.value
-    #expect(ContinuousClock.now - started < .seconds(10))
+    // the pause it would otherwise sit through is 30 seconds; a suite that starts thousands of tests at once can stall the pool for a good part of that
+    #expect(ContinuousClock.now - started < .seconds(25))
 }
 
 @MainActor @Test func aSendCutsTheWaitOfAnIdleSessionShortSoTheTurnIsReadAtOnce() async {

@@ -328,3 +328,8 @@ It is asked for by hand (a length, or no end) or, with its switch on, by the age
 It pauses on a low battery as the person set it, and it does not stop the lid or Sleep in the Apple menu.
 See [keep-awake](macos/keep-awake.md).
 _Avoid_: caffeinate (the command it replaces), prevent sleep, wake lock.
+
+**Text generator** - A model that turns text into text with no tools: a server and a model, declared in `providers.json` under `textGenerators` and chosen in the Providers page.
+The first kinds are the local servers (LM Studio, Ollama); external APIs come later.
+Today the one chosen writes session titles ([0038](adr/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md)).
+_Avoid_: model provider (who serves the model an agent runs on), account (a login of an agent CLI), agent (it has no tools and runs nothing), cleanup model (the dictation cleanup keeps its own server and model).

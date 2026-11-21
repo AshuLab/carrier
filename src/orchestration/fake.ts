@@ -1,5 +1,5 @@
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
+import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type PullRequestState, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
   /** What rateLimit answers. */
@@ -32,7 +32,7 @@ export class FakeGitHub implements GitHub {
   /** Makes setLabels fail while the rest works. */
   setLabelsUnavailable: GitHubUnavailable | null = null;
   issues: Record<string, { state: 'open' | 'closed'; labels: string[] }> = {};
-  pulls: Record<string, { state: 'open' | 'closed' | 'merged'; body: string; headSha: string; headRef?: string }> = {};
+  pulls: Record<string, { state: PullRequestState; body: string; headSha: string; headRef?: string }> = {};
   repoLabels: Record<string, string[]> = {};
   created: string[] = [];
   /** The colour and description each label was created with. */
@@ -83,7 +83,7 @@ export class FakeGitHub implements GitHub {
     const found = this.pullRequestBlocks[`${repo}#${number}`];
     if (found === undefined) return null;
     const read = this.reviewThreads[`${repo}#${number}`];
-    return { pr: { ...found, checks: found.checks && { ...found.checks } }, threads: read?.threads.map((t) => ({ ...t })) ?? [], truncated: read?.truncated ?? false };
+    return { pr: { ...found, checks: found.checks && { ...found.checks } }, threads: read?.threads.map((t) => ({ ...t })) ?? [], truncated: read?.truncated ?? false, state: this.pulls[`${repo}#${number}`]?.state ?? 'open' };
   }
 
   async getIssue(repo: string, issue: number) {

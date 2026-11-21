@@ -48,6 +48,9 @@ export type EpicSlice = {
   closedAt: number | null;
 };
 
+/** What GitHub says a pull request is: `closed` is closed without merge, a merged one is `merged`. */
+export type PullRequestState = 'open' | 'closed' | 'merged';
+
 /** A pull request as GitHub says it is now: its merge state, review decision and check counts; `checks` is null when it has none, which is not pending. */
 export type PullRequestBlock = {
   number: number;
@@ -102,13 +105,13 @@ export interface GitHub {
   /** The first hundred slices of an epic in one query; `truncated` when it has more. Throws GitHubUnavailable like the call above. */
   readSlices(repo: string, issue: number): Promise<{ slices: EpicSlice[]; truncated: boolean }>;
   /** One query: the pull request's merge state, review decision and checks, and its first hundred review threads (`truncated` when it has more); null when it does not exist. Throws GitHubUnavailable like the call above. */
-  readPullRequest(repo: string, number: number): Promise<{ pr: PullRequestBlock; threads: ReviewThread[]; truncated: boolean } | null>;
+  readPullRequest(repo: string, number: number): Promise<{ pr: PullRequestBlock; threads: ReviewThread[]; truncated: boolean; state: PullRequestState } | null>;
   /** Throws GitHubUnavailable like every call below. */
   getIssue(repo: string, issue: number): Promise<{ state: 'open' | 'closed'; labels: string[] }>;
   /** Null when the PR does not exist; `closed` is closed without merge, a merged PR is `merged`. `headRef` is the branch it comes from. */
-  getPullRequest(repo: string, number: number): Promise<{ state: 'open' | 'closed' | 'merged'; body: string; headSha: string; headRef: string } | null>;
+  getPullRequest(repo: string, number: number): Promise<{ state: PullRequestState; body: string; headSha: string; headRef: string } | null>;
   /** The PR whose body closes the epic issue, null when there is none. Read only: used to check what a failed execution left behind. */
-  findPullRequest(repo: string, issue: number): Promise<{ number: number; state: 'open' | 'closed' | 'merged'; headSha: string } | null>;
+  findPullRequest(repo: string, issue: number): Promise<{ number: number; state: PullRequestState; headSha: string } | null>;
   /** Idempotent: adding a label the issue has, or removing one it lacks, changes nothing. */
   setLabels(repo: string, issue: number, change: { add: string[]; remove: string[] }): Promise<void>;
   listLabels(repo: string): Promise<string[]>;

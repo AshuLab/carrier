@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import { epicSlicesQuery, epicSlicesResponse, pullRequestOf, pullRequestQuery, pullRequestResponse, sliceOf, threadsOf } from './github-graphql.ts';
 import { redact } from '../logging/redact.ts';
-import { AuthError, GitHubRejected, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type RateLimit, type Slices } from '../orchestration/github.ts';
+import { AuthError, GitHubRejected, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type PullRequestState, type RateLimit, type Slices } from '../orchestration/github.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -187,7 +187,8 @@ export class GhGitHub implements GitHub {
     const [owner = '', name = ''] = repo.split('/');
     const body = await this.api(repo, ['graphql', '-f', `query=${pullRequestQuery}`, '-f', `owner=${owner}`, '-f', `name=${name}`, '-F', `number=${number}`]);
     const response = pullRequestResponse.parse(JSON.parse(body));
-    return { pr: pullRequestOf(response), ...threadsOf(response) };
+    // the state is not part of the block that is kept (it is a cache): it travels beside it, for whoever needs to know whether the PR ended
+    return { pr: pullRequestOf(response), ...threadsOf(response), state: response.data.repository.pullRequest.state.toLowerCase() as PullRequestState };
   }
 
   async getIssue(repo: string, issue: number) {

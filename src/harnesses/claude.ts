@@ -1,7 +1,7 @@
 import { dirname } from 'node:path';
 import { buildPrompt } from '../prompts/build-prompt.ts';
 import { claudeLocalEnv } from './local.ts';
-import { childEnv, markerFor, type AgentCommand, type CommandContext, type LineSignal, type HarnessAdapter } from './common.ts';
+import { childEnv, markerFor, parseJsonLine, type AgentCommand, type CommandContext, type LineSignal, type HarnessAdapter } from './common.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { addUsage, cost, obj, tokens } from '../execution/usage.ts';
 import type { ExecutionUsage, ModelUsage } from '../storage/executions.ts';
@@ -63,7 +63,7 @@ function claudeUsage(event: Record<string, unknown>): ExecutionUsage | undefined
 export function parseClaudeLine(line: string): LineSignal | undefined {
   let event: Record<string, unknown>;
   try {
-    event = JSON.parse(line);
+    event = parseJsonLine(line) as Record<string, unknown>;
   } catch {
     return undefined;
   }
@@ -166,7 +166,7 @@ function diffOf(result: unknown): { diff: NonNullable<AgentEvent['diff']>; added
 }
 
 function claudeEvents(line: string, state: EventState): AgentEvent[] {
-  const event = JSON.parse(line) as Record<string, unknown> | null;
+  const event = parseJsonLine(line) as Record<string, unknown> | null;
   if (typeof event !== 'object' || event === null) return [];
   const time = typeof event.timestamp === 'string' ? Date.parse(event.timestamp) : NaN;
   const at = Number.isNaN(time) ? undefined : time;

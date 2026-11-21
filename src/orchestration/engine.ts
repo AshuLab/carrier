@@ -26,7 +26,7 @@ import { latestBlockers, latestObservations } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
 import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
-import { AuthError, GitHubRejected, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub, type Slices } from './github.ts';
+import { AuthError, GitHubRejected, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub, type PullRequestState, type Slices } from './github.ts';
 import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak } from './retry.ts';
@@ -67,6 +67,8 @@ const resumeTickMs = 1_000;
 const sliceWindowMs = 10_000;
 const sliceTimerMs = 60_000;
 const liveStatuses: Epic['status'][] = ['running', 'needs_human', 'ready_for_test'];
+/** What one poll read about the epics: the state of each final PR (with its number: the epic's PR may be another one by the time it is used), and the issues each repo listed as open. */
+type SeenThisPoll = { prState: Map<number, { number: number; state: PullRequestState }>; openIssues: Map<string, Set<number>> };
 
 export type RepoCheck = { at: number; ok: boolean; error: string | null };
 
@@ -645,10 +647,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // The final PR was merged or the epic issue / final PR closed without merge: the epic stops and its
   // executions too. Sessions and history stay; the label follows (labelPending) and the slot is free.
   // Parked epics (needs_human, ready_for_test) end the same way: a person merges or closes outside Carrier.
-  async function stopEnded() {
+  async function stopEnded(seen: SeenThisPoll) {
     for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos().map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
       await forRepo(epic.repo, async () => {
-        const end = await endOf(github, epic);
+        const read = seen.prState.get(epic.id);
+        const end = await endOf(github, epic, { prState: read?.number === epic.prNumber ? read?.state : undefined, issueOpen: seen.openIssues.get(epic.repo)?.has(epic.issue) === true });
         if (!end) return;
         const ended = db.update(epics)
           .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason }), finishedAt: clock.now(), labelPending: true })
@@ -864,9 +867,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }));
 
   // A failed read keeps the last known values and the poll goes on: progress is only for show. A rejected profile is not "only for show".
-  async function refreshProgress(repo: string) {
+  async function refreshProgress(repo: string, seen: SeenThisPoll) {
     try {
       const open = await github.listOpenEpics(repo);
+      seen.openIssues.set(repo, new Set(open.map(({ issue }) => issue)));
       progress.set(repo, new Map(open.map(({ issue, slices }) => [issue, slices])));
       // The same read carries the title and labels of the epics Carrier already holds, whatever their status.
       for (const { issue, title, labels } of open) db.update(epics).set({ title, labels }).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).run();
@@ -954,13 +958,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // The pull request block and review threads of each epic to refresh that has a PR, one query per epic and none for one without. A cache of GitHub
   // like the slices: a failed read keeps the last block and rows; a PR that GitHub does not know leaves them as they were.
-  async function refreshPullRequests(repo: string) {
+  async function refreshPullRequests(repo: string, seen: SeenThisPoll) {
     for (const { id, prNumber } of toRefresh(repo, (e) => e.pr !== null || e.prNumber === null)) {
       if (prNumber === null) continue;
       try {
         const read = await github.readPullRequest(repo, prNumber);
         if (read === null) continue;
-        const { pr, threads, truncated } = read;
+        const { pr, threads, truncated, state } = read;
+        seen.prState.set(id, { number: prNumber, state });
         const readAt = clock.now();
         db.transaction((tx) => {
           tx.update(epics).set({ pr }).where(eq(epics.id, id)).run();
@@ -978,6 +983,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   async function poll(): Promise<number> {
     if (stopping) return settings().pollIntervalMs;
     const read = new Set<string>();
+    // What this poll read about the epics, so `stopEnded` does not ask again for it (never what the caches hold: ADR 0008).
+    const seen: SeenThisPoll = { prState: new Map(), openIssues: new Map() };
     rejected.clear();
     try {
       // Fetch every repo before writing: a failure on any of them leaves the queue untouched.
@@ -988,9 +995,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         // What is about the whole cycle (the profile, GitHub down) stops it below.
         const ok = await forRepo(repo, async () => {
           const listed = await github.listReadyEpics(repo);
-          await refreshProgress(repo);
+          await refreshProgress(repo, seen);
           await refreshSlices(repo);
-          await refreshPullRequests(repo);
+          await refreshPullRequests(repo, seen);
           found.push(...listed.map(({ issue, title, labels }) => ({ repo, issue, title, labels })));
         });
         if (ok) checks.set(repo, { at: clock.now(), ok: true, error: null });
@@ -1008,7 +1015,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           tx.update(epics).set(restart(queuedAt)).where(and(eq(epics.repo, epic.repo), eq(epics.issue, epic.issue), eq(epics.status, 'needs_human'))).run();
         }
       });
-      await stopEnded();
+      await stopEnded(seen);
       // After the probe: a suspended engine makes no GitHub call, and a restored epic's recovery makes some. After stopEnded: an epic whose PR
       // was merged or closed while its repo was parked ends there and is not launched just to be stopped.
       await restore();

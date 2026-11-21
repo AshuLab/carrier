@@ -30,3 +30,8 @@ One more table and about two points of GitHub's GraphQL budget per running epic 
 ## Amendment: when the slices are read
 
 The slices are no longer read only at each poll. The rule that live epics are read every poll stays, and a read also happens when a command of the agent that changes them ends (`gh issue edit`, `gh issue close`, `gh pr create`, `gh pr merge`, `gh pr ready`, `gh pr close`; at most one read per epic every ten seconds) and once a minute for the live epics as a net. The command is only a signal to look: the data still comes from GitHub, so a missed or false detection costs one query or one timer period, never a wrong state.
+
+## Amendment: what the same poll read
+
+The engine may decide with what GitHub answered in the poll that is running, which is also what feeds these caches, and never with what the caches hold.
+That is how an epic that ended outside Carrier is found: the state of its final PR comes from the pull request read of that poll and whether the issue is still listed as open from its list of open epics, and GitHub is asked again only for what that poll did not bring (an epic missing from the list may only have lost its label, so it is asked about).

@@ -1,6 +1,12 @@
 import AppKit
 import CarrierCore
 import SwiftUI
+import UniformTypeIdentifiers
+
+extension ProjectsModel {
+    /// The app's one reading of `projects.json`: the Projects page edits it and the sidebar, the lists and the cards draw from it.
+    static let shared = ProjectsModel()
+}
 
 /// The Projects page of Settings (docs/specs/projects.md): the person's projects, one row each, and Add project, which takes a folder of the Mac. A row opens
 /// the project as a screen of its own, a place of the window's history (‹ ›) named by its path, and Actions opens its actions screen. The rows are
@@ -9,16 +15,18 @@ struct ProjectsTabView: View {
     let place: SettingsPlace
     let go: (SettingsPlace) -> Void
     var sessions: [SessionRow] = []
-    @State private var model = ProjectsModel()
+    private let model = ProjectsModel.shared
     @State private var query = ""
     @State private var filter: ProjectFilter = .all
     @State private var groupBy: ProjectGrouping = .none
+    @State private var order = ProjectOrder()
     @State private var adding = false
 
     static let actionsPath = "actions"
 
     private enum Column {
         static let tags: CGFloat = 220
+        static let lastActive: CGFloat = 110
         static let trailing: CGFloat = 34
     }
 
@@ -68,7 +76,8 @@ struct ProjectsTabView: View {
     @ViewBuilder private var list: some View {
         let shown = model.rows + model.cloneRows
         let tags = projectTagsInUse(shown)
-        let groups = projectList(shown, query: query, filter: filter, groupBy: groupBy)
+        let groups = projectList(projectsWithLastActive(shown, sessions: sessions), query: query, filter: filter, groupBy: groupBy, order: order)
+        let now = Date()
         Group {
             if shown.isEmpty {
                 SettingsGroup(title: "") {
@@ -120,15 +129,15 @@ struct ProjectsTabView: View {
                         SettingsGroup(title: group.title ?? "") {
                             if groupIndex == 0 {
                                 HStack(spacing: 12) {
-                                    Text("Project").frame(maxWidth: .infinity, alignment: .leading)
-                                    Text("Tags").frame(width: Column.tags, alignment: .leading)
+                                    sortTitle("Project", key: .name).frame(maxWidth: .infinity, alignment: .leading)
+                                    Text("Tags").frame(width: Column.tags, alignment: .leading).accessibilityHidden(true)
+                                    sortTitle("Last active", key: .lastActive).frame(width: Column.lastActive, alignment: .leading)
                                     Color.clear.frame(width: Column.trailing, height: 1)
                                 }
                                 .sectionLabel().padding(.vertical, 10)
-                                .accessibilityHidden(true)
                             }
                             ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
-                                projectRow(row, divider: groupIndex == 0 || index > 0)
+                                projectRow(row, now: now, divider: groupIndex == 0 || index > 0)
                             }
                         }
                     }
@@ -139,6 +148,21 @@ struct ProjectsTabView: View {
             if case .tag(let current) = filter, latest.contains(current) == false { filter = .all }
         }
         cloneDestinationLine
+    }
+
+    /// A column title that sorts the list by `key` when clicked; the sorted one shows its direction.
+    private func sortTitle(_ title: String, key: ProjectSortKey) -> some View {
+        let sorted = order.key == key
+        return Button { order = order.clicked(key) } label: {
+            HStack(spacing: 3) {
+                Text(title)
+                if sorted { Glyph(order.ascending ? .chevronUp : .chevronDown, size: 8, bold: true).accessibilityHidden(true) }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Sort by \(title)")
+        .accessibilityValue(sorted ? (order.ascending ? "ascending" : "descending") : "")
     }
 
     /// A clone that is running or failed: it is not a project yet, so the row has no chevron and cannot be opened. It shows git's progress line, or the
@@ -169,19 +193,19 @@ struct ProjectsTabView: View {
         .overlay(alignment: .top) { if divider { SettingsDivider() } }
     }
 
-    @ViewBuilder private func projectRow(_ row: ProjectRow, divider: Bool) -> some View {
+    @ViewBuilder private func projectRow(_ row: ProjectRow, now: Date, divider: Bool) -> some View {
         if let clone = row.clone {
             cloneRow(row, clone, divider: divider)
         } else {
-            openableRow(row, divider: divider)
+            openableRow(row, now: now, divider: divider)
         }
     }
 
-    private func openableRow(_ row: ProjectRow, divider: Bool) -> some View {
+    private func openableRow(_ row: ProjectRow, now: Date, divider: Bool) -> some View {
         Button { open(row.path) } label: {
             HStack(spacing: 12) {
                 HStack(spacing: 12) {
-                    ProjectIcon(tile: row.tile)
+                    ProjectIcon(tile: row.tile, imageFolder: model.carrierFolder)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
                         Text(row.line).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
@@ -202,6 +226,10 @@ struct ProjectsTabView: View {
                     }
                 }
                 .frame(width: Column.tags, alignment: .leading)
+
+                Text(row.lastActive.map { timeText($0, now: now) } ?? "—")
+                    .font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
+                    .frame(width: Column.lastActive, alignment: .leading)
 
                 HStack(spacing: 10) {
                     Spacer(minLength: 0)
@@ -266,7 +294,8 @@ struct ProjectsTabView: View {
     // MARK: a project
 
     @ViewBuilder private func projectScreen(_ row: ProjectRow) -> some View {
-        ProjectDetailView(row: row, model: model, openActions: { openActions(row.path) }).id(row.path)
+        if let failure = model.failure { ProblemLine(text: failure) }
+        ProjectDetailView(row: row, model: model, openActions: { openActions(row.path) }, close: { go(SettingsPlace(.projects)) }).id(row.path)
     }
 
     // MARK: a file that does not match
@@ -286,7 +315,9 @@ private struct ProjectDetailView: View {
     let row: ProjectRow
     let model: ProjectsModel
     let openActions: () -> Void
+    let close: () -> Void
     @Environment(\.settingsHeaderAction) private var headerAction
+    @State private var confirmingRemove = false
     @State private var owner = UUID()
     @State private var pickingIcon = false
     @State private var newTag = ""
@@ -298,9 +329,9 @@ private struct ProjectDetailView: View {
                 SettingsTabRow(title: "Name", detail: "Empty uses the folder's name", first: true) {
                     ProjectNameField(stored: row.customName ?? "", prompt: row.folderName) { model.setName($0, path: row.path) }
                 }
-                SettingsTabRow(title: "Icon", detail: "Color and mark; initials when none is chosen") {
+                SettingsTabRow(title: "Icon", detail: "Color and mark, or an image; initials when none is chosen") {
                     HStack(spacing: 10) {
-                        ProjectIcon(tile: row.tile)
+                        ProjectIcon(tile: row.tile, imageFolder: model.carrierFolder)
                         Button("Change…") { pickingIcon = true }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                             .accessibilityLabel("Change the icon")
@@ -309,8 +340,10 @@ private struct ProjectDetailView: View {
                                 ProjectIconPopover(
                                     selectedColor: row.iconColor,
                                     selectedMark: row.iconMark,
+                                    hasImage: row.iconImage != nil,
                                     setColor: { model.setIconColor($0, path: row.path) },
                                     setMark: { model.setIconMark($0, path: row.path) },
+                                    chooseImage: chooseImage,
                                     reset: { model.resetIcon(path: row.path) }
                                 )
                                 .padding(14)
@@ -353,9 +386,20 @@ private struct ProjectDetailView: View {
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                     }
                 }
+                SettingsTabRow(title: "Remove", detail: "Takes \(row.name) out of Carrier; its folder and worktrees stay") {
+                    Button(role: .destructive) { confirmingRemove = true } label: { Label("Remove…", icon: .trash) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                }
             }
         }
         .writingToolsBehavior(.disabled)
+        // the ellipsis of Remove… is this question
+        .alert("Remove \(row.name) from Carrier?", isPresented: $confirmingRemove) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove", role: .destructive) { if model.remove(path: row.path) { close() } }
+        } message: {
+            Text(projectRemovalWords)
+        }
         .onAppear(perform: publishPin)
         .onChange(of: row.pinned) { publishPin() }
         .onChange(of: row.path) { publishPin() }
@@ -383,9 +427,43 @@ private struct ProjectDetailView: View {
     }
 
     private var iconSummary: String {
+        if row.iconImage != nil { return "Custom image" }
         let color = row.iconColor?.rawValue.capitalized ?? "Automatic color"
         let mark = row.iconMark?.rawValue.capitalized ?? "initials"
         return "\(color), \(mark)"
+    }
+
+    private func chooseImage() {
+        pickingIcon = false
+        let path = row.path
+        DispatchQueue.main.async {
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = false
+            panel.allowsMultipleSelection = false
+            panel.allowedContentTypes = [.image]
+            panel.prompt = "Choose"
+            panel.message = "Choose an image for the project's icon"
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            if ProjectIconStore.canRead(url) {
+                model.setIconImage(from: url, path: path)
+            } else if let rasterized = rasterizedImage(at: url) {
+                model.setIconImage(cgImage: rasterized, path: path)
+            } else {
+                model.setIconImage(from: url, path: path)
+            }
+        }
+    }
+
+    private func rasterizedImage(at url: URL) -> CGImage? {
+        guard let image = NSImage(contentsOf: url) else { return nil }
+        let size = image.size
+        guard size.width > 0, size.height > 0 else { return nil }
+        let limit = CGFloat(ProjectIconStore.maxPixelSize)
+        let scale = min(1, min(limit / size.width, limit / size.height))
+        let target = NSSize(width: max(1, (size.width * scale).rounded()), height: max(1, (size.height * scale).rounded()))
+        var rect = NSRect(origin: .zero, size: target)
+        return image.cgImage(forProposedRect: &rect, context: nil, hints: nil)
     }
 }
 
@@ -449,12 +527,14 @@ private struct ProjectTagChip: View {
     }
 }
 
-/// The Change… popover for a project's icon: eight colours and eight marks, matching `AccountEditor`'s 30 pt grid.
+/// The Change… popover for a project's icon: eight colours, eight marks and Choose image…, matching `AccountEditor`'s 30 pt grid.
 private struct ProjectIconPopover: View {
     let selectedColor: ProjectColor?
     let selectedMark: AppIcon?
+    let hasImage: Bool
     let setColor: (ProjectColor?) -> Void
     let setMark: (AppIcon?) -> Void
+    let chooseImage: () -> Void
     let reset: () -> Void
 
     private static let tile: CGFloat = 30, gap: CGFloat = 8, columns = 8
@@ -467,13 +547,13 @@ private struct ProjectIconPopover: View {
                 HStack {
                     Text("Color").sectionLabel()
                     Spacer(minLength: 8)
-                    if selectedColor != nil || selectedMark != nil {
+                    if selectedColor != nil || selectedMark != nil || hasImage {
                         Button("Reset", action: reset).buttonStyle(HoverTextButtonStyle(tint: nil)).font(.scaled(11))
                     }
                 }
                 LazyVGrid(columns: grid, alignment: .leading, spacing: Self.gap) {
                     ForEach(ProjectColor.allCases, id: \.self) { choice in
-                        let on = selectedColor == choice
+                        let on = hasImage == false && selectedColor == choice
                         let name = choice.rawValue.capitalized
                         Button { setColor(on ? nil : choice) } label: {
                             Circle().fill(choice.color)
@@ -488,10 +568,10 @@ private struct ProjectIconPopover: View {
             }
             VStack(alignment: .leading, spacing: 6) {
                 Text("Mark").sectionLabel()
-                let tint = selectedColor?.color ?? Color.primary
+                let tint = (hasImage ? nil : selectedColor)?.color ?? Color.primary
                 LazyVGrid(columns: grid, alignment: .leading, spacing: Self.gap) {
                     ForEach(projectIconMarks, id: \.self) { choice in
-                        let on = selectedMark == choice
+                        let on = hasImage == false && selectedMark == choice
                         let name = choice.rawValue.capitalized
                         Button { setMark(on ? nil : choice) } label: {
                             Glyph(choice, size: 15).foregroundStyle(tint)
@@ -504,6 +584,12 @@ private struct ProjectIconPopover: View {
                     }
                 }
             }
+            SettingsDivider()
+            Button(action: chooseImage) {
+                Label("Choose image…", icon: .photo).labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(SecondaryCapsuleButtonStyle())
+            .controlSize(.small)
         }
         .frame(width: Self.gridWidth, alignment: .leading)
     }

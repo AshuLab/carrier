@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import CarrierCore
@@ -231,7 +232,7 @@ private func temporaryFolder() throws -> String {
     #expect(model.setName("  My Carrier  ", path: "/a/carrier"))
     #expect(model.rows[0].name == "My Carrier" && model.rows[0].customName == "My Carrier")
 
-    // pin, tags, and icon colour/mark
+    // pin, tags, and icon colour/mark (setting colour or mark clears any image)
     #expect(model.setPinned(true, path: "/a/carrier"))
     #expect(model.addTag("  Swift ", path: "/a/carrier"))
     #expect(model.addTag("SWIFT", path: "/a/carrier"))
@@ -239,18 +240,18 @@ private func temporaryFolder() throws -> String {
     #expect(model.setIconColor(.teal, path: "/a/carrier"))
     #expect(model.setIconMark(.terminal, path: "/a/carrier"))
     #expect(model.rows[0].pinned && model.rows[0].tags == ["swift", "macos"])
-    #expect(model.rows[0].tile == ProjectTile(name: "My Carrier", color: .named(.teal), content: .mark(.terminal), image: "keep.png"))
+    #expect(model.rows[0].tile == ProjectTile(name: "My Carrier", color: .named(.teal), content: .mark(.terminal), image: nil))
 
     // other keys on the entry are preserved
     let entry = try #require(try file.read().first)
-    #expect(entry.iconImage == "keep.png")
+    #expect(entry.iconImage == nil)
     #expect(entry.json["defaults"] != nil && entry.json["actions"] != nil)
 
     // removing a tag and resetting icon
     #expect(model.removeTag("swift", path: "/a/carrier"))
     #expect(model.resetIcon(path: "/a/carrier"))
     #expect(model.rows[0].tags == ["macos"])
-    #expect(model.rows[0].iconColor == nil && model.rows[0].iconMark == nil && model.rows[0].iconImage == "keep.png")
+    #expect(model.rows[0].iconColor == nil && model.rows[0].iconMark == nil && model.rows[0].iconImage == nil)
 
     // external edit while following shows on the model
     let following = Task { await model.follow(every: .milliseconds(10)) }
@@ -261,6 +262,73 @@ private func temporaryFolder() throws -> String {
     #expect(model.rows[0].name == "From Disk")
     #expect(model.rows[0].pinned == false && model.rows[0].tags == ["external"])
     #expect(model.rows[0].tile == ProjectTile(name: "From Disk", color: .named(.purple), content: .mark(.star)))
+}
+
+@MainActor @Test func choosingAnImageCopiesItAndChoosingColorOrMarkAfterwardsClearsAndDeletesIt() throws {
+    let folder = try temporaryFolder()
+    let sourceDir = try temporaryFolder()
+    defer {
+        try? FileManager.default.removeItem(atPath: folder)
+        try? FileManager.default.removeItem(atPath: sourceDir)
+    }
+    let file = ProjectsFile(folder: folder)
+    let store = ProjectIconStore(folder: folder)
+    try Data(#"{"projects":[{"path":"/a/carrier","origin":"cloned","icon":{"color":"teal","mark":"bolt"}}]}"#.utf8).write(to: file.url)
+    let model = ProjectsModel(file: file) { _ in nil }
+    model.reload()
+
+    func writePNG(_ name: String) throws -> URL {
+        let url = URL(fileURLWithPath: sourceDir + "/" + name)
+        let space = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        let context = try #require(CGContext(
+            data: nil, width: 400, height: 400, bitsPerComponent: 8, bytesPerRow: 0,
+            space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        let cg = try #require(context.makeImage())
+        let data = try ProjectIconStore.pngData(from: cg, maxPixelSize: 400)
+        try data.write(to: url)
+        return url
+    }
+
+    let firstSource = try writePNG("one.png")
+    #expect(model.setIconImage(from: firstSource, path: "/a/carrier"))
+    let firstImage = try #require(model.rows[0].iconImage)
+    #expect(store.existingURL(for: firstImage) != nil)
+    // color and mark remain on the entry so a missing file falls back to them
+    #expect(model.rows[0].tile == ProjectTile(name: "carrier", color: .named(.teal), content: .mark(.bolt), image: firstImage))
+
+    // deleting the original keeps the copy
+    try FileManager.default.removeItem(at: firstSource)
+    #expect(store.existingURL(for: firstImage) != nil)
+
+    // choosing a colour afterwards clears the image and deletes its copy
+    #expect(model.setIconColor(.orange, path: "/a/carrier"))
+    #expect(model.rows[0].iconImage == nil)
+    #expect(model.rows[0].iconColor == .orange)
+    #expect(store.existingURL(for: firstImage) == nil)
+
+    // choosing an image then a mark afterwards clears the image and deletes its copy
+    let secondSource = try writePNG("two.png")
+    #expect(model.setIconImage(from: secondSource, path: "/a/carrier"))
+    let secondImage = try #require(model.rows[0].iconImage)
+    #expect(store.existingURL(for: secondImage) != nil)
+    #expect(model.setIconMark(.star, path: "/a/carrier"))
+    #expect(model.rows[0].iconImage == nil && model.rows[0].iconMark == .star)
+    #expect(store.existingURL(for: secondImage) == nil)
+
+    // choosing an image then resetting clears color, mark and image and deletes the copy
+    #expect(model.setIconImage(from: secondSource, path: "/a/carrier"))
+    let thirdImage = try #require(model.rows[0].iconImage)
+    #expect(model.resetIcon(path: "/a/carrier"))
+    #expect(model.rows[0].iconColor == nil && model.rows[0].iconMark == nil && model.rows[0].iconImage == nil)
+    #expect(store.existingURL(for: thirdImage) == nil)
+
+    // an invalid image file records a failure and does not write
+    let badFile = URL(fileURLWithPath: sourceDir + "/bad.png")
+    try Data("not an image".utf8).write(to: badFile)
+    #expect(model.setIconImage(from: badFile, path: "/a/carrier") == false)
+    #expect(model.failure != nil)
+    #expect(model.rows[0].iconImage == nil)
 }
 
 @Test func theListFiltersBySearchTagAndLocalOnlyGroupsByTagAndOrdersPinnedFirstThenByName() {
@@ -335,4 +403,98 @@ private func temporaryFolder() throws -> String {
     #expect(model.projectsPath == target)
     let saved = try #require(chatJSON.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] })
     #expect(saved["projectsFolder"] as? String == target && saved["logLevel"] as? String == "debug")
+}
+
+// MARK: last active and its order
+
+private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionRow {
+    SessionRow(id: UUID().uuidString, title: "t", workspace: "w", agent: "a", state: .idle, updatedAt: now.addingTimeInterval(-ago), folder: base + "/wt", base: base)
+}
+
+@Test func lastActiveIsTheNewestSessionOfTheProjectsBaseFolderWrittenAnyWayAndNilForNone() throws {
+    let root = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: root) }
+    try FileManager.default.createDirectory(atPath: root + "/real", withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(atPath: root + "/link", withDestinationPath: root + "/real")
+    let now = Date()
+    let rows = [ProjectRow(path: root + "/real", name: "real", repo: nil), ProjectRow(path: root + "/other", name: "other", repo: nil), ProjectRow(path: "/Users/x/none", name: "none", repo: nil)]
+    let sessions = [
+        session(root + "/real/", 500, now: now),  // trailing slash
+        session(root + "/link", 100, now: now),  // through a symlink
+        session(root + "/real", 900, now: now),
+        session(root + "/other", 700, now: now),
+        session(root + "/real/inside", 1, now: now),  // a folder inside is not the project's base folder
+    ]
+    let joined = projectsWithLastActive(rows, sessions: sessions)
+    #expect(joined.map(\.lastActive) == [now.addingTimeInterval(-100), now.addingTimeInterval(-700), nil])
+    #expect(projectsWithLastActive(rows, sessions: []).allSatisfy { $0.lastActive == nil })
+}
+
+@Test func theFileHoldsNoActivityTime() throws {
+    let before = Data(#"{"projects":[{"path":"/a","origin":"added","pinned":true}]}"#.utf8)
+    let entries = try readProjects(before)
+    let joined = projectsWithLastActive(projectRows(entries) { _ in nil }, sessions: [session("/a", 5, now: Date())])
+    #expect(joined[0].lastActive != nil)
+    // the entry and the file are what they were: activity is on the row and nowhere else
+    #expect(try readProjects(before) == entries && Set(entries[0].json.keys) == ["path", "origin", "pinned"])
+}
+
+@Test func theListSortsByNameOrLastActivePinnedFirstAndNeverActiveLast() {
+    let now = Date()
+    func row(_ name: String, _ ago: TimeInterval?, pinned: Bool = false) -> ProjectRow {
+        ProjectRow(path: "/p/\(name)", name: name, repo: nil, pinned: pinned, lastActive: ago.map { now.addingTimeInterval(-$0) })
+    }
+    let table = [row("beta", 50), row("alpha", nil), row("gamma", 10), row("delta", 900, pinned: true), row("eps", nil, pinned: true)]
+    func names(_ order: ProjectOrder) -> [String] { projectList(table, order: order).flatMap(\.rows).map(\.name) }
+    #expect(names(ProjectOrder()) == ["delta", "eps", "alpha", "beta", "gamma"])
+    #expect(names(ProjectOrder(key: .name, ascending: false)) == ["eps", "delta", "gamma", "beta", "alpha"])
+    #expect(names(ProjectOrder(key: .lastActive, ascending: false)) == ["delta", "eps", "gamma", "beta", "alpha"])
+    #expect(names(ProjectOrder(key: .lastActive, ascending: true)) == ["delta", "eps", "beta", "gamma", "alpha"])
+}
+
+@Test func clickingATitleSortsByItAndASecondClickReverses() {
+    var order = ProjectOrder()
+    #expect(order == ProjectOrder(key: .name, ascending: true))
+    order = order.clicked(.lastActive)
+    #expect(order == ProjectOrder(key: .lastActive, ascending: false))
+    order = order.clicked(.lastActive)
+    #expect(order == ProjectOrder(key: .lastActive, ascending: true))
+    order = order.clicked(.name)
+    #expect(order == ProjectOrder(key: .name, ascending: true))
+    #expect(order.clicked(.name) == ProjectOrder(key: .name, ascending: false))
+}
+
+@MainActor @Test func removingAProjectTakesOnlyItsEntryAndItsImageAndLeavesTheEngineConfigFolderAndWorktreesAlone() throws {
+    let carrier = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: carrier) }
+    let project = carrier + "/work/app", worktree = carrier + "/chat/worktrees/acme/app/one"
+    for folder in [project, worktree] { try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true) }
+    try Data("keep".utf8).write(to: URL(fileURLWithPath: worktree + "/file.txt"))
+    // a watched project: the engine's file names its repository
+    let engine = Data(#"{"repos":["acme/app"]}"#.utf8)
+    let places = CarrierPlaces(folder: carrier)
+    try engine.write(to: URL(fileURLWithPath: places.engineConfig))
+    let file = ProjectsFile(folder: carrier)
+    let store = ProjectIconStore(folder: carrier)
+    try FileManager.default.createDirectory(at: store.directory, withIntermediateDirectories: true)
+    for name in ["gone.png", "shared.png"] { try Data("x".utf8).write(to: store.directory.appendingPathComponent(name)) }
+    let initial = #"""
+    {"projects":[
+      {"path":"\#(project)","origin":"cloned","icon":{"image":"gone.png"},"actions":[{"name":"i","command":"pnpm i","when":"newWorktree"}]},
+      {"path":"/b/other","origin":"added","tags":["x"],"icon":{"image":"shared.png"}}
+    ]}
+    """#
+    try Data(initial.utf8).write(to: file.url)
+    let model = ProjectsModel(file: file) { _ in "acme/app" }
+    model.reload()
+
+    #expect(model.remove(path: project))
+    #expect(model.rows.map(\.path) == ["/b/other"])
+    #expect(try file.read()[0].tags == ["x"])
+    #expect(store.existingURL(for: "gone.png") == nil && store.existingURL(for: "shared.png") != nil)
+    #expect(try Data(contentsOf: URL(fileURLWithPath: places.engineConfig)) == engine)
+    #expect(FileManager.default.fileExists(atPath: project) && FileManager.default.fileExists(atPath: worktree + "/file.txt"))
+    // gone already: nothing to remove, nothing written
+    #expect(model.remove(path: project) == false)
+    #expect(try file.read().count == 1)
 }

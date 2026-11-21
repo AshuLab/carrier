@@ -452,6 +452,20 @@ test('a clone for this once goes to <parent>/<owner>/<repo> and leaves chat.json
   expect(JSON.parse(readFileSync(chatJson(), 'utf8'))).toEqual({});
 });
 
+test('a clone and an add never touch engine.json: the repositories Carrier watches stay as they were', async () => {
+  const engine = join(root, 'engine.json');
+  const before = JSON.stringify({ repos: [{ repo: 'acme/watched' }] });
+  writeFileSync(engine, before);
+  const host = fakeProjects(git);
+  host.cloneProject({ repo: 'acme/app' });
+  const there = join(projects(), 'acme', 'existing');
+  mkdirSync(join(there, '.git'), { recursive: true });
+  git.repos.set(there, { head: 'main', branches: ['main'], origin: 'https://github.com/acme/existing.git' });
+  host.cloneProject({ repo: 'acme/existing' });
+  await vi.waitFor(() => expect(registered()).toHaveLength(2));
+  expect(readFileSync(engine, 'utf8')).toBe(before);
+});
+
 test('a failed clone stays listed with its reason, never what git said, until it is dismissed, and a new one can start', async () => {
   const dest = join(projects(), 'acme', 'app');
   git.failures.set(`clone -- https://github.com/acme/app.git ${dest}`, { ok: false, code: 128, stderr: 'fatal: something with https://x:ghp_secrettoken@github.com/acme/app.git/' });

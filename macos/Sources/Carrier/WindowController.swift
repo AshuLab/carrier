@@ -59,6 +59,13 @@ import SwiftUI
         refreshUnread()
     }
 
+    /// The groups are titled with the projects' names, so a change of the projects sets the rows again. Called once the app is up.
+    @MainActor func followProjects() {
+        withObservationTracking { _ = ProjectsModel.shared.rows } onChange: { [weak self] in
+            DispatchQueue.main.async { self?.refreshUnread(); MainActor.assumeIsolated { self?.followProjects() } }
+        }
+    }
+
     /// Prunes persisted/live session terminals only after two consecutive healthy chat-host polls omit them.
     @MainActor
     func reconcileKnownSessions(_ knownIds: Set<String>) {
@@ -70,7 +77,7 @@ import SwiftUI
     func refreshUnread() {
         // before the host answered a list there is nothing to compare with: what was seen is neither pruned nor stored
         guard let listed = hostRows else { return }
-        var rows = listed
+        var rows = MainActor.assumeIsolated { retitled(listed, projects: ProjectsModel.shared.rows) }
         var viewing: String?
         if case .session(let id) = shell.selection { viewing = id }
         if seen.apply(to: &rows, viewing: viewing) { seen.store() }
@@ -527,6 +534,8 @@ final class WindowController: NSObject, NSWindowDelegate {
         let least = sender.frameRect(forContentRect: NSRect(origin: .zero, size: Self.minContent)).size
         return NSSize(width: max(frameSize.width, least.width), height: max(frameSize.height, least.height))
     }
+
+    @MainActor func followProjects() { model.followProjects() }
 
     /// Tells `Viewing` whether anyone is looking: the app is active and the window is on screen, or one of them, or the Mac sleeps. Then the host and
     /// the engine are asked often or not, and the Usage page's minute timer runs (it pauses while nobody looks and asks again when someone does).

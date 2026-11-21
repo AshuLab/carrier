@@ -226,7 +226,7 @@ private let myRepos = [
     #expect(state.sections.map(\.title) == ["Your repositories"])
     let row = state.items[0]
     #expect(row.title == "ana/encaja" && row.detail == "A tiny habit tracker" && row.chip == nil)
-    #expect(row.pushed == "pushed 1 w ago" || row.pushed.hasPrefix("pushed"))
+    #expect(row.pushed == "pushed yesterday")
     #expect(row.kind == .cloneRepo(repo: "ana/encaja", parent: nil) && row.actionTitle == "Clone")
 
     let byName = projectSheetState(mode: .settings, query: "acme", recent: [], projects: [], github: github(myRepos), home: "/Users/ana")

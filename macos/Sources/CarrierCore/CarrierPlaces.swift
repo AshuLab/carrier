@@ -57,6 +57,8 @@ public struct CarrierPlaces: Sendable, Equatable {
     public var appMetrics: String { appLogs + "/metrics" }
     /// Kept out of Time Machine (`prepareAppCache`).
     public var appCache: String { app + "/cache" }
+    /// Project icon images chosen by the person: `<random>.png`.
+    public var projectIcons: String { app + "/project-icons" }
     public var terminals: String { appState + "/terminals.json" }
     public var dictations: String { appState + "/dictations.jsonl" }
     public var dictationStatistics: String { appState + "/dictation-statistics.json" }

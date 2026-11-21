@@ -182,9 +182,11 @@ public enum ProjectAdd: Equatable, Sendable {
 }
 
 /// The same folder written two ways: `~` expanded, symlinks resolved, no trailing slash. A project is its folder, so `~/work/a` and `/Users/me/work/a/` are one.
-public func isSameFolder(_ a: String, _ b: String) -> Bool {
-    func normal(_ path: String) -> String { URL(fileURLWithPath: (path as NSString).expandingTildeInPath).resolvingSymlinksInPath().path }
-    return normal(a) == normal(b)
+public func isSameFolder(_ a: String, _ b: String) -> Bool { normalizedFolder(a) == normalizedFolder(b) }
+
+/// A folder written one way whatever it was written as: `~` expanded, symlinks resolved, no trailing slash.
+public func normalizedFolder(_ path: String) -> String {
+    URL(fileURLWithPath: (path as NSString).expandingTildeInPath).resolvingSymlinksInPath().path
 }
 
 /// Adding the folder `folder` as a project of origin `added` named after it, in `json`: the bytes to write, nil when it already is a project (nothing
@@ -198,6 +200,18 @@ public func applyingProjectAdd(folder: String, to json: Data?) throws -> (outcom
     let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
     _ = try parse(data)
     return (.added(folder), data)
+}
+
+/// `json` without the project at `path`; every other entry and key is kept. The folder is not this file's to touch, only the entry goes.
+public func applyingProjectRemoval(path: String, to json: Data?) throws -> Data {
+    var object = try parse(json)
+    var projects = object["projects"] as? [[String: Any]] ?? []
+    guard let index = projects.firstIndex(where: { $0["path"] as? String == path }) else { throw ProjectsFileError.missing(path) }
+    projects.remove(at: index)
+    object["projects"] = projects
+    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    _ = try parse(data)
+    return data
 }
 
 /// The file on disk.
@@ -226,6 +240,11 @@ public struct ProjectsFile {
             try data.write(to: url, options: .atomic)
         }
         return outcome
+    }
+
+    /// Reads the file again now, takes the project at `path` out and writes the whole file atomically.
+    public func remove(path: String) throws {
+        try applyingProjectRemoval(path: path, to: bytes()).write(to: url, options: .atomic)
     }
 
     /// Reads the file again now, changes one key of one project and writes the whole file through a temporary file that replaces it.

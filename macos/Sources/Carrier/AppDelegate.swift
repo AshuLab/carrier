@@ -174,6 +174,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         Thread.detachNewThread { monitor.run() }
         watchChatSessions()
+        // a project's name and icon show in the sidebar and its cards, so the file is followed for the life of the app (ponytail: a slow poll of a small file)
+        Task { @MainActor in
+            WindowController.shared.followProjects()
+            await ProjectsModel.shared.follow(every: .seconds(3))
+        }
         // the app lives on with its window closed, so a timer here is enough for the reminders
         let reminders = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in NotificationWatcher.app.remind() }
         // a reminder is not due to the second: the system may fold this wake-up into others

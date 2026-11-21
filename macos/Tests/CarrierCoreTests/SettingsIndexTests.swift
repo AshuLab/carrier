@@ -61,3 +61,14 @@ import Testing
     let rows = settingsIndex.filter { $0.page == .sessions && $0.group == "New sessions" }.map(\.title)
     #expect(rows == ["Starts with", "Work in", "Start from"])
 }
+
+@Test func theSearchFindsTheSleepAfterRowByWhatAPersonWouldTypeForIt() {
+    for query in ["sleep", "sleep after", "idle", "memory", "asleep", "agent", "close", "minutes", "hour", "idle sessions"] {
+        #expect(settingsResults(query).contains { $0.page == .sessions && $0.group == "Idle sessions" && $0.title == "Sleep after" }, Comment(rawValue: query))
+    }
+    // the row is on the Sessions page, in its own group between the new-session choices and the ages
+    let groups = settingsIndex.filter { $0.page == .sessions && $0.isPage == false }.map(\.group)
+    var inOrder: [String] = []
+    for group in groups where inOrder.last != group { inOrder.append(group) }
+    #expect(inOrder == ["New sessions", "Idle sessions", "Archive and delete", "With these ages"])
+}

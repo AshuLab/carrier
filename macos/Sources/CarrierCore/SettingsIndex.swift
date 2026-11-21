@@ -149,7 +149,9 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
     case .sessions:
         return page(.sessions, "New sessions", [("Starts with", "Provider, model and reasoning"), ("Work in", "Base folder or a new worktree"),
             ("Start from", "Where a new worktree is cut: the remote branch (latest) or the local branch")])
-            + page(.sessions, "Archive and delete", [
+            + page(.sessions, "Idle sessions", [
+                ("Sleep after", "How long an idle session nobody opens keeps its agent running before it closes and falls asleep, freeing its memory (the timeout of an inactive session, or inactivity timeout): 10 minutes, 30 minutes or 1 hour"),
+            ]) + page(.sessions, "Archive and delete", [
                 ("Archive after", "Days without activity before it is archived"), ("Delete after", "Days an archived session waits before it is deleted"),
                 ("Ask before deleting a session", "The question says its worktree goes with it"),
             ]) + page(.sessions, "With these ages", [("With these ages", "What the ages do to a session left alone from today")])

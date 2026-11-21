@@ -45,7 +45,7 @@ export const FOLLOW_UP_MS = 3_000;
 
 const DAY = 86_400_000;
 /** The lifecycle's ages (ADR 0019) and where a new worktree starts (ADR 0037), as `chat.json` gives them. */
-export type LiveSettings = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'> & Partial<Pick<ChatSettings, 'worktreeCleanup' | 'worktreeStart'>>;
+export type LiveSettings = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'> & Partial<Pick<ChatSettings, 'worktreeCleanup' | 'worktreeStart' | 'idleCloseMinutes'>>;
 const idleFor = (row: { state: State; lastActiveAt: number }, live: boolean, now: number, days: number | 'never') => days !== 'never' && row.state === 'idle' && !live && now - row.lastActiveAt >= days * DAY;
 
 type Harness = (typeof sessions.$inferSelect)['harness'];
@@ -113,6 +113,8 @@ export type ChatSessionsDeps = {
   pulls?: PullRequests;
   /** The lifecycle's ages now: `list` says from them when the clock will delete each archived session. */
   ages: () => LiveSettings;
+  /** How long an idle session that no request names stays open, asked each time one is armed; `IDLE_CLOSE_MS` when none is given. */
+  idleCloseMs?: () => number;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
   /** The chat MCP: the registry that issues each conversation's token and the URL of the endpoint, which is undefined when the host could not start it. Without this a host has no MCP and says nothing of it. */
@@ -140,7 +142,7 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, onLiveChange, mcp, pulls = noPullRequests }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, idleCloseMs = () => IDLE_CLOSE_MS, onLiveChange, mcp, pulls = noPullRequests }: ChatSessionsDeps) {
   const data = createSessionData({ db, git, pulls, clock });
   const listed = () => (typeof agents === 'function' ? agents() : agents);
   const health = createHealth({ agents, clock, binaryFound, probes });
@@ -260,7 +262,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const armIdle = (sessionId: string, live: Live) => {
     live.cancelIdle?.();
     live.cancelIdle = live.state === 'idle' && live.background.length === 0 && !switching.has(sessionId)
-      ? clock.after(IDLE_CLOSE_MS, async () => {
+      ? clock.after(idleCloseMs(), async () => {
           log.info('closing a session that no request had named', { sessionId });
           await close({ sessionId });
         })

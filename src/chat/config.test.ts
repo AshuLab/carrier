@@ -31,6 +31,7 @@ test('without the file, or with an empty one, every setting has its default', ()
     archiveAfterDays: 15,
     deleteAfterDays: 30,
     worktreeStart: 'remote',
+    idleCloseMinutes: 10,
     worktreeCleanup: { afterPrMerged: false, afterInactiveDays: 'never' },
   };
   expect(readChatConfig()).toEqual({ ok: true, settings: defaults });
@@ -40,10 +41,10 @@ test('without the file, or with an empty one, every setting has its default', ()
 
 test('a key that is set replaces its default, agents in the order written and `~/` expanded', () => {
   const agents = { zed: { account: 'codex' }, work: { account: 'claude-work', model: 'opus', options: { permissionMode: 'plan' } } };
-  write(JSON.stringify({ agents, projectsFolder: '~/Projects', githubCallTimeoutSeconds: 5, logLevel: 'debug', archiveAfterDays: 7, deleteAfterDays: 'never', worktreeStart: 'local', worktreeCleanup: { afterPrMerged: true, afterInactiveDays: 3 } }));
+  write(JSON.stringify({ agents, projectsFolder: '~/Projects', githubCallTimeoutSeconds: 5, logLevel: 'debug', archiveAfterDays: 7, deleteAfterDays: 'never', worktreeStart: 'local', idleCloseMinutes: 30, worktreeCleanup: { afterPrMerged: true, afterInactiveDays: 3 } }));
   expect(readChatConfig()).toEqual({
     ok: true,
-    settings: { agents: [{ name: 'zed', account: 'codex' }, { name: 'work', ...agents.work }], projectsFolder: join(homedir(), 'Projects'), githubCallTimeoutSeconds: 5, logLevel: 'debug', archiveAfterDays: 7, deleteAfterDays: 'never', worktreeStart: 'local', worktreeCleanup: { afterPrMerged: true, afterInactiveDays: 3 } },
+    settings: { agents: [{ name: 'zed', account: 'codex' }, { name: 'work', ...agents.work }], projectsFolder: join(homedir(), 'Projects'), githubCallTimeoutSeconds: 5, logLevel: 'debug', archiveAfterDays: 7, deleteAfterDays: 'never', worktreeStart: 'local', idleCloseMinutes: 30, worktreeCleanup: { afterPrMerged: true, afterInactiveDays: 3 } },
   });
   expect(loadChatConfig({ worktreeCleanup: { afterPrMerged: true } }, folder)).toMatchObject({ ok: true, settings: { worktreeCleanup: { afterPrMerged: true, afterInactiveDays: 'never' } } });
   expect(loadChatConfig({ agents: {} }, folder)).toMatchObject({ ok: true, settings: { agents: [] } }); // none, not the defaults
@@ -55,6 +56,8 @@ test('an unknown key, a wrong type or a bad value is an error naming the key', (
   for (const githubCallTimeoutSeconds of [0, -1, 1.5]) expect(errorsOf({ githubCallTimeoutSeconds }).map((e) => e.path)).toEqual(['githubCallTimeoutSeconds']);
   for (const worktreeStart of ['origin', 'Remote', '', true, null, 1]) expect(errorsOf({ worktreeStart }).map((e) => e.path)).toEqual(['worktreeStart']);
   expect(errorsOf({ worktreeStart: 'origin' })[0]!.message).toContain('remote');
+  for (const idleCloseMinutes of [0, 5, 15, 120, '30', null, true, 10.5]) expect(errorsOf({ idleCloseMinutes }).map((e) => e.path)).toEqual(['idleCloseMinutes']);
+  expect(errorsOf({ idleCloseMinutes: 15 })[0]!.message).toMatch(/10|30|60/);
   expect(errorsOf({ logLevel: 'loud' }).map((e) => e.path)).toEqual(['logLevel']);
   for (const afterInactiveDays of [0, -1, 1.5, '3', null]) expect(errorsOf({ worktreeCleanup: { afterInactiveDays } }).map((e) => e.path)).toEqual(['worktreeCleanup.afterInactiveDays']);
   expect(errorsOf({ worktreeCleanup: { afterPrMerged: 'yes' } }).map((e) => e.path)).toEqual(['worktreeCleanup.afterPrMerged']);

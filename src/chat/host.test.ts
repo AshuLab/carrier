@@ -120,6 +120,47 @@ test('the host exits a minute after its start, and a client connected keeps it u
   });
 });
 
+test('idleCloseMinutes of chat.json is how long an idle session nobody names stays open, and a change in the file is used from the next list', async () => {
+  writeFileSync(join(root, 'chat.json'), '{"idleCloseMinutes":30}');
+  const claude = new FakeChatRunner();
+  const { clock } = await host(new FakeClock(), claude);
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const work = join(root, 'w');
+  mkdirSync(work);
+  const { session } = (await client.request('open', { agent: 'claude', folder: work })) as { session: { id: string } };
+  await clock.advance(IDLE_CLOSE_MS * 3 - 1);
+  expect(claude.conversations[0]!.closed).toBe(false); // ten minutes is not what the file says
+  await clock.advance(1);
+  expect(claude.conversations[0]!.closed).toBe(true);
+
+  writeFileSync(join(root, 'chat.json'), '{"idleCloseMinutes":60}');
+  await client.request('list'); // what the app does every few seconds: the host reads the file again
+  await client.request('resume', { sessionId: session.id });
+  await clock.advance(IDLE_CLOSE_MS * 6 - 1);
+  expect(claude.conversations[1]!.closed).toBe(false);
+  await clock.advance(1);
+  expect(claude.conversations[1]!.closed).toBe(true);
+  client.close();
+});
+
+test('the hourly clock pass takes idleCloseMinutes from chat.json too, so a host nobody lists still follows an edit', async () => {
+  writeFileSync(join(root, 'chat.json'), '{"idleCloseMinutes":30}');
+  const claude = new FakeChatRunner();
+  const { clock } = await host(new FakeClock(), claude);
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const work = join(root, 'w');
+  mkdirSync(work);
+  const { session } = (await client.request('open', { agent: 'claude', folder: work })) as { session: { id: string } };
+  writeFileSync(join(root, 'chat.json'), '{"idleCloseMinutes":60}'); // no `list` follows
+  await clock.advance(61 * 60_000); // the session closes at 30 minutes, and the pass at the hour reads the file
+  await client.request('resume', { sessionId: session.id });
+  await clock.advance(60 * 60_000 - 1);
+  expect(claude.conversations[1]!.closed).toBe(false);
+  await clock.advance(1);
+  expect(claude.conversations[1]!.closed).toBe(true);
+  client.close();
+});
+
 test('a client that lists the sessions every few seconds keeps the host up but not the idle sessions: the one nobody reads closes, the one read stays', async () => {
   const claude = new FakeChatRunner();
   const { clock, exit } = await host(new FakeClock(), claude);

@@ -78,6 +78,8 @@ The app replaces them only when doing so loses nothing:
 
 `carrier --version` prints the installed version; a process started before the upgrade runs the old one until it is restarted.
 
+- **A chat host that will not start after going back to an older `carrier`** names `idleCloseMinutes` (or `worktreeStart`) as an unrecognized key of `chat.json`: the file is strict and the older version does not know what a newer one wrote. Remove that key from `<folder>/chat.json`, or upgrade `carrier` again.
+
 ### The update key was lost
 
 Each release's zip is signed with the update key. If its private half is lost, the next release cannot be signed with the key the installed apps trust, so Sparkle refuses it as improperly signed; the apps keep working but stop updating, and the key cannot be rotated with an ad hoc signature ([releasing, the update key](releasing.md#4-the-update-key)). The owner makes a new pair, puts its public half in `macos/update-key.pub`, sets the repository secret `SPARKLE_PRIVATE_KEY` and cuts a release. People who already have Carrier then run `brew reinstall --cask carrier`, which brings a zip with the new public key; only those who run it are updated again, and their Carrier folder is left alone.

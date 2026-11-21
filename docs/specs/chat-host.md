@@ -19,7 +19,7 @@ A chat host: a process of its own with its own lock, its own control socket and 
 A client starts it on demand. `carrier chat` looks for a host on the socket and, finding none, starts `carrier chat-host` detached, the way `carrier start` starts the engine ([0010](../adr/0010-carrier-runs-in-the-background-as-a-detached-process.md)), and waits for the socket to answer. `chat-host` runs the host in the foreground and is also how it is debugged. The host starts with only the Carrier folder, `~/.carrier/` or `CARRIER_HOME`: no engine config is needed, and every key of `chat.json` has a default. Nothing starts a host but a client that wants a chat.
 
 A session is live while its agent process runs.
-An idle session that no request has named for ten minutes is closed, whoever is connected: reading its `events`, sending to it or changing its options names it, and listing the sessions does not.
+An idle session that no request has named for ten minutes (`idleCloseMinutes` of `chat.json`: 10, 30 or 60) is closed, whoever is connected: reading its `events`, sending to it or changing its options names it, and listing the sessions does not.
 Its process ends, the session stays in the list and resumes by its id.
 A client that holds a session open without reading it (the terminal chat at its prompt) asks after it now and then.
 A session that is working, or waiting for an approval, is kept live; one with a running subagent is working, even after its turn ended (the SDK runs subagents in the background), and is idle only when its turn is over and every subagent ended, so archive, delete and the idle close treat it as working.
@@ -107,7 +107,7 @@ The chat inside the engine process, for tying conversations to the engine's stop
 7. `--list` shows the sessions with their folder, agent, state and age; a session can be archived, unarchived and deleted from the terminal (`--archive`, `--unarchive`, `--delete`), and a deleted one leaves nothing behind.
 8. The same conversation works with Codex through the same port, or the epic closes without Codex if its spike failed.
 9. A folder that does not exist, is not a directory, or is inside the engine's folder is refused with a reason.
-10. The host starts with the first chat, closes an idle session that no request named for ten minutes, exits one minute after the last live session and client are gone, and `--stop` ends it at once; stopping or restarting the engine changes none of this.
+10. The host starts with the first chat, closes an idle session that no request named for ten minutes by default (`idleCloseMinutes`), exits one minute after the last live session and client are gone, and `--stop` ends it at once; stopping or restarting the engine changes none of this.
 11. Every message, tool call and approval is stored in the transcript redacted and bounded, and each turn records its model, outcome, duration, tool calls and usage.
 12. After a host crash, the next host start ends the agent processes the dead one left and marks those sessions closed and resumable.
 13. A developer can test the host, the socket and the client with a fake runner and a temporary SQLite, with no provider installed.

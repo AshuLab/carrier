@@ -4,7 +4,7 @@ import CarrierCore
 /// The groups of the status menu under the epics: Sessions, then Terminals and Dictation. Each is a section header and its rows, put before the
 /// Sleep row (the anchor) and rebuilt each time the menu opens, so a closed menu costs nothing and what it says is never stale. They are fed
 /// what the app already keeps alive (the session list `watchChatSessions` polls, the terminals' store, the dictation history), never fetched.
-@MainActor final class StatusMenuGroups: NSObject {
+@MainActor final class StatusMenuGroups: NSObject, NSMenuItemValidation {
     static let shared = StatusMenuGroups()
 
     /// Marks the Sleep row: the groups go before it.
@@ -20,7 +20,7 @@ import CarrierCore
     func rebuild(_ menu: NSMenu) {
         for item in menu.items where item.tag == Self.tag { menu.removeItem(item) }
         guard let anchor = menu.items.firstIndex(where: { $0.tag == Self.anchorTag }) else { return }
-        let items = sessionItems() + terminalItems()
+        let items = sessionItems() + terminalItems() + dictationItems()
         for (offset, item) in items.enumerated() {
             item.tag = Self.tag
             menu.insertItem(item, at: anchor + offset)
@@ -100,6 +100,63 @@ import CarrierCore
     }
 
     @objc private func newTerminal() { WindowController.shared.openNewTerminal() }
+
+    // MARK: dictation
+
+    private func dictationItems() -> [NSMenuItem] {
+        let preferences = AppPreferences()
+        let now = Date()
+        var items = [NSMenuItem.sectionHeader(title: "Dictation")]
+        let dictate = rowItem("Dictate now", secondary: preferences.dictationShortcut.text, symbol: "mic", action: #selector(dictateNow))
+        items.append(dictate)
+
+        // what the person said and kept: only what ended in a paste or a copy, the newest first; with the text not kept there is none to offer
+        let kept = DictationController.shared.records.entries.filter { $0.outcome == .pasted || $0.outcome == .copied }.prefix(5)
+        let last = rowItem(
+            "Copy last transcript", secondary: kept.first.map { spokenAge($0.started, now: now) } ?? (preferences.dictationKeepText ? nil : "text is not kept"),
+            symbol: "doc.on.doc", action: #selector(copyTranscript(_:)))
+        last.representedObject = kept.first?.shown
+        items.append(last)
+
+        let parent = NSMenuItem(title: "Last transcripts", action: nil, keyEquivalent: "")
+        showIcon("clock.arrow.circlepath", on: parent)
+        let submenu = NSMenu(title: "Last transcripts")
+        for entry in kept {
+            let item = rowItem(entry.shown, secondary: spokenAge(entry.started, now: now), symbol: "text.quote", action: #selector(copyTranscript(_:)))
+            item.representedObject = entry.shown
+            submenu.addItem(item)
+        }
+        if kept.isEmpty == false { submenu.addItem(.separator()) }
+        submenu.addItem(plain("Open history…", symbol: "list.bullet", action: #selector(openHistory)))
+        parent.submenu = submenu
+        items.append(parent)
+        items.append(.separator())
+        return items
+    }
+
+    @objc private func dictateNow() { GlobalDictationController.shared.dictateFromMenu() }
+
+    @objc private func copyTranscript(_ item: NSMenuItem) {
+        guard let text = item.representedObject as? String else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        AccessibilityNotification.Announcement("Copied").post()
+    }
+
+    @objc private func openHistory() {
+        WindowController.shared.showSettings(place: SettingsPlace(.dictation, path: [DictationScreen.history.rawValue]))
+    }
+
+    /// A menu enables its items by asking their target, so what cannot be done now is said here and not set on the item.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        switch item.action {
+        case #selector(dictateNow):
+            let preferences = AppPreferences()
+            return globalDictationIsOn(dictation: preferences.dictationEnabled, global: preferences.dictationGlobal)
+        case #selector(copyTranscript(_:)): return item.representedObject is String
+        default: return true
+        }
+    }
 
     // MARK: pieces
 

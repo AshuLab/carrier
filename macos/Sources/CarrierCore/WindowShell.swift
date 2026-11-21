@@ -204,7 +204,14 @@ public struct ArchiveRequest: Equatable {
                 archiveRequest = ArchiveRequest(sessionId: id, count: (archiveRequest?.count ?? 0) + 1)
             }
         case .conversation(let action):
-            if case .session = selection { conversationRequest = ConversationRequest(action: action, count: (conversationRequest?.count ?? 0) + 1) }
+            // the draft of a new session has a message box too, which takes the two actions that are about a box
+            let asked: Bool
+            switch selection {
+            case .session: asked = true
+            case .newSession: asked = action == .focusBox || action == .dictate
+            default: asked = false
+            }
+            if asked { conversationRequest = ConversationRequest(action: action, count: (conversationRequest?.count ?? 0) + 1) }
         }
     }
 

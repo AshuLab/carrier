@@ -77,6 +77,22 @@ public func removingProjectTag(_ tag: String, from tags: [String]) -> [String] {
     tags.filter { $0 != tag }
 }
 
+/// Whether the project's folder is there to open.
+public enum ProjectStatus: Equatable, Sendable {
+    case ready
+    /// The folder no longer exists (moved or deleted): the list says so and the page offers Locate….
+    case notFound
+
+    /// What the list and the page say for it; nil when there is nothing to say.
+    public var text: String? { self == .notFound ? "Folder not found" : nil }
+}
+
+/// Whether `path` (written with `~` or not) is a folder that exists.
+public func projectFolderExists(_ path: String) -> Bool {
+    var isFolder: ObjCBool = false
+    return FileManager.default.fileExists(atPath: (path as NSString).expandingTildeInPath, isDirectory: &isFolder) && isFolder.boolValue
+}
+
 /// One project of the list.
 public struct ProjectRow: Equatable, Identifiable, Sendable {
     /// The project's identity, as the file has it.
@@ -88,6 +104,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     /// `owner/name` of its GitHub `origin`, when it has one.
     public let repo: String?
     public let pinned: Bool
+    /// `notFound` when its folder is gone.
+    public let status: ProjectStatus
     public let tags: [String]
     public let iconColor: ProjectColor?
     public let iconMark: AppIcon?
@@ -105,6 +123,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         customName: String? = nil,
         repo: String?,
         pinned: Bool = false,
+        status: ProjectStatus = .ready,
         tags: [String] = [],
         iconColor: ProjectColor? = nil,
         iconMark: AppIcon? = nil,
@@ -118,6 +137,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         self.customName = customName
         self.repo = repo
         self.pinned = pinned
+        self.status = status
         self.tags = tags
         self.iconColor = iconColor
         self.iconMark = iconMark
@@ -152,8 +172,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public var tile: ProjectTile { projectTile(name: name, colorKey: colorKey, color: iconColor, mark: iconMark, image: iconImage) }
 }
 
-/// A row for each entry, in the file's order; `remote` says the GitHub `owner/name` of a folder, if any.
-public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? = originRepo(ofFolder:)) -> [ProjectRow] {
+/// A row for each entry, in the file's order; `remote` says the GitHub `owner/name` of a folder, if any, and `exists` whether the folder is there.
+public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? = originRepo(ofFolder:), exists: (String) -> Bool = projectFolderExists) -> [ProjectRow] {
     entries.map {
         ProjectRow(
             path: $0.path,
@@ -161,6 +181,7 @@ public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? =
             customName: $0.name,
             repo: remote($0.path),
             pinned: $0.pinned,
+            status: exists($0.path) ? .ready : .notFound,
             tags: $0.tags,
             iconColor: $0.iconColor.flatMap(ProjectColor.init(rawValue:)),
             iconMark: $0.iconMark.flatMap(AppIcon.init(rawValue:)),
@@ -427,6 +448,20 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
         var added: ProjectAdd?
         _ = write { added = try file.add(folder: folder) }
         return added
+    }
+
+    /// Points the project at `path` to `folder`, its new place, after the check for folders that cannot be projects; everything else of the entry stays and
+    /// so do the sessions that remember the old path. False when nothing was written: `failure` says why, or `problems` when the file does not match.
+    @discardableResult public func locate(path: String, to folder: String) -> Bool {
+        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) {
+            failure = refusal
+            return false
+        }
+        if rows.contains(where: { $0.path != path && isSameFolder($0.path, folder) }) {
+            failure = "That folder is already a project"
+            return false
+        }
+        return write { try file.locate(path: path, to: folder) }
     }
 
     /// Clears the last add failure (for example when a sheet is dismissed).

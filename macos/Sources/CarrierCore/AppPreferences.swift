@@ -22,6 +22,9 @@ public struct AppPreferences {
     public static let monospaceLineNumbersKey = "appearance.mono.lineNumbers"
     public static let statesByShapeKey = "appearance.statesByShape"
     public static let messageWidthKey = "appearance.messageWidth"
+    public static let chatTextSizeKey = "chat.textSize"
+    public static let chatLineSpacingKey = "chat.lineSpacing"
+    public static let chatMessageSpacingKey = "chat.messageSpacing"
     public static let chatSurfaceKey = "chat.surface"
     public static let sendKeyKey = "chat.sendKey"
     public static let whileWorkingKey = "chat.whileWorking"
@@ -106,6 +109,8 @@ public struct AppPreferences {
     public static let defaultColorScheme = ColorSchemeChoice.system
     public static let defaultDensity = Density.comfortable
     public static let defaultMessageWidth = MessageWidth.medium
+    public static let defaultChatLineSpacing = ChatLineSpacing.normal
+    public static let defaultChatMessageSpacing = MessageSpacing.comfortable
     public static let defaultChatSurface = ChatSurface.glass
     public static let defaultTheme = Theme.carrier
     public static let defaultTint = Tint.off
@@ -256,6 +261,24 @@ public struct AppPreferences {
     public var messageWidth: MessageWidth {
         get { defaults.string(forKey: Self.messageWidthKey).flatMap(MessageWidth.init(rawValue:)) ?? Self.defaultMessageWidth }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.messageWidthKey) }
+    }
+
+    /// The size of the text of the messages, in points: the chat's own, apart from the text size of the app.
+    public var chatTextSize: CGFloat {
+        get { ChatText.clamped(CGFloat(defaults.object(forKey: Self.chatTextSizeKey) as? Double ?? Double(ChatText.defaultSize))) }
+        nonmutating set { defaults.set(Double(ChatText.clamped(newValue)), forKey: Self.chatTextSizeKey) }
+    }
+
+    /// The room between the lines of a message.
+    public var chatLineSpacing: ChatLineSpacing {
+        get { defaults.string(forKey: Self.chatLineSpacingKey).flatMap(ChatLineSpacing.init(rawValue:)) ?? Self.defaultChatLineSpacing }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.chatLineSpacingKey) }
+    }
+
+    /// The room between the messages of a conversation.
+    public var chatMessageSpacing: MessageSpacing {
+        get { defaults.string(forKey: Self.chatMessageSpacingKey).flatMap(MessageSpacing.init(rawValue:)) ?? Self.defaultChatMessageSpacing }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.chatMessageSpacingKey) }
     }
 
     /// How the conversation draws its cards, bubbles and box: glass, or flat.
@@ -643,6 +666,7 @@ public struct AppPreferences {
             [
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, showsContextUsageKey, followsOutputKey, messageTimesKey,
                 toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey, messageWidthKey, chatSurfaceKey,
+                chatTextSizeKey, chatLineSpacingKey, chatMessageSpacingKey,
             ]
         // the ages of the session clock live in chat.json: the page's own Reset writes them back
         case .sessions: [confirmDeleteKey, newSessionAgentKey, newSessionModelKey, newSessionEffortKey, newSessionAccessKey, workInKey]
@@ -735,7 +759,50 @@ public enum Density: String, CaseIterable {
     /// A session's row in the sidebar has room around its lines: it can have three of them.
     public var sessionRowPadding: CGFloat { self == .compact ? 7 : 12 }
     public var sessionLineGap: CGFloat { self == .compact ? 3 : 5 }
-    public var messageGap: CGFloat { self == .compact ? 8 : 12 }
+}
+
+/// The text of the messages: the chat's own size in points, which the text size of the app does not multiply.
+public enum ChatText {
+    public static let defaultSize: CGFloat = 13
+    public static let sizeRange: ClosedRange<CGFloat> = 11...20
+
+    /// `size` rounded to a whole point and kept inside `sizeRange`; the default for a number that is not one.
+    public static func clamped(_ size: CGFloat) -> CGFloat {
+        size.isNaN ? defaultSize : min(max(size.rounded(), sizeRange.lowerBound), sizeRange.upperBound)
+    }
+}
+
+/// The room between the lines of a message, on top of the font's own.
+public enum ChatLineSpacing: String, CaseIterable {
+    case tight, normal, loose
+
+    public var title: String { rawValue.capitalized }
+
+    /// A share of the font's size: normal is the 4 points a 13-point message has always had.
+    public func extra(forSize size: CGFloat) -> CGFloat {
+        switch self {
+        case .tight: size * 2 / 13
+        case .normal: size * 4 / 13
+        case .loose: size * 7 / 13
+        }
+    }
+
+    /// What the person's bubble adds: it never had room between its lines, so Normal adds none and Loose only what it has over Normal.
+    public func extraOverNormal(forSize size: CGFloat) -> CGFloat { max(0, extra(forSize: size) - Self.normal.extra(forSize: size)) }
+}
+
+/// The room between the messages of a conversation, in points.
+public enum MessageSpacing: String, CaseIterable {
+    case compact, comfortable, spacious
+
+    public var title: String { rawValue.capitalized }
+    public var gap: CGFloat {
+        switch self {
+        case .compact: 8
+        case .comfortable: 12
+        case .spacious: 20
+        }
+    }
 }
 
 /// How wide the column of a conversation is, in points: the most its messages take before they wrap.

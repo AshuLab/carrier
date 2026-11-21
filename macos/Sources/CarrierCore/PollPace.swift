@@ -3,8 +3,8 @@ import Synchronization
 
 /// How often the app asks the chat host and the engine how things are. While the person is looking (the app is active and its window is
 /// on screen) every 2 seconds, so a change shows within a moment; otherwise every 5 seconds, which is still prompt for a notification
-/// (a session that waits for the person) and a fifth of what it was, and every 10 in Low Power Mode. Never above a minute: the chat host
-/// closes a session that nobody has asked after a minute, and the app asking is what keeps the open ones awake (`clientJoined` in the host).
+/// (a session that waits for the person) and a fifth of what it was, and every 10 in Low Power Mode. This pace keeps no session awake: the chat
+/// host closes an idle session that no request about it names for ten minutes, and listing the sessions names none (a conversation's own `events` do).
 /// It has no state of its own to decide: `Viewing` writes it, for the threads that cannot read an object of the main actor.
 public final class PollPace: Sendable {
     public static let shared = PollPace()

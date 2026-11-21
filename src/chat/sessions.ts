@@ -34,7 +34,8 @@ const log = createScopedLogger('chat');
 
 const noPullRequests: PullRequests = { find: async () => null, states: async () => new Map() };
 
-export const IDLE_CLOSE_MS = 60_000;
+/** An idle session that no request has named for this long is closed: its agent, with every MCP server the person has, holds most of a gigabyte. */
+export const IDLE_CLOSE_MS = 10 * 60_000;
 /** The children of one session that may work or wait for an approval at the same time ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). */
 const MAX_RUNNING_CHILDREN = 4;
 /** How much of a done child's last message `delegate_wait` answers. */
@@ -158,7 +159,6 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const notSwitching = (sessionId: string) => {
     if (switching.has(sessionId)) throw new ChatRefused('This session is switching to another agent; try again in a moment');
   };
-  let clients = 0;
 
   const exists = (sessionId: string) => db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, sessionId)).get() !== undefined;
   const row = (sessionId: string) => {
@@ -255,10 +255,21 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     return run;
   };
 
-  // An idle session with no client attached is closed after a minute; working or waiting ones are kept, and so is one that waits for something it started in the background.
+  // An idle session that no request has named for IDLE_CLOSE_MS is closed (reading its events, sending to it or changing its options names it; listing the
+  // sessions does not); working or waiting ones are kept, and so is one that waits for something it started in the background.
   const armIdle = (sessionId: string, live: Live) => {
     live.cancelIdle?.();
-    live.cancelIdle = live.state === 'idle' && live.background.length === 0 && clients === 0 && !switching.has(sessionId) ? clock.after(IDLE_CLOSE_MS, async () => void (await close({ sessionId }))) : undefined;
+    live.cancelIdle = live.state === 'idle' && live.background.length === 0 && !switching.has(sessionId)
+      ? clock.after(IDLE_CLOSE_MS, async () => {
+          log.info('closed a session that no request had named', { sessionId });
+          await close({ sessionId });
+        })
+      : undefined;
+  };
+  /** A request named this session: a live one that is idle starts its idle time again. */
+  const renew = (sessionId: string) => {
+    const live = lives.get(sessionId);
+    if (live !== undefined) armIdle(sessionId, live);
   };
   /** What `delegate_wait` is waiting on: called whenever a session changes state. */
   const waiters = new Set<() => void>();
@@ -981,14 +992,6 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
   return {
     liveCount: () => new Set([...lives.keys(), ...preparing.keys()]).size,
-    clientJoined() {
-      clients++;
-      for (const live of lives.values()) live.cancelIdle?.();
-    },
-    clientLeft() {
-      clients--;
-      for (const [sessionId, live] of lives) armIdle(sessionId, live);
-    },
 
     agents: listAgents,
 
@@ -1275,6 +1278,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const live = lives.get(sessionId);
       if (live === undefined) throw new ChatRefused('This session is closed');
       checkOption(live.conversation.options, option, value);
+      renew(sessionId);
       try {
         await live.conversation.setOption(option, value);
       } catch (error) {
@@ -1292,6 +1296,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
      */
     events({ sessionId, after = 0, limit, reasoning = false, lists }: { sessionId: string; after?: number; limit: number; reasoning?: boolean; lists?: string }) {
       const current = row(sessionId);
+      renew(sessionId);
       const rows = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), gt(chatEvents.id, after), reasoning ? undefined : ne(chatEvents.kind, 'reasoning'))).orderBy(asc(chatEvents.id)).limit(limit).all();
       const live = lives.get(sessionId);
       const options = live?.conversation.options ?? [];

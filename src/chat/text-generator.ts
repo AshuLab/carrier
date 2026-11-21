@@ -6,7 +6,11 @@ import { localLabel, localUrl } from '../harnesses/local.ts';
  * A generator that cannot answer rejects with a `TextGeneratorFailed` that says why: no generator chosen, server down, model missing, time-out or no text.
  * The real one is `realTextGenerator`; the test double is `FakeTextGenerator` in `fake.ts`.
  */
-export type TextGenerator = { generate(input: { system: string; text: string }): Promise<string> };
+export type TextGenerator = {
+  generate(input: { system: string; text: string }): Promise<string>;
+  /** Throws `TextGeneratorFailed` when no generator is configured (checked before bulk work starts). */
+  chosen?(): void;
+};
 
 /** Why a generator gave no text, in words for the person: a fixed sentence, never what the server said. */
 export class TextGeneratorFailed extends Error {}
@@ -19,6 +23,9 @@ export const noGeneratorChosen = 'no text generator is chosen; choose one in Pro
 
 /** What the host has in a test that names no generator. */
 export const noTextGenerator: TextGenerator = {
+  chosen() {
+    throw new TextGeneratorFailed(noGeneratorChosen);
+  },
   async generate() {
     throw new TextGeneratorFailed(noGeneratorChosen);
   },
@@ -27,17 +34,22 @@ export const noTextGenerator: TextGenerator = {
 // The measured settings of the spike (docs/research/session-titles-model-and-prompt.md): the cap leaves room for a model that reasons before it answers.
 const MAX_TOKENS = 3000;
 
+function chosenGenerator() {
+  const read = readProvidersFile();
+  if (read.ok === false) throw new TextGeneratorFailed(`providers.json does not match: ${read.errors[0]!.path}: ${read.errors[0]!.message}`);
+  if (read.textGenerator === undefined) throw new TextGeneratorFailed(noGeneratorChosen);
+  return read.textGenerator;
+}
+
 /**
  * Calls the chosen server's `/v1/chat/completions` (LM Studio and Ollama both serve it) on its default port, with the generator
  * `providers.json` names now (read at each call). `fetch` and the limit are replaceable for a test.
  */
 export function realTextGenerator({ fetcher = fetch, timeoutMs = TEXT_GENERATOR_LIMIT_MS }: { fetcher?: typeof fetch; timeoutMs?: number } = {}): TextGenerator {
   return {
+    chosen: () => void chosenGenerator(),
     async generate({ system, text }) {
-      const read = readProvidersFile();
-      if (read.ok === false) throw new TextGeneratorFailed(`providers.json does not match: ${read.errors[0]!.path}: ${read.errors[0]!.message}`);
-      if (read.textGenerator === undefined) throw new TextGeneratorFailed(noGeneratorChosen);
-      const { kind, model } = read.textGenerator;
+      const { kind, model } = chosenGenerator();
       const server = localLabel[kind];
       const timedOut = (error: unknown) => error instanceof Error && error.name === 'TimeoutError';
       let response: Response;

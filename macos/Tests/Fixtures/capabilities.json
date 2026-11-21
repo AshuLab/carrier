@@ -49,6 +49,7 @@
     "fetchIfStale",
     "listsRev",
     "textGenerators",
-    "regenerateTitle"
+    "regenerateTitle",
+    "regenerateTitles"
   ]
 }

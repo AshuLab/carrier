@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { FakeClock } from '../orchestration/fake.ts';
 import type { Git, GitResult } from './git.ts';
 import { createProjects, type GithubRepos } from './projects.ts';
-import { TextGeneratorFailed, type TextGenerator } from './text-generator.ts';
+import { noGeneratorChosen, TextGeneratorFailed, type TextGenerator } from './text-generator.ts';
 import { ChatRefused, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 
 /**
@@ -109,6 +109,10 @@ export class FakeTextGenerator implements TextGenerator {
   mostRunning = 0;
   /** Set to hold each answer until the test calls it; the answer then goes out. */
   held: (() => void)[] | undefined;
+
+  chosen() {
+    if (this.fail === noGeneratorChosen) throw new TextGeneratorFailed(noGeneratorChosen);
+  }
 
   async generate(input: { system: string; text: string }) {
     this.calls.push(input);

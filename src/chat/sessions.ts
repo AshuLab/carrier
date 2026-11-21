@@ -1444,6 +1444,41 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       return { title };
     },
 
+    /** Starts writing a title with the chosen text generator for every session of the list and the archive whose title is still its first line, one at a time in the background, and answers how many it started. */
+    regenerateTitles() {
+      try {
+        textGenerator.chosen?.();
+      } catch (error) {
+        throw new ChatRefused(`Could not write titles: ${error instanceof TextGeneratorFailed ? error.message : 'no text generator is chosen; choose one in Providers'}`);
+      }
+      const candidates: { id: string; first: { id: number; text: string } }[] = [];
+      for (const found of db.select().from(sessions).where(isNull(sessions.parentSessionId)).orderBy(desc(sessions.lastActiveAt)).all()) {
+        if (deleting.has(found.id) || titleSourceOf(found) !== 'first_line') continue;
+        const first = firstMessage(found.id);
+        if (first !== undefined && first.text.trim() !== '') candidates.push({ id: found.id, first });
+      }
+      if (candidates.length > 0) {
+        void (async () => {
+          for (const { id, first } of candidates) {
+            if (closed) return;
+            const current = db.select().from(sessions).where(eq(sessions.id, id)).get();
+            if (current === undefined || deleting.has(id) || titleSourceOf(current) !== 'first_line') continue;
+            try {
+              const title = await generateTitle(id, first.text, firstReply(id, first.id));
+              if (closed) return;
+              const latest = db.select().from(sessions).where(eq(sessions.id, id)).get();
+              if (latest === undefined || deleting.has(id) || titleSourceOf(latest) !== 'first_line') continue;
+              db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, id)).run();
+            } catch {
+              if (closed) return;
+              // already logged in generateTitle; skip and go on with the rest
+            }
+          }
+        })();
+      }
+      return { started: candidates.length };
+    },
+
     /** Where the session's title came from, for the automatic title and the bulk one: `first_line`, `generated` or `renamed`, null when it has no title. */
     titleSource: (sessionId: string) => titleSourceOf(row(sessionId)),
 

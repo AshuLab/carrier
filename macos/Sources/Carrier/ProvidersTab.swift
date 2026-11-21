@@ -191,6 +191,9 @@ struct ProvidersTabView: View {
                         if server.generatorNote == nil { generatorChoice(server) }
                     }
                 }
+                if page.textGenerator != nil, store.canRegenerateTitles {
+                    retitleEarlierRow
+                }
             } else {
                 // the installed carrier would refuse the whole file with these keys in it, so they are not offered until it is updated
                 SettingsTabRow(title: "Choosing is not available", detail: "The installed carrier does not know text generators yet. Update it (brew upgrade carrier) and restart the chat host to choose one", roomy: true) {
@@ -218,6 +221,32 @@ struct ProvidersTabView: View {
             )
         )
         .accessibilityLabel("Model of \(server.title)")
+    }
+
+    private var retitleEarlierRow: some View {
+        let detail = switch store.retitleOutcome {
+        case .started?: store.retitleOutcome!.words
+        case .refused?, nil: "Sessions whose title is still their first line"
+        }
+        let problem: String? = if case .refused(let reason) = store.retitleOutcome { reason } else { nil }
+        return SettingsTabRow(title: "Titles of earlier sessions", detail: detail, problem: problem) {
+            HStack(spacing: 8) {
+                if store.retitling {
+                    ProgressView().controlSize(.small).accessibilityLabel("Starting")
+                }
+                Button {
+                    Task {
+                        await store.regenerateTitles()
+                        if let words = store.retitleOutcome?.words { AccessibilityNotification.Announcement(words).post() }
+                    }
+                } label: {
+                    Label("Write titles", icon: .sparkles)
+                }
+                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
+                .disabled(store.retitling)
+                .help("Starts writing titles in the background for earlier sessions")
+            }
+        }
     }
 
     // MARK: a provider

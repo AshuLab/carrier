@@ -824,7 +824,6 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
   }
 
-  let recovered = false;
   // Restart, before anything is reserved: stop what the previous process left alive, then continue each running
   // epic from where it was. Safe to repeat (GitHub may be down halfway): what it relaunched is `active` or running.
   async function recover() {
@@ -854,8 +853,15 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const wanted = labelOf(epic.status);
       if (ownedLabels.some((l) => labels.includes(l) !== (l === wanted)) || (epic.status === 'running' && labels.includes(readyLabel))) await applyLabels(epic);
     }
-    recovered = true;
   }
+  // One recovery at a time: a check asked while the start recovers waits for that one, never a second recoverEpic on the same epic. A failed one is
+  // forgotten, so the next check tries again.
+  let recovering: Promise<void> | null = null;
+  const recoverOnce = () =>
+    (recovering ??= recover().catch((e) => {
+      recovering = null;
+      throw e;
+    }));
 
   // A failed read keeps the last known values and the poll goes on: progress is only for show. A rejected profile is not "only for show".
   async function refreshProgress(repo: string) {
@@ -976,7 +982,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     try {
       // Fetch every repo before writing: a failure on any of them leaves the queue untouched.
       const found: { repo: string; issue: number; title: string; labels: string[] }[] = [];
-      if (!recovered) await recover();
+      await recoverOnce();
       for (const { name: repo } of repos()) {
         // GitHub answering for this one repo that it cannot be read (not found, no access) is that repo's check; the others go on.
         // What is about the whole cycle (the profile, GitHub down) stops it below.
@@ -1050,6 +1056,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   };
   const schedule = (ms: number) => {
     if (stopping) return;
+    cancel?.(); // a check asked during the start's recovery arms its own: only one chain of polls
     nextPollAt = clock.now() + ms;
     cancel = clock.after(ms, runPoll);
   };
@@ -1059,7 +1066,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       stopRetention = startRetention(db, places, clock, sessionDirs);
       // GitHub down: retried every cycle until it works.
       try {
-        await recover();
+        await recoverOnce();
       } catch (err) {
         log.error('startup step failed', err);
         failed(err);
@@ -1120,6 +1127,17 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
      * Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
      */
     async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string } = {}) {
+      // The socket answers while the start recovers, and the recovery is not the epic's wait: it is waited for on its own, up to the same 30 seconds, and
+      // refused before anything is touched when it takes longer (the label is not put, the chosen options are not kept), so the client has not given up first.
+      if (recovering) {
+        let giveUp = () => {};
+        const waited = await Promise.race([
+          recovering.then(() => true, () => true),
+          new Promise<boolean>((resolve) => (giveUp = clock.after(resumeWaitMs, async () => resolve(false)))),
+        ]);
+        giveUp();
+        if (!waited) throw new ResumeRefused('did not restart');
+      }
       const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
       if (!epic) throw new ResumeRefused('unknown epic');
       if (epic.status !== 'needs_human') throw new ResumeRefused('not stopped');

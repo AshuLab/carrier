@@ -143,15 +143,6 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
   };
   // Before the engine starts: its recovery may launch agents already, and Ctrl+C has to stop them.
   const shutdown = deps.onSigint({ engine, close });
-  try {
-    await engine.start();
-  } catch (error) {
-    await engine.shutdown(); // recovery may have launched agents already
-    close();
-    throw error;
-  }
-  // Only now: until the engine is up the terminal belongs to whoever is waiting for it (the "Starting…" spinner).
-  deps.onArrived?.();
   const snapshot = () => {
     const limit = github.rateLimit();
     return buildSnapshot(db, {
@@ -199,7 +190,18 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
         }
       }),
   };
-  stopControl = (await startControlServer({ stateDir: places.state, snapshot, startedAt, controls, stop: shutdown })).close;
+  // Before the recovery: the snapshot and the read requests only read SQLite, and a check or a resume asked meanwhile shares the start's recovery.
+  // Until then the snapshot has no next check, which the app and the panel show as starting.
+  try {
+    stopControl = (await startControlServer({ stateDir: places.state, snapshot, startedAt, controls, stop: shutdown })).close;
+    await engine.start();
+  } catch (error) {
+    await engine.shutdown(); // recovery may have launched agents already
+    close();
+    throw error;
+  }
+  // Only now: until the engine is up the terminal belongs to whoever is waiting for it (the "Starting…" spinner).
+  deps.onArrived?.();
   const detail = (repo: string, issue: number) => controls.sessions(repo, issue)?.sessions ?? null;
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
   stopPanel =

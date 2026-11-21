@@ -72,7 +72,7 @@ const ask = () =>
     });
   });
 
-test('startCarrier opens the socket once the engine is up, serves the panel\'s snapshot, and close removes it before the lock is released', async () => {
+test('startCarrier opens the socket, serves the panel\'s snapshot, and close removes it before the lock is released', async () => {
   const app = await startCarrier(config(), root, config, deps());
   closers.push(() => app.close());
 

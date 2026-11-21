@@ -1860,6 +1860,43 @@ test('a restart stops the live orphan before launching, resumes its session and 
   expect(runner.tasks.map((t) => t.epic)).toEqual([1, 2]);
 });
 
+// A check can arrive while the start recovers (the control socket opens before the recovery): it must wait for that recovery, not run a second one.
+async function startWhileRecovering() {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'interrupted' });
+  let open1!: () => void;
+  const gate = new Promise<void>((resolve) => (open1 = resolve));
+  workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
+  runner.behavior = () => ({ exit: 'hang' });
+  settings = { pollIntervalMs: 5 * MIN, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
+  watched = repos;
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, places: enginePlacesOf(dir) });
+  const started = engine.start();
+  const checked = engine.pollNow();
+  await settle();
+  open1();
+  await Promise.all([started, checked]);
+  await settle();
+  return engine;
+}
+
+test('a check asked while the start recovers shares that recovery: one agent per interrupted epic', async () => {
+  const engine = await startWhileRecovering();
+  expect(runner.tasks).toHaveLength(1);
+  engine.stop();
+});
+
+test('a check asked while the start recovers leaves one chain of polls, not two', async () => {
+  const engine = await startWhileRecovering();
+  const before = github.calls;
+  await clock.advance(5 * MIN);
+  expect(github.calls - before).toBe(repos.length); // one listing per repo for the interval
+  await clock.advance(5 * MIN);
+  expect(github.calls - before).toBe(2 * repos.length);
+  engine.stop();
+});
+
 test('a restart leaves alone a live agent this root never launched', async () => {
   const db = open();
   seedEpic(db, 1);
@@ -2718,6 +2755,38 @@ test('resumeEpic with GitHub failing is refused as github unavailable and the ep
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   github.authError = new AuthError('orchestrator');
   expect(await refusal(engine.resumeEpic('AshuLab/a', 1))).toBe('github unavailable');
+});
+
+test('a resume asked while the start recovers waits for it up to thirty seconds, and a longer one is refused before the label goes on', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'interrupted' });
+  seedEpic(db, 2, { status: 'needs_human' });
+  let open1!: () => void;
+  const gate = new Promise<void>((resolve) => (open1 = resolve));
+  workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
+  runner.behavior = () => ({ exit: 'hang' });
+  github.ready = { 'AshuLab/a': ready(2) };
+  settings = { pollIntervalMs: 5 * MIN, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
+  watched = repos;
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, places: enginePlacesOf(dir) });
+  const setLabels = vi.spyOn(github, 'setLabels');
+  const started = engine.start();
+  const refused = refusal(engine.resumeEpic('AshuLab/a', 2));
+  await flush();
+  await clock.advance(30_000); // the recovery is still going: the client would give up soon, so the resume says so now
+  expect(await refused).toBe('did not restart');
+  expect(setLabels).not.toHaveBeenCalledWith('AshuLab/a', 2, expect.anything()); // nothing was changed
+  expect(rows(db).find((r) => r.issue === 2)).toMatchObject({ status: 'needs_human' });
+
+  open1();
+  await started;
+  const resumed = engine.resumeEpic('AshuLab/a', 2); // the recovery is over: it has its own thirty seconds
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  expect(rows(db).find((r) => r.issue === 2)).toMatchObject({ status: 'running' });
+  engine.stop();
 });
 
 test('resumeEpic on an epic that has not restarted thirty seconds after the label answers did not restart and leaves the label on', async () => {

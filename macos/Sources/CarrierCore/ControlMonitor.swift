@@ -102,7 +102,7 @@ public final class ControlMonitor {
                 // This thread lives as long as the app, and its own pool drains when it ends: each pass frees what Foundation autoreleased in it
                 // (the JSON writer, its buffer, the strings of the reply), or the app grows about 1 MB a minute while idle.
                 try autoreleasepool {
-                    onChange(.running(try decodeSnapshot(client.request("snapshot"))))
+                    onChange(.running(try client.snapshot()))
                     try tick(client)
                 }
                 if wait(pollEvery?() ?? pollInterval) == false { return false }

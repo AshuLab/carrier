@@ -439,6 +439,35 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     #expect(await idle.background.isEmpty)
 }
 
+@Test func aPollOverTheSocketAsksTheHostForEventsAndForNoList() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    // the fixture's session that waits for a build, and an archived one
+    for id in ["9b8c7d6e-5f4a-4b3c-8d2e-1f0a9b8c7d07", "d4e5f6a7-3b2c-4d9e-8f1a-2b3c4d5e6f04"] {
+        let model = await ConversationModel(host: host, sessionId: id)
+        await model.poll()
+        await model.poll()
+    }
+    #expect(server.chatRequests["list"] == nil && server.chatRequests["events"] == 4)
+    let archived = await ConversationModel(host: host, sessionId: "d4e5f6a7-3b2c-4d9e-8f1a-2b3c4d5e6f04")
+    await archived.poll()
+    #expect(await archived.archived)
+    #expect(await archived.live == false)
+    #expect(await archived.agent == "codex")
+}
+
+@Test func theSummaryOfEventsGivesFactsOnlyWhenTheHostSaysWhetherTheSessionRuns() throws {
+    func decode(_ session: String) throws -> ChatEvents {
+        try JSONDecoder().decode(ChatEvents.self, from: Data(#"{"events":[],"cursor":0,"streaming":"","session":\#(session)}"#.utf8))
+    }
+    let new = try decode(#"{"state":"idle","agent":"claude","archived":false,"live":true,"background":[{"id":"b","kind":"local_bash","description":"pnpm build","startedAt":5}]}"#)
+    #expect(new.facts?.live == true && new.facts?.agent == "claude" && new.facts?.background.map(\.id) == ["b"])
+    // a host that predates the fields says what it always did: the model reads the lists
+    #expect(try decode(#"{"state":"idle","agent":"claude","archived":false}"#).facts == nil)
+    #expect(try decode(#"{"state":"working"}"#).facts == nil && (try decode(#"{"state":"working"}"#)).state == .working)
+}
+
 @Test func aBackgroundTaskKnowsWhenItBeganAndTheCardsLineTakesTheTasksInTurn() throws {
     let task = try JSONDecoder().decode(BackgroundTask.self, from: Data(#"{"id":"b","kind":"local_bash","description":"pnpm build","startedAt":1792000000000}"#.utf8))
     #expect(task.startedAt == Date(timeIntervalSince1970: 1_792_000_000) && task.name == "pnpm build")
@@ -484,6 +513,13 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var failing: Error?
     var asked: [(after: Int, limit: Int)] = []
     var live = true
+    /// Whether the session is in the archive, for `list(archived:)` and the summary of `events`.
+    var archivedSession = false
+    /// The `list` requests made, by whether they asked for the archive.
+    var listed: [Bool] = []
+    /// A host that predates `live` in the summary of `events` leaves it out, and the model reads the lists.
+    var summaryHasLive = true
+    var background: [BackgroundTask] = []
     var refusing: ControlError?
     var sent: [String] = []
     var resumed = 0
@@ -525,8 +561,14 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     func suggestName(_ folder: String) async throws -> String { "" }
     func checkName(_ folder: String, _ name: String) async throws -> NameCheck { NameCheck(valid: true, free: true) }
     func list(archived: Bool) async throws -> [ChatSession] {
-        let json = #"{"id":"s","agent":"claude","harness":"claude","folder":"/x","state":"idle","createdAt":1,"lastActiveAt":1,"archived":false,"live":\#(live)}"#
+        listed.append(archived)
+        guard archived == archivedSession else { return [] }
+        let json = #"{"id":"s","agent":"claude","harness":"claude","folder":"/x","state":"idle","createdAt":1,"lastActiveAt":1,"archived":\#(archived),"live":\#(live && archived == false)}"#
         return [try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))]
+    }
+    /// What the summary of an `events` reply says of the session, when the host does: as it is, an archived session that was resumed says `live`.
+    private var facts: SessionFacts? {
+        summaryHasLive ? SessionFacts(agent: "claude", archived: archivedSession, live: live, background: background) : nil
     }
     func resume(_ id: String) async throws {
         resumed += 1
@@ -554,14 +596,14 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
         }
         if stale {
             if asked.count > 20 { throw ControlError.closed }
-            return ChatEvents(events: Array(events.prefix(limit)), cursor: 0, streaming: streaming, state: state, preparation: preparation, progress: progress)
+            return ChatEvents(events: Array(events.prefix(limit)), cursor: 0, streaming: streaming, state: state, preparation: preparation, facts: facts, progress: progress)
         }
         if rewind {
             rewind = false
-            return ChatEvents(events: Array(events.prefix(limit)), cursor: 0, streaming: streaming, state: state, preparation: preparation, progress: progress)
+            return ChatEvents(events: Array(events.prefix(limit)), cursor: 0, streaming: streaming, state: state, preparation: preparation, facts: facts, progress: progress)
         }
         let page = Array(events.filter { $0.id > after }.prefix(limit))
-        return ChatEvents(events: page, cursor: page.last?.id ?? after, streaming: streaming, state: state, preparation: preparation, progress: progress)
+        return ChatEvents(events: page, cursor: page.last?.id ?? after, streaming: streaming, state: state, preparation: preparation, facts: facts, progress: progress)
     }
 }
 
@@ -736,6 +778,68 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     viewing.update(appActive: true, windowShown: true, asleep: false, lowPower: false, pace: pace)
     try? await Task.sleep(for: .milliseconds(100))
     #expect(model.nap.wakes == after)
+}
+
+@MainActor @Test func aHostThatSaysWhetherTheSessionRunsInItsEventsIsAskedForNoList() async {
+    let host = ScriptedHost()
+    host.background = [BackgroundTask(id: "b", kind: "local_bash", description: "pnpm build")]
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hi")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    await model.poll()
+    #expect(host.listed.isEmpty)
+    #expect(model.live && model.archived == false && model.agent == "claude" && model.background.map(\.id) == ["b"])
+    // what the summary says now is what the model shows now
+    host.live = false
+    host.background = []
+    await model.poll()
+    #expect(host.listed.isEmpty && model.live == false && model.background.isEmpty)
+}
+
+@MainActor @Test func anArchivedSessionIsKnownFromItsEventsAndAsksForNoList() async {
+    let host = ScriptedHost()
+    host.archivedSession = true
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hi")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(host.listed.isEmpty && model.archived && model.live == false && model.agent == "claude" && model.background.isEmpty)
+}
+
+@MainActor @Test func anArchivedSessionTheHostSaysIsLiveStaysArchivedWithNoBackgroundAndNotAsleep() async {
+    // close, archive, then resume: the host's summary says archived and live, with what the agent waits for
+    let host = ScriptedHost()
+    host.archivedSession = true
+    host.live = true
+    host.background = [BackgroundTask(id: "b", kind: "local_bash", description: "pnpm build")]
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hi")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(host.listed.isEmpty && model.archived && model.live == false && model.background.isEmpty && model.asleep == false)
+}
+
+@MainActor @Test func aSessionBeingPreparedIsNotShownAsClosedWhenTheSummaryOfItsEventsSaysSo() async {
+    let host = ScriptedHost()
+    host.live = false
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hi")]
+    let closed = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await closed.poll()
+    #expect(closed.asleep)
+    host.state = .preparing
+    let preparing = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await preparing.poll()
+    #expect(preparing.asleep == false && host.listed.isEmpty)
+}
+
+@MainActor @Test func aHostWhoseEventsLeaveOutLiveIsStillReadFromItsLists() async {
+    let host = ScriptedHost()
+    host.summaryHasLive = false
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hi")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(host.listed == [false] && model.live && model.agent == "claude")
+    host.archivedSession = true
+    await model.poll()
+    #expect(host.listed == [false, false, true] && model.archived && model.live == false)
 }
 
 @MainActor @Test func aSessionThatIsNotLiveIsClosedAndASendResumesItAndContinueSendsContinue() async throws {

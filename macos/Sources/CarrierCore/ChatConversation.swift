@@ -147,6 +147,19 @@ public struct ChatEvent: Codable, Equatable {
     }
 }
 
+/// What the summary of an `events` reply says of its session, the part of a row of `list` a conversation reads: its agent, whether it is in the archive,
+/// whether its agent process runs and what the agent waits for in the background.
+public struct SessionFacts: Equatable {
+    public let agent: String?
+    public let archived: Bool
+    public let live: Bool
+    public let background: [BackgroundTask]
+
+    public init(agent: String? = nil, archived: Bool = false, live: Bool, background: [BackgroundTask] = []) {
+        (self.agent, self.archived, self.live, self.background) = (agent, archived, live, background)
+    }
+}
+
 /// The reply of `events`: the page after the cursor, the cursor to ask from next and the text of the message being written.
 /// The session's state (from its summary) comes with it, as the model needs to know whether the agent is answering; so do the ids
 /// of the approvals still pending (the ones the person can answer) and the options, which the slice that draws them reads.
@@ -162,6 +175,8 @@ public struct ChatEvents: Decodable, Equatable {
     public let commands: [ChatCommand]
     /// How the session's preparation stands (from its summary), nil when it is not being prepared or the host does not say.
     public let preparation: ChatSession.Preparation?
+    /// What the session's summary says of the session itself, so the model asks for no list; nil from a host that does not say whether it runs.
+    public let facts: SessionFacts?
     /// The latest line of git's own progress while a clone runs; nil when there is none or the host leaves it out.
     public let progress: String?
     /// The host's name for this version of `options` and `commands`; nil from a host that does not say. Sent back in the next request, it makes
@@ -172,7 +187,7 @@ public struct ChatEvents: Decodable, Equatable {
 
     public init(
         events: [ChatEvent], cursor: Int, streaming: String = "", state: ChatSession.State? = nil, pending: Set<String> = [], options: [ChatOption] = [],
-        commands: [ChatCommand] = [], preparation: ChatSession.Preparation? = nil, progress: String? = nil, listsRev: String? = nil, listsUnchanged: Bool = false
+        commands: [ChatCommand] = [], preparation: ChatSession.Preparation? = nil, facts: SessionFacts? = nil, progress: String? = nil, listsRev: String? = nil, listsUnchanged: Bool = false
     ) {
         self.events = events
         self.cursor = cursor
@@ -182,6 +197,7 @@ public struct ChatEvents: Decodable, Equatable {
         self.options = options
         self.commands = commands
         self.preparation = preparation
+        self.facts = facts
         self.progress = progress
         self.listsRev = listsRev
         self.listsUnchanged = listsUnchanged
@@ -191,7 +207,7 @@ public struct ChatEvents: Decodable, Equatable {
     func with(options: [ChatOption], commands: [ChatCommand]) -> ChatEvents {
         ChatEvents(
             events: events, cursor: cursor, streaming: streaming, state: state, pending: pending, options: options, commands: commands,
-            preparation: preparation, progress: progress, listsRev: listsRev, listsUnchanged: false
+            preparation: preparation, facts: facts, progress: progress, listsRev: listsRev, listsUnchanged: false
         )
     }
 
@@ -199,14 +215,24 @@ public struct ChatEvents: Decodable, Equatable {
     private struct Summary: Decodable {
         let state: ChatSession.State
         let preparation: ChatSession.Preparation?
+        /// Only a host that says whether the session runs (`live`) gives these: with an older one the model reads the lists.
+        let facts: SessionFacts?
 
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
             state = try values.decode(ChatSession.State.self, forKey: .state)
             preparation = (try? values.decodeIfPresent(ChatSession.Preparation.self, forKey: .preparation)) ?? nil
+            if let live = try? values.decodeIfPresent(Bool.self, forKey: .live) {
+                facts = SessionFacts(
+                    agent: try? values.decodeIfPresent(String.self, forKey: .agent), archived: (try? values.decodeIfPresent(Bool.self, forKey: .archived)) ?? false,
+                    live: live, background: (try? values.decodeIfPresent([BackgroundTask].self, forKey: .background)) ?? []
+                )
+            } else {
+                facts = nil
+            }
         }
 
-        private enum CodingKeys: String, CodingKey { case state, preparation }
+        private enum CodingKeys: String, CodingKey { case state, preparation, agent, archived, live, background }
     }
     private struct Approval: Decodable { let approvalId: String }
 
@@ -218,6 +244,7 @@ public struct ChatEvents: Decodable, Equatable {
         let summary = try values.decodeIfPresent(Summary.self, forKey: .session)
         state = summary?.state
         preparation = summary?.preparation
+        facts = summary?.facts
         progress = try values.decodeIfPresent(String.self, forKey: .progress)
         pending = Set(try values.decodeIfPresent([Approval].self, forKey: .approvals)?.map(\.approvalId) ?? [])
         options = try values.decodeIfPresent([ChatOption].self, forKey: .options) ?? []
@@ -651,13 +678,13 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var canSwitchAgent = false
     public private(set) var switchTargets: [AgentChoice] = []
     public private(set) var switching = false
-    /// The session's agent, as the host's list names it; what the app saw last until the first answer, empty for a session that was never seen.
+    /// The session's agent, as the summary of the host's `events` names it (its list, for a host that does not say); what the app saw last until the first answer, empty for a session that was never seen.
     public private(set) var agent = ""
     /// Whether the session's agent process runs; a session that is not live shows the closed notice and resumes when a message is sent.
     public private(set) var live = true
     /// Whether the session is asleep: closed, and not on its way to another state (being archived, prepared or woken by a send). Only then the
     /// closed notice shows. It holds at once the first time the session is read; after that a session has to stay closed for a second, as
-    /// archiving closes it a moment before the host's list says it is archived.
+    /// archiving closes it a moment before the host says it is archived.
     public private(set) var asleep = false
     /// Whether a send is waking the session.
     public private(set) var waking = false
@@ -670,7 +697,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     private static let settle: TimeInterval = 1
     /// Whether the session is in the archive: its transcript is read only and the box gives way to a notice with Resume.
     public private(set) var archived = false
-    /// What the agent waits for after its turn ended, from the host's list: the card over the box says it.
+    /// What the agent waits for after its turn ended, from the summary of the host's `events` (its list, for an older host): the card over the box says it.
     public private(set) var background: [BackgroundTask] = []
     /// Whether the host can stop one of those tasks by itself (it lists `stopTask`): read from its hello once.
     public private(set) var canStopTask = false
@@ -849,26 +876,20 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
                 }
                 changed = true
             }
-            if let session = try await host.list(archived: false).first(where: { $0.id == sessionId }) {
-                agent = session.agent
-                live = session.live
-                archived = false
+            if let facts = reply.facts {
+                // the summary of the reply says it, and the session answered: no list is asked
+                if let named = facts.agent { agent = named }
+                // as the lists said it: a session in the archive is not live and waits for nothing, though the host's `events` say what it has
+                // (a session closed, archived and resumed is archived and live)
+                live = facts.live && !facts.archived
+                archived = facts.archived
+                // `events` also answers for a child session, which the list leaves out and so never read as unknown; the app opens no child
+                // (every id it has comes from that list), so `known` is always true here
                 known = true
-                preparingSession = session.state == .preparing
-                background = session.background
-            } else if let session = try await host.list(archived: true).first(where: { $0.id == sessionId }) {
-                agent = session.agent
-                live = false
-                archived = true
-                known = true
-                preparingSession = false
-                background = []
+                preparingSession = reply.state == .preparing
+                background = facts.archived ? [] : facts.background
             } else {
-                live = false
-                archived = false
-                known = false
-                preparingSession = false
-                background = []
+                try await readSessionFromLists()
             }
             settleAsleep(first: first)
             changed = changed || reply.streaming != streaming
@@ -1112,6 +1133,31 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             } catch {
                 _ = report(error, "stop the subagent")
             }
+        }
+    }
+
+    /// What a host whose `events` do not say whether the session runs says of it in its lists: the active one first, the archive when it is not there.
+    private func readSessionFromLists() async throws {
+        if let session = try await host.list(archived: false).first(where: { $0.id == sessionId }) {
+            agent = session.agent
+            live = session.live
+            archived = false
+            known = true
+            preparingSession = session.state == .preparing
+            background = session.background
+        } else if let session = try await host.list(archived: true).first(where: { $0.id == sessionId }) {
+            agent = session.agent
+            live = false
+            archived = true
+            known = true
+            preparingSession = false
+            background = []
+        } else {
+            live = false
+            archived = false
+            known = false
+            preparingSession = false
+            background = []
         }
     }
 

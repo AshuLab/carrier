@@ -563,6 +563,21 @@ test('what the agent waits for in the background is in its row, as it says it, r
   expect(rows('chat_events').filter((event) => event.kind === 'background')).toEqual([]);
 });
 
+test('the summary of events says whether the session is live and what it waits for, as its row of the list does, so a client asks for no list', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  const from = (id: string) => s.sessions.events({ sessionId: id, limit: 10 }).session;
+  const row = (id: string) => s.sessions.list({}).sessions.find((found) => found.id === id)!;
+  expect(from(one.id)).toMatchObject({ agent: 'claude', archived: false, live: true, background: [] });
+  one.conversation.emit({ kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: 'deploy' }] });
+  expect(from(one.id).background).toEqual((row(one.id) as { background: unknown[] }).background);
+  expect(from(one.id).background).toHaveLength(1);
+  await s.sessions.close({ sessionId: one.id });
+  expect(from(one.id)).toMatchObject({ live: false, background: [] });
+  await s.sessions.archive({ sessionId: one.id, archived: true });
+  expect(from(one.id)).toMatchObject({ archived: true, live: false, background: [] });
+});
+
 test('a session that waits for background work is not closed for being idle, and is again once it has none', async () => {
   const s = setup();
   const one = await openOne(s);

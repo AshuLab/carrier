@@ -78,6 +78,15 @@ private final class WorkingEngine: @unchecked Sendable {
 
 private let quick = Duration.milliseconds(20)
 
+@Test func theEnginesSnapshotIsReadFromTheReplyOnce() throws {
+    let engine = WorkingEngine(inFlight: 2)
+    defer { engine.close() }
+    let client = try #require(ControlClient.connect(path: engine.socketPath))
+    defer { client.close() }
+    let state = try readEngine(from: client)
+    #expect(state.inFlight == 2 && client.repliesParsedOnce == 1)
+}
+
 @Test func anIdleOlderEngineIsStoppedAndStartedWithoutPausingIt() async {
     let engine = WorkingEngine()
     defer { engine.close() }

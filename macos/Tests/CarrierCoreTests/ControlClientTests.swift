@@ -251,6 +251,34 @@ private struct Count: Decodable, Equatable { let n: Int }
     #expect(client.repliesParsedOnce == 2)
 }
 
+@Test func aStaleReplyOfTheSameShapeIsNotTheAnswerToTheCurrentRequest() throws {
+    let server = TestServer { connection in
+        connection.send(hello)
+        guard let id = connection.readRequestId() else { return }
+        connection.send(reply(id - 1, data: "{\"n\":99}") + reply(id, data: "{\"n\":1}"))
+    }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    _ = try client.hello()
+    #expect(try client.request("events", as: Count.self) == Count(n: 1))
+    #expect(client.repliesParsedOnce == 1)
+}
+
+@Test func aRefusalThatAlsoCarriesDataOfTheRightShapeIsARefusalNotAnAnswer() throws {
+    let server = TestServer { connection in
+        connection.send(hello)
+        guard let id = connection.readRequestId() else { return }
+        connection.send("{\"id\":\(id),\"ok\":false,\"data\":{\"n\":1},\"error\":\"x\"}\n")
+    }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    _ = try client.hello()
+    #expect(throws: ControlError.remote("x")) { try client.request("events", as: Count.self) }
+    #expect(client.repliesParsedOnce == 0)
+}
+
 @Test func aReplyOfTheWrongShapeIsABadLineAndAnUnlistedRequestSendsNothing() throws {
     let server = TestServer { connection in
         connection.send(hello)
@@ -264,4 +292,28 @@ private struct Count: Decodable, Equatable { let n: Int }
     #expect(try client.request("events", requires: .events, as: Count.self) == nil)
     client.capabilities = [.events]
     #expect(throws: ControlError.badLine) { try client.request("events", requires: .events, as: Count.self) }
+}
+
+private let snapshotFixture = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
+
+@Test func aSnapshotIsParsedOnceAndAWrongOneStillNamesItsField() throws {
+    let good = try JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: Data(contentsOf: snapshotFixture)))
+    var broken = try #require(JSONSerialization.jsonObject(with: good) as? [String: Any])
+    broken["slots"] = nil
+    let wrong = try JSONSerialization.data(withJSONObject: broken)
+    let server = TestServer { connection in
+        connection.send(hello)
+        for body in [good, wrong] {
+            guard let id = connection.readRequestId() else { return }
+            connection.send(reply(id, data: String(decoding: body, as: UTF8.self)))
+        }
+    }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    _ = try client.hello()
+    #expect(try client.snapshot() == decodeSnapshot(good))
+    #expect(client.repliesParsedOnce == 1)
+    #expect(throws: SnapshotError.missingField("slots")) { try client.snapshot() }
 }

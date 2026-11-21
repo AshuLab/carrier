@@ -1319,7 +1319,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         // an option event's data has the option's own `id`, which must not take the place of the row's: a client reads `id` as the cursor
         events: rows.map(({ id, at, kind, data }) => (kind === 'option' ? { id, at, kind, option: data.id, value: data.value } : { id, at, kind, ...data })),
         cursor: rows.at(-1)?.id ?? after,
-        session: summary(current),
+        // what a row of `list` says of whether the session runs, so a client that reads `events` asks for no list
+        session: { ...summary(current), live: live !== undefined, background: live?.background ?? [] },
         streaming: live?.streaming ?? '',
         progress: progress.get(sessionId) ?? null,
         approvals: [...(live?.approvals.values() ?? [])],

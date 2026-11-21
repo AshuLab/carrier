@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The menu bar item's menu is grouped: Sessions (what waits for you first, at most four), Terminals, and Dictation (Dictate now, Copy last transcript and the last five transcripts), then one row for Sleep and one for Carrier's own controls (Pause, Check, Stop).
 - The notices above the message box (a queued message, an archived or asleep session, a failed turn) read better: their buttons take the colour of the notice instead of the accent, and their text is brighter.
 - The selected row of the sidebar is your accent in a deeper shade on dark appearance, so the white words keep their contrast.
 - A session's pull request and changed lines in the sidebar share one quiet capsule: the state is a dot, the words are grey, and the capsule is a lighter patch on the selected row so it reads on any accent. Draft, Merged and Closed start with a capital.

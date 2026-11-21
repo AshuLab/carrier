@@ -31,7 +31,7 @@ Settings is a window of its own with a native sidebar (`List` in `.sidebar` styl
 Spacing: **14 between blocks, 4 inside a block** (a name and its version), 12 between a tile and its text. A row's line is one line: what does not fit goes to the group's `footer`.
 A page that is a column (`SettingsPage.isColumn`, `settingsColumnWidth`) is centered by `.contentMargins(.horizontal, _, for: .scrollContent)` on its scroll view and never by narrowing the view: the scroll bar stays at the window's edge and what scrolls under the toolbar reaches both sides of it.
 
-**What can be searched is `settingsIndex`** (`CarrierCore/SettingsIndex.swift`): a new row or group is added there in the same change, with its page, its group and the words it says; `SettingsIndexDriftTests` fails when a title a page draws is missing. A row is found by its page, group and title, so the group a row is in and its title are not renamed without the index.
+**What can be searched is `settingsIndex`** (`CarrierCore/SettingsIndex.swift`): a new row or group is added there in the same change, with its page, its group and the words it says; `SettingsIndexDriftTests` fails when a title a page draws is missing. A row is found by its page, group and title, so the group a row is in and its title are not renamed without the index. The test reads titles only, not descriptions: when a setting changes what it does (a text size that stops reaching the messages, a density that stops setting their gap), grep the old words in `settingsIndex`, the row's own detail, `docs/macos/settings.md` and the specs, and fix each description that now says otherwise.
 
 ## Cards in the feed
 

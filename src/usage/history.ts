@@ -162,9 +162,12 @@ function listed(ports: HistoryPorts, root: string, suffix: string): Promise<stri
   });
 }
 
-/** Forgets the cached files that are gone from the folders that were listed; those of folders that were not asked about (another account's) stay. */
+/**
+ * Forgets the cached files that are gone from the folders that were listed; those of folders that were not asked about (another account's) stay.
+ * The states of a folder no longer asked about at all (an account removed from providers.json) stay too, until the host exits.
+ */
 function forgetGone<V>(cache: Map<string, V>, roots: string[], listedPaths: Set<string>) {
-  const folders = roots.map((root) => (root.endsWith(sep) ? root : root + sep));
+  const folders = roots.map((root) => root + sep);
   for (const path of cache.keys()) if (listedPaths.has(path) === false && folders.some((folder) => path.startsWith(folder))) cache.delete(path);
 }
 
@@ -209,9 +212,11 @@ interface CodexState {
   records: External[];
 }
 
+const CODEX_TYPES = ['"token_count"', '"session_meta"', '"turn_context"'];
+
 function codexLine(state: CodexState, line: string) {
   // ponytail: a superset of the types read below, so a branch for a new type must add its literal here or its lines are lost.
-  if (['"token_count"', '"session_meta"', '"turn_context"'].some((type) => line.includes(type)) === false) return;
+  if (CODEX_TYPES.some((type) => line.includes(type)) === false) return;
   const event = object(JSON.parse(line));
   const payload = object(event.payload);
   if (event.type === 'session_meta') {

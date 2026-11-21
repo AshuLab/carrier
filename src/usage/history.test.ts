@@ -192,6 +192,30 @@ test('a usage asked for one account does not make the next look read the logs of
   expect(bytesRead).toBe(0);
 });
 
+test('a message copied into a newer log with a fresh timestamp counts once, from that copy', async () => {
+  const old = join(dir, 'claude', 'p', 'a-old.jsonl');
+  write(old, [claudeLine({ id: 'm1', input: 100, output: 5, at: NOW - 40 * DAY })]);
+  age(old, NOW - 40 * DAY);
+  write(join(dir, 'claude', 'p', 'b-fork.jsonl'), [claudeLine({ id: 'm1', input: 100, output: 5, at: NOW - HOUR })]);
+  const { run } = setup();
+  expect((await run(week)).totals.turns).toBe(1); // without the skip, the old copy listed first would win and be dropped
+  expect(reads.map((path) => path.split('/').pop())).toEqual(['b-fork.jsonl']);
+});
+
+test('a look at one Antigravity folder does not make the next look open the databases of the other again', async () => {
+  agyDb(join(dir, 'agy1', 'conv-1.db'), [generation('Gemini 2.5 Pro', agyUsage({ input: 300, output: 40, id: 'call-1' }))], []);
+  agyDb(join(dir, 'agy2', 'conv-2.db'), [generation('Gemini 2.5 Pro', agyUsage({ input: 50, output: 5, id: 'call-2' }))], []);
+  const opened: string[] = [];
+  ports = { ...ports, openReadonly: (file) => (opened.push(file), realHistoryPorts.openReadonly(file)) };
+  const { run } = setup();
+  const both = { claude: [], codex: [], agy: [join(dir, 'agy1'), join(dir, 'agy2')] };
+  await run(week, both);
+  await run(week, { ...both, agy: [join(dir, 'agy1')] });
+  opened.length = 0;
+  expect((await run(week, both)).totals.tokens.input).toBe(350);
+  expect(opened.filter((file) => file.endsWith('.db') && file.includes('agy'))).toEqual([]);
+});
+
 test('a look at some roots forgets the cached files of those roots only, not those of a folder whose name starts the same', async () => {
   write(join(dir, 'claude', 'p', 'a.jsonl'), [claudeLine({ id: 'm1', input: 100 })]);
   write(join(dir, 'claude2', 'p', 'b.jsonl'), [claudeLine({ id: 'm2', input: 7 })]);

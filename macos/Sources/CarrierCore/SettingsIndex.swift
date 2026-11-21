@@ -70,8 +70,8 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
     case .appearance:
         return page(.appearance, "Theme", [("Theme", "Nine themes, each in light and dark")])
             + page(.appearance, "Look", [
-                ("Color scheme", "System follows the Mac"), ("Text size", "The size of the text of the whole app"), ("Icon set", "SF Symbols, Tabler or Lucide for the icons of the app"), ("Icon weight", "How thick the strokes of the icons are"),
-                ("Density", "The space in the sidebar rows and between the messages"), ("Tell states apart by shape", "A symbol in each state, so that color is not the only clue"),
+                ("Color scheme", "System follows the Mac"), ("Text size", "The size of the text of the interface; the messages have their own in Chat"), ("Icon set", "SF Symbols, Tabler or Lucide for the icons of the app"), ("Icon weight", "How thick the strokes of the icons are"),
+                ("Density", "The space in the sidebar rows"), ("Tell states apart by shape", "A symbol in each state, so that color is not the only clue"),
             ]) + page(.appearance, "Color", [
                 ("Accent color", "Buttons, switches and the selection"), ("Tint the windows", "A touch of the theme's own color on the backgrounds"),
                 ("Translucent windows", "Off draws solid backgrounds"),
@@ -152,7 +152,8 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
             ("Follow new output", "Scroll to what arrives while you are at the end"), ("Message times", "When a message shows the time it was written"),
             ("Tool output", "Nothing, each run folded, or every call open"), ("Open the calls that failed", "A call that failed opens by itself"),
             ("Diff style", "Unified, or removed and added side by side"), ("Output length", "How many lines of an output show before Show more"),
-            ("Show reasoning", "The agent's reasoning, folded under its message"), ("Message width", "How wide a message gets before it wraps"),
+            ("Show reasoning", "The agent's reasoning, folded under its message"), ("Message width", "How wide a message gets before it wraps"), ("Message text size", "The size of the font of the messages, apart from the app's text size"),
+            ("Line spacing", "The room between the lines of a message (line height)"), ("Message spacing", "The room between the messages"),
             ("Surfaces", "Glass blurs what is under; flat is a quiet solid fill"),
         ])
     case .sessions:

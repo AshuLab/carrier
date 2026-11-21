@@ -33,9 +33,9 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `projects.ts`: `gh` projects under the projects folder ([ADR 0015](../../docs/adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)): `cloneRepo`, `createProject`, `githubRepos`, `repoBranches`.
 - `providers.ts`: `providers` request (accounts, `unadded`, local servers, `textGenerator` or `problem`, via `doctor/detect.ts`).
 - `mcp.ts`: loopback chat MCP ([ADR 0024](../../docs/adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)) started before `chat.sock`; `McpSessionRegistry` hashes bearer tokens per live conversation and revokes by `invocationId`.
-  `defineTool` enforces token capabilities (`delegate_start` needs `act`), `delegation` tools check `sessions.delegationRefusal` (`levels.ts`), all tools go to `ChatRunner.open` (`allowedTools` / `canUseTool`), `delegate_wait` uses `waitChildren`, and `history` reads `related` sessions.
+  `defineTool` enforces token capabilities (`delegate_start` needs `act`), `delegation` tools check `sessions.delegationRefusal` (`levels.ts`: options on the scale in any mode, Codex app-server 0.122.0+), all tools go to `ChatRunner.open` (`allowedTools` / `canUseTool`), `delegate_wait` uses `waitChildren`, and `history` reads `related` sessions.
 - `handoff.ts`: `buildHandoff`, up to 16,000 bytes, passed via `ChatRunner.open`'s `instructions` (Claude system prompt, Codex `developerInstructions`).
-- `levels.ts`: four-level permission scale (`levelOf`, `childOptions`, ADR 0033 and [ADR 0036](../../docs/adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)).
+- `levels.ts`: four-level permission scale (`levelOf`, `childOptions`: at or under parent's level, or parent's when agent sets none; ADR 0033 and [ADR 0036](../../docs/adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)).
 - `health.ts`: the `health` request (whether `git`, `gh` and each agent's CLI work and are signed in, as `ready`, `missing`, `signedOut` or `unknown`, only the verdicts; [spec](../../docs/specs/chat-host.md)).
 - `git.ts`: the port to the machine's git (`realGit` in production, `FakeGit` in `fake.ts`).
 - `workspace.ts`: what a folder is as a repository, and its fetch.

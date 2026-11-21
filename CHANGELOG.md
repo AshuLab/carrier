@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Settings > Chat > Conversation has Message text size (11 to 20 pt), Line spacing (Tight, Normal, Loose) and Message spacing (Compact, Comfortable, Spacious), for the text of the messages and the room between them, apart from the app's Text size and Density.
 - The dictation widget has a theme, chosen in Settings > Dictation > Widget: Default (the app's accent as glass, as it was), Black, Dark glass, Clear glass (the system's glass with no tint) and Theme glow (the colours of the dictation line's glow as a gradient from one side to the other, over glass). The preview under the rows shows the one chosen.
 - Settings > Dictation > Widget > Live text turns the words off: the widget keeps its box, with the time and the keys, and shows no words; an error or a copied text still show theirs.
 - The dictation widget can be dragged anywhere on the screen, and it opens there the next time. The Position row reads Custom while it holds a dragged place, and choosing Top or Bottom there puts it back.
@@ -15,9 +16,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - The dictation shortcut in the draft of a new session, before it starts, dictates into its message box as it does in an open session; it used to open the widget.
+- The two rings beside the microphone are centered on each other: they sat half a pixel off, so the inner one looked pushed to a side.
+- A session's pull request whose checks are still running says "CI running" in its row, and not just three dots that read as something lost.
 
 ### Changed
 
+- When a session's turn ends, its row reads again only what the turn can have changed. A turn that only talked reads nothing. One that ran commands reads the lines it changed, and asks GitHub only after a `git push`, a new branch, `gh pr create` or `gh pr merge`, and only for what they move: the pull request of the branch, or the state of the one the session has. Before, every turn end asked GitHub, even after a plain answer.
+- A child that an agent starts with `delegate_start` runs at its parent's permission level when its own agent sets no permission, and not at the one that asks before almost every command: under a parent in `auto` the child no longer stops for an approval to read. An agent configured with a permission keeps it as the most its child gets.
+- `delegate_wait` says what a child that needs an approval is waiting for: the tool and the command, or the question it asks, for up to four things, and how many more there are.
+- The app's Text size (Appearance) no longer sizes the text of the messages: it is Settings > Chat > Message text size now (13 pt by default, the size at 100 %). Someone who raised the app's Text size to read the chat sets Message text size once.
+- Density in Appearance now sets only the sidebar rows: the space between the messages is Settings > Chat > Message spacing (Comfortable, the same 12 pt as before, by default).
 - The app keeps one connection to the chat host for what it reads again and again, instead of opening one for each read, and the sidebar, the notifications and the menu share one read of the sessions. With a session open and the window in front the app opened about 1.4 connections a second (4.8 while a turn ran) and now opens none after the first, and asks the host for the list once every 2 seconds and not twice (measured against the fixture host). A host that does not answer is told once, and the sidebar keeps its rows meanwhile.
 - An open session no longer asks the chat host for the whole list of sessions at each read: the reply of its events already says whether it runs and what it waits for. With 100 sessions that is 74 KB less to build and parse at each read (about 19 ms of the host), four times a second while the agent works, and one request less per read (two for an archived session).
 - The engine's snapshot is read from the reply once and not three times: 3.6 ms instead of 6.3 ms for a snapshot of 90 epics (205 KB), on every poll of the menu and the window.

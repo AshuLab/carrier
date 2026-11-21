@@ -50,7 +50,7 @@ test('a Codex agent configured with never under a level 2 parent keeps its optio
 test('a parent in auto has a Claude child in auto and a Codex child at 2, and a parent at 0 has a child that only reads', () => {
   expect(childOptions('claude', claude('auto'), 3)).toEqual({ options: claude('auto'), level: 3, lowered: false });
   expect(childOptions('claude', claude('acceptEdits'), 3)).toEqual({ options: claude('acceptEdits'), level: 2, lowered: false });
-  expect(childOptions('claude', {}, 3)).toEqual({ options: claude('default'), level: 1, lowered: false });
+  expect(childOptions('claude', {}, 3)).toEqual({ options: claude('auto'), level: 3, lowered: false }); // sets no permission: takes the parent's
   expect(childOptions('codex', codex('workspace-write', 'on-request'), 3)).toEqual({ options: codex('workspace-write', 'on-request'), level: 2, lowered: false });
   expect(childOptions('codex', codex('danger-full-access', 'never'), 3)).toEqual({ options: codex('workspace-write', 'on-request'), level: 2, lowered: true });
   expect(childOptions('claude', claude('auto'), 2)).toEqual({ options: claude('acceptEdits'), level: 2, lowered: true });
@@ -59,11 +59,21 @@ test('a parent in auto has a Claude child in auto and a Codex child at 2, and a 
   expect(childOptions('codex', codex('workspace-write', 'never'), 0)).toEqual({ options: codex('read-only', 'untrusted'), level: 0, lowered: true });
 });
 
-test('an agent with no options is taken at the adapter\'s defaults, and lowered only when they are above the parent', () => {
-  expect(childOptions('claude', {}, 2)).toEqual({ options: claude('default'), level: 1, lowered: false });
+test('an agent that sets no permission takes its parent\'s level, and the model and the effort do not count as setting one', () => {
+  for (const parent of [0, 1, 2, 3] as Level[]) {
+    const options = ['dontAsk', 'default', 'acceptEdits', 'auto'][parent]!;
+    expect(childOptions('claude', {}, parent)).toEqual({ options: claude(options), level: parent, lowered: false });
+    expect(childOptions('claude', { model: 'opus', effort: 'high' }, parent)).toEqual({ options: { model: 'opus', effort: 'high', permissionMode: options }, level: parent, lowered: false });
+  }
+  // Codex has nothing above 2: a parent at 3 gives its child 2, and that is not lowering what the agent never set
   expect(childOptions('codex', {}, 1)).toEqual({ options: codex('workspace-write', 'untrusted'), level: 1, lowered: false });
-  expect(childOptions('claude', {}, 0)).toEqual({ options: claude('dontAsk'), level: 0, lowered: true });
-  expect(childOptions('codex', {}, 0)).toEqual({ options: codex('read-only', 'untrusted'), level: 0, lowered: true });
+  expect(childOptions('codex', {}, 3)).toEqual({ options: codex('workspace-write', 'on-request'), level: 2, lowered: false });
+  expect(childOptions('codex', {}, 0)).toEqual({ options: codex('read-only', 'untrusted'), level: 0, lowered: false });
+});
+
+test('an agent that sets a permission, even the default one, keeps it as its own cap and does not take the parent\'s level', () => {
+  expect(childOptions('claude', claude('default'), 3)).toEqual({ options: claude('default'), level: 1, lowered: false });
+  expect(childOptions('codex', { sandbox: 'workspace-write' }, 2)).toEqual({ options: { sandbox: 'workspace-write', approvalPolicy: 'untrusted' }, level: 1, lowered: false });
 });
 
 test('a child is never above its parent or its own agent, across both harnesses and every pair of levels', () => {
@@ -73,9 +83,11 @@ test('a child is never above its parent or its own agent, across both harnesses 
       for (const parent of [0, 1, 2, 3] as Level[]) {
         const child = childOptions(harness, own, parent);
         expect(child.level).toBeLessThanOrEqual(parent);
-        expect(child.level).toBe(Math.min(parent, harness === 'codex' ? 2 : 3, ...(levelOf(harness, own) === undefined ? [] : [levelOf(harness, own)!])));
+        // an agent that sets no permission has no level to cap it: the parent's (Codex has nothing above 2)
+        const sets = Object.keys(own).length > 0; // every list above sets a permission but the empty one
+        expect(child.level).toBe(Math.min(parent, harness === 'codex' ? 2 : 3, ...(sets === false || levelOf(harness, own) === undefined ? [] : [levelOf(harness, own)!])));
         expect(levelOf(harness, child.options)).toBe(child.level);
-        expect(child.lowered).toBe(levelOf(harness, own) === undefined || levelOf(harness, own)! > parent);
+        expect(child.lowered).toBe(sets && (levelOf(harness, own) === undefined || levelOf(harness, own)! > parent));
       }
     }
   }

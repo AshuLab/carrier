@@ -5,6 +5,7 @@ import type { ChatDb } from './db.ts';
 import type { Git } from './git.ts';
 import { pullRequestKey, type PullRequestChecks, type PullRequestInfo, type PullRequests, type PullRequestState } from './pull-requests.ts';
 import { sessions } from './schema.ts';
+import type { GithubWork } from './shell-effects.ts';
 import { resolveOrigin } from './workspace.ts';
 
 const log = createScopedLogger('chat');
@@ -183,15 +184,21 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
         .finally(() => (sweeping = false));
     },
 
-    /** A turn ended: the lines it changed, and the pull request it may have opened or moved on. */
-    async afterTurn(sessionId: string) {
+    /**
+     * A turn ended: what it did says what to read again, so nothing is asked that it cannot have changed.
+     * The lines are read (a local `git diff`, cheap) when anything ran in it, since any command can write a file, and not for a turn that only talked.
+     * GitHub is asked only for what its shell commands may have moved (`githubWorkOf`): the pull request of the branch after a push, a new branch or
+     * a `gh pr create`, the state of the one the session has after a push, a merge or a rerun. Without `work` (a turn nobody recorded) everything is read.
+     */
+    async afterTurn(sessionId: string, work?: { acted: boolean; github: GithubWork }) {
       try {
         const found = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
         if (found === undefined) return;
         const family = familyOf(found); // before any read: what happens meanwhile is newer than what is read
-        await refreshDiff(found, family);
-        if (found.prNumber === null || isOpen(found.prState) === false) await discover(found, family);
-        else await refreshStates([found]);
+        const open = found.prNumber !== null && isOpen(found.prState);
+        if (work === undefined || work.acted) await refreshDiff(found, family);
+        if ((work === undefined || work.github.find) && open === false) await discover(found, family);
+        else if ((work === undefined || work.github.states) && open) await refreshStates([found]);
       } catch (error) {
         log.error('reading the work of a session failed', error);
       }

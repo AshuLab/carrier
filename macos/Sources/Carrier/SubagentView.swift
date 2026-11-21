@@ -13,12 +13,12 @@ struct SubagentView: View {
     @State private var flipped: Set<String> = []
     @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
-    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    @AppStorage(AppPreferences.chatMessageSpacingKey) private var messageSpacing = AppPreferences.defaultChatMessageSpacing
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: density.messageGap) {
+            LazyVStack(alignment: .leading, spacing: messageSpacing.gap) {
                 if let brief = work.brief { BriefBubble(text: brief) }
                 ForEach(visibleFlow(work.items, mode: mode, showsReasoning: showsReasoning)) { FlowItemView(flow: $0, flipped: $flipped) }
             }
@@ -44,7 +44,7 @@ private struct BriefBubble: View {
     var body: some View {
         VStack(alignment: .trailing, spacing: 3) {
             Text("Brief from the main agent").font(.scaled(10.5, weight: .semibold)).textCase(.uppercase).tracking(0.5).foregroundStyle(Color.themeAccent)
-            Text(text).textSelection(.enabled)
+            Text(text).chatText(bubble: true).textSelection(.enabled)
                 .padding(.horizontal, 13).padding(.vertical, 8)
                 .chatSurface(.regular.tint(Color.themeAccent.opacity(0.1)), flat: Color.themeAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: 16))
         }

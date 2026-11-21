@@ -17,6 +17,10 @@ expect SUScheduledCheckInterval "$(plist SUScheduledCheckInterval)" 3600
 expect CFBundleShortVersionString "$(plist CFBundleShortVersionString)" 1.2.3
 expect "bundle id of a release" "$(plist CFBundleIdentifier)" dev.ashulab.carrier
 expect "channel of a release" "$(plist CarrierChannel)" release
+# the compiled icons are committed, so each must come from the .icon as it is now (scripts/make-icon.sh writes them)
+for name in AppIcon AppIconDev; do
+  expect "compiled $name is of its .icon (run scripts/make-icon.sh)" "$(cat "Resources/Compiled/$name/source.sha256")" "$(scripts/make-icon.sh --hash "$name")"
+done
 expect "icon of a release" "$(plist CFBundleIconName)" AppIcon
 [ -f Carrier.app/Contents/Resources/Assets.car ] && [ -f Carrier.app/Contents/Resources/AppIcon.icns ] || fail "a release lacks its compiled icon"
 expect "CFBundleVersion for 1.2.3" "$(plist CFBundleVersion)" 10203

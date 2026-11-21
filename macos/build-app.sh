@@ -62,14 +62,9 @@ ditto .build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sp
 # the golden files `--fixture` serves
 mkdir -p "$APP/Contents/Resources"
 cp -R Tests/Fixtures "$APP/Contents/Resources/Fixtures"
-# the app's icon, from the Icon Composer file of its channel (Resources/AppIcon.icon, Resources/AppIconDev.icon with the pink mark):
-# actool makes Assets.car (the layered icon of macOS 26) and an .icns for what reads the file; the app-icon name is the folder's name
-ICON_OUT="$(mktemp -d)"
-xcrun actool "Resources/$ICON.icon" --compile "$ICON_OUT" --output-format human-readable-text --warnings --errors \
-  --output-partial-info-plist "$ICON_OUT/partial.plist" --app-icon "$ICON" --include-all-app-icons \
-  --enable-on-demand-resources NO --development-region en --target-device mac --minimum-deployment-target 26.0 --platform macosx >/dev/null
-cp "$ICON_OUT/Assets.car" "$ICON_OUT/$ICON.icns" "$APP/Contents/Resources/"
-rm -rf "$ICON_OUT"
+# the app's icon of its channel, compiled from Resources/AppIcon.icon or AppIconDev.icon (the one with the pink mark) by scripts/make-icon.sh:
+# Assets.car is the layered icon of macOS 26 and the .icns is for what reads the file. It is not compiled here: see make-icon.sh
+cp "Resources/Compiled/$ICON/Assets.car" "Resources/Compiled/$ICON/$ICON.icns" "$APP/Contents/Resources/"
 # SwiftPM's resource bundle of CarrierCore: the file icons and the licence text that goes with them
 cp -R .build/release/Carrier_CarrierCore.bundle "$APP/Contents/Resources/"
 # GhosttyTerminal's bundled shell integration and terminfo database

@@ -17,14 +17,14 @@ The live shell test (`liveGhosttySurfaceSupportsSearchInterruptAndProcessDetecti
 What the person sees: [lifecycle](../docs/macos/lifecycle.md).
 
 The decision and command line are in `CarrierCore/StartCarrier.swift` (spawn and alert untested).
-The decision, command line and notice are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert (wiring, views untested).
-The sequence is tested on a real socket against a scripted engine (`EngineReplacementTests`).
+The chat host's, with its notice, are in `CarrierCore/StartChatHost.swift` (`chatHostAtOpen`, `startChatHostCommand`, `chatHostNotice`); `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert (wiring, views untested).
+The sequence is tested on a real socket with a scripted engine (`EngineReplacementTests`).
 
 ## Dev build and release build
 
 `build-app.sh` with no version makes the dev build, with a version the release build; the differences are in [CONTRIBUTING](../CONTRIBUTING.md#developing-against-a-throwaway-folder).
 The plist says which it is: `CarrierChannel` is `dev` or `release`, and `isDevBuild` (`Carrier/AppDelegate.swift`) reads it for the Dock badge and the toolbar mark in `PanelView`.
-A dev build has no `SUFeedURL`, and `AppUpdater.start` does not start the updater without one.
+A dev build has no `SUFeedURL`, so `AppUpdater.start` does not start the updater.
 `scripts/check-app.sh` asserts id, channel and missing feed for both; a new difference goes into `build-app.sh` and that script.
 
 ## Epics
@@ -37,7 +37,7 @@ The words and request are tested; the sheet, its "Resuming…" state and layout 
 
 What the person sees: [the app shell](../docs/macos/app-shell.md#slices-and-findings-in-an-epics-log).
 
-The rows, words and marks are two pure functions, `sliceCard(lane:)` in `CarrierCore/SliceCard.swift` (`SliceCardTests`) and `findingsCard(_:stage:round:)` in `CarrierCore/FindingsCard.swift` (`FindingsCardTests`, which also reads the golden epic reply); the views are checked only for their heights (`LaneHeaderTests`).
+The rows, words and marks are two pure functions, `sliceCard(lane:)` in `CarrierCore/SliceCard.swift` (`SliceCardTests`) and `findingsCard(_:stage:round:)` in `CarrierCore/FindingsCard.swift` (`FindingsCardTests`, which also reads the golden epic reply); the views only for their heights (`LaneHeaderTests`).
 The session row's words are `sessionRowText` and `RoleIdentities` (`SessionRowTests`); the epic's events become the chat's calls in `flowItems` (`EpicTranscriptAdapterTests`).
 
 ## Icons
@@ -45,7 +45,7 @@ The session row's words are `sessionRowText` and `RoleIdentities` (`SessionRowTe
 What the person sees: [the app shell](../docs/macos/app-shell.md#file-icons).
 
 The SVGs and the upstream licence text are in `CarrierCore/Resources/FileIcons` (release pinned in `SOURCE.txt`, notice in `THIRD-PARTY-NOTICES.md`, line in About).
-`build-app.sh` copies SwiftPM's `Carrier_CarrierCore.bundle` into `Contents/Resources` and fails when an icon or the licence text is missing from it.
+`build-app.sh` copies SwiftPM's `Carrier_CarrierCore.bundle` into `Contents/Resources` and fails when an icon or the licence is missing from it.
 Interface icons: `AppIcon` in three sets (`IconSets.swift`, `IconsTests`), drawn by `Glyph`.
 
 ## Settings
@@ -81,16 +81,17 @@ The decoding, outcomes, command and store are tested (`DoctorChecksTests`), not 
 
 What the person sees: [new session](../docs/macos/new-session.md).
 
-The logic is `NewSessionModel` (`showRepos`, `loadRepos`, `repoRows`, `choose(repo:)`) and `githubRepoRows`, tested with a fake host in `NewSessionTests`.
+The logic is `NewSessionModel` (`showRepos`, `loadRepos`, `repoRows`, `choose(repo:)`) and `githubRepoRows` (`NewSessionTests`, a fake host).
 The rule, the host client's decoding and the draft are tested (`HealthTests`, `ChatHostTests`, `NewSessionTests`); `AppDelegate`'s wiring is not.
-The list, the script and the opener are tested in `HealthFixTests` (hostile values run nothing); the button is untested.
-The logic is `CarrierCore/WorktreeChoice.swift` (pure values over the `workspace` reply, tested on golden files in `WorktreeChoiceTests`) and `NewSessionModel` (tested with a fake host).
+The list, script and opener are tested in `HealthFixTests` (hostile values run nothing); the button not.
+The worktree choice is `CarrierCore/WorktreeChoice.swift` (pure values over the `workspace` reply; `WorktreeChoiceTests`, golden files).
 
 ## Conversation
 
 What the person sees: [sessions](../docs/macos/sessions.md#conversation).
 
 The words are tested; the Finder and pasteboard calls not.
+`CarrierCore/ChatLink.swift` reads the chat host ([how](../docs/macos/sessions.md#how-the-app-reads-the-chat-host); `ChatLinkTests`).
 A subagent's row is `Subagent` (`CarrierCore/ChatToolGroups.swift`), built by `chatFeed` from `task` events (`ChatConversationTests`, `SubagentRowTests`).
 
 ## Usage
@@ -135,9 +136,9 @@ In the boxes and the widget: the `.cleaning` state of `DictationSession` (`Dicta
 What the person sees: [terminal](../docs/macos/terminal.md).
 
 Pure rules (`Terminal{Core,SplitTree,Persistence,Settings,ZshBottomPromptShim}.swift`) live in `CarrierCore` (`TerminalCoreTests`, `TerminalZshBottomPromptShimTests`).
-Continue in Terminal launch construction (`EmbeddedResumeLaunch`, `embeddedResumeLaunch`) is in `CarrierCore/ContinueInTerminal.swift` (`ContinueInTerminalTests`).
+Continue in Terminal's launch (`EmbeddedResumeLaunch`, `embeddedResumeLaunch`) is in `CarrierCore/ContinueInTerminal.swift` (`ContinueInTerminalTests`).
 The AppKit runtime (`Carrier/Terminal{Host,Appearance,ProcessInspector,ConfirmationCopy}.swift`, `Carrier/CarrierTerminalView.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation.
 The sidebar, overview, workspace, tab bar, settings page, menu bar, middle-click close and drawer views are the `Terminal*View.swift` files, `MainMenu.swift`, `MiddleClickModifier.swift`, `ContinueInTerminalView.swift`, `SessionSectionsView.swift`, `EpicView.swift` and `PanelView.swift`.
 Window selection and drawer state live in `CarrierCore/WindowShell.swift`, tested with layout, shortcuts and middle-click in `TerminalWorkspaceLayoutTests`, `MainMenuShortcutsTests`, `MiddleClickModifierTests` and `WindowShellTests`.
-Session deletion cleanup and process-activity guards connect through `CarrierCore/ChatArchive.swift`, `ChatSessions.swift`, `Carrier/WindowController.swift` and `AppDelegate.swift` (poller and store tested, view wiring not).
+Session deletion cleanup and process-activity guards use `CarrierCore/ChatArchive.swift`, `ChatSessions.swift`, `Carrier/WindowController.swift` and `AppDelegate.swift` (poller and store tested, view wiring not).
 `libghostty-spm` (`GhosttyTerminal`) is linked by the `Carrier` target only; `build-app.sh` and `scripts/check-app.sh` bundle and verify `GhosttyKit_GhosttyTerminal.bundle` and `THIRD-PARTY-NOTICES.md` (`ThirdPartyNoticesTests`).

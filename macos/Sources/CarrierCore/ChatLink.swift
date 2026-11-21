@@ -1,11 +1,11 @@
 import Foundation
 import Synchronization
 
-// The app's reads of the chat host (docs/macos/chat-link.md): one connection kept for the socket, one place where a miss is told, and the sessions
+// The app's reads of the chat host (docs/macos/sessions.md#how-the-app-reads-the-chat-host): one connection kept for the socket, one place where a miss is told, and the sessions
 // list read once for everyone who wants it.
 
 /// The sessions as of one read of the host.
-public struct SessionsUpdate: Equatable {
+public struct SessionsUpdate: Equatable, Sendable {
     public let active: [ChatSession]
     public let archived: [ChatSession]
     /// The host did not answer this time: the lists are the last good ones (empty when none was ever read), never an empty list the host did not say.

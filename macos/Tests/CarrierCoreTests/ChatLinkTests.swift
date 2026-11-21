@@ -393,3 +393,142 @@ private final class LockedLog: @unchecked Sendable {
     _ = await again.next()
     #expect(rig.host.asks("list") >= 3)
 }
+
+// The connection: what it does when one it kept is found closed, or the path is another.
+
+private final class Attempts: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    func next() -> Int { lock.lock(); defer { lock.unlock() }; count += 1; return count }
+    var total: Int { lock.lock(); defer { lock.unlock() }; return count }
+}
+
+@Test func aRequestThatFindsTheKeptConnectionClosedIsMadeOnceMoreOnANewOneAndASecondFailureIsTold() async throws {
+    let host = ScriptHost()
+    defer { host.stop() }
+    let connection = ChatConnection()
+    _ = try await connection.perform(path: host.path) { $0.capabilities }
+    // the connection looked open to the check made before the request and closed under it: it is made again, once
+    let flaky = Attempts()
+    let value = try await connection.perform(path: host.path) { _ in
+        if flaky.next() == 1 { throw ControlError.closed }
+        return 7
+    }
+    #expect(value == 7 && flaky.total == 2 && host.connections == 2)
+    // a host that closes the new one too is told, and not asked a third time
+    let broken = Attempts()
+    await #expect(throws: ControlError.closed) {
+        try await connection.perform(path: host.path) { (_: ControlClient) -> Int in
+            _ = broken.next()
+            throw ControlError.closed
+        }
+    }
+    #expect(broken.total == 2)
+}
+
+@Test func aConnectionJustOpenedThatIsFoundClosedIsNotAskedAgain() async throws {
+    let host = ScriptHost()
+    defer { host.stop() }
+    let attempts = Attempts()
+    await #expect(throws: ControlError.closed) {
+        try await ChatConnection().perform(path: host.path) { (_: ControlClient) -> Int in
+            _ = attempts.next()
+            throw ControlError.closed
+        }
+    }
+    #expect(attempts.total == 1 && host.connections == 1)
+}
+
+@Test func aRequestForAnotherPathIsMadeOnAnotherConnectionWithItsOwnHello() async throws {
+    let one = ScriptHost(capabilities: "\"agents\",\"list\"")
+    let two = ScriptHost(capabilities: "\"agents\",\"list\",\"events\"")
+    defer { one.stop(); two.stop() }
+    let connection = ChatConnection()
+    #expect(try await connection.perform(path: one.path) { $0.capabilities } == [.agents, .list])
+    #expect(try await connection.perform(path: two.path) { $0.capabilities } == [.agents, .list, .events])
+    #expect(one.connections == 1 && two.connections == 1)
+    // and back: the kept one is for the path it was opened for
+    #expect(try await connection.perform(path: one.path) { $0.capabilities } == [.agents, .list])
+    #expect(one.connections == 2)
+}
+
+@Test func theActiveAndTheArchivedListAtTheSameTimeAreTwoRequests() async throws {
+    let host = ScriptHost()
+    defer { host.stop() }
+    host.set(active: ["a"], archived: ["x"])
+    host.hold()
+    let link = ChatLink(path: host.path)
+    let active = Task { try await link.list(archived: false) }
+    #expect(await until { host.asks("list") == 1 })
+    let archived = Task { try await link.list(archived: true) }
+    host.release()
+    let listed = try await active.value.map(\.id), archivedListed = try await archived.value.map(\.id)
+    #expect(listed == ["a"] && archivedListed == ["x"])
+    #expect(host.asks("list") == 2)
+}
+
+// The pace: what a recovery resets, and what a refresh cuts.
+
+@Test func aHostThatAnswersAgainStartsTheBackoffOverAtTheNextMiss() async throws {
+    let rig = Rig()
+    rig.host.set(active: ["a"])
+    let path = rig.host.path
+    let stream = await rig.link.sessions()
+    let collected = Collected()
+    let listening = Task { for await update in stream { collected.add(update) } }
+    defer { listening.cancel() }
+    #expect(await until { await rig.ticker.waits.count == 1 })
+    rig.host.stop()
+    for count in 2...3 {
+        await rig.ticker.release()
+        #expect(await until { await rig.ticker.waits.count == count })
+    }
+    let back = ScriptHost(path: path)
+    defer { back.stop() }
+    back.set(active: ["a"])
+    await rig.ticker.release()
+    #expect(await until { await rig.ticker.waits.count == 4 })
+    back.stop()
+    await rig.ticker.release()
+    #expect(await until { await rig.ticker.waits.count == 5 })
+    // the pace while it answered, then the first doubling of the next miss, not the fourth
+    let waits = await rig.ticker.waits
+    #expect(waits == [2, 4, 8, 2, 4])
+}
+
+/// A link that waits as it does in the app (the nap `refresh` cuts), and what it was told.
+private func napping(path: String, pace: TimeInterval = 10) -> ChatLink { ChatLink(path: path, pace: { pace }, log: { _ in }) }
+
+@Test func aRefreshCutsTheWaitOfTheNormalPaceAndTheListIsReadAtOnce() async throws {
+    let host = ScriptHost()
+    defer { host.stop() }
+    host.set(active: ["a"])
+    let link = napping(path: host.path, pace: 3600)
+    let collected = Collected()
+    let stream = await link.sessions()
+    let listening = Task { for await update in stream { collected.add(update) } }
+    defer { listening.cancel() }
+    #expect(await until { collected.updates.count == 1 })
+    host.set(active: ["a", "b"])
+    link.refresh(archived: false)
+    #expect(await until { collected.updates.count == 2 })
+    #expect(ids(collected.updates[1]).contains("b"))
+}
+
+@Test func aRefreshCutsTheBackoffOfAHostThatWasDownAndIsUpAgain() async throws {
+    let path = "/tmp/cc-late-\(UUID().uuidString.prefix(8)).sock"
+    let link = napping(path: path)
+    let collected = Collected()
+    let stream = await link.sessions()
+    let listening = Task { for await update in stream { collected.add(update) } }
+    defer { listening.cancel() }
+    #expect(await until { collected.updates.count == 1 })
+    #expect(collected.updates[0].stale)
+    // the host starts: the loop is in a wait of 20 seconds, and the app says the host is up
+    let host = ScriptHost(path: path)
+    defer { host.stop() }
+    host.set(active: ["a"])
+    link.refresh(archived: false)
+    #expect(await until { collected.updates.count == 2 })
+    #expect(collected.updates[1].stale == false && ids(collected.updates[1]) == ["a"])
+}

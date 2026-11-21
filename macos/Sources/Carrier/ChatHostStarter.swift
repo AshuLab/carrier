@@ -63,7 +63,10 @@ import Observation
                         let failure = StartController.launch(command, name: "The chat host")
                         DispatchQueue.main.async {
                             self.starting = false
-                            if let failure { StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail) }
+                            if let failure { StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail) } else {
+                                // the sidebar's reads back off while the host is down: it is up now, so they need not wait
+                                SocketChatHost().refreshSessions(archived: false)
+                            }
                             // a host the app just started runs the installed `carrier`, which may be the one to upgrade
                             if failure == nil, self.versionChecked == false, fixture == false {
                                 self.versionChecked = true
@@ -166,7 +169,12 @@ import Observation
         let failed = failure
         await MainActor.run {
             self.starting = false
-            if let failure = failed { StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail) }
+            if let failure = failed {
+                StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail)
+            } else {
+                // the sidebar's reads back off while the host is down: the new one is up, so they need not wait
+                SocketChatHost().refreshSessions(archived: false)
+            }
         }
     }
 

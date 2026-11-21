@@ -159,16 +159,35 @@ extension ProjectsProblem {
     public private(set) var problems: [ProjectsProblem] = []
     /// Why the last add could not be written, when it could not.
     public private(set) var failure: String?
+    /// Where new clones and new projects go by default (`projectsFolder` of `chat.json`).
+    public private(set) var projectsPath: String
+    /// Why the last Change… of the default folder was refused, in words; the old folder stands.
+    public private(set) var projectsFolderProblem: String?
     @ObservationIgnored private let file: ProjectsFile
     @ObservationIgnored private let remote: (String) -> String?
+    @ObservationIgnored private let readChatConfig: () throws -> Data?
+    @ObservationIgnored private let writeChatConfig: (Data) throws -> Void
+    @ObservationIgnored private let home: String
 
-    public init(file: ProjectsFile = .current(), remote: @escaping (String) -> String? = originRepo(ofFolder:)) {
+    public init(
+        file: ProjectsFile = .current(),
+        remote: @escaping (String) -> String? = originRepo(ofFolder:),
+        readChatConfig: @escaping () throws -> Data? = currentChatConfig,
+        writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
+        home: String = NSHomeDirectory()
+    ) {
         self.file = file
         self.remote = remote
+        self.readChatConfig = readChatConfig
+        self.writeChatConfig = writeChatConfig
+        self.home = home
+        self.projectsPath = projectsFolder(chatJSON: (try? readChatConfig()) ?? nil, carrierFolder: file.folder, home: home)
     }
 
     /// Reads the file again; the rows and problems change only when they differ, so the page is not drawn again for nothing.
     public func reload() {
+        let nextProjectsPath = projectsFolder(chatJSON: (try? readChatConfig()) ?? nil, carrierFolder: file.folder, home: home)
+        if projectsPath != nextProjectsPath { projectsPath = nextProjectsPath }
         var newRows: [ProjectRow] = []
         var newProblems: [ProjectsProblem] = []
         do {
@@ -200,6 +219,23 @@ extension ProjectsProblem {
         var added: ProjectAdd?
         _ = write { added = try file.add(folder: folder) }
         return added
+    }
+
+    /// Clears the last add failure (for example when a sheet is dismissed).
+    public func clearFailure() { failure = nil }
+
+    /// Writes `folder` as `projectsFolder` in `chat.json`, keeping every other key; refuses a folder inside Carrier's own folders and leaves the old path.
+    public func changeProjectsFolder(to folder: String) {
+        projectsFolderProblem = saveProjectsFolder(
+            folder,
+            currentPath: projectsPath,
+            carrierFolder: file.folder,
+            readChatConfig: readChatConfig,
+            writeChatConfig: writeChatConfig
+        )
+        if projectsFolderProblem == nil {
+            projectsPath = projectsFolder(chatJSON: (try? readChatConfig()) ?? nil, carrierFolder: file.folder, home: home)
+        }
     }
 
     /// Sets the project's name, or removes `name` when `raw` is empty or blank so it goes back to the folder's name.

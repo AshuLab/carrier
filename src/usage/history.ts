@@ -120,6 +120,8 @@ export const SCAN_VERSION = 1;
 interface Store<T> {
   kind: (typeof usageScanKinds)[number];
   cache: Map<string, Cached<T>>;
+  /** What was read and is not in the index yet: a write that failed is tried again by the next look. */
+  unsaved: Map<string, Cached<T>>;
   /** The state as plain JSON, and back; `unpack` throws on a shape it does not know. */
   pack: (state: T) => unknown;
   unpack: (value: unknown) => T;
@@ -127,7 +129,6 @@ interface Store<T> {
 
 /**
  * Reads the new complete lines of a JSONL file into its state; a file that was not just appended to is read again from its start.
-
  * `previous` is asked for once the file is known to be in range. A file not written since `since` is not read and gives undefined, and it is
  * not forgotten: a longer window reads it. `read` says whether the entry is new (it has to be kept) or is `previous` itself.
  */
@@ -167,11 +168,11 @@ async function scanLines<T>(ports: HistoryPorts, path: string, previous: () => C
   return { entry: { size: stat.size, mtimeMs: stat.mtimeMs, offset, guard: buffer.subarray(Math.max(0, offset - base - GUARD_BYTES), offset - base).toString('base64'), state }, read: true };
 }
 
-/** The files of the roots, read through the cache; a file that cannot be read is skipped and the cache forgets files that are gone. */
-function listed(ports: HistoryPorts, root: string, suffix: string): Promise<string[]> {
+/** The files of a folder; undefined, with the reason in the log, when it could not be listed: that says nothing about its files, so none is forgotten. */
+function listed(ports: HistoryPorts, root: string, suffix: string): Promise<string[] | undefined> {
   return ports.files.list(root, suffix).catch((error: unknown) => {
     log.warn('a usage folder could not be listed', { name: error instanceof Error ? error.name : typeof error });
-    return [];
+    return undefined;
   });
 }
 
@@ -192,6 +193,14 @@ function forgetGone<V>(cache: Map<string, V>, roots: string[], listedPaths: Set<
   return gone;
 }
 
+/** A record as `External` says, down to its token counts: what a row of the index has to hold for its file to be trusted. */
+function isExternal(value: unknown): boolean {
+  const record = object(value);
+  const tokens = object(record.tokens);
+  const finite = (n: unknown) => typeof n === 'number' && Number.isFinite(n);
+  return finite(record.at) && ['sessionId', 'model', 'workspace'].every((key) => typeof record[key] === 'string') && channels.every((channel) => finite(tokens[channel]));
+}
+
 /** What the last host kept of this file, or undefined when nothing, another parser's, or something that cannot be read (said in the log). */
 function storedScan<T>(db: ChatDb, store: Store<T>, path: string): Cached<T> | undefined {
   try {
@@ -205,24 +214,32 @@ function storedScan<T>(db: ChatDb, store: Store<T>, path: string): Cached<T> | u
 }
 
 /**
- * The index is a cache: a write that fails is said in the log and the call goes on. The memory already holds what was read, so a file that does not
- * change is not written again; after a restart it is read again from where its old row stopped. Written in groups, yielding between them, so a first
- * scan of many logs does not hold the host's event loop for the whole write.
+ * The index is a cache: a write that fails is said in the log and the call goes on, and what did not get written (`store.unsaved`) is tried again by the next
+ * look. Written in groups, yielding between them, so a first scan of many logs does not hold the host's event loop for the whole write; each group is a
+ * transaction, and an index with some groups missing is incomplete, never wrong, since each row carries its own size, offset and guard.
  */
-async function keepScans<T>(db: ChatDb, store: Store<T>, changed: [string, Cached<T>][], gone: string[]) {
-  try {
-    for (let at = 0; at < changed.length; at += SCANS_PER_WRITE) {
+async function keepScans<T>(db: ChatDb, store: Store<T>, gone: string[]) {
+  for (const path of gone) store.unsaved.delete(path);
+  const pending = [...store.unsaved];
+  for (let at = 0; at < pending.length; at += SCANS_PER_WRITE) {
+    const group = pending.slice(at, at + SCANS_PER_WRITE);
+    try {
       if (at > 0) await new Promise<void>((resolve) => setImmediate(resolve));
       db.transaction((tx) => {
-        for (const [path, entry] of changed.slice(at, at + SCANS_PER_WRITE)) {
+        for (const [path, entry] of group) {
           const row = { path, kind: store.kind, version: SCAN_VERSION, size: entry.size, mtimeMs: entry.mtimeMs, offset: entry.offset, guard: entry.guard, state: store.pack(entry.state) };
           tx.insert(usageScanFiles).values(row).onConflictDoUpdate({ target: usageScanFiles.path, set: row }).run();
         }
       });
+      for (const [path, entry] of group) if (store.unsaved.get(path) === entry) store.unsaved.delete(path);
+    } catch (error) {
+      log.warn('the usage scan index could not be written', { name: errorName(error) });
     }
+  }
+  try {
     for (let at = 0; at < gone.length; at += 500) db.delete(usageScanFiles).where(inArray(usageScanFiles.path, gone.slice(at, at + 500))).run();
   } catch (error) {
-    log.warn('the usage scan index could not be written', { name: errorName(error) });
+    log.warn('the usage scan index could not be cleaned', { name: errorName(error) });
   }
 }
 
@@ -230,34 +247,35 @@ const SCANS_PER_WRITE = 100;
 
 async function scanRoots<T>(ports: HistoryPorts, db: ChatDb, store: Store<T>, roots: string[], suffix: string, since: number, fresh: () => T, onLine: (state: T, line: string, path: string) => void): Promise<[string, T][]> {
   const { cache } = store;
-  const paths = new Set((await Promise.all(roots.map((root) => listed(ports, root, suffix)))).flat());
+  const listings = await Promise.all(roots.map((root) => listed(ports, root, suffix)));
+  const paths = new Set(listings.flat().filter((path): path is string => path !== undefined));
+  const seen = roots.filter((_, at) => listings[at] !== undefined); // only a folder that was listed can say that a file is gone
   const known = new Set(cache.keys());
   try {
     for (const { path } of db.select({ path: usageScanFiles.path }).from(usageScanFiles).where(eq(usageScanFiles.kind, store.kind)).all()) known.add(path);
   } catch (error) {
     log.warn('the usage scan index could not be listed', { name: errorName(error) });
   }
-  const gone = goneFrom(known, roots, paths);
+  const gone = goneFrom(known, seen, paths);
   for (const path of gone) cache.delete(path);
   const states: [string, T][] = [];
-  const changed: [string, Cached<T>][] = [];
   for (const path of paths) {
     try {
       const scanned = await scanLines(ports, path, () => cache.get(path) ?? storedScan(db, store, path), since, fresh, (state, line) => onLine(state, line, path));
       if (scanned === undefined) continue;
       cache.set(path, scanned.entry);
       states.push([path, scanned.entry.state]);
-      if (scanned.read) changed.push([path, scanned.entry]);
+      if (scanned.read) store.unsaved.set(path, scanned.entry);
     } catch (error) {
       log.warn('a usage file could not be read', { name: errorName(error) });
     }
   }
-  await keepScans(db, store, changed, gone);
+  await keepScans(db, store, gone);
   return states;
 }
 
 function claudeLine(state: Map<string, External>, line: string, path: string) {
-  // ponytail: a superset of the types read below, so a branch for a new type must add its literal here or its lines are lost.
+  // ponytail: a superset of the types read below, so a branch for a new type must add its literal here or its lines are lost; changing what a line adds to the state bumps SCAN_VERSION.
   if (line.includes('"assistant"') === false) return;
   const event = object(JSON.parse(line));
   const message = object(event.message);
@@ -285,7 +303,7 @@ interface CodexState {
 const CODEX_TYPES = ['"token_count"', '"session_meta"', '"turn_context"'];
 
 function codexLine(state: CodexState, line: string) {
-  // ponytail: a superset of the types read below, so a branch for a new type must add its literal here or its lines are lost.
+  // ponytail: a superset of the types read below, so a branch for a new type must add its literal here or its lines are lost; changing what a line adds to the state bumps SCAN_VERSION.
   if (CODEX_TYPES.some((type) => line.includes(type)) === false) return;
   const event = object(JSON.parse(line));
   const payload = object(event.payload);
@@ -337,19 +355,21 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
   const claudeStore: Store<Map<string, External>> = {
     kind: 'claude',
     cache: new Map(),
+    unsaved: new Map(),
     pack: (state) => [...state],
     unpack(value) {
-      if (Array.isArray(value) === false || (value as unknown[]).every((entry) => Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' && typeof object(entry[1]).at === 'number') === false) throw new TypeError('not a list of records');
+      if (Array.isArray(value) === false || (value as unknown[]).every((entry) => Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' && isExternal(entry[1])) === false) throw new TypeError('not a list of records');
       return new Map(value as [string, External][]);
     },
   };
   const codexStore: Store<CodexState> = {
     kind: 'codex',
     cache: new Map(),
+    unsaved: new Map(),
     pack: (state) => state,
     unpack(value) {
       const state = object(value);
-      if (typeof state.sessionId !== 'string' || Array.isArray(state.records) === false) throw new TypeError('not a Codex state');
+      if (['sessionId', 'model', 'workspace'].some((key) => typeof state[key] !== 'string') || Array.isArray(state.records) === false || state.records.every(isExternal) === false) throw new TypeError('not a Codex state');
       return state as unknown as CodexState;
     },
   };
@@ -452,8 +472,9 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
   };
 
   async function scanAgy(dirs: string[]): Promise<External[]> {
-    const paths = new Set((await Promise.all(dirs.map((dir) => listed(ports, dir, '.db')))).flat());
-    forgetGone(agyCache, dirs, paths);
+    const listings = await Promise.all(dirs.map((dir) => listed(ports, dir, '.db')));
+    const paths = new Set(listings.flat().filter((path): path is string => path !== undefined));
+    forgetGone(agyCache, dirs.filter((_, at) => listings[at] !== undefined), paths);
     const found: External[] = [];
     for (const path of paths) {
       try {

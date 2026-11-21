@@ -356,6 +356,64 @@ test('a row whose state is valid JSON of another shape is read again from the fi
   expect(warn).toHaveBeenCalledTimes(2);
 });
 
+test('a folder that cannot be listed once keeps its rows, and the next look finds them', async () => {
+  seeded();
+  const { run, chat } = setup();
+  await run();
+  const list = ports.files.list;
+  let failing = true;
+  ports.files.list = async (root, suffix) => {
+    if (failing) throw Object.assign(new Error('too many open files'), { code: 'EMFILE' });
+    return list(root, suffix);
+  };
+  expect((await run()).totals.turns).toBe(0); // nothing could be seen this time
+  expect(rowsOf(chat)).toBe(2);
+  failing = false;
+  bytesRead = 0;
+  expect((await run()).totals.turns).toBe(4);
+  expect(bytesRead).toBe(0);
+});
+
+test('a group of rows that failed to be written is written by the next look, and the groups before it stay', async () => {
+  for (let i = 0; i < 250; i++) write(join(dir, 'claude', 'p', `f${i}.jsonl`), [claudeLine({ id: `m${i}`, input: 1 })]);
+  const { run, chat } = setup();
+  chat.$client.exec("create trigger fail_second_group before insert on usage_scan_files when (select count(*) from usage_scan_files) >= 100 begin select raise(abort, 'busy'); end");
+  expect((await run()).totals.turns).toBe(250); // the answer does not depend on the index
+  expect(rowsOf(chat)).toBe(100);
+  chat.$client.exec('drop trigger fail_second_group');
+  bytesRead = 0;
+  await run(); // nothing changed in the files
+  expect(rowsOf(chat)).toBe(250);
+  expect(bytesRead).toBe(0);
+});
+
+test('a row with the right shape and records that are not records is read again from the file', async () => {
+  seeded();
+  const first = setup();
+  const before = await first.run();
+  first.chat.$client.prepare(`update usage_scan_files set state = '{"sessionId":"x","model":"m","workspace":"","records":[{"at":1}]}' where kind = 'codex'`).run();
+  first.chat.$client.prepare(`update usage_scan_files set state = '[["k",{"at":1}]]' where kind = 'claude'`).run();
+  warn.mockClear();
+  bytesRead = 0;
+  expect(await setup().run()).toEqual(before);
+  expect(bytesRead).toBeGreaterThan(0);
+  expect(warn).toHaveBeenCalledTimes(2);
+});
+
+test('a look that fails does not hold the ones queued behind it', async () => {
+  seeded();
+  const { run } = setup();
+  const now = ports.clock.now;
+  let failures = 1; // the first look to read the clock fails
+  ports.clock.now = () => {
+    if (failures-- > 0) throw new Error('clock');
+    return now();
+  };
+  const [failed, after] = await Promise.allSettled([run(), run()]);
+  expect(failed.status).toBe('rejected');
+  expect(after.status).toBe('fulfilled');
+});
+
 test('a failure writing the index does not fail the call', async () => {
   seeded();
   const first = setup();

@@ -62,14 +62,17 @@ const quotedAssignment = /(?:SECRET|TOKEN|PASSWORD|KEY)\w*=["']/i;
 /**
  * What a list says of a session's last message: its words on one line, cut.
  * Only the start of the message is read (a message can be 64,000 characters and a list asks for every session), as much as it takes for
- * the words, redacted, to run twice the preview past its cut: a secret that straddles the cut is whole in what was read, and a private
+ * the words, redacted, to run twice the preview past its cut, and to the end of the word it falls in: a secret that straddles the cut is whole in what was read, and a private
  * key block that was cut is redacted to the end (`redact`). A quoted assignment in what was read makes it read the whole message.
  */
 export const previewOf = (text: string) => {
   const plain = withoutPasted(text);
   for (let take = 2_000; ; take *= 8) {
-    const words = plain.slice(0, take).replace(/\s+/g, ' ').trim();
-    if (take >= plain.length) return clean(words, chatCaps.preview);
+    // up to the end of the word the cut falls in: a token that is one run (a JWT) is whole in what was read
+    const wordEnd = plain.slice(take).search(/\s/);
+    const end = take >= plain.length || wordEnd < 0 ? plain.length : take + wordEnd;
+    const words = plain.slice(0, end).replace(/\s+/g, ' ').trim();
+    if (end >= plain.length) return clean(words, chatCaps.preview);
     if (quotedAssignment.test(words) === false && redact(words).length >= chatCaps.preview * 2) return clean(words, chatCaps.preview);
   }
 };

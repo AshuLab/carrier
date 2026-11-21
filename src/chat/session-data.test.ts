@@ -298,6 +298,7 @@ test('an idle session whose last activity has not moved is read every ten minute
   expect([diffsOf(s), s.pulls.finds.length]).toEqual([1, 1]);
   for (let time = 20_000; time < IDLE_DIFF_TTL_MS; time += 20_000) await listAt(s, time); // the app lists every few seconds
   expect([diffsOf(s), s.pulls.finds.length]).toEqual([1, 1]);
+  expect(s.calls.filter((call) => call.command === ORIGIN)).toHaveLength(1); // nothing was due: not even where it works was asked
   await listAt(s, IDLE_DIFF_TTL_MS);
   expect([diffsOf(s), s.pulls.finds.length]).toEqual([2, 1]);
   await listAt(s, IDLE_DISCOVER_EVERY_MS);
@@ -355,4 +356,17 @@ test('a session that already has a pull request is not looked for one, idle or n
   await listAt(s, 0);
   await listAt(s, IDLE_DISCOVER_EVERY_MS);
   expect(s.pulls.finds).toEqual([]);
+});
+
+test('what a child did while the diff of its parent was being read is not taken as already read', async () => {
+  const s = setup(ANSWERS);
+  s.db.insert(sessions).values({ id: 'c1', agent: 'claude', harness: 'claude', folder: '/work/app', createdAt: 0, lastActiveAt: 0, parentSessionId: s.id, state: 'idle' }).run();
+  const run = s.git.run.bind(s.git);
+  s.git.run = async (folder, args, options) => {
+    if (args[0] === 'diff') s.db.update(sessions).set({ lastActiveAt: 9 }).where(eq(sessions.id, 'c1')).run(); // its last event lands while git runs
+    return run(folder, args, options);
+  };
+  await listAt(s, 0);
+  await listAt(s, DIFF_TTL_MS);
+  expect(diffsOf(s)).toBe(2);
 });

@@ -108,15 +108,18 @@ public final class ChatSessionsPoller {
             return flag
         }
         let gone = activeIds.subtracting(active.map(\.id)).subtracting(archived.map(\.id))
-        activeIds = Set(active.map(\.id))
         var archivedRefreshedThisPoll = false
         if invalidated || !gone.isEmpty || (archivedAt.map({ now().timeIntervalSince($0) >= archivedEvery }) ?? true) {
             if let listed = try? await host.list(archived: true) {
                 archived = listed
                 archivedAt = now()
                 archivedRefreshedThisPoll = true
+            } else if invalidated {
+                stale.withLock { $0 = true } // the app asked for a read and it failed: asked again at the next poll
             }
         }
+        // what left the active list is remembered until the archived list has answered for it
+        if archivedRefreshedThisPoll || gone.isEmpty { activeIds = Set(active.map(\.id)) }
         let combined = active + archived
         outcome = "ok"
         onChange(sessionRows(combined))

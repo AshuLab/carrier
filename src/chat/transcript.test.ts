@@ -86,7 +86,10 @@ describe('the preview of a long message reads only its start', () => {
     keyAtTheRawEdge: `${'a'.repeat(195)}${' '.repeat(1_800)}sk-${'A'.repeat(30)} ${prose}`,
     // a quoted value that opens in the preview and closes past what is read: redact hides the whole assignment only when it sees the closing quote
     quotedSecret: `deploy with DB_PASSWORD="hunter2 correct horse${' battery staple'.repeat(150)}" thanks`,
-    quotedMultiline: `export API_KEY='${Array.from({ length: 80 }, (_, i) => `secret line ${i}`).join('\n')}'\n${prose}`,
+    quotedMultiline: `export API_KEY='${Array.from({ length: 200 }, (_, i) => `secret line ${i}`).join('\n')}'\n${prose}`,
+    // a token whose middle part runs past the first 2,000 characters: redact needs the third part to hide it
+    jwtPastTheRead: `token: eyJ${'a'.repeat(20)}.${'b'.repeat(1_990)}.${'c'.repeat(100)} tail ${prose}`,
+    nameRunPastTheRead: `see ${'KEY'.repeat(700)}=1 ${prose}`,
     exactly: 'e'.repeat(chatCaps.preview),
     justOver: 'e'.repeat(chatCaps.preview + 1),
   };
@@ -98,6 +101,7 @@ describe('the preview of a long message reads only its start', () => {
     expect(previewOf(samples.keyAtTheRawEdge!)).not.toContain('sk-');
     expect(previewOf(samples.quotedSecret!)).not.toContain('hunter2');
     expect(previewOf(samples.quotedMultiline!)).not.toContain('secret line');
+    expect(previewOf(samples.jwtPastTheRead!)).not.toContain('eyJ');
   });
 
   it('redacts a private key block that starts in the preview and runs past what was read', () => {

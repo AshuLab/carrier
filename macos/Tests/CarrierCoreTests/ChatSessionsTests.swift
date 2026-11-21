@@ -325,6 +325,36 @@ private func rig(_ host: FakeHost) -> (ChatSessionsPoller, Clock, () -> [Session
     #expect(archivedCount(rows) == 1)
 }
 
+@Test func aSessionThatLeftTheActiveListIsNotLostWhenTheArchivedListFailsOnce() async throws {
+    let host = FakeHost()
+    host.active = [try session("a"), try session("b")]
+    let clock = Clock()
+    var rows: [SessionRow] = []
+    let poller = ChatSessionsPoller(host: host, now: { clock.now }) { rows = $0 }
+    await poller.poll()
+    host.active = [try session("a")]
+    host.archived = nil // the archived list fails right when b left the active one
+    clock.now.addTimeInterval(2)
+    await poller.poll()
+    host.archived = [try session("b", archived: true)]
+    clock.now.addTimeInterval(2)
+    await poller.poll()
+    #expect(rows.map(\.id) == ["a", "b"] && archivedCount(rows) == 1)
+    // the same for a list the app asked to read again
+    host.active = [try session("a"), try session("c")]
+    host.archived = []
+    clock.now.addTimeInterval(2)
+    await poller.poll()
+    poller.invalidateArchived()
+    host.archived = nil
+    clock.now.addTimeInterval(2)
+    await poller.poll()
+    host.archived = [try session("z", archived: true)]
+    clock.now.addTimeInterval(2)
+    await poller.poll()
+    #expect(rows.map(\.id).contains("z"))
+}
+
 @Test func theRowsHoldTheActiveAndTheArchivedSessionsAndTheArchivedCountIsFromTheArchivedList() async throws {
     let host = FakeHost()
     host.active = [try session("a"), try session("b")]

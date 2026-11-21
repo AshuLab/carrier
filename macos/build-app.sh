@@ -14,14 +14,14 @@ for arg in "$@"; do
   if [ "$arg" = "--open" ]; then OPEN=true; else VERSION="$arg"; GIVEN=true; fi
 done
 if [ "$GIVEN" = true ]; then
-  CHANNEL=release; NAME=Carrier; BUNDLE_ID=dev.ashulab.carrier
+  CHANNEL=release; NAME=Carrier; BUNDLE_ID=dev.ashulab.carrier; ICON=AppIcon
   # the updater starts only from a bundle with a feed (AppUpdater.start), so a dev build has none
   UPDATER="<key>SUFeedURL</key><string>https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml</string>
 <key>SUPublicEDKey</key><string>$(tr -d '[:space:]' < update-key.pub)</string>
 <key>SUEnableAutomaticChecks</key><true/>
 <key>SUScheduledCheckInterval</key><integer>3600</integer>"
 else
-  CHANNEL=dev; NAME="Carrier Dev"; BUNDLE_ID=dev.ashulab.carrier.dev; UPDATER=""
+  CHANNEL=dev; NAME="Carrier Dev"; BUNDLE_ID=dev.ashulab.carrier.dev; ICON=AppIconDev; UPDATER=""
 fi
 # the version lands in the plist as XML, so only X.Y.Z gets in
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "error: version '$VERSION' is not X.Y.Z" >&2; exit 1; }
@@ -62,8 +62,14 @@ ditto .build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sp
 # the golden files `--fixture` serves
 mkdir -p "$APP/Contents/Resources"
 cp -R Tests/Fixtures "$APP/Contents/Resources/Fixtures"
-# the app's icon (made by scripts/make-icon.swift)
-cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# the app's icon, from the Icon Composer file of its channel (Resources/AppIcon.icon, Resources/AppIconDev.icon with the pink mark):
+# actool makes Assets.car (the layered icon of macOS 26) and an .icns for what reads the file; the app-icon name is the folder's name
+ICON_OUT="$(mktemp -d)"
+xcrun actool "Resources/$ICON.icon" --compile "$ICON_OUT" --output-format human-readable-text --warnings --errors \
+  --output-partial-info-plist "$ICON_OUT/partial.plist" --app-icon "$ICON" --include-all-app-icons \
+  --enable-on-demand-resources NO --development-region en --target-device mac --minimum-deployment-target 26.0 --platform macosx >/dev/null
+cp "$ICON_OUT/Assets.car" "$ICON_OUT/$ICON.icns" "$APP/Contents/Resources/"
+rm -rf "$ICON_OUT"
 # SwiftPM's resource bundle of CarrierCore: the file icons and the licence text that goes with them
 cp -R .build/release/Carrier_CarrierCore.bundle "$APP/Contents/Resources/"
 # GhosttyTerminal's bundled shell integration and terminfo database
@@ -87,7 +93,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>CFBundleName</key><string>$NAME</string>
 <key>CFBundleDisplayName</key><string>$NAME</string>
 <key>CarrierChannel</key><string>$CHANNEL</string>
-<key>CFBundleIconFile</key><string>AppIcon</string>
+<key>CFBundleIconFile</key><string>$ICON</string>
+<key>CFBundleIconName</key><string>$ICON</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>$VERSION</string>
 <key>CFBundleVersion</key><string>$BUILD</string>

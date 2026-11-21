@@ -72,6 +72,16 @@ public final class ControlClient {
         return ControlClient(fd: fd)
     }
 
+    /// Whether the other end has gone (it closed its socket, or the process died), seen without waiting: a connection kept between requests asks
+    /// this before it is used again, so a Carrier that was replaced is reconnected to at once and not found out by a failed request.
+    public var peerClosed: Bool {
+        guard isOpen else { return true }
+        var byte: UInt8 = 0
+        let n = recv(fd, &byte, 1, MSG_PEEK | MSG_DONTWAIT)
+        if n == 0 { return true }
+        return n < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR
+    }
+
     /// Safe to call twice (and again by `deinit`): closing an fd a second time could close one another thread has since been given.
     public func close() {
         guard isOpen else { return }

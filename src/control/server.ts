@@ -62,12 +62,12 @@ export type Controls = {
   sessions(repo: string, issue: number): SessionsReply | null;
   /** null for an execution the engine does not know. */
   events(executionId: string, after: number, limit: number): EventsReply | null;
+  /** null for an epic the engine does not know. Waits on git, so it may answer later; a rejection is `internal error`. */
+  epic(repo: string, issue: number): EpicReply | null | Promise<EpicReply | null>;
   /** null for an epic the engine does not know. */
-  epic(repo: string, issue: number): EpicReply | null;
-  /** null for an epic the engine does not know. */
-  files(repo: string, issue: number, executionId?: string): FilesReply | null;
+  files(repo: string, issue: number, executionId?: string): FilesReply | null | Promise<FilesReply | null>;
   /** null for an unknown epic or card, or a path that is not in the card's own file list. */
-  fileDiff(repo: string, issue: number, section: string, path: string): FileDiffReply | null;
+  fileDiff(repo: string, issue: number, section: string, path: string): FileDiffReply | null | Promise<FileDiffReply | null>;
   /** One page of the repos the gh login can push to, and whether there is a next one; rejects when GitHub cannot be read. */
   availableRepos(page: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }>;
   /** Puts a stopped epic back in motion and resolves once it started; rejects with ResumeRefused when it could not. */
@@ -111,36 +111,53 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       return { id: parsed.data.id, ok: false, error: 'internal error' };
     }
   }
-  if (parsed.data.cmd === 'sessions' || parsed.data.cmd === 'epic') {
-    const { id: replyId, cmd, repo, issue } = parsed.data;
+  if (parsed.data.cmd === 'sessions') {
+    const { id: replyId, repo, issue } = parsed.data;
     try {
-      const reply = controls[cmd](repo, issue);
+      const reply = controls.sessions(repo, issue);
       return reply === null ? { id: replyId, ok: false, error: 'unknown epic' } : { id: replyId, ok: true, data: reply };
     } catch (error) {
-      log.error(`${cmd} failed`, error);
+      log.error('sessions failed', error);
       return { id: replyId, ok: false, error: 'internal error' };
     }
+  }
+  // what waits on git answers later: the engine keeps running meanwhile, and this connection's replies keep their order
+  if (parsed.data.cmd === 'epic') {
+    const { id: replyId, repo, issue } = parsed.data;
+    return Promise.resolve()
+      .then(() => controls.epic(repo, issue))
+      .then(
+        (reply): Reply => (reply === null ? { id: replyId, ok: false, error: 'unknown epic' } : { id: replyId, ok: true, data: reply }),
+        (error): Reply => {
+          log.error('epic failed', error);
+          return { id: replyId, ok: false, error: 'internal error' };
+        },
+      );
   }
   if (parsed.data.cmd === 'files') {
     const { id: replyId, repo, issue, executionId } = parsed.data;
-    try {
-      const reply = controls.files(repo, issue, executionId);
-      return reply === null ? { id: replyId, ok: false, error: 'unknown epic' } : { id: replyId, ok: true, data: reply };
-    } catch (error) {
-      log.error('files failed', error);
-      return { id: replyId, ok: false, error: 'internal error' };
-    }
+    return Promise.resolve()
+      .then(() => controls.files(repo, issue, executionId))
+      .then(
+        (reply): Reply => (reply === null ? { id: replyId, ok: false, error: 'unknown epic' } : { id: replyId, ok: true, data: reply }),
+        (error): Reply => {
+          log.error('files failed', error);
+          return { id: replyId, ok: false, error: 'internal error' };
+        },
+      );
   }
   if (parsed.data.cmd === 'fileDiff') {
     const { id: replyId, repo, issue, section, path } = parsed.data;
-    try {
-      const reply = controls.fileDiff(repo, issue, section, path);
-      // never git's own message: it can name more of the machine than the client should see
-      return reply === null ? { id: replyId, ok: false, error: 'unknown file' } : { id: replyId, ok: true, data: reply };
-    } catch (error) {
-      log.error('fileDiff failed', error);
-      return { id: replyId, ok: false, error: 'internal error' };
-    }
+    return Promise.resolve()
+      .then(() => controls.fileDiff(repo, issue, section, path))
+      .then(
+        // never git's own message: it can name more of the machine than the client should see
+        (reply): Reply => (reply === null ? { id: replyId, ok: false, error: 'unknown file' } : { id: replyId, ok: true, data: reply }),
+        (error): Reply => {
+          log.error('fileDiff failed', error);
+          return { id: replyId, ok: false, error: 'internal error' };
+        },
+      );
   }
   if (parsed.data.cmd === 'availableRepos') {
     const { id: replyId, page } = parsed.data;

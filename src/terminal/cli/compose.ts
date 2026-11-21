@@ -9,7 +9,7 @@ import { GitWorkspaces, profileToken, type GitWorkspacesOptions } from '../../ex
 import type { Workspaces } from '../../execution/workspaces.ts';
 import { epicOf } from '../../control/epic.ts';
 import { eventsOf, lastEventOf } from '../../control/events.ts';
-import { fileDiff, filesOf } from '../../control/files.ts';
+import { cardsMemo, fileDiff, filesOf } from '../../control/files.ts';
 import { inheritedConfigDirs, sessionsOf } from '../../control/sessions.ts';
 import { startControlServer, version } from '../../control/server.ts';
 import { listAvailableRepos } from '../../integrations/available-repos.ts';
@@ -166,6 +166,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
       lastEvent: (executionId) => lastEventOf(db, executionId),
     });
   };
+  const cards = cardsMemo(() => deps.clock.now());
   const controls = {
     poll: () => engine.pollNow(),
     setPaused: (paused: boolean) => engine.setPaused(paused),
@@ -175,8 +176,8 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
     sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, inheritedConfigDirs()),
     events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: (repo: string, issue: number) => epicOf(db, repo, issue),
-    files: (repo: string, issue: number, executionId?: string) => filesOf(db, places.repos, repo, issue, executionId),
-    fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, places.repos, repo, issue, section, path),
+    files: (repo: string, issue: number, executionId?: string) => filesOf(db, places.repos, repo, issue, executionId, cards),
+    fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, places.repos, repo, issue, section, path, cards),
     availableRepos: (page: number) => deps.listRepos(page, timeoutMs()),
     resumeEpic: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.resumeEpic(repo, issue, chosen),
     reload: () =>

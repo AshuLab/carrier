@@ -174,13 +174,29 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
     var data = EpicData()
     data.sessions = reply(session("c", "fix", status: "running"), session("b", "review", status: "finished"), session("a", "ship", status: "failed"))
     var folds = SessionFolds()
-    let focus = epicFocus(ref, running: true, data: data, folds: folds)
+    let focus = epicFocus(ref, running: true, data: data, folds: folds, filesShown: true)
     #expect(focus.transcript == "c" && focus.counting == ["b", "a"])
 
     // folded: not followed
     folds.toggle(sessionList(data.sessions).sections.last!)
-    #expect(epicFocus(ref, running: true, data: data, folds: folds).transcript == nil)
-    #expect(epicFocus(ref, running: true, data: nil, folds: folds) == EpicFocus(epic: ref, epicRunning: true, filesTabVisible: true))
+    #expect(epicFocus(ref, running: true, data: data, folds: folds, filesShown: true).transcript == nil)
+    #expect(epicFocus(ref, running: true, data: nil, folds: folds, filesShown: true) == EpicFocus(epic: ref, epicRunning: true, filesTabVisible: true))
+}
+
+@Test func theFilesAreAskedUntilTheyAnsweredAndAfterThatOnlyWhileTheTabIsOnScreen() {
+    let ref = EpicRef(repo: "acme/web", issue: 12)
+    let folds = SessionFolds()
+    var data = EpicData()
+    // nothing read yet: asked, for the tab's count, though the tab is not open
+    #expect(epicFocus(ref, running: true, data: nil, folds: folds, filesShown: false).filesTabVisible)
+    #expect(epicFocus(ref, running: true, data: data, folds: folds, filesShown: false).filesTabVisible)
+    // answered without totals (an epic with no worktree yet): still asked, its count is not known
+    data.files = FilesReply(sections: [], total: nil, truncated: false)
+    #expect(epicFocus(ref, running: true, data: data, folds: folds, filesShown: false).filesTabVisible)
+    // answered: no more while the tab is hidden, and at once when it opens
+    data.files = FilesReply(sections: [], total: .init(files: 0, added: 0, removed: 0), truncated: false)
+    #expect(epicFocus(ref, running: true, data: data, folds: folds, filesShown: false).filesTabVisible == false)
+    #expect(epicFocus(ref, running: true, data: data, folds: folds, filesShown: true).filesTabVisible)
 }
 
 // MARK: loading and lazy bodies

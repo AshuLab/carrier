@@ -31,7 +31,7 @@ const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
 function fakeControls() {
   const state = { paused: false, polls: 0, repoPages: [] as number[] };
   const logs = vi.fn((id: string, count: number) => (id === executionId ? ['one', 'two', 'three'].slice(-count) : []));
-  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve(), reload: () => {} } };
+  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null | Promise<EpicReply | null> => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null | Promise<FilesReply | null> => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null | Promise<FileDiffReply | null> => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve(), reload: () => {} } };
 }
 
 const stop = async () => {};
@@ -205,6 +205,41 @@ test('files answers with the reply, and an unknown epic or a failure are errors'
   expect(await (await client()).ask('{"id":1,"cmd":"files","repo":"a/b","issue":1}')).toEqual({ id: 1, ok: false, error: 'unknown epic' });
   await open(undefined, { ...fakeControls().controls, files: () => { throw new Error('boom'); } });
   expect(await (await client()).ask('{"id":2,"cmd":"files","repo":"a/b","issue":1}')).toEqual({ id: 2, ok: false, error: 'internal error' });
+});
+
+test('epic, files and fileDiff may answer with a promise: a value, null and a rejection reply as they do synchronously', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  const empty = { sections: [], total: null, truncated: false };
+  const diff = { rows: [], truncated: false, note: 'binary' as const };
+  const ask = { epic: '{"id":1,"cmd":"epic","repo":"a/b","issue":1}', files: '{"id":2,"cmd":"files","repo":"a/b","issue":1}', fileDiff: '{"id":3,"cmd":"fileDiff","repo":"a/b","issue":1,"section":"lane-1","path":"a"}' };
+  await open(undefined, { ...fakeControls().controls, files: () => Promise.resolve(empty), fileDiff: () => Promise.resolve(diff), epic: () => Promise.resolve(null) });
+  const c = await client();
+  expect(await c.ask(ask.files)).toEqual({ id: 2, ok: true, data: empty });
+  expect(await c.ask(ask.fileDiff)).toEqual({ id: 3, ok: true, data: diff });
+  expect(await c.ask(ask.epic)).toEqual({ id: 1, ok: false, error: 'unknown epic' });
+  await open(undefined, { ...fakeControls().controls, files: () => Promise.resolve(null), fileDiff: () => Promise.resolve(null) });
+  const other = await client();
+  expect(await other.ask(ask.files)).toEqual({ id: 2, ok: false, error: 'unknown epic' });
+  expect(await other.ask(ask.fileDiff)).toEqual({ id: 3, ok: false, error: 'unknown file' });
+  const boom = () => Promise.reject(new Error('fatal: /secret/path is not a git repository'));
+  await open(undefined, { ...fakeControls().controls, epic: boom, files: boom, fileDiff: boom });
+  const failing = await client();
+  for (const line of Object.values(ask)) expect(await failing.ask(line)).toMatchObject({ ok: false, error: 'internal error' });
+  expect(await failing.ask('{"id":4,"cmd":"snapshot"}')).toMatchObject({ id: 4, ok: true });
+});
+
+test('a files request that waits does not hold back another connection, and its own connection keeps the order', async () => {
+  let release = (_: FilesReply) => {};
+  const slow = new Promise<FilesReply>((resolve) => (release = resolve));
+  await open(undefined, { ...fakeControls().controls, files: () => slow });
+  const first = await client();
+  const second = await client();
+  const waiting = first.ask('{"id":1,"cmd":"files","repo":"a/b","issue":1}');
+  const behind = first.ask('{"id":2,"cmd":"snapshot"}');
+  expect(await second.ask('{"id":3,"cmd":"snapshot"}')).toMatchObject({ id: 3, ok: true });
+  release({ sections: [], total: null, truncated: false });
+  expect(await waiting).toMatchObject({ id: 1, ok: true });
+  expect(await behind).toMatchObject({ id: 2, ok: true });
 });
 
 test('availableRepos answers the page asked for with hasMore, and page 1 without one', async () => {

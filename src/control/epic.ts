@@ -1,8 +1,10 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { promisify } from 'node:util';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
+import { withGit } from '../execution/git-binary.ts';
 import type { Db } from '../storage/db.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
@@ -15,6 +17,7 @@ import { optionsOf } from '../status/snapshot.ts';
 import { agentOf } from './sessions.ts';
 
 const log = createScopedLogger('control');
+const execFileAsync = promisify(execFile);
 
 // The reply is bounded: with these, a round weighs at most about 60 KB, far under the client's 8 MiB line.
 export const MAX_ROUNDS = 50;
@@ -52,12 +55,39 @@ function marked(current: Found[], previous: Found[] | null, resolved: string[]):
   ].slice(0, MAX_BLOCKERS);
 }
 
+// At most four git processes at once for the socket's handlers: an epic of many lanes waits its turn instead of forking dozens.
+const MAX_GIT = 4;
+let running = 0;
+const queue: (() => void)[] = [];
+export async function limited<T>(work: () => Promise<T>): Promise<T> {
+  if (running >= MAX_GIT) await new Promise<void>((go) => queue.push(go)); // the slot is handed over: `running` stays as it was
+  else running++;
+  try {
+    return await work();
+  } finally {
+    const next = queue.shift();
+    if (next === undefined) running--;
+    else next();
+  }
+}
+
+/** One git process in a slot of `limited`, its input closed at once (execFile leaves a pipe open: a command that read it would wait for the timeout). */
+export const runGit = (cwd: string, args: string[], maxBuffer: number) =>
+  limited(() =>
+    withGit((binary) => {
+      const run = execFileAsync(binary, args, { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
+      run.child.stdin?.end();
+      return run;
+    }),
+  );
+
 /** git in a folder; null when the folder is gone (expected: an epic's worktree is removed when it ends) or git failed (logged). */
-export function git(cwd: string, args: string[]): string | null {
+export async function git(cwd: string, args: string[]): Promise<string | null> {
   if (existsSync(cwd) === false) return null;
   try {
     // no optional locks: reading an agent's worktree must not refresh its index under the agent's own commit
-    return execFileSync('git', args, { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const { stdout } = await runGit(cwd, args, 32 * 1024 * 1024);
+    return stdout;
   } catch (error) {
     log.warn('git failed in an epic worktree', { cwd, args: args[0], error: String(error) });
     return null;
@@ -70,12 +100,12 @@ const MAX_CACHED_RANGES = 500;
 const commitCache = new Map<string, Round['commits']>();
 
 /** The commits a fix added between the head the review saw and the head it left; empty when there is no worktree to ask. */
-function commitsBetween(cwd: string | null, from: string, to: string): Round['commits'] {
+async function commitsBetween(cwd: string | null, from: string, to: string): Promise<Round['commits']> {
   if (cwd === null) return [];
   const key = `${cwd}\0${from}..${to}`;
   const cached = commitCache.get(key);
   if (cached) return cached;
-  const out = git(cwd, ['log', `--max-count=${MAX_COMMITS}`, '--format=%H%x00%s', `${from}..${to}`]);
+  const out = await git(cwd, ['log', `--max-count=${MAX_COMMITS}`, '--format=%H%x00%s', `${from}..${to}`]);
   if (out === null) return [];
   const commits = out.split('\n').filter(Boolean).map((line) => {
     const [sha = '', subject = ''] = line.split('\0');
@@ -129,7 +159,7 @@ function liveHints(db: Db, epicId: number): Map<number, { lane: number | null; a
  * left a result: technical retries leave none and make no round. An epic put back in the queue starts new rounds from 1
  * after the old ones, which stay in the list. `slices` is the cache of GitHub the poll keeps (ADR 0008); `pr` is the block the poll cached from GitHub, null while the epic has no pull request, and `threads` the pull request's review threads cached with it.
  */
-export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
+export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicReply | null> {
   const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
   if (epic === undefined) return null;
   const runs = db
@@ -189,13 +219,18 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
     });
     open = blockers;
   }
+  // read with the rows above, before git is waited for: the reply is one cut of the database, not one that a poll can change in between
+  const slices = db.select().from(epicSlices).where(eq(epicSlices.epicId, epic.id)).orderBy(epicSlices.number).all();
+  const threads = db.select().from(epicReviewThreads).where(eq(epicReviewThreads.epicId, epic.id)).orderBy(epicReviewThreads.position).all();
+  const hints = liveHints(db, epic.id);
+
   const hitLimit = epic.status === 'needs_human' && epic.needsHumanReason?.startsWith('review limit') === true;
-  const rounds = found.slice(-MAX_ROUNDS).map(({ round, attempt: of, fixed }) => {
+  const rounds = await Promise.all(found.slice(-MAX_ROUNDS).map(async ({ round, attempt: of, fixed }) => {
     // Nothing answered it and nothing follows: the epic stopped there for the limit.
     if (round.verdict === 'changes_requested' && fixed === false && (of < attempt || hitLimit)) round.verdict = 'limit_reached';
-    if (round.reviewedSha !== null && round.fixedSha !== null) round.commits = commitsBetween(epic.workspace, round.reviewedSha, round.fixedSha);
+    if (round.reviewedSha !== null && round.fixedSha !== null) round.commits = await commitsBetween(epic.workspace, round.reviewedSha, round.fixedSha);
     return round;
-  });
+  }));
 
   // The stages of the current attempt: queued, then each contiguous run of a stage, then ready.
   const stages: EpicReply['stages'] = [{ stage: 'queued', startedAt: epic.queuedAt, endedAt: epic.startedAt }];
@@ -218,10 +253,7 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
     ...(reviewer === null ? [] : [{ kind: 'reviewer' as const, lane: null, path: reviewer }]),
   ];
   // the row records the branch once ship is validated; before that the worktree's HEAD is the only place it is
-  const branch = epic.branch ?? (epic.workspace === null ? null : (git(epic.workspace, ['symbolic-ref', '--short', 'HEAD'])?.trim() || null));
+  const branch = epic.branch ?? (epic.workspace === null ? null : ((await git(epic.workspace, ['symbolic-ref', '--short', 'HEAD']))?.trim() || null));
 
-  const slices = db.select().from(epicSlices).where(eq(epicSlices.epicId, epic.id)).orderBy(epicSlices.number).all();
-  const threads = db.select().from(epicReviewThreads).where(eq(epicReviewThreads.epicId, epic.id)).orderBy(epicReviewThreads.position).all();
-  const hints = liveHints(db, epic.id);
   return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt, lane: null, activity: null, ...(state === 'in_progress' && hints.get(number)) })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, options: optionsOf(epic), pr: epic.pr };
 }

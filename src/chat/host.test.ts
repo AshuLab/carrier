@@ -143,6 +143,30 @@ test('a crash closes the live sessions and ends the host with exit 1', async () 
   client.close();
 });
 
+test('a host that was not given the crash hook and has no signals installs no handler on the process', async () => {
+  const before = process.listenerCount('uncaughtException');
+  await host();
+  expect(process.listenerCount('uncaughtException')).toBe(before);
+});
+
+test('the stop signals every live agent before it waits for any of them to end', async () => {
+  const claude = new FakeChatRunner();
+  let closing = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  claude.setup = (c) => void (c.close = async () => void (closing++, await gate));
+  const { stop } = await host(new FakeClock(), claude);
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const work = join(root, 'w');
+  mkdirSync(work);
+  for (let i = 0; i < 4; i++) await client.request('open', { agent: 'claude', folder: work });
+  const stopping = stop();
+  await vi.waitFor(() => expect(closing).toBe(4)); // none has ended yet: each group gets its grace at the same time
+  release();
+  await stopping;
+  client.close();
+});
+
 test('a crash while an agent does not stop still ends the host after ten seconds', async () => {
   const claude = new FakeChatRunner();
   let release!: () => void;

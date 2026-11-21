@@ -25,6 +25,9 @@ export const DIFF_TTL_MS = 60_000;
 export const STATE_TTL_MS = 60_000;
 /** The least between two looks for the pull request of a session that has none: its turn ending looks at once. */
 export const DISCOVER_EVERY_MS = 180_000;
+/** The same two, for an idle session whose last activity has not moved since they were read: nothing the agent did can have changed them. */
+export const IDLE_DIFF_TTL_MS = 600_000;
+export const IDLE_DISCOVER_EVERY_MS = 1_800_000;
 const GIT_TIMEOUT_MS = 10_000;
 
 /** What runs from the repository's own configuration (an external diff, a text filter) stays out of a read that only counts lines. */
@@ -51,8 +54,9 @@ const isOpen = (state: string | null) => state === 'open' || state === 'draft';
  * kept; only its state is asked again, by number and for all the open ones in one request. A merged or closed one is final.
  */
 export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: Git; pulls: PullRequests; clock: Clock }) {
-  const diffs = new Map<string, { stat: DiffStat | null; at: number }>();
-  const discoveredAt = new Map<string, number>();
+  // `activeAt`: the session's `lastActiveAt` when it was read; an idle session that has not moved since has nothing new to read
+  const diffs = new Map<string, { stat: DiffStat | null; at: number; activeAt: number }>();
+  const discoveredAt = new Map<string, { at: number; activeAt: number }>();
   let sweptAt = Number.NEGATIVE_INFINITY;
   let sweeping = false;
 
@@ -65,6 +69,7 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
    * The branch the session works on and where it was cut from or merges into, to count lines against.
    * The branch is the one checked out now (null while detached); a worktree then falls back to the one it was cut with.
    */
+  type Where = Awaited<ReturnType<typeof whereOf>>;
   async function whereOf(found: Found) {
     const worktree = found.workspaceKind === 'worktree';
     const originFolder = worktree ? (found.worktreeBase ?? found.folder) : found.folder;
@@ -101,10 +106,10 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
   }
 
   // ponytail: `git diff` leaves the files git does not track out of the count; `git add -N` would change the person's index, so they are not counted
-  async function refreshDiff(found: Found) {
-    const where = await whereOf(found);
+  async function refreshDiff(found: Found, known?: Where) {
+    const where = known ?? (await whereOf(found));
     const numstat = await out(found.folder, ['diff', '--numstat', ...SAFE_DIFF, await baseOf(found, where), '--']);
-    diffs.set(found.id, { stat: numstat === null ? null : parseNumstat(numstat), at: clock.now() });
+    diffs.set(found.id, { stat: numstat === null ? null : parseNumstat(numstat), at: clock.now(), activeAt: found.lastActiveAt });
   }
 
   const link = (id: string, repo: string, info: PullRequestInfo) => {
@@ -112,9 +117,9 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
   };
 
   /** Looks for the pull request of the branch the session works on; a session that has one keeps it unless it is merged or closed and a newer one is open on the same branch. */
-  async function discover(found: Found) {
-    discoveredAt.set(found.id, clock.now());
-    const where = await whereOf(found);
+  async function discover(found: Found, known?: Where) {
+    discoveredAt.set(found.id, { at: clock.now(), activeAt: found.lastActiveAt });
+    const where = known ?? (await whereOf(found));
     if (where.repo === null) log.debug('no GitHub repository to look for a pull request in', { session: found.id }); // not the remote: it can hold a token
     if (where.repo === null || where.branch === null || where.branch === where.defaultBranch) return;
     const info = await pulls.find(where.repo, where.branch);
@@ -134,11 +139,19 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
     }
   }
 
+  /** Whether what was read at `read` is due again: after `base`, or after `idle` when the session is idle and has done nothing since. */
+  const due = (found: Found, read: { at: number; activeAt: number } | undefined, base: number, idle: number) =>
+    read === undefined || clock.now() - read.at >= (found.state === 'idle' && found.lastActiveAt === read.activeAt ? idle : base);
+
   async function sweep(rows: Found[]) {
     const now = clock.now();
     for (const found of rows) {
-      if (now - (diffs.get(found.id)?.at ?? Number.NEGATIVE_INFINITY) >= DIFF_TTL_MS) await refreshDiff(found);
-      if (found.prNumber === null && now - (discoveredAt.get(found.id) ?? Number.NEGATIVE_INFINITY) >= DISCOVER_EVERY_MS) await discover(found);
+      const needsDiff = due(found, diffs.get(found.id), DIFF_TTL_MS, IDLE_DIFF_TTL_MS);
+      const needsPull = found.prNumber === null && due(found, discoveredAt.get(found.id), DISCOVER_EVERY_MS, IDLE_DISCOVER_EVERY_MS);
+      if (needsDiff === false && needsPull === false) continue;
+      const where = await whereOf(found); // once for both
+      if (needsDiff) await refreshDiff(found, where);
+      if (needsPull) await discover(found, where);
     }
     await refreshStates(rows.filter((found) => now - (found.prCheckedAt ?? 0) >= STATE_TTL_MS));
   }

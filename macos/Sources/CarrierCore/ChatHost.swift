@@ -190,6 +190,38 @@ public struct GithubReposPage: Decodable, Equatable {
     }
 }
 
+/// A clone the person started from Settings, as the host lists it: running with git's latest progress line, or failed with its reason until it is dismissed.
+/// One that finished is a project in `projects.json` and is no longer listed.
+public struct ProjectClone: Decodable, Equatable, Identifiable, Sendable {
+    public enum State: String, Decodable, Sendable { case cloning, failed }
+
+    /// `owner/name`.
+    public let repo: String
+    /// Where it is being made.
+    public let folder: String
+    public let state: State
+    /// Git's latest progress line ("Receiving objects: 45%"), once it has said one.
+    public let progress: String?
+    /// Why a failed clone failed, in the host's words.
+    public let error: String?
+
+    public var id: String { repo.lowercased() }
+
+    public init(repo: String, folder: String, state: State, progress: String? = nil, error: String? = nil) {
+        self.repo = repo
+        self.folder = folder
+        self.state = state
+        self.progress = progress
+        self.error = error
+    }
+}
+
+struct ProjectClonesReply: Decodable { let clones: [ProjectClone] }
+
+/// What a person is told when the chat host that is running is older than the app and has no projects requests: the app replaces an older host when
+/// no session is working, so the way out is to finish the work and restart the host.
+public let projectsNeedNewerHost = "The chat host that is running is older than this app and cannot clone projects. Restart the chat host (when no session is working) to use it."
+
 /// The reply of `repoBranches`: the default branch of a repository that need not be on disk and its branches (the first hundred, as GitHub lists
 /// them), and whether there are more.
 public struct RepoBranches: Decodable, Equatable {
@@ -244,6 +276,15 @@ public protocol ChatHost {
     /// The default branch and the branches of `owner/repo`, read from GitHub with the person's `gh` login: the repository need not be on this
     /// Mac. Refused in words (`gh` missing or signed out, no network, not found or not visible, too slow). Only for a host whose hello lists `repoBranches`.
     func repoBranches(_ repo: String) async throws -> RepoBranches
+    /// Starts cloning `repo` (`owner/name`) into `parent/<owner>/<name>`, or into the projects folder when `parent` is nil, and answers at once with the clone
+    /// (`cloning`): the host registers the folder as a project, with origin `cloned`, when git ends, and never makes Carrier watch it. One running for the same
+    /// repository is shared, not started twice. Refused in words for a folder that is already a project or a parent inside Carrier's own folders. Only for a host
+    /// whose hello lists `projects`; an older one is told to restart.
+    func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone
+    /// The clones started from Settings that are running or failed. Only for a host whose hello lists `projects`.
+    func projectClones() async throws -> [ProjectClone]
+    /// Forgets a failed clone (one that is running stays) and answers the clones that are left. Only for a host whose hello lists `projects`.
+    func dismissClone(_ repo: String) async throws -> [ProjectClone]
     /// The state of `git`, `gh` and each chat agent on the host's machine; `refresh` skips the answer the host kept for thirty seconds.
     /// Only for a host whose hello lists `health`.
     func health(refresh: Bool) async throws -> HostHealth
@@ -331,6 +372,11 @@ extension ChatHost {
 
     /// A host that cannot list the branches of a repository refuses; the app only asks one that lists `repoBranches`.
     public func repoBranches(_ repo: String) async throws -> RepoBranches { throw ControlError.remote("the chat host does not support repoBranches") }
+
+    /// A host that has no projects requests says it is older and to restart it.
+    public func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone { throw ControlError.remote(projectsNeedNewerHost) }
+    public func projectClones() async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
+    public func dismissClone(_ repo: String) async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
 
     /// A host that cannot say how the machine is refuses; the app only asks one that lists `health`.
     public func health(refresh: Bool) async throws -> HostHealth { throw ControlError.remote("the chat host does not support health") }
@@ -454,6 +500,26 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"repo\":\(jsonString(repo))"
         let path = socketPath()
         return try await Task.detached { try chatRequest(path, "repoBranches", requires: .repoBranches, fields: fields, timeout: 40) }.value
+    }
+
+    public func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone {
+        // the host's own limits (src/chat/server.ts): a repository as owner/name, and a parent that is not empty or over 4096 characters
+        guard isRepoName(repo) else { throw ControlError.remote("\"\(repo)\" is not a repository; write it as owner/name") }
+        if let parent, parent.isEmpty || parent.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        let fields = ",\"repo\":\(jsonString(repo))" + (parent.map { ",\"parent\":\(jsonString($0))" } ?? "")
+        let path = socketPath()
+        return try await Task.detached { try projectsRequest(path, "cloneProject", fields: fields) }.value
+    }
+
+    public func projectClones() async throws -> [ProjectClone] {
+        let path = socketPath()
+        return try await Task.detached { (try projectsRequest(path, "projectClones") as ProjectClonesReply).clones }.value
+    }
+
+    public func dismissClone(_ repo: String) async throws -> [ProjectClone] {
+        let fields = ",\"repo\":\(jsonString(repo))"
+        let path = socketPath()
+        return try await Task.detached { (try projectsRequest(path, "dismissClone", fields: fields) as ProjectClonesReply).clones }.value
     }
 
     /// The probes of a request run in parallel with five seconds each, so the wait is longer than the 5 seconds of the other requests.
@@ -801,6 +867,13 @@ fileprivate func chatRequest<Reply: Decodable>(
 fileprivate func usageRequest<Reply: Decodable>(_ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String, timeout: TimeInterval = 5) throws -> Reply {
     do { return try chatRequest(path, command, requires: capability, fields: fields, timeout: timeout) } catch ControlError.remote(let reason) where reason == "the chat host does not support \(command)" {
         throw ControlError.remote(usageNeedsNewerHost)
+    }
+}
+
+/// `chatRequest` for the `projects` capability, but a host that does not list it is told in the words of what to do about it.
+fileprivate func projectsRequest<Reply: Decodable>(_ path: String, _ command: String, fields: String = "") throws -> Reply {
+    do { return try chatRequest(path, command, requires: .projects, fields: fields) } catch ControlError.remote(let reason) where reason == "the chat host does not support \(command)" {
+        throw ControlError.remote(projectsNeedNewerHost)
     }
 }
 

@@ -10,7 +10,7 @@ test('ghReposArgs asks for one page of 30 and prints the raw count first', () =>
 test('the chat reads every repo the login can see: collaborator too, and no push filter', () => {
   const [, url, , jq] = ghReposArgs(2, 'read');
   expect(url).toBe('user/repos?affiliation=owner,collaborator,organization_member&sort=pushed&per_page=30&page=2');
-  expect(jq).toBe('(length | tostring), (.[] | select(.archived or .disabled | not) | [.full_name, .private, .pushed_at // ""] | @tsv)');
+  expect(jq).toBe('(length | tostring), (.[] | select(.archived or .disabled | not) | [.full_name, .private, .pushed_at // "", (.description // "" | gsub("[\\t\\r\\n]+"; " "))] | @tsv)');
   expect(ghReposArgs(2)).toEqual(ghReposArgs(2, 'push'));
 });
 
@@ -37,4 +37,11 @@ test('a short raw page is the last one', () => {
 
 test('a name that is not owner/name is dropped', () => {
   expect(parseRepos('2\nnot a repo\ttrue\t\nAshuLab/carrier\ttrue\t').repos.map((r) => r.name)).toEqual(['AshuLab/carrier']);
+});
+
+test('a fourth column is the description, and an empty one leaves the key out', () => {
+  expect(parseRepos('2\nvemec/encaja\tfalse\t\tA small tool\nvemec/blog\ttrue\t\t').repos).toEqual([
+    { name: 'vemec/encaja', private: false, pushedAt: null, description: 'A small tool' },
+    { name: 'vemec/blog', private: true, pushedAt: null },
+  ]);
 });

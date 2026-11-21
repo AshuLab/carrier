@@ -74,11 +74,12 @@ struct ProjectsTabView: View {
     // MARK: the list
 
     @ViewBuilder private var list: some View {
-        let tags = projectTagsInUse(model.rows)
-        let groups = projectList(projectsWithLastActive(model.rows, sessions: sessions), query: query, filter: filter, groupBy: groupBy, order: order)
+        let shown = model.rows + model.cloneRows
+        let tags = projectTagsInUse(shown)
+        let groups = projectList(projectsWithLastActive(shown, sessions: sessions), query: query, filter: filter, groupBy: groupBy, order: order)
         let now = Date()
         Group {
-            if model.rows.isEmpty {
+            if shown.isEmpty {
                 SettingsGroup(title: "") {
                     EmptyStateView(
                         icon: .folder, title: "No projects yet", line: "Add a folder you work in and it shows here.",
@@ -164,7 +165,43 @@ struct ProjectsTabView: View {
         .accessibilityValue(sorted ? (order.ascending ? "ascending" : "descending") : "")
     }
 
-    private func projectRow(_ row: ProjectRow, now: Date, divider: Bool) -> some View {
+    /// A clone that is running or failed: it is not a project yet, so the row has no chevron and cannot be opened. It shows git's progress line, or the
+    /// reason the clone failed in orange with a way to dismiss it.
+    private func cloneRow(_ row: ProjectRow, _ clone: ProjectClone, divider: Bool) -> some View {
+        HStack(spacing: 12) {
+            ProjectIcon(tile: row.tile)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
+                    switch clone.state {
+                    case .cloning: StatusChip(text: "Cloning", tint: .accentColor)
+                    case .failed: StatusChip(text: "Failed", tint: .orange)
+                    }
+                }
+                Text(row.line)
+                    .font(.scaled(11)).foregroundStyle(clone.state == .failed ? Color.orange : .secondary)
+                    .lineLimit(clone.state == .failed ? 3 : 1).truncationMode(.tail)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if clone.state == .failed {
+                Button("Dismiss") { Task { await model.dismissClone(clone.repo) } }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    .accessibilityLabel("Dismiss the failed clone of \(clone.repo)")
+            }
+        }
+        .padding(.vertical, 10).frame(minHeight: 46)
+        .overlay(alignment: .top) { if divider { SettingsDivider() } }
+    }
+
+    @ViewBuilder private func projectRow(_ row: ProjectRow, now: Date, divider: Bool) -> some View {
+        if let clone = row.clone {
+            cloneRow(row, clone, divider: divider)
+        } else {
+            openableRow(row, now: now, divider: divider)
+        }
+    }
+
+    private func openableRow(_ row: ProjectRow, now: Date, divider: Bool) -> some View {
         Button { open(row.path) } label: {
             HStack(spacing: 12) {
                 HStack(spacing: 12) {

@@ -174,3 +174,116 @@ private func makeRow(_ path: String, name: String? = nil, repo: String? = nil) -
         Issue.record("Expected refusal for mixed drop containing a file")
     }
 }
+
+// MARK: cloning from the sheet (docs/specs/projects.md, Scope 4)
+
+private func github(
+    _ repos: [AvailableRepo] = [],
+    visibility: [String: RepoCheck] = [:],
+    chosen: [String: String] = [:],
+    canClone: Bool = true,
+    problem: String? = nil
+) -> ProjectSheetGithub {
+    var known = ProjectSheetGithub(defaultParent: "/Users/ana/Carrier/projects")
+    known.repos = repos
+    known.visibility = visibility
+    known.chosenParents = chosen
+    known.canClone = canClone
+    known.listingProblem = problem
+    known.now = Date(timeIntervalSince1970: 1_800_000_000)
+    return known
+}
+
+private let myRepos = [
+    AvailableRepo(name: "ana/encaja", isPrivate: false, pushedAt: "2027-01-14T07:20:00Z", about: "A tiny habit tracker"),
+    AvailableRepo(name: "acme/web", isPrivate: true, pushedAt: nil, about: "The marketing site"),
+    AvailableRepo(name: "acme/api", isPrivate: true, pushedAt: nil),
+]
+
+@Test func aPastedOwnerSlashNameOrGitHubAddressIsACloneResultThatSaysWhereItGoes() {
+    let home = "/Users/ana"
+    for pasted in ["acme/new-thing", "https://github.com/acme/new-thing", "github.com/acme/new-thing.git", "  https://github.com/acme/new-thing/ "] {
+        let state = projectSheetState(mode: .settings, query: pasted, recent: [], projects: [], github: github(myRepos), home: home)
+        let first = state.firstResult
+        #expect(first?.kind == .cloneRepo(repo: "acme/new-thing", parent: nil), Comment(rawValue: pasted))
+        #expect(first?.title == "Clone acme/new-thing" && first?.actionTitle == "Clone" && first?.isEnabled == true)
+        #expect(first?.destination == ProjectSheetDestination(line: "Clones into ~/Carrier/projects/acme/new-thing", parent: "/Users/ana/Carrier/projects", isChosen: false))
+    }
+}
+
+@Test func choosingAFolderForOneCloneChangesItsDestinationAndNotTheDefaultOrTheOtherRepositories() {
+    let known = github(myRepos, chosen: ["acme/new-thing": "/Users/ana/work"])
+    let chosen = projectSheetState(mode: .settings, query: "acme/new-thing", recent: [], projects: [], github: known, home: "/Users/ana")
+    #expect(chosen.firstResult?.kind == .cloneRepo(repo: "acme/new-thing", parent: "/Users/ana/work"))
+    #expect(chosen.firstResult?.destination == ProjectSheetDestination(line: "Clones into ~/work/acme/new-thing", parent: "/Users/ana/work", isChosen: true))
+    // the default stays for every other repository
+    let other = projectSheetState(mode: .settings, query: "acme/other", recent: [], projects: [], github: known, home: "/Users/ana")
+    #expect(other.firstResult?.destination?.parent == "/Users/ana/Carrier/projects" && other.firstResult?.destination?.isChosen == false)
+}
+
+@Test func typingFiltersTheListedRepositoriesByNameOrDescriptionWithTheirDescriptionLastPushAndPrivateChip() {
+    let state = projectSheetState(mode: .settings, query: "habit", recent: [], projects: [], github: github(myRepos), home: "/Users/ana")
+    #expect(state.sections.map(\.title) == ["Your repositories"])
+    let row = state.items[0]
+    #expect(row.title == "ana/encaja" && row.detail == "A tiny habit tracker" && row.chip == nil)
+    #expect(row.pushed == "pushed yesterday")
+    #expect(row.kind == .cloneRepo(repo: "ana/encaja", parent: nil) && row.actionTitle == "Clone")
+
+    let byName = projectSheetState(mode: .settings, query: "acme", recent: [], projects: [], github: github(myRepos), home: "/Users/ana")
+    #expect(byName.items.map(\.title) == ["acme/web", "acme/api"])
+    #expect(byName.items.map(\.chip) == ["Private", "Private"])
+    // a typed word that is no address and no repository leaves nothing
+    #expect(projectSheetState(mode: .settings, query: "zzz", recent: [], projects: [], github: github(myRepos), home: "/Users/ana").items.isEmpty)
+}
+
+@Test func withNothingTypedTheRepositoriesFollowTheSuggestedFolders() {
+    let state = projectSheetState(mode: .settings, query: "", recent: [RecentFolder(name: "web", path: "/Users/ana/web")], projects: [], github: github(myRepos), home: "/Users/ana")
+    #expect(state.sections.map(\.title) == ["Suggested", "Your repositories"])
+    #expect(state.items.count == 4)
+    // with no GitHub knowledge (an older host, or Settings before it loaded) the sheet is the folder sheet it was
+    #expect(projectSheetState(mode: .settings, query: "", recent: [RecentFolder(name: "web", path: "/Users/ana/web")], projects: [], home: "/Users/ana").sections.map(\.title) == ["Suggested"])
+}
+
+@Test func aRepositoryThatIsAlreadyAProjectShowsOpenInsteadOfClone() {
+    let project = makeRow("/Users/ana/Carrier/projects/acme/web", name: "Web", repo: "acme/web")
+    let typed = projectSheetState(mode: .settings, query: "ACME/web", recent: [], projects: [project], github: github(myRepos), home: "/Users/ana")
+    #expect(typed.firstResult?.kind == .existingProject(project) && typed.firstResult?.actionTitle == "Open" && typed.firstResult?.detail == "Already a project · Open")
+    let listed = projectSheetState(mode: .settings, query: "acme", recent: [], projects: [project], github: github(myRepos), home: "/Users/ana")
+    #expect(listed.items.map(\.actionTitle) == ["Open", "Clone"])
+    // the repository that is pasted is not listed again below
+    #expect(typed.items.filter { $0.title.contains("acme/web") || $0.title == "Web" }.count == 1)
+}
+
+@Test func aRepositoryTheLoginCannotSeeIsOrangeWithCloneOffAndAListedOneIsNeverChecked() {
+    let missing = projectSheetState(mode: .settings, query: "acme/secret", recent: [], projects: [], github: github(myRepos, visibility: ["acme/secret": .notVisible]), home: "/Users/ana")
+    #expect(missing.firstResult?.problem == "Your GitHub login can't see this repository. Check the name, or sign in with another account.")
+    #expect(missing.firstResult?.isEnabled == false)
+    // still being checked, or seen: Clone is on
+    #expect(projectSheetState(mode: .settings, query: "acme/secret", recent: [], projects: [], github: github(visibility: ["acme/secret": .checking]), home: "/Users/ana").firstResult?.isEnabled == true)
+    #expect(projectSheetState(mode: .settings, query: "acme/secret", recent: [], projects: [], github: github(visibility: ["acme/secret": .visible]), home: "/Users/ana").firstResult?.isEnabled == true)
+    // one in the person's own listing is seen by that login, whatever an old check said
+    let listed = projectSheetState(mode: .settings, query: "acme/web", recent: [], projects: [], github: github(myRepos, visibility: ["acme/web": .notVisible]), home: "/Users/ana")
+    #expect(listed.firstResult?.isEnabled == true)
+    // the words of the host's refusal are what tell this one from a failure of gh
+    #expect(isRepoNotVisible("acme/secret was not found, or your GitHub login cannot see it"))
+    #expect(isRepoNotVisible("gh is not signed in to GitHub; run \"gh auth login\"") == false)
+}
+
+@Test func aMissingOrSignedOutGhShowsTheHostsOwnWordsAndCloneIsOff() {
+    let words = "gh is not signed in to GitHub; run \"gh auth login\""
+    let state = projectSheetState(mode: .settings, query: "acme/secret", recent: [], projects: [], github: github(visibility: ["acme/secret": .problem(words)], problem: words), home: "/Users/ana")
+    #expect(state.firstResult?.problem == words && state.firstResult?.isEnabled == false)
+    #expect(state.notice == words)
+}
+
+@Test func aHostWithoutTheProjectsCapabilitySaysItIsOlderAndToRestartIt() {
+    let state = projectSheetState(mode: .settings, query: "acme/new-thing", recent: [], projects: [], github: github(myRepos, canClone: false), home: "/Users/ana")
+    #expect(state.firstResult?.problem == projectsNeedNewerHost && state.firstResult?.isEnabled == false)
+    #expect(projectSheetState(mode: .settings, query: "acme", recent: [], projects: [], github: github(myRepos, canClone: false), home: "/Users/ana").items.allSatisfy { $0.isEnabled == false })
+}
+
+@Test func aPathIsNeverTakenForARepositoryAndKeepsItsAddFolderResult() {
+    let state = projectSheetState(mode: .settings, query: "~/work/acme/web", recent: [], projects: [], github: github(myRepos), home: "/Users/ana")
+    #expect(state.firstResult?.kind == .addPath(path: "/Users/ana/work/acme/web"))
+    #expect(state.items.contains { $0.kind.isRepository } == false)
+}

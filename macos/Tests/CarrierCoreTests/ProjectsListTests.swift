@@ -306,3 +306,33 @@ private func temporaryFolder() throws -> String {
         ProjectGroup(id: "untagged", title: "untagged", rows: [table[3]]),
     ])
 }
+
+@MainActor @Test func changingTheDefaultCloneFolderWritesChatJsonAndRefusesCarrierFolders() throws {
+    let carrier = try temporaryFolder()
+    let target = try temporaryFolder()
+    defer {
+        try? FileManager.default.removeItem(atPath: carrier)
+        try? FileManager.default.removeItem(atPath: target)
+    }
+    var chatJSON: Data? = Data(#"{"logLevel":"debug"}"#.utf8)
+    let model = ProjectsModel(
+        file: ProjectsFile(folder: carrier),
+        remote: { _ in nil },
+        readChatConfig: { chatJSON },
+        writeChatConfig: { chatJSON = $0 },
+        home: "/Users/ana"
+    )
+    #expect(model.projectsPath == carrier + "/chat/projects")
+
+    // Refuses Carrier's own folder and leaves the current path unchanged.
+    model.changeProjectsFolder(to: carrier + "/engine")
+    #expect(model.projectsFolderProblem?.contains("Carrier's own engine folder") == true)
+    #expect(model.projectsPath == carrier + "/chat/projects")
+
+    // Valid folder writes projectsFolder while preserving other keys.
+    model.changeProjectsFolder(to: target)
+    #expect(model.projectsFolderProblem == nil)
+    #expect(model.projectsPath == target)
+    let saved = try #require(chatJSON.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] })
+    #expect(saved["projectsFolder"] as? String == target && saved["logLevel"] as? String == "debug")
+}

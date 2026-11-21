@@ -199,6 +199,32 @@ public func writeCurrentChatConfig(_ data: Data) throws {
     try data.write(to: url, options: .atomic)
 }
 
+/// Writes `folder` as `projectsFolder` in `chat.json` after checking `projectsFolderRefusal`; returns nil on success, or a refusal message.
+public func saveProjectsFolder(
+    _ folder: String,
+    currentPath: String,
+    carrierFolder: String,
+    readChatConfig: () throws -> Data?,
+    writeChatConfig: (Data) throws -> Void,
+    log: (String) -> Void = { _ in }
+) -> String? {
+    func refused(_ reason: String) -> String {
+        "\(reason). The projects folder stays \(currentPath)."
+    }
+    if let problem = projectsFolderRefusal(folder, carrierFolder: carrierFolder) { return refused(problem) }
+    let json: Data?
+    do { json = try readChatConfig() } catch {
+        log("could not read chat.json: \(error)")
+        return refused("chat.json could not be read")
+    }
+    guard let updated = applyingProjectsFolder(folder, to: json) else { return refused("chat.json is not a JSON object") }
+    do { try writeChatConfig(updated) } catch {
+        log("could not write chat.json: \(error)")
+        return refused("chat.json is not writable")
+    }
+    return nil
+}
+
 /// `projectsFolder` of the chat's `chat.json`.
 public func currentProjectsFolder() -> String { projectsFolder(chatJSON: try? currentChatConfig(), carrierFolder: currentCarrierFolder(), home: NSHomeDirectory()) }
 

@@ -7,7 +7,7 @@ import Observation
 // is in WorktreeChoice.swift; the model asks the host what the folder is and drives the worktree's name and branch.
 
 /// A folder the workspace picker offers: its last component and its full path.
-public struct RecentFolder: Equatable {
+public struct RecentFolder: Equatable, Sendable {
     public let name: String
     public let path: String
 }
@@ -441,20 +441,15 @@ public struct WatchNote: Equatable {
     /// the host would refuse, or a file that cannot be read or written, leaves the old one and says why in `projectsFolderProblem`.
     /// What was in the old folder is not moved.
     public func changeProjectsFolder(to folder: String) {
-        projectsFolderProblem = nil
-        func refused(_ reason: String) { projectsFolderProblem = "\(reason). The projects folder stays \(projectsPath)." }
-        if let problem = projectsFolderRefusal(folder, carrierFolder: carrierFolder) { return refused(problem) }
-        let json: Data?
-        do { json = try readChatConfig() } catch {
-            log("new session: could not read chat.json: \(error)")
-            return refused("chat.json could not be read")
-        }
-        guard let updated = applyingProjectsFolder(folder, to: json) else { return refused("chat.json is not a JSON object") }
-        do { try writeChatConfig(updated) } catch {
-            log("new session: could not write chat.json: \(error)")
-            return refused("chat.json is not writable")
-        }
-        refreshFolders()
+        projectsFolderProblem = saveProjectsFolder(
+            folder,
+            currentPath: projectsPath,
+            carrierFolder: carrierFolder,
+            readChatConfig: readChatConfig,
+            writeChatConfig: writeChatConfig,
+            log: { [log] message in log("new session: \(message)") }
+        )
+        if projectsFolderProblem == nil { refreshFolders() }
     }
 
     public func show(_ next: WorkspaceStep) {

@@ -30,7 +30,18 @@
       "createdAgo": 3600000,
       "lastActiveAgo": 1200000,
       "archived": false,
-      "live": true
+      "live": true,
+      "pr": {
+        "repo": "AshuLab/carrier",
+        "number": 1189,
+        "url": "https://github.com/AshuLab/carrier/pull/1189",
+        "state": "open",
+        "checks": "pending"
+      },
+      "diff": {
+        "added": 104,
+        "removed": 4
+      }
     }
   ]
 }

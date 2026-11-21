@@ -30,15 +30,21 @@ export function levelOf(harness: ScaleHarness, options: Record<string, string>):
   return level < 0 ? undefined : (level as Level);
 }
 
+/** Whether an agent says anything about permission: any of the options that fix a level. The model and the effort say nothing of it. */
+const setsPermission = (harness: ScaleHarness, agentOptions: Record<string, string>) => Object.keys(defaults[harness]).some((id) => id in agentOptions);
+
 /**
- * The options a child of a session at `parentLevel` gets: those of its own agent at the lower of its level and the parent's, never a higher one.
- * An agent whose options are off the scale is not honoured: it gets the broadest option of its harness at or under the parent's level, and counts as lowered. One that sets none is taken at the adapter's defaults.
+ * The options a child of a session at `parentLevel` gets.
+ * An agent that sets a permission option of its own is capped by it: it gets the lower of its level and the parent's, never a higher one.
+ * An agent that sets none has no level of its own to cap it, and the adapter's default is not a choice: it takes the parent's level (Codex has nothing above 2).
+ * An agent whose options are off the scale is not honoured: it gets the broadest option of its harness at or under the parent's level, and counts as lowered.
  */
 export function childOptions(harness: ScaleHarness, agentOptions: Record<string, string>, parentLevel: Level): { options: Record<string, string>; level: Level; lowered: boolean } {
+  const top = Math.min(parentLevel, scale[harness].length - 1) as Level;
+  if (setsPermission(harness, agentOptions) === false) return { options: { ...agentOptions, ...scale[harness][top] }, level: top, lowered: false };
   const own = levelOf(harness, agentOptions);
   if (own !== undefined && own <= parentLevel) return { options: { ...agentOptions, ...scaleOptions(harness, agentOptions) }, level: own, lowered: false };
-  const level = Math.min(parentLevel, scale[harness].length - 1) as Level;
-  return { options: { ...agentOptions, ...scale[harness][level] }, level, lowered: true };
+  return { options: { ...agentOptions, ...scale[harness][top] }, level: top, lowered: true };
 }
 
 /** The first Codex app-server whose approval of an MCP tool the adapter can answer. */

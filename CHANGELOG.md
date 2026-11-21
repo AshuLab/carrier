@@ -21,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A child that an agent starts with `delegate_start` runs at its parent's permission level when its own agent sets no permission, and not at the one that asks before almost every command: under a parent in `auto` the child no longer stops for an approval to read. An agent configured with a permission keeps it as the most its child gets.
+- `delegate_wait` says what a child that needs an approval is waiting for: the tool and the command, or the question it asks, for up to four things, and how many more there are.
 - The app's Text size (Appearance) no longer sizes the text of the messages: it is Settings > Chat > Message text size now (13 pt by default, the size at 100 %). Someone who raised the app's Text size to read the chat sets Message text size once.
 - Density in Appearance now sets only the sidebar rows: the space between the messages is Settings > Chat > Message spacing (Comfortable, the same 12 pt as before, by default).
 - The app keeps one connection to the chat host for what it reads again and again, instead of opening one for each read, and the sidebar, the notifications and the menu share one read of the sessions. With a session open and the window in front the app opened about 1.4 connections a second (4.8 while a turn ran) and now opens none after the first, and asks the host for the list once every 2 seconds and not twice (measured against the fixture host). A host that does not answer is told once, and the sidebar keeps its rows meanwhile.

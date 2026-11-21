@@ -38,7 +38,7 @@ The scale of `levels.ts` has four levels, and every option of the chat that does
 | 2 | `acceptEdits` | `workspace-write` with `on-request` or `never` |
 | 3 | `auto` | none |
 
-`childOptions` keeps its rule: the options of the child's own agent, lowered to the broadest option of its harness that is at or under the parent's level, never raised.
+`childOptions` keeps its rule: the options of the child's own agent, lowered to the broadest option of its harness that is at or under the parent's level, never raised. An agent that sets no permission option has none to lower: its child takes the parent's level (the amendment of ADR 0036).
 A harness that has no option at a level (Codex at 3) takes its broadest one below it, so a Codex child of an `auto` parent runs at level 2.
 An agent whose own options are off the scale is not honoured and gets the parent's level, as 0033 has it.
 The level of the parent is read from its options at the moment `delegate_start` is called, so a mode changed during the session counts.
@@ -55,7 +55,7 @@ The spec of [switch and delegate](switch-and-delegate-between-agents.md), `src/c
 1. A session in Claude `auto`, `dontAsk` or `plan`, or on a Codex thread with the policy `never`, is listed the delegation tools and `agents` says nothing of its mode.
 2. In any mode, `delegate_start` starts the child with no approval, on Claude and on Codex.
 3. A child runs at the level of its parent: read-only for a parent at 0, the parent's own level for 1 and 2, and for a parent in `auto` a Claude child in `auto` and a Codex child at 2.
-4. A parent's level is read again at each call, and an agent's own options are lowered to it, never raised.
+4. A parent's level is read again at each call, and an agent's own options are lowered to it, never raised; an agent that sets no permission takes it (the amendment of ADR 0036).
 5. A session whose options are off the scale, or a child, still cannot delegate, and says why.
 6. `agents` shows the level each agent would have as a child, and the tool's description says to delegate only when the person asked.
 7. The docs, the glossary and the changelog say that a delegation asks no one and that a child follows its parent.

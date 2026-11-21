@@ -42,6 +42,8 @@ export interface ChatHostDeps {
   idleMs?: number;
   /** Whether SIGINT, SIGTERM and SIGHUP end the host. */
   signals: boolean;
+  /** Registers what runs when an exception reaches the top, so the agents are closed before the host exits; the real one is `process.on('uncaughtException')`. */
+  onCrash?: (handler: (error: unknown) => void) => void;
   /** The runner of each harness. */
   runners: ChatSessionsDeps['runners'];
   env: NodeJS.ProcessEnv;
@@ -69,7 +71,7 @@ const realGithub = ({ githubCallTimeoutSeconds }: ChatSettings): GithubRepos => 
   branches: (repo) => ghBranches(repo, githubCallTimeoutSeconds * 1000),
 });
 
-const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(settings), pulls: ghPullRequests(settings.githubCallTimeoutSeconds * 1000), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses, startMcp: startMcpServer, usage: { ports: realUsagePorts, history: realHistoryPorts } });
+const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, onCrash: (handler) => void process.on('uncaughtException', handler), runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(settings), pulls: ghPullRequests(settings.githubCallTimeoutSeconds * 1000), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses, startMcp: startMcpServer, usage: { ports: realUsagePorts, history: realHistoryPorts } });
 
 /**
  * Runs the chat host from the Carrier folder alone (`CARRIER_HOME`, else `~/.carrier`): its own lock, database and socket under
@@ -137,14 +139,14 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     lock.release();
   };
   let stopping: Promise<void> | undefined;
-  const stop = () =>
+  const stop = (code = 0) =>
     (stopping ??= (async () => {
       stopped = true;
       await sessions.closeAll(); // also tells the pass in flight to leave the next session alone
       await passInFlight; // so the database is not closed under a worktree that is half removed
       close();
       log.info('chat host stopped');
-      deps.exit(0);
+      deps.exit(code);
     })());
   idle = idleExit({ clock: deps.clock, afterMs: deps.idleMs, live: sessions.liveCount, exit: stop });
   // The MCP is up before the socket answers; one that cannot bind leaves the host without it, and each session says so.
@@ -164,6 +166,12 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     throw error;
   }
   if (deps.signals) for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(signal, () => void stop());
+  // Node would end at once, and the agents are in their own process groups: they would run on until the next host sweeps them.
+  deps.onCrash?.((error) => {
+    log.error('the chat host crashed; closing its sessions before it exits', error);
+    setTimeout(() => deps.exit(1), 10_000).unref(); // a stop that hangs still ends the process
+    stop(1).catch(() => deps.exit(1));
+  });
   await clockPass();
   log.info('chat host started', { folder: carrierHome() });
   return { stop };

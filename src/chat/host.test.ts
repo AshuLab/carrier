@@ -119,6 +119,50 @@ test('the host exits a minute after its start, and a client connected keeps it u
   });
 });
 
+// A host that crashes (an exception nobody caught) has to end the agents it started: their groups would run on with no owner until the next host sweeps them.
+async function crashingHost(claude: FakeChatRunner) {
+  let crash!: (error: unknown) => void;
+  const exit = vi.fn();
+  const started = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit, signals: false, runners: { claude }, binaryFound: () => true, onCrash: (handler) => (crash = handler) });
+  stops.push(started.stop);
+  const work = join(root, 'w');
+  mkdirSync(work);
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  await client.request('open', { agent: 'claude', folder: work });
+  return { crash, exit, client };
+}
+
+test('a crash closes the live sessions and ends the host with exit 1', async () => {
+  const claude = new FakeChatRunner();
+  const { crash, exit, client } = await crashingHost(claude);
+  expect(claude.conversations.map((c) => c.closed)).toEqual([false]);
+  crash(new Error('boom'));
+  await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(1));
+  expect(claude.conversations.map((c) => c.closed)).toEqual([true]);
+  expect(exit).not.toHaveBeenCalledWith(0);
+  client.close();
+});
+
+test('a crash while an agent does not stop still ends the host after ten seconds', async () => {
+  const claude = new FakeChatRunner();
+  let release!: () => void;
+  const hung = new Promise<void>((resolve) => (release = resolve));
+  claude.setup = (c) => void (c.close = () => hung);
+  const { crash, exit, client } = await crashingHost(claude);
+  vi.useFakeTimers({ toFake: ['setTimeout'] });
+  try {
+    crash(new Error('boom'));
+    vi.advanceTimersByTime(9_999);
+    expect(exit).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(exit).toHaveBeenCalledWith(1);
+  } finally {
+    vi.useRealTimers();
+    release();
+  }
+  client.close();
+});
+
 test('a client opens a conversation, sends, reads the events by cursor and closes it, all over the socket; the stop closes what is live', async () => {
   const claude = new FakeChatRunner();
   claude.setup = (c) => {

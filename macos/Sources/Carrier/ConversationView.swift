@@ -232,7 +232,7 @@ struct ConversationView: View {
         // two lines at most: with no limit this detail made the whole window lay out taller than it is, the notice below its edge
         NoticeCard(symbol: .archive, tint: .gray, title: archivedSessionNotice.title, detail: archivedSessionNotice.detail, detailLines: 2) {
             Button("Resume") { Task { if let refusal = await actions.restore(model.sessionId) { tell(refusal) } } }
-                .buttonStyle(HoverTextButtonStyle(tint: .themeAccent))
+                .buttonStyle(NoticeActionStyle())
         }
         .padding(.horizontal, 40).padding(.vertical, 12)
         .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
@@ -543,9 +543,9 @@ struct BannerView: View {
                         copied = false
                     }
                 } label: { Label(copied ? "Copied" : "Copy details", icon: copied ? .check : .copy) }
-                    .buttonStyle(HoverTextButtonStyle(tint: copied ? .green : nil))
+                    .buttonStyle(NoticeActionStyle(quiet: true))
             }
-            if let retry { Button(action: retry) { Label("Try again", icon: .refresh) }.buttonStyle(HoverTextButtonStyle(tint: tint)) }
+            if let retry { Button(action: retry) { Label("Try again", icon: .refresh) }.buttonStyle(NoticeActionStyle()) }
         }
     }
 }
@@ -573,10 +573,10 @@ private struct QueuedMessageCard: View {
             detail: messagePreview(text), detailLines: 2, onTap: edit
         ) {
             if interrupts == false {
-                Button("Send now", action: sendNow).buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).help("Stop the agent and send it now")
+                Button("Send now", action: sendNow).buttonStyle(NoticeActionStyle()).help("Stop the agent and send it now")
             }
             Button(action: cancel) { Glyph(.close, size: 10) }
-                .buttonStyle(HoverTextButtonStyle(tint: nil)).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
+                .buttonStyle(NoticeActionStyle(quiet: true)).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
         }
         .help("Click the message to edit it")
     }

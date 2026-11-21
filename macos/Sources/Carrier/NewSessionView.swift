@@ -121,7 +121,7 @@ struct NewSessionView: View {
         let detail = split.map { String(warning[$0.upperBound...]) }
         return NoticeCard(symbol: .exclamation, tint: .orange, title: title, detail: detail) {
             if model.offersWorktree, model.worktree == false {
-                Button("Use a worktree") { Task { await model.useWorktree(true) } }.buttonStyle(HoverTextButtonStyle(tint: .primary))
+                Button("Use a worktree") { Task { await model.useWorktree(true) } }.buttonStyle(NoticeActionStyle())
             }
         }
     }

@@ -78,6 +78,7 @@ A feed that is a column of the window (the Agent output of an epic) is not made 
 - **The column is as wide as the chat's message width** (`appearance.messageWidth`), never a fixed one.
 - **What ends a feed (a stop that needs a person) is a `NoticeCard` as its last element**, never pinned: orange for what needs a person and red for what failed.
 - **Every `NoticeCard` is glass filled with its own colour** (the closed-session notice's look) and nothing else: no edge, no neutral dark variant; the colour and the badge say what it is (red for what failed, orange for what needs a person, cyan for what waits in the background). It goes through `chatSurface`, so Flat draws it as a quiet fill.
+- **The actions of a `NoticeCard` are `NoticeActionStyle`, never the accent**: the accent the person chose does not read on the card's glass (violet on grey was 2.7:1). The main action is the card's own colour (lighter on dark, deeper on light) on a pill of that colour; the quiet one (Copy details, the cross that drops a queued message) is near-primary words with a pill under the pointer. The card hands its colour down in `noticeTint`. Its detail and hint are `primary` at 78 %, not `secondary`.
 - **Links in a toolbar are `ToolbarPillButton`s on one glass capsule**; the item hides the toolbar's own glass (`sharedBackgroundVisibility(.hidden)`).
 
 ## Lines

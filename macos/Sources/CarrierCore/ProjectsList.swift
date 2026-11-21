@@ -94,6 +94,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public let iconImage: String?
     /// Actions run in a new worktree or after a clone, from `projects.json`.
     public let actions: [ProjectAction]
+    /// When a session last worked in it, from `projectsWithLastActive`; derived from the sessions, never stored in the file. nil when none did.
+    public var lastActive: Date?
 
     public init(
         path: String,
@@ -105,7 +107,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         iconColor: ProjectColor? = nil,
         iconMark: AppIcon? = nil,
         iconImage: String? = nil,
-        actions: [ProjectAction] = []
+        actions: [ProjectAction] = [],
+        lastActive: Date? = nil
     ) {
         self.path = path
         self.name = name
@@ -117,6 +120,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         self.iconMark = iconMark
         self.iconImage = iconImage
         self.actions = actions
+        self.lastActive = lastActive
     }
 
     public var id: String { path }
@@ -145,6 +149,44 @@ public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? =
             iconImage: $0.iconImage,
             actions: $0.actions
         )
+    }
+}
+
+/// `rows` with `lastActive` set to the latest `updatedAt` among the `sessions` whose base folder is the project's folder, written any way (`~`, a trailing slash,
+/// a symlink); nil for a project no session worked in. Derived each time and never written to `projects.json`.
+public func projectsWithLastActive(_ rows: [ProjectRow], sessions: [SessionRow]) -> [ProjectRow] {
+    var latest: [String: Date] = [:]
+    for session in sessions {
+        let key = normalizedFolder(session.base)
+        if let known = latest[key], known >= session.updatedAt { continue }
+        latest[key] = session.updatedAt
+    }
+    return rows.map { row in
+        var row = row
+        row.lastActive = latest[normalizedFolder(row.path)]
+        return row
+    }
+}
+
+/// What the Projects list is ordered by: the name, or when a session last worked in the project.
+public enum ProjectSortKey: Equatable, Hashable, Sendable {
+    case name
+    case lastActive
+}
+
+/// The order of the Projects list; the pinned come first whatever it is. Name goes A to Z and Last active most recent first until the same title is clicked again.
+public struct ProjectOrder: Equatable, Sendable {
+    public var key: ProjectSortKey
+    public var ascending: Bool
+
+    public init(key: ProjectSortKey = .name, ascending: Bool = true) {
+        self.key = key
+        self.ascending = ascending
+    }
+
+    /// The order after a click on the title of `key`: the same key reverses, another starts in its natural direction.
+    public func clicked(_ key: ProjectSortKey) -> ProjectOrder {
+        self.key == key ? ProjectOrder(key: key, ascending: ascending == false) : ProjectOrder(key: key, ascending: key == .name)
     }
 }
 
@@ -189,13 +231,15 @@ public func projectTagsInUse(_ rows: [ProjectRow]) -> [String] {
     }
 }
 
-/// Filters `rows` by `query` (name, remote or tag) and `filter`, orders pinned first then by name, and groups by `groupBy` (`none`, or `tag` under
+/// Filters `rows` by `query` (name, remote or tag) and `filter`, orders pinned first then by `order` (a project no session worked in goes last by last activity,
+/// either way), and groups by `groupBy` (`none`, or `tag` under
 /// each project's first tag and `"untagged"` when it has none). Returns empty when nothing matches.
 public func projectList(
     _ rows: [ProjectRow],
     query: String = "",
     filter: ProjectFilter = .all,
-    groupBy: ProjectGrouping = .none
+    groupBy: ProjectGrouping = .none,
+    order: ProjectOrder = ProjectOrder()
 ) -> [ProjectGroup] {
     let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
     let matched = rows.filter { row in
@@ -215,8 +259,16 @@ public func projectList(
     func ordered(_ items: [ProjectRow]) -> [ProjectRow] {
         items.sorted { a, b in
             if a.pinned != b.pinned { return a.pinned }
+            if order.key == .lastActive {
+                switch (a.lastActive, b.lastActive) {
+                case (nil, nil): break
+                case (nil, _): return false
+                case (_, nil): return true
+                case (let x?, let y?): if x != y { return order.ascending ? x < y : x > y }
+                }
+            }
             let cmp = a.name.localizedCaseInsensitiveCompare(b.name)
-            if cmp != .orderedSame { return cmp == .orderedAscending }
+            if cmp != .orderedSame { return (cmp == .orderedAscending) == (order.key == .lastActive || order.ascending) }
             return a.path < b.path
         }
     }

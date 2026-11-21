@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The little bar that bounces in the menu bar icon stops in Low Power Mode and while the screens or the Mac are asleep; it cost the system about four percent of a core.
 - With the window hidden or the Mac asleep, the app stops reading the epic you had open and reads the sidebar's session list about every 30 seconds instead of every 5; the list is up to date as the window shows and the epic within a few seconds. Notifications keep their pace (every 10 seconds in Low Power Mode).
 - In Low Power Mode the app asks the engine and the chat host less often (every 10 seconds) while nobody is in the app.
+- The Usage page reads fewer logs: it skips those not written since the range began and drops lines it does not count before parsing them, and an account filter no longer makes each refresh read every other log again.
 - Opening the app no longer starts every chat agent to list its models when it already knows them: it asks only for the agents it has nothing kept for, one at a time, and the new-session draft and the model picker refresh the list when they open.
 - The app no longer runs the installed `carrier --version` at every launch while the Homebrew `carrier` is the same file.
 

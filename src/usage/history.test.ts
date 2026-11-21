@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -19,19 +19,22 @@ vi.mock('@ashulab/universal-logger', () => ({ createScopedLogger: () => ({ debug
 
 const NOW = new Date(2026, 10, 13, 12).getTime(); // local noon, so the day does not depend on the time zone
 const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 const iso = (ms: number) => new Date(ms).toISOString();
 const week: HistoryFilter = { days: 7 };
 
 let dir: string;
 let bytesRead: number;
+let reads: string[]; // the paths that were opened
 let ports: HistoryPorts;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'history-'));
   bytesRead = 0;
+  reads = [];
   ports = {
     clock: { now: () => NOW, after: () => () => {} },
     ...realHistoryPorts,
-    files: { ...realHistoryPorts.files, read: async (path, from) => { const buffer = await realHistoryPorts.files.read(path, from); bytesRead += buffer.length; return buffer; } },
+    files: { ...realHistoryPorts.files, read: async (path, from) => { reads.push(path); const buffer = await realHistoryPorts.files.read(path, from); bytesRead += buffer.length; return buffer; } },
   };
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
@@ -48,11 +51,11 @@ const write = (path: string, lines: string[]) => (mkdirSync(join(path, '..'), { 
 const claudeLine = (o: { id: string; req?: string; session?: string; model?: string; at?: number; input?: number; cacheRead?: number; cacheWrite?: number; output?: number; cwd?: string }) =>
   JSON.stringify({ type: 'assistant', sessionId: o.session ?? 'c1', requestId: o.req ?? 'r1', timestamp: iso(o.at ?? NOW - HOUR), cwd: o.cwd ?? '/work/app', message: { id: o.id, model: o.model ?? 'claude-sonnet-4-5', usage: { input_tokens: o.input ?? 0, cache_read_input_tokens: o.cacheRead ?? 0, cache_creation_input_tokens: o.cacheWrite ?? 0, output_tokens: o.output ?? 0 } } });
 
-const codexLog = (session: string, snapshots: { input: number; cached: number; output: number; reasoning?: number }[], model = 'gpt-5-codex') => [
+const codexLog = (session: string, snapshots: { input: number; cached: number; output: number; reasoning?: number }[], model = 'gpt-5-codex', at = NOW - HOUR) => [
   JSON.stringify({ type: 'session_meta', payload: { id: session, cwd: '/work/cx' } }),
   JSON.stringify({ type: 'turn_context', payload: { model } }),
   ...snapshots.flatMap((s, i) => {
-    const line = JSON.stringify({ type: 'event_msg', timestamp: iso(NOW - HOUR + i), payload: { type: 'token_count', info: { total_token_usage: { total: s.input + s.output }, last_token_usage: { input_tokens: s.input, cached_input_tokens: s.cached, output_tokens: s.output, reasoning_output_tokens: s.reasoning ?? 0 } } } });
+    const line = JSON.stringify({ type: 'event_msg', timestamp: iso(at + i), payload: { type: 'token_count', info: { total_token_usage: { total: s.input + s.output }, last_token_usage: { input_tokens: s.input, cached_input_tokens: s.cached, output_tokens: s.output, reasoning_output_tokens: s.reasoning ?? 0 } } } });
     return [line];
   }),
 ];
@@ -127,6 +130,113 @@ test('a file that grew but whose earlier bytes changed is read again from the st
   await run();
   write(file, [claudeLine({ id: 'n1', input: 3, model: 'claude-haiku-4-5' }), claudeLine({ id: 'n2', input: 4 }), claudeLine({ id: 'n3', input: 5 })]);
   expect((await run()).totals.tokens.input).toBe(12);
+});
+
+// ---- What is not read: logs older than the window, lines that count for nothing, and files of roots that were not listed
+
+const age = (path: string, at: number) => utimesSync(path, at / 1000, at / 1000);
+
+test('a log not written since the window began is not read, and it stays in the cache for a longer window', async () => {
+  const old = join(dir, 'codex', '2026', 'old.jsonl');
+  const recent = join(dir, 'codex', '2026', 'recent.jsonl');
+  write(old, codexLog('cx-old', [{ input: 1000, cached: 0, output: 10 }], 'gpt-5-codex', NOW - 40 * DAY));
+  age(old, NOW - 40 * DAY);
+  write(recent, codexLog('cx-new', [{ input: 7, cached: 0, output: 1 }]));
+  const { run } = setup();
+
+  const month = await run({ days: 30 });
+  expect(reads).toEqual([recent]);
+  expect(month.totals.tokens.input).toBe(7);
+
+  reads = [];
+  expect((await run({ days: 90 })).totals.tokens.input).toBe(1007); // a wider window reads what the narrow one skipped
+  expect(reads).toEqual([old]);
+  await run({ days: 30 });
+  bytesRead = 0;
+  expect((await run({ days: 90 })).totals.tokens.input).toBe(1007);
+  expect(bytesRead).toBe(0); // skipping it for 30 days did not make the cache forget it
+});
+
+test('lines of a type that is never read cost no parse and change nothing', async () => {
+  const noise = Array.from({ length: 1000 }, (_, i) => JSON.stringify({ type: i % 2 === 0 ? 'response_item' : 'user', payload: { type: 'message', text: 'x'.repeat(200) } }));
+  const claude = [claudeLine({ id: 'm1', input: 100, output: 5 }), claudeLine({ id: 'm2', input: 3 })];
+  const codex = codexLog('cx-1', [{ input: 1000, cached: 800, output: 50, reasoning: 20 }]);
+  const parsed = vi.spyOn(JSON, 'parse');
+  const read = async (folder: string, withNoise: boolean) => {
+    write(join(dir, folder, 'claude', 'p', 'a.jsonl'), withNoise ? [...noise, claude[0]!, ...noise, claude[1]!] : claude);
+    write(join(dir, folder, 'codex', '2026', 'r.jsonl'), withNoise ? [codex[0]!, ...noise, ...codex.slice(1), ...noise] : codex);
+    parsed.mockClear();
+    const result = await setup().run(week, { claude: [join(dir, folder, 'claude')], codex: [join(dir, folder, 'codex')], agy: [] });
+    return { result, parses: parsed.mock.calls.length };
+  };
+  let plain, noisy;
+  try {
+    plain = await read('plain', false);
+    noisy = await read('noisy', true);
+  } finally {
+    parsed.mockRestore();
+  }
+  expect(noisy.result).toEqual(plain.result);
+  expect(noisy.result.totals.turns).toBe(3);
+  expect(noisy.parses).toBe(plain.parses); // 2000 more lines, no more parses
+});
+
+test('a usage asked for one account does not make the next look read the logs of the others again', async () => {
+  write(join(dir, 'claude', 'p', 'a.jsonl'), [claudeLine({ id: 'm1', input: 100 })]);
+  write(join(dir, 'codex', '2026', 'r.jsonl'), codexLog('cx-1', [{ input: 50, cached: 0, output: 5 }]));
+  const { run } = setup();
+  const all = await run(week, roots());
+  await run(week, { claude: roots().claude, codex: [], agy: [] }); // what a filter on a Claude account sends
+  bytesRead = 0;
+  expect(await run(week, roots())).toEqual(all);
+  expect(bytesRead).toBe(0);
+});
+
+test('a message copied into a newer log with a fresh timestamp counts once, from that copy', async () => {
+  const old = join(dir, 'claude', 'p', 'a-old.jsonl');
+  write(old, [claudeLine({ id: 'm1', input: 100, output: 5, at: NOW - 40 * DAY })]);
+  age(old, NOW - 40 * DAY);
+  write(join(dir, 'claude', 'p', 'b-fork.jsonl'), [claudeLine({ id: 'm1', input: 100, output: 5, at: NOW - HOUR })]);
+  const { run } = setup();
+  expect((await run(week)).totals.turns).toBe(1); // without the skip, the old copy listed first would win and be dropped
+  expect(reads.map((path) => path.split('/').pop())).toEqual(['b-fork.jsonl']);
+});
+
+test('a look at one Antigravity folder does not make the next look open the databases of the other again', async () => {
+  agyDb(join(dir, 'agy1', 'conv-1.db'), [generation('Gemini 2.5 Pro', agyUsage({ input: 300, output: 40, id: 'call-1' }))], []);
+  agyDb(join(dir, 'agy2', 'conv-2.db'), [generation('Gemini 2.5 Pro', agyUsage({ input: 50, output: 5, id: 'call-2' }))], []);
+  const opened: string[] = [];
+  ports = { ...ports, openReadonly: (file) => (opened.push(file), realHistoryPorts.openReadonly(file)) };
+  const { run } = setup();
+  const both = { claude: [], codex: [], agy: [join(dir, 'agy1'), join(dir, 'agy2')] };
+  await run(week, both);
+  await run(week, { ...both, agy: [join(dir, 'agy1')] });
+  opened.length = 0;
+  expect((await run(week, both)).totals.tokens.input).toBe(350);
+  expect(opened.filter((file) => file.endsWith('.db') && file.includes('agy'))).toEqual([]);
+});
+
+test('a look at some roots forgets the cached files of those roots only, not those of a folder whose name starts the same', async () => {
+  write(join(dir, 'claude', 'p', 'a.jsonl'), [claudeLine({ id: 'm1', input: 100 })]);
+  write(join(dir, 'claude2', 'p', 'b.jsonl'), [claudeLine({ id: 'm2', input: 7 })]);
+  const { run } = setup();
+  const both = { claude: [join(dir, 'claude'), join(dir, 'claude2')], codex: [], agy: [] };
+  await run(week, both);
+  await run(week, { ...both, claude: [join(dir, 'claude')] });
+  bytesRead = 0;
+  expect((await run(week, both)).totals.tokens.input).toBe(107);
+  expect(bytesRead).toBe(0); // `claude2` was not asked about, so it was not forgotten
+});
+
+test('a message first written in an old log does not count in a week, even when a newer fork copies it', async () => {
+  const old = join(dir, 'claude', 'p', 'old.jsonl');
+  const line = claudeLine({ id: 'm1', input: 100, output: 5, at: NOW - 40 * DAY });
+  write(old, [line]);
+  age(old, NOW - 40 * DAY);
+  write(join(dir, 'claude', 'p', 'fork.jsonl'), [line]);
+  const { run } = setup();
+  expect((await run(week)).totals.turns).toBe(0);
+  expect((await run({ days: 90 })).totals.turns).toBe(1);
 });
 
 // ---- Codex

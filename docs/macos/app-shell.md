@@ -62,7 +62,8 @@ The Sessions home, the Archive and a conversation are in [sessions](sessions.md)
 
 `EngineLink` (`CarrierCore/EngineLink.swift`) is the one reader of the engine's control socket for what the app asks again and again.
 The menu and the window both listen to it (`states()`), and one `ControlMonitor` reads the snapshot for all of them, so the engine builds and serializes one `snapshot` at each pace and not one for the menu and another for the window.
-Every other request (pause, resume, check now, reload, available repos, resume epic, an execution's output) is an action and keeps one connection per request, as before.
+Every other request (pause, resume, check now, reload, available repos, resume epic) is an action and keeps one connection per request, as before.
+An execution's output (`tail`) is asked by the epic poller, so it goes on the epic connection below.
 
 - **One read for everyone.** The first listener starts the reads and the last one stops them (the menu listens for as long as the app runs).
   A listener that comes later is given the last state at once, and one that does not keep up is given only the newest.

@@ -174,43 +174,50 @@ private func link(_ engine: ScriptEngine, pace: TimeInterval = 3600) -> EngineLi
     #expect(await listener.take(1).compactMap(nowOf).isEmpty == false)
 }
 
-/// The highest `now` a listener was told, kept by a task that iterates it.
+/// What a listener was told, kept by a task that iterates it: the highest `now` and the last one.
 private final class Seen: @unchecked Sendable {
     private let lock = NSLock()
-    private var most = 0
+    private var most = 0, latest = 0
     var value: Int { lock.lock(); defer { lock.unlock() }; return most }
+    var last: Int { lock.lock(); defer { lock.unlock() }; return latest }
+    private func record(_ now: Int) {
+        lock.lock()
+        (most, latest) = (max(most, now), now)
+        lock.unlock()
+    }
     func keep(_ stream: AsyncStream<ConnectionState>) -> Task<Void, Never> {
         Task {
             for await state in stream {
-                guard let now = nowOf(state) else { continue }
-                lock.lock()
-                most = max(most, now)
-                lock.unlock()
+                if let now = nowOf(state) { record(now) }
             }
         }
     }
 }
 
-@Test func aListenerThatJoinsWhileAReadIsPublishedIsNotGivenAnOlderStateThanOneAlreadyTold() async {
+@Test func aListenerThatJoinsWhileAReadIsPublishedEndsWithTheNewerStateAndNotTheOlderReplay() async {
     let engine = ScriptEngine()
     defer { engine.stop() }
-    let link = link(engine, pace: 0.005)
-    let seen = Seen()
-    let keeper = seen.keep(link.states())
-    defer { keeper.cancel() }
-    #expect(await until { seen.value >= 1 })
-    // the new listener is registered and not yet told the last state: give the reader the time to publish a newer one
-    let toldBefore = Mutex2(1)
-    let atRelease = LockedInt()
-    link.beforeReplay = {
-        guard toldBefore.take() else { return }
-        let before = seen.value
-        let deadline = Date().addingTimeInterval(0.3)
-        while seen.value <= before && Date() < deadline { usleep(1000) }
-        atRelease.set(seen.value)
+    // the pace is an hour: the one read after the first is the one the seam asks for
+    let link = link(engine)
+    let menu = Seen()
+    let menuTask = menu.keep(link.states())
+    defer { menuTask.cancel() }
+    #expect(await until { menu.value >= 1 })
+    let once = Mutex2(1)
+    link.beforeReplay = { [weak link] in
+        guard once.take() else { return }
+        // a read published as the newcomer is told the last state: it has to be told after the replay, never before it (`yield` does not wait, so what comes last stays);
+        // the refresh is asked from another thread, since this one holds the lock when the replay is made under it
+        Thread.detachNewThread { link?.refresh() }
+        let before = menu.value
+        let deadline = Date().addingTimeInterval(0.05)
+        while menu.value <= before && Date() < deadline { usleep(500) }
     }
-    let first = await Listener(link.states()).take(1).compactMap(nowOf)
-    #expect(first.count == 1 && first[0] >= atRelease.value)
+    let newcomer = Seen()
+    let newcomerTask = newcomer.keep(link.states())
+    defer { newcomerTask.cancel() }
+    #expect(await until { menu.value >= 2 })
+    #expect(await until { newcomer.last == 2 })
 }
 
 private final class LockedInt: @unchecked Sendable {
@@ -278,6 +285,24 @@ private final class LockedInt: @unchecked Sendable {
     // someone new gets a read made for them, not the one kept from before
     #expect(await Listener(link.states()).take(1).compactMap(nowOf) == [2])
     #expect(engine.connections == 2)
+}
+
+@Test func oneListenerLeavingLeavesTheConnectionAndTheLastStateToTheOthers() async {
+    let engine = ScriptEngine()
+    defer { engine.stop() }
+    let link = link(engine)
+    let menu = Listener(link.states())
+    var window: Listener? = Listener(link.states())
+    #expect(await menu.take(1).compactMap(nowOf) == [1])
+    #expect(await window?.take(1).compactMap(nowOf) == [1])
+    // the window closes and the menu stays: the reads go on for it, on the same connection
+    window = nil
+    #expect(window == nil)
+    // the last state is still told at once to the one who comes next, with no read made for it
+    #expect(await Listener(link.states()).take(1, seconds: 1).compactMap(nowOf) == [1])
+    link.refresh()
+    #expect(await menu.take(1, seconds: 2).compactMap(nowOf) == [2])
+    #expect(engine.connections == 1 && engine.open == 1)
 }
 
 @Test func aReadThatWasUnderWayWhenTheLastListenerLeftTellsTheNextOneNothing() async {
@@ -427,18 +452,18 @@ private final class Overlap: @unchecked Sendable {
     let link = link(engine, pace: 0.01)
     let listener = Listener(link.states())
     _ = await listener.take(1)
-    let inside = DispatchSemaphore(value: 0), leave = DispatchSemaphore(value: 0)
+    let inside = LockedInt(), leave = DispatchSemaphore(value: 0)
     let count = Overlap()
     let firstPass = Mutex2(1)
     link.setTick { _ in
         count.enter()
         defer { count.exit() }
         if firstPass.take() {
-            inside.signal()
+            inside.set(1)
             _ = leave.wait(timeout: .now() + 5)
         }
     }
-    #expect(inside.wait(timeout: .now() + 3) == .success)
+    #expect(await until { inside.value == 1 })
     // the window closed and opened again while the poll was under way
     link.setTick(nil)
     link.setTick { _ in count.enter(); count.exit() }

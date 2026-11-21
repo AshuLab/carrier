@@ -602,10 +602,10 @@ final class WindowController: NSObject, NSWindowDelegate {
         let states = link.states()
         // a window that opens shows the state of the moment, not the last one the menu read
         link.refresh()
-        stateTask = Task.detached {
+        stateTask = Task { @MainActor in
             for await state in states {
                 // an equal state is not assigned: the observer ignores it anyway, and the "panel state" signpost counts only what differs
-                DispatchQueue.main.async { if stop.isSet == false, publishes(state, over: model.state) { model.state = state } }
+                if stop.isSet == false, publishes(state, over: model.state) { model.state = state }
             }
         }
         let sessions = ChatSessionsPoller(

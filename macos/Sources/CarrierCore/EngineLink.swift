@@ -35,7 +35,7 @@ public final class EngineLink: @unchecked Sendable {
     private let state = Mutex(State())
     /// Held for as long as the epic view's connection lives, so a tick put back after one taken away starts when that one is done: the epic poller is for one thread at a time.
     private let epicThread = NSLock()
-    /// Test seam: runs in `states()` once the listener is registered and before it is told the last state.
+    /// Test seam: runs in `states()` right before the newcomer is told the last state, where that is done.
     var beforeReplay: (() -> Void)?
 
     public init(
@@ -56,8 +56,10 @@ public final class EngineLink: @unchecked Sendable {
             state.nextListener += 1
             state.listeners[id] = continuation
             // told under the lock: a read published between the registering and this would be overwritten by the older state (`yield` does not wait)
-            beforeReplay?()
-            if let latest = state.latest { continuation.yield(latest) }
+            if let latest = state.latest {
+                beforeReplay?()
+                continuation.yield(latest)
+            }
             guard state.reading == nil else { return (id, nil) }
             let flag = StopFlag()
             state.reading = flag

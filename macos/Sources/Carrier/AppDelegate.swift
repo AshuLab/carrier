@@ -5,7 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private let header = StatusHeaderView()
     private var fixtureServer: FixtureServer?
-    /// Start on open looks once, at the first state the monitor delivers (main thread).
+    /// Start on open looks once, at the first state the engine link delivers (main thread).
     private var triedStartOnOpen = false
     /// The combinations the main menu was built with (MainMenu.swift).
     var shortcutsInMenu: [KeyCombo?] = []
@@ -158,21 +158,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? { dockMenu() }
 
-    /// Keeps the menu line current from the engine link, which reads the state once for the menu and the window; the title is set on the main queue, which also runs while the menu is open.
+    /// Keeps the menu line current from the engine link, which reads the state once for the menu and the window; the title is set on the main actor, whose queue also runs while the menu is open.
     private func watchCarrier(_ line: NSMenuItem) {
         let states = EngineLink.shared.states()
-        Task.detached {
+        // the main actor runs the loop: each state is applied on the main queue, which also runs while the menu is open
+        Task { @MainActor in
             for await state in states {
-                DispatchQueue.main.async {
-                    IconController.shared?.show(state)
-                    MainActor.assumeIsolated { KeepAwakeController.shared.epics(working: IconState(state).working) }
-                    line.title = state.menuLine
-                    self.header.show(state.menuStatus)
-                    MenuControls.shared.react(to: state)
-                    EpicMenuSection.shared.react(to: state)
-                    NotificationWatcher.app.react(to: state)
-                    self.startOnOpen(firstState: state)
-                }
+                IconController.shared?.show(state)
+                KeepAwakeController.shared.epics(working: IconState(state).working)
+                line.title = state.menuLine
+                self.header.show(state.menuStatus)
+                MenuControls.shared.react(to: state)
+                EpicMenuSection.shared.react(to: state)
+                NotificationWatcher.app.react(to: state)
+                self.startOnOpen(firstState: state)
             }
         }
         watchChatSessions()

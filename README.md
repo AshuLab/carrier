@@ -1,4 +1,6 @@
-<h1 align="center">Carrier</h1>
+<h1 align="center">
+  <img alt="Carrier" src="docs/assets/carrier-logo.png" width="450" />
+</h1>
 
 <p align="center">
   An autonomous epic orchestrator that runs on your machine.<br />

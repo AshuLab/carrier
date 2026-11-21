@@ -36,7 +36,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `folder.ts`: the check of a session's folder, never inside `<folder>/engine/` (and `checkProjectsFolder`, the same rule for the projects folder).
 - `projects.ts`: what the chat brings onto the Mac with the person's own `gh` login, under the projects folder ([ADR 0015](../../docs/adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)).
   `cloneRepo` (waiters share one clone, which stops when nobody waits; only git's progress lines pass on, one a second), `createProject`, the `githubRepos` listing and `repoBranches`.
-- `providers.ts`: the `providers` request (the accounts with their state, `unadded` for a harness found with no account, the local servers, or `problem` when `providers.json` does not match; built from `doctor/detect.ts`).
+- `providers.ts`: the `providers` request (the accounts with their state, `unadded` for a harness found with no account, the local servers, the `textGenerator` in use, with its name, kind and model, when `providers.json` names one, or `problem` when it does not match; built from `doctor/detect.ts`).
 - `mcp.ts`: the chat MCP ([ADR 0024](../../docs/adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)), a loopback HTTP server the host starts before `chat.sock`.
   `McpSessionRegistry`: a bearer token per live conversation, kept hashed in memory, revoked by `invocationId` when `sessions.ts` closes, loses or fails that conversation.
   `defineTool`: every tool declares its access level.
@@ -59,6 +59,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 
 `terminal/cli/commands/chat.ts` is its client and starts it detached (`detached.ts`, shared with `start`).
 Its hello lists `accountIdentity` when `providers.json` may carry `label`, `icon` and `color` on an account (the strict schema of an older host refuses them): the app writes those keys only while it is there, and `agents` carries each agent's `account` so the app finds them.
+Its hello lists `textGenerators` when `providers.json` may carry `textGenerators` and `textGenerator` (an older host refuses them): the app writes those keys only while it is there.
 It lists `accountPalette` when the schema also takes the later icons and colors (`accountIcons`, `accountColors` in `src/config/providers.ts`; the earlier ones come first): the app offers the later ones only while it is there, since an `accountIdentity` host refuses a file with one.
 It also answers `usage` (live quotas and the history, filtered by days, provider, source, search and account) and `usageOverride` (a model's price, kept in the `usage_price_overrides` table of `chat.db`) through [`src/usage`](../usage/AGENTS.md).
 `terminal/cli/commands/usage.ts` is `carrier usage`, which checks the hello lists `usage` and waits 45 s for it.

@@ -120,7 +120,7 @@ The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `C
 }
 ```
 
-The file has one key, `providers`, and no other.
+The file has three keys, `providers` and the two of [Text generators](#text-generators), and no other.
 
 | Field of a provider | Required | Meaning |
 |----------------------|----------|---------|
@@ -146,6 +146,34 @@ A flag in `launchArgs` is judged by its name, so `--model=x` and `--model x` are
 The file holds no secret; a log names an account and a flag, never the value of an argument.
 
 Without `providers.json` there is one account per harness, named after it: `claude`, `codex` and `agy`, each with this Mac's own login (no `configDir`). A role may name them. A file that has a `providers` key replaces them: only the accounts it lists exist.
+
+### Text generators
+
+A text generator is a model that turns text into text with no tools: a local server, LM Studio or Ollama, and one of its models.
+It is declared in `providers.json` next to the accounts, and one of them is named as the one in use:
+
+```json
+{
+  "textGenerators": {
+    "local": { "kind": "ollama", "model": "qwen3:8b" },
+    "studio": { "kind": "lmstudio", "model": "google/gemma-4-12b" }
+  },
+  "textGenerator": "local"
+}
+```
+
+| Key | Required | Meaning |
+|-----|----------|---------|
+| `textGenerators` | no | The generators by name, each `{ "kind", "model" }`. The name follows the same rule as an account's. Without it, `{}`. |
+| `textGenerators.<name>.kind` | yes | The server: `lmstudio` or `ollama`, the local ones on this Mac. |
+| `textGenerators.<name>.model` | yes | The model the server runs: one trimmed, non-empty string. |
+| `textGenerator` | no | The name of the generator in use. It must be a key of `textGenerators`, so a name with none declared, or `""`, is refused. Without it there is no generator. |
+
+An unknown key inside a generator is refused.
+The engine reads these keys with the same schema as the chat host and ignores them; the chat host reports the one in use in its `providers` reply.
+A file that does not match stops the engine's start, is refused by `carrier reload` and is answered by the host as a problem, each naming the key.
+
+The strict schema is why the host's hello lists `textGenerators`: a `carrier` that does not list it refuses a file with these keys, so the Mac app writes them only while it is there.
 
 `carrier init` does not ask which providers to use: it looks for the agent CLIs on the Mac (their real binary, never a wrapper under `~/.paradev` or `~/.superset`), shows where each is with its version and whether it is signed in, and writes one account per CLI it found, named after it. It says how many accounts it added, and then asks only for extra accounts (another login of the same CLI, or one on a local server), with Enter meaning no. The accounts go to `providers.json` in the Carrier folder, even when `--out` puts the config elsewhere, and the recap says so. The flags that declare an account (`--author-provider` and the like) add it to the file, and `--yes` writes it without asking. When it edits an existing setup it starts from the accounts already in that file instead. When assigning roles, each role points at a declared account (a `provider` in the file) and specifies its model.
 

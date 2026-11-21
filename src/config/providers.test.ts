@@ -10,6 +10,48 @@ const errorsOf = (providers: unknown) => {
 };
 const pathsOf = (providers: unknown) => errorsOf(providers).map((e) => e.path);
 
+const generatorErrors = (file: object) => {
+  const result = loadProviders(file);
+  if (result.ok) throw new Error('expected an invalid file');
+  return result.errors;
+};
+
+describe('text generators', () => {
+  test('a file with neither key has no generator, and one with both names the one in use with its kind and model', () => {
+    expect(loadProviders({})).not.toHaveProperty('textGenerator');
+    expect(loadProviders({ textGenerators: { local: { kind: 'ollama', model: 'qwen3:8b' } } })).not.toHaveProperty('textGenerator');
+    const both = { textGenerators: { local: { kind: 'ollama', model: '  qwen3:8b  ' }, studio: { kind: 'lmstudio', model: 'gemma' } }, textGenerator: 'studio' };
+    expect(loadProviders(both)).toEqual({ ok: true, providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' }, agy: { harness: 'agy' } }, textGenerator: { name: 'studio', kind: 'lmstudio', model: 'gemma' } });
+    expect(loadProviders({ ...both, textGenerator: 'local' })).toMatchObject({ textGenerator: { name: 'local', model: 'qwen3:8b' } });
+  });
+
+  test('each wrong declaration is refused with its key named', () => {
+    const paths = (textGenerators: unknown) => generatorErrors({ textGenerators }).map((e) => e.path);
+    expect(paths({ a: { kind: 'vllm', model: 'm' } })).toEqual(['textGenerators.a.kind']);
+    expect(paths({ a: { model: 'm' } })).toEqual(['textGenerators.a.kind']);
+    expect(paths({ a: { kind: 'ollama' } })).toEqual(['textGenerators.a.model']);
+    for (const model of ['', '   ', 7]) expect(paths({ a: { kind: 'ollama', model } })).toEqual(['textGenerators.a.model']);
+    expect(paths({ a: { kind: 'ollama', model: 'm', baseUrl: 'http://x' } })).toEqual(['textGenerators.a']);
+    expect(paths({ a: 'ollama' })).toEqual(['textGenerators.a']);
+    for (const name of ['Local', '1local', 'local_x', '', 'a'.repeat(41)]) {
+      const errors = generatorErrors({ textGenerators: { [name]: { kind: 'ollama', model: 'm' } } });
+      expect(errors.map((e) => e.path)).toEqual([`textGenerators.${name}`]);
+      expect(errors[0]!.message).toContain('lowercase word');
+    }
+  });
+
+  test('a textGenerator that textGenerators does not declare is refused, also when empty, absent or the name of an account', () => {
+    const declared = { textGenerators: { local: { kind: 'ollama', model: 'm' } } };
+    expect(generatorErrors({ ...declared, textGenerator: 'other' })).toEqual([{ path: 'textGenerator', message: expect.stringContaining('"other"') }]);
+    expect(generatorErrors({ ...declared, textGenerator: '' }).map((e) => e.path)).toEqual(['textGenerator']);
+    expect(generatorErrors({ textGenerators: {}, textGenerator: 'local' }).map((e) => e.path)).toEqual(['textGenerator']);
+    expect(generatorErrors({ textGenerator: 'local' }).map((e) => e.path)).toEqual(['textGenerator']);
+    expect(generatorErrors({ textGenerator: 'claude' }).map((e) => e.path)).toEqual(['textGenerator']);
+    expect(generatorErrors({ ...declared, textGenerator: 'constructor' }).map((e) => e.path)).toEqual(['textGenerator']);
+    expect(generatorErrors({ ...declared, textGenerator: 7 }).map((e) => e.path)).toEqual(['textGenerator']);
+  });
+});
+
 describe('providers.json', () => {
   test('no file is one account per harness, named after it, with no folder', () => {
     expect(loadProviders({})).toEqual({ ok: true, providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' }, agy: { harness: 'agy' } } });

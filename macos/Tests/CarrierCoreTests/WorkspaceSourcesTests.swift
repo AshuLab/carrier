@@ -91,3 +91,56 @@ import Testing
         for source in needGh + noGh { #expect(workspaceSourceReason(source, gh: gh) == nil, "\(source) \(String(describing: gh))") }
     }
 }
+
+private struct ProjectFolderFixture: Decodable {
+    let carrier: String
+    let layout: Layout
+    let cases: [Case]
+
+    struct Layout: Decodable {
+        let dirs: [String]
+        let files: [String: String]
+        let symlinks: [String: String]
+        let unreadable: [String]
+    }
+
+    struct Case: Decodable {
+        let name: String
+        let path: String
+        let carrier: String?
+        let relative: Bool?
+        let refusal: String?
+    }
+}
+
+@Test func projectFolderRefusalMatchesTheSharedContractTable() throws {
+    let fixtureURL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/project-folder.json")
+    let fixture = try JSONDecoder().decode(ProjectFolderFixture.self, from: Data(contentsOf: fixtureURL))
+    let root = NSTemporaryDirectory() + "pf-\(UUID().uuidString)"
+    let fm = FileManager.default
+    try fm.createDirectory(atPath: root, withIntermediateDirectories: true)
+    defer {
+        for dir in fixture.layout.unreadable { _ = chmod(root + "/" + dir, 0o755) }
+        try? fm.removeItem(atPath: root)
+    }
+    for dir in fixture.layout.dirs {
+        try fm.createDirectory(atPath: root + "/" + dir, withIntermediateDirectories: true)
+    }
+    for (file, body) in fixture.layout.files {
+        let path = root + "/" + file
+        try fm.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try Data(body.utf8).write(to: URL(fileURLWithPath: path))
+    }
+    for (link, target) in fixture.layout.symlinks {
+        try fm.createSymbolicLink(atPath: root + "/" + link, withDestinationPath: root + "/" + target)
+    }
+    for dir in fixture.layout.unreadable {
+        #expect(chmod(root + "/" + dir, 0o000) == 0)
+    }
+    for entry in fixture.cases {
+        let carrier = root + "/" + (entry.carrier ?? fixture.carrier)
+        let target = entry.relative == true ? entry.path : root + "/" + entry.path
+        #expect(projectFolderRefusal(target, carrierFolder: carrier) == entry.refusal, Comment(rawValue: entry.name))
+    }
+}

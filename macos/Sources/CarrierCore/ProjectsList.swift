@@ -102,8 +102,12 @@ extension ProjectsProblem {
     }
 
     /// Adds `folder` as a project, or says it already is one and writes nothing. nil when it could not be written: `problems` says why when the file does not
-    /// match its schema, `failure` when the disk refused.
+    /// match its schema, `failure` when the folder is refused or the disk refused.
     @discardableResult public func add(folder: String) -> ProjectAdd? {
+        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) {
+            failure = refusal
+            return nil
+        }
         do {
             let added = try file.add(folder: folder)
             failure = nil

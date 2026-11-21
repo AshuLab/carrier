@@ -66,7 +66,7 @@ The rows are `providersPage(_:config:chat:)` and the list's `providersDirectory`
 
 What the person sees: [settings](../docs/macos/settings.md#projects-page).
 
-The rows, the remote read from `.git/config` and the add are pure functions in `CarrierCore/ProjectsList.swift` and `ProjectsFile.swift`, and `ProjectsModel` follows the file (`ProjectsListTests`, including a write by another process and a file that does not match); `--fixture` writes its projects in `FixtureServer.writeProjects` (`FixtureServerTests`); the view `Carrier/ProjectsTab.swift` is untested, only drawn by `--selftest`, and the page is in `SettingsIndexDriftTests`'s reach by its name.
+The rows, the remote read from `.git/config` and the add are pure functions in `CarrierCore/ProjectsList.swift`, `WorkspaceSources.swift` (`projectFolderRefusal`, sharing `Tests/Fixtures/project-folder.json` with `src/chat/folder.ts`) and `ProjectsFile.swift`, and `ProjectsModel` follows the file (`ProjectsListTests`, including a write by another process, a file that does not match, and refused folders); `--fixture` writes its projects in `FixtureServer.writeProjects` (`FixtureServerTests`); the view `Carrier/ProjectsTab.swift` is untested, only drawn by `--selftest`, and the page is in `SettingsIndexDriftTests`'s reach by its name.
 
 ### Agents page
 

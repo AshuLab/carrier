@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CarrierCore
 
@@ -44,4 +45,80 @@ import Testing
         #expect(engineReplacement(running: bad, installed: "9.0.0", executionsInFlight: 0) == .keep)
         #expect(engineReplacement(running: "0.1.0", installed: bad, executionsInFlight: 3) == .keep)
     }
+}
+
+// MARK: what lets `carrier --version` be remembered
+
+private func scratchFolder() throws -> URL {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("stamp-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    return folder
+}
+
+@Test func theSameFileHasTheSameStampAndAnotherSizeChangesIt() throws {
+    let folder = try scratchFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let file = folder.appendingPathComponent("carrier")
+    try Data("one".utf8).write(to: file)
+    let first = programStamp([file.path])
+    #expect(first != nil && programStamp([file.path]) == first)
+    try Data("longer".utf8).write(to: file)
+    #expect(programStamp([file.path]) != first)
+}
+
+@Test func aLinkPointedAtAnotherFileChangesTheStamp() throws {
+    let folder = try scratchFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let old = folder.appendingPathComponent("0.1.0"), new = folder.appendingPathComponent("0.2.0"), link = folder.appendingPathComponent("carrier")
+    try Data("same".utf8).write(to: old)
+    try Data("same".utf8).write(to: new)
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: old)
+    let before = programStamp([link.path])
+    try FileManager.default.removeItem(at: link)
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: new)
+    #expect(before != nil && programStamp([link.path]) != before)
+}
+
+@Test func aPathThatDoesNotExistHasNoStamp() throws {
+    let folder = try scratchFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let file = folder.appendingPathComponent("carrier")
+    try Data("x".utf8).write(to: file)
+    #expect(programStamp([file.path, folder.appendingPathComponent("missing").path]) == nil)
+    #expect(programStamp([]) == nil)
+}
+
+private func scratchDefaults() -> (UserDefaults, () -> Void) {
+    let name = "remembered-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    return (defaults, { defaults.removePersistentDomain(forName: name) })
+}
+
+@Test func theVersionIsReadOnceWhileTheStampIsTheSameAndAgainWhenItChanges() {
+    let (defaults, clean) = scratchDefaults()
+    defer { clean() }
+    var stamp = "a", runs = 0
+    func ask() -> String? { rememberedVersion(stamp: { stamp }, defaults: defaults) { runs += 1; return stamp == "a" ? "0.1.0" : "0.2.0" } }
+    #expect(ask() == "0.1.0" && ask() == "0.1.0" && runs == 1)
+    stamp = "b" // the Homebrew file is another one
+    #expect(ask() == "0.2.0" && ask() == "0.2.0" && runs == 2)
+}
+
+@Test func aRunThatFailedOrHasNoStampKeepsNothing() {
+    let (defaults, clean) = scratchDefaults()
+    defer { clean() }
+    var runs = 0
+    #expect(rememberedVersion(stamp: { "a" }, defaults: defaults) { runs += 1; return nil } == nil)
+    #expect(rememberedVersion(stamp: { "a" }, defaults: defaults) { runs += 1; return "0.1.0" } == "0.1.0") // the failure was not kept: it runs again
+    #expect(rememberedVersion(stamp: { nil }, defaults: defaults) { runs += 1; return "9.9.9" } == "9.9.9" && runs == 3)
+    #expect(rememberedVersion(stamp: { "a" }, defaults: defaults) { runs += 1; return "x" } == "0.1.0" && runs == 3) // what no stamp ran left the kept one alone
+}
+
+@Test func aStampThatChangedWhileItRanKeepsNothing() {
+    let (defaults, clean) = scratchDefaults()
+    defer { clean() }
+    var calls = 0
+    // the first stamp is "a" and the second "b": the file was swapped under the run
+    let first = rememberedVersion(stamp: { calls += 1; return calls == 1 ? "a" : "b" }, defaults: defaults) { "0.2.0" }
+    #expect(first == "0.2.0" && defaults.dictionary(forKey: "carrier.installedVersion") == nil)
 }

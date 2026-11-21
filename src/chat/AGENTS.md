@@ -30,6 +30,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   The session is in `switching`, a marker of its own and not the delete's, that every request on the session and a second switch check; the old conversation is detached (its events are no longer recorded) and stays the session's recorded process until it ends.
   The notice it stores has `switched: { from, to }`, and every later open or resume of that conversation passes the handoff again, built from the events before that notice (none for a session with no message).
   `regenerateTitle` ([ADR 0038](../../docs/adr/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md)) writes a title with the text generator over any title, one call at a time; `sessions.title_source` says where a title came from (`titleSourceOf` reads a row with none).
+  After any `ok` turn of a non-child session with a reply and a `first_line` title, `autoTitle` writes one in the background and logs failures so the next turn retries.
 - `text-generator.ts`: the text-generator port, `realTextGenerator` (the server's `/v1/chat/completions`), and `FakeTextGenerator` in `fake.ts`; `title-prompt.ts`: the fixed system message and the text it gets.
 - `session-data.ts` and `pull-requests.ts`: the `diff` and `pr` of a `list` row, read in a background sweep, never in the request ([spec](../../docs/specs/chat-host.md)).
 - `plan.ts`: the plan's request schema and the step types.

@@ -158,7 +158,7 @@ struct MessageBox<Selects: View>: View {
             .animation(.smooth(duration: 0.2), value: dropping)
             .onDrop(of: [.fileURL, .image], isTargeted: $dropping) { drop($0) }
             if let failure = dictation.session.failure(for: dictationOwner) {
-                Text(failure.cause).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled)
+                ProblemNotice(title: "Dictation did not work", detail: failure.cause, failed: true)
             }
         }
         // switching session: the box of the one left stops listening and keeps what it heard

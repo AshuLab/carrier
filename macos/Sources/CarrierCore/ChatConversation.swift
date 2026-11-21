@@ -315,6 +315,10 @@ public struct ApprovalCard: Equatable {
     public let choices: [ChatChoice]
     /// The questions of an `AskUserQuestion` approval; empty for any other, which is drawn as the generic card.
     public let questions: [ChatQuestion]
+
+    public init(approvalId: String, question: String, tool: String, arg: String? = nil, choices: [ChatChoice], questions: [ChatQuestion] = []) {
+        (self.approvalId, self.question, self.tool, self.arg, self.choices, self.questions) = (approvalId, question, tool, arg, choices, questions)
+    }
 }
 
 /// The rows the events make, in order, and then the message in progress when `streaming` has text. Consecutive calls are one row

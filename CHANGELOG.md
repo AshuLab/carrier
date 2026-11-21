@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- What the host refuses, a session that cannot be read, a failed dictation and the notes of New Session (no provider ready, an older chat host, a refused send, a name or a folder that cannot be used) are notices like the others instead of plain red or orange lines.
 - In a session, the button of the message box lists every agent (not only the session's) and changes the session to another one: the transcript stays and the new agent goes on from a selection of what was said, with the rest readable through `history`.
 - The menu bar item's menu is grouped: Sessions (what waits for you first, at most four), Terminals, and Dictation (Dictate now, Copy last transcript and the last five transcripts), then a Sleep row and the Carrier group: its state, its controls (Pause, Check, Stop) and its latest three epics.
 - The notices above the message box (a queued message, an archived or asleep session, a failed turn) read better: their buttons take the colour of the notice instead of the accent, and their text is brighter.

@@ -28,9 +28,11 @@ type Row = { path: string; added: number; removed: number };
  * What git says about commits never changes, so it is asked once: the numbers of a range of commits, the fork point of two commits, the merges between two.
  * The key names every commit and the folder it was asked in; the answer is a promise, so two requests at once share one process.
  * A failed read (git answers null) is not kept, nor is one `keeps` refuses; the oldest are dropped past `MAX_FACTS`.
- * ponytail: the repository's diff settings and attributes are read as of the first ask; a change to them shows after a restart of the engine.
+ * ponytail: the diff settings in the repository's config are read as of the first ask, so a change to them shows after a restart of the engine.
+ * The attributes (`.gitattributes` of the epic's worktree) move with its branch, so the epic's head is part of the key of every number.
  */
 export const MAX_FACTS = 500;
+const MAX_CACHED_ROWS = 200; // an entry holds its rows: 500 of them stay small
 const facts = new Map<string, Promise<unknown>>();
 export function fact<T>(key: string, read: () => Promise<T | null>, keeps: (value: T) => boolean = () => true): Promise<T | null> {
   const known = facts.get(key);
@@ -62,9 +64,9 @@ const numstat = async (card: Range) => {
   const out = await git(card.cwd, [...card.guard, 'diff', '--numstat', ...SAFE_DIFF, '-z', ...card.range, '--']);
   return out === null ? null : parseNumstat(out);
 };
-/** The numbers of a card: a lane's are read from its worktree every time, those of two commits once (not when they are more rows than a reply holds). */
-const rowsOf = (card: Range & { kind?: Card['kind'] }) =>
-  card.kind === 'lane' ? numstat(card) : fact(`numstat\0${card.cwd}\0${card.range.join('\0')}`, () => numstat(card), (rows) => rows.length <= MAX_FILES);
+/** The numbers of a card: a lane's are read from its worktree every time, those of two commits once per head of the epic (not when they are many rows). */
+const rowsOf = (card: Range & { kind?: Card['kind'] }, head: string) =>
+  card.kind === 'lane' ? numstat(card) : fact(`numstat\0${card.cwd}\0${head}\0${card.range.join('\0')}`, () => numstat(card), (rows) => rows.length <= MAX_CACHED_ROWS);
 
 /**
  * `-c` options that keep a worktree's own code from running while it is read: diffing a worktree hashes its edited files through
@@ -249,10 +251,10 @@ export async function filesOf(db: Db, reposDir: string, repo: string, issue: num
   if (found === null) return null;
   if (found === 'none') return { sections: [], total: null, truncated: false };
   const { workspace, head, base } = found;
-  const allRows = base === null ? Promise.resolve(null) : rowsOf({ cwd: workspace, range: [`${base}...${head}`], guard: [] }); // asked while the cards are
+  const allRows = base === null ? Promise.resolve(null) : rowsOf({ cwd: workspace, range: [`${base}...${head}`], guard: [] }, head); // asked while the cards are
   const drafts = (await Promise.all(found.cards.map(async (plain) => {
     const card = await guarded(plain);
-    const [rows, added] = await Promise.all([rowsOf(card), card.kind === 'lane' ? untracked(card) : []]);
+    const [rows, added] = await Promise.all([rowsOf(card, head), card.kind === 'lane' ? untracked(card) : []]);
     return rows === null ? [] : [{ ...card, rows: [...rows, ...added] }];
   }))).flat();
 
@@ -299,12 +301,13 @@ async function diffText({ cwd, range, guard }: Card, path: string): Promise<{ te
  */
 export async function fileDiff(db: Db, reposDir: string, repo: string, issue: number, section: string, path: string, memo?: CardsMemo): Promise<FileDiffReply | null> {
   const found = await cardsFor(db, reposDir, repo, issue, undefined, memo);
-  const listed = found === null || found === 'none' ? undefined : found.cards.find((c) => c.id === section);
-  if (listed === undefined || path.length > MAX_PATH) return null;
+  const known = found === null || found === 'none' ? undefined : found;
+  const listed = known?.cards.find((c) => c.id === section);
+  if (known === undefined || listed === undefined || path.length > MAX_PATH) return null;
   const card = await guarded(listed);
   let out: string;
   let cut = false;
-  if ((await rowsOf(card))?.some((r) => r.path === path) === true) {
+  if ((await rowsOf(card, known.head))?.some((r) => r.path === path) === true) {
     ({ text: out, cut } = await diffText(card, path));
   } else if (card.kind === 'lane' && (await untrackedPaths(card)).includes(path)) {
     const text = await readUntracked(card.cwd, path);

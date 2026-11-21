@@ -8,7 +8,7 @@ import { callerResults } from '../storage/caller-results.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
-import { cardsMemo, fact, fileDiff, filesOf, MAX_DIFF_ROWS, MAX_FACTS, MAX_FILES, MAX_FILES_PER_SECTION, MAX_LINE } from './files.ts';
+import { cardsMemo, fact, fileDiff, filesOf, MAX_DIFF_ROWS, MAX_FACTS, MAX_FILES_PER_SECTION, MAX_LINE } from './files.ts';
 
 // A real temporary repository, as the `epic` request's commit-list test does: the expectations are literals and git's own numbers.
 const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
@@ -600,8 +600,8 @@ test('an epic worktree on a detached head has nothing to show', async () => {
   expect(await filesOf(db, repos, 'AshuLab/a', 1)).toEqual({ sections: [], total: null, truncated: false });
 });
 
-test('the numbers of more files than a reply holds are not remembered', async () => {
-  slice(101, 201, Object.fromEntries(Array.from({ length: MAX_FILES + 1 }, (_, i) => [`f${i}.txt`, 'one\n'])));
+test('the numbers of a slice of hundreds of files are not remembered', async () => {
+  slice(101, 201, Object.fromEntries(Array.from({ length: 201 }, (_, i) => [`f${i}.txt`, 'one\n'])));
   epicRow();
   const first = await spawnsOf(() => filesOf(db, repos, 'AshuLab/a', 1));
   // the merges are remembered, the numbers of the slice and the total are asked again
@@ -623,4 +623,14 @@ test('fact: one read for two at once, kept for the same key, a failure or null f
   await fact(key('one more'), read); // the oldest is out
   expect(await fact(key('a'), read)).toBe(1);
   expect(await fact(key('f'), read)).toBe(5); // dropped, read again (4 was `one more`)
+});
+
+test('a later slice that changes how git reads an earlier one (an attribute) is counted again', async () => {
+  slice(101, 201, { 'f.lock': lines(2, 'l') });
+  epicRow();
+  expect((await filesOf(db, repos, 'AshuLab/a', 1))!.sections[0]!.files).toEqual([{ path: 'f.lock', added: 2, removed: 0, alsoIn: [] }]);
+  slice(102, 202, { '.gitattributes': '*.lock -diff\n' }); // from now on git reads f.lock as binary, in any range
+  const sections = (await filesOf(db, repos, 'AshuLab/a', 1))!.sections;
+  expect(sections.map((s) => s.id)).toEqual(['slice-102', 'slice-101']);
+  expect(sections[1]!.files).toEqual([{ path: 'f.lock', added: 0, removed: 0, alsoIn: [] }]);
 });

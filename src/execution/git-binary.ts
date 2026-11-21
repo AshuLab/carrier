@@ -59,5 +59,5 @@ export function gitRunner(on: Machine) {
   };
 }
 
-/** `start(binary)` with the `git` of this machine: every git process of Carrier goes through it. */
+/** `start(binary)` with the `git` of this machine: the engine's reads of git and the chat host's `realGit` go through it. */
 export const withGit = gitRunner(machine);

@@ -92,7 +92,7 @@ export const runtimeOf = ({ command, autoCompact, idleCompaction, launchArgs }: 
 /** Without `providers.json`: one account per harness, named after it, with this Mac's own login. */
 export const defaultAccounts: Providers = Object.fromEntries(harnessNames.map((harness) => [harness, { harness }]));
 
-/** The servers a text generator can be: the local ones, called on their default port on this Mac. */
+/** The servers a text generator can be: the local ones on this Mac. */
 export const textGeneratorKinds = ['lmstudio', 'ollama'] as const;
 /** A text generator: a model that turns text into text with no tools, on a local server. */
 const textGenerator = z.strictObject({ kind: z.enum(textGeneratorKinds), model: z.string().trim().min(1) });

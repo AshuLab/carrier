@@ -165,7 +165,7 @@ It is declared in `providers.json` next to the accounts, and one of them is name
 | Key | Required | Meaning |
 |-----|----------|---------|
 | `textGenerators` | no | The generators by name, each `{ "kind", "model" }`. The name follows the same rule as an account's. Without it, `{}`. |
-| `textGenerators.<name>.kind` | yes | The server: `lmstudio` or `ollama`, called on its default port on this Mac (LM Studio `1234`, Ollama `11434`). |
+| `textGenerators.<name>.kind` | yes | The server: `lmstudio` or `ollama`, the local ones on this Mac. |
 | `textGenerators.<name>.model` | yes | The model the server runs: one trimmed, non-empty string. |
 | `textGenerator` | no | The name of the generator in use. It must be a key of `textGenerators`, so a name with none declared, or `""`, is refused. Without it there is no generator. |
 

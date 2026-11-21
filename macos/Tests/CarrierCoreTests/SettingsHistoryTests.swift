@@ -48,5 +48,6 @@ import Testing
 @Test func aProjectsListTakesTheWidthAndAProjectsOwnScreenIsAColumn() {
     #expect(SettingsPlace(.projects).isColumn == false)
     #expect(SettingsPlace(.projects, path: ["/Users/ana/notes"]).isColumn)
+    #expect(SettingsPlace(.projects, path: ["/Users/ana/notes", "actions"]).isColumn)
     #expect(SettingsPlace(.repos).isColumn == false && SettingsPlace(.sessions).isColumn)
 }

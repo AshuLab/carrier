@@ -45,6 +45,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public let name: String
     /// `owner/name` of its GitHub `origin`, when it has one.
     public let repo: String?
+    /// Actions run in a new worktree or after a clone, from `projects.json`.
+    public let actions: [ProjectAction]
 
     public var id: String { path }
     /// What the row says under the name: the repository, else where the folder is.
@@ -55,7 +57,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
 
 /// A row for each entry, in the file's order; `remote` says the GitHub `owner/name` of a folder, if any.
 public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? = originRepo(ofFolder:)) -> [ProjectRow] {
-    entries.map { ProjectRow(path: $0.path, name: $0.name ?? ($0.path as NSString).lastPathComponent, repo: remote($0.path)) }
+    entries.map { ProjectRow(path: $0.path, name: $0.name ?? ($0.path as NSString).lastPathComponent, repo: remote($0.path), actions: $0.actions) }
 }
 
 extension ProjectsProblem {
@@ -119,5 +121,20 @@ extension ProjectsProblem {
             failure = "projects.json cannot be written: \(error.localizedDescription)"
         }
         return nil
+    }
+
+    /// Writes `actions` on the project at `path` and reloads the list; returns false without writing when any action is invalid or the file failed.
+    @discardableResult public func saveActions(path: String, actions: [ProjectAction]) -> Bool {
+        do {
+            guard try file.updateActions(path: path, actions: actions) else { return false }
+            failure = nil
+            reload()
+            return true
+        } catch ProjectsFileError.invalid(let found) {
+            problems = found
+        } catch {
+            failure = "projects.json cannot be written: \(error.localizedDescription)"
+        }
+        return false
     }
 }

@@ -395,11 +395,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     WindowController.shared.showSettings(place: SettingsPlace(.agents, path: [role.rawValue])); return WindowController.shared.settingsStatus
                 })
             }
-            // and the screen of the first project, when the Carrier folder has one (a fixture does)
-            let projects: [(String, () -> String)] = ((try? ProjectsFile.current().read()) ?? []).prefix(1).map { project in
-                ("settings projects screen", {
-                    WindowController.shared.showSettings(place: SettingsPlace(.projects, path: [project.path])); return WindowController.shared.settingsStatus
-                })
+            // and the screen of the first project and its actions, when the Carrier folder has one (a fixture does)
+            let projects: [(String, () -> String)] = ((try? ProjectsFile.current().read()) ?? []).prefix(1).flatMap { project in
+                [
+                    ("settings projects screen", {
+                        WindowController.shared.showSettings(place: SettingsPlace(.projects, path: [project.path])); return WindowController.shared.settingsStatus
+                    }),
+                    ("settings projects actions", {
+                        WindowController.shared.showSettings(place: SettingsPlace(.projects, path: [project.path, ProjectsTabView.actionsPath])); return WindowController.shared.settingsStatus
+                    }),
+                ]
             }
             steps.insert(contentsOf: pages + screens + roles + projects, at: opened + 1)
         }

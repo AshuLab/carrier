@@ -31,6 +31,7 @@ public struct ProjectEntry: Equatable {
     public var pinned: Bool { json["pinned"] as? Bool ?? false }
     public var hidden: Bool { json["hidden"] as? Bool ?? false }
     public var tags: [String] { json["tags"] as? [String] ?? [] }
+    public var actions: [ProjectAction] { projectActions(from: json["actions"]) }
 }
 
 private struct Field {
@@ -197,5 +198,13 @@ public struct ProjectsFile {
     /// Reads the file again now, changes one key of one project and writes the whole file through a temporary file that replaces it.
     public func update(path: String, key: String, value: Any?) throws {
         try applyingProjectEdit(path: path, key: key, value: value, to: bytes()).write(to: url, options: .atomic)
+    }
+
+    /// Reads the file again now, replaces the `actions` of `path` when all actions are valid, and writes the file atomically.
+    /// Returns false without writing if any action has a blank name or command.
+    @discardableResult public func updateActions(path: String, actions: [ProjectAction]) throws -> Bool {
+        guard let data = try applyingProjectActions(actions, path: path, to: bytes()) else { return false }
+        try data.write(to: url, options: .atomic)
+        return true
     }
 }

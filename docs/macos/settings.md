@@ -67,7 +67,10 @@ Add project opens the system's folder panel and writes the chosen folder as an e
 A folder inside Carrier's own folders (`engine`, `chat/state`, `chat/logs`, `chat/worktrees`, `chat/pending`, `chat/sessions`, with symlinks resolved), a file, a folder that cannot be read, or a worktree linked to another project is refused with the reason in orange (`projectFolderRefusal` in `CarrierCore/WorkspaceSources.swift`, `ProblemLine`), and writes nothing.
 A folder that already is a project, written any way (`~`, a trailing slash, a symlink), writes nothing and opens that project's page.
 Choosing a row opens the project as a screen of its own, a place of the window's history (‹ goes back to the list) in a centred column, with the project's name and its remote or path in the toolbar.
-The screen shows the folder with Reveal in Finder (off when the folder is not there) and the remote with Open on GitHub, only when there is one.
+The screen has an Actions row showing how many actions are set ("None" or "N actions") and a chevron, which opens an Actions screen of its own with the project's name under Actions in the toolbar.
+The Actions screen has two groups, New worktree and After clone, each listing its actions in order and ending in Add action, where each action has a name, an on switch, a delete button, a monospaced command field and an "If it fails" choice of Warn and continue or Stop the session.
+Each valid edit writes at once to the project's `actions` in `projects.json` (omitting `on` when on and `onFail` when Warn and continue), while a blank name or command is not written and is shown as a problem.
+The project screen also shows the folder with Reveal in Finder (off when the folder is not there) and the remote with Open on GitHub, only when there is one.
 The list follows the file while the page is open: `ProjectsModel.follow` reads it again every second, so what the chat host or an editor writes shows without reopening the page.
 A file that does not match its schema, or cannot be read, shows each problem on the page with its field named (`projects.json: projects.0.name must not be blank`) in place of the list, and the page writes nothing while it is wrong.
 `--fixture` has four projects: one with a GitHub origin, one whose name and remote are very long, a folder that is not a repository and one that is not there.

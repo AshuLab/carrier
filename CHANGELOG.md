@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The little bar that bounces in the menu bar icon stops in Low Power Mode and while the screens or the Mac are asleep; it cost the system about four percent of a core.
 - With the window hidden or the Mac asleep, the app stops reading the epic you had open and reads the sidebar's session list about every 30 seconds instead of every 5; the list is up to date as the window shows and the epic within a few seconds. Notifications keep their pace (every 10 seconds in Low Power Mode).
 - In Low Power Mode the app asks the engine and the chat host less often (every 10 seconds) while nobody is in the app.
+- The Usage page reads fewer logs: it skips those not written since the range began and drops lines it does not count before parsing them, and an account filter no longer makes each refresh read every other log again.
 - Opening the app no longer starts every chat agent to list its models when it already knows them: it asks only for the agents it has nothing kept for, one at a time, and the new-session draft and the model picker refresh the list when they open.
 - The app no longer runs the installed `carrier --version` at every launch while the Homebrew `carrier` is the same file.
 
@@ -22,7 +23,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The logs and agent sessions of an epic in ready-for-test are no longer deleted after 30 days while it waits for its merge; the 30 days count from the merge or the close.
 - `carrier start` and the app see the engine as soon as it starts, instead of after it has recovered every running epic: with several running epics the socket used to answer seconds late (the app said "Carrier stopped", and `carrier start` could give up at 15 seconds with the engine still starting). Until the first check is armed the panel says `starting`.
 - After a crash, the chat host ends the agents it left running in parallel, so its socket opens within one grace period instead of one per agent.
-- The Usage page reads fewer logs: it skips those not written since the range began and drops lines it does not count before parsing them, and an account filter no longer makes each refresh read every other log again.
 - The Usage page no longer leaves out the epics' usage when it reads while the engine is writing. Both databases now keep a `-wal` and a `-shm` file beside them while Carrier runs: they are part of the database, so do not delete them or copy the `.db` alone.
 
 ## [0.16.0] - 2026-11-20

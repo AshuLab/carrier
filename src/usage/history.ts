@@ -115,11 +115,12 @@ interface Cached<T> {
 
 /**
  * Reads the new complete lines of a JSONL file into its state; a file that was not just appended to is read again from its start.
- * A file not written since `since` is not read and gives undefined: its records are older than the window, each one's time being written before the
- * file's last write. It is not forgotten, a longer window reads it. A file whose modification time was set back by hand would be missed.
+ * A file not written since `since` is not read and gives undefined, and it is not forgotten: a longer window reads it.
  */
 async function scanLines<T>(ports: HistoryPorts, cache: Map<string, Cached<T>>, path: string, since: number, fresh: () => T, onLine: (state: T, line: string) => void): Promise<T | undefined> {
   const stat = await ports.files.stat(path);
+  // ponytail: a record's time is taken to be at or before its file's last write, so a file not written since the window began holds nothing in it; a log whose mtime was set back by hand is missed, drop this check if a CLI ever does that.
+  // A message copied into a newer file with a fresh timestamp counts from that copy: which copy `merged` keeps already depended on the listing order.
   if (stat.mtimeMs < since) return undefined;
   const prev = cache.get(path);
   if (prev !== undefined && prev.size === stat.size && prev.mtimeMs === stat.mtimeMs) return prev.state;
@@ -183,7 +184,8 @@ async function scanRoots<T>(ports: HistoryPorts, cache: Map<string, Cached<T>>, 
 }
 
 function claudeLine(state: Map<string, External>, line: string, path: string) {
-  if (line.includes('"assistant"') === false) return; // a superset of the types read below: a new branch adds its literal here
+  // ponytail: a superset of the types read below, so a branch for a new type must add its literal here or its lines are lost.
+  if (line.includes('"assistant"') === false) return;
   const event = object(JSON.parse(line));
   const message = object(event.message);
   const usage = object(message.usage);
@@ -208,7 +210,8 @@ interface CodexState {
 }
 
 function codexLine(state: CodexState, line: string) {
-  if (['"token_count"', '"session_meta"', '"turn_context"'].some((type) => line.includes(type)) === false) return; // a superset of the types read below: a new branch adds its literal here
+  // ponytail: a superset of the types read below, so a branch for a new type must add its literal here or its lines are lost.
+  if (['"token_count"', '"session_meta"', '"turn_context"'].some((type) => line.includes(type)) === false) return;
   const event = object(JSON.parse(line));
   const payload = object(event.payload);
   if (event.type === 'session_meta') {

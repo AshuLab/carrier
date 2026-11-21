@@ -19,6 +19,7 @@ vi.mock('@ashulab/universal-logger', () => ({ createScopedLogger: () => ({ debug
 
 const NOW = new Date(2026, 10, 13, 12).getTime(); // local noon, so the day does not depend on the time zone
 const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 const iso = (ms: number) => new Date(ms).toISOString();
 const week: HistoryFilter = { days: 7 };
 
@@ -133,7 +134,6 @@ test('a file that grew but whose earlier bytes changed is read again from the st
 
 // ---- What is not read: logs older than the window, lines that count for nothing, and files of roots that were not listed
 
-const DAY = 24 * HOUR;
 const age = (path: string, at: number) => utimesSync(path, at / 1000, at / 1000);
 
 test('a log not written since the window began is not read, and it stays in the cache for a longer window', async () => {
@@ -169,9 +169,13 @@ test('lines of a type that is never read cost no parse and change nothing', asyn
     const result = await setup().run(week, { claude: [join(dir, folder, 'claude')], codex: [join(dir, folder, 'codex')], agy: [] });
     return { result, parses: parsed.mock.calls.length };
   };
-  const plain = await read('plain', false);
-  const noisy = await read('noisy', true);
-  parsed.mockRestore();
+  let plain, noisy;
+  try {
+    plain = await read('plain', false);
+    noisy = await read('noisy', true);
+  } finally {
+    parsed.mockRestore();
+  }
   expect(noisy.result).toEqual(plain.result);
   expect(noisy.result.totals.turns).toBe(3);
   expect(noisy.parses).toBe(plain.parses); // 2000 more lines, no more parses
@@ -188,7 +192,19 @@ test('a usage asked for one account does not make the next look read the logs of
   expect(bytesRead).toBe(0);
 });
 
-test('a message in an old log and its copy in a new one, with its first timestamp, do not count in a week', async () => {
+test('a look at some roots forgets the cached files of those roots only, not those of a folder whose name starts the same', async () => {
+  write(join(dir, 'claude', 'p', 'a.jsonl'), [claudeLine({ id: 'm1', input: 100 })]);
+  write(join(dir, 'claude2', 'p', 'b.jsonl'), [claudeLine({ id: 'm2', input: 7 })]);
+  const { run } = setup();
+  const both = { claude: [join(dir, 'claude'), join(dir, 'claude2')], codex: [], agy: [] };
+  await run(week, both);
+  await run(week, { ...both, claude: [join(dir, 'claude')] });
+  bytesRead = 0;
+  expect((await run(week, both)).totals.tokens.input).toBe(107);
+  expect(bytesRead).toBe(0); // `claude2` was not asked about, so it was not forgotten
+});
+
+test('a message first written in an old log does not count in a week, even when a newer fork copies it', async () => {
   const old = join(dir, 'claude', 'p', 'old.jsonl');
   const line = claudeLine({ id: 'm1', input: 100, output: 5, at: NOW - 40 * DAY });
   write(old, [line]);

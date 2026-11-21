@@ -269,15 +269,15 @@ test('a restarted host reads only what was appended, and a file rewritten shorte
   const added = claudeLine({ id: 'm3', input: 7, output: 1 });
   appendFileSync(file, `${added}\n`);
   bytesRead = 0;
-  expect((await setup().run()).totals.tokens.input).toBe(100 + 5 + 7 + 1000 - 800 + 300 - 0 + 0);
+  expect((await setup().run()).totals.tokens.input).toBe(112 + 500); // Claude 100 + 5 + 7, Codex 200 + 300 (what is not cached)
   expect(bytesRead).toBeLessThan(added.length + 1 + 100); // the new line and the guard before it, not the files
 
   write(file, [claudeLine({ id: 'x', input: 2, output: 1 })]); // shorter, and not what was there
   bytesRead = 0;
   const after = await setup().run();
-  expect(after.totals.tokens.input).toBe(2 + 200 + 300);
+  expect(after.totals.tokens.input).toBe(2 + 500);
   expect(bytesRead).toBeGreaterThan(0);
-  expect((await setup().run()).totals.tokens.input).toBe(2 + 200 + 300); // and what it kept is the new content
+  expect((await setup().run()).totals.tokens.input).toBe(2 + 500); // and what it kept is the new content
 });
 
 test('a row of another parser version is read again and written with the current one', async () => {
@@ -317,6 +317,43 @@ test('a file that is gone loses its row, and a row under a root that was not lis
   await setup().run(week, { claude: roots().claude, codex: [], agy: [] });
   expect(rowsOf(first.chat)).toBe(1); // the Claude file's row went, the Codex one stayed
   expect(first.chat.$client.prepare('select kind from usage_scan_files').pluck().all()).toEqual(['codex']);
+});
+
+test('two looks at once, as the app asks for a week and a month, count a line that was appended once, also after a restart', async () => {
+  const file = join(dir, 'codex', '2026', 'r.jsonl');
+  const log = codexLog('cx-1', [{ input: 10, cached: 0, output: 1 }, { input: 20, cached: 0, output: 2 }, { input: 30, cached: 0, output: 3 }]);
+  write(file, log.slice(0, 3));
+  const { run } = setup();
+  await run();
+  appendFileSync(file, `${log.slice(3).join('\n')}\n`);
+  const [week7, month] = await Promise.all([run(week), run({ days: 30 })]);
+  expect([week7.totals.turns, month.totals.turns]).toEqual([3, 3]);
+  expect((await setup().run()).totals.turns).toBe(3); // and what was kept is not the doubled state
+});
+
+test('a look that finds nothing new writes nothing to the index', async () => {
+  seeded();
+  const { run, chat } = setup();
+  await run();
+  const write = vi.spyOn(chat, 'transaction');
+  await run();
+  await run({ days: 30 });
+  expect(write).not.toHaveBeenCalled();
+  appendFileSync(join(dir, 'claude', 'p', 'a.jsonl'), `${claudeLine({ id: 'm9', input: 1 })}\n`);
+  await run();
+  expect(write).toHaveBeenCalledOnce(); // only the file that grew
+});
+
+test('a row whose state is valid JSON of another shape is read again from the file, for each kind', async () => {
+  seeded();
+  const first = setup();
+  const before = await first.run();
+  first.chat.$client.prepare("update usage_scan_files set state = '{}'").run();
+  warn.mockClear();
+  bytesRead = 0;
+  expect(await setup().run()).toEqual(before);
+  expect(bytesRead).toBeGreaterThan(0);
+  expect(warn).toHaveBeenCalledTimes(2);
 });
 
 test('a failure writing the index does not fail the call', async () => {

@@ -2,7 +2,7 @@ import { basename, sep } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { eq, gte, inArray, isNotNull } from 'drizzle-orm';
 import type { ChatDb } from '../chat/db.ts';
-import { chatTurns, sessions, usageScanFiles } from '../chat/schema.ts';
+import { chatTurns, sessions, usageScanFiles, type usageScanKinds } from '../chat/schema.ts';
 import type { ChatAgent } from '../chat/config.ts';
 import type { Providers } from '../config/providers.ts';
 import type { Clock } from '../orchestration/clock.ts';
@@ -118,7 +118,7 @@ export const SCAN_VERSION = 1;
 
 /** What one kind of log keeps between calls: in memory, and in `usage_scan_files` for the next host. */
 interface Store<T> {
-  kind: 'claude' | 'codex';
+  kind: (typeof usageScanKinds)[number];
   cache: Map<string, Cached<T>>;
   /** The state as plain JSON, and back; `unpack` throws on a shape it does not know. */
   pack: (state: T) => unknown;
@@ -127,16 +127,17 @@ interface Store<T> {
 
 /**
  * Reads the new complete lines of a JSONL file into its state; a file that was not just appended to is read again from its start.
+
  * `previous` is asked for once the file is known to be in range. A file not written since `since` is not read and gives undefined, and it is
- * not forgotten: a longer window reads it. What is given back is `previous` itself when nothing changed, and a new entry when something was read.
+ * not forgotten: a longer window reads it. `read` says whether the entry is new (it has to be kept) or is `previous` itself.
  */
-async function scanLines<T>(ports: HistoryPorts, path: string, previous: () => Cached<T> | undefined, since: number, fresh: () => T, onLine: (state: T, line: string) => void): Promise<Cached<T> | undefined> {
+async function scanLines<T>(ports: HistoryPorts, path: string, previous: () => Cached<T> | undefined, since: number, fresh: () => T, onLine: (state: T, line: string) => void): Promise<{ entry: Cached<T>; read: boolean } | undefined> {
   const stat = await ports.files.stat(path);
   // ponytail: a record's time is taken to be at or before its file's last write, so a file not written since the window began holds nothing in it; a log whose mtime was set back by hand is missed, drop this check if a CLI ever does that.
   // A message copied into a newer file with a fresh timestamp counts from that copy: which copy `merged` keeps already depended on the listing order.
   if (stat.mtimeMs < since) return undefined;
   const prev = previous();
-  if (prev !== undefined && prev.size === stat.size && prev.mtimeMs === stat.mtimeMs) return prev;
+  if (prev !== undefined && prev.size === stat.size && prev.mtimeMs === stat.mtimeMs) return { entry: prev, read: false };
   let state = fresh();
   let base = 0;
   let resumeAt = 0;
@@ -163,7 +164,7 @@ async function scanLines<T>(ports: HistoryPorts, path: string, previous: () => C
     }
   }
   const offset = resumeAt + end;
-  return { size: stat.size, mtimeMs: stat.mtimeMs, offset, guard: buffer.subarray(Math.max(0, offset - base - GUARD_BYTES), offset - base).toString('base64'), state };
+  return { entry: { size: stat.size, mtimeMs: stat.mtimeMs, offset, guard: buffer.subarray(Math.max(0, offset - base - GUARD_BYTES), offset - base).toString('base64'), state }, read: true };
 }
 
 /** The files of the roots, read through the cache; a file that cannot be read is skipped and the cache forgets files that are gone. */
@@ -178,7 +179,7 @@ const errorName = (error: unknown) => (error instanceof Error ? error.name : typ
 
 /**
  * The cached files that are gone from the folders that were listed; those of folders that were not asked about (another account's) stay.
- * The states of a folder no longer asked about at all (an account removed from providers.json) stay too, until the host exits.
+ * The rows and states of a folder no longer asked about at all (an account removed from providers.json) stay too.
  */
 function goneFrom(paths: Iterable<string>, roots: string[], listedPaths: Set<string>) {
   const folders = roots.map((root) => root + sep);
@@ -203,46 +204,55 @@ function storedScan<T>(db: ChatDb, store: Store<T>, path: string): Cached<T> | u
   }
 }
 
-/** The index is a cache: a write that fails is said in the log and the call goes on. */
-function keepScans<T>(db: ChatDb, store: Store<T>, changed: [string, Cached<T>][], gone: string[]) {
-  if (changed.length === 0 && gone.length === 0) return;
+/**
+ * The index is a cache: a write that fails is said in the log and the call goes on. The memory already holds what was read, so a file that does not
+ * change is not written again; after a restart it is read again from where its old row stopped. Written in groups, yielding between them, so a first
+ * scan of many logs does not hold the host's event loop for the whole write.
+ */
+async function keepScans<T>(db: ChatDb, store: Store<T>, changed: [string, Cached<T>][], gone: string[]) {
   try {
-    db.transaction((tx) => {
-      for (const [path, entry] of changed) {
-        const row = { path, kind: store.kind, version: SCAN_VERSION, size: entry.size, mtimeMs: entry.mtimeMs, offset: entry.offset, guard: entry.guard, state: store.pack(entry.state) };
-        tx.insert(usageScanFiles).values(row).onConflictDoUpdate({ target: usageScanFiles.path, set: row }).run();
-      }
-      for (let at = 0; at < gone.length; at += 500) tx.delete(usageScanFiles).where(inArray(usageScanFiles.path, gone.slice(at, at + 500))).run();
-    });
+    for (let at = 0; at < changed.length; at += SCANS_PER_WRITE) {
+      if (at > 0) await new Promise<void>((resolve) => setImmediate(resolve));
+      db.transaction((tx) => {
+        for (const [path, entry] of changed.slice(at, at + SCANS_PER_WRITE)) {
+          const row = { path, kind: store.kind, version: SCAN_VERSION, size: entry.size, mtimeMs: entry.mtimeMs, offset: entry.offset, guard: entry.guard, state: store.pack(entry.state) };
+          tx.insert(usageScanFiles).values(row).onConflictDoUpdate({ target: usageScanFiles.path, set: row }).run();
+        }
+      });
+    }
+    for (let at = 0; at < gone.length; at += 500) db.delete(usageScanFiles).where(inArray(usageScanFiles.path, gone.slice(at, at + 500))).run();
   } catch (error) {
     log.warn('the usage scan index could not be written', { name: errorName(error) });
   }
 }
 
+const SCANS_PER_WRITE = 100;
+
 async function scanRoots<T>(ports: HistoryPorts, db: ChatDb, store: Store<T>, roots: string[], suffix: string, since: number, fresh: () => T, onLine: (state: T, line: string, path: string) => void): Promise<[string, T][]> {
   const { cache } = store;
   const paths = new Set((await Promise.all(roots.map((root) => listed(ports, root, suffix)))).flat());
-  const gone = new Set(forgetGone(cache, roots, paths));
+  const known = new Set(cache.keys());
   try {
-    for (const { path } of db.select({ path: usageScanFiles.path }).from(usageScanFiles).where(eq(usageScanFiles.kind, store.kind)).all()) gone.add(path);
+    for (const { path } of db.select({ path: usageScanFiles.path }).from(usageScanFiles).where(eq(usageScanFiles.kind, store.kind)).all()) known.add(path);
   } catch (error) {
     log.warn('the usage scan index could not be listed', { name: errorName(error) });
   }
+  const gone = goneFrom(known, roots, paths);
+  for (const path of gone) cache.delete(path);
   const states: [string, T][] = [];
   const changed: [string, Cached<T>][] = [];
   for (const path of paths) {
     try {
-      let previous: Cached<T> | undefined;
-      const entry = await scanLines(ports, path, () => (previous = cache.get(path) ?? storedScan(db, store, path)), since, fresh, (state, line) => onLine(state, line, path));
-      if (entry === undefined) continue;
-      cache.set(path, entry);
-      states.push([path, entry.state]);
-      if (entry !== previous) changed.push([path, entry]);
+      const scanned = await scanLines(ports, path, () => cache.get(path) ?? storedScan(db, store, path), since, fresh, (state, line) => onLine(state, line, path));
+      if (scanned === undefined) continue;
+      cache.set(path, scanned.entry);
+      states.push([path, scanned.entry.state]);
+      if (scanned.read) changed.push([path, scanned.entry]);
     } catch (error) {
       log.warn('a usage file could not be read', { name: errorName(error) });
     }
   }
-  keepScans(db, store, changed, goneFrom(gone, roots, paths));
+  await keepScans(db, store, changed, gone);
   return states;
 }
 
@@ -329,7 +339,7 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
     cache: new Map(),
     pack: (state) => [...state],
     unpack(value) {
-      if (Array.isArray(value) === false) throw new TypeError('not a list');
+      if (Array.isArray(value) === false || (value as unknown[]).every((entry) => Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' && typeof object(entry[1]).at === 'number') === false) throw new TypeError('not a list of records');
       return new Map(value as [string, External][]);
     },
   };
@@ -401,7 +411,7 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
   }
 
   /** `agents` are the chat's agents, to tell the account a chat session ran on. */
-  return async function history(filter: HistoryFilter, { accounts, agents, roots }: { accounts: Providers; agents: ChatAgent[]; roots: HistoryRoots }): Promise<UsageHistory> {
+  async function compute(filter: HistoryFilter, { accounts, agents, roots }: { accounts: Providers; agents: ChatAgent[]; roots: HistoryRoots }): Promise<UsageHistory> {
     const now = ports.clock.now();
     const first = new Date(now);
     first.setHours(0, 0, 0, 0);
@@ -430,6 +440,15 @@ export function createHistory(ports: HistoryPorts, deps: { chat: ChatDb; engineD
     }
 
     return rollup(turns, filter, since, overrides.list());
+  }
+
+  // One look at a time: a second one that resumed a file from the same cached state would count the lines the first one is reading again, and the
+  // app asks for a week and a month in the same refresh. The second one finds the first one's work in the cache.
+  let queue: Promise<unknown> = Promise.resolve();
+  return function history(filter: HistoryFilter, context: { accounts: Providers; agents: ChatAgent[]; roots: HistoryRoots }): Promise<UsageHistory> {
+    const result = queue.then(() => compute(filter, context));
+    queue = result.catch(() => {});
+    return result;
   };
 
   async function scanAgy(dirs: string[]): Promise<External[]> {

@@ -77,10 +77,12 @@ export const chatTurns = sqliteTable(
 
 export const priceOverrideModes = ['zero', 'alias', 'custom'] as const;
 
+export const usageScanKinds = ['claude', 'codex'] as const;
+
 /** What the usage history read of a CLI's log, so a restarted host reads only what was appended (`src/usage/history.ts`). */
 export const usageScanFiles = sqliteTable('usage_scan_files', {
   path: text().primaryKey(),
-  kind: text({ enum: ['claude', 'codex'] }).notNull(),
+  kind: text({ enum: usageScanKinds }).notNull(),
   version: integer().notNull(), // the parser's: a row of another one is read again from the start
   size: integer().notNull(),
   mtimeMs: real().notNull(), // fractional, as stat gives it

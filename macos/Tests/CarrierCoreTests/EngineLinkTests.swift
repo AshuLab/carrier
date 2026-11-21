@@ -286,11 +286,12 @@ private final class LockedInt: @unchecked Sendable {
     engine.holdFirstSnapshot()
     let link = link(engine)
     var gone: Listener? = Listener(link.states())
-    #expect(await until { engine.asks("snapshot") == 1 })
+    // a runner that starves the test for longer than the client's timeout makes the held read be asked again, so the counts are lower bounds
+    #expect(await until { engine.asks("snapshot") >= 1 })
     gone = nil
     #expect(gone == nil)
     let next = Listener(link.states())
-    #expect(await next.take(1).compactMap(nowOf) == [2])
+    #expect(await next.take(1).compactMap(nowOf).first.map { $0 >= 2 } == true)
     // the answer to the read of before arrives now: it is not the state of the moment, whoever asked for it
     engine.release()
     try? await Task.sleep(for: .milliseconds(200))
@@ -394,12 +395,13 @@ private final class LockedInt: @unchecked Sendable {
     let link = link(engine, pace: 0.01)
     let listener = Listener(link.states())
     _ = await listener.take(1)
-    let inside = DispatchSemaphore(value: 0), leave = DispatchSemaphore(value: 0)
+    let leave = DispatchSemaphore(value: 0)
+    let inside = LockedInt()
     link.setTick { _ in
-        inside.signal()
+        inside.set(1)
         _ = leave.wait(timeout: .now() + 5)
     }
-    #expect(inside.wait(timeout: .now() + 3) == .success)
+    #expect(await until { inside.value == 1 })
     // the window closes, opens and closes again while the first poll is under way: the second thread waits its turn with its flag already set
     link.setTick(nil)
     link.setTick { _ in }

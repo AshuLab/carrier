@@ -214,6 +214,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
           now: () => deps.clock.now(),
           controls: { ...controls, detail },
         })
-      : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs, (s, columns) => renderDashboard(s, { columns, detail }));
+      // Detached (`carrier start`) nobody watches the lines it writes to start.log: every ten seconds is plenty, and a terminal still redraws every second.
+      : startPanel(snapshot, deps.panelOut, deps.panelOut.isTTY ? deps.panelIntervalMs : (deps.panelIntervalMs ?? 10_000), (s, columns) => renderDashboard(s, { columns, detail }));
   return { engine, db, close };
 }

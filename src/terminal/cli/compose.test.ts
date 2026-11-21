@@ -267,6 +267,24 @@ test('onArrived fires once the engine is up and before the panel draws; a startu
   expect(announced).not.toHaveBeenCalled();
 });
 
+test('a panel that writes to a file, as the detached start does, builds the snapshot every ten seconds, and one that writes to a terminal every second', async () => {
+  const intervals = vi.spyOn(globalThis, 'setInterval');
+  const lines = fakes();
+  const { panelIntervalMs: _tests, ...asProduction } = lines.deps; // production passes no interval
+  const file = await startCarrier(config(), root, sameConfig, { ...asProduction, panelOut: { write: () => {}, isTTY: false } });
+  closers.push(async () => (await file.engine.shutdown(), file.close()));
+  expect(intervals.mock.calls.map((call) => call[1])).toContain(10_000);
+
+  intervals.mockClear();
+  const terminal = fakes();
+  const { panelIntervalMs: _unused, ...forATerminal } = terminal.deps;
+  const other = mkdtempSync(join(tmpdir(), 'carrier-compose-tty-'));
+  const shown = await startCarrier(config(), other, sameConfig, { ...forATerminal, panelOut: { write: () => {}, isTTY: true } });
+  closers.push(async () => (await shown.engine.shutdown(), shown.close(), rmSync(other, { recursive: true, force: true })));
+  expect(intervals.mock.calls.map((call) => call[1])).toContain(1000);
+  intervals.mockRestore();
+});
+
 test('with a terminal on both sides the panel takes keys: r polls now, p pauses intake, q quits, and nothing else changes without one', async () => {
   const { github, seen, deps } = fakes();
   const { EventEmitter } = await import('node:events');

@@ -87,6 +87,8 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// How many times the chat socket was asked each request, for the tests that count what the app asks (read with `lock`).
     private var chatAsked: [String: Int] = [:]
+    /// How many connections the chat socket accepted (each one gets a hello), for the tests that count what the app opens.
+    private var chatConnected = 0
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
     let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\"]}\n".utf8)
@@ -254,6 +256,7 @@ public final class FixtureServer {
 
     /// The hello, then one reply per line until the client leaves or the server stops.
     private func serve(_ fd: Int32, chat: Bool) {
+        if chat { locked { chatConnected += 1 } }
         guard send(chat ? chatHello : hello, to: fd) else { return }
         var pending = Data()
         while isStopped == false {
@@ -285,6 +288,9 @@ public final class FixtureServer {
 
     /// What the chat socket was asked so far, by request name.
     var chatRequests: [String: Int] { locked { chatAsked } }
+
+    /// How many connections the chat socket has accepted so far.
+    var chatConnections: Int { locked { chatConnected } }
 
     private func chatReply(to line: Data) -> Data {
         let request = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]

@@ -4,10 +4,12 @@
 public enum DictationFront: Equatable, Sendable {
     /// A session of Carrier with a message box.
     case session
+    /// The draft of a new session, before it starts: its message box is the one the person is standing in.
+    case draft
     case epic
     /// The Settings sheet, over whatever is selected.
     case settings
-    /// Any other view of Carrier: Home, the draft of a session, a terminal, Archive, Usage, an archived session with no box.
+    /// Any other view of Carrier: Home, a terminal, Archive, Usage, an archived session with no box.
     case otherView
     /// Another app, or a window of Carrier that is not the main one.
     case otherApp
@@ -22,10 +24,11 @@ public func dictationFront(carrierIsFront: Bool, settingsShown: Bool, selection:
     guard settingsShown == false else { return .settings }
     switch selection {
     case .session: return sessionHasBox ? .session : .otherView
+    case .newSession: return .draft
     case .epic: return .epic
     default: return .otherView
     }
 }
 
-/// Only a session's message box takes the dictation itself; everywhere else the widget does.
-public func dictationRoute(for front: DictationFront) -> DictationRoute { front == .session ? .messageBox : .widget }
+/// Only the message box of a session, or of the draft of a new one, takes the dictation itself; everywhere else the widget does.
+public func dictationRoute(for front: DictationFront) -> DictationRoute { front == .session || front == .draft ? .messageBox : .widget }

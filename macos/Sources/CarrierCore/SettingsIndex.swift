@@ -107,7 +107,11 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
                 ("Dictate in any app", "Opens a widget in any app, and pastes what you say"), ("Accessibility", "What lets Carrier paste into another app"),
                 ("Shortcut", "With Carrier in front on a session it dictates into the message box"), ("Activation", "Toggle, or hold the keys while you speak"),
             ])
-            + screen(.global, "Widget", [("Widget style", "Pill, Small, Medium or Large"), ("Position", "Top or bottom centre, on the display of the window in front")])
+            + screen(.global, "Widget", [
+        ("Widget style", "Pill, Small, Medium or Large"), ("Widget theme", "Default, Black, Dark glass, Clear glass or Theme glow"),
+        ("Live text", "Show the words as you say them, or only the time and the keys"),
+        ("Position", "Top or bottom centre, or where you dragged the widget"),
+    ])
             + screen(.cleanup, "Cleanup", [
                 ("Clean the text with a model", "Runs on this Mac; nothing leaves it"), ("Server", "Where the local model runs"),
                 ("Model", "The model that cleans the text"), ("Prompt", "What you ask the model to do with every dictation"), ("Try it", "Runs the prompt on a sample"),

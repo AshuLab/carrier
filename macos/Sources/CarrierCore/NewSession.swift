@@ -194,10 +194,11 @@ public struct WatchNote: Equatable {
     /// The repositories to add to the engine's `repos`, by the session that was opened for them, until its `message` step is done.
     @ObservationIgnored private var pendingWatches: [String: String] = [:]
     @ObservationIgnored private var watchTask: Task<Void, Never>?
+    /// When the last session whose repository is to be watched was opened.
+    @ObservationIgnored private var watchSince = Date.distantPast
     @ObservationIgnored private let ensureHost: @MainActor () async -> Bool
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
-    @ObservationIgnored private let watchEvery: Duration
     /// The name the host last vouched for (suggested or checked), so a name it already vouched for is not asked about again.
     @ObservationIgnored private var verifiedName: String?
     /// The first message of each session the draft opened, by session id, until its conversation takes it.
@@ -211,13 +212,13 @@ public struct WatchNote: Equatable {
     public private(set) var starts = 0
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
-    /// `sleep` is the wait before a typed name is checked, `watchEvery` how often the list is looked at for a session whose repository is to be watched. `projectsFolder` is where `chat.json` says the projects folder is, and
+    /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where `chat.json` says the projects folder is, and
     /// `readChatConfig` and `writeChatConfig` are that file inside `carrierFolder`; `readConfig` and `writeConfig` are the engine's
     /// config file, which holds the watched repositories.
     public init(
         host: ChatHost, health: HealthStore? = nil, offers: AgentOfferStore? = nil, ensureHost: @escaping @MainActor () async -> Bool = { true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
-        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, watchEvery: Duration = .seconds(2),
+        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         projectsFolder: @escaping () -> String = currentProjectsFolder,
         readConfig: @escaping () -> Data? = currentConfig, writeConfig: @escaping (Data) throws -> Void = writeCurrentConfig,
         reload: @escaping Reload = { reloadEngine() },
@@ -244,7 +245,6 @@ public struct WatchNote: Equatable {
         self.ensureHost = ensureHost
         self.log = log
         self.sleep = sleep
-        self.watchEvery = watchEvery
     }
 
     /// Reads the agents and the recent folders again, each time the draft opens. A host that does not answer is started (the + is always
@@ -647,6 +647,10 @@ public struct WatchNote: Equatable {
     /// waiting for Try again.
     public func settleWatches() async {
         guard pendingWatches.isEmpty == false, let listed = try? await host.list(archived: false) else { return }
+        await settle(listed)
+    }
+
+    private func settle(_ listed: [ChatSession]) async {
         for (id, repo) in pendingWatches {
             guard let found = listed.first(where: { $0.id == id }) else {
                 pendingWatches[id] = nil
@@ -659,13 +663,17 @@ public struct WatchNote: Equatable {
         }
     }
 
-    // ponytail: polls the list every two seconds for as long as a session of a repository to watch is preparing or failed; the host could push the step.
+    /// Looks at each list the host's updates bring for as long as a session of a repository to watch is preparing or failed; the host could push the step.
+    /// A list read before the session was opened (the one in flight, or the last one given at once) cannot say it is gone, so it is not looked at.
     private func keepWatching() {
         guard watchTask == nil else { return }
+        let host = host
         watchTask = Task { [weak self] in
-            while let self, self.pendingWatches.isEmpty == false {
-                await self.settleWatches()
-                try? await Task.sleep(for: self.watchEvery)
+            for await update in await host.sessionUpdates() {
+                guard let self, self.pendingWatches.isEmpty == false else { break }
+                guard update.stale == false, update.readAt >= self.watchSince else { continue }
+                await self.settle(update.active)
+                if self.pendingWatches.isEmpty { break }
             }
             self?.watchTask = nil
         }
@@ -906,7 +914,7 @@ public struct WatchNote: Equatable {
         }
         firstMessages[id] = message
         // added when the `message` step is done, never before
-        if let repo, watch, watchProblem(for: repo) == nil { pendingWatches[id] = repo; keepWatching() }
+        if let repo, watch, watchProblem(for: repo) == nil { pendingWatches[id] = repo; watchSince = Date(); keepWatching() }
         blank()
         return id
     }

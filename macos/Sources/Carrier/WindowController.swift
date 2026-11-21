@@ -127,8 +127,8 @@ final class WindowController: NSObject, NSWindowDelegate {
     private let model = PanelModel()
     private var window: NSWindow?
     private var stop: StopFlag?
-    /// Cuts short the wait of the window's session list, while its monitor runs.
-    private var sessionsNap: PollNap?
+    /// The window's list of sessions, followed while the window is open.
+    private var sessionsTask: Task<Void, Never>?
 
     /// Adds the "Open window" item at the end of the menu.
     func addMenuItem(to menu: NSMenu) {
@@ -535,7 +535,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         let wasLooking = PollPace.shared.looking
         defer {
             // the window's list is read at once when it comes back in sight, not at the end of the pause
-            if wasLooking == false, PollPace.shared.looking { sessionsNap?.wake() }
+            if wasLooking == false, PollPace.shared.looking { SocketChatHost().refreshSessions(archived: false) }
         }
         MainActor.assumeIsolated {
             Viewing.shared.update(
@@ -574,7 +574,8 @@ final class WindowController: NSObject, NSWindowDelegate {
         // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()
         stop = nil
-        sessionsNap = nil
+        sessionsTask?.cancel()
+        sessionsTask = nil
         model.state = nil
         if case .session(let id) = model.shell.selection { model.leave(id) }
         model.sessions = Sessions()
@@ -582,7 +583,7 @@ final class WindowController: NSObject, NSWindowDelegate {
     }
 
     /// The check at open answered, so a host that was starting is up: the window's session list is read now and not at the next tick.
-    func chatHostChecked() { sessionsNap?.wake() }
+    func chatHostChecked() { SocketChatHost().refreshSessions(archived: false) }
 
     private func startMonitor() {
         let stop = StopFlag()
@@ -616,20 +617,11 @@ final class WindowController: NSObject, NSWindowDelegate {
             }
         )
         // what changes the list is read at once: the wait is cut short, and the archived ones are read again
-        let nap = PollNap()
-        sessionsNap = nap
+        let host = SocketChatHost()
         DispatchQueue.main.async {
-            model.actions.changed = {
-                sessions.invalidateArchived()
-                nap.wake()
-            }
+            model.actions.changed = { host.refreshSessions(archived: true) }
             model.actions.archivingChanged = { DispatchQueue.main.async { model.refreshUnread() } }
         }
-        Task.detached {
-            repeat {
-                await sessions.poll()
-                await nap.sleep(seconds: PollPace.shared.windowSeconds)
-            } while stop.isSet == false
-        }
+        sessionsTask = Task.detached { await sessions.run() }
     }
 }

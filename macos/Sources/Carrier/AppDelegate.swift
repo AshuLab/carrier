@@ -58,9 +58,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         header.show(ConnectionState.stopped.menuStatus)
         // the epics go after this separator (EpicMenuSection), above the controls
         menu.addItem(.separator())
-        MenuControls.shared.install(in: menu)
-        menu.addItem(.separator())
+        // the groups (Sessions, Terminals, Dictation: StatusMenuGroups) go here, before the Sleep row; Carrier's own controls are one row
         KeepAwakeMenu.shared.install(in: menu)
+        let engine = NSMenu(title: "Carrier")
+        MenuControls.shared.install(in: engine)
+        let engineItem = menu.addItem(withTitle: "Carrier", action: nil, keyEquivalent: "")
+        engineItem.submenu = engine
+        showIcon("gearshape.2", on: engineItem)
         menu.addItem(.separator())
         // the first touch of the window controller builds the panel's model, the epic store and the agent offers
         let windowController = Signposts.launch.beginInterval("window controller")
@@ -197,6 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     let rows = sessionRows(try await host.list(archived: false))
                     await MainActor.run {
                         NotificationWatcher.app.react(toSessions: rows)
+                        StatusMenuGroups.shared.react(toSessions: rows)
                         KeepAwakeController.shared.sessions(working: rows.filter(\.isWorking).count)
                     }
                     wait = PollPace.shared.seconds

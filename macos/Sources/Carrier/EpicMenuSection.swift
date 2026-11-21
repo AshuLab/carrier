@@ -13,7 +13,14 @@ final class EpicMenuSection: NSObject, NSMenuDelegate {
 
     func react(to state: ConnectionState) { self.state = state }
 
-    func menuNeedsUpdate(_ menu: NSMenu) { rebuild(menu) }
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        rebuild(menu)
+        // the groups under the epics and the Sleep row's state, from what the app keeps alive
+        MainActor.assumeIsolated {
+            StatusMenuGroups.shared.rebuild(menu)
+            KeepAwakeMenu.shared.refresh()
+        }
+    }
 
     /// Replaces the section: it goes after the first separator, under the status line and the controls.
     private func rebuild(_ menu: NSMenu) {

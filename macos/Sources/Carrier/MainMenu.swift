@@ -74,6 +74,9 @@ extension AppDelegate {
         item(view, "Carrier", #selector(showCarrier), shortcut: .carrier, in: shortcuts, target: self)
         item(view, "Archive", #selector(showArchive), shortcut: .archive, in: shortcuts, target: self)
         view.addItem(.separator())
+        item(view, "Back", #selector(goBack), shortcut: .back, in: shortcuts, target: self)
+        item(view, "Forward", #selector(goForward), shortcut: .forward, in: shortcuts, target: self)
+        view.addItem(.separator())
         item(view, "Show or Hide Sidebar", #selector(toggleSidebar), key: "s", modifiers: [.command, .control], target: self)
         item(view, "Show or Hide Inspector", #selector(toggleInspector), key: "i", modifiers: [.command, .option], target: self)
         view.addItem(.separator())
@@ -168,6 +171,8 @@ extension AppDelegate {
     @objc func showSessions() { WindowController.shared.show(.sessions) }
     @objc func showCarrier() { WindowController.shared.show(.carrier) }
     @objc func showArchive() { WindowController.shared.show(.archive) }
+    @objc func goBack() { WindowController.shared.perform(.back) }
+    @objc func goForward() { WindowController.shared.perform(.forward) }
     @objc func nextSession() { WindowController.shared.perform(.nextSession) }
     @objc func previousSession() { WindowController.shared.perform(.previousSession) }
     @objc func archiveSession() { WindowController.shared.perform(.archiveSession) }

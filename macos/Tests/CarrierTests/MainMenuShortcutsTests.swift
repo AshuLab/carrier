@@ -12,6 +12,7 @@ private let fixtures = URL(fileURLWithPath: #filePath)
     private static let items: [(menu: String, title: String, command: ShortcutCommand)] = [
         ("View", "Home", .home), ("View", "Sessions", .sessions), ("View", "Carrier", .carrier),
         ("File", "New Session", .newSession), ("Edit", "Find…", .search), ("View", "Archive", .archive),
+        ("View", "Back", .back), ("View", "Forward", .forward),
         ("File", "Next Session", .nextSession), ("File", "Previous Session", .previousSession), ("File", "Archive Session", .archiveSession),
         ("Conversation", "Focus the Message Box", .focusBox), ("Conversation", "Stop the Agent", .stopAgent),
         ("Conversation", "Jump to the Latest Message", .latestMessage),

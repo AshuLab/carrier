@@ -244,7 +244,9 @@ public final class FixtureServer {
             ["name": "Bootstrap", "command": "pnpm bootstrap", "when": "afterClone", "on": false, "onFail": "stop"],
         ]
         entries[1]["name"] = "A project with a name so long that the row has to cut it before it reaches the chevron"
+        entries[1]["tags"] = ["api", "automation", "backend", "cli", "docker", "graphql", "postgres", "typescript"]
         entries[2]["icon"] = ["color": "orange"]
+        entries[2]["tags"] = ["design", "docs", "planning", "research"]
         if let iconImage = Self.fixtureProjectIconImage(), let saved = try? ProjectIconStore(folder: home).save(cgImage: iconImage) {
             entries[3]["icon"] = ["image": saved]
         }

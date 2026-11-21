@@ -9,9 +9,19 @@ import UniformTypeIdentifiers
 struct ProjectsTabView: View {
     let place: SettingsPlace
     let go: (SettingsPlace) -> Void
+    var sessions: [SessionRow] = []
     @State private var model = ProjectsModel()
+    @State private var query = ""
+    @State private var filter: ProjectFilter = .all
+    @State private var groupBy: ProjectGrouping = .none
+    @State private var adding = false
 
     static let actionsPath = "actions"
+
+    private enum Column {
+        static let tags: CGFloat = 220
+        static let trailing: CGFloat = 34
+    }
 
     private var showingActions: Bool { place.path.count > 1 && place.path[1] == Self.actionsPath }
 
@@ -41,6 +51,15 @@ struct ProjectsTabView: View {
         .preference(key: SettingsTitleKey.self, value: chosen.map {
             showingActions ? SettingsTitle(text: "Actions", subtitle: $0.name) : SettingsTitle(text: $0.name, subtitle: $0.line)
         })
+        .sheet(isPresented: $adding, onDismiss: { model.clearFailure() }) {
+            AddProjectSheet(
+                mode: .settings,
+                model: model,
+                recent: recentFolders(from: sessions),
+                openProject: open
+            )
+            .themed()
+        }
         // the file is another process's too: the list follows it while the page is open
         .task { await model.follow() }
     }
@@ -48,43 +67,160 @@ struct ProjectsTabView: View {
     // MARK: the list
 
     @ViewBuilder private var list: some View {
-        if model.rows.isEmpty {
-            SettingsGroup(title: "") {
-                EmptyStateView(
-                    icon: .folder, title: "No projects yet", line: "Add a folder you work in and it shows here.",
-                    action: (title: "Add project", run: add), actionIcon: .folderPlus, actionStyle: .accentGlass
-                )
-                .frame(minHeight: 260)
-            }
-        } else {
-            HStack {
-                Spacer(minLength: 8)
-                Button(action: add) { Label("Add project", icon: .folderPlus).labelStyle(.titleAndIcon) }
-                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-            }
-            SettingsGroup(title: "") {
-                ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, row in
-                    NavigationRow(
-                        title: row.name, detail: row.line, leading: ProjectIcon(tile: row.tile, imageFolder: model.carrierFolder), first: index == 0,
-                        action: { open(row.path) }
-                    ) {
-                        if row.pinned { Glyph(.pinFilled, size: 11, label: "Pinned").foregroundStyle(.secondary) }
+        let tags = projectTagsInUse(model.rows)
+        let groups = projectList(model.rows, query: query, filter: filter, groupBy: groupBy)
+        Group {
+            if model.rows.isEmpty {
+                SettingsGroup(title: "") {
+                    EmptyStateView(
+                        icon: .folder, title: "No projects yet", line: "Add a folder you work in and it shows here.",
+                        action: (title: "Add project", run: { adding = true }), actionIcon: .folderPlus, actionStyle: .accentGlass
+                    )
+                    .frame(minHeight: 260)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        TextField("", text: $query, prompt: Text("Search projects"))
+                            .accessibilityLabel("Search projects")
+                            .settingsField(icon: .search)
+                        HStack(spacing: 6) {
+                            Text("Group").font(.scaled(12)).foregroundStyle(.secondary)
+                            ChoicePopUp(
+                                label: "Group",
+                                options: ProjectGrouping.allCases.map { (value: $0, title: $0.title) },
+                                selection: $groupBy
+                            )
+                        }
+                        Button { adding = true } label: { Label("Add project", icon: .folderPlus).labelStyle(.titleAndIcon) }
+                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    }
+                    FlowLayout(spacing: 6) {
+                        FilterChip(title: "All", on: filter == .all) { filter = .all }
+                        ForEach(tags, id: \.self) { tag in
+                            FilterChip(title: tag, on: filter == .tag(tag)) {
+                                filter = filter == .tag(tag) ? .all : .tag(tag)
+                            }
+                        }
+                        FilterChip(title: "Local only", on: filter == .localOnly) {
+                            filter = filter == .localOnly ? .all : .localOnly
+                        }
+                    }
+                }
+                if groups.isEmpty {
+                    SettingsGroup(title: "") {
+                        EmptyStateView(
+                            icon: .search, title: "Nothing matches", line: "Try another word or filter.",
+                            action: (title: "Clear filters", run: { query = ""; filter = .all }), actionIcon: .close
+                        )
+                        .frame(minHeight: 220)
+                    }
+                } else {
+                    ForEach(Array(groups.enumerated()), id: \.element.id) { groupIndex, group in
+                        SettingsGroup(title: group.title ?? "") {
+                            if groupIndex == 0 {
+                                HStack(spacing: 12) {
+                                    Text("Project").frame(maxWidth: .infinity, alignment: .leading)
+                                    Text("Tags").frame(width: Column.tags, alignment: .leading)
+                                    Color.clear.frame(width: Column.trailing, height: 1)
+                                }
+                                .sectionLabel().padding(.vertical, 10)
+                                .accessibilityHidden(true)
+                            }
+                            ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
+                                projectRow(row, divider: groupIndex == 0 || index > 0)
+                            }
+                        }
                     }
                 }
             }
         }
+        .onChange(of: tags) { _, latest in
+            if case .tag(let current) = filter, latest.contains(current) == false { filter = .all }
+        }
+        cloneDestinationLine
     }
 
-    /// The system's folder panel; a folder that already is a project opens that project and writes nothing.
-    private func add() {
+    private func projectRow(_ row: ProjectRow, divider: Bool) -> some View {
+        Button { open(row.path) } label: {
+            HStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    ProjectIcon(tile: row.tile, imageFolder: model.carrierFolder)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
+                        Text(row.line).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Group {
+                    if row.tags.isEmpty {
+                        Color.clear.frame(height: 1)
+                    } else {
+                        FlowLayout(spacing: 4) {
+                            ForEach(row.tags, id: \.self) { tag in
+                                StatusChip(text: tag, tint: .secondary)
+                            }
+                        }
+                    }
+                }
+                .frame(width: Column.tags, alignment: .leading)
+
+                HStack(spacing: 10) {
+                    Spacer(minLength: 0)
+                    if row.pinned { Glyph(.pinFilled, size: 11, label: "Pinned").foregroundStyle(.secondary) }
+                    Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary).accessibilityHidden(true)
+                }
+                .frame(width: Column.trailing, alignment: .trailing)
+            }
+            .padding(.vertical, 10).frame(minHeight: 46)
+            .contentShape(Rectangle())
+            .overlay(alignment: .top) { if divider { SettingsDivider() } }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var cloneDestinationLine: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("New clones go to ")
+                    .font(.scaled(12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                Text((model.projectsPath as NSString).abbreviatingWithTildeInPath)
+                    .font(.scaled(11.5, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                    .help(model.projectsPath)
+                Button("Change…", action: changeProjectsFolder)
+                    .buttonStyle(SecondaryCapsuleButtonStyle())
+                    .controlSize(.small)
+                    .help("Where repositories are cloned and new projects are made")
+                Spacer(minLength: 0)
+            }
+            if let problem = model.projectsFolderProblem {
+                ProblemLine(text: problem)
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.top, 2)
+    }
+
+    /// The system's folder panel for changing where new clones and new projects go (`projectsFolder` in `chat.json`).
+    private func changeProjectsFolder() {
         let panel = NSOpenPanel()
-        panel.canChooseFiles = false
         panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Add"
-        panel.message = "Choose the folder of a project"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        if case .existing(let path)? = model.add(folder: url.path) { open(path) }
+        panel.directoryURL = URL(fileURLWithPath: model.projectsPath)
+        panel.prompt = "Choose"
+        if panel.runModal() == .OK, let url = panel.url {
+            model.changeProjectsFolder(to: url.path)
+        }
     }
 
     private func open(_ path: String) { go(SettingsPlace(.projects, path: [path])) }

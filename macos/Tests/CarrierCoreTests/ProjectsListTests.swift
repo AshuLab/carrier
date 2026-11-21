@@ -330,3 +330,77 @@ private func temporaryFolder() throws -> String {
     #expect(model.failure != nil)
     #expect(model.rows[0].iconImage == nil)
 }
+
+@Test func theListFiltersBySearchTagAndLocalOnlyGroupsByTagAndOrdersPinnedFirstThenByName() {
+    let table = [
+        ProjectRow(path: "/p/zeta", name: "Zeta", repo: "acme/zeta", pinned: false, tags: ["swift", "cli"]),
+        ProjectRow(path: "/p/alpha", name: "Alpha", repo: "acme/alpha", pinned: false, tags: ["web", "swift"]),
+        ProjectRow(path: "/p/beta", name: "Beta", repo: nil, pinned: true, tags: ["swift"]),
+        ProjectRow(path: "/p/notes", name: "Notes", repo: nil, pinned: false, tags: []),
+        ProjectRow(path: "/p/docs", name: "Docs", repo: "org/handbook", pinned: true, tags: []),
+    ]
+
+    #expect(projectTagsInUse(table) == ["cli", "swift", "web"])
+    #expect(projectTagsInUse([]) == [])
+
+    // default: one group, pinned first (Beta, Docs), then by name (Alpha, Notes, Zeta)
+    #expect(projectList(table) == [
+        ProjectGroup(id: "all", title: nil, rows: [table[2], table[4], table[1], table[3], table[0]]),
+    ])
+
+    // search matches name, remote and tag (case-insensitive, trimmed)
+    #expect(projectList(table, query: "  handbook  ").flatMap(\.rows).map(\.name) == ["Docs"])
+    #expect(projectList(table, query: "CLI").flatMap(\.rows).map(\.name) == ["Zeta"])
+    #expect(projectList(table, query: "alp").flatMap(\.rows).map(\.name) == ["Alpha"])
+    #expect(projectList(table, query: "does-not-exist").isEmpty)
+
+    // filter by tag and by local only (no GitHub remote)
+    #expect(projectList(table, filter: .tag("swift")).flatMap(\.rows).map(\.name) == ["Beta", "Alpha", "Zeta"])
+    #expect(projectList(table, filter: .tag("web")).flatMap(\.rows).map(\.name) == ["Alpha"])
+    #expect(projectList(table, filter: .localOnly).flatMap(\.rows).map(\.name) == ["Beta", "Notes"])
+    #expect(projectList(table, query: "beta", filter: .localOnly).flatMap(\.rows).map(\.name) == ["Beta"])
+    #expect(projectList(table, query: "handbook", filter: .localOnly).isEmpty)
+
+    // grouped by tag: each appears under its first tag only, untagged last, pinned first inside each group
+    #expect(projectList(table, groupBy: .tag) == [
+        ProjectGroup(id: "tag:swift", title: "swift", rows: [table[2], table[0]]),
+        ProjectGroup(id: "tag:web", title: "web", rows: [table[1]]),
+        ProjectGroup(id: "untagged", title: "untagged", rows: [table[4], table[3]]),
+    ])
+
+    // grouped by tag + filter: empty groups are omitted
+    #expect(projectList(table, filter: .localOnly, groupBy: .tag) == [
+        ProjectGroup(id: "tag:swift", title: "swift", rows: [table[2]]),
+        ProjectGroup(id: "untagged", title: "untagged", rows: [table[3]]),
+    ])
+}
+
+@MainActor @Test func changingTheDefaultCloneFolderWritesChatJsonAndRefusesCarrierFolders() throws {
+    let carrier = try temporaryFolder()
+    let target = try temporaryFolder()
+    defer {
+        try? FileManager.default.removeItem(atPath: carrier)
+        try? FileManager.default.removeItem(atPath: target)
+    }
+    var chatJSON: Data? = Data(#"{"logLevel":"debug"}"#.utf8)
+    let model = ProjectsModel(
+        file: ProjectsFile(folder: carrier),
+        remote: { _ in nil },
+        readChatConfig: { chatJSON },
+        writeChatConfig: { chatJSON = $0 },
+        home: "/Users/ana"
+    )
+    #expect(model.projectsPath == carrier + "/chat/projects")
+
+    // Refuses Carrier's own folder and leaves the current path unchanged.
+    model.changeProjectsFolder(to: carrier + "/engine")
+    #expect(model.projectsFolderProblem?.contains("Carrier's own engine folder") == true)
+    #expect(model.projectsPath == carrier + "/chat/projects")
+
+    // Valid folder writes projectsFolder while preserving other keys.
+    model.changeProjectsFolder(to: target)
+    #expect(model.projectsFolderProblem == nil)
+    #expect(model.projectsPath == target)
+    let saved = try #require(chatJSON.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] })
+    #expect(saved["projectsFolder"] as? String == target && saved["logLevel"] as? String == "debug")
+}

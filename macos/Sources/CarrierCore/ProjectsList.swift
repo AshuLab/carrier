@@ -148,6 +148,105 @@ public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? =
     }
 }
 
+/// What narrows the Projects list: everything, one tag in use, or projects with no GitHub remote.
+public enum ProjectFilter: Equatable, Hashable, Sendable {
+    case all
+    case tag(String)
+    case localOnly
+}
+
+/// How the Projects list groups its rows.
+public enum ProjectGrouping: String, CaseIterable, Equatable, Hashable, Sendable {
+    case none
+    case tag
+
+    public var title: String {
+        switch self {
+        case .none: "None"
+        case .tag: "Tag"
+        }
+    }
+}
+
+/// One group of the Projects list (`title` is nil when ungrouped).
+public struct ProjectGroup: Equatable, Identifiable, Sendable {
+    public let id: String
+    public let title: String?
+    public let rows: [ProjectRow]
+
+    public init(id: String, title: String?, rows: [ProjectRow]) {
+        self.id = id
+        self.title = title
+        self.rows = rows
+    }
+}
+
+/// All distinct tags across `rows`, sorted by name ignoring case.
+public func projectTagsInUse(_ rows: [ProjectRow]) -> [String] {
+    Array(Set(rows.flatMap(\.tags))).sorted { a, b in
+        let cmp = a.localizedCaseInsensitiveCompare(b)
+        return cmp == .orderedSame ? a < b : cmp == .orderedAscending
+    }
+}
+
+/// Filters `rows` by `query` (name, remote or tag) and `filter`, orders pinned first then by name, and groups by `groupBy` (`none`, or `tag` under
+/// each project's first tag and `"untagged"` when it has none). Returns empty when nothing matches.
+public func projectList(
+    _ rows: [ProjectRow],
+    query: String = "",
+    filter: ProjectFilter = .all,
+    groupBy: ProjectGrouping = .none
+) -> [ProjectGroup] {
+    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    let matched = rows.filter { row in
+        if needle.isEmpty == false {
+            let hits = row.name.localizedCaseInsensitiveContains(needle)
+                || (row.repo?.localizedCaseInsensitiveContains(needle) == true)
+                || row.tags.contains { $0.localizedCaseInsensitiveContains(needle) }
+            if hits == false { return false }
+        }
+        switch filter {
+        case .all: return true
+        case .tag(let tag): return row.tags.contains(tag)
+        case .localOnly: return row.repo == nil
+        }
+    }
+    guard matched.isEmpty == false else { return [] }
+    func ordered(_ items: [ProjectRow]) -> [ProjectRow] {
+        items.sorted { a, b in
+            if a.pinned != b.pinned { return a.pinned }
+            let cmp = a.name.localizedCaseInsensitiveCompare(b.name)
+            if cmp != .orderedSame { return cmp == .orderedAscending }
+            return a.path < b.path
+        }
+    }
+    switch groupBy {
+    case .none:
+        return [ProjectGroup(id: "all", title: nil, rows: ordered(matched))]
+    case .tag:
+        var byTag: [String: [ProjectRow]] = [:]
+        var untagged: [ProjectRow] = []
+        for row in matched {
+            if let first = row.tags.first {
+                byTag[first, default: []].append(row)
+            } else {
+                untagged.append(row)
+            }
+        }
+        let sortedTags = byTag.keys.sorted { a, b in
+            let cmp = a.localizedCaseInsensitiveCompare(b)
+            return cmp == .orderedSame ? a < b : cmp == .orderedAscending
+        }
+        var groups = sortedTags.map { tag in
+            ProjectGroup(id: "tag:\(tag)", title: tag, rows: ordered(byTag[tag]!))
+        }
+        if untagged.isEmpty == false {
+            groups.append(ProjectGroup(id: "untagged", title: "untagged", rows: ordered(untagged)))
+        }
+        return groups
+    }
+}
+
 extension ProjectsProblem {
     /// The problem as the page says it: the file, the field and what is wrong with it.
     public var text: String { path == "(file)" || path == "(root)" ? "projects.json \(message)" : "projects.json: \(path) \(message)" }
@@ -160,20 +259,39 @@ extension ProjectsProblem {
     public private(set) var problems: [ProjectsProblem] = []
     /// Why the last add could not be written, when it could not.
     public private(set) var failure: String?
+    /// Where new clones and new projects go by default (`projectsFolder` of `chat.json`).
+    public private(set) var projectsPath: String
+    /// Why the last Change… of the default folder was refused, in words; the old folder stands.
+    public private(set) var projectsFolderProblem: String?
     @ObservationIgnored private let file: ProjectsFile
     @ObservationIgnored private let imageStore: ProjectIconStore
     @ObservationIgnored private let remote: (String) -> String?
+    @ObservationIgnored private let readChatConfig: () throws -> Data?
+    @ObservationIgnored private let writeChatConfig: (Data) throws -> Void
+    @ObservationIgnored private let home: String
 
     public var carrierFolder: String { file.folder }
 
-    public init(file: ProjectsFile = .current(), remote: @escaping (String) -> String? = originRepo(ofFolder:)) {
+    public init(
+        file: ProjectsFile = .current(),
+        remote: @escaping (String) -> String? = originRepo(ofFolder:),
+        readChatConfig: @escaping () throws -> Data? = currentChatConfig,
+        writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
+        home: String = NSHomeDirectory()
+    ) {
         self.file = file
         self.imageStore = ProjectIconStore(folder: file.folder)
         self.remote = remote
+        self.readChatConfig = readChatConfig
+        self.writeChatConfig = writeChatConfig
+        self.home = home
+        self.projectsPath = projectsFolder(chatJSON: (try? readChatConfig()) ?? nil, carrierFolder: file.folder, home: home)
     }
 
     /// Reads the file again; the rows and problems change only when they differ, so the page is not drawn again for nothing.
     public func reload() {
+        let nextProjectsPath = projectsFolder(chatJSON: (try? readChatConfig()) ?? nil, carrierFolder: file.folder, home: home)
+        if projectsPath != nextProjectsPath { projectsPath = nextProjectsPath }
         var newRows: [ProjectRow] = []
         var newProblems: [ProjectsProblem] = []
         do {
@@ -205,6 +323,23 @@ extension ProjectsProblem {
         var added: ProjectAdd?
         _ = write { added = try file.add(folder: folder) }
         return added
+    }
+
+    /// Clears the last add failure (for example when a sheet is dismissed).
+    public func clearFailure() { failure = nil }
+
+    /// Writes `folder` as `projectsFolder` in `chat.json`, keeping every other key; refuses a folder inside Carrier's own folders and leaves the old path.
+    public func changeProjectsFolder(to folder: String) {
+        projectsFolderProblem = saveProjectsFolder(
+            folder,
+            currentPath: projectsPath,
+            carrierFolder: file.folder,
+            readChatConfig: readChatConfig,
+            writeChatConfig: writeChatConfig
+        )
+        if projectsFolderProblem == nil {
+            projectsPath = projectsFolder(chatJSON: (try? readChatConfig()) ?? nil, carrierFolder: file.folder, home: home)
+        }
     }
 
     /// Sets the project's name, or removes `name` when `raw` is empty or blank so it goes back to the folder's name.

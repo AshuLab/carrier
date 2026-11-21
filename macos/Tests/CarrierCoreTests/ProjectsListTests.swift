@@ -404,3 +404,62 @@ private func temporaryFolder() throws -> String {
     let saved = try #require(chatJSON.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] })
     #expect(saved["projectsFolder"] as? String == target && saved["logLevel"] as? String == "debug")
 }
+
+// MARK: last active and its order
+
+private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionRow {
+    SessionRow(id: UUID().uuidString, title: "t", workspace: "w", agent: "a", state: .idle, updatedAt: now.addingTimeInterval(-ago), folder: base + "/wt", base: base)
+}
+
+@Test func lastActiveIsTheNewestSessionOfTheProjectsBaseFolderWrittenAnyWayAndNilForNone() throws {
+    let root = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: root) }
+    try FileManager.default.createDirectory(atPath: root + "/real", withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(atPath: root + "/link", withDestinationPath: root + "/real")
+    let now = Date()
+    let rows = [ProjectRow(path: root + "/real", name: "real", repo: nil), ProjectRow(path: root + "/other", name: "other", repo: nil), ProjectRow(path: "/Users/x/none", name: "none", repo: nil)]
+    let sessions = [
+        session(root + "/real/", 500, now: now),  // trailing slash
+        session(root + "/link", 100, now: now),  // through a symlink
+        session(root + "/real", 900, now: now),
+        session(root + "/other", 700, now: now),
+        session(root + "/real/inside", 1, now: now),  // a folder inside is not the project's base folder
+    ]
+    let joined = projectsWithLastActive(rows, sessions: sessions)
+    #expect(joined.map(\.lastActive) == [now.addingTimeInterval(-100), now.addingTimeInterval(-700), nil])
+    #expect(projectsWithLastActive(rows, sessions: []).allSatisfy { $0.lastActive == nil })
+}
+
+@Test func theFileHoldsNoActivityTime() throws {
+    let before = Data(#"{"projects":[{"path":"/a","origin":"added","pinned":true}]}"#.utf8)
+    let entries = try readProjects(before)
+    let joined = projectsWithLastActive(projectRows(entries) { _ in nil }, sessions: [session("/a", 5, now: Date())])
+    #expect(joined[0].lastActive != nil)
+    // the entry and the file are what they were: activity is on the row and nowhere else
+    #expect(try readProjects(before) == entries && Set(entries[0].json.keys) == ["path", "origin", "pinned"])
+}
+
+@Test func theListSortsByNameOrLastActivePinnedFirstAndNeverActiveLast() {
+    let now = Date()
+    func row(_ name: String, _ ago: TimeInterval?, pinned: Bool = false) -> ProjectRow {
+        ProjectRow(path: "/p/\(name)", name: name, repo: nil, pinned: pinned, lastActive: ago.map { now.addingTimeInterval(-$0) })
+    }
+    let table = [row("beta", 50), row("alpha", nil), row("gamma", 10), row("delta", 900, pinned: true), row("eps", nil, pinned: true)]
+    func names(_ order: ProjectOrder) -> [String] { projectList(table, order: order).flatMap(\.rows).map(\.name) }
+    #expect(names(ProjectOrder()) == ["delta", "eps", "alpha", "beta", "gamma"])
+    #expect(names(ProjectOrder(key: .name, ascending: false)) == ["eps", "delta", "gamma", "beta", "alpha"])
+    #expect(names(ProjectOrder(key: .lastActive, ascending: false)) == ["delta", "eps", "gamma", "beta", "alpha"])
+    #expect(names(ProjectOrder(key: .lastActive, ascending: true)) == ["delta", "eps", "beta", "gamma", "alpha"])
+}
+
+@Test func clickingATitleSortsByItAndASecondClickReverses() {
+    var order = ProjectOrder()
+    #expect(order == ProjectOrder(key: .name, ascending: true))
+    order = order.clicked(.lastActive)
+    #expect(order == ProjectOrder(key: .lastActive, ascending: false))
+    order = order.clicked(.lastActive)
+    #expect(order == ProjectOrder(key: .lastActive, ascending: true))
+    order = order.clicked(.name)
+    #expect(order == ProjectOrder(key: .name, ascending: true))
+    #expect(order.clicked(.name) == ProjectOrder(key: .name, ascending: false))
+}

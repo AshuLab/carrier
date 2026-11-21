@@ -182,9 +182,11 @@ public enum ProjectAdd: Equatable, Sendable {
 }
 
 /// The same folder written two ways: `~` expanded, symlinks resolved, no trailing slash. A project is its folder, so `~/work/a` and `/Users/me/work/a/` are one.
-public func isSameFolder(_ a: String, _ b: String) -> Bool {
-    func normal(_ path: String) -> String { URL(fileURLWithPath: (path as NSString).expandingTildeInPath).resolvingSymlinksInPath().path }
-    return normal(a) == normal(b)
+public func isSameFolder(_ a: String, _ b: String) -> Bool { normalizedFolder(a) == normalizedFolder(b) }
+
+/// A folder written one way whatever it was written as: `~` expanded, symlinks resolved, no trailing slash.
+public func normalizedFolder(_ path: String) -> String {
+    URL(fileURLWithPath: (path as NSString).expandingTildeInPath).resolvingSymlinksInPath().path
 }
 
 /// Adding the folder `folder` as a project of origin `added` named after it, in `json`: the bytes to write, nil when it already is a project (nothing

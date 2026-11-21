@@ -21,7 +21,7 @@ private func readEngine(_ path: String) throws -> EngineState {
     guard let client = ControlClient.connect(path: path) else { throw ControlError.closed }
     defer { client.close() }
     let version = try client.supportedHello().version ?? ""
-    let snapshot = try decodeSnapshot(client.request("snapshot"))
+    let snapshot = try client.snapshot()
     return EngineState(version: version, paused: snapshot.paused, inFlight: snapshot.sessions?.count ?? snapshot.runningEpics)
 }
 

@@ -28,6 +28,8 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
     #expect(sent[1]["executionId"] as? String == execution && sent[1]["after"] as? Int == 5 && sent[1]["limit"] as? Int == 50)
     #expect(sent[3]["executionId"] as? String == execution)
     #expect(sent[4]["executionId"] == nil)
+    // each of the five replies was parsed once, as it was read
+    #expect(client.repliesParsedOnce == 5)
 }
 
 @Test func anErrorReplyThrowsAndMarksOnlyThatCapabilityUnavailable() throws {

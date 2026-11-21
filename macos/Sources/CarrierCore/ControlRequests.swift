@@ -4,6 +4,9 @@ import Foundation
 // capability is missing. An error reply or a reply that does not decode marks the capability unavailable until the next hello
 // (a newer engine answering something this app cannot read is treated as having none of it); a dead connection does not.
 extension ControlClient {
+    /// What the engine reports, decoded from the reply as it is read; a snapshot this app cannot read throws `SnapshotError` with the field.
+    public func snapshot() throws -> PanelSnapshot { try request("snapshot", as: PanelSnapshot.self, decoding: decodeSnapshot) }
+
     public func sessions(repo: String, issue: Int) throws -> SessionsReply? {
         try ask(.sessions, "sessions", try epicFields(repo, issue))
     }
@@ -54,7 +57,7 @@ extension ControlClient {
     private func ask<T: Decodable>(_ capability: Capability, _ command: String, keepOnRefusal: Bool = false, _ fields: String) throws -> T? {
         guard capabilities.contains(capability) else { return nil }
         do {
-            return try JSONDecoder().decode(T.self, from: request(command, fields: fields))
+            return try request(command, fields: fields, as: T.self)
         } catch let error as ControlError {
             if case .remote = error, keepOnRefusal == false { capabilities.remove(capability) }
             throw error

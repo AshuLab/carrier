@@ -124,18 +124,28 @@ public final class ControlClient {
         try exchange(command, fields) { try answer($0) }
     }
 
-    /// `request`, but the reply's `data` is decoded into `Reply`: the whole line is parsed once, where handing the bytes of `data` back
-    /// takes it apart and puts it together again first. A reply that is not the one waited for, an error or an empty `data` goes the
-    /// long way, as `request` does. nil, with nothing sent, when the engine did not say it can answer.
+    /// `request`, but only when the engine said it can answer it, and the reply is decoded into `Reply` (see `request(_:fields:as:decoding:)`):
+    /// nil, with nothing sent, when it did not. A reply that does not decode is a bad line.
     public func request<Reply: Decodable>(_ command: String, requires capability: Capability, fields: String = "", as type: Reply.Type) throws -> Reply? {
         guard capabilities.contains(capability) else { return nil }
-        return try exchange(command, fields) { line in
+        return try request(command, fields: fields, as: type) { data in
+            do { return try JSONDecoder().decode(Reply.self, from: data) } catch { throw ControlError.badLine }
+        }
+    }
+
+    /// `request`, but the reply's `data` is decoded into `Reply`: the whole line is parsed once, where handing the bytes of `data` back
+    /// takes it apart and puts it together again first. A reply that is not the one waited for, an error or an empty `data` goes the
+    /// long way, as `request` does, and `decoding` then reads the bytes of `data`, so it can say what is wrong with them.
+    public func request<Reply: Decodable>(
+        _ command: String, fields: String = "", as type: Reply.Type, decoding: (Data) throws -> Reply = { try JSONDecoder().decode(Reply.self, from: $0) }
+    ) throws -> Reply {
+        try exchange(command, fields) { line in
             if let whole = try? JSONDecoder().decode(Answer<Reply>.self, from: line), whole.id == lastId, whole.ok == true, let data = whole.data {
                 repliesParsedOnce += 1
                 return data
             }
             guard let data = try answer(line) else { return nil }
-            do { return try JSONDecoder().decode(Reply.self, from: data) } catch { throw ControlError.badLine }
+            return try decoding(data)
         }
     }
 

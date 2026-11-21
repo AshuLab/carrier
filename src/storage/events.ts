@@ -33,7 +33,11 @@ export const executionEvents = sqliteTable(
     durationMs: integer(),
     payload: text({ mode: 'json' }).$type<EventPayload>(), // the text of a message, a command's output, a diff, the slice and lane hints
   },
-  (table) => [index('execution_events_execution').on(table.executionId, table.id)],
+  (table) => [
+    index('execution_events_execution').on(table.executionId, table.id),
+    // the live hints read the `task` rows of a run that may have tens of thousands of others; the cursor above stays for the `events` request
+    index('execution_events_kind').on(table.executionId, table.kind, table.id),
+  ],
 );
 
 /** Stores the events of one output chunk in a single transaction; `arrival` is the time of those without their own. */

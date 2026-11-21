@@ -53,10 +53,15 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
 
     func agents() async throws -> [ChatAgent] { agents }
     func list(archived wanted: Bool) async throws -> [ChatSession] { wanted ? archived : active }
-    /// `AgentOfferStore.warm` asks every agent at once, so the asks are recorded under a lock.
+    /// The asks are recorded under a lock: a draft and the model picker may ask while the app's warm-up does.
     private let asksLock = NSLock()
+    /// How many asks were waiting for their answer at once, at most.
+    private var asksOpen = 0
+    private(set) var mostAsksOpen = 0
     func agentOptions(_ agent: String) async throws -> AgentOffer {
-        asksLock.withLock { optionAsks.append(agent) }
+        asksLock.withLock { optionAsks.append(agent); asksOpen += 1; mostAsksOpen = max(mostAsksOpen, asksOpen) }
+        defer { asksLock.withLock { asksOpen -= 1 } }
+        try await Task.sleep(for: .milliseconds(20)) // an answer takes time: asks that overlap show
         guard let listed = offered[agent] else { throw ControlError.remote("the chat host does not support agentOptions") }
         return AgentOffer(options: listed, commands: commandsOffered[agent] ?? [])
     }
@@ -1616,7 +1621,23 @@ private func tempFile() -> URL { FileManager.default.temporaryDirectory.appendin
     host.agents = [ChatAgent(name: "claude", harness: "claude", found: true), ChatAgent(name: "codex", harness: "codex", found: true), ChatAgent(name: "gone", harness: "x", found: false)]
     let store = AgentOfferStore()
     await store.warm(host: host)
-    #expect(Set(host.optionAsks) == ["claude", "codex"] && store.offer("codex") == offer("gpt") && store.offer("gone") == nil)
+    // one at a time, in the host's order: a draft's three agents are not three launches at once
+    #expect(host.optionAsks == ["claude", "codex"] && host.mostAsksOpen == 1 && store.offer("codex") == offer("gpt") && store.offer("gone") == nil)
+}
+
+@MainActor @Test func warmingSkipsAnAgentWhoseOfferWasKept() async throws {
+    let host = FakeChat()
+    host.offered = ["claude": offer("sonnet").options, "codex": offer("gpt").options]
+    host.agents = [ChatAgent(name: "claude", harness: "claude", found: true), ChatAgent(name: "codex", harness: "codex", found: true)]
+    let store = AgentOfferStore()
+    try await store.refresh("claude", host: host)
+    host.optionAsks = []
+    await store.warm(host: host)
+    #expect(host.optionAsks == ["codex"] && store.offer("claude") == offer("sonnet"))
+    // everything kept: nothing is launched when the app opens
+    host.optionAsks = []
+    await store.warm(host: host)
+    #expect(host.optionAsks.isEmpty)
 }
 
 

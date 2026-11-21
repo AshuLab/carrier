@@ -484,7 +484,7 @@ final class WindowController: NSObject, NSWindowDelegate {
     private func makeWindow() -> NSWindow {
         let signpost = Signposts.launch.beginInterval("make window")
         defer { Signposts.launch.endInterval("make window", signpost) }
-        let host = NSHostingController(rootView: PanelView(model: model))
+        let host = NSHostingController(rootView: PanelView(model: model).environment(MainActor.assumeIsolated { Viewing.shared }))
         // the split view's title and toolbar (the sidebar toggle) go to the window
         host.sceneBridgingOptions = .all
         // the content does not size the window: following its minimum size loops in layout when the inspector comes and goes
@@ -528,12 +528,31 @@ final class WindowController: NSObject, NSWindowDelegate {
         return NSSize(width: max(frameSize.width, least.width), height: max(frameSize.height, least.height))
     }
 
-    /// Someone is looking when the app is active and the window is on screen: then the host and the engine are asked often, and the Usage
-    /// page's minute timer runs (it pauses while nobody looks and asks again when someone does).
-    func refreshPace() {
-        let attentive = NSApp.isActive && windowIsShown
-        PollPace.shared.set(attentive: attentive)
-        MainActor.assumeIsolated { _ = AppUsage.refresher.setAttentive(attentive) }
+    /// Tells `Viewing` whether anyone is looking: the app is active and the window is on screen, or one of them, or the Mac sleeps. Then the host and
+    /// the engine are asked often or not, and the Usage page's minute timer runs (it pauses while nobody looks and asks again when someone does).
+    /// A window that is closing is still visible when it says so: the caller says it is not shown.
+    func refreshPace(windowShown shown: Bool? = nil) {
+        let wasLooking = PollPace.shared.looking
+        defer {
+            // the window's list is read at once when it comes back in sight, not at the end of the pause
+            if wasLooking == false, PollPace.shared.looking { sessionsNap?.wake() }
+        }
+        MainActor.assumeIsolated {
+            Viewing.shared.update(
+                appActive: NSApp.isActive, windowShown: shown ?? windowIsShown, asleep: sleepReasons.isEmpty == false,
+                lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled
+            )
+            _ = AppUsage.refresher.setAttentive(Viewing.shared.state == .focused)
+            IconController.shared?.reloadSettings()
+        }
+    }
+
+    /// What the Mac is asleep for, by name: the screens, the system, or the user's session switched away. Any one is enough for nobody to look.
+    private var sleepReasons: Set<String> = []
+
+    func sleeping(_ reason: String, _ asleep: Bool) {
+        if asleep { sleepReasons.insert(reason) } else { sleepReasons.remove(reason) }
+        refreshPace()
     }
 
     private var windowIsShown: Bool {
@@ -549,11 +568,9 @@ final class WindowController: NSObject, NSWindowDelegate {
     }
 
     @objc private func windowClosed() {
-        PollPace.shared.set(attentive: false)
-        MainActor.assumeIsolated {
-            AppUsage.refresher.setAttentive(false)
-            DictationController.shared.stopBoxDictation()
-        }
+        // `willClose` comes while the window is still on screen
+        refreshPace(windowShown: false)
+        MainActor.assumeIsolated { DictationController.shared.stopBoxDictation() }
         // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()
         stop = nil
@@ -577,7 +594,9 @@ final class WindowController: NSObject, NSWindowDelegate {
             pollEvery: { PollPace.shared.seconds },
             // closing the window cuts the wait short at once
             wait: stop.wait,
-            tick: { try poller.poll($0) },
+            // the epic on screen is read while someone can see the window, or when it was just asked for (a window that is opening is not on screen
+            // yet at its first tick): a hidden one is read again at the next tick after it shows
+            tick: { client in if PollPace.shared.looking || poller.hasPendingFocus { try poller.poll(client) } },
             onChange: { state in
                 // an equal state is not assigned: the observer ignores it anyway, and the "panel state" signpost counts only what differs
                 DispatchQueue.main.async { if stop.isSet == false, publishes(state, over: model.state) { model.state = state } }
@@ -609,7 +628,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         Task.detached {
             repeat {
                 await sessions.poll()
-                await nap.sleep(seconds: PollPace.shared.seconds)
+                await nap.sleep(seconds: PollPace.shared.windowSeconds)
             } while stop.isSet == false
         }
     }

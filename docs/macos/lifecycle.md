@@ -9,7 +9,7 @@ How the app finds `carrier`, `node` and the `PATH` is on the [Engine page](setti
 
 Start Carrier (the menu item, and a button in the window while Carrier is stopped) runs `carrier` (`node <carrier>` for a `.ts` or `.js` script, the developer's "Use another…") with that `PATH` and `CARRIER_HOME=<folder>` (the engine finds its config, state and logs from the folder, so there is no config path to pass), in its own session (`posix_spawn` with `POSIX_SPAWN_SETSID`, so quitting the app leaves Carrier running), stdin from `/dev/null` and stdout and stderr in `<folder>/engine/logs/app-start.log`, which it creates (with mode 0700) when missing.
 It is never started on its own when the app opens, unless the person turned on "Start Carrier when the app opens" under Starting on the Engine page (user default `engine.startOnOpen`, off by default): then, at the first state the monitor delivers after launch, the app starts Carrier once when that state is stopped and Start Carrier is enabled (so never while the engine is not configured), never under `--fixture` (`shouldStartOnOpen`; the wiring in `AppDelegate` has no automated test, as it would start the real Carrier).
-When the control socket answers within 15 seconds the state becomes running (the next connect attempt shows it, within 3 seconds); when the process exits first, or 15 seconds pass without the socket, an alert shows the end of `app-start.log`.
+When the control socket answers within 15 seconds the state becomes running (the next connect attempt shows it, within 3 seconds; the socket answers while the engine still recovers the epics that were running, and the panel says `starting` until then); when the process exits first, or 15 seconds pass without the socket, an alert shows the end of `app-start.log`.
 When the process exits with `spawn <tool> ENOENT` in that log (a folder added to the shell's PATH after the app saved it), the app reads the PATH from the shell once more and starts again if it changed; if the tool is still not found, or the shell does not answer, the alert says so after its first line.
 The chat host is not retried: it does not exit for a missing tool.
 A second press while it starts does nothing.
@@ -31,7 +31,7 @@ Creating a session while it is missing keeps the alert, which says the same as t
 
 ### Version checks and replacement
 
-When a host answers, the app asks the installed `carrier` for its version (`carrier --version`) once per launch and compares it with the version in the host's hello (`CarrierCore/HostReplacement.swift`, `hostReplacement`).
+When a host answers, the app asks the installed `carrier` for its version (`carrier --version`) once per launch, and not again while the Homebrew `carrier` file is the same one (`programStamp`: its path through the links, modification date and size, kept in the app's defaults with the version it printed), and compares it with the version in the host's hello (`CarrierCore/HostReplacement.swift`, `hostReplacement`).
 If the host is older, no session is working or waiting for an approval and the sessions could be listed, the app stops it, waits up to 15 seconds for its socket to go and starts the installed one.
 If a session is working or waiting, it leaves the host running and the Sessions section and the Sessions home say "The chat host is older than Carrier", to restart it when the session finishes, because stopping a host closes its agents' processes and the work in them.
 A version that cannot be read on either side leaves the host alone and writes why to the app's stderr.

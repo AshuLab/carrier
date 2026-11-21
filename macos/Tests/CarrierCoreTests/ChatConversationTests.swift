@@ -619,12 +619,122 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     #expect(model.failure == "unknown session" && logged.count == 2)
 }
 
-@MainActor @Test func runPollsAboutEvery250msUntilItIsCancelled() async {
+@MainActor @Test func runWaitsAsLongAsWhoIsLookingAndWhatTheAgentDoesCallFor() async {
+    func record(viewing: Viewing, host: ScriptedHost, rounds: Int, between: @MainActor @escaping (Int) -> Void = { _ in }) async -> [Double] {
+        var seconds: [Double] = []
+        let model = ConversationModel(
+            host: host, sessionId: "s", sleep: { duration in
+                seconds.append(Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18)
+                if seconds.count == rounds { throw CancellationError() }
+                between(seconds.count)
+            }, log: { _ in }, viewing: viewing
+        )
+        await model.run()
+        return seconds
+    }
+    let pace = PollPace()
+    func viewing(_ appActive: Bool, _ windowShown: Bool, asleep: Bool = false) -> Viewing {
+        let viewing = Viewing()
+        viewing.update(appActive: appActive, windowShown: windowShown, asleep: asleep, lowPower: false, pace: pace)
+        return viewing
+    }
+
+    // idle: every 2 s in front, every 5 s with the window on screen behind another app
+    #expect(await record(viewing: viewing(true, true), host: ScriptedHost(), rounds: 2) == [2, 2])
+    #expect(await record(viewing: viewing(false, true), host: ScriptedHost(), rounds: 2) == [5, 5])
+    // hidden or asleep: not asking, which is a wait of the ceiling and no more
+    #expect(await record(viewing: viewing(true, false), host: ScriptedHost(), rounds: 2) == [conversationPause, conversationPause])
+    #expect(await record(viewing: viewing(true, true, asleep: true), host: ScriptedHost(), rounds: 1) == [conversationPause])
+    // a turn that runs: every 250 ms
+    let working = ScriptedHost()
+    working.state = .working
+    #expect(await record(viewing: viewing(true, true), host: working, rounds: 3) == [0.25, 0.25, 0.25])
+    #expect(await record(viewing: viewing(false, true), host: working, rounds: 1) == [0.25])
+    // the message in progress is a turn that runs too, and so is a preparation under way
+    let streaming = ScriptedHost()
+    streaming.streaming = "writing"
+    #expect(await record(viewing: viewing(true, true), host: streaming, rounds: 1) == [0.25])
+    let preparing = ScriptedHost()
+    preparing.preparation = .running
+    #expect(await record(viewing: viewing(true, true), host: preparing, rounds: 1) == [0.25])
+}
+
+@MainActor @Test func aHostThatDoesNotAnswerIsAskedLessAndLessOftenAndTheNormalPaceComesBackWithTheFirstAnswer() async {
     let host = ScriptedHost()
-    var waits: [Duration] = []
-    let model = ConversationModel(host: host, sessionId: "s", sleep: { waits.append($0); if waits.count == 3 { throw CancellationError() } }, log: { _ in })
+    host.failing = ControlError.closed
+    let viewing = Viewing()
+    viewing.update(appActive: true, windowShown: true, asleep: false, lowPower: false, pace: PollPace())
+    var seconds: [Double] = []
+    let model = ConversationModel(
+        host: host, sessionId: "s", sleep: { duration in
+            seconds.append(Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18)
+            if seconds.count == 3 { host.failing = nil }
+            if seconds.count == 5 { throw CancellationError() }
+        }, log: { _ in }, viewing: viewing
+    )
     await model.run()
-    #expect(host.asked.count == 3 && waits == Array(repeating: .milliseconds(250), count: 3))
+    #expect(seconds == [0.5, 1, 2, 2, 2])
+}
+
+@MainActor @Test func theLongestWaitIsUnderAMinuteSoTheHostKeepsHearingFromTheApp() {
+    #expect(conversationPause < 60)
+    for failures in 1...40 {
+        for state in [ViewingState.focused, .visible] {
+            #expect((conversationWait(state: state, turnRunning: true, failures: failures) ?? 0) <= 30)
+        }
+    }
+    for state in [ViewingState.hidden, .asleep] { #expect(conversationWait(state: state, turnRunning: true, failures: 0) == nil) }
+    // a person who looks does not wait long for a host that came back: 0.5, 1, 2, 4 and then 5
+    #expect((1...7).map { conversationWait(state: .focused, turnRunning: false, failures: $0) } == [0.5, 1, 2, 4, 5, 5, 5])
+}
+
+@MainActor @Test func cancellingRunEndsItAtOnceEvenInTheLongWaitOfAHiddenWindow() async {
+    let host = ScriptedHost()
+    // not told it is on screen, it is hidden: the wait is the pause of 30 seconds, in the model's own nap
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, viewing: Viewing())
+    let running = Task { await model.run() }
+    while host.asked.isEmpty { await Task.yield() }
+    try? await Task.sleep(for: .milliseconds(50))
+    let started = ContinuousClock.now
+    running.cancel()
+    await running.value
+    #expect(ContinuousClock.now - started < .seconds(10))
+}
+
+@MainActor @Test func aSendCutsTheWaitOfAnIdleSessionShortSoTheTurnIsReadAtOnce() async {
+    let host = ScriptedHost()
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, viewing: Viewing())
+    #expect(model.nap.wakes == 0)
+    model.draft = "hello"
+    await model.submit()
+    #expect(model.nap.wakes == 1 && host.sent == ["hello"])
+}
+
+@MainActor @Test func aChangeOfWhoIsLookingCutsTheWaitShortOnlyWhileTheModelRuns() async {
+    let host = ScriptedHost()
+    let viewing = Viewing()
+    let pace = PollPace()
+    let model = ConversationModel(host: host, sessionId: "s", sleep: { _ in try await Task.sleep(for: .seconds(3600)) }, log: { _ in }, viewing: viewing)
+    // not running: nobody watches, so nobody wakes it
+    viewing.update(appActive: true, windowShown: true, asleep: false, lowPower: false, pace: pace)
+    #expect(model.nap.wakes == 0)
+    let running = Task { await model.run() }
+    while host.asked.isEmpty { await Task.yield() }
+    viewing.update(appActive: true, windowShown: false, asleep: false, lowPower: false, pace: pace)
+    // the wake comes from a task of the main actor that the change started
+    for _ in 0..<1000 where model.nap.wakes == 0 { try? await Task.sleep(for: .milliseconds(10)) }
+    #expect(model.nap.wakes == 1)
+    // and it is armed again for the next change
+    viewing.update(appActive: false, windowShown: true, asleep: false, lowPower: false, pace: pace)
+    for _ in 0..<1000 where model.nap.wakes == 1 { try? await Task.sleep(for: .milliseconds(10)) }
+    #expect(model.nap.wakes == 2)
+    running.cancel()
+    await running.value
+    // and it stops watching with the task: a change after that wakes no one
+    let after = model.nap.wakes
+    viewing.update(appActive: true, windowShown: true, asleep: false, lowPower: false, pace: pace)
+    try? await Task.sleep(for: .milliseconds(100))
+    #expect(model.nap.wakes == after)
 }
 
 @MainActor @Test func aSessionThatIsNotLiveIsClosedAndASendResumesItAndContinueSendsContinue() async throws {

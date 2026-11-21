@@ -210,6 +210,46 @@ test('a startup failure releases the lock', async () => {
   if (again.ok) again.release();
 });
 
+test('the control socket answers while the start recovers, the snapshot says it is starting until then, and a failed start closes the socket', async () => {
+  const { runner, deps } = fakes();
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  runner.listActive = async () => (await gate, []); // the first thing the recovery waits for
+  const sock = join(root, 'engine', 'state', 'control.sock');
+  const arrived = vi.fn();
+  const starting = startCarrier(config(), root, sameConfig, { ...deps, onArrived: arrived });
+  const client = await vi.waitFor(() => connectControl(sock));
+  expect(((await client.request('snapshot')) as ControlSnapshot).nextCheckAt).toBeNull(); // starting: no poll armed yet
+  expect(arrived).not.toHaveBeenCalled(); // the terminal still belongs to the spinner
+
+  open();
+  const app = await starting;
+  closers.push(async () => (await app.engine.shutdown(), app.close()));
+  expect(((await client.request('snapshot')) as ControlSnapshot).nextCheckAt).not.toBeNull();
+  expect(arrived).toHaveBeenCalledOnce();
+  client.close();
+
+  // A start that fails while the socket is open: the socket was there, and it is gone after.
+  const failing = fakes();
+  let fail!: () => void;
+  const failure = new Promise<void>((resolve) => (fail = resolve));
+  failing.runner.listActive = async () => {
+    await failure;
+    throw new Error('boom');
+  };
+  const other = mkdtempSync(join(tmpdir(), 'carrier-compose-sock-'));
+  try {
+    const sockOther = join(other, 'engine', 'state', 'control.sock');
+    const failed = expect(startCarrier(config(), other, sameConfig, failing.deps)).rejects.toThrow('boom');
+    (await vi.waitFor(() => connectControl(sockOther))).close();
+    fail();
+    await failed;
+    await expect(connectControl(sockOther)).rejects.toThrow('not-running');
+  } finally {
+    rmSync(other, { recursive: true, force: true });
+  }
+});
+
 test('onArrived fires once the engine is up and before the panel draws; a startup failure never announces it', async () => {
   const order: string[] = [];
   const { seen, deps } = fakes();

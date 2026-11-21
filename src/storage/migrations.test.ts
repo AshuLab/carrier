@@ -5,6 +5,7 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { afterEach, beforeEach, expect, test } from 'vitest';
+import { openDatabase } from './db.ts';
 import { epicReviewThreads } from './epic-review-threads.ts';
 import { executions } from './executions.ts';
 import { epics } from './schema.ts';
@@ -15,6 +16,12 @@ beforeEach(() => {
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
+});
+
+test('the engine database is opened in WAL, so a reader never waits on a commit or is refused by it', () => {
+  const db = openDatabase(join(dir, 'carrier.db'));
+  expect(db.$client.pragma('journal_mode', { simple: true })).toBe('wal');
+  db.$client.close();
 });
 
 test('applies the Drizzle Kit migration to a temp SQLite file and reads a row back', () => {

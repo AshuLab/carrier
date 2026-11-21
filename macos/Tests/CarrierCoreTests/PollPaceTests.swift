@@ -4,13 +4,40 @@ import Testing
 
 @Test func theAppAsksSlowlyUntilSomeoneIsLookingAndNeverLessOftenThanTheHostNeedsToKeepSessionsAwake() {
     let pace = PollPace()
-    #expect(pace.seconds == PollPace.backgroundSeconds)
-    pace.set(attentive: true)
-    #expect(pace.seconds == PollPace.attentiveSeconds)
-    pace.set(attentive: false)
-    #expect(pace.seconds == PollPace.backgroundSeconds)
+    #expect(pace.seconds == PollPace.backgroundSeconds && pace.looking == false)
+    pace.set(.focused, lowPower: false)
+    #expect(pace.seconds == PollPace.attentiveSeconds && pace.looking)
+    for state in [ViewingState.visible, .hidden, .asleep] {
+        pace.set(state, lowPower: false)
+        #expect(pace.seconds == PollPace.backgroundSeconds, "\(state)")
+        #expect(pace.looking == (state == .visible), "\(state)")
+    }
     // the host closes a session nobody asked about for a minute
-    #expect(PollPace.backgroundSeconds < 60 && PollPace.attentiveSeconds < PollPace.backgroundSeconds)
+    #expect(PollPace.lowPowerSeconds < 60 && PollPace.backgroundSeconds < PollPace.lowPowerSeconds && PollPace.attentiveSeconds < PollPace.backgroundSeconds)
+}
+
+@Test func lowPowerModeAsksLessOftenExceptWhileThePersonIsInTheApp() {
+    let pace = PollPace()
+    pace.set(.focused, lowPower: true)
+    #expect(pace.seconds == PollPace.attentiveSeconds)
+    for state in [ViewingState.visible, .hidden, .asleep] {
+        pace.set(state, lowPower: true)
+        #expect(pace.seconds == PollPace.lowPowerSeconds, "\(state)")
+    }
+}
+
+@Test func whatServesOnlyTheWindowPausesWhileNobodyCanSeeItAndNeverForAMinute() {
+    let pace = PollPace()
+    pace.set(.focused, lowPower: false)
+    #expect(pace.windowSeconds == PollPace.attentiveSeconds)
+    pace.set(.visible, lowPower: false)
+    #expect(pace.windowSeconds == PollPace.backgroundSeconds)
+    pace.set(.visible, lowPower: true)
+    #expect(pace.windowSeconds == PollPace.lowPowerSeconds)
+    for state in [ViewingState.hidden, .asleep] {
+        pace.set(state, lowPower: false)
+        #expect(pace.windowSeconds == conversationPause && pace.windowSeconds < 60, "\(state)")
+    }
 }
 
 @Test func aStopCutsTheWaitShortAndEveryWaitAfterItSaysStop() async {

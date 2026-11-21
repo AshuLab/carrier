@@ -6,15 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
-
-- "Carrier could not be updated" no longer shows above the sessions, in the sidebar or on the Sessions home; it is in Settings › About, where it can be tried again.
-- Dictation in any app: when macOS drops Carrier's Accessibility permission after an update (the switch still reads on and the text is only copied), the widget and Settings › Dictation offer "Reset permission", which removes it and asks again.
-- The live line of a run that is only thinking said "Thinking" twice (the chip and the words beside it); it says it once.
-- Dragging the thumbnail of a macOS screenshot onto the message box attaches the picture; before, the box refused it. A picture dragged from a web page or another app that offers only its image data attaches too.
-
 ### Changed
 
+- An open conversation asks the chat host less often when nothing is happening: every 2 seconds instead of four times a second while idle with the app in front, every 5 seconds behind another app, and almost never with the window hidden or the Mac asleep. It still reads every quarter of a second while the agent works, and at once after you send.
+- The working animations (the glow on a card's edge, the sweep over "Thinking…", the spark) and the running clocks stop while the window is minimized, covered or the Mac asleep, and run at most 30 frames a second otherwise: a session that works no longer keeps the app at tens of percent of a core with its window minimized.
+- The glow around the message box while you dictate is drawn 30 times a second instead of 60, so it asks less of the Mac while it listens.
+- The little bar that bounces in the menu bar icon stops in Low Power Mode and while the screens or the Mac are asleep; it cost the system about four percent of a core.
+- With the window hidden or the Mac asleep, the app stops reading the epic you had open and reads the sidebar's session list about every 30 seconds instead of every 5; the list is up to date as the window shows and the epic within a few seconds. Notifications keep their pace (every 10 seconds in Low Power Mode).
+- In Low Power Mode the app asks the engine and the chat host less often (every 10 seconds) while nobody is in the app.
+- The Usage page reads fewer logs: it skips those not written since the range began and drops lines it does not count before parsing them, and an account filter no longer makes each refresh read every other log again.
+- A restarted chat host no longer reads every Claude and Codex log again for the Usage page: it keeps what it read in `chat.db` (the session ids, folders, models and token counts of each log, never a line's text) and reads only what was added since. `chat.db` grows by about 1% of the logs it indexes (15 MB for 1.4 GB of logs).
+- Opening the app no longer starts every chat agent to list its models when it already knows them: it asks only for the agents it has nothing kept for, one at a time, and the new-session draft and the model picker refresh the list when they open.
+- The app no longer runs the installed `carrier --version` at every launch while the Homebrew `carrier` is the same file.
 - What the host refuses, a session that cannot be read, a failed dictation and the notes of New Session (no provider ready, an older chat host, a refused send, a name or a folder that cannot be used) are notices like the others instead of plain red or orange lines.
 - In a session, the button of the message box lists every agent (not only the session's) and changes the session to another one: the transcript stays and the new agent goes on from a selection of what was said, with the rest readable through `history`.
 - The menu bar item's menu is grouped: Sessions (what waits for you first, at most four), Terminals, and Dictation (Dictate now, Copy last transcript and the last five transcripts), then a Sleep row and the Carrier group: its state, its controls (Pause, Check, Stop) and its latest three epics.
@@ -22,6 +25,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The selected row of the sidebar is your accent in a deeper shade on dark appearance, so the white words keep their contrast.
 - A session's pull request and changed lines in the sidebar share one quiet capsule: the state is a dot, the words are grey, and the capsule is a lighter patch on the selected row so it reads on any accent. Draft, Merged and Closed start with a capital.
 - Every "Check again" and "Check now" button (Usage, Carrier, Providers, Health, Repos) works the same: it shows "Checking…" while it runs, then "Up to date" with a green mark (or "Check failed" in red) for three seconds.
+
+### Fixed
+
+- The logs and agent sessions of an epic in ready-for-test are no longer deleted after 30 days while it waits for its merge; the 30 days count from the merge or the close.
+- `carrier start` and the app see the engine as soon as it starts, instead of after it has recovered every running epic: with several running epics the socket used to answer seconds late (the app said "Carrier stopped", and `carrier start` could give up at 15 seconds with the engine still starting). Until the first check is armed the panel says `starting`.
+- After a crash, the chat host ends the agents it left running in parallel, so its socket opens within one grace period instead of one per agent.
+- The Usage page no longer leaves out the epics' usage when it reads while the engine is writing. Both databases now keep a `-wal` and a `-shm` file beside them while Carrier runs: they are part of the database, so do not delete them or copy the `.db` alone.
+- "Carrier could not be updated" no longer shows above the sessions, in the sidebar or on the Sessions home; it is in Settings › About, where it can be tried again.
+- Dictation in any app: when macOS drops Carrier's Accessibility permission after an update (the switch still reads on and the text is only copied), the widget and Settings › Dictation offer "Reset permission", which removes it and asks again.
+- The live line of a run that is only thinking said "Thinking" twice (the chip and the words beside it); it says it once.
+- Dragging the thumbnail of a macOS screenshot onto the message box attaches the picture; before, the box refused it. A picture dragged from a web page or another app that offers only its image data attaches too.
 
 ## [0.16.0] - 2026-11-20
 

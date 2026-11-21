@@ -50,13 +50,13 @@ final class IconController {
             self?.reloadSettings()
         }
         state.style = store.style
-        state.animates = store.animates
+        state.animates = animates
         draw()
     }
 
     func show(_ connection: ConnectionState) {
         let awake = state.awake
-        state = IconState(connection, style: store.style, animates: store.animates)
+        state = IconState(connection, style: store.style, animates: animates)
         state.awake = awake
         draw()
     }
@@ -68,11 +68,16 @@ final class IconController {
         draw()
     }
 
+    /// The setting, unless nobody can see the bar or the Mac saves power; `refreshPace` tells when that changes.
+    private var animates: Bool {
+        MainActor.assumeIsolated { iconAnimates(setting: store.animates, state: Viewing.shared.state, lowPower: Viewing.shared.lowPower) }
+    }
+
     /// Draws again when the style or the animation switch changed.
     func reloadSettings() {
-        guard state.style != store.style || state.animates != store.animates else { return }
+        guard state.style != store.style || state.animates != animates else { return }
         state.style = store.style
-        state.animates = store.animates
+        state.animates = animates
         draw()
     }
 

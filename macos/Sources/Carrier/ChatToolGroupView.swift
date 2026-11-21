@@ -80,7 +80,7 @@ struct ChatToolGroupView: View {
             // the right side never moves or shrinks: the time, and the chevron as wide as a node
             HStack(spacing: 8) {
                 if live {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                    TickingTimeline(every: 1) { context in
                         liveTimers(group.liveTimer(now: Int((clock ?? context.date).timeIntervalSince1970 * 1000), turnStart: since))
                     }
                 } else {
@@ -256,7 +256,7 @@ struct BackgroundWorkCard: View {
     private var header: some View {
         HStack(spacing: 12) {
             // the words come from a clock of their own, so the next task takes the line without anything else asking for it
-            TimelineView(.periodic(from: .now, by: Self.turn)) { context in
+            TickingTimeline(every: Self.turn) { context in
                 let tick = Int(context.date.timeIntervalSinceReferenceDate / Self.turn)
                 let words = backgroundWords(tasks, tick: tick) ?? ""
                 Color.clear.frame(maxWidth: .infinity).overlay(alignment: .leading) {
@@ -280,7 +280,7 @@ struct BackgroundWorkCard: View {
             // the right side never moves: the time since the oldest began, and the chevron as wide as a node
             HStack(spacing: 8) {
                 if let oldest = tasks.compactMap(\.startedAt).min() {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                    TickingTimeline(every: 1) { context in
                         Text(workingElapsed(Int(context.date.timeIntervalSince(oldest)))).font(.scaled(12)).monospacedDigit().foregroundStyle(.tertiary)
                     }
                 }
@@ -305,7 +305,7 @@ struct BackgroundWorkCard: View {
                     Text(task.kind.replacingOccurrences(of: "_", with: " ")).font(.scaled(11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
                     Spacer(minLength: 8)
                     if let started = task.startedAt {
-                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                        TickingTimeline(every: 1) { context in
                             Text(workingElapsed(Int(context.date.timeIntervalSince(started)))).font(.scaled(11.5)).monospacedDigit().foregroundStyle(.tertiary)
                         }
                     }
@@ -404,7 +404,7 @@ private struct Twinkle: View {
         if reduceMotion {
             spark(0, 1)
         } else {
-            TimelineView(.animation) { context in
+            MovingTimeline { context in
                 let t = context.date.timeIntervalSinceReferenceDate * 2 * .pi / 2.4
                 spark(sin(t) * 18, 0.75 + 0.25 * cos(t))
             }
@@ -434,7 +434,7 @@ struct Shimmer: ViewModifier {
     func body(content: Content) -> some View {
         content.overlay {
             if active {
-                TimelineView(.animation) { context in
+                MovingTimeline { context in
                     let p = (context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.2)) / 2.2 * 1.6 - 0.3
                     LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .primary, location: 0.5), .init(color: .clear, location: 1)],
                                    startPoint: UnitPoint(x: p - 0.25, y: 0.5), endPoint: UnitPoint(x: p + 0.25, y: 0.5))
@@ -456,7 +456,7 @@ struct GlowEdge: View {
 
     var body: some View {
         if moves {
-            TimelineView(.animation) { context in
+            MovingTimeline { context in
                 let now = context.date.timeIntervalSinceReferenceDate
                 if waiting { breathing(0.5 + 0.5 * sin(now * 2 * .pi / 1.8)) } else { arc(now.truncatingRemainder(dividingBy: 3.4) / 3.4 * 360) }
             }

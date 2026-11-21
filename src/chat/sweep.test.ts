@@ -68,3 +68,15 @@ test('a group that cannot be signalled keeps its record for the next start', asy
   expect(await sweepDeadHost(db, processes)).toBe(0);
   expect(rowOf(db, 'denied')).toMatchObject({ pid: 100, pgid: 100 });
 });
+
+test('every group a dead host left gets SIGTERM before any grace is waited: one grace for all, not one each', async () => {
+  const db = recorded({ id: 'a', pid: 100, command: '/bin/claude' }, { id: 'b', pid: 200, command: '/bin/claude' });
+  const { processes, signals } = table({ 100: '/bin/claude', 200: '/bin/claude' }, [100, 200]);
+  let atFirstWait: string[] | undefined;
+  // What counts is when the first wait ends, not when it starts: by then the other group must have been signalled too.
+  processes.sleep = () => new Promise((resolve) => setTimeout(() => (atFirstWait ??= [...signals], resolve()), 0));
+  await sweepDeadHost(db, processes, 300);
+  expect(atFirstWait).toEqual(['SIGTERM 100', 'SIGTERM 200']);
+  expect(signals.slice(2).sort()).toEqual(['SIGKILL 100', 'SIGKILL 200']);
+  for (const id of ['a', 'b']) expect(rowOf(db, id)).toMatchObject({ state: 'idle', pid: null });
+});

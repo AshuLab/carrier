@@ -5,7 +5,7 @@ import SwiftUI
 /// while it is on screen: the task ends, and with it the polling, when the person selects something else.
 struct ConversationView: View {
     /// The smoke check reports how the feed is laid out from these.
-    static let layout = "lazy stack, pages of \(ConversationModel.page) events, polled every \(ConversationModel.intervalMilliseconds) ms"
+    static let layout = "lazy stack, pages of \(ConversationModel.page) events, polled every \(Int(conversationTurnWait * 1000)) ms during a turn, every 2 s idle in front, every 5 s idle behind another app, and about every 30 s while hidden"
     @State private var model: ConversationModel
     @Environment(SessionActions.self) private var actions
     /// The tool groups and calls the person flipped from how the tools show, by id; here and not in each row, which the lazy stack may recreate.

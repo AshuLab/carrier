@@ -184,6 +184,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 MainActor.assumeIsolated { WindowController.shared.refreshPace() }
             }
         }
+        // and whether the Mac is asleep, or in Low Power Mode, which asks even less often
+        let workspace = NSWorkspace.shared.notificationCenter
+        let sleeps: [(Notification.Name, Notification.Name, String)] = [
+            (NSWorkspace.screensDidSleepNotification, NSWorkspace.screensDidWakeNotification, "screens"),
+            (NSWorkspace.willSleepNotification, NSWorkspace.didWakeNotification, "system"),
+            (NSWorkspace.sessionDidResignActiveNotification, NSWorkspace.sessionDidBecomeActiveNotification, "session"),
+        ]
+        for (start, end, reason) in sleeps {
+            workspace.addObserver(forName: start, object: nil, queue: .main) { _ in MainActor.assumeIsolated { WindowController.shared.sleeping(reason, true) } }
+            workspace.addObserver(forName: end, object: nil, queue: .main) { _ in MainActor.assumeIsolated { WindowController.shared.sleeping(reason, false) } }
+        }
+        NotificationCenter.default.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { WindowController.shared.refreshPace() }
+        }
     }
 
     /// The chat sessions notify with the window closed, so they are read for the life of the app, beside the engine's monitor. A host

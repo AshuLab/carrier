@@ -53,12 +53,12 @@ import Foundation
         return offer
     }
 
-    /// Asks for every agent the host has a binary for, all at once: what the app does when it opens.
+    /// Asks, one at a time, for the agents the host has a binary for and the store has nothing kept for: what the app does when it opens.
+    /// Asking launches a real agent with the person's MCP servers, so a kept offer is not asked again here: a draft or the model picker, which
+    /// show the kept one meanwhile, ask again when they open.
     public func warm(host: ChatHost) async {
         guard let agents = try? await host.agents() else { return }
-        await withTaskGroup(of: Void.self) { group in
-            for agent in agents where agent.found { group.addTask { @MainActor in _ = try? await self.refresh(agent.name, host: host) } }
-        }
+        for agent in agents where agent.found && offer(agent.name) == nil { _ = try? await refresh(agent.name, host: host) }
     }
 
     private func dropIfChanged() {

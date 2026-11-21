@@ -34,6 +34,7 @@ public struct ProjectEntry: Equatable {
     public var iconColor: String? { (json["icon"] as? [String: Any])?["color"] as? String }
     public var iconMark: String? { (json["icon"] as? [String: Any])?["mark"] as? String }
     public var iconImage: String? { (json["icon"] as? [String: Any])?["image"] as? String }
+    public var actions: [ProjectAction] { projectActions(from: json["actions"]) }
 }
 
 private struct Field {
@@ -201,9 +202,13 @@ public func applyingProjectAdd(folder: String, to json: Data?) throws -> (outcom
 
 /// The file on disk.
 public struct ProjectsFile {
+    public let folder: String
     public let url: URL
 
-    public init(folder: String) { url = URL(fileURLWithPath: CarrierPlaces(folder: folder).projects) }
+    public init(folder: String) {
+        self.folder = folder
+        url = URL(fileURLWithPath: CarrierPlaces(folder: folder).projects)
+    }
 
     /// The file of the folder the app works with (`CARRIER_HOME`, else `~/.carrier`), looked up each time.
     public static func current() -> ProjectsFile { ProjectsFile(folder: currentCarrierFolder()) }
@@ -236,5 +241,13 @@ public struct ProjectsFile {
     /// Reads the file again now, applies `transform` to one project's `tags` and writes the whole file atomically.
     public func updateTags(path: String, transform: ([String]) -> [String]) throws {
         try applyingProjectTagsEdit(path: path, to: bytes(), transform: transform).write(to: url, options: .atomic)
+    }
+
+    /// Reads the file again now, replaces the `actions` of `path` when all actions are valid, and writes the file atomically.
+    /// Returns false without writing if any action has a blank name or command.
+    @discardableResult public func updateActions(path: String, actions: [ProjectAction]) throws -> Bool {
+        guard let data = try applyingProjectActions(actions, path: path, to: bytes()) else { return false }
+        try data.write(to: url, options: .atomic)
+        return true
     }
 }

@@ -1392,9 +1392,10 @@ struct NavigationRow<Trailing: View>: View {
         self.trailing = trailing()
     }
 
-    init(title: String, detail: String, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+    init(title: String, detail: String, first: Bool = false, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
         self.title = title
         self.detail = detail
+        self.first = first
         self.leading = nil
         self.action = action
         self.trailing = trailing()

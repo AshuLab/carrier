@@ -77,15 +77,66 @@ private func temporaryFolder() throws -> String {
 
 @MainActor @Test func theModelListsTheFileAndAddsWithoutReopening() throws {
     let folder = try temporaryFolder()
-    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let project = try temporaryFolder()
+    defer {
+        try? FileManager.default.removeItem(atPath: folder)
+        try? FileManager.default.removeItem(atPath: project)
+    }
     let model = ProjectsModel(file: ProjectsFile(folder: folder)) { _ in nil }
     model.reload()
     #expect(model.rows.isEmpty && model.problems.isEmpty)
-    #expect(model.add(folder: "/Users/ana/notes") == .added("/Users/ana/notes"))
-    #expect(model.rows.map(\.name) == ["notes"])
+    #expect(model.add(folder: project) == .added(project))
+    #expect(model.rows.map(\.name) == [(project as NSString).lastPathComponent])
     let written = try Data(contentsOf: ProjectsFile(folder: folder).url)
-    #expect(model.add(folder: "/Users/ana/notes") == .existing("/Users/ana/notes"))
+    #expect(model.add(folder: project) == .existing(project))
     #expect(try Data(contentsOf: ProjectsFile(folder: folder).url) == written)
+}
+
+@MainActor @Test func addRefusesFoldersThatCannotBeProjectsWithTheirReasonAndWritesNothing() throws {
+    let carrier = try temporaryFolder()
+    let work = try temporaryFolder()
+    let unreadable = work + "/unreadable"
+    defer {
+        _ = chmod(unreadable, 0o755)
+        try? FileManager.default.removeItem(atPath: carrier)
+        try? FileManager.default.removeItem(atPath: work)
+    }
+    let fm = FileManager.default
+    try fm.createDirectory(atPath: carrier + "/engine/repos/acme/app", withIntermediateDirectories: true)
+    try fm.createDirectory(atPath: carrier + "/chat/worktrees/acme/wt", withIntermediateDirectories: true)
+    let filePath = work + "/file.txt"
+    try Data().write(to: URL(fileURLWithPath: filePath))
+    try fm.createDirectory(atPath: unreadable, withIntermediateDirectories: true)
+    #expect(chmod(unreadable, 0o000) == 0)
+    try fm.createDirectory(atPath: work + "/main/.git/worktrees/wt", withIntermediateDirectories: true)
+    try Data("../..\n".utf8).write(to: URL(fileURLWithPath: work + "/main/.git/worktrees/wt/commondir"))
+    try fm.createDirectory(atPath: work + "/linked-wt", withIntermediateDirectories: true)
+    try Data("gitdir: ../main/.git/worktrees/wt\n".utf8).write(to: URL(fileURLWithPath: work + "/linked-wt/.git"))
+    let ordinary = work + "/ordinary"
+    try fm.createDirectory(atPath: ordinary, withIntermediateDirectories: true)
+
+    let projectsFile = ProjectsFile(folder: carrier)
+    let model = ProjectsModel(file: projectsFile) { _ in nil }
+    model.reload()
+
+    for (bad, expected) in [
+        (carrier + "/engine/repos/acme/app", "Carrier's own engine folder"),
+        (carrier + "/chat/worktrees/acme/wt", "Carrier's own chat/worktrees folder"),
+        (filePath, "not a folder"),
+        (unreadable, "cannot be read"),
+        (work + "/linked-wt", "worktree linked to another project"),
+    ] {
+        #expect(model.add(folder: bad) == nil, Comment(rawValue: bad))
+        #expect(model.failure?.contains(expected) == true, Comment(rawValue: "\(bad): \(String(describing: model.failure))"))
+        #expect(fm.fileExists(atPath: projectsFile.url.path) == false)
+    }
+
+    #expect(model.add(folder: ordinary) == .added(ordinary))
+    #expect(model.failure == nil)
+    let before = try Data(contentsOf: projectsFile.url)
+    #expect(model.add(folder: work + "/linked-wt") == nil)
+    #expect(model.failure?.contains("worktree linked to another project") == true)
+    #expect(try Data(contentsOf: projectsFile.url) == before)
 }
 
 @MainActor @Test func theModelFollowsAnotherProcessWritingTheFile() async throws {
@@ -113,14 +164,18 @@ private func temporaryFolder() throws -> String {
 
 @MainActor @Test func aFileThatDoesNotMatchBlocksAddAndTheModelWritesNothing() throws {
     let folder = try temporaryFolder()
-    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let project = try temporaryFolder()
+    defer {
+        try? FileManager.default.removeItem(atPath: folder)
+        try? FileManager.default.removeItem(atPath: project)
+    }
     let file = ProjectsFile(folder: folder)
     let bad = Data("{".utf8)
     try bad.write(to: file.url)
     let model = ProjectsModel(file: file) { _ in nil }
     model.reload()
     #expect(model.problems.map(\.message) == ["is not valid JSON"])
-    #expect(model.add(folder: "/a") == nil)
+    #expect(model.add(folder: project) == nil)
     #expect(try Data(contentsOf: file.url) == bad)
 }
 

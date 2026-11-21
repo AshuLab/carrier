@@ -91,6 +91,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public let iconColor: ProjectColor?
     public let iconMark: AppIcon?
     public let iconImage: String?
+    /// Actions run in a new worktree or after a clone, from `projects.json`.
+    public let actions: [ProjectAction]
 
     public init(
         path: String,
@@ -101,7 +103,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         tags: [String] = [],
         iconColor: ProjectColor? = nil,
         iconMark: AppIcon? = nil,
-        iconImage: String? = nil
+        iconImage: String? = nil,
+        actions: [ProjectAction] = []
     ) {
         self.path = path
         self.name = name
@@ -112,6 +115,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         self.iconColor = iconColor
         self.iconMark = iconMark
         self.iconImage = iconImage
+        self.actions = actions
     }
 
     public var id: String { path }
@@ -137,7 +141,8 @@ public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? =
             tags: $0.tags,
             iconColor: $0.iconColor.flatMap(ProjectColor.init(rawValue:)),
             iconMark: $0.iconMark.flatMap(AppIcon.init(rawValue:)),
-            iconImage: $0.iconImage
+            iconImage: $0.iconImage,
+            actions: $0.actions
         )
     }
 }
@@ -186,8 +191,12 @@ extension ProjectsProblem {
     }
 
     /// Adds `folder` as a project, or says it already is one and writes nothing. nil when it could not be written: `problems` says why when the file does not
-    /// match its schema, `failure` when the disk refused.
+    /// match its schema, `failure` when the folder is refused or the disk refused.
     @discardableResult public func add(folder: String) -> ProjectAdd? {
+        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) {
+            failure = refusal
+            return nil
+        }
         var added: ProjectAdd?
         _ = write { added = try file.add(folder: folder) }
         return added
@@ -228,9 +237,18 @@ extension ProjectsProblem {
         write { try file.updateIcon(path: path, changes: ["color": nil, "mark": nil]) }
     }
 
+    /// Writes `actions` on the project at `path` and reloads the list; returns false without writing when any action is invalid or the file failed.
+    @discardableResult public func saveActions(path: String, actions: [ProjectAction]) -> Bool {
+        write { try file.updateActions(path: path, actions: actions) }
+    }
+
     private func write(_ operation: () throws -> Void) -> Bool {
+        write { try operation(); return true }
+    }
+
+    private func write(_ operation: () throws -> Bool) -> Bool {
         do {
-            try operation()
+            guard try operation() else { return false }
             failure = nil
             reload()
             return true

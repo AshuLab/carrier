@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import CarrierCore
@@ -231,7 +232,7 @@ private func temporaryFolder() throws -> String {
     #expect(model.setName("  My Carrier  ", path: "/a/carrier"))
     #expect(model.rows[0].name == "My Carrier" && model.rows[0].customName == "My Carrier")
 
-    // pin, tags, and icon colour/mark
+    // pin, tags, and icon colour/mark (setting colour or mark clears any image)
     #expect(model.setPinned(true, path: "/a/carrier"))
     #expect(model.addTag("  Swift ", path: "/a/carrier"))
     #expect(model.addTag("SWIFT", path: "/a/carrier"))
@@ -239,18 +240,18 @@ private func temporaryFolder() throws -> String {
     #expect(model.setIconColor(.teal, path: "/a/carrier"))
     #expect(model.setIconMark(.terminal, path: "/a/carrier"))
     #expect(model.rows[0].pinned && model.rows[0].tags == ["swift", "macos"])
-    #expect(model.rows[0].tile == ProjectTile(name: "My Carrier", color: .named(.teal), content: .mark(.terminal), image: "keep.png"))
+    #expect(model.rows[0].tile == ProjectTile(name: "My Carrier", color: .named(.teal), content: .mark(.terminal), image: nil))
 
     // other keys on the entry are preserved
     let entry = try #require(try file.read().first)
-    #expect(entry.iconImage == "keep.png")
+    #expect(entry.iconImage == nil)
     #expect(entry.json["defaults"] != nil && entry.json["actions"] != nil)
 
     // removing a tag and resetting icon
     #expect(model.removeTag("swift", path: "/a/carrier"))
     #expect(model.resetIcon(path: "/a/carrier"))
     #expect(model.rows[0].tags == ["macos"])
-    #expect(model.rows[0].iconColor == nil && model.rows[0].iconMark == nil && model.rows[0].iconImage == "keep.png")
+    #expect(model.rows[0].iconColor == nil && model.rows[0].iconMark == nil && model.rows[0].iconImage == nil)
 
     // external edit while following shows on the model
     let following = Task { await model.follow(every: .milliseconds(10)) }
@@ -261,6 +262,73 @@ private func temporaryFolder() throws -> String {
     #expect(model.rows[0].name == "From Disk")
     #expect(model.rows[0].pinned == false && model.rows[0].tags == ["external"])
     #expect(model.rows[0].tile == ProjectTile(name: "From Disk", color: .named(.purple), content: .mark(.star)))
+}
+
+@MainActor @Test func choosingAnImageCopiesItAndChoosingColorOrMarkAfterwardsClearsAndDeletesIt() throws {
+    let folder = try temporaryFolder()
+    let sourceDir = try temporaryFolder()
+    defer {
+        try? FileManager.default.removeItem(atPath: folder)
+        try? FileManager.default.removeItem(atPath: sourceDir)
+    }
+    let file = ProjectsFile(folder: folder)
+    let store = ProjectIconStore(folder: folder)
+    try Data(#"{"projects":[{"path":"/a/carrier","origin":"cloned","icon":{"color":"teal","mark":"bolt"}}]}"#.utf8).write(to: file.url)
+    let model = ProjectsModel(file: file) { _ in nil }
+    model.reload()
+
+    func writePNG(_ name: String) throws -> URL {
+        let url = URL(fileURLWithPath: sourceDir + "/" + name)
+        let space = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        let context = try #require(CGContext(
+            data: nil, width: 400, height: 400, bitsPerComponent: 8, bytesPerRow: 0,
+            space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        let cg = try #require(context.makeImage())
+        let data = try ProjectIconStore.pngData(from: cg, maxPixelSize: 400)
+        try data.write(to: url)
+        return url
+    }
+
+    let firstSource = try writePNG("one.png")
+    #expect(model.setIconImage(from: firstSource, path: "/a/carrier"))
+    let firstImage = try #require(model.rows[0].iconImage)
+    #expect(store.existingURL(for: firstImage) != nil)
+    // color and mark remain on the entry so a missing file falls back to them
+    #expect(model.rows[0].tile == ProjectTile(name: "carrier", color: .named(.teal), content: .mark(.bolt), image: firstImage))
+
+    // deleting the original keeps the copy
+    try FileManager.default.removeItem(at: firstSource)
+    #expect(store.existingURL(for: firstImage) != nil)
+
+    // choosing a colour afterwards clears the image and deletes its copy
+    #expect(model.setIconColor(.orange, path: "/a/carrier"))
+    #expect(model.rows[0].iconImage == nil)
+    #expect(model.rows[0].iconColor == .orange)
+    #expect(store.existingURL(for: firstImage) == nil)
+
+    // choosing an image then a mark afterwards clears the image and deletes its copy
+    let secondSource = try writePNG("two.png")
+    #expect(model.setIconImage(from: secondSource, path: "/a/carrier"))
+    let secondImage = try #require(model.rows[0].iconImage)
+    #expect(store.existingURL(for: secondImage) != nil)
+    #expect(model.setIconMark(.star, path: "/a/carrier"))
+    #expect(model.rows[0].iconImage == nil && model.rows[0].iconMark == .star)
+    #expect(store.existingURL(for: secondImage) == nil)
+
+    // choosing an image then resetting clears color, mark and image and deletes the copy
+    #expect(model.setIconImage(from: secondSource, path: "/a/carrier"))
+    let thirdImage = try #require(model.rows[0].iconImage)
+    #expect(model.resetIcon(path: "/a/carrier"))
+    #expect(model.rows[0].iconColor == nil && model.rows[0].iconMark == nil && model.rows[0].iconImage == nil)
+    #expect(store.existingURL(for: thirdImage) == nil)
+
+    // an invalid image file records a failure and does not write
+    let badFile = URL(fileURLWithPath: sourceDir + "/bad.png")
+    try Data("not an image".utf8).write(to: badFile)
+    #expect(model.setIconImage(from: badFile, path: "/a/carrier") == false)
+    #expect(model.failure != nil)
+    #expect(model.rows[0].iconImage == nil)
 }
 
 @Test func theListFiltersBySearchTagAndLocalOnlyGroupsByTagAndOrdersPinnedFirstThenByName() {

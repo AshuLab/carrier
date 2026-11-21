@@ -34,7 +34,7 @@ public struct Transcript: Equatable {
     public init() {}
 
     public mutating func apply(_ reply: EventsReply) {
-        // runs on the monitor's thread, next to a rebuild on another
+        // runs on the epic view's thread (`EngineLink`), next to a rebuild on another
         let signpost = Signposts.feed.beginInterval("transcript apply", id: Signposts.feed.makeSignpostID())
         defer { Signposts.feed.endInterval("transcript apply", signpost, "\(reply.events.count) events") }
         let fresh = reply.events.filter { seen.insert($0.id).inserted }.sorted { $0.id < $1.id }

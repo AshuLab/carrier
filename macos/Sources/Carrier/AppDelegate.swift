@@ -158,21 +158,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? { dockMenu() }
 
-    /// Keeps the menu line current from a thread of its own; the title is set on the main queue, which also runs while the menu is open.
+    /// Keeps the menu line current from the engine link, which reads the state once for the menu and the window; the title is set on the main queue, which also runs while the menu is open.
     private func watchCarrier(_ line: NSMenuItem) {
-        let monitor = ControlMonitor(socketPath: { controlSocketPath() }, pollEvery: { PollPace.shared.seconds }) { state in
-            DispatchQueue.main.async {
-                IconController.shared?.show(state)
-                MainActor.assumeIsolated { KeepAwakeController.shared.epics(working: IconState(state).working) }
-                line.title = state.menuLine
-                self.header.show(state.menuStatus)
-                MenuControls.shared.react(to: state)
-                EpicMenuSection.shared.react(to: state)
-                NotificationWatcher.app.react(to: state)
-                self.startOnOpen(firstState: state)
+        let states = EngineLink.shared.states()
+        Task.detached {
+            for await state in states {
+                DispatchQueue.main.async {
+                    IconController.shared?.show(state)
+                    MainActor.assumeIsolated { KeepAwakeController.shared.epics(working: IconState(state).working) }
+                    line.title = state.menuLine
+                    self.header.show(state.menuStatus)
+                    MenuControls.shared.react(to: state)
+                    EpicMenuSection.shared.react(to: state)
+                    NotificationWatcher.app.react(to: state)
+                    self.startOnOpen(firstState: state)
+                }
             }
         }
-        Thread.detachNewThread { monitor.run() }
         watchChatSessions()
         // the app lives on with its window closed, so a timer here is enough for the reminders
         let reminders = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in NotificationWatcher.app.remind() }

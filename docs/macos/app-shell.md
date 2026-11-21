@@ -20,7 +20,7 @@ The engine's config is `<folder>/engine.json`, and while that file does not exis
 The app asks for the snapshot every 2 seconds while connected and someone is looking (the app in front with its window on screen), every 5 seconds otherwise, and every 10 seconds in Low Power Mode when nobody is in the app; it tries to connect every three seconds while not.
 `Viewing` (`CarrierCore/Viewing.swift`) is the one place that says whether anyone looks: it is `focused`, `visible`, `hidden` or `asleep`, from whether the app is in front, whether the window is on screen, and whether the screens, the Mac or the user's session are asleep.
 `PollPace` is its copy for the threads that cannot read it.
-What only serves the window waits for someone to see it: with the window hidden (minimized, covered whole, closed) or the Mac asleep, the monitor does not read the epic on screen and the window's session list is read about every 30 seconds, and both go back to their pace when the window comes in sight: the list at once, and the epic at the next tick, within a few seconds (an epic that is opened is read at the next tick whether the window is in sight yet or not).
+What only serves the window waits for someone to see it: with the window hidden (minimized, covered whole, closed) or the Mac asleep, the epic on screen is not read and the window's session list is read about every 30 seconds, and both go back to their pace when the window comes in sight: the list at once, and the epic at the next tick, within a few seconds (an epic that is opened is read at the next tick whether the window is in sight yet or not).
 The menu line and the notifications keep their 5 seconds (10 in Low Power Mode), so a session that waits for the person is still told.
 
 ## Sidebar and window shortcuts
@@ -57,6 +57,27 @@ While the window is the key window, ⌘1 selects Home, ⌘2 the Sessions home, �
 The window handles them (`shortcutAction` in `CarrierCore/WindowShell.swift`, a key monitor in `WindowController`), not the menu bar item's menu, and each is in the tooltip of its row or magnifier.
 
 The Sessions home, the Archive and a conversation are in [sessions](sessions.md); the Usage row is in [usage](usage.md).
+
+## How the app reads the engine
+
+`EngineLink` (`CarrierCore/EngineLink.swift`) is the one reader of the engine's control socket for what the app asks again and again.
+The menu and the window both listen to it (`states()`), and one `ControlMonitor` reads the snapshot for all of them, so the engine builds and serializes one `snapshot` at each pace and not one for the menu and another for the window.
+Every other request (pause, resume, check now, reload, available repos, resume epic, an execution's output) is an action and keeps one connection per request, as before.
+
+- **One read for everyone.** The first listener starts the reads and the last one stops them (the menu listens for as long as the app runs).
+  A listener that comes later is given the last state at once, and one that does not keep up is given only the newest.
+- **Nothing old is told as current.** A connection that breaks is told once as `stopped`, and that replaces the running state for whoever listens next; when the last listener leaves the last state is dropped, and a read that was under way then is not told to the next one.
+- **The window opens on a read of its own.** `refresh()` ends the wait, so the window shows the state of that moment and not the last read of the menu, up to 5 s old (10 in Low Power Mode).
+- **The pace** is `PollPace.seconds`, as for the chat host: 2 s in front, 5 s otherwise, 10 s in Low Power Mode.
+  An engine that is not there is tried again every 3 seconds.
+- **The epic view has a connection of its own.** The engine answers each connection in order, and a `files` or an `epic` waits on git (up to its 5 s limit), so on the snapshot's connection it would hold the menu's state back, and past the app's own 5 s timeout it would read as the engine being stopped.
+  The window sets its poll (`setTick`) when it opens, which opens the second connection with its own hello, and takes it away when it closes, which closes it.
+  Only one poll runs at a time: a window that closes and opens again waits for the poll of before to end (`EpicPoller` is for one thread).
+  The poll still runs only while someone can see the window, or an epic was just asked for.
+- **Older and newer engines** are handled as before: the requests of the epic view are sent only when the hello of that connection lists them, and an engine of another protocol is `incompatible` for everyone.
+
+A window open and the app in front is two connections to the engine (the state, the epic view) and one snapshot every 2 s, where it was two connections and two snapshots.
+`EngineLinkTests` runs the link against a scripted engine that counts connections and requests; `FixtureServer` counts them for the engine's socket too (`engineRequests`, `engineConnections`).
 
 ## Resume card
 

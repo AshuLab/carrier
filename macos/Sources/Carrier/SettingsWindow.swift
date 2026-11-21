@@ -118,7 +118,7 @@ struct SettingsRoot: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
         } detail: {
             SettingsPages(
-                state: model.state, canReload: model.epics.canReload, navigator: navigator, target: $navigator.target, headerNote: $headerNote, title: $title
+                state: model.state, canReload: model.epics.canReload, sessions: model.sessions.rows, navigator: navigator, target: $navigator.target, headerNote: $headerNote, title: $title
             )
                 .navigationTitle(title?.text ?? navigator.page.rawValue)
                 .navigationSubtitle(title?.subtitle ?? navigator.page.detail)
@@ -317,6 +317,7 @@ let settingsColumnWidth: CGFloat = 760
 struct SettingsPages: View {
     let state: ConnectionState?
     let canReload: Bool
+    var sessions: [SessionRow] = []
     let navigator: SettingsNavigator
     /// The place the search chose: scrolled to and shown for a moment, once the page is drawn.
     @Binding var target: SettingsEntry?
@@ -421,7 +422,7 @@ struct SettingsPages: View {
         case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { navigator.go(.agents) })
         case .agents: AgentsTabView(place: navigator.place, go: navigator.go)
         case .sessions: SessionsTabView()
-        case .projects: ProjectsTabView(place: navigator.place, go: navigator.go)
+        case .projects: ProjectsTabView(place: navigator.place, go: navigator.go, sessions: sessions)
         case .notifications: NotificationsTabView()
         case .health: HealthTabView(state: state)
         }

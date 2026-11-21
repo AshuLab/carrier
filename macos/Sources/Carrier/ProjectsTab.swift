@@ -8,7 +8,9 @@ import SwiftUI
 struct ProjectsTabView: View {
     let place: SettingsPlace
     let go: (SettingsPlace) -> Void
+    var sessions: [SessionRow] = []
     @State private var model = ProjectsModel()
+    @State private var adding = false
 
     static let actionsPath = "actions"
 
@@ -40,6 +42,15 @@ struct ProjectsTabView: View {
         .preference(key: SettingsTitleKey.self, value: chosen.map {
             showingActions ? SettingsTitle(text: "Actions", subtitle: $0.name) : SettingsTitle(text: $0.name, subtitle: $0.line)
         })
+        .sheet(isPresented: $adding, onDismiss: { model.clearFailure() }) {
+            AddProjectSheet(
+                mode: .settings,
+                model: model,
+                recent: recentFolders(from: sessions),
+                openProject: open
+            )
+            .themed()
+        }
         // the file is another process's too: the list follows it while the page is open
         .task { await model.follow() }
     }
@@ -51,14 +62,14 @@ struct ProjectsTabView: View {
             SettingsGroup(title: "") {
                 EmptyStateView(
                     icon: .folder, title: "No projects yet", line: "Add a folder you work in and it shows here.",
-                    action: (title: "Add project", run: add), actionIcon: .folderPlus, actionStyle: .accentGlass
+                    action: (title: "Add project", run: { adding = true }), actionIcon: .folderPlus, actionStyle: .accentGlass
                 )
                 .frame(minHeight: 260)
             }
         } else {
             HStack {
                 Spacer(minLength: 8)
-                Button(action: add) { Label("Add project", icon: .folderPlus).labelStyle(.titleAndIcon) }
+                Button { adding = true } label: { Label("Add project", icon: .folderPlus).labelStyle(.titleAndIcon) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
             SettingsGroup(title: "") {
@@ -72,18 +83,49 @@ struct ProjectsTabView: View {
                 }
             }
         }
+        cloneDestinationLine
     }
 
-    /// The system's folder panel; a folder that already is a project opens that project and writes nothing.
-    private func add() {
+    private var cloneDestinationLine: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("New clones go to ")
+                    .font(.scaled(12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                Text((model.projectsPath as NSString).abbreviatingWithTildeInPath)
+                    .font(.scaled(11.5, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                    .help(model.projectsPath)
+                Button("Change…", action: changeProjectsFolder)
+                    .buttonStyle(SecondaryCapsuleButtonStyle())
+                    .controlSize(.small)
+                    .help("Where repositories are cloned and new projects are made")
+                Spacer(minLength: 0)
+            }
+            if let problem = model.projectsFolderProblem {
+                ProblemLine(text: problem)
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.top, 2)
+    }
+
+    /// The system's folder panel for changing where new clones and new projects go (`projectsFolder` in `chat.json`).
+    private func changeProjectsFolder() {
         let panel = NSOpenPanel()
-        panel.canChooseFiles = false
         panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Add"
-        panel.message = "Choose the folder of a project"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        if case .existing(let path)? = model.add(folder: url.path) { open(path) }
+        panel.directoryURL = URL(fileURLWithPath: model.projectsPath)
+        panel.prompt = "Choose"
+        if panel.runModal() == .OK, let url = panel.url {
+            model.changeProjectsFolder(to: url.path)
+        }
     }
 
     private func open(_ path: String) { go(SettingsPlace(.projects, path: [path])) }

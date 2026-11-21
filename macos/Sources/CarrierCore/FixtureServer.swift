@@ -91,7 +91,7 @@ public final class FixtureServer {
     private var chatConnected = 0
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\",\"regenerateTitle\"]}\n".utf8)
+    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\",\"textGenerators\",\"regenerateTitle\"]}\n".utf8)
     private let data: [String: Data]
     let hello: Data
     private var stopped = false
@@ -556,8 +556,13 @@ public final class FixtureServer {
     /// harness) with the file's display name, binary, folder; a harness the file gives no account is "found, not added".
     private func providersReply() -> [String: Any] {
         var reply = chatProviders
-        let file = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
-            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }?["providers"] as? [String: [String: Any]] ?? [:]
+        let whole = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
+            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+        let file = whole?["providers"] as? [String: [String: Any]] ?? [:]
+        // the generator in use, as the host reads it: the entry `textGenerator` names
+        reply["textGenerator"] = (whole?["textGenerator"] as? String).flatMap { name in
+            (whole?["textGenerators"] as? [String: [String: Any]])?[name].map { ["name": name].merging($0) { $1 } }
+        }
         let golden = reply["accounts"] as? [[String: Any]] ?? []
         let unadded = reply["unadded"] as? [[String: Any]] ?? []
         // what this Mac has of each harness

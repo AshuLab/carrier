@@ -36,6 +36,37 @@ public func applyingAccounts(_ accounts: [(name: String, harness: String)], to j
     return try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
 }
 
+/// The servers a text generator can be (`textGeneratorKinds` of `src/config/providers.ts`). The entry the app writes is named after its server, so the entries it wrote before are the ones with those names.
+public let textGeneratorServers = ["lmstudio", "ollama"]
+
+/// `json` with the text generator chosen: one entry `textGenerators.<server>` of `{ kind, model }` and `textGenerator` naming it, in place of what
+/// the app wrote before; nil clears the choice and that entry. An entry the person wrote by hand stays, and so does every other key of the file.
+/// `json` nil is a file that is not there yet; a file that is not an object, or whose `textGenerators` is not a map, is never overwritten.
+public func applyingTextGenerator(_ choice: (server: String, model: String)?, to json: Data?) throws -> Data {
+    var file: [String: Any] = [:]
+    if let json {
+        guard let object = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { throw ProvidersFileError.notAnObject }
+        file = object
+    }
+    var generators: [String: Any] = [:]
+    if let existing = file["textGenerators"] {
+        guard let map = existing as? [String: Any] else { throw ProvidersFileError.notAnObject }
+        generators = map
+    }
+    for server in textGeneratorServers { generators[server] = nil }
+    file["textGenerator"] = nil
+    if let choice {
+        let model = choice.model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard textGeneratorServers.contains(choice.server), model.isEmpty == false else {
+            throw ProvidersFileError.invalid("textGenerators.\(choice.server): a text generator is a model of LM Studio or Ollama")
+        }
+        generators[choice.server] = ["kind": choice.server, "model": model] as [String: Any]
+        file["textGenerator"] = choice.server
+    }
+    file["textGenerators"] = generators.isEmpty ? nil : generators
+    return try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+}
+
 /// The file on disk. `save` is how the bytes reach it: the whole file at once, through a temporary file that replaces it, so a failed write
 /// leaves the old one.
 public struct ProvidersFile {

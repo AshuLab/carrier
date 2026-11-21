@@ -166,7 +166,58 @@ struct ProvidersTabView: View {
                 }
             }
         }
+        if filter.isEmpty { textGeneratorsGroup(page) }
         checkGroup
+    }
+
+    // MARK: the text generators
+
+    /// The model that writes text for Carrier, chosen among the models the local servers list; `ProvidersStore.chooseTextGenerator` writes it. A server
+    /// that does not answer or has no model says so and cannot be chosen; a host that does not list `textGenerators` is told to update and offers nothing.
+    @ViewBuilder private func textGeneratorsGroup(_ page: ProvidersPage) -> some View {
+        SettingsGroup(title: "Text generators", footer: "A model that turns text into text, with no tools. It runs on a server of this Mac, and Carrier asks it for the text it needs.") {
+            SettingsTabRow(title: "In use", detail: page.generatorInUse ?? "None chosen", first: true) {
+                if page.textGenerator != nil, store.generatorEditable {
+                    Button { Task { await store.chooseTextGenerator(nil) } } label: { Label("Clear", icon: .close) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize().help("Removes the choice from providers.json")
+                }
+            }
+            if store.generatorEditable {
+                ForEach(page.servers) { server in
+                    SettingsTabRow(
+                        title: server.title, detail: server.generatorNote ?? "Choose one of its models",
+                        leading: AnyView(ProviderTile(icon: nil, symbol: server.id == "ollama" ? .server : .desktop))
+                    ) {
+                        if server.generatorNote == nil { generatorChoice(server) }
+                    }
+                }
+            } else {
+                // the installed carrier would refuse the whole file with these keys in it, so they are not offered until it is updated
+                SettingsTabRow(title: "Choosing is not available", detail: "The installed carrier does not know text generators yet. Update it (brew upgrade carrier) and restart the chat host to choose one", roomy: true) {
+                    Glyph(.refresh).foregroundStyle(.secondary).accessibilityHidden(true)
+                }
+            }
+        }
+        if let problem = store.editProblem { SettingsGroup(title: "") { ProblemLine(text: problem, font: .scaled(11)) } }
+        if let note = store.editNote {
+            SettingsGroup(title: "") { Label(note, icon: .info).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+        }
+    }
+
+    /// The server's models and, first, Not used: the one in use shows chosen on its server, and Not used on it clears the choice.
+    private func generatorChoice(_ server: ProviderServer) -> some View {
+        let models = server.generatorModels
+        return SelectMenu(
+            items: ["Not used"] + models,
+            selection: Binding(
+                get: { server.generatorModel.flatMap { models.firstIndex(of: $0) }.map { $0 + 1 } ?? 0 },
+                set: { index in
+                    if index > 0 { Task { await store.chooseTextGenerator((server: server.id, model: models[index - 1])) } }
+                    else if server.generatorModel != nil { Task { await store.chooseTextGenerator(nil) } }
+                }
+            )
+        )
+        .accessibilityLabel("Model of \(server.title)")
     }
 
     // MARK: a provider

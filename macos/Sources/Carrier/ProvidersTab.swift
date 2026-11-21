@@ -354,7 +354,7 @@ private struct AccountRow: View {
 }
 
 /// An account's quotas: 5h, Weekly and Monthly, each a bar with its percent, and under them when the 5h resets and whether the numbers are the last known.
-private struct AccountUsageMeters: View {
+struct AccountUsageMeters: View {
     let usage: AccountUsage
 
     var body: some View {
@@ -377,7 +377,7 @@ private struct AccountUsageMeters: View {
 }
 
 /// A label, a bar and the percent on one line: the Usage page's own `QuotaBar` and `QuotaPercent`, thinner.
-private struct UsageMeterLine: View {
+struct UsageMeterLine: View {
     let label: String
     let shape: MeterShape
 

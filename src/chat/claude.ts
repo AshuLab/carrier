@@ -454,6 +454,9 @@ class ClaudeConversation implements ChatConversation {
     if (typeof m.total_cost_usd === 'number') usage.total_cost_usd = m.total_cost_usd;
     if (context !== undefined) usage.context_tokens = context;
     const model = this.lastModel ?? Object.keys((m.modelUsage ?? {}) as object)[0];
+    // the size of the model's window, to say how full the context is: the result lists it per model
+    const window = ((m.modelUsage ?? {}) as Record<string, { contextWindow?: unknown } | undefined>)[model ?? '']?.contextWindow;
+    if (typeof window === 'number' && window > 0) usage.context_window = window;
     events.push({ kind: 'turn_end', outcome: interrupted ? 'interrupted' : m.is_error ? 'error' : 'ok', model, usage });
     return events;
   }

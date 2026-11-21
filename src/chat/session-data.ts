@@ -109,7 +109,7 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
   async function refreshDiff(found: Found, known?: Where) {
     const where = known ?? (await whereOf(found));
     const numstat = await out(found.folder, ['diff', '--numstat', ...SAFE_DIFF, await baseOf(found, where), '--']);
-    diffs.set(found.id, { stat: numstat === null ? null : parseNumstat(numstat), at: clock.now(), activeAt: found.lastActiveAt });
+    diffs.set(found.id, { stat: numstat === null ? null : parseNumstat(numstat), at: clock.now(), activeAt: familyOf(found).activeAt });
   }
 
   const link = (id: string, repo: string, info: PullRequestInfo) => {
@@ -118,7 +118,7 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
 
   /** Looks for the pull request of the branch the session works on; a session that has one keeps it unless it is merged or closed and a newer one is open on the same branch. */
   async function discover(found: Found, known?: Where) {
-    discoveredAt.set(found.id, { at: clock.now(), activeAt: found.lastActiveAt });
+    discoveredAt.set(found.id, { at: clock.now(), activeAt: familyOf(found).activeAt });
     const where = known ?? (await whereOf(found));
     if (where.repo === null) log.debug('no GitHub repository to look for a pull request in', { session: found.id }); // not the remote: it can hold a token
     if (where.repo === null || where.branch === null || where.branch === where.defaultBranch) return;
@@ -139,15 +139,22 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
     }
   }
 
-  /** Whether what was read at `read` is due again: after `base`, or after `idle` when the session is idle and has done nothing since. */
-  const due = (found: Found, read: { at: number; activeAt: number } | undefined, base: number, idle: number) =>
-    read === undefined || clock.now() - read.at >= (found.state === 'idle' && found.lastActiveAt === read.activeAt ? idle : base);
+  /** A session and its children as one, as the lifecycle clock ages them (ADR 0033): a child works in the parent's folder, so its work is the parent's diff. */
+  function familyOf(found: Found) {
+    const kids = db.select({ state: sessions.state, lastActiveAt: sessions.lastActiveAt }).from(sessions).where(eq(sessions.parentSessionId, found.id)).all();
+    return { activeAt: Math.max(found.lastActiveAt, ...kids.map((kid) => kid.lastActiveAt)), resting: found.state === 'idle' && kids.every((kid) => kid.state === 'idle') };
+  }
+
+  /** Whether what was read at `read` is due again: after `base`, or after `idle` when the family is idle and has done nothing since. */
+  const due = (family: ReturnType<typeof familyOf>, read: { at: number; activeAt: number } | undefined, base: number, idle: number) =>
+    read === undefined || clock.now() - read.at >= (family.resting && family.activeAt === read.activeAt ? idle : base);
 
   async function sweep(rows: Found[]) {
     const now = clock.now();
     for (const found of rows) {
-      const needsDiff = due(found, diffs.get(found.id), DIFF_TTL_MS, IDLE_DIFF_TTL_MS);
-      const needsPull = found.prNumber === null && due(found, discoveredAt.get(found.id), DISCOVER_EVERY_MS, IDLE_DISCOVER_EVERY_MS);
+      const family = familyOf(found);
+      const needsDiff = due(family, diffs.get(found.id), DIFF_TTL_MS, IDLE_DIFF_TTL_MS);
+      const needsPull = found.prNumber === null && due(family, discoveredAt.get(found.id), DISCOVER_EVERY_MS, IDLE_DISCOVER_EVERY_MS);
       if (needsDiff === false && needsPull === false) continue;
       const where = await whereOf(found); // once for both
       if (needsDiff) await refreshDiff(found, where);

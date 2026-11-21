@@ -335,3 +335,24 @@ test('where a session works is asked once for a sweep, whichever of the diff and
   expect(diffsOf(s)).toBe(1);
   expect(s.pulls.finds).toHaveLength(1);
 });
+
+test('a parent session is read as often as its children work: a child that works, or did something, keeps the minute', async () => {
+  const s = setup(ANSWERS);
+  const child = { id: 'c1', agent: 'claude', harness: 'claude' as const, folder: '/work/app', createdAt: 0, lastActiveAt: 0, parentSessionId: s.id, state: 'working' as const };
+  s.db.insert(sessions).values(child).run();
+  await listAt(s, 0);
+  await listAt(s, DIFF_TTL_MS); // the parent is idle and has done nothing, but its child writes in the same folder
+  expect(diffsOf(s)).toBe(2);
+  s.db.update(sessions).set({ state: 'idle', lastActiveAt: 7 }).where(eq(sessions.id, 'c1')).run(); // it finished
+  await listAt(s, DIFF_TTL_MS * 2); // a child's last event moved the family's activity
+  expect(diffsOf(s)).toBe(3);
+  await listAt(s, DIFF_TTL_MS * 3); // nothing since: idle
+  expect(diffsOf(s)).toBe(3);
+});
+
+test('a session that already has a pull request is not looked for one, idle or not', async () => {
+  const s = setup(ANSWERS, { prRepo: 'AshuLab/carrier', prNumber: 5, prUrl: 'https://github.com/AshuLab/carrier/pull/5', prState: 'merged', prCheckedAt: 0 });
+  await listAt(s, 0);
+  await listAt(s, IDLE_DISCOVER_EVERY_MS);
+  expect(s.pulls.finds).toEqual([]);
+});

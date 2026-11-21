@@ -304,6 +304,27 @@ private func rig(_ host: FakeHost) -> (ChatSessionsPoller, Clock, () -> [Session
     #expect(host.calls.suffix(2) == [false, true])
 }
 
+@Test func aSessionThatLeavesTheActiveListMakesTheArchivedOneReadAtOnce() async throws {
+    let host = FakeHost()
+    host.active = [try session("a"), try session("b")]
+    let clock = Clock()
+    var rows: [SessionRow] = []
+    let poller = ChatSessionsPoller(host: host, now: { clock.now }) { rows = $0 } // the default pace: a minute
+    await poller.poll()
+    #expect(rows.map(\.id) == ["a", "b"] && archivedCount(rows) == 0)
+    // the host's clock archives b: it is no longer active and the cached archived list does not have it
+    host.active = [try session("a")]
+    host.archived = [try session("b", archived: true)]
+    clock.now.addTimeInterval(2)
+    await poller.poll()
+    #expect(rows.map(\.id) == ["a", "b"] && archivedCount(rows) == 1)
+    // nothing left the active list: the archived list waits for its minute
+    host.archived = [try session("b", archived: true), try session("z", archived: true)]
+    clock.now.addTimeInterval(2)
+    await poller.poll()
+    #expect(archivedCount(rows) == 1)
+}
+
 @Test func theRowsHoldTheActiveAndTheArchivedSessionsAndTheArchivedCountIsFromTheArchivedList() async throws {
     let host = FakeHost()
     host.active = [try session("a"), try session("b")]
@@ -374,18 +395,24 @@ private func rig(_ host: FakeHost) -> (ChatSessionsPoller, Clock, () -> [Session
     #expect(authoritativeSnapshots.count == 2)
     #expect(authoritativeSnapshots.last == Set(["a", "x"]))
 
-    // A cached archived snapshot (within archivedEvery) must NOT emit authoritative IDs
-    // even when active shrinks, preventing premature two-poll pruning of sessions archived externally.
+    // A session that leaves the active list reads the archived list again at once, so the ids pruning sees are never from a stale
+    // snapshot: here the host's clock archived `a`, and it is still known.
+    host.archived = [try session("x"), try session("a")]
     host.active = []
     clock.now.addTimeInterval(1)
     await poller.poll()
-    #expect(authoritativeSnapshots.count == 2)
+    #expect(authoritativeSnapshots.count == 3)
+    #expect(authoritativeSnapshots.last == Set(["a", "x"]))
 
-    // Once archivedEvery elapses and archived refreshes cleanly, authoritative IDs are emitted again.
-    host.archived = [try session("x"), try session("a")]
-    clock.now.addTimeInterval(5)
+    // A cached archived snapshot (within archivedEvery) must NOT emit authoritative IDs while the active list keeps its sessions.
+    clock.now.addTimeInterval(1)
     await poller.poll()
     #expect(authoritativeSnapshots.count == 3)
+
+    // Once archivedEvery elapses and archived refreshes cleanly, authoritative IDs are emitted again.
+    clock.now.addTimeInterval(5)
+    await poller.poll()
+    #expect(authoritativeSnapshots.count == 4)
     #expect(authoritativeSnapshots.last == Set(["a", "x"]))
 
     // Initial or periodic archived list failure must also suppress authoritative pruning.

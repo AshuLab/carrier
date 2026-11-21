@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The app keeps one connection to the chat host for what it reads again and again, instead of opening one for each read, and the sidebar, the notifications and the menu share one read of the sessions. With a session open and the window in front the app opened about 1.4 connections a second (4.8 while a turn ran) and now opens none after the first, and asks the host for the list once every 2 seconds and not twice (measured against the fixture host). A host that does not answer is told once, and the sidebar keeps its rows meanwhile.
 - An open session no longer asks the chat host for the whole list of sessions at each read: the reply of its events already says whether it runs and what it waits for. With 100 sessions that is 74 KB less to build and parse at each read (about 19 ms of the host), four times a second while the agent works, and one request less per read (two for an archived session).
 - The engine's snapshot is read from the reply once and not three times: 3.6 ms instead of 6.3 ms for a snapshot of 90 epics (205 KB), on every poll of the menu and the window.
 

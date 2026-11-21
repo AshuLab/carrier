@@ -53,6 +53,22 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
 
     func agents() async throws -> [ChatAgent] { agents }
     func list(archived wanted: Bool) async throws -> [ChatSession] { wanted ? archived : active }
+    /// What a test gives `sessionUpdates` by hand, in place of the list every few milliseconds.
+    var given: AsyncStream<SessionsUpdate>?
+    /// The list again every few milliseconds, as the host's link gives it every few seconds.
+    func sessionUpdates() async -> AsyncStream<SessionsUpdate> {
+        if let given = given { return given }
+        return AsyncStream { continuation in
+            let task = Task {
+                while Task.isCancelled == false {
+                    let listed = await MainActor.run { self.active }
+                    continuation.yield(SessionsUpdate(active: listed, archived: []))
+                    try? await Task.sleep(for: .milliseconds(5))
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
     /// The asks are recorded under a lock: a draft and the model picker may ask while the app's warm-up does.
     private let asksLock = NSLock()
     /// How many asks were waiting for their answer at once, at most.
@@ -664,7 +680,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
 @MainActor private func popover(_ host: FakeChat, projects: String = "/nowhere", config: FakeConfig? = nil, reload: @escaping Reload = { .applied }) async -> NewSessionModel {
     let config = config ?? FakeConfig()
     let model = NewSessionModel(
-        host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, watchEvery: .milliseconds(5), projectsFolder: { projects },
+        host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { projects },
         readConfig: { config.json }, writeConfig: { try config.write($0) }, reload: reload
     )
     await model.load()
@@ -998,6 +1014,28 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     await model.settleWatches()
     try await Task.sleep(for: .milliseconds(30))
     #expect(config.writes == 1)
+}
+
+@MainActor @Test func aListReadBeforeTheSessionWasOpenedOrOneThatFailedDoesNotDropTheWatchAndTheNextRealOneSettlesIt() async throws {
+    let config = FakeConfig()
+    let host = FakeChat()
+    let (stream, updates) = AsyncStream.makeStream(of: SessionsUpdate.self)
+    host.given = stream
+    let model = await sentForRepo(host, config: config)
+    let preparing = [listed(opened, "running")], answered = [listed(opened, "answered")]
+    // the one in flight when the session was opened, which does not list it; the last good one given at once; a miss
+    updates.yield(SessionsUpdate(active: [], archived: [], readAt: .distantPast))
+    updates.yield(SessionsUpdate(active: [], archived: [], replayed: true, readAt: .distantPast))
+    updates.yield(SessionsUpdate(active: answered, archived: [], stale: true))
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(config.writes == 0)
+    // a read that began after the session was opened settles it
+    updates.yield(SessionsUpdate(active: preparing, archived: []))
+    updates.yield(SessionsUpdate(active: answered, archived: []))
+    await settle { config.writes == 1 }
+    #expect(config.writes == 1)
+    updates.finish()
+    _ = model
 }
 
 @MainActor @Test func theEngineIsAskedToReloadAfterTheRepositoryIsWrittenAndNeverWhenItWasNot() async throws {

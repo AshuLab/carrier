@@ -172,31 +172,25 @@ import Observation
         }
     }
 
-    /// Where the version of the Homebrew `carrier` is kept with the stamp of the files that printed it.
-    private static let installedVersionKey = "carrier.installedVersion"
-
     /// What `carrier --version` prints; nil, with the reason in the log, when the command fails or prints something else.
-    /// With `remembered` (the Homebrew `carrier`, whose upgrade changes the file it links to) the version is kept with the stamp of what ran,
-    /// and the command is not run again, which starts a whole `node`, while the stamp is the same. A run from source is always asked: it
-    /// reads `package.json`, which the stamp does not cover.
+    /// With `remembered` (the Homebrew `carrier`, whose upgrade changes the file it links to) the version is kept with the stamp of what ran
+    /// (`rememberedVersion`), and the command, which starts a whole `node`, is not run again while the stamp is the same. A run from source is
+    /// always asked: it reads `package.json`, which the stamp does not cover. So is the Health tab, which wants a fresh read.
     static func installedVersion(_ command: StartCommand, remembered: Bool = false) -> String? {
         // the chat host's own arguments end with its subcommand; what comes before it (the script, for a `node` start) stays
-        let stamp = remembered ? programStamp([command.program] + command.arguments.dropLast()) : nil
-        if let stamp, let kept = UserDefaults.standard.dictionary(forKey: installedVersionKey) as? [String: String], kept["stamp"] == stamp, let version = kept["version"] {
-            return version
-        }
-        do {
-            let run = try shortRun(command.program, Array(command.arguments.dropLast()) + ["--version"], environment: command.environment)
-            if run.status == 0, versionNumbers(run.text) != nil {
-                let version = run.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if let stamp { UserDefaults.standard.set(["stamp": stamp, "version": version], forKey: installedVersionKey) }
-                return version
+        let arguments = Array(command.arguments.dropLast()) + ["--version"]
+        let run = { () -> String? in
+            do {
+                let run = try shortRun(command.program, arguments, environment: command.environment)
+                if run.status == 0, versionNumbers(run.text) != nil { return run.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+                let how = run.timedOut ? "did not answer in 5 seconds and was ended" : "failed (exit \(run.status)) or printed something else"
+                FileHandle.standardError.write(Data("carrier: the chat host was left alone, `carrier --version` \(how)\n".utf8))
+            } catch {
+                FileHandle.standardError.write(Data("carrier: the chat host was left alone, `carrier --version` could not run: \(error)\n".utf8))
             }
-            let how = run.timedOut ? "did not answer in 5 seconds and was ended" : "failed (exit \(run.status)) or printed something else"
-            FileHandle.standardError.write(Data("carrier: the chat host was left alone, `carrier --version` \(how)\n".utf8))
-        } catch {
-            FileHandle.standardError.write(Data("carrier: the chat host was left alone, `carrier --version` could not run: \(error)\n".utf8))
+            return nil
         }
-        return nil
+        guard remembered else { return run() }
+        return rememberedVersion(stamp: { programStamp([command.program] + command.arguments.dropLast()) }, run: run)
     }
 }

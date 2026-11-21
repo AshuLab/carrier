@@ -28,6 +28,17 @@ public func programStamp(_ paths: [String]) -> String? {
     return parts.joined(separator: "\n")
 }
 
+/// The version `run` reads, kept in `defaults` with the stamp of the files that printed it and given back without running while the stamp is the
+/// same. Nothing is kept for a run that failed (nil), for no stamp (a program that is not remembered), or when the stamp changed while it ran:
+/// what was read may belong to the new file, and the next look reads it again.
+public func rememberedVersion(stamp: () -> String?, defaults: UserDefaults = .standard, key: String = "carrier.installedVersion", run: () -> String?) -> String? {
+    let before = stamp()
+    if let before, let kept = defaults.dictionary(forKey: key) as? [String: String], kept["stamp"] == before, let version = kept["version"] { return version }
+    guard let version = run() else { return nil }
+    if let before, stamp() == before { defaults.set(["stamp": before, "version": version], forKey: key) }
+    return version
+}
+
 /// A version that cannot be read, on either side, is never older: the host stays. `1.2` and `1.2.0` are the same.
 public func hostReplacement(running: String, installed: String, working: Bool) -> HostReplacement {
     guard var older = versionNumbers(running), var newer = versionNumbers(installed) else { return .keep }

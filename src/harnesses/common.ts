@@ -102,3 +102,24 @@ export function resolveBinary(name: string, path = process.env.PATH ?? '', execu
   }
   throw new Error(`cannot find the real "${name}" binary on PATH`);
 }
+
+let lastLine: string | undefined;
+let lastParse: { value: unknown } | { error: unknown } = { value: undefined };
+
+/**
+ * `JSON.parse` of an output line, remembered for the next call with the same line: the runner gives each line to `parseEvents` and then to `parseLine`, and it is
+ * parsed once, the second one getting the same value or the same error. The adapters only read what this returns, so sharing it is safe.
+ */
+export function parseJsonLine(line: string): unknown {
+  if (line !== lastLine) {
+    lastLine = undefined; // a throw below must not leave the old line paired with the new answer
+    try {
+      lastParse = { value: JSON.parse(line) };
+    } catch (error) {
+      lastParse = { error };
+    }
+    lastLine = line;
+  }
+  if ('error' in lastParse) throw lastParse.error;
+  return lastParse.value;
+}

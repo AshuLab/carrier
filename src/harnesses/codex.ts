@@ -1,5 +1,5 @@
 import { buildPrompt } from '../prompts/build-prompt.ts';
-import { childEnv, markerFor, type AgentCommand, type CommandContext, type LineSignal, type HarnessAdapter } from './common.ts';
+import { childEnv, markerFor, parseJsonLine, type AgentCommand, type CommandContext, type LineSignal, type HarnessAdapter } from './common.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { obj, tokens } from '../execution/usage.ts';
 import { boundOutput, caps, clean, type AgentEvent, type EventState } from '../execution/events.ts';
@@ -47,7 +47,7 @@ const usageLimitStarts = ["You've hit your usage limit", 'You hit your spend cap
 export function parseCodexLine(line: string): LineSignal | undefined {
   let event: Record<string, any>;
   try {
-    event = JSON.parse(line);
+    event = parseJsonLine(line) as Record<string, any>;
   } catch {
     return line.includes('no rollout found for thread id') ? { sessionUnavailable: true } : undefined;
   }
@@ -76,7 +76,7 @@ const unwrap = (command: string) => {
 type Item = { id?: unknown; type?: unknown; message?: unknown; text?: unknown; command?: unknown; aggregated_output?: unknown; exit_code?: unknown; status?: unknown; changes?: unknown };
 
 function codexEvents(line: string, state: EventState): AgentEvent[] {
-  const event = JSON.parse(line) as { type?: unknown; item?: Item; error?: { message?: unknown } } | null;
+  const event = parseJsonLine(line) as { type?: unknown; item?: Item; error?: { message?: unknown } } | null;
   if (typeof event !== 'object' || event === null) return [];
   if (event.type === 'turn.failed') return [{ kind: 'error', text: clean(str(event.error?.message) ?? 'the turn failed', caps.text) }];
   const item = event.item;

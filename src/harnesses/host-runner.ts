@@ -155,17 +155,17 @@ export class HostAgentRunner implements AgentRunner {
       };
       // Some errors (Codex's lost session) only show on stderr, so both streams go through the adapter.
       const lineReader = (stream: 'stdout' | 'stderr') => {
-        let pending = '';
+        const splitter = splitLines();
         return {
           push: (chunk: string) => {
             emit(stream, chunk);
-            const lines = (pending + chunk).split('\n');
-            pending = lines.pop()!;
+            const lines = splitter.push(chunk);
             batch = [];
             lines.forEach((line) => readLine(line, stream));
             reportEvents();
           },
           flush: () => {
+            const pending = splitter.rest();
             if (!pending) return;
             batch = [];
             readLine(pending, stream);
@@ -235,4 +235,30 @@ export class HostAgentRunner implements AgentRunner {
     if (pid === undefined) return;
     await terminate(pid, this.options.graceMs ?? 5000);
   }
+}
+
+/**
+ * The lines of a stream that arrives in chunks: `push` gives the complete lines a chunk finishes, and what is left of the last one waits in pieces, so a line of
+ * ten megabytes is joined once when its newline comes and not searched again with every chunk. `rest` is what has no newline yet.
+ */
+export function splitLines() {
+  let pieces: string[] = [];
+  return {
+    push(chunk: string): string[] {
+      const last = chunk.lastIndexOf('\n');
+      if (last === -1) {
+        if (chunk !== '') pieces.push(chunk);
+        return [];
+      }
+      const lines = (pieces.join('') + chunk.slice(0, last)).split('\n');
+      const after = chunk.slice(last + 1);
+      pieces = after === '' ? [] : [after];
+      return lines;
+    },
+    rest(): string {
+      const rest = pieces.join('');
+      pieces = [];
+      return rest;
+    },
+  };
 }

@@ -1,7 +1,7 @@
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { buildPrompt } from '../prompts/build-prompt.ts';
-import { childEnv, markerFor, type AgentCommand, type CommandContext, type HarnessAdapter, type LineSignal } from './common.ts';
+import { childEnv, markerFor, parseJsonLine, type AgentCommand, type CommandContext, type HarnessAdapter, type LineSignal } from './common.ts';
 import type { ExecutionUsage } from '../storage/executions.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { obj, tokens } from '../execution/usage.ts';
@@ -53,7 +53,7 @@ export function parseAgyLine(line: string): LineSignal | undefined {
   if (/warning: conversation ".*" not found/.test(line)) return { sessionUnavailable: true };
   let event: Record<string, any>;
   try {
-    event = JSON.parse(line);
+    event = parseJsonLine(line) as Record<string, any>;
   } catch {
     return undefined;
   }
@@ -81,7 +81,7 @@ function argOf(parameters: Record<string, unknown>): string {
 const exitCode = (output: string) => /^Command exited with code (\d+)/.exec(output)?.[1];
 
 function agyEvents(line: string, state: EventState): AgentEvent[] {
-  const event = obj(JSON.parse(line));
+  const event = obj(parseJsonLine(line));
   if (event.event === 'result') {
     // A turn left open (the run was cut short) still said what it said.
     const pending = [...state.text.values()].join('').trim();

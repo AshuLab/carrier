@@ -216,8 +216,8 @@ public final class FixtureServer {
         Thread.detachNewThread { [self] in accept(chatListener, chat: true) }
     }
 
-    /// The Projects page's list: a project with a GitHub origin, one whose name and remote are very long, a folder that is not a repository, one
-    /// that is not there (with a missing image copy that falls back to colour and mark), and one with a copied icon image.
+    /// The Projects page's list: a project with a GitHub origin (`acme/web`, the fixture's epic repository, which gives that epic's rows the project's image), one whose name and remote are very long, a folder that is not a repository, one
+    /// that is not there (with a missing image copy that falls back to colour and mark), and one with a copied icon image; then the folders of the fixture's sessions, one with a name, colour and mark, one with the image and one with nothing set.
     private static func writeProjects(home: String) throws {
         let long = "a-project-with-a-name-so-long-that-the-row-has-to-cut-it-before-it-reaches-the-chevron"
         var entries: [[String: Any]] = []
@@ -225,7 +225,7 @@ public final class FixtureServer {
             ("carrier", "git@github.com:AshuLab/carrier.git"),
             (long, "https://github.com/some-organisation-with-a-long-name/" + long + ".git"),
             ("notes", ""),
-            ("studio", "git@github.com:AshuLab/studio.git"),
+            ("studio", "git@github.com:acme/web.git"),
         ] {
             let path = home + "/projects/" + folder
             try FileManager.default.createDirectory(atPath: path + "/.git", withIntermediateDirectories: true)
@@ -253,6 +253,11 @@ public final class FixtureServer {
         let studio = entries.remove(at: 3)
         entries.append(["path": "/Users/demo/gone", "name": "Moved away", "origin": "cloned", "icon": ["color": "purple", "mark": "star", "image": "missing.png"]])
         entries.append(studio)
+        // the folders of the fixture's sessions: one with a name, a colour and a mark, one with an image and one with nothing set
+        entries.append(["path": "/Users/dev/carrier", "name": "Carrier app", "origin": "added", "icon": ["color": "red", "mark": "star"]])
+        entries.append(["path": "/Users/dev/agent-forge", "origin": "added"])
+        if let image = studio["icon"] { entries[entries.count - 1]["icon"] = image }
+        entries.append(["path": "/Users/dev/web", "origin": "added"])
         let file = try JSONSerialization.data(withJSONObject: ["projects": entries], options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         try file.write(to: URL(fileURLWithPath: CarrierPlaces(folder: home).projects))
     }

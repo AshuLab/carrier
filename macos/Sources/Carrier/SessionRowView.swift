@@ -122,7 +122,7 @@ struct SessionRowView: View {
         HStack(alignment: .top, spacing: SidebarMetrics.inset) {
             if content.showsIcon {
                 ProjectIcon(
-                    name: row.workspace, colorKey: projectColorKey(row.base), working: row.isWorking, background: row.isWorking && row.state != .working,
+                    base: row.base, name: row.workspace, colorKey: projectColorKey(row.base), working: row.isWorking, background: row.isWorking && row.state != .working,
                     finished: ringKept && !row.isWorking
                 )
             }
@@ -314,6 +314,17 @@ struct ProjectIcon: View {
         self.working = working
         self.background = background
         self.finished = finished
+    }
+
+    /// The icon of the project whose folder is `base`: what the person set on it, else made from `name` and `colorKey` as it was before projects.
+    @MainActor init(base: String, name: String, colorKey: String, working: Bool = false, background: Bool = false, finished: Bool = false) {
+        let tile = projectTile(path: base, in: ProjectsModel.shared.rows, fallback: projectTile(name: name, colorKey: colorKey))
+        self.init(tile: tile, working: working, background: background, finished: finished)
+    }
+
+    /// The icon of an epic's repository `owner/name`: its project's when one has it as its `origin`, else made from `name` and `colorKey` as it was before projects.
+    @MainActor init(repo: String, name: String, colorKey: String, working: Bool = false) {
+        self.init(tile: projectTile(repo: repo, in: ProjectsModel.shared.rows, fallback: projectTile(name: name, colorKey: colorKey)), working: working)
     }
 
     private var hashedIndex: Int?

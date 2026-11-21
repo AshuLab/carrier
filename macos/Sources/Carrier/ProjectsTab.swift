@@ -3,6 +3,11 @@ import CarrierCore
 import SwiftUI
 import UniformTypeIdentifiers
 
+extension ProjectsModel {
+    /// The app's one reading of `projects.json`: the Projects page edits it and the sidebar, the lists and the cards draw from it.
+    static let shared = ProjectsModel()
+}
+
 /// The Projects page of Settings (docs/specs/projects.md): the person's projects, one row each, and Add project, which takes a folder of the Mac. A row opens
 /// the project as a screen of its own, a place of the window's history (‹ ›) named by its path, and Actions opens its actions screen. The rows are
 /// `ProjectsModel`'s, which follows `projects.json`; the page has no automated test of its own.
@@ -10,7 +15,7 @@ struct ProjectsTabView: View {
     let place: SettingsPlace
     let go: (SettingsPlace) -> Void
     var sessions: [SessionRow] = []
-    @State private var model = ProjectsModel()
+    private let model = ProjectsModel.shared
     @State private var query = ""
     @State private var filter: ProjectFilter = .all
     @State private var groupBy: ProjectGrouping = .none

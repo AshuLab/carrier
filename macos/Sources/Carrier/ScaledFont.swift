@@ -85,7 +85,25 @@ extension View {
     func codeFont(_ base: CGFloat, weight: NSFont.Weight = .regular) -> some View { modifier(CodeFont(base: base, weight: weight)) }
 }
 
+private struct ChatTextStyle: ViewModifier {
+    @AppStorage(AppPreferences.chatTextSizeKey) private var size = Double(ChatText.defaultSize)
+    @AppStorage(AppPreferences.chatLineSpacingKey) private var spacing = AppPreferences.defaultChatLineSpacing
+
+    func body(content: Content) -> some View {
+        let points = ChatText.clamped(CGFloat(size))
+        content.font(.chat(points)).lineSpacing(spacing.extra(forSize: points))
+    }
+}
+
+extension View {
+    /// The font and line spacing of the text of a message: the chat's own settings, which the text size of the app does not multiply.
+    func chatText() -> some View { modifier(ChatTextStyle()) }
+}
+
 extension Font {
+    /// The system font of a message at `points`, the chat's own size: the text size of the app does not multiply it.
+    static func chat(_ points: CGFloat) -> Font { .system(size: points) }
+
     /// The system font at `base` points scaled by the person's text size; the only way a view sets a size.
     static func scaled(_ base: CGFloat, weight: Font.Weight? = nil, design: Font.Design? = nil) -> Font {
         .system(size: TextSize.shared.scale.size(base), weight: weight, design: design)
@@ -93,6 +111,11 @@ extension Font {
 }
 
 extension NSFont {
+    /// The system font of a message at `points` (monospaced for inline code), the chat's own size.
+    static func chat(_ points: CGFloat, mono: Bool = false) -> NSFont {
+        mono ? .monospacedSystemFont(ofSize: points, weight: .regular) : .systemFont(ofSize: points)
+    }
+
     /// The system font at `base` points scaled by the person's text size.
     static func scaled(_ base: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
         .systemFont(ofSize: TextSize.shared.scale.size(base), weight: weight)

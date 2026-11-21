@@ -6,8 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Settings > Chat > Conversation has Message text size (11 to 20 pt), Line spacing (Tight, Normal, Loose) and Message spacing (Compact, Comfortable, Spacious), for the text of the messages and the room between them, apart from the app's Text size and Density.
+
 ### Changed
 
+- Density in Appearance now sets only the sidebar rows: the space between the messages is Settings > Chat > Message spacing (Comfortable, the same 12 pt as before, by default).
 - An open session no longer asks the chat host for the whole list of sessions at each read: the reply of its events already says whether it runs and what it waits for. With 100 sessions that is 74 KB less to build and parse at each read (about 19 ms of the host), four times a second while the agent works, and one request less per read (two for an archived session).
 - The engine's snapshot is read from the reply once and not three times: 3.6 ms instead of 6.3 ms for a snapshot of 90 epics (205 KB), on every poll of the menu and the window.
 

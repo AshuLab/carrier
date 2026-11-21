@@ -836,7 +836,7 @@ struct AppearanceTabView: View {
                         .accessibilityLabel("Icon weight").accessibilityValue(iconWeight.formatted(.number.precision(.fractionLength(0...2))))
                 }
                 iconsPreview
-                SettingsTabRow(title: "Density", detail: "The space in the sidebar rows and between the messages") {
+                SettingsTabRow(title: "Density", detail: "The space in the sidebar rows") {
                     ChoicePopUp(label: "Density", options: Density.allCases.map { (value: $0, title: $0.title) }, selection: $density)
                 }
                 SettingsTabRow(title: "Tell states apart by shape", detail: "A symbol in each state, so that color is not the only clue") {
@@ -1127,6 +1127,9 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
     @AppStorage(AppPreferences.chatSurfaceKey) private var chatSurface = AppPreferences.defaultChatSurface
+    @AppStorage(AppPreferences.chatTextSizeKey) private var textSize = Double(ChatText.defaultSize)
+    @AppStorage(AppPreferences.chatLineSpacingKey) private var lineSpacing = AppPreferences.defaultChatLineSpacing
+    @AppStorage(AppPreferences.chatMessageSpacingKey) private var messageSpacing = AppPreferences.defaultChatMessageSpacing
     @State private var previewRoom: CGFloat = 0
     @State private var flipped: Set<String> = []
 
@@ -1135,7 +1138,7 @@ struct ChatTabView: View {
     /// where the lines break and in how much of the track they take.
     private var messagePreview: some View {
         SettingsPreview {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: messageSpacing.gap) {
                 ForEach(sampleConversation()) { row in
                     FeedRowView(
                         row: row, time: nil, summary: nil, pinned: false, flipped: $flipped, agent: "claude", commands: [], offersWayOut: false,
@@ -1195,6 +1198,16 @@ struct ChatTabView: View {
                 }
                 SettingsTabRow(title: "Show reasoning", detail: "The agent's reasoning, folded under its message, when its host sends it") {
                     Toggle("Show reasoning", isOn: $showsReasoning).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Message text size", detail: "The size of the text of the messages, \(Int(textSize)) pt, apart from the text size of the app") {
+                    Slider(value: $textSize, in: Double(ChatText.sizeRange.lowerBound)...Double(ChatText.sizeRange.upperBound), step: 1)
+                        .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Message text size").accessibilityValue("\(Int(textSize)) points")
+                }
+                SettingsTabRow(title: "Line spacing", detail: "The room between the lines of a message") {
+                    ChoicePopUp(label: "Line spacing", options: ChatLineSpacing.allCases.map { (value: $0, title: $0.title) }, selection: $lineSpacing)
+                }
+                SettingsTabRow(title: "Message spacing", detail: "The room between the messages") {
+                    ChoicePopUp(label: "Message spacing", options: MessageSpacing.allCases.map { (value: $0, title: $0.title) }, selection: $messageSpacing)
                 }
                 SettingsTabRow(title: "Message width", detail: "How wide a message gets before it wraps") {
                     ChoicePopUp(

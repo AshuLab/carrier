@@ -181,11 +181,28 @@ private let idle = PanelSnapshot(
     #expect(store.confirmStop == false)
 }
 
-@Test func eachDensityHasItsFixedSidebarPaddingAndMessageGap() {
+@Test func eachDensityHasItsFixedSidebarPadding() {
     #expect(Density.compact.rowPadding == 4)
-    #expect(Density.compact.messageGap == 8)
     #expect(Density.comfortable.rowPadding == 7)
-    #expect(Density.comfortable.messageGap == 12)
+}
+
+@Test func theChatTextIsTheChatsOwnAndResetsWithTheChatPage() {
+    let store = AppPreferences(defaults: UserDefaults(suiteName: "chat-text-\(UUID().uuidString)")!)
+    #expect(store.chatTextSize == 13 && store.chatLineSpacing == .normal && store.chatMessageSpacing == .comfortable)
+    store.chatTextSize = 40
+    #expect(store.chatTextSize == ChatText.sizeRange.upperBound)
+    store.chatTextSize = 15
+    store.chatLineSpacing = .loose
+    store.chatMessageSpacing = .spacious
+    #expect(store.chatTextSize == 15 && store.chatLineSpacing == .loose && store.chatMessageSpacing == .spacious)
+    store.reset(.chat)
+    #expect(store.chatTextSize == 13 && store.chatLineSpacing == .normal && store.chatMessageSpacing == .comfortable)
+}
+
+@Test func eachChatLineSpacingKeepsTheFourPointsAtThirteen() {
+    #expect(ChatLineSpacing.normal.extra(forSize: 13) == 4)
+    #expect(ChatLineSpacing.tight.extra(forSize: 13) < 4 && ChatLineSpacing.loose.extra(forSize: 13) > 4)
+    #expect(MessageSpacing.comfortable.gap == 12)
 }
 
 @Test func theThemeChoicesStartOnTheDefaultsAndSurviveARelaunch() {

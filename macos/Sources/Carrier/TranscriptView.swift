@@ -93,14 +93,17 @@ private struct LinkedText: View {
     @State private var places: [(link: Int, rect: CGRect)] = []
     @State private var hovered: Int?
     @State private var overLink = false
+    @AppStorage(AppPreferences.chatTextSizeKey) private var size = Double(ChatText.defaultSize)
+    @AppStorage(AppPreferences.chatLineSpacingKey) private var spacing = AppPreferences.defaultChatLineSpacing
 
     var body: some View {
         Text(lit)
-            .lineSpacing(4)
             // no `contentTransition(.interpolate)` here: interpolating a text whose runs have a background (the chips) leaves ghost rectangles of
             // them over the other lines while the lit link fades, so the chip changes at once
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { places = Self.place(links: text, width: $0) }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { places = Self.place(links: text, width: $0, size: ChatText.clamped(CGFloat(size)), spacing: spacing) }
             .onChange(of: text) { places = [] }
+            .onChange(of: size) { places = [] }
+            .onChange(of: spacing) { places = [] }
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let point):
@@ -132,18 +135,18 @@ private struct LinkedText: View {
     }
 
     /// The rectangles each link takes (one per line it spans), numbered in the order the links come, in the text's own coordinates.
-    private static func place(links text: AttributedString, width: CGFloat) -> [(link: Int, rect: CGRect)] {
+    private static func place(links text: AttributedString, width: CGFloat, size: CGFloat, spacing: ChatLineSpacing) -> [(link: Int, rect: CGRect)] {
         guard width > 0 else { return [] }
-        let base = NSFont.scaled(13)
+        let base = NSFont.chat(size)
         let ns = NSMutableAttributedString()
         var ranges: [NSRange] = []
         for run in text.runs {
             let piece = String(text[run.range].characters)
             var font = base
             if run.font != nil {
-                font = NSFont.scaled(6) // the short empty line
+                font = .chat(size * 6 / 13) // the short empty line
             } else if let intent = run.inlinePresentationIntent {
-                if intent.contains(.code) { font = NSFont.scaledMono(13) }
+                if intent.contains(.code) { font = .chat(size, mono: true) }
                 if intent.contains(.stronglyEmphasized) { font = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask) }
                 if intent.contains(.emphasized) { font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask) }
             }
@@ -151,7 +154,7 @@ private struct LinkedText: View {
             ns.append(NSAttributedString(string: piece, attributes: [.font: font]))
         }
         let style = NSMutableParagraphStyle()
-        style.lineSpacing = 4
+        style.lineSpacing = spacing.extra(forSize: size)
         ns.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: ns.length))
         let storage = NSTextStorage(attributedString: ns)
         let layout = NSLayoutManager()
@@ -295,6 +298,7 @@ private struct TableLayout: Layout {
 struct MarkdownView: View {
     let text: String
     @Environment(\.colorScheme) private var scheme
+    @AppStorage(AppPreferences.chatTextSizeKey) private var size = Double(ChatText.defaultSize)
     private var dark: Bool { scheme == .dark }
 
     private enum Segment {
@@ -362,7 +366,7 @@ struct MarkdownView: View {
             case .gap:
                 // an empty line a little shorter than a text one
                 var gap = AttributedString(" ")
-                gap.font = .scaled(6)
+                gap.font = .chat(ChatText.clamped(CGFloat(size)) * 6 / 13)
                 add(gap)
             case .code(let language, let file, let code):
                 if let run { segments.append(.text(run)) }
@@ -386,20 +390,20 @@ struct MarkdownView: View {
                 switch segment {
                 case .text(let text):
                     // only a text with a link needs to know where its links are drawn (for the hand); the rest stays plain
-                    if text.runs.contains(where: { $0.link != nil }) { LinkedText(text: text) } else { Text(text).lineSpacing(4) }
+                    if text.runs.contains(where: { $0.link != nil }) { LinkedText(text: text) } else { Text(text) }
                 case .code(let language, let file, let code): CodeBlockView(language: language, file: file, code: code)
                 case .table(let table): MarkdownTableView(table: table)
                 case .quote(let quoted):
                     HStack(alignment: .top, spacing: 10) {
                         Capsule().fill(Color.secondary.opacity(0.4)).frame(width: 3)
-                        Text(quoted).lineSpacing(4).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(quoted).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .fixedSize(horizontal: false, vertical: true).padding(.vertical, 2)
                 case .rule: Divider().padding(.vertical, 6)
                 }
             }
         }
-        .font(.scaled(13))
+        .chatText()
         .frame(maxWidth: .infinity, alignment: .leading)
         .textSelection(.enabled)
     }

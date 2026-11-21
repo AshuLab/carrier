@@ -47,6 +47,8 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 
 `chat.sock` is a 0600 Unix socket in a 0700 folder with newline-delimited JSON, a hello on connect and one reply per request, like the engine's, with a strict allowlist of requests and a `capabilities` list in the hello. Its line cap is 1 MiB, not the engine's 16 KiB, because a pasted spec is a request. The engine's client already connects to a path and reads a hello, so the CLI reuses it; its hello type widens to carry the chat capabilities.
 
+The app keeps one connection open for what it reads again and again (`list`, `events`, the hello's capabilities: `ChatLink`, [the app's reads](../macos/sessions.md#how-the-app-reads-the-chat-host)) and opens one per request for everything else. That connection counts as a client for as long as the app runs, so the host's exit after the last client is gone waits for the app to quit; it names no session, so it renews no session's idle clock.
+
 ```ts
 // requests, all strict objects with a positive integer id
 { cmd: 'agents' }                                          // the configured agents and their binaries

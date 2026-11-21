@@ -225,6 +225,16 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     var active: [ChatSession]? = []
     var archived: [ChatSession]? = []
     var calls: [Bool] = []
+    /// What `sessionUpdates` gives, then ends.
+    var updates: [SessionsUpdate] = []
+
+    func sessionUpdates() async -> AsyncStream<SessionsUpdate> {
+        let given = updates
+        return AsyncStream { continuation in
+            for update in given { continuation.yield(update) }
+            continuation.finish()
+        }
+    }
 
     func agents() async throws -> [ChatAgent] { [] }
     func open(plan: SessionPlan) async throws -> String { "" }
@@ -266,226 +276,218 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     }
 }
 
-private final class Clock { var now = Date(timeIntervalSince1970: 1_800_000_000) }
+private final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 1_800_000_000) }
 
-private func rig(_ host: FakeHost) -> (ChatSessionsPoller, Clock, () -> [SessionRow]) {
+/// A reader over a fake host, with the clock the test moves.
+private func rig(_ host: FakeHost, archivedEvery: TimeInterval = 5) -> (read: () async -> SessionsUpdate, clock: Clock, reader: SessionsReader) {
     let clock = Clock()
-    var rows: [SessionRow] = []
-    let poller = ChatSessionsPoller(host: host, archivedEvery: 5, now: { clock.now }) { rows = $0 }
-    return (poller, clock, { rows })
+    let reader = SessionsReader(archivedEvery: archivedEvery, now: { clock.now })
+    return ({ await reader.read { try await host.list(archived: $0) }.update }, clock, reader)
 }
 
-@Test func theActiveListIsReadEveryPollAndTheArchivedOneEveryFiveSeconds() async throws {
+private func ids(_ update: SessionsUpdate) -> [String] { (update.active + update.archived).map(\.id) }
+
+@Test func theActiveListIsReadEveryCycleAndTheArchivedOneEveryFiveSeconds() async throws {
     let host = FakeHost()
-    let (poller, clock, _) = rig(host)
+    let (read, clock, _) = rig(host)
     for _ in 0..<7 {
-        await poller.poll()
+        _ = await read()
         clock.now.addTimeInterval(1)
     }
-    // polls at 0...6 s: the archived list at 0 and at 5
+    // cycles at 0...6 s: the archived list at 0 and at 5
     #expect(host.calls == [false, true, false, false, false, false, false, true, false])
 }
 
 @Test func theArchivedListIsReadEveryMinuteUnlessTheAppChangedIt() async throws {
     let host = FakeHost()
-    let clock = Clock()
-    let poller = ChatSessionsPoller(host: host, now: { clock.now }) { _ in } // the default pace
-    await poller.poll()
+    let (read, clock, reader) = rig(host, archivedEvery: 60)
+    _ = await read()
     clock.now.addTimeInterval(59)
-    await poller.poll()
+    _ = await read()
     #expect(host.calls == [false, true, false])
     clock.now.addTimeInterval(1)
-    await poller.poll()
+    _ = await read()
     #expect(host.calls == [false, true, false, false, true])
     // an archive, a restore or a delete made in the app reads it at once
     clock.now.addTimeInterval(1)
-    poller.invalidateArchived()
-    await poller.poll()
+    reader.invalidateArchived()
+    _ = await read()
     #expect(host.calls.suffix(2) == [false, true])
 }
 
 @Test func aSessionThatLeavesTheActiveListMakesTheArchivedOneReadAtOnce() async throws {
     let host = FakeHost()
     host.active = [try session("a"), try session("b")]
-    let clock = Clock()
-    var rows: [SessionRow] = []
-    let poller = ChatSessionsPoller(host: host, now: { clock.now }) { rows = $0 } // the default pace: a minute
-    await poller.poll()
-    #expect(rows.map(\.id) == ["a", "b"] && archivedCount(rows) == 0)
+    let (read, clock, _) = rig(host, archivedEvery: 60)
+    var update = await read()
+    #expect(ids(update) == ["a", "b"] && update.archived.isEmpty)
     // the host's clock archives b: it is no longer active and the cached archived list does not have it
     host.active = [try session("a")]
     host.archived = [try session("b", archived: true)]
     clock.now.addTimeInterval(2)
-    await poller.poll()
-    #expect(rows.map(\.id) == ["a", "b"] && archivedCount(rows) == 1)
+    update = await read()
+    #expect(ids(update) == ["a", "b"] && update.archived.count == 1)
     // nothing left the active list: the archived list waits for its minute
     host.archived = [try session("b", archived: true), try session("z", archived: true)]
     clock.now.addTimeInterval(2)
-    await poller.poll()
-    #expect(archivedCount(rows) == 1)
+    update = await read()
+    #expect(update.archived.count == 1)
 }
 
 @Test func aSessionThatLeftTheActiveListIsNotLostWhenTheArchivedListFailsOnce() async throws {
     let host = FakeHost()
     host.active = [try session("a"), try session("b")]
-    let clock = Clock()
-    var rows: [SessionRow] = []
-    let poller = ChatSessionsPoller(host: host, now: { clock.now }) { rows = $0 }
-    await poller.poll()
+    let (read, clock, reader) = rig(host, archivedEvery: 60)
+    _ = await read()
     host.active = [try session("a")]
     host.archived = nil // the archived list fails right when b left the active one
     clock.now.addTimeInterval(2)
-    await poller.poll()
+    var update = await read()
+    #expect(update.authoritative == false)
     host.archived = [try session("b", archived: true)]
     clock.now.addTimeInterval(2)
-    await poller.poll()
-    #expect(rows.map(\.id) == ["a", "b"] && archivedCount(rows) == 1)
+    update = await read()
+    #expect(ids(update) == ["a", "b"] && update.archived.count == 1 && update.authoritative)
     // the same for a list the app asked to read again
     host.active = [try session("a"), try session("c")]
     host.archived = []
     clock.now.addTimeInterval(2)
-    await poller.poll()
-    poller.invalidateArchived()
+    _ = await read()
+    reader.invalidateArchived()
     host.archived = nil
     clock.now.addTimeInterval(2)
-    await poller.poll()
+    _ = await read()
     host.archived = [try session("z", archived: true)]
     clock.now.addTimeInterval(2)
-    await poller.poll()
-    #expect(rows.map(\.id).contains("z"))
+    update = await read()
+    #expect(ids(update).contains("z"))
 }
 
-@Test func theRowsHoldTheActiveAndTheArchivedSessionsAndTheArchivedCountIsFromTheArchivedList() async throws {
-    let host = FakeHost()
-    host.active = [try session("a"), try session("b")]
-    host.archived = [try session("x", archived: true)]
-    let (poller, clock, rows) = rig(host)
-    await poller.poll()
-    #expect(rows().map(\.id) == ["a", "b", "x"] && archivedCount(rows()) == 1)
-    // an archive made between two reads of the archived list shows up with the next read of it, not before
-    host.archived = [try session("x", archived: true), try session("y", archived: true)]
-    clock.now.addTimeInterval(1)
-    await poller.poll()
-    #expect(archivedCount(rows()) == 1)
-    clock.now.addTimeInterval(4)
-    await poller.poll()
-    #expect(archivedCount(rows()) == 2)
-}
-
-@Test func aHostThatDoesNotAnswerKeepsTheLastRowsAndTheArchivedListIsReadAgainWhenItComesBack() async throws {
+@Test func aHostThatDoesNotAnswerGivesTheLastListsAsStaleAndTheArchivedListIsReadAgainWhenItComesBack() async throws {
     let host = FakeHost()
     host.active = [try session("a")]
     host.archived = [try session("x", archived: true)]
-    let clock = Clock()
-    var published: [[String]] = []
-    let poller = ChatSessionsPoller(host: host, archivedEvery: 5, now: { clock.now }) { published.append($0.map(\.id)) }
-    await poller.poll()
-    #expect(published == [["a", "x"]])
+    let (read, clock, _) = rig(host)
+    var update = await read()
+    #expect(ids(update) == ["a", "x"] && update.stale == false)
     host.active = nil
     clock.now.addTimeInterval(1)
-    await poller.poll()
-    // the failure published nothing, not even an empty list: what the person has seen is compared with the last good one
-    #expect(published == [["a", "x"]])
+    update = await read()
+    // the failure carries what was last good, never an empty list: what the person has seen is compared with that
+    #expect(update.stale && ids(update) == ["a", "x"] && update.authoritative == false)
     host.active = [try session("a")]
     clock.now.addTimeInterval(1)
-    await poller.poll()
+    update = await read()
     // the archived list is read again as soon as the host answers
     #expect(host.calls.suffix(2) == [false, true])
-    #expect(published.last == ["a", "x"])
+    #expect(update.stale == false && ids(update) == ["a", "x"])
 }
 
-@Test func aHostThatDoesNotAnswerKeepsTheRowsAndDoesNotEmitAuthoritativeSessionIds() async throws {
+@Test func theIdsAreAuthoritativeOnlyInACycleThatReadBothListsAndTheHostAnswered() async throws {
     let host = FakeHost()
     host.active = [try session("a")]
     host.archived = [try session("x", archived: true)]
-    let clock = Clock()
-    var rows: [SessionRow] = []
-    var authoritativeSnapshots: [Set<String>] = []
-    let poller = ChatSessionsPoller(
-        host: host,
-        archivedEvery: 5,
-        now: { clock.now },
-        onAuthoritativeSessionIds: { authoritativeSnapshots.append($0) },
-        onChange: { rows = $0 }
-    )
-    await poller.poll()
-    #expect(authoritativeSnapshots == [Set(["a", "x"])])
+    let (read, clock, _) = rig(host)
+    var update = await read()
+    #expect(update.authoritative)
 
-    // Active failure keeps the rows and must not trigger session terminal pruning.
+    // an active failure keeps the lists and must not trigger session terminal pruning
     host.active = nil
     clock.now.addTimeInterval(1)
-    await poller.poll()
-    #expect(rows.map(\.id) == ["a", "x"])
-    #expect(authoritativeSnapshots.count == 1)
+    update = await read()
+    #expect(update.stale && update.authoritative == false)
 
-    // Recovery emits authoritative session IDs once both active and archived succeed again.
+    // recovery is authoritative once both lists succeed again
     host.active = [try session("a")]
     clock.now.addTimeInterval(1)
-    await poller.poll()
-    #expect(authoritativeSnapshots.count == 2)
-    #expect(authoritativeSnapshots.last == Set(["a", "x"]))
+    update = await read()
+    #expect(update.authoritative && Set(ids(update)) == ["a", "x"])
 
-    // A session that leaves the active list reads the archived list again at once, so the ids pruning sees are never from a stale
-    // snapshot: here the host's clock archived `a`, and it is still known.
+    // a session that leaves the active list reads the archived list again at once, so the ids pruning sees are never from a stale
+    // snapshot: here the host's clock archived `a`, and it is still known
     host.archived = [try session("x"), try session("a")]
     host.active = []
     clock.now.addTimeInterval(1)
-    await poller.poll()
-    #expect(authoritativeSnapshots.count == 3)
-    #expect(authoritativeSnapshots.last == Set(["a", "x"]))
+    update = await read()
+    #expect(update.authoritative && Set(ids(update)) == ["a", "x"])
 
-    // A cached archived snapshot (within archivedEvery) must NOT emit authoritative IDs while the active list keeps its sessions.
+    // a cached archived list (within archivedEvery) is not authoritative
     clock.now.addTimeInterval(1)
-    await poller.poll()
-    #expect(authoritativeSnapshots.count == 3)
+    update = await read()
+    #expect(update.authoritative == false && update.stale == false)
 
-    // Once archivedEvery elapses and archived refreshes cleanly, authoritative IDs are emitted again.
+    // once archivedEvery elapses and archived refreshes cleanly, it is again
     clock.now.addTimeInterval(5)
-    await poller.poll()
-    #expect(authoritativeSnapshots.count == 4)
-    #expect(authoritativeSnapshots.last == Set(["a", "x"]))
+    update = await read()
+    #expect(update.authoritative)
 
-    // Initial or periodic archived list failure must also suppress authoritative pruning.
-    let partialHost = FakeHost()
-    partialHost.active = [try session("live")]
-    partialHost.archived = nil
-    var partialSnapshots: [Set<String>] = []
-    let partialPoller = ChatSessionsPoller(
-        host: partialHost,
-        archivedEvery: 5,
-        now: { clock.now },
-        onAuthoritativeSessionIds: { partialSnapshots.append($0) },
-        onChange: { _ in }
-    )
-    await partialPoller.poll()
-    #expect(partialSnapshots.isEmpty)
+    // an archived list that fails also suppresses it
+    let partial = FakeHost()
+    partial.active = [try session("live")]
+    partial.archived = nil
+    update = await rig(partial).read()
+    #expect(update.authoritative == false && update.stale == false)
 }
 
-@Test func aHostThatFailsOnTheFirstListPublishesNothing() async throws {
+@Test func aHostThatFailsOnTheFirstReadGivesAStaleUpdateWithNoSessions() async throws {
     // the first list of a window opened before the host is up (a cold start)
     let host = FakeHost()
     host.active = nil
-    var publications = 0
-    let clock = Clock()
-    let poller = ChatSessionsPoller(host: host, archivedEvery: 5, now: { clock.now }) { _ in publications += 1 }
-    await poller.poll()
-    #expect(publications == 0)
+    let update = await rig(host).read()
+    #expect(update.stale && update.active.isEmpty && update.archived.isEmpty)
 }
 
-@Test func anArchivedListThatFailsKeepsTheLastOneAndTriesAgainNextPoll() async throws {
+@Test func anArchivedListThatFailsKeepsTheLastOneAndTriesAgainNextCycle() async throws {
     let host = FakeHost()
     host.active = [try session("a")]
     host.archived = [try session("x", archived: true)]
-    let (poller, clock, rows) = rig(host)
-    await poller.poll()
+    let (read, clock, _) = rig(host)
+    _ = await read()
     host.archived = nil
     clock.now.addTimeInterval(5)
-    await poller.poll()
-    #expect(rows().map(\.id) == ["a", "x"])
+    var update = await read()
+    #expect(ids(update) == ["a", "x"])
     host.archived = []
     clock.now.addTimeInterval(1)
-    await poller.poll()
-    #expect(rows().map(\.id) == ["a"])
+    update = await read()
+    #expect(ids(update) == ["a"])
+}
+
+@Test func theWaitBetweenReadsDoublesWithEachMissUpToHalfAMinute() {
+    #expect(sessionsPollWait(pace: 2, failures: 0) == 2)
+    #expect((1...6).map { sessionsPollWait(pace: 2, failures: $0) } == [4, 8, 16, 30, 30, 30])
+    #expect(sessionsPollWait(pace: 10, failures: 1) == 20 && sessionsPollWait(pace: 10, failures: 2) == 30)
+}
+
+/// The poller over the updates a host gives.
+private func follow(_ updates: [SessionsUpdate]) async throws -> (rows: [[String]], authoritative: [Set<String>]) {
+    let host = FakeHost()
+    var rows: [[String]] = []
+    var authoritative: [Set<String>] = []
+    let poller = ChatSessionsPoller(host: host, onAuthoritativeSessionIds: { authoritative.append($0) }) { rows.append($0.map(\.id)) }
+    host.updates = updates
+    await poller.run()
+    return (rows, authoritative)
+}
+
+@Test func thePollerPublishesTheActiveAndTheArchivedSessionsAsRowsAndSaysTheIdsOnlyWhenTheyAreAuthoritative() async throws {
+    let a = try session("a"), x = try session("x", archived: true)
+    let (rows, authoritative) = try await follow([
+        SessionsUpdate(active: [a], archived: [x], authoritative: true),
+        SessionsUpdate(active: [a], archived: [x]),
+    ])
+    #expect(rows == [["a", "x"], ["a", "x"]] && authoritative == [["a", "x"]])
+}
+
+@Test func aStaleUpdateChangesNothingInThePoller() async throws {
+    let a = try session("a")
+    let (rows, authoritative) = try await follow([
+        SessionsUpdate(active: [a], archived: [], authoritative: true),
+        SessionsUpdate(active: [a], archived: [], stale: true),
+        SessionsUpdate(active: [], archived: [], stale: true),
+    ])
+    // the failure published nothing, not even an empty list
+    #expect(rows == [["a"]] && authoritative == [["a"]])
 }
 
 // The Sessions home: search across active and archived, filters, sorts, counts and the empty states, over rows.
@@ -850,18 +852,18 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(host.changes == ["delete a"])
 }
 
-@Test func anInvalidatedArchivedListIsReadAtTheNextPollWhateverItsAge() async throws {
+@Test func anInvalidatedArchivedListIsReadAtTheNextCycleWhateverItsAge() async throws {
     let host = FakeHost()
     host.active = [try session("a")]
     host.archived = [try session("x", archived: true)]
-    let (poller, _, rows) = rig(host)
-    await poller.poll()
+    let (read, _, reader) = rig(host)
+    _ = await read()
     host.archived = []
-    await poller.poll()
-    #expect(archivedCount(rows()) == 1)
-    poller.invalidateArchived()
-    await poller.poll()
-    #expect(archivedCount(rows()) == 0)
+    var update = await read()
+    #expect(update.archived.count == 1)
+    reader.invalidateArchived()
+    update = await read()
+    #expect(update.archived.isEmpty)
     #expect(host.calls == [false, true, false, false, true])
 }
 

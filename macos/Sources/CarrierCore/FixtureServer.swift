@@ -57,6 +57,7 @@ public func doctorFixtureOutput(home: String) -> String? { try? String(contentsO
 
 public final class FixtureServer {
     public let home: String
+    /// A listed session with `fixtureRefuseSend` (a sentence) refuses its sends with it, so the refusal's banner can be looked at.
     /// The sessions the list marks `fixtureUnread` and `fixturePinned`: the app, which keeps what the person has seen and pinned, starts with them so.
     public let unreadSessionIds: [String]
     public let pinnedSessionIds: [String]
@@ -358,6 +359,8 @@ public final class FixtureServer {
             return switchAgent(id, session, to: agent)
         case "send":
             guard let session = request?["sessionId"] as? String, let text = request?["text"] as? String else { break }
+            // a session whose list entry says `fixtureRefuseSend` refuses every send with those words (a provider that is not signed in)
+            if let refusal = locked({ chatSessions.first { $0["id"] as? String == session }?["fixtureRefuseSend"] as? String }) { return Self.refused(id, refusal) }
             let found = locked { () -> Bool in
                 guard chatSessions.contains(where: { $0["id"] as? String == session }) else { return false }
                 let events = chatConversations[session]?.events ?? []

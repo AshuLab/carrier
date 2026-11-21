@@ -202,6 +202,71 @@
       "lastActiveAgo": 12000,
       "archived": false,
       "live": true
+    },
+    {
+      "id": "b3000000-0000-4000-8000-000000000001",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Notices: a failed turn and a question",
+      "nativeId": "n-notice-1",
+      "state": "waiting_approval",
+      "createdAgo": 10800000,
+      "lastActiveAgo": 60000,
+      "archived": false,
+      "live": true
+    },
+    {
+      "id": "b3000000-0000-4000-8000-000000000002",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Notices: an asleep session",
+      "nativeId": "n-notice-2",
+      "state": "idle",
+      "createdAgo": 10800000,
+      "lastActiveAgo": 120000,
+      "archived": false,
+      "live": false
+    },
+    {
+      "id": "b3000000-0000-4000-8000-000000000003",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Notices: an archived session",
+      "nativeId": "n-notice-3",
+      "state": "idle",
+      "createdAgo": 10800000,
+      "lastActiveAgo": 180000,
+      "archived": true,
+      "live": false
+    },
+    {
+      "id": "b3000000-0000-4000-8000-000000000004",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Notices: a refused send (type a message)",
+      "nativeId": "n-notice-4",
+      "state": "idle",
+      "createdAgo": 10800000,
+      "lastActiveAgo": 240000,
+      "archived": false,
+      "live": true,
+      "fixtureRefuseSend": "Claude is not logged in; run `claude` once to log in"
     }
   ]
 }

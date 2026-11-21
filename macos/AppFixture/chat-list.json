@@ -15,6 +15,33 @@
       "lastActiveAgo": 5000,
       "archived": false,
       "live": true
+    },
+    {
+      "id": "b4000000-0000-4000-8000-000000000002",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Just a conversation",
+      "nativeId": "n-text",
+      "state": "idle",
+      "createdAgo": 3600000,
+      "lastActiveAgo": 1200000,
+      "archived": false,
+      "live": true,
+      "pr": {
+        "repo": "AshuLab/carrier",
+        "number": 1189,
+        "url": "https://github.com/AshuLab/carrier/pull/1189",
+        "state": "open",
+        "checks": "pending"
+      },
+      "diff": {
+        "added": 104,
+        "removed": 4
+      }
     }
   ]
 }

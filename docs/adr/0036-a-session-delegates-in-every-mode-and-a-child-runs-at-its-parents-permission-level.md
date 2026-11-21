@@ -17,7 +17,7 @@ A session with no parent receives the `act` capability whatever its mode, so the
 What still refuses is what the mechanism cannot do: a child, which never delegates, and a Codex app-server older than the floor of [0024](0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)'s pre-approval.
 
 A child has the parent's permissions: the options of its own agent, lowered to the broadest option of its harness that is at or under the parent's level, never raised.
-That rule is 0033's.
+That rule is 0033's, with the amendment below for an agent that sets no permission.
 What changes is the scale, which now carries the modes that never ask, so that every session has a level.
 
 | Level | Claude | Codex |
@@ -27,7 +27,7 @@ What changes is the scale, which now carries the modes that never ask, so that e
 | 2 | `acceptEdits` | `workspace-write` with `on-request` or `never` |
 | 3 | `auto` | none |
 
-A parent in `plan` or `dontAsk` has a child that only reads, and a parent in `auto` has a Claude child in `auto` and a Codex child at level 2, the broadest Codex has.
+A parent in `plan` or `dontAsk` has a child that only reads, and a parent in `auto` has a Claude child in `auto` and a Codex child at level 2, the broadest Codex has, as long as the child's agent does not cap it lower (see the amendment below).
 A parent in `default` or `acceptEdits` has a child that asks the person for what the parent would ask, and the person answers those approvals as before.
 Claude's `bypassPermissions` and Codex's `danger-full-access` are still not options of the chat, so no level is above 3.
 
@@ -64,3 +64,17 @@ The person's own Claude settings can still add a rule that denies or asks for th
 A person who says "launch two agents" from a session in `default` may then answer the questions of those agents, as the approvals of a child already reach them.
 
 Whether a pre-approved `delegate_start` runs in Claude's `plan` mode is not known: in the spike the model refused to call a tool there ([research](../research/switch-and-delegate-spike.md)).
+
+## Amendment (2026-11-21): an agent that sets no permission takes the parent's level
+
+The rule above lowers the options of the child's own agent, and an agent with no permission option was read as `default`, level 1.
+So under a parent in `auto` the four agents of a person who had configured none all gave a child at level 1, which asks the person before almost every shell command, and a read-only delegation stopped waiting for an approval.
+That default is the adapter's, not a choice of the person, so it is no cap.
+An agent that sets none of `permissionMode` (Claude), `sandbox` or `approvalPolicy` (Codex) now gives a child at the parent's level, at most 2 for Codex.
+An agent that sets one, `default` included, keeps it as its cap, and the child is still never above its parent.
+`agents` shows the level each would have, and `delegate_wait` says what a child that waits for an approval asks for.
+A way for the parent to ask for a level of its own is not added: it would raise a child above what its agent allows.
+The cap that the Consequences above rely on now binds only an agent the person configured.
+An agent left without options runs its child at the parent's level, and a person who wants one to stay careful sets `permissionMode: default` on it.
+An agent that sets only one of Codex's two options keeps the other at the adapter's default, as the person left it, and that default caps it.
+Whether Claude's `auto` is available on every account and model is not known: where it is not, a child that used to open at level 1 may fail to open under a parent in `auto`.

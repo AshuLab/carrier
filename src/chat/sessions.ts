@@ -27,6 +27,7 @@ import { checkName, suggestName } from './names.ts';
 import { createProject, projectFolder, type createProjects } from './projects.ts';
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
+import { githubWorkOf } from './shell-effects.ts';
 import { clearWorktree, createWorktree, deleteWorktree, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
 import { checkout, FETCH_FRESH_MS, fetchFolder, inspectFolder } from './workspace.ts';
 
@@ -40,6 +41,14 @@ export const IDLE_CLOSE_MS = 10 * 60_000;
 const MAX_RUNNING_CHILDREN = 4;
 /** How much of a done child's last message `delegate_wait` answers. */
 const CHILD_MESSAGE = 4000;
+/** How many of the approvals a child waits for, and how much of each one's argument, `delegate_wait` says. */
+const CHILD_APPROVALS = 4;
+const CHILD_APPROVAL_ARG = 500;
+/** `text` of at most `max` characters, ending in an ellipsis when it was cut, and never in the middle of a character. */
+const cut = (text: string, max: number) => {
+  const characters = [...text];
+  return characters.length > max ? `${characters.slice(0, max - 1).join('')}…` : text;
+};
 /** How long a session whose last subagent just ended waits for the turn the SDK opens by itself (it follows at once) before it is idle. */
 export const FOLLOW_UP_MS = 3_000;
 
@@ -68,6 +77,9 @@ export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'prRe
 export type PendingApproval = { approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; questions?: ChatQuestion[] };
 
 /** A session whose agent process runs: what is only true while it does. */
+
+/** A turn in progress: when it began, its own tool calls, whether anything ran in it (its subagents' too), the shell commands still running by call id, and the ones that ended well. */
+type Turn = { startedAt: number; toolCalls: number; acted: boolean; shell: Map<string, string>; commands: string[] };
 type Live = {
   conversation: ChatConversation;
   state: State;
@@ -75,7 +87,7 @@ type Live = {
   streaming: string;
   /** The approvals asked and not yet answered, as they are stored (redacted and bounded). */
   approvals: Map<string, PendingApproval>;
-  turn?: { startedAt: number; toolCalls: number };
+  turn?: Turn;
   /** The subagents running, by task id: from their `started` until `completed`, `failed` or `stopped`. */
   tasks: Set<string>;
   /** True while the `message` step of a preparation waits for the agent's first answer. */
@@ -309,6 +321,9 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     db.update(sessions).set({ state: 'idle' }).where(and(eq(sessions.id, sessionId), eq(sessions.state, 'preparing'))).run();
   }
 
+  /** A turn that begins: what the agent runs in it is kept, to know at its end what to read again (`afterTurn`). */
+  const openTurn = (): Turn => ({ startedAt: clock.now(), toolCalls: 0, acted: false, shell: new Map(), commands: [] });
+
   const onEvent = (sessionId: string, live: Live, event: ChatEvent) => {
     // What the agent waits for in the background is the state of the session, not something said in it: it is kept as it is and never stored.
     if (event.kind === 'background') {
@@ -337,14 +352,14 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     // and the `turn_end` the adapter says when it finishes closes it as any other. Only a live conversation does: a word that comes late from one
     // the host already closed is not a turn.
     if (live.turn === undefined && live.state === 'idle' && lives.get(sessionId) === live && ['delta', 'assistant', 'reasoning', 'tool_start', 'approval'].includes(event.kind)) {
-      live.turn = { startedAt: clock.now(), toolCalls: 0 };
+      live.turn = openTurn();
       touch(sessionId, live, 'working');
     }
     if (event.kind === 'delta') return void (live.streaming += event.text);
     if (event.kind === 'turn_start') {
       // the SDK answers a subagent that ended after the turn did: no message opened this turn, so open it here, or its `turn_end` is dropped and the session shows idle while it runs
       live.cancelFollowUp?.();
-      live.turn ??= { startedAt: clock.now(), toolCalls: 0 };
+      live.turn ??= openTurn();
       return touch(sessionId, live, 'working');
     }
     if (event.kind === 'turn_end' && live.turn === undefined) return; // a turn already recorded (an interrupt, then the adapter's own end)
@@ -364,12 +379,25 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (event.kind === 'task' && event.state === 'started') live.tasks.add(event.taskId);
     const lastEnded = event.kind === 'task' && ['completed', 'failed', 'stopped'].includes(event.state) && live.tasks.delete(event.taskId) && live.tasks.size === 0 && live.turn === undefined;
     if (event.kind === 'tool_start' && live.turn && event.parentCallId === undefined) live.turn.toolCalls++; // the turn's own calls, not its subagents'
+    if (live.turn !== undefined && (event.kind === 'tool_start' || event.kind === 'tool_end')) {
+      // what ended well and was a shell command (Claude's `Bash`, Codex's `command`), whoever ran it: a subagent works in the same folder
+      if (event.kind === 'tool_start') {
+        live.turn.acted = true;
+        if ((event.tool === 'Bash' || event.tool === 'command') && event.arg !== undefined) live.turn.shell.set(event.callId, event.arg);
+      } else {
+        const command = live.turn.shell.get(event.callId);
+        live.turn.shell.delete(event.callId);
+        if (command !== undefined && event.status === 'ok') live.turn.commands.push(command);
+      }
+    }
     if (event.kind === 'turn_end') {
       const startedAt = live.turn?.startedAt ?? clock.now();
       const { harness, agent } = row(sessionId);
       db.insert(chatTurns).values({ sessionId, startedAt, harness, agent, nativeId: live.conversation.nativeId ?? null, model: event.model ?? null, outcome: event.outcome, durationMs: clock.now() - startedAt, toolCalls: live.turn?.toolCalls ?? 0, usage: event.usage ?? null }).run();
+      const ran = live.turn;
       live.turn = undefined;
-      void data.afterTurn(sessionId);
+      // what the turn ran says what to read again; a turn with no record of it reads everything
+      void data.afterTurn(sessionId, ran === undefined ? undefined : { acted: ran.acted, github: githubWorkOf(ran.commands) });
     }
     // The SDK runs subagents in the background, so a turn can end before them: the session is idle only when the turn is over and no task runs.
     const busy = live.turn !== undefined || live.tasks.size > 0;
@@ -505,7 +533,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
   /** Records a message, starts its turn and hands it to the agent: the person's through `send`, and a child's first one, its task, from the host itself. */
   const deliver = (sessionId: string, live: Live, shown: string, text: string, invoked?: ChatCommand) => {
-    live.turn = { startedAt: clock.now(), toolCalls: 0 };
+    live.turn = openTurn();
     store(sessionId, { kind: 'user', text: shown, ...(invoked !== undefined && { command: invoked.name }) });
     touch(sessionId, live, 'working');
     try {
@@ -693,7 +721,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const live = attach(sessionId, conversation, issued.invocationId, 'preparing');
       stepEvent(sessionId, 'message', 'running');
       live.awaitingAnswer = true;
-      live.turn = { startedAt: clock.now(), toolCalls: 0 };
+      live.turn = openTurn();
       // a retry sends the same message again, which the conversation already shows
       if (db.select({ id: chatEvents.id }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'user'))).limit(1).get() === undefined) store(sessionId, { kind: 'user', text: plan.text });
       try {
@@ -882,7 +910,11 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const report = { childId, agent: child.agent };
     const live = lives.get(childId);
     if (live?.state === 'working') return { ...report, state: 'working' };
-    if (live?.state === 'waiting_approval') return { ...report, state: 'needs_approval' };
+    if (live?.state === 'waiting_approval') {
+      const asked = [...live.approvals.values()];
+      const waitingFor = asked.slice(0, CHILD_APPROVALS).map(({ tool, arg, questions }) => ({ tool, ...(arg !== undefined && { arg: cut(arg, CHILD_APPROVAL_ARG) }), ...(questions?.[0] !== undefined && { question: cut(questions[0].question, CHILD_APPROVAL_ARG) }) }));
+      return { ...report, state: 'needs_approval', waitingFor, ...(asked.length > CHILD_APPROVALS && { more: asked.length - CHILD_APPROVALS }) };
+    }
     const since = db.select({ id: chatEvents.id }).from(chatEvents).where(and(eq(chatEvents.sessionId, childId), eq(chatEvents.kind, 'user'))).orderBy(desc(chatEvents.id)).limit(1).get()?.id ?? 0;
     const turn = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, childId), gt(chatEvents.id, since), inArray(chatEvents.kind, ['assistant', 'error', 'turn_end']))).orderBy(asc(chatEvents.id)).all();
     const end = turn.find((event) => event.kind === 'turn_end');

@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - The dictation shortcut in the draft of a new session, before it starts, dictates into its message box as it does in an open session; it used to open the widget.
+- The two rings beside the microphone are centered on each other: they sat half a pixel off, so the inner one looked pushed to a side.
+- A session's pull request whose checks are still running says "CI running" in its row, and not just three dots that read as something lost.
 
 ### Changed
 

@@ -32,6 +32,7 @@ import Testing
     #expect(settingsResults("zzzz-no-such-setting").isEmpty)
     // a page is found by its name
     #expect(settingsResults("keybindings").first?.isPage == true)
+    #expect(settingsResults("projects").first.map { $0.isPage && $0.page == .projects } == true)
 }
 
 @Test func theIndexReadsTheRowsOfTheBehaviorAndKeybindingsPagesFromTheirOwnModels() {

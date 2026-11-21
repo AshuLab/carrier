@@ -44,3 +44,9 @@ import Testing
     history.visit(.providers)
     #expect(history.places.count == 4)
 }
+
+@Test func aProjectsListTakesTheWidthAndAProjectsOwnScreenIsAColumn() {
+    #expect(SettingsPlace(.projects).isColumn == false)
+    #expect(SettingsPlace(.projects, path: ["/Users/ana/notes"]).isColumn)
+    #expect(SettingsPlace(.repos).isColumn == false && SettingsPlace(.sessions).isColumn)
+}

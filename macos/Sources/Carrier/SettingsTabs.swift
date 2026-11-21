@@ -1347,12 +1347,15 @@ struct NavigationRow<Trailing: View>: View {
     let title: String
     let detail: String
     let leading: AnyView?
+    /// The first row of a card has no line above it (a page that is not a form).
+    var first = false
     let action: () -> Void
     @ViewBuilder let trailing: Trailing
 
-    init<Leading: View>(title: String, detail: String, leading: Leading, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+    init<Leading: View>(title: String, detail: String, leading: Leading, first: Bool = false, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
         self.title = title
         self.detail = detail
+        self.first = first
         self.leading = AnyView(leading)
         self.action = action
         self.trailing = trailing()
@@ -1368,7 +1371,7 @@ struct NavigationRow<Trailing: View>: View {
 
     var body: some View {
         Button(action: action) {
-            SettingsTabRow(title: title, detail: detail, leading: leading) {
+            SettingsTabRow(title: title, detail: detail, first: first, leading: leading) {
                 HStack(spacing: 10) {
                     trailing
                     Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary).accessibilityHidden(true)

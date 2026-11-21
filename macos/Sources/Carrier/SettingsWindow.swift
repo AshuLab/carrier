@@ -284,6 +284,7 @@ extension SettingsPage {
         case .keepAwake: .yellow
         case .chat: .teal
         case .sessions: .indigo
+        case .projects: .mint
         case .sidebar: .cyan
         case .terminal: Color(white: 0.25)
         case .agents: .orange
@@ -318,7 +319,7 @@ struct SettingsPages: View {
     /// The width the page has, to center a column in it.
     @State private var width: CGFloat = 0
     private var page: SettingsPage { navigator.page }
-    private var inset: CGFloat { page.isColumn ? max(0, (width - settingsColumnWidth) / 2) : 0 }
+    private var inset: CGFloat { navigator.place.isColumn ? max(0, (width - settingsColumnWidth) / 2) : 0 }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -405,6 +406,7 @@ struct SettingsPages: View {
         case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { navigator.go(.agents) })
         case .agents: AgentsTabView(place: navigator.place, go: navigator.go)
         case .sessions: SessionsTabView()
+        case .projects: ProjectsTabView(place: navigator.place, go: navigator.go)
         case .notifications: NotificationsTabView()
         case .health: HealthTabView(state: state)
         }

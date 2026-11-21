@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- An open session no longer asks the chat host for the whole list of sessions at each read: the reply of its events already says whether it runs and what it waits for. With 100 sessions that is 74 KB less to build and parse at each read (about 19 ms of the host), four times a second while the agent works, and one request less per read.
+- The engine's snapshot is read from the reply once and not three times: 3.6 ms instead of 6.3 ms for a snapshot of 90 epics (205 KB), on every poll of the menu and the window.
+
 ## [0.17.0] - 2026-11-21
 
 A new app icon and logo, a grouped menu bar menu, a message box that changes the session's agent, notices that read better, and a Mac that works less while Carrier is idle.

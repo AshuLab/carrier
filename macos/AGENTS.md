@@ -58,6 +58,10 @@ What the person sees: [settings-app](../docs/macos/settings-app.md#providers).
 
 The rows are `providersPage(_:config:chat:)` and the list's `providersDirectory` (`CarrierCore/ProvidersPage.swift`, `ProvidersDirectory.swift`; `Providers{Page,Directory}Tests`); views untested; `providers.json` is in `ProvidersFileTests` and `FixtureServerTests`.
 
+### Projects file
+
+`projects.json` is read, checked and edited by `CarrierCore/ProjectsFile.swift` (`ProjectsFileTests`); the same rules as `src/config/projects.ts` are run over `Tests/Fixtures/projects.json` by `ContractTests`. No view uses it yet.
+
 ### Agents page
 
 What the person sees: [settings-carrier](../docs/macos/settings-carrier.md#agents).

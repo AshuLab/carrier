@@ -31,6 +31,9 @@ public struct ProjectEntry: Equatable {
     public var pinned: Bool { json["pinned"] as? Bool ?? false }
     public var hidden: Bool { json["hidden"] as? Bool ?? false }
     public var tags: [String] { json["tags"] as? [String] ?? [] }
+    public var iconColor: String? { (json["icon"] as? [String: Any])?["color"] as? String }
+    public var iconMark: String? { (json["icon"] as? [String: Any])?["mark"] as? String }
+    public var iconImage: String? { (json["icon"] as? [String: Any])?["image"] as? String }
     public var actions: [ProjectAction] { projectActions(from: json["actions"]) }
 }
 
@@ -142,6 +145,36 @@ public func applyingProjectEdit(path: String, key: String, value: Any?, to json:
     return data
 }
 
+/// `json` with the `icon` sub-keys in `changes` set or removed (`nil` removes that key, and `icon` is removed when no key remains).
+/// Every other key of `icon` (such as `image`), of the entry and of the file is kept.
+public func applyingProjectIconEdit(path: String, changes: [String: String?], to json: Data?) throws -> Data {
+    var object = try parse(json)
+    var projects = object["projects"] as? [[String: Any]] ?? []
+    guard let index = projects.firstIndex(where: { $0["path"] as? String == path }) else { throw ProjectsFileError.missing(path) }
+    var icon = projects[index]["icon"] as? [String: Any] ?? [:]
+    for (key, value) in changes { icon[key] = value }
+    projects[index]["icon"] = icon.isEmpty ? nil : icon
+    object["projects"] = projects
+    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    _ = try parse(data)
+    return data
+}
+
+/// `json` with `tags` of the project at `path` changed by `transform` from what the file holds now, normalized and deduplicated; removes
+/// `tags` when empty. Every other key of the entry and of the file is kept.
+public func applyingProjectTagsEdit(path: String, to json: Data?, transform: ([String]) -> [String]) throws -> Data {
+    var object = try parse(json)
+    var projects = object["projects"] as? [[String: Any]] ?? []
+    guard let index = projects.firstIndex(where: { $0["path"] as? String == path }) else { throw ProjectsFileError.missing(path) }
+    let current = projects[index]["tags"] as? [String] ?? []
+    let next = normalizedProjectTags(transform(current))
+    projects[index]["tags"] = next.isEmpty ? nil : next
+    object["projects"] = projects
+    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    _ = try parse(data)
+    return data
+}
+
 /// What adding a folder did: it became an entry, or it already was one (its path as the file has it).
 public enum ProjectAdd: Equatable, Sendable {
     case added(String)
@@ -198,6 +231,16 @@ public struct ProjectsFile {
     /// Reads the file again now, changes one key of one project and writes the whole file through a temporary file that replaces it.
     public func update(path: String, key: String, value: Any?) throws {
         try applyingProjectEdit(path: path, key: key, value: value, to: bytes()).write(to: url, options: .atomic)
+    }
+
+    /// Reads the file again now, changes one or more keys inside `icon` of one project and writes the whole file atomically.
+    public func updateIcon(path: String, changes: [String: String?]) throws {
+        try applyingProjectIconEdit(path: path, changes: changes, to: bytes()).write(to: url, options: .atomic)
+    }
+
+    /// Reads the file again now, applies `transform` to one project's `tags` and writes the whole file atomically.
+    public func updateTags(path: String, transform: ([String]) -> [String]) throws {
+        try applyingProjectTagsEdit(path: path, to: bytes(), transform: transform).write(to: url, options: .atomic)
     }
 
     /// Reads the file again now, replaces the `actions` of `path` when all actions are valid, and writes the file atomically.

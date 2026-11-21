@@ -230,11 +230,15 @@ public final class FixtureServer {
             }
             entries.append(["path": path, "origin": "added"] as [String: Any])
         }
+        entries[0]["pinned"] = true
+        entries[0]["tags"] = ["swift", "macos"]
+        entries[0]["icon"] = ["color": "teal", "mark": "bolt"]
         entries[0]["actions"] = [
             ["name": "Install", "command": "pnpm install", "when": "newWorktree"],
             ["name": "Bootstrap", "command": "pnpm bootstrap", "when": "afterClone", "on": false, "onFail": "stop"],
         ]
         entries[1]["name"] = "A project with a name so long that the row has to cut it before it reaches the chevron"
+        entries[2]["icon"] = ["color": "orange"]
         entries.append(["path": "/Users/demo/gone", "name": "Moved away", "origin": "cloned"])
         let file = try JSONSerialization.data(withJSONObject: ["projects": entries], options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         try file.write(to: URL(fileURLWithPath: CarrierPlaces(folder: home).projects))

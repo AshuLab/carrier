@@ -231,13 +231,31 @@ extension EnvironmentValues {
 
 enum RowState { case resting, hovered, selected }
 
-/// The project's icon: its initials in white on a colour that is the same every time (from its name, so a session's folder and an epic's
-/// repository that are one project look alike), in a rounded square of glass tinted with it. A bright arc goes round its edge while an agent works (`WorkingRing`).
+extension ProjectColor {
+    /// Muted hues chosen to match `ProjectIcon.palette` so white initials and marks keep readable contrast in both light and dark appearances.
+    var color: Color {
+        switch self {
+        case .red: Color(hue: 0.98, saturation: 0.56, brightness: 0.64)
+        case .orange: Color(hue: 0.06, saturation: 0.60, brightness: 0.62)
+        case .yellow: Color(hue: 0.125, saturation: 0.56, brightness: 0.52)
+        case .green: Color(hue: 0.375, saturation: 0.54, brightness: 0.51)
+        case .teal: Color(hue: 0.47, saturation: 0.54, brightness: 0.52)
+        case .blue: Color(hue: 0.61, saturation: 0.56, brightness: 0.64)
+        case .purple: Color(hue: 0.76, saturation: 0.52, brightness: 0.64)
+        case .pink: Color(hue: 0.90, saturation: 0.52, brightness: 0.64)
+        }
+    }
+}
+
+/// The project's icon: its chosen mark or initials in white on its chosen colour or one made from its name, in a rounded square of glass
+/// tinted with it. A bright arc goes round its edge while an agent works (`WorkingRing`).
 /// In a sidebar row it is neutral until the row is selected or hovered (`rowActive`).
 struct ProjectIcon: View {
     let name: String
     /// What the colour is made from: `projectColorKey` of the folder or the repository.
     let colorKey: String
+    var customColor: ProjectColor? = nil
+    var mark: AppIcon? = nil
     var working = false
     /// The ring is the cyan of a session that waits for something it started, not the violet of one that works.
     var background = false
@@ -254,14 +272,47 @@ struct ProjectIcon: View {
         (0.542, 0.36, 0.50), (0.625, 0.36, 0.50), (0.708, 0.36, 0.50), (0.792, 0.36, 0.50), (0.875, 0.36, 0.50), (0.958, 0.36, 0.50),
     ].map { Color(hue: $0.0, saturation: $0.1, brightness: $0.2) }
 
+    init(name: String, colorKey: String, customColor: ProjectColor? = nil, mark: AppIcon? = nil, working: Bool = false, background: Bool = false, finished: Bool = false) {
+        self.name = name
+        self.colorKey = colorKey
+        self.customColor = customColor
+        self.mark = mark
+        self.working = working
+        self.background = background
+        self.finished = finished
+    }
+
+    init(tile: ProjectTile, working: Bool = false, background: Bool = false, finished: Bool = false) {
+        self.name = tile.name
+        self.colorKey = ""
+        self.customColor = if case .named(let color) = tile.color { color } else { nil }
+        self.hashedIndex = if case .hashed(let index) = tile.color { index } else { nil }
+        self.mark = if case .mark(let icon) = tile.content { icon } else { nil }
+        self.working = working
+        self.background = background
+        self.finished = finished
+    }
+
+    private var hashedIndex: Int?
+
+    private var tileColor: Color {
+        if let customColor { return customColor.color }
+        let index = hashedIndex ?? projectColorIndex(colorKey, count: Self.palette.count)
+        return Self.palette[index % Self.palette.count]
+    }
+
     var body: some View {
         Color.clear
             .frame(width: Self.size, height: Self.size)
-            .glassEffect(active ? .regular.tint(Self.palette[projectColorIndex(colorKey, count: Self.palette.count)]) : .regular, in: .rect(cornerRadius: Self.radius))
+            .glassEffect(active ? .regular.tint(tileColor) : .regular, in: .rect(cornerRadius: Self.radius))
             .overlay {
-                let initials = projectInitials(name)
-                Text(initials).font(.scaled(initials.count > 2 ? 10.5 : 12, weight: .semibold)).tracking(initials.count > 2 ? 0 : 0.3)
-                    .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
+                if let mark {
+                    Glyph(mark, size: 15, bold: true).foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
+                } else {
+                    let initials = projectInitials(name)
+                    Text(initials).font(.scaled(initials.count > 2 ? 10.5 : 12, weight: .semibold)).tracking(initials.count > 2 ? 0 : 0.3)
+                        .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
+                }
             }
             .animation(.easeOut(duration: 0.15), value: active)
             .overlay { if working || finished { WorkingRing(finished: finished && working == false, background: background).transition(.opacity) } }

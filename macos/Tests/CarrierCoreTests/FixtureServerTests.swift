@@ -127,8 +127,9 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     defer { server.stop() }
     let rows = projectRows(try ProjectsFile(folder: server.home).read())
     #expect(rows.count == 4)
-    #expect(rows.first?.line == "AshuLab/carrier")
+    #expect(rows.first?.line == "AshuLab/carrier" && rows.first?.pinned == true && rows.first?.tags == ["swift", "macos"])
+    #expect(rows.first?.tile == ProjectTile(name: "carrier", color: .named(.teal), content: .mark(.bolt)))
     #expect(rows[1].name.count > 60 && rows[1].repo?.hasSuffix("/" + rows[1].path.split(separator: "/").last!) == true)
     // a folder that is not a repository shows its path, and so does one that is not there
-    #expect(rows[2].line == rows[2].path && rows[3].line == "/Users/demo/gone")
+    #expect(rows[2].line == rows[2].path && rows[2].iconColor == .orange && rows[3].line == "/Users/demo/gone")
 }

@@ -32,7 +32,7 @@ public struct SidebarStore {
     private static let slotsTotalKey = "sidebar.slotsTotal"
     public static let widthKey = "sidebar.width"
     /// How narrow and how wide the sidebar can be dragged, in points, and the width it opens at until the person moves it.
-    public static let widthRange: ClosedRange<Double> = 260...800
+    public static let widthRange: ClosedRange<Double> = 280...800
     public static let defaultWidth: Double = 360
 
     private let defaults: UserDefaults

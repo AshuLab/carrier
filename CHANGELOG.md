@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The sidebar can no longer be dragged narrower than 280 points: its minimum was 140 in practice, whatever the code asked for.
 - An open conversation asks the chat host less often when nothing is happening: every 2 seconds instead of four times a second while idle with the app in front, every 5 seconds behind another app, and almost never with the window hidden or the Mac asleep. It still reads every quarter of a second while the agent works, and at once after you send.
 - The working animations (the glow on a card's edge, the sweep over "Thinking…", the spark) and the running clocks stop while the window is minimized, covered or the Mac asleep, and run at most 30 frames a second otherwise: a session that works no longer keeps the app at tens of percent of a core with its window minimized.
 - The glow around the message box while you dictate is drawn 30 times a second instead of 60, so it asks less of the Mac while it listens.

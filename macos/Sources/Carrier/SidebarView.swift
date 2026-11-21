@@ -219,6 +219,8 @@ struct SidebarView: View {
             }
         }
         .themedSidebarBackground()
+        // the content's own minimum: the column's modifier below left the item at 140, so the column could be dragged to half of it
+        .frame(minWidth: SidebarStore.widthRange.lowerBound)
         .navigationSplitViewColumnWidth(min: SidebarStore.widthRange.lowerBound, ideal: openWidth, max: SidebarStore.widthRange.upperBound)
         .background(SidebarWidthKeeper(width: openWidth))
     }

@@ -253,7 +253,7 @@ struct ProjectsTabView: View {
 
     @ViewBuilder private func projectScreen(_ row: ProjectRow) -> some View {
         if let failure = model.failure { ProblemLine(text: failure) }
-        ProjectDetailView(row: row, model: model, openActions: { openActions(row.path) }).id(row.path)
+        ProjectDetailView(row: row, model: model, openActions: { openActions(row.path) }, close: { go(SettingsPlace(.projects)) }).id(row.path)
     }
 
     // MARK: a file that does not match
@@ -273,7 +273,9 @@ private struct ProjectDetailView: View {
     let row: ProjectRow
     let model: ProjectsModel
     let openActions: () -> Void
+    let close: () -> Void
     @Environment(\.settingsHeaderAction) private var headerAction
+    @State private var confirmingRemove = false
     @State private var owner = UUID()
     @State private var pickingIcon = false
     @State private var newTag = ""
@@ -342,9 +344,20 @@ private struct ProjectDetailView: View {
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                     }
                 }
+                SettingsTabRow(title: "Remove", detail: "Takes \(row.name) out of Carrier; its folder and worktrees stay") {
+                    Button(role: .destructive) { confirmingRemove = true } label: { Label("Remove…", icon: .trash) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                }
             }
         }
         .writingToolsBehavior(.disabled)
+        // the ellipsis of Remove… is this question
+        .alert("Remove \(row.name) from Carrier?", isPresented: $confirmingRemove) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove", role: .destructive) { if model.remove(path: row.path) { close() } }
+        } message: {
+            Text(projectRemovalWords)
+        }
         .onAppear(perform: publishPin)
         .onChange(of: row.pinned) { publishPin() }
         .onChange(of: row.path) { publishPin() }

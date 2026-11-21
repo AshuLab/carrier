@@ -304,6 +304,9 @@ extension ProjectsProblem {
     public var text: String { path == "(file)" || path == "(root)" ? "projects.json \(message)" : "projects.json: \(path) \(message)" }
 }
 
+/// What the Remove question says: only the entry goes, and everything else stays where it is.
+public let projectRemovalWords = "Its folder and its worktrees stay where they are, and so do its sessions. If Carrier watches it, that stays as it is."
+
 /// The rows of `projects.json`, kept in step with the file: it follows what another process writes. A file that does not match its schema (or cannot be
 /// read) gives no rows and its problems, and `add` writes nothing over it.
 @MainActor @Observable public final class ProjectsModel {
@@ -392,6 +395,22 @@ extension ProjectsProblem {
         if projectsFolderProblem == nil {
             projectsPath = projectsFolder(chatJSON: (try? readChatConfig()) ?? nil, carrierFolder: file.folder, home: home)
         }
+    }
+
+    /// Takes the project out of the list and deletes its icon image copy (unless another project names it). The folder, the worktrees, the sessions and
+    /// `engine.json` are not touched: watching is the engine's file and removing a project never changes it.
+    @discardableResult public func remove(path: String) -> Bool {
+        var image: String?
+        var others: [ProjectEntry] = []
+        let removed = write {
+            let entries = try file.read()
+            image = entries.first { $0.path == path }?.iconImage
+            others = entries.filter { $0.path != path }
+            try file.remove(path: path)
+            return true
+        }
+        if removed, let image, others.contains(where: { $0.iconImage == image }) == false { imageStore.delete(image) }
+        return removed
     }
 
     /// Sets the project's name, or removes `name` when `raw` is empty or blank so it goes back to the folder's name.

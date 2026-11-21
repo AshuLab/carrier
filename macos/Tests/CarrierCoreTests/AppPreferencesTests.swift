@@ -199,6 +199,18 @@ private let idle = PanelSnapshot(
     #expect(store.chatTextSize == 13 && store.chatLineSpacing == .normal && store.chatMessageSpacing == .comfortable)
 }
 
+@Test func everyChatChoiceRoundTripsAndANumberThatIsNotOneIsTheDefault() {
+    let store = AppPreferences(defaults: UserDefaults(suiteName: "chat-choices-\(UUID().uuidString)")!)
+    for spacing in ChatLineSpacing.allCases { store.chatLineSpacing = spacing; #expect(store.chatLineSpacing == spacing) }
+    for spacing in MessageSpacing.allCases { store.chatMessageSpacing = spacing; #expect(store.chatMessageSpacing == spacing) }
+    #expect(ChatText.clamped(.nan) == ChatText.defaultSize)
+}
+
+@Test func thePersonsBubbleAddsNoRoomBetweenItsLinesAtNormal() {
+    #expect(ChatLineSpacing.tight.extraOverNormal(forSize: 13) == 0 && ChatLineSpacing.normal.extraOverNormal(forSize: 13) == 0)
+    #expect(ChatLineSpacing.loose.extraOverNormal(forSize: 13) == 3)
+}
+
 @Test func eachChatLineSpacingKeepsTheFourPointsAtThirteen() {
     #expect(ChatLineSpacing.normal.extra(forSize: 13) == 4)
     #expect(ChatLineSpacing.tight.extra(forSize: 13) < 4 && ChatLineSpacing.loose.extra(forSize: 13) > 4)

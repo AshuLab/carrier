@@ -358,7 +358,7 @@ struct FeedRowView: View {
                     .padding(.bottom, 3)
                 }
                 if sent.text.isEmpty == false {
-                    messageText(sent.text, commands: commands).chatText().textSelection(.enabled)
+                    messageText(sent.text, commands: commands).chatText(bubble: true).textSelection(.enabled)
                         .padding(.horizontal, 13).padding(.vertical, 8)
                         .chatSurface(.regular.tint(Color.themeAccent.opacity(0.1)), flat: Color.themeAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: 16))
                 }

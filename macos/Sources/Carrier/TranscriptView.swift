@@ -93,6 +93,7 @@ private struct LinkedText: View {
     @State private var places: [(link: Int, rect: CGRect)] = []
     @State private var hovered: Int?
     @State private var overLink = false
+    @State private var width: CGFloat = 0
     @AppStorage(AppPreferences.chatTextSizeKey) private var size = Double(ChatText.defaultSize)
     @AppStorage(AppPreferences.chatLineSpacingKey) private var spacing = AppPreferences.defaultChatLineSpacing
 
@@ -100,10 +101,11 @@ private struct LinkedText: View {
         Text(lit)
             // no `contentTransition(.interpolate)` here: interpolating a text whose runs have a background (the chips) leaves ghost rectangles of
             // them over the other lines while the lit link fades, so the chip changes at once
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { places = Self.place(links: text, width: $0, size: ChatText.clamped(CGFloat(size)), spacing: spacing) }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0; replace() }
             .onChange(of: text) { places = [] }
-            .onChange(of: size) { places = [] }
-            .onChange(of: spacing) { places = [] }
+            // a size or a spacing moves the lines without always changing the width, so the places are laid out again here
+            .onChange(of: size) { replace() }
+            .onChange(of: spacing) { replace() }
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let point):
@@ -114,6 +116,8 @@ private struct LinkedText: View {
             }
             .onDisappear { set(nil) }
     }
+
+    private func replace() { places = Self.place(links: text, width: width, size: ChatText.clamped(CGFloat(size)), spacing: spacing) }
 
     /// The text with the link under the pointer in a stronger tint.
     private var lit: AttributedString {
@@ -179,6 +183,7 @@ private struct MarkdownTableView: View {
     let table: MarkdownTable
     @State private var hovering = false
     @State private var copied = false
+    @AppStorage(AppPreferences.chatTextSizeKey) private var size = Double(ChatText.defaultSize)
 
     var body: some View {
         let columns = table.header.count
@@ -226,12 +231,14 @@ private struct MarkdownTableView: View {
     }
 
     private func cell(_ text: AttributedString, column: Int, header: Bool, first: Bool) -> some View {
+        // 12.5 of the 13 a message has, so a table keeps its place beside the text at any size
+        let points = ChatText.clamped(CGFloat(size)) * 12.5 / 13
         let align: Alignment = switch table.aligns[column] {
         case .leading: .leading
         case .center: .center
         case .trailing: .trailing
         }
-        return Text(text).font(.scaled(12.5, weight: header ? .semibold : nil)).lineSpacing(2)
+        return Text(text).font(.chat(points, weight: header ? .semibold : nil)).lineSpacing(points * 2 / 12.5)
             .multilineTextAlignment(table.aligns[column] == .trailing ? .trailing : table.aligns[column] == .center ? .center : .leading)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: align)
             .padding(.horizontal, 12).padding(.vertical, 8)

@@ -86,23 +86,25 @@ extension View {
 }
 
 private struct ChatTextStyle: ViewModifier {
+    /// The person's bubble (and the brief a subagent was given) has no room between its lines at Normal: only the font and a Loose.
+    let bubble: Bool
     @AppStorage(AppPreferences.chatTextSizeKey) private var size = Double(ChatText.defaultSize)
     @AppStorage(AppPreferences.chatLineSpacingKey) private var spacing = AppPreferences.defaultChatLineSpacing
 
     func body(content: Content) -> some View {
         let points = ChatText.clamped(CGFloat(size))
-        content.font(.chat(points)).lineSpacing(spacing.extra(forSize: points))
+        content.font(.chat(points)).lineSpacing(bubble ? spacing.extraOverNormal(forSize: points) : spacing.extra(forSize: points))
     }
 }
 
 extension View {
     /// The font and line spacing of the text of a message: the chat's own settings, which the text size of the app does not multiply.
-    func chatText() -> some View { modifier(ChatTextStyle()) }
+    func chatText(bubble: Bool = false) -> some View { modifier(ChatTextStyle(bubble: bubble)) }
 }
 
 extension Font {
     /// The system font of a message at `points`, the chat's own size: the text size of the app does not multiply it.
-    static func chat(_ points: CGFloat) -> Font { .system(size: points) }
+    static func chat(_ points: CGFloat, weight: Font.Weight? = nil) -> Font { .system(size: points, weight: weight) }
 
     /// The system font at `base` points scaled by the person's text size; the only way a view sets a size.
     static func scaled(_ base: CGFloat, weight: Font.Weight? = nil, design: Font.Design? = nil) -> Font {

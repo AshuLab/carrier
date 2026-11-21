@@ -740,7 +740,10 @@ public enum ChatText {
     public static let defaultSize: CGFloat = 13
     public static let sizeRange: ClosedRange<CGFloat> = 11...20
 
-    public static func clamped(_ size: CGFloat) -> CGFloat { min(max(size.rounded(), sizeRange.lowerBound), sizeRange.upperBound) }
+    /// `size` rounded to a whole point and kept inside `sizeRange`; the default for a number that is not one.
+    public static func clamped(_ size: CGFloat) -> CGFloat {
+        size.isNaN ? defaultSize : min(max(size.rounded(), sizeRange.lowerBound), sizeRange.upperBound)
+    }
 }
 
 /// The room between the lines of a message, on top of the font's own.
@@ -757,6 +760,9 @@ public enum ChatLineSpacing: String, CaseIterable {
         case .loose: size * 7 / 13
         }
     }
+
+    /// What the person's bubble adds: it never had room between its lines, so Normal adds none and Loose only what it has over Normal.
+    public func extraOverNormal(forSize size: CGFloat) -> CGFloat { max(0, extra(forSize: size) - Self.normal.extra(forSize: size)) }
 }
 
 /// The room between the messages of a conversation, in points.

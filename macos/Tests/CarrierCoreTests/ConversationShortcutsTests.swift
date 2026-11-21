@@ -84,9 +84,20 @@ private func openGroups(_ rows: [FeedRow], flipped: Set<String>) -> [Bool] {
 
 @Test func theConversationActionsDoNothingWithoutAnOpenConversation() {
     let shell = WindowShell()
-    for selection in [Selection.home, .sessions, .newSession, .archive, .carrier, .epic(repo: "acme/web", issue: 7)] {
+    for selection in [Selection.home, .sessions, .archive, .carrier, .epic(repo: "acme/web", issue: 7)] {
         shell.selection = selection
         for action in [ConversationAction.focusBox, .stopAgent, .jumpToLatest, .toggleToolFolds, .copyLastAnswer, .dictate] { shell.perform(.conversation(action)) }
         #expect(shell.conversationRequest == nil)
     }
+}
+
+@Test func theDraftOfANewSessionTakesOnlyTheActionsThatAreAboutItsBox() {
+    let shell = WindowShell()
+    shell.selection = .newSession
+    for action in [ConversationAction.stopAgent, .jumpToLatest, .toggleToolFolds, .copyLastAnswer, .stopSubagent] { shell.perform(.conversation(action)) }
+    #expect(shell.conversationRequest == nil)
+    shell.perform(.conversation(.dictate))
+    #expect(shell.conversationRequest == ConversationRequest(action: .dictate, count: 1))
+    shell.perform(.conversation(.focusBox))
+    #expect(shell.conversationRequest == ConversationRequest(action: .focusBox, count: 2))
 }

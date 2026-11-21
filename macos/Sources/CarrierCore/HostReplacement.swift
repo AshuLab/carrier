@@ -13,6 +13,21 @@ public func versionNumbers(_ text: String) -> [Int]? {
     return numbers.count == parts.count ? numbers : nil
 }
 
+/// What decides whether `carrier --version` can answer again: each path resolved through its symbolic links, with its modification date and
+/// size; nil when one is missing, or when no path is given.
+public func programStamp(_ paths: [String]) -> String? {
+    guard paths.isEmpty == false else { return nil }
+    var parts: [String] = []
+    for path in paths {
+        let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: resolved),
+            let modified = attributes[.modificationDate] as? Date, let size = attributes[.size] as? NSNumber
+        else { return nil }
+        parts.append("\(resolved)|\(modified.timeIntervalSince1970)|\(size)")
+    }
+    return parts.joined(separator: "\n")
+}
+
 /// A version that cannot be read, on either side, is never older: the host stays. `1.2` and `1.2.0` are the same.
 public func hostReplacement(running: String, installed: String, working: Bool) -> HostReplacement {
     guard var older = versionNumbers(running), var newer = versionNumbers(installed) else { return .keep }

@@ -18,7 +18,7 @@ import Observation
     var upgradeNotice: ChatHostNotice? { engineUpdate.notice }
     /// What the last version check used, so the button can look again.
     private var lastCheck: (command: StartCommand, homebrews: Bool)?
-    /// The installed `carrier` is asked its version once per launch.
+    /// The installed `carrier` is asked its version once per launch, and its Homebrew file is not run again while it is the same one.
     private var versionChecked = false
 
     /// At open, and again when the Settings window closes: starts the host if it does not answer. With `node` or `carrier`
@@ -85,7 +85,7 @@ import Observation
     private func replaceIfOlder(_ command: StartCommand, homebrews: Bool) {
         lastCheck = (command, homebrews)
         Task.detached {
-            guard var installed = Self.installedVersion(command) else { return }
+            guard var installed = Self.installedVersion(command, remembered: homebrews) else { return }
             let app = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
             if homebrews, CommandLine.arguments.contains("--selftest") == false {
                 if carrierIsOlder(installed: installed, app: app) {
@@ -94,7 +94,7 @@ import Observation
                     switch upgradeCarrier(installed: installed, app: app, brew: BrewRunner.run) {
                     case .notNeeded: await MainActor.run { self.engineUpdate = .upToDate }
                     case .upgraded:
-                        guard let again = Self.installedVersion(command) else { return }
+                        guard let again = Self.installedVersion(command, remembered: homebrews) else { return }
                         installed = again
                         await MainActor.run { self.engineUpdate = .updated }
                     case .failed(let notice):
@@ -172,12 +172,26 @@ import Observation
         }
     }
 
+    /// Where the version of the Homebrew `carrier` is kept with the stamp of the files that printed it.
+    private static let installedVersionKey = "carrier.installedVersion"
+
     /// What `carrier --version` prints; nil, with the reason in the log, when the command fails or prints something else.
-    static func installedVersion(_ command: StartCommand) -> String? {
+    /// With `remembered` (the Homebrew `carrier`, whose upgrade changes the file it links to) the version is kept with the stamp of what ran,
+    /// and the command is not run again, which starts a whole `node`, while the stamp is the same. A run from source is always asked: it
+    /// reads `package.json`, which the stamp does not cover.
+    static func installedVersion(_ command: StartCommand, remembered: Bool = false) -> String? {
         // the chat host's own arguments end with its subcommand; what comes before it (the script, for a `node` start) stays
+        let stamp = remembered ? programStamp([command.program] + command.arguments.dropLast()) : nil
+        if let stamp, let kept = UserDefaults.standard.dictionary(forKey: installedVersionKey) as? [String: String], kept["stamp"] == stamp, let version = kept["version"] {
+            return version
+        }
         do {
             let run = try shortRun(command.program, Array(command.arguments.dropLast()) + ["--version"], environment: command.environment)
-            if run.status == 0, versionNumbers(run.text) != nil { return run.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            if run.status == 0, versionNumbers(run.text) != nil {
+                let version = run.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let stamp { UserDefaults.standard.set(["stamp": stamp, "version": version], forKey: installedVersionKey) }
+                return version
+            }
             let how = run.timedOut ? "did not answer in 5 seconds and was ended" : "failed (exit \(run.status)) or printed something else"
             FileHandle.standardError.write(Data("carrier: the chat host was left alone, `carrier --version` \(how)\n".utf8))
         } catch {

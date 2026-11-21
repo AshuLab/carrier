@@ -31,7 +31,7 @@ Creating a session while it is missing keeps the alert, which says the same as t
 
 ### Version checks and replacement
 
-When a host answers, the app asks the installed `carrier` for its version (`carrier --version`) once per launch and compares it with the version in the host's hello (`CarrierCore/HostReplacement.swift`, `hostReplacement`).
+When a host answers, the app asks the installed `carrier` for its version (`carrier --version`) once per launch, and not again while the Homebrew `carrier` file is the same one (`programStamp`: its path through the links, modification date and size, kept in the app's defaults with the version it printed), and compares it with the version in the host's hello (`CarrierCore/HostReplacement.swift`, `hostReplacement`).
 If the host is older, no session is working or waiting for an approval and the sessions could be listed, the app stops it, waits up to 15 seconds for its socket to go and starts the installed one.
 If a session is working or waiting, it leaves the host running and the Sessions section and the Sessions home say "The chat host is older than Carrier", to restart it when the session finishes, because stopping a host closes its agents' processes and the work in them.
 A version that cannot be read on either side leaves the host alone and writes why to the app's stderr.

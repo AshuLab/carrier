@@ -15,13 +15,13 @@ public enum ProjectSheetMode: Equatable, Sendable {
 
     public var subtitle: String {
         switch self {
-        case .settings: "Choose a folder on this Mac, or drop folders here."
+        case .settings: "Paste a GitHub address, search your repositories, or choose a folder on this Mac."
         }
     }
 
     public var fieldPlaceholder: String {
         switch self {
-        case .settings: "Type a path or filter recent folders…"
+        case .settings: "Paste a GitHub address, search, or type a path…"
         }
     }
 
@@ -78,6 +78,14 @@ public struct ProjectSheetResult: Equatable, Identifiable, Sendable {
         case existingProject(ProjectRow)
         /// A recent folder that is not yet a project.
         case suggestedFolder(RecentFolder)
+        /// A GitHub repository to clone: `owner/name`, and the parent folder chosen for this clone only (nil: the projects folder, which the host knows).
+        case cloneRepo(repo: String, parent: String?)
+
+        /// Whether the result is a GitHub repository (its detail is a description, not a path).
+        public var isRepository: Bool {
+            if case .cloneRepo = self { return true }
+            return false
+        }
     }
 
     public let id: String
@@ -86,14 +94,69 @@ public struct ProjectSheetResult: Equatable, Identifiable, Sendable {
     public let detail: String
     public let actionTitle: String
     public let tile: ProjectTile
+    /// "Private", on a repository that is.
+    public var chip: String?
+    /// When the repository was last pushed ("pushed 3 d ago"); empty when GitHub gave none.
+    public var pushed: String = ""
+    /// What is wrong with the result, in the words to show in orange; the result then cannot be acted on.
+    public var problem: String?
+    /// Where a clone goes, for a repository to clone.
+    public var destination: ProjectSheetDestination?
+
+    public var isEnabled: Bool { problem == nil }
 
     public var path: String {
         switch kind {
         case .addPath(let path): path
         case .existingProject(let row): row.path
         case .suggestedFolder(let folder): folder.path
+        case .cloneRepo(let repo, _): repo
         }
     }
+}
+
+/// Where a repository to clone will be made: the line under it, and whether the person chose a folder for this clone.
+public struct ProjectSheetDestination: Equatable, Sendable {
+    /// "Clones into ~/Carrier/projects/owner/name".
+    public let line: String
+    /// The folder the clone goes in, before `<owner>/<name>`.
+    public let parent: String
+    /// True when the person chose `parent` for this clone with Choose…; false when it is the default.
+    public let isChosen: Bool
+}
+
+/// How far the check that the person's login can see a pasted repository got.
+public enum RepoCheck: Equatable, Sendable {
+    case checking
+    case visible
+    /// GitHub has no such repository for this login.
+    case notVisible
+    /// The check could not be made (`gh` missing or signed out, no network); the host's own words.
+    case problem(String)
+}
+
+/// What the sheet says in orange for a repository the login cannot see.
+public let repoNotVisibleLine = "Your GitHub login can't see this repository. Check the name, or sign in with another account."
+
+/// Whether a host refusal of `repoBranches` says the repository is not there for this login (the words of src/chat/projects.ts, `notFoundSentence`).
+public func isRepoNotVisible(_ refusal: String) -> Bool { refusal.hasSuffix("was not found, or your GitHub login cannot see it") }
+
+/// What the sheet knows of GitHub: the person's repositories as the host listed them, what was checked of a pasted one, and where a clone goes.
+public struct ProjectSheetGithub: Equatable, Sendable {
+    public var repos: [AvailableRepo] = []
+    /// The host's own words when the listing could not be read (`gh` missing or signed out, no network); shown in orange.
+    public var listingProblem: String?
+    /// The projects folder: where a clone goes unless the person chose another for it.
+    public var defaultParent: String
+    /// The folder chosen with Choose… for one clone, by lower-case `owner/name`.
+    public var chosenParents: [String: String] = [:]
+    /// What was found out about the repositories that are not in `repos`, by lower-case `owner/name`.
+    public var visibility: [String: RepoCheck] = [:]
+    /// Whether the host can clone (its hello lists `projects`); when it cannot, a repository says the host is older and to restart it.
+    public var canClone = true
+    public var now: Date = Date()
+
+    public init(defaultParent: String) { self.defaultParent = defaultParent }
 }
 
 /// A named section of the sheet's list (`title` is nil for the top path result).
@@ -108,6 +171,8 @@ public struct ProjectSheetState: Equatable, Sendable {
     public let mode: ProjectSheetMode
     public let query: String
     public let sections: [ProjectSheetSection]
+    /// The host's words when the person's repositories could not be listed, for an orange line above the results.
+    public var notice: String?
 
     /// All results in display order (for keyboard navigation).
     public var items: [ProjectSheetResult] { sections.flatMap(\.items) }
@@ -176,6 +241,7 @@ public func projectSheetState(
     query: String,
     recent: [RecentFolder],
     projects: [ProjectRow],
+    github: ProjectSheetGithub? = nil,
     home: String = NSHomeDirectory()
 ) -> ProjectSheetState {
     let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -214,7 +280,49 @@ public func projectSheetState(
         )
     }
 
+    func projectOfRepo(_ repo: String) -> ProjectRow? { projects.first { $0.repo?.lowercased() == repo.lowercased() } }
+
+    /// The row of a repository to clone, or "Already a project · Open" for one that is. `listed` is what the person's listing says of it, when it does.
+    func repoResult(_ repo: String, listed: AvailableRepo?) -> ProjectSheetResult? {
+        guard let github else { return nil }
+        if let existing = projectOfRepo(repo) { return existingResult(existing) }
+        let key = repo.lowercased()
+        let chosen = github.chosenParents[key]
+        let parent = chosen ?? github.defaultParent
+        var problem: String?
+        if github.canClone == false {
+            problem = projectsNeedNewerHost
+        } else if listed == nil {
+            switch github.visibility[key] {
+            case .notVisible: problem = repoNotVisibleLine
+            case .problem(let text): problem = text
+            case .checking, .visible, nil: break
+            }
+        }
+        return ProjectSheetResult(
+            id: "repo:\(key)",
+            kind: .cloneRepo(repo: repo, parent: chosen),
+            title: listed == nil ? "Clone \(repo)" : repo,
+            detail: listed?.about ?? "",
+            actionTitle: "Clone",
+            tile: projectTile(name: repo.split(separator: "/").last.map(String.init) ?? repo, colorKey: repo),
+            chip: listed?.isPrivate == true ? "Private" : nil,
+            pushed: pushedLine(listed?.pushedAt, now: github.now),
+            problem: problem,
+            destination: ProjectSheetDestination(line: "Clones into " + abbreviatedSheetPath(parent + "/" + repo, home: home), parent: parent, isChosen: chosen != nil)
+        )
+    }
+
+    /// The person's repositories that contain `needle` in their name or description, other than the one that was pasted (it is the first result).
+    func matchingRepos(_ needle: String, except pasted: String?) -> [ProjectSheetResult] {
+        (github?.repos ?? []).filter {
+            $0.name.lowercased() != pasted
+                && (needle.isEmpty || $0.name.localizedCaseInsensitiveContains(needle) || ($0.about?.localizedCaseInsensitiveContains(needle) ?? false))
+        }.compactMap { repoResult($0.name, listed: $0) }
+    }
+
     var sections: [ProjectSheetSection] = []
+    var notice: String?
 
     if let typedPath = expandedSheetPath(trimmed, home: home) {
         let pathResult: ProjectSheetResult
@@ -255,6 +363,17 @@ public func projectSheetState(
             }
         }
 
+        // a pasted GitHub address, or `owner/name`: the repository itself first
+        var reference: String?
+        if let github, let repo = repoReference(trimmed) {
+            let listed = github.repos.first { $0.name.lowercased() == repo.lowercased() }
+            let name = listed?.name ?? repo
+            if let result = repoResult(name, listed: listed) {
+                sections.append(ProjectSheetSection(id: "path", title: nil, items: [result]))
+                reference = name.lowercased()
+            }
+        }
+
         let matchingSuggested = trimmed.isEmpty ? suggestions : suggestions.filter { folder in
             folder.name.localizedCaseInsensitiveContains(trimmed)
                 || folder.path.localizedCaseInsensitiveContains(trimmed)
@@ -263,9 +382,17 @@ public func projectSheetState(
         if matchingSuggested.isEmpty == false {
             sections.append(ProjectSheetSection(id: "suggested", title: "Suggested", items: matchingSuggested.map(suggestedResult)))
         }
+
+        let repos = matchingRepos(trimmed, except: reference)
+        if repos.isEmpty == false {
+            sections.append(ProjectSheetSection(id: "repos", title: "Your repositories", items: repos))
+        }
+        notice = github?.listingProblem
     }
 
-    return ProjectSheetState(mode: mode, query: query, sections: sections)
+    var state = ProjectSheetState(mode: mode, query: query, sections: sections)
+    state.notice = notice
+    return state
 }
 
 /// What dropping one or more paths onto the sheet in Settings did.

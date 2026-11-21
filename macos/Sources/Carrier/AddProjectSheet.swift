@@ -4,7 +4,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// The shared sheet for choosing a folder or project (docs/specs/projects.md, "Add project"): one search/path field, suggested recent
-/// folders, drag and drop, keyboard navigation, and Open a folder…. Driven by `ProjectSheetMode`.
+/// folders, a pasted GitHub address or a search over the person's repositories (cloned with the host, the list showing the clone), drag and drop,
+/// keyboard navigation, and Open a folder…. Driven by `ProjectSheetMode`.
 struct AddProjectSheet: View {
     let mode: ProjectSheetMode
     let model: ProjectsModel
@@ -17,12 +18,20 @@ struct AddProjectSheet: View {
     @State private var problem: String?
     @State private var dropping = false
     @State private var loadedRecent: [RecentFolder] = []
+    @State private var github = ProjectSheetGithub(defaultParent: "")
+    @State private var checkTask: Task<Void, Never>?
+    @State private var capabilities: Set<ControlClient.Capability> = []
     @FocusState private var fieldFocused: Bool
+
+    /// ponytail: five pages of thirty are read, the newest pushes; a person with more types the address or searches for it, which the check below handles.
+    private static let listedPages = 5
 
     private var effectiveRecent: [RecentFolder] { recent.isEmpty ? loadedRecent : recent }
 
     private var state: ProjectSheetState {
-        projectSheetState(mode: mode, query: query, recent: effectiveRecent, projects: model.rows)
+        var known = github
+        known.defaultParent = model.projectsPath
+        return projectSheetState(mode: mode, query: query, recent: effectiveRecent, projects: model.rows, github: known)
     }
 
     var body: some View {
@@ -49,6 +58,8 @@ struct AddProjectSheet: View {
                         }
                     if let problem {
                         ProblemLine(text: problem)
+                    } else if let notice = current.notice {
+                        ProblemLine(text: notice, announces: false)
                     }
                 }
                 .padding(.horizontal, 24)
@@ -73,6 +84,7 @@ struct AddProjectSheet: View {
             .onChange(of: query) {
                 problem = nil
                 highlightedId = state.firstResult?.id
+                checkPastedRepository()
             }
             .onChange(of: current.items.map(\.id)) { _, ids in
                 if let currentId = highlightedId, ids.contains(currentId) { return }
@@ -90,8 +102,8 @@ struct AddProjectSheet: View {
                 return .handled
             }
             .task {
+                let host = SocketChatHost()
                 if recent.isEmpty {
-                    let host = SocketChatHost()
                     let active = (try? await host.list(archived: false)) ?? []
                     let archived = (try? await host.list(archived: true)) ?? []
                     let combined = active + archived
@@ -99,6 +111,7 @@ struct AddProjectSheet: View {
                         loadedRecent = recentFolders(combined)
                     }
                 }
+                await loadRepositories(host)
             }
         }
     }
@@ -142,10 +155,10 @@ struct AddProjectSheet: View {
             let emptyQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             EmptyStateView(
                 icon: emptyQuery ? .folder : .search,
-                title: emptyQuery ? "No recent folders" : "No matching folders",
+                title: emptyQuery ? "No recent folders" : "Nothing matches",
                 line: emptyQuery
-                    ? "Type a path starting with ~ or /, drop folders here, or choose Open a folder… below."
-                    : "Nothing in your recent folders matches. Type a path starting with ~ or / to add any folder."
+                    ? "Paste a GitHub address, type a path starting with ~ or /, drop folders here, or choose Open a folder… below."
+                    : "Nothing in your recent folders or repositories matches. Paste a GitHub address, or type a path starting with ~ or / to add any folder."
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -160,8 +173,11 @@ struct AddProjectSheet: View {
                                     .padding(.bottom, 2)
                             }
                             ForEach(section.items) { item in
-                                resultRow(item, highlighted: highlightedId == item.id)
-                                    .id(item.id)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    resultRow(item, highlighted: highlightedId == item.id)
+                                    if item.destination != nil, highlightedId == item.id || section.id == "path" { destinationLine(item) }
+                                }
+                                .id(item.id)
                             }
                         }
                     }
@@ -181,24 +197,52 @@ struct AddProjectSheet: View {
             HStack(spacing: 12) {
                 ProjectIcon(tile: item.tile)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(.scaled(13, weight: .medium))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    HStack(spacing: 6) {
+                        Text(item.title)
+                            .font(.scaled(13, weight: .medium))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        if let chip = item.chip { StatusChip(text: chip, tint: .secondary) }
+                    }
                     Text(item.detail)
-                        .font(.scaled(11, design: .monospaced))
+                        .font(.scaled(11, design: item.kind.isRepository ? .default : .monospaced))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .truncationMode(.middle)
+                        .truncationMode(item.kind.isRepository ? .tail : .middle)
                 }
                 Spacer(minLength: 8)
-                actionBadge(item.actionTitle, active: hovering || highlighted)
+                if item.pushed.isEmpty == false {
+                    Text(item.pushed).font(.scaled(11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+                }
+                actionBadge(item.actionTitle, active: (hovering || highlighted) && item.isEnabled)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
         }
-        .accessibilityLabel("\(item.title), \(item.detail)")
+        .disabled(item.isEnabled == false)
+        .accessibilityLabel(item.problem.map { "\(item.title), \($0)" } ?? "\(item.title), \(item.detail)")
         .accessibilityAddTraits(highlighted ? .isSelected : [])
+    }
+
+    /// Where a clone goes, with Choose… to change it for this clone only; a repository the login cannot see says so in orange instead.
+    @ViewBuilder private func destinationLine(_ item: ProjectSheetResult) -> some View {
+        if let problem = item.problem {
+            ProblemLine(text: problem).padding(.horizontal, 10).padding(.bottom, 4)
+        } else if let destination = item.destination, case .cloneRepo(let repo, _) = item.kind {
+            HStack(spacing: 8) {
+                Text(destination.line)
+                    .font(.scaled(11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(destination.parent + "/" + repo)
+                Button("Choose…") { chooseParent(for: repo, current: destination.parent) }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    .accessibilityLabel("Choose where \(repo) is cloned")
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10).padding(.bottom, 4)
+        }
     }
 
     private func actionBadge(_ title: String, active: Bool) -> some View {
@@ -257,8 +301,94 @@ struct AddProjectSheet: View {
             case .existingProject(let project):
                 dismiss()
                 openProject(project.path)
+            case .cloneRepo(let repo, let parent):
+                guard item.isEnabled else { return }
+                clone(repo, into: parent)
             }
         }
+    }
+
+    // MARK: GitHub
+
+    /// The person's repositories, page by page, and what the host can do; the host's own words when it cannot list them.
+    private func loadRepositories(_ host: SocketChatHost) async {
+        let found = (try? await host.capabilities()) ?? []
+        capabilities = found
+        // a host that did not answer is not one that is older: the clone itself says so
+        if found.isEmpty == false { github.canClone = found.contains(.projects) }
+        guard found.contains(.githubRepos) else { return }
+        for page in 1...Self.listedPages {
+            do {
+                let loaded = try await host.githubRepos(page: page)
+                github.repos += loaded.repos.filter { isRepoName($0.name) }
+                if loaded.hasMore == false { return }
+            } catch ControlError.remote(let words) {
+                github.listingProblem = words
+                return
+            } catch {
+                return
+            }
+        }
+    }
+
+    /// A pasted address that is not in the person's repositories is looked up on GitHub once typing pauses, so a repository the login cannot see says so
+    /// before Clone is pressed.
+    private func checkPastedRepository() {
+        checkTask?.cancel()
+        guard let repo = repoReference(query), capabilities.contains(.repoBranches),
+            github.repos.contains(where: { $0.name.lowercased() == repo.lowercased() }) == false
+        else { return }
+        let key = repo.lowercased()
+        switch github.visibility[key] {
+        case .visible, .notVisible, .problem: return
+        case .checking, nil: break
+        }
+        github.visibility[key] = .checking
+        checkTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard Task.isCancelled == false else { return }
+            do {
+                _ = try await SocketChatHost().repoBranches(repo)
+                github.visibility[key] = .visible
+            } catch ControlError.remote(let words) {
+                github.visibility[key] = isRepoNotVisible(words) ? .notVisible : .problem(words)
+            } catch {
+                github.visibility[key] = nil
+            }
+        }
+    }
+
+    private func clone(_ repo: String, into parent: String?) {
+        problem = nil
+        Task {
+            do {
+                try await model.startClone(repo, into: parent)
+                dismiss()
+            } catch ControlError.remote(let words) {
+                problem = words
+            } catch {
+                problem = hostNotRunning
+            }
+        }
+    }
+
+    /// The system's folder panel for the folder this one clone goes in (the default is left as it is); refused for a folder inside Carrier's own.
+    private func chooseParent(for repo: String, current: String) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: current)
+        panel.prompt = "Choose"
+        panel.message = "Choose the folder \(repo) is cloned into"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if let refusal = projectsFolderRefusal(url.path, carrierFolder: currentCarrierFolder()) {
+            problem = refusal
+            return
+        }
+        problem = nil
+        github.chosenParents[repo.lowercased()] = url.path
     }
 
     private func addFolder(_ path: String) {

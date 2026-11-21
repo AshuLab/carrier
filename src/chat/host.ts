@@ -106,7 +106,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     return ages;
   };
   const usage = createUsage({ ports: { ...deps.usage.ports, clock: deps.clock }, history: deps.usage.history, db, folder: carrierHome(), agents: () => chatAgentsOf(settings.agents), env: deps.env });
-  const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock });
+  const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock, onCloneChange: () => idle?.recheck() });
   // the last value read, not the file: a conversation names its session several times a second (`list` and the clock pass read the file)
   const idleCloseMs = () => (ages.idleCloseMinutes === undefined ? IDLE_CLOSE_MS : ages.idleCloseMinutes * 60_000);
   const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), idleCloseMs, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, pulls: deps.pulls, onLiveChange: () => idle?.recheck(), mcp: { registry: mcpRegistry, url: () => mcpServer?.url, tools: mcpTools.map((tool) => tool.name) } });
@@ -147,12 +147,13 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     (stopping ??= (async () => {
       stopped = true;
       await sessions.closeAll(); // also tells the pass in flight to leave the next session alone
+      await projects.stop();
       await passInFlight; // so the database is not closed under a worktree that is half removed
       close();
       log.info('chat host stopped');
       deps.exit(code);
     })());
-  idle = idleExit({ clock: deps.clock, afterMs: deps.idleMs, live: sessions.liveCount, exit: stop });
+  idle = idleExit({ clock: deps.clock, afterMs: deps.idleMs, live: () => sessions.liveCount() + projects.cloningCount(), exit: stop });
   // The MCP is up before the socket answers; one that cannot bind leaves the host without it, and each session says so.
   try {
     mcpServer = await deps.startMcp({ registry: mcpRegistry, sessions: sessions.mcpView, tools: mcpTools });
@@ -164,7 +165,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
       joined: () => void idle?.joined(),
       left: () => void idle?.left(),
     };
-    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, cloneRepo: projects.cloneRepo, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
+    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, cloneRepo: projects.cloneRepo, cloneProject: projects.cloneProject, projectClones: projects.projectClones, dismissClone: projects.dismissClone, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
   } catch (error) {
     close();
     throw error;

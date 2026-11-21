@@ -144,7 +144,7 @@ private func temporaryFolder() throws -> String {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProjectsFile(folder: folder)
-    let model = ProjectsModel(file: file) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(), file: file) { _ in nil } // a host of its own: `follow` asks it, and a test never asks the machine's
     let following = Task { await model.follow(every: .milliseconds(10)) }
     defer { following.cancel() }
     func wait(_ done: () -> Bool) async { for _ in 0..<300 where done() == false { try? await Task.sleep(for: .milliseconds(10)) } }

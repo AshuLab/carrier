@@ -60,6 +60,12 @@ const controls = (): ChatControls => ({
     seen.push(gone);
     return { repo };
   },
+  cloneProject: ({ repo, parent }) => {
+    if (repo === 'acme/missing') throw new ChatRefused('acme/missing is already a project');
+    return { repo, folder: `${parent ?? '/projects'}/${repo}`, state: 'cloning' };
+  },
+  projectClones: () => ({ clones: [{ repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning', progress: 'Receiving objects: 45%' }] }),
+  dismissClone: () => ({ clones: [] }),
   createProject: async ({ name }) => ({ folder: `/projects/local/${name}` }),
   githubRepos: async ({ page }) => ({ page }),
   repoBranches: async ({ repo }) => ({ repo }),
@@ -106,7 +112,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'projects'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -328,6 +334,26 @@ test('createProject takes one plain folder name and nothing else', async () => {
   expect(await c.ask('{"id":20,"cmd":"createProject"}')).toEqual({ id: 20, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":21,"cmd":"createProject","name":"a","force":true}')).toEqual({ id: 21, ok: false, error: 'invalid request' });
   expect(await c.ask(`{"id":22,"cmd":"createProject","name":"${'a'.repeat(100)}"}`)).toMatchObject({ ok: true });
+});
+
+test('the projects requests: a clone starts and answers at once, the clones in flight are listed, a failed one is dismissed', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"cloneProject","repo":"acme/app"}')).toEqual({ id: 1, ok: true, data: { repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning' } });
+  expect(await c.ask('{"id":2,"cmd":"cloneProject","repo":"acme/app","parent":"/work"}')).toMatchObject({ ok: true, data: { folder: '/work/acme/app' } });
+  expect(await c.ask('{"id":3,"cmd":"cloneProject","repo":"acme/missing"}')).toEqual({ id: 3, ok: false, error: 'acme/missing is already a project' });
+  expect(await c.ask('{"id":4,"cmd":"projectClones"}')).toEqual({ id: 4, ok: true, data: { clones: [{ repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning', progress: 'Receiving objects: 45%' }] } });
+  expect(await c.ask('{"id":5,"cmd":"dismissClone","repo":"acme/app"}')).toEqual({ id: 5, ok: true, data: { clones: [] } });
+  const bad = [
+    '{"id":10,"cmd":"cloneProject"}',
+    '{"id":11,"cmd":"cloneProject","repo":"../x"}',
+    '{"id":12,"cmd":"cloneProject","repo":"a/b","parent":""}',
+    '{"id":13,"cmd":"cloneProject","repo":"a/b","force":true}',
+    '{"id":14,"cmd":"projectClones","repo":"a/b"}',
+    '{"id":15,"cmd":"dismissClone"}',
+    '{"id":16,"cmd":"dismissClone","repo":"a/b/c"}',
+  ];
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
 });
 
 const planOf = (extra: object = {}, workspace: object = { kind: 'folder', folder: '/work' }) => JSON.stringify({ id: 1, cmd: 'open', plan: { workspace, agent: 'claude', text: 'hi', ...extra } });

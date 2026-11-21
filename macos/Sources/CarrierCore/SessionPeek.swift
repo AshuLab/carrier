@@ -26,6 +26,8 @@ public struct SessionPeek: Equatable {
     public var diff: SessionDiff?
     /// What the agent waits for after its turn ended.
     public var background: [BackgroundTask] = []
+    /// The folder the session is grouped under: the project's tile is looked up by it.
+    public var base = ""
 }
 
 public func sessionPeek(_ row: SessionRow, now: Date) -> SessionPeek {
@@ -46,6 +48,6 @@ public func sessionPeek(_ row: SessionRow, now: Date) -> SessionPeek {
     }
     return SessionPeek(
         title: row.title, name: row.workspace, subtitle: subtitle, tone: tone, lastMessage: row.lastMessage?.isEmpty == false ? row.lastMessage : nil,
-        facts: facts, timeline: "updated \(spokenAge(row.updatedAt, now: now))", pullRequest: row.pullRequest, diff: row.diff, background: row.background
+        facts: facts, timeline: "updated \(spokenAge(row.updatedAt, now: now))", pullRequest: row.pullRequest, diff: row.diff, background: row.background, base: row.base
     )
 }

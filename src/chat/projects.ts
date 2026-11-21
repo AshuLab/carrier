@@ -5,6 +5,7 @@ import { mkdir, rm, rmdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/places.ts';
+import { readProjectsFile, updateProjectsFile } from '../config/projects.ts';
 import { listAvailableRepos, type AvailableRepo } from '../integrations/available-repos.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import { repoNamePattern } from '../config/schema.ts';
@@ -74,6 +75,12 @@ export async function ghBranches(repo: string, timeoutMs: number): Promise<RepoB
     const branches = listed.stdout.split('\n').filter((name) => name !== '');
     return { default: head.stdout.trim(), branches, hasMore: branches.length === BRANCHES_PER_PAGE };
   } catch (error) {
+    // gh says "HTTP 404" for a repository that does not exist and for one this login cannot see; the sheet says what to do about it
+    const said = (error as { stderr?: unknown }).stderr;
+    if (typeof said === 'string' && /http 404|not found/i.test(said)) {
+      log.info('gh branches: repository not found or not visible', { repo });
+      throw new ChatRefused(notFoundSentence(repo));
+    }
     throw ghRefusal(error, 'branches');
   }
 }
@@ -82,6 +89,9 @@ export async function ghBranches(repo: string, timeoutMs: number): Promise<RepoB
 const notVisible = /repository not found|not found|authentication failed|could not read username|error: 40[134]/i;
 const offline = /could not resolve host|failed to connect|connection (timed out|refused|reset)|network is unreachable|unable to access/i;
 
+/** What a repository that is not there for this login is called, by `git clone` and by `gh api` alike; the app tells it from the other refusals by these words. */
+const notFoundSentence = (repo: string) => `${repo} was not found, or your GitHub login cannot see it`;
+
 function refusal(result: Extract<GitResult, { ok: false }>, did: 'clone' | 'fetch', repo: string) {
   if (result.aborted === true) {
     log.info(`git ${did} stopped`, { repo }); // the person left: not a failure of git
@@ -89,7 +99,7 @@ function refusal(result: Extract<GitResult, { ok: false }>, did: 'clone' | 'fetc
   }
   log.error(`git ${did} failed`, { repo, code: result.code, timedOut: result.timedOut === true });
   if (result.timedOut === true) return new ChatRefused(`The ${did} took more than ten minutes and was stopped`);
-  if (notVisible.test(result.stderr)) return new ChatRefused(`${repo} was not found, or your GitHub login cannot see it`);
+  if (notVisible.test(result.stderr)) return new ChatRefused(notFoundSentence(repo));
   if (offline.test(result.stderr)) return new ChatRefused('GitHub could not be reached; check the network connection');
   return new ChatRefused(`git could not ${did} ${repo}`);
 }
@@ -131,6 +141,9 @@ export async function createProject(git: Git, name: string): Promise<{ folder: s
 export type GithubRepos = { repos: (page: number) => Promise<{ repos: AvailableRepo[]; hasMore: boolean }>; login: () => Promise<string>; branches: (repo: string) => Promise<RepoBranches> };
 
 type CloneReply = { folder: string; repo: string; fetched: boolean };
+
+/** A clone the person started from Settings, as `projectClones` lists it: running with git's latest progress line, or failed with its reason until dismissed. One that finished is a project and is not listed. */
+export type ProjectClone = { repo: string; folder: string; state: 'cloning' | 'failed'; progress?: string; error?: string };
 type Job = { done: Promise<CloneReply>; mode: 'clone' | 'fetch'; waiters: number; abort: AbortController; listeners: Set<(line: string) => void>; latest?: string };
 
 // The only stderr lines of git that leave this file: its progress, as "Receiving objects: 45%". Anything else can hold a URL.
@@ -140,8 +153,10 @@ const progressLine = /^(?:remote: )?((?:Counting|Compressing|Receiving|Resolving
  * Brings GitHub repositories into the projects folder with the person's own `gh` login (ADR 0015). The folder is read
  * from `chat.json` at each request, so a change applies to the next one.
  */
-export function createProjects({ git, token, github, clock }: { git: Git; token: () => Promise<string>; github: GithubRepos; clock: Clock }) {
+export function createProjects({ git, token, github, clock, onCloneChange }: { git: Git; token: () => Promise<string>; github: GithubRepos; clock: Clock; onCloneChange?: () => void }) {
   const running = new Map<string, Job>();
+  const clones = new Map<string, ProjectClone>(); // by lower-case `owner/name`: one clone of a repository at a time, whichever folder it goes to
+  const cloning = new Map<AbortController, Promise<void>>();
 
   const authEnv = async () => tokenEnv(await token());
 
@@ -174,14 +189,92 @@ export function createProjects({ git, token, github, clock }: { git: Git; token:
     return { folder: dest, repo, fetched: false };
   }
 
-  /** `<projects folder>/<owner>/<name>`, where `repo` is or would be cloned. */
-  const repoFolder = (repo: string): string => {
+  /** `<projects folder>/<owner>/<name>`, where `repo` is or would be cloned; `parent` stands for the projects folder in a clone that goes elsewhere. */
+  const repoFolder = (repo: string, parent?: string): string => {
     if (repoNamePattern.test(repo) === false) throw new ChatRefused(`"${repo}" is not a repository; write it as owner/name`);
-    return projectsFolder(repo);
+    return parent === undefined ? projectsFolder(repo) : checkProjectsFolder(join(parent, repo), carrierHome());
   };
+
+  const snapshot = () => ({ clones: [...clones.values()].map((clone) => ({ ...clone })) });
+
+  /** Brings `repo` in and registers the folder in `projects.json`, in the background; a failure stays in `clones` with its reason. */
+  async function runClone(clone: ProjectClone, abort: AbortController) {
+    try {
+      const reply = await cloneRepo({ repo: clone.repo, folder: clone.folder }, abort.signal, (line) => void (clone.progress = line));
+      // a folder that was already there and only fetched is added, not cloned (docs/specs/projects.md, Who writes what)
+      const origin = reply.fetched ? 'added' : 'cloned';
+      const written = updateProjectsFile((current) => (current.some((entry) => entry.path === reply.folder) ? current : [...current, { path: reply.folder, origin }]));
+      if (written.ok === false) throw new ChatRefused(`${clone.repo} was cloned to ${reply.folder}, but projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}; fix the file and add the folder again`);
+      clones.delete(clone.repo.toLowerCase());
+    } catch (error) {
+      if (error instanceof ChatRefused === false) log.error('a clone from Settings failed', error, { repo: clone.repo });
+      clone.state = 'failed';
+      delete clone.progress;
+      clone.error = error instanceof ChatRefused ? error.message : 'internal error';
+    } finally {
+      cloning.delete(abort);
+      onCloneChange?.();
+    }
+  }
+
+  /**
+   * Clones `repo` to `<projects folder>/<owner>/<name>` (or `folder`), or fetches it when it is already there. `signal` is the waiter's: when it aborts, this waiter
+   * leaves, and git is aborted and a destination this request made is removed once nobody waits for it. `onProgress` gets git's progress lines of a
+   * clone ("Receiving objects: 45%"), at most one a second and no other line of git's.
+   */
+  async function cloneRepo({ repo, folder }: { repo: string; folder?: string }, signal: AbortSignal, onProgress?: (line: string) => void): Promise<CloneReply> {
+    const dest = folder ?? repoFolder(repo);
+    const key = dest.toLowerCase();
+    // a clone being aborted finishes first, so a new one never meets its leftovers
+    for (let old = running.get(key); old?.abort.signal.aborted === true; old = running.get(key)) await old.done.catch(() => {});
+    let job = running.get(key);
+    if (job === undefined) {
+      const abort = new AbortController();
+      const listeners = new Set<(line: string) => void>();
+      let last = -Infinity;
+      const report = (raw: string) => {
+        const found = progressLine.exec(raw.trim());
+        if (found === null || clock.now() - last < 1000) return;
+        last = clock.now();
+        const line = `${found[1]!.replace(/ +/g, ' ')}%`;
+        started.latest = line;
+        for (const listener of listeners) listener(line);
+      };
+      const started: Job = { done: fetchOrClone(repo, dest, abort.signal, report), mode: existsSync(dest) ? 'fetch' : 'clone', waiters: 0, abort, listeners };
+      const forget = () => void (running.get(key) === started && running.delete(key));
+      started.done.then(forget, forget);
+      running.set(key, (job = started));
+    }
+    const joined = job;
+    joined.waiters++;
+    if (onProgress !== undefined) {
+      joined.listeners.add(onProgress);
+      if (joined.latest !== undefined) onProgress(joined.latest);
+    }
+    return new Promise<CloneReply>((resolve, reject) => {
+      // the clone stops when nobody waits for it any more, and the last one to leave hears of it once the half clone is removed
+      const leave = async () => {
+        if (onProgress !== undefined) joined.listeners.delete(onProgress);
+        if (--joined.waiters === 0) {
+          joined.abort.abort();
+          await joined.done.catch(() => {});
+        }
+        reject(new ChatRefused('The clone was cancelled'));
+      };
+      if (signal.aborted) return leave();
+      signal.addEventListener('abort', leave, { once: true });
+      const settled = () => (signal.removeEventListener('abort', leave), onProgress !== undefined && joined.listeners.delete(onProgress));
+      // a waiter that has left is answered by `leave`
+      joined.done.then(
+        (reply) => (settled(), signal.aborted || resolve(reply)),
+        (error) => (settled(), signal.aborted || reject(error)),
+      );
+    });
+  }
 
   return {
     repoFolder,
+    cloneRepo,
 
     /** What bringing `repo` is: `fetch` when it is already in the projects folder, `clone` when it is not, or what the one in progress is doing (a clone being made is not yet a repository to fetch). */
     stepOf(repo: string): 'clone' | 'fetch' {
@@ -207,58 +300,41 @@ export function createProjects({ git, token, github, clock }: { git: Git; token:
     createProject: ({ name }: { name: string }) => createProject(git, name),
 
     /**
-     * Clones `repo` to `<projects folder>/<owner>/<name>`, or fetches it when it is already there. `signal` is the waiter's: when it aborts, this waiter
-     * leaves, and git is aborted and a destination this request made is removed once nobody waits for it. `onProgress` gets git's progress lines of a
-     * clone ("Receiving objects: 45%"), at most one a second and no other line of git's.
+     * Starts bringing `repo` into `parent/<owner>/<name>` (the projects folder when `parent` is absent) and answers at once: the clone runs in the
+     * background, and the folder is registered as a project in `projects.json` when it ends. A clone of the same repository that is running is shared,
+     * not started twice. Refused for a folder that is already a project.
      */
-    async cloneRepo({ repo }: { repo: string }, signal: AbortSignal, onProgress?: (line: string) => void): Promise<CloneReply> {
-      const dest = repoFolder(repo);
-      const key = dest.toLowerCase();
-      // a clone being aborted finishes first, so a new one never meets its leftovers
-      for (let old = running.get(key); old?.abort.signal.aborted === true; old = running.get(key)) await old.done.catch(() => {});
-      let job = running.get(key);
-      if (job === undefined) {
-        const abort = new AbortController();
-        const listeners = new Set<(line: string) => void>();
-        let last = -Infinity;
-        const report = (raw: string) => {
-          const found = progressLine.exec(raw.trim());
-          if (found === null || clock.now() - last < 1000) return;
-          last = clock.now();
-          const line = `${found[1]!.replace(/ +/g, ' ')}%`;
-          started.latest = line;
-          for (const listener of listeners) listener(line);
-        };
-        const started: Job = { done: fetchOrClone(repo, dest, abort.signal, report), mode: existsSync(dest) ? 'fetch' : 'clone', waiters: 0, abort, listeners };
-        const forget = () => void (running.get(key) === started && running.delete(key));
-        started.done.then(forget, forget);
-        running.set(key, (job = started));
-      }
-      const joined = job;
-      joined.waiters++;
-      if (onProgress !== undefined) {
-        joined.listeners.add(onProgress);
-        if (joined.latest !== undefined) onProgress(joined.latest);
-      }
-      return new Promise<CloneReply>((resolve, reject) => {
-        // the clone stops when nobody waits for it any more, and the last one to leave hears of it once the half clone is removed
-        const leave = async () => {
-          if (onProgress !== undefined) joined.listeners.delete(onProgress);
-          if (--joined.waiters === 0) {
-            joined.abort.abort();
-            await joined.done.catch(() => {});
-          }
-          reject(new ChatRefused('The clone was cancelled'));
-        };
-        if (signal.aborted) return leave();
-        signal.addEventListener('abort', leave, { once: true });
-        const settled = () => (signal.removeEventListener('abort', leave), onProgress !== undefined && joined.listeners.delete(onProgress));
-        // a waiter that has left is answered by `leave`
-        joined.done.then(
-          (reply) => (settled(), signal.aborted || resolve(reply)),
-          (error) => (settled(), signal.aborted || reject(error)),
-        );
-      });
+    cloneProject({ repo, parent }: { repo: string; parent?: string }): ProjectClone {
+      const known = clones.get(repo.toLowerCase());
+      if (known?.state === 'cloning') return { ...known };
+      const folder = repoFolder(repo, parent);
+      const listed = readProjectsFile();
+      if (listed.ok && listed.projects.some((entry) => entry.path === folder)) throw new ChatRefused(`${repo} is already a project`);
+      const clone: ProjectClone = { repo, folder, state: 'cloning' };
+      clones.set(repo.toLowerCase(), clone);
+      const abort = new AbortController();
+      cloning.set(abort, runClone(clone, abort));
+      onCloneChange?.();
+      return { ...clone };
+    },
+
+    /** The clones started from Settings that are running or failed. */
+    projectClones: snapshot,
+
+    /** Forgets a failed clone (one that is running stays); answers what is left. */
+    dismissClone({ repo }: { repo: string }) {
+      if (clones.get(repo.toLowerCase())?.state === 'failed') clones.delete(repo.toLowerCase());
+      return snapshot();
+    },
+
+    /** How many clones from Settings are running, so the host does not end under them. */
+    cloningCount: () => cloning.size,
+
+    /** Stops the running clones and waits for what they leave behind to be removed. */
+    async stop() {
+      const ended = [...cloning.values()];
+      for (const abort of cloning.keys()) abort.abort();
+      await Promise.all(ended);
     },
   };
 }

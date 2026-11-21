@@ -77,6 +77,18 @@ export const chatTurns = sqliteTable(
 
 export const priceOverrideModes = ['zero', 'alias', 'custom'] as const;
 
+/** What the usage history read of a CLI's log, so a restarted host reads only what was appended (`src/usage/history.ts`). */
+export const usageScanFiles = sqliteTable('usage_scan_files', {
+  path: text().primaryKey(),
+  kind: text({ enum: ['claude', 'codex'] }).notNull(),
+  version: integer().notNull(), // the parser's: a row of another one is read again from the start
+  size: integer().notNull(),
+  mtimeMs: real().notNull(), // fractional, as stat gives it
+  offset: integer().notNull(),
+  guard: text().notNull(),
+  state: text({ mode: 'json' }).$type<unknown>().notNull(),
+});
+
 /** What the person said a model costs, keyed by the normalized model id; it wins over the built-in price table. */
 export const usagePriceOverrides = sqliteTable('usage_price_overrides', {
   model: text().primaryKey(),

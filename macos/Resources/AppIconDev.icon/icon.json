@@ -51,8 +51,8 @@
             }
           ],
           "glass": true,
-          "image-name": "Vector.svg",
-          "name": "Vector",
+          "image-name": "swoosh.svg",
+          "name": "swoosh",
           "position": {
             "scale": 1.6,
             "translation-in-points": [
@@ -100,8 +100,8 @@
             }
           ],
           "glass": true,
-          "image-name": "Vector (2).svg",
-          "name": "Vector (2)",
+          "image-name": "stripe-right.svg",
+          "name": "stripe-right",
           "position": {
             "scale": 1.6,
             "translation-in-points": [
@@ -131,8 +131,8 @@
           ],
           "glass": true,
           "hidden": false,
-          "image-name": "Vector (1).svg",
-          "name": "Vector (1)",
+          "image-name": "arrow.svg",
+          "name": "arrow",
           "position": {
             "scale": 1.6,
             "translation-in-points": [
@@ -161,8 +161,8 @@
             }
           ],
           "glass": true,
-          "image-name": "Vector (3).svg",
-          "name": "Vector (3)",
+          "image-name": "stripe-left.svg",
+          "name": "stripe-left",
           "position": {
             "scale": 1.6,
             "translation-in-points": [
@@ -212,8 +212,8 @@
             }
           ],
           "glass": true,
-          "image-name": "Vector.svg",
-          "name": "Vector",
+          "image-name": "swoosh.svg",
+          "name": "swoosh-pink",
           "position": {
             "scale": 1.6,
             "translation-in-points": [

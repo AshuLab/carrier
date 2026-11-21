@@ -634,3 +634,50 @@ test('a later slice that changes how git reads an earlier one (an attribute) is 
   expect(sections.map((s) => s.id)).toEqual(['slice-102', 'slice-101']);
   expect(sections[1]!.files).toEqual([{ path: 'f.lock', added: 0, removed: 0, alsoIn: [] }]);
 });
+
+test('a filter whose name has an = in it cannot be switched off, so its lane is not read: its command never runs', async () => {
+  const marker = join(root, 'marker');
+  const tool = join(root, 'tool.sh');
+  writeFileSync(tool, `#!/bin/sh\ntouch '${marker}'\ncat\n`);
+  chmodSync(tool, 0o755);
+  const work = lane(1, 'feat/x/104-d');
+  git(work, 'config', 'filter.x=y.clean', tool); // `-c filter.x=y.clean=` would be read as the key filter.x
+  writeFileSync(join(git(work, 'rev-parse', '--git-common-dir'), 'info', 'attributes'), '* filter=x=y\n');
+  epicRow();
+  writeFileSync(join(work, 'base.ts'), lines(11, 'base'));
+  expect((await filesOf(db, repos, 'AshuLab/a', 1))!.sections).toEqual([]);
+  expect(await diffOf('lane-1', 'base.ts')).toBeNull();
+  expect(existsSync(marker)).toBe(false);
+});
+
+test('cards that lack a lane or a slice because git could not read it are not remembered', async () => {
+  epicRow();
+  const work = lane(1, 'feat/x/104-d');
+  git(work, 'reset', '-q', '--hard', git(work, 'commit-tree', '-m', 'unrelated', 'HEAD^{tree}')); // no fork point with the epic
+  const memo = cardsMemo(() => 0);
+  expect((await filesOf(db, repos, 'AshuLab/a', 1, undefined, memo))!.sections).toEqual([]);
+  git(work, 'reset', '-q', '--hard', BRANCH);
+  expect((await filesOf(db, repos, 'AshuLab/a', 1, undefined, memo))!.sections.map((s) => s.id)).toEqual(['lane-1']);
+});
+
+test('fact and cardsMemo: a read that ends after its entry was replaced does not forget the new one', async () => {
+  const key = (name: string) => `${root}\0${name}`;
+  let finish!: (value: null) => void;
+  const slow = fact(key('slow'), () => new Promise<null>((resolve) => (finish = resolve)));
+  for (let i = 0; i < MAX_FACTS; i++) await fact(key(`fill${i}`), async () => i); // the slow one is pushed out
+  let reads = 0;
+  await fact(key('slow'), async () => ++reads); // its place is taken
+  finish(null);
+  await slow;
+  expect(await fact(key('slow'), async () => ++reads)).toBe(1);
+
+  let now = 0;
+  const memo = cardsMemo(() => now);
+  let end!: (value: null) => void;
+  const first = memo('k', () => new Promise<null | string>((resolve) => (end = resolve as (value: null) => void)), (value) => value !== null);
+  now = 5_000; // the first entry expired
+  await memo('k', async () => 'second');
+  end(null);
+  await first;
+  expect(await memo('k', async () => 'third')).toBe('second');
+});

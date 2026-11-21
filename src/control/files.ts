@@ -73,9 +73,12 @@ const rowsOf = (card: Range & { kind?: Card['kind'] }, head: string) =>
  * the clean filter (or the long-running `process`) its attributes name, and refreshes through the fsmonitor hook. Every filter the
  * config defines is emptied and not required, so git reads the bytes as they are.
  */
-async function guardOf(cwd: string): Promise<string[]> {
-  const keys = ((await git(cwd, ['config', '--list', '--name-only'])) ?? '').split('\n');
+async function guardOf(cwd: string): Promise<string[] | null> {
+  const listed = await git(cwd, ['config', '--list', '--name-only']);
+  if (listed === null) return null; // which filters there are is not known: the worktree is not read
+  const keys = listed.split('\n');
   const filters = new Set(keys.flatMap((key) => (/^filter\.(.+)\.(?:clean|smudge|process|required)$/i.exec(key)?.[1] ?? [])));
+  if ([...filters].some((name) => name.includes('='))) return null; // `-c` splits a key at its first `=`: such a filter cannot be switched off, so the worktree is not read
   return ['-c', 'core.fsmonitor=false', ...[...filters].flatMap((name) => ['clean=', 'smudge=', 'process=', 'required=false'].flatMap((set) => ['-c', `filter.${name}.${set}`]))];
 }
 
@@ -160,7 +163,7 @@ type Card = { id: string; kind: FilesReply['sections'][number]['kind']; title: s
  * over `<sha>^1..<sha>` of a merged slice, and over the two heads of a fix round. `filesOf` counts over it and `fileDiff` diffs over it,
  * so the two cannot drift apart. null for an unknown epic, 'none' for one whose worktree git does not list for the engine's clone.
  */
-type Cards = { workspace: string; head: string; base: string | null; cards: Card[] } | 'none' | null; // `head` and `base` are commits
+type Cards = { workspace: string; head: string; base: string | null; cards: Card[]; complete: boolean } | 'none' | null; // `head` and `base` are commits; `complete`: git read every lane and the merges
 async function cardsOf(db: Db, reposDir: string, repo: string, issue: number, executionId?: string): Promise<Cards> {
   const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
   if (epic === undefined) return null;
@@ -173,6 +176,7 @@ async function cardsOf(db: Db, reposDir: string, repo: string, issue: number, ex
   if (list === null || entry === null || entry.branch === undefined || entry.sha === undefined) return 'none'; // not listed, or on a detached head
   const head = entry.sha;
   const cards: Card[] = [];
+  let complete = true;
 
   const runs = db
     .select({ run: executions, result: callerResults.result })
@@ -197,10 +201,13 @@ async function cardsOf(db: Db, reposDir: string, repo: string, issue: number, ex
     const found = await Promise.all(lanes(list, workspace).map(async ({ lane, path, sha }) => ({ lane, path, fork: (await fact(`fork\0${path}\0${head}\0${sha}`, () => git(path, ['merge-base', head, sha])))?.trim() })));
     // a lane's guard is not part of the card: it is worked out for every request (`guarded`), never remembered
     for (const { lane, path, fork } of found) {
+      if (!fork) complete = false; // git could not say where the lane forked
       if (fork) cards.push({ id: `lane-${lane}`, kind: 'lane', title: `Lane ${lane}`, cwd: path, range: [fork], guard: [] });
     }
     if (base !== null) {
-      const merges = (await merged) ?? '';
+      const read = await merged;
+      if (read === null) complete = false;
+      const merges = read ?? '';
       for (const line of merges.split('\n')) {
         const [sha = '', subject = ''] = line.split('\0');
         // GitHub's own merge subject: `Merge pull request #<pr> from <owner>/<namespace>/<slice number>-<slug>`
@@ -210,7 +217,7 @@ async function cardsOf(db: Db, reposDir: string, repo: string, issue: number, ex
     }
   }
   cards.push(...rounds);
-  return { workspace, head, base, cards };
+  return { workspace, head, base, cards, complete };
 }
 
 /**
@@ -234,10 +241,14 @@ export function cardsMemo(now: () => number): CardsMemo {
   };
 }
 const cardsFor = (db: Db, reposDir: string, repo: string, issue: number, executionId: string | undefined, memo: CardsMemo | undefined) =>
-  memo === undefined || executionId !== undefined ? cardsOf(db, reposDir, repo, issue, executionId) : memo(`${repo}#${issue}`, () => cardsOf(db, reposDir, repo, issue), (found) => found !== null && found !== 'none');
+  memo === undefined || executionId !== undefined ? cardsOf(db, reposDir, repo, issue, executionId) : memo(`${repo}#${issue}`, () => cardsOf(db, reposDir, repo, issue), (found) => found !== null && found !== 'none' && found.complete);
 
-/** A lane's card with the guard of this moment: what a worktree's config says now, not what it said when the cards were remembered. */
-const guarded = async (card: Card): Promise<Card> => (card.kind === 'lane' ? { ...card, guard: await guardOf(card.cwd) } : card);
+/** A lane's card with the guard of this moment: what a worktree's config says now, not what it said when the cards were remembered. null when the worktree cannot be read safely. */
+async function guarded(card: Card): Promise<Card | null> {
+  if (card.kind !== 'lane') return card;
+  const guard = await guardOf(card.cwd);
+  return guard === null ? null : { ...card, guard };
+}
 
 /**
  * The files an epic changed, from git and never from GitHub: the lanes' work so far (against the fork point, uncommitted work included),
@@ -254,6 +265,7 @@ export async function filesOf(db: Db, reposDir: string, repo: string, issue: num
   const allRows = base === null ? Promise.resolve(null) : rowsOf({ cwd: workspace, range: [`${base}...${head}`], guard: [] }, head); // asked while the cards are
   const drafts = (await Promise.all(found.cards.map(async (plain) => {
     const card = await guarded(plain);
+    if (card === null) return [];
     const [rows, added] = await Promise.all([rowsOf(card, head), card.kind === 'lane' ? untracked(card) : []]);
     return rows === null ? [] : [{ ...card, rows: [...rows, ...added] }];
   }))).flat();
@@ -305,6 +317,7 @@ export async function fileDiff(db: Db, reposDir: string, repo: string, issue: nu
   const listed = known?.cards.find((c) => c.id === section);
   if (known === undefined || listed === undefined || path.length > MAX_PATH) return null;
   const card = await guarded(listed);
+  if (card === null) return null;
   let out: string;
   let cut = false;
   if ((await rowsOf(card, known.head))?.some((r) => r.path === path) === true) {

@@ -336,6 +336,12 @@ struct PanelView: View {
                 Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemIcon: .sidebar) }
                     .help("Show or hide the sidebar")
             }
+            ToolbarItemGroup(placement: .navigation) {
+                Button { shell.goBack() } label: { Label("Back", systemIcon: .chevronLeft) }
+                    .disabled(shell.history.canGoBack == false).help("Back")
+                Button { shell.goForward() } label: { Label("Forward", systemIcon: .chevronRight) }
+                    .disabled(shell.history.canGoForward == false).help("Forward")
+            }
             if isDevBuild {
                 ToolbarItem(placement: .navigation) {
                     Text("DEV BUILD").font(.caption.weight(.bold)).foregroundStyle(.orange)

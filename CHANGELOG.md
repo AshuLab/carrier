@@ -32,6 +32,7 @@ A new worktree starts from the remote branch, with a Remote and Local choice in 
 
 ### Added
 
+- The window's toolbar has ‹ and › after the sidebar's button: they go back and forward through the places you chose in the sidebar (Home, a session, a terminal, an epic…), as a browser's do, with ⌘[ and ⌘] (what the back and forward buttons of a mouse send), in the View menu and in Settings › Keybindings. Next and previous session, which had ⌘] and ⌘[, are now ⌥⌘↓ and ⌥⌘↑; one you had changed stays as you set it. A session you archived or deleted is left out of the way back.
 - Settings › Sessions › New sessions has a "Start from" choice: a new worktree starts from the remote branch (the latest, the default) or from your local one.
 - The branch picker of a new session has Remote and Local tabs, shows how many commits a local branch is behind its remote copy or has not pushed, and says where the worktree will start.
 - Choosing a project in a new session brings its branches up to date in the background, and the picker says when the remote could not be reached.

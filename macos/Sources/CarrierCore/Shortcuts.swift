@@ -11,8 +11,8 @@ public struct KeyCombo: Equatable {
 
     public init?(key: String, modifiers: ShortcutModifiers) {
         let key = key.lowercased()
-        // the other arrows and the function keys come as private characters with no glyph: only ⌘↓ is kept
-        guard key.count == 1, key == Self.downArrow || key.unicodeScalars.allSatisfy({ ![.control, .privateUse].contains($0.properties.generalCategory) }),
+        // the left and right arrows and the function keys come as private characters with no glyph: only the up and down arrows are kept
+        guard key.count == 1, key == Self.downArrow || key == Self.upArrow || key.unicodeScalars.allSatisfy({ ![.control, .privateUse].contains($0.properties.generalCategory) }),
             modifiers.isDisjoint(with: [.command, .control, .option]) == false
         else { return nil }
         self.key = key
@@ -31,9 +31,10 @@ public struct KeyCombo: Equatable {
         return symbols.filter { modifiers.contains($0.0) }.map(\.1).joined() + (Self.arrows[key] ?? key.uppercased())
     }
 
-    /// The down arrow as the keyboard reports it (NSDownArrowFunctionKey), and how it is written.
+    /// The up and down arrows as the keyboard reports them (NSUpArrowFunctionKey, NSDownArrowFunctionKey), and how they are written.
+    static let upArrow = "\u{F700}"
     static let downArrow = "\u{F701}"
-    private static let arrows = [downArrow: "↓"]
+    private static let arrows = [upArrow: "↑", downArrow: "↓"]
 
     /// The form kept in the preferences: the modifiers, a colon, the key.
     var stored: String { "\(modifiers.rawValue):\(key)" }
@@ -52,7 +53,7 @@ public enum ShortcutGroup: String, CaseIterable {
 
 /// An action that has a shortcut; the raw value is its id.
 public enum ShortcutCommand: String, CaseIterable {
-    case home, sessions, carrier, archive, newSession, search, nextSession, previousSession, archiveSession
+    case home, sessions, carrier, archive, back, forward, newSession, search, nextSession, previousSession, archiveSession
     case focusBox, stopAgent, latestMessage, foldTools, copyAnswer
     case startOrStop, pauseOrResume, checkNow
 
@@ -62,6 +63,8 @@ public enum ShortcutCommand: String, CaseIterable {
         case .sessions: "Sessions"
         case .carrier: "Carrier"
         case .archive: "Archive"
+        case .back: "Back"
+        case .forward: "Forward"
         case .newSession: "New session"
         case .search: "Search"
         case .nextSession: "Next session"
@@ -80,7 +83,7 @@ public enum ShortcutCommand: String, CaseIterable {
 
     public var group: ShortcutGroup {
         switch self {
-        case .home, .sessions, .carrier, .archive: .goTo
+        case .home, .sessions, .carrier, .archive, .back, .forward: .goTo
         case .newSession, .search, .nextSession, .previousSession, .archiveSession: .sessions
         case .focusBox, .stopAgent, .latestMessage, .foldTools, .copyAnswer: .conversation
         case .startOrStop, .pauseOrResume, .checkNow: .carrier
@@ -94,6 +97,8 @@ public enum ShortcutCommand: String, CaseIterable {
         case .sessions: .select(.sessions)
         case .carrier: .select(.carrier)
         case .archive: .select(.archive)
+        case .back: .back
+        case .forward: .forward
         case .newSession: .select(.newSession)
         case .search: .search
         case .nextSession: .nextSession
@@ -117,8 +122,10 @@ public enum ShortcutCommand: String, CaseIterable {
         case .archive: KeyCombo(key: "4", modifiers: .command)
         case .newSession: KeyCombo(key: "n", modifiers: .command)
         case .search: KeyCombo(key: "f", modifiers: .command)
-        case .nextSession: KeyCombo(key: "]", modifiers: .command)
-        case .previousSession: KeyCombo(key: "[", modifiers: .command)
+        case .back: KeyCombo(key: "[", modifiers: .command)
+        case .forward: KeyCombo(key: "]", modifiers: .command)
+        case .nextSession: KeyCombo(key: KeyCombo.downArrow, modifiers: [.command, .option])
+        case .previousSession: KeyCombo(key: KeyCombo.upArrow, modifiers: [.command, .option])
         case .archiveSession: KeyCombo(key: "a", modifiers: [.command, .shift])
         case .focusBox: KeyCombo(key: "l", modifiers: .command)
         case .stopAgent: KeyCombo(key: ".", modifiers: .command)

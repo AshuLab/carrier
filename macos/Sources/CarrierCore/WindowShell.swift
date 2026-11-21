@@ -38,6 +38,8 @@ public enum ShortcutAction: Equatable {
     case select(Selection)
     /// Search the section that is open.
     case search
+    /// Back and forward through the places chosen, as the toolbar's ‹ and › do.
+    case back, forward
     /// The session after or before the open one in the order the sidebar shows, stopping at the ends.
     case nextSession, previousSession
     /// Archive the open session.
@@ -84,6 +86,7 @@ public struct ArchiveRequest: Equatable {
     /// rest leave it. `chooseArchived` puts Archive back after choosing a session from its list.
     public var selection: Selection = .home {
         didSet {
+            history.visit(selection)
             if selection == .newSession { newSessionOpened += 1 }
             subagents = []
             subagentHeader = nil
@@ -99,6 +102,22 @@ public struct ArchiveRequest: Equatable {
     /// A session that was archived or deleted while it is on screen has nothing to show: the window goes to a new session, where the next task starts.
     public func sessionRemoved(_ id: String) {
         if selection == .session(id: id) { selection = .newSession }
+        history.forget(.session(id: id))
+    }
+
+    /// The places the selection has been at; ‹ and › in the window's toolbar walk it. Every change of the selection is a visit.
+    public private(set) var history = SelectionHistory()
+
+    /// ‹: the selection goes to the one before. The history is already there, so the selection's visit adds nothing.
+    public func goBack() {
+        history.back()
+        selection = history.current
+    }
+
+    /// ›: the selection goes to the one after.
+    public func goForward() {
+        history.forward()
+        selection = history.current
     }
 
     /// The subagent views open over the open conversation, outermost first, each the call that launched it: Back leaves the last. A session
@@ -159,6 +178,8 @@ public struct ArchiveRequest: Equatable {
         case .select(let next): selection = next
         case .search:
             if let open { searchRequest = SearchRequest(section: open, count: (searchRequest?.count ?? 0) + 1) }
+        case .back: goBack()
+        case .forward: goForward()
         case .nextSession, .previousSession:
             let ids = sessionGroups(sessions, by: sort, pinned: pinned).flatMap(\.rows).map(\.id)
             let step = action == .nextSession ? 1 : -1
@@ -178,6 +199,7 @@ public struct ArchiveRequest: Equatable {
     /// Back to how a freshly opened window starts.
     public func reset(open: OpenSection? = .sessions) {
         selection = .home
+        history = SelectionHistory()
         self.open = open
         sidebarShown = true
         inspectorShown = true

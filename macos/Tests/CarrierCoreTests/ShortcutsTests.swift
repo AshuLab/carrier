@@ -13,8 +13,8 @@ private func freshTable() -> (ShortcutTable, UserDefaults) {
     let (table, _) = freshTable()
     let shown = ShortcutCommand.allCases.filter { $0.group != .carrier }.map { "\($0.group.rawValue) \($0.title) \(table.combo(for: $0)?.text ?? "")" }
     #expect(shown == [
-        "Go to Home ⌘1", "Go to Sessions ⌘2", "Go to Carrier ⌘3", "Go to Archive ⌘4", "Sessions New session ⌘N", "Sessions Search ⌘F",
-        "Sessions Next session ⌘]", "Sessions Previous session ⌘[", "Sessions Archive the session ⇧⌘A",
+        "Go to Home ⌘1", "Go to Sessions ⌘2", "Go to Carrier ⌘3", "Go to Archive ⌘4", "Go to Back ⌘[", "Go to Forward ⌘]",
+        "Sessions New session ⌘N", "Sessions Search ⌘F", "Sessions Next session ⌥⌘↓", "Sessions Previous session ⌥⌘↑", "Sessions Archive the session ⇧⌘A",
         "Conversation Focus the message box ⌘L", "Conversation Stop the agent ⌘.", "Conversation Jump to the latest message ⌘↓", "Conversation Fold or unfold the tool calls ⌥⌘E",
         "Conversation Copy the last answer ⇧⌘C",
     ])
@@ -109,7 +109,8 @@ private func freshTable() -> (ShortcutTable, UserDefaults) {
     #expect(KeyCombo(key: "z", modifiers: [.command, .shift])?.isReserved == true)
     #expect(KeyCombo(key: "c", modifiers: [.command, .shift])?.isReserved == false)
     #expect(KeyCombo(key: "l", modifiers: .command)?.isReserved == false)
-    // an arrow other than ⌘↓ and a function key come as private characters
+    // the left and right arrows and a function key come as private characters
     #expect(KeyCombo(key: "\u{F702}", modifiers: .command) == nil && KeyCombo(key: "\u{F704}", modifiers: .command) == nil)
     #expect(KeyCombo(key: KeyCombo.downArrow, modifiers: .command)?.text == "⌘↓")
+    #expect(KeyCombo(key: KeyCombo.upArrow, modifiers: [.command, .option])?.text == "⌥⌘↑")
 }

@@ -616,7 +616,12 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var busy = false
     /// The message typed while the agent answered: one at a time, sent when the turn ends.
     public private(set) var queued: String?
-    /// The session's agent, as the host's list names it; what the app saw last until the first answer, empty for a session it never saw.
+    /// Whether the host can switch the session to another agent (its hello lists `switchAgent`), the agents it could switch to, and whether a switch is
+    /// under way. The panel of the message box lists the agents and changes one with `switchAgent`.
+    public private(set) var canSwitchAgent = false
+    public private(set) var switchTargets: [AgentChoice] = []
+    public private(set) var switching = false
+    /// The session's agent, as the host's list names it; what the app saw last until the first answer, empty for a session that was never seen.
     public private(set) var agent = ""
     /// Whether the session's agent process runs; a session that is not live shows the closed notice and resumes when a message is sent.
     public private(set) var live = true
@@ -766,6 +771,10 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             if hostStops == nil, let listed = try? await host.capabilities() {
                 hostStops = listed.contains(.stopTask)
                 canStopTask = hostStops == true
+                if listed.contains(.switchAgent) {
+                    canSwitchAgent = true
+                    if let agents = try? await host.agents() { switchTargets = agentChoices(agents) }
+                }
                 changed = true
             }
             if let session = try await host.list(archived: false).first(where: { $0.id == sessionId }) {
@@ -887,6 +896,27 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             return
         }
         optionRefusal = nil
+        await poll()
+    }
+
+    /// Whether the panel offers the other agents: the host can, nothing is answering or being switched, and the session is not archived. The host
+    /// says the rest in words (waiting for an approval, preparing, a child).
+    public var canSwitchNow: Bool { canSwitchAgent && busy == false && switching == false && archived == false }
+
+    /// Switches the session to another agent: the host keeps its transcript and folder, and the new agent goes on from a selection of the messages
+    /// (and can read the rest). A refusal is kept in words for the panel and nothing changes here; what was chosen for the old agent is let go.
+    public func switchAgent(_ name: String) async {
+        guard name != agent, switching == false else { return }
+        switching = true
+        defer { switching = false }
+        do {
+            _ = try await host.switchAgent(sessionId, to: name)
+        } catch {
+            optionRefusal = report(error, "switch the agent")
+            return
+        }
+        optionRefusal = nil
+        wakeOptions = [:]
         await poll()
     }
 

@@ -284,12 +284,16 @@ private struct ConversationBox: View {
                 focus: $boxFocused, commands: model.shownCommands, dictationOwner: "session:\(model.sessionId)", dictateRequest: dictations, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
                 ComposerMenuButton(
-                    providers: model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: AgentAccounts.harness(of: model.agent))], agent: model.agent, locked: true,
+                    // the agents the host can switch the session to; with none listed (an older host) the panel shows the session's own
+                    providers: model.switchTargets.isEmpty
+                        ? (model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: AgentAccounts.harness(of: model.agent))])
+                        : model.switchTargets.map { ProviderTab(name: $0.name, icon: $0.harness, available: $0.available, note: $0.note) },
+                    agent: model.agent, locked: model.canSwitchNow == false,
                     options: model.shownOptions,
                     // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
                     // never saw running lists nothing, and the panel says so
                     emptyNote: model.asleep ? "The provider lists these once the session is awake. Send a message to wake it up." : "Reading what the provider offers…",
-                    busy: model.busy, chooseAgent: { _ in }, choose: { option, value in Task { await model.setOption(option, value) } }
+                    busy: model.busy, chooseAgent: { name in Task { await model.switchAgent(name) } }, choose: { option, value in Task { await model.setOption(option, value) } }
                 )
             }
             if let refusal = model.optionRefusal { Text(refusal).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled) }

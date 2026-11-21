@@ -101,6 +101,10 @@ Markdown: SwiftUI's `AttributedString` parses what is inside a line (bold, itali
 `CodeBlockView` draws it with the language and a Copy button (`CopyButton`, the one of the console blocks).
 Numbered lists and tables are not read as blocks: a numbered item shows as a line with its number.
 
+### Changing the agent
+
+The button at the left of the message box (`ComposerMenuButton`) opens a panel whose tabs are the host's agents, the session's own underlined. A tab changes the session's agent (`ConversationModel.switchAgent`, the host's `switchAgent`, [switch and delegate](../specs/switch-and-delegate-between-agents.md)): the session keeps its transcript, folder and worktree, and the new agent goes on from a selection of the newest messages (up to 16,000 bytes, with the first one) and can read the rest through the chat MCP's `history`; its reasoning and tool state do not carry over. The transcript says it with a notice ("The agent changed from … to …"). The tabs are off while the agent answers or a switch is under way, for an archived session and for a host that does not list `switchAgent`; an agent that is not installed or signed out is listed, off, with why. A refusal of the host (waiting for an approval, preparing, a model the harness does not list) is said in its words under the box. What was chosen for the old agent while the session was asleep is let go.
+
 ## The epic's Agent output
 
 The Agent output tab of an epic draws the agent's work with these same views.

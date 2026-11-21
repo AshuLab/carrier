@@ -1758,3 +1758,25 @@ private final class Flag: @unchecked Sendable { var raised = false }
     #expect(host.asked.count - before == 2)
     #expect(model.rows.map(\.id).contains("e2"))
 }
+
+@MainActor @Test func aSessionOffersTheOtherAgentsAndSwitchesAnIdleOneButNotOneThatWorks() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+
+    // an idle claude session: the panel lists the host's agents (the one not found is listed, off) and the switch goes through
+    let idle = ConversationModel(host: host, sessionId: "c3d4e5f6-2a1b-4c8d-9e0f-1a2b3c4d5e03")
+    await idle.poll()
+    #expect(idle.canSwitchAgent && idle.canSwitchNow)
+    #expect(idle.switchTargets.map(\.name) == ["claude", "codex", "claude-beta"] && idle.switchTargets.map(\.available) == [true, true, false])
+    await idle.switchAgent("claude")
+    #expect(idle.agent == "claude" && idle.optionRefusal == nil)
+    await idle.switchAgent("codex")
+    #expect(idle.agent == "codex" && idle.optionRefusal == nil)
+
+    // one that works is refused in the host's words and keeps its agent; the panel's tabs are off while it answers
+    let working = ConversationModel(host: host, sessionId: "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")
+    await working.poll()
+    await working.switchAgent("codex")
+    #expect(working.agent == "claude" && working.optionRefusal?.contains("working") == true)
+}

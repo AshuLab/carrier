@@ -260,7 +260,7 @@ public protocol ChatHost {
     /// Switches an idle session to another configured agent: it keeps its transcript and folder, and its new agent goes on with a handoff of what was said.
     /// Refused in words, with the session as it was, for a session that is working, waiting for an approval, preparing, archived or a child, for the agent it
     /// already has, an agent that is not configured, not found or signed out, a model the harness does not list, and a conversation that cannot open.
-    /// Only for a host whose hello lists `switchAgent`; no screen asks for it yet.
+    /// Only for a host whose hello lists `switchAgent`; the message box's panel asks for it (`ConversationModel.switchAgent`).
     func switchAgent(_ id: String, to agent: String) async throws -> AgentSwitch
     /// The host refuses it while the agent is answering ("The agent is still answering") and when it is over its character limit.
     func send(_ id: String, _ text: String) async throws

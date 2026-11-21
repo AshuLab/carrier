@@ -80,11 +80,13 @@ public final class PollNap: Sendable {
     }
 }
 
-/// Set from the main thread when a window closes; the thread that works for that window sleeps in `wait`, which `set` cuts short at once.
+/// What ends a thread that works for the app: the thread sleeps in `wait`, which `set` cuts short at once and ends for good, and `wake` cuts short
+/// once (a `wake` that comes while the thread works makes its next wait return at once, as `PollNap` does).
 /// The thread sleeps for real in between: it used to wake ten times a second to look at the flag.
 public final class StopFlag: @unchecked Sendable {
     private let condition = NSCondition()
     private var stopped = false
+    private var woken = false
 
     public init() {}
 
@@ -101,13 +103,22 @@ public final class StopFlag: @unchecked Sendable {
         condition.unlock()
     }
 
-    /// Sleeps `seconds`, or less when `set` is called meanwhile; false once it is set, which ends the caller's loop.
+    /// The next `wait` returns at once, or the one under way does.
+    public func wake() {
+        condition.lock()
+        woken = true
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    /// Sleeps `seconds`, or less when `set` or `wake` is called meanwhile; false once it is set, which ends the caller's loop.
     public func wait(_ seconds: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(seconds)
         condition.lock()
         defer { condition.unlock() }
-        // a wake-up with the flag still down (spurious) waits again until the deadline
-        while stopped == false, condition.wait(until: deadline) {}
+        // a wake-up with neither flag up (spurious) waits again until the deadline
+        while stopped == false, woken == false, condition.wait(until: deadline) {}
+        woken = false
         return stopped == false
     }
 }

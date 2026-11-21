@@ -39,7 +39,8 @@ public enum ConnectionState: Equatable {
 
 /// Keeps the state of Carrier current: asks for the snapshot every `pollInterval` while connected, tries to connect again
 /// every `retryInterval` while not. `socketPath` is asked at each attempt, so a changed config file is followed. `run()` blocks, so it belongs on its own thread; `onChange` is called from it, once per
-/// poll or attempt. `tick` is called after each snapshot on the same connection (the epic view's requests go there). `wait` is how it sleeps: it returns false to end `run()`.
+/// poll or attempt. `tick` is called after each snapshot on the same connection (the epic view's requests go there); a monitor that is not to
+/// `readsSnapshot` only ticks (`EngineLink`'s second connection, for the epic view, which the engine answers in order with the snapshots of its own). `wait` is how it sleeps: it returns false to end `run()`.
 public final class ControlMonitor {
     private let socketPath: () -> String
     private let pollInterval: TimeInterval
@@ -50,6 +51,7 @@ public final class ControlMonitor {
     private let onChange: (ConnectionState) -> Void
     private let log: (String) -> Void
     private let tick: (ControlClient) throws -> Void
+    private let readsSnapshot: Bool
 
     public init(
         socketPath: @escaping () -> String,
@@ -58,6 +60,7 @@ public final class ControlMonitor {
         retryInterval: TimeInterval = 3,
         wait: @escaping (TimeInterval) -> Bool = { Thread.sleep(forTimeInterval: $0); return true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
+        readsSnapshot: Bool = true,
         tick: @escaping (ControlClient) throws -> Void = { _ in },
         onChange: @escaping (ConnectionState) -> Void
     ) {
@@ -67,6 +70,7 @@ public final class ControlMonitor {
         self.retryInterval = retryInterval
         self.wait = wait
         self.log = log
+        self.readsSnapshot = readsSnapshot
         self.tick = tick
         self.onChange = onChange
     }
@@ -102,7 +106,7 @@ public final class ControlMonitor {
                 // This thread lives as long as the app, and its own pool drains when it ends: each pass frees what Foundation autoreleased in it
                 // (the JSON writer, its buffer, the strings of the reply), or the app grows about 1 MB a minute while idle.
                 try autoreleasepool {
-                    onChange(.running(try client.snapshot()))
+                    if readsSnapshot { onChange(.running(try client.snapshot())) }
                     try tick(client)
                 }
                 if wait(pollEvery?() ?? pollInterval) == false { return false }

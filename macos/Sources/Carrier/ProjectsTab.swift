@@ -13,12 +13,14 @@ struct ProjectsTabView: View {
     @State private var query = ""
     @State private var filter: ProjectFilter = .all
     @State private var groupBy: ProjectGrouping = .none
+    @State private var order = ProjectOrder()
     @State private var adding = false
 
     static let actionsPath = "actions"
 
     private enum Column {
         static let tags: CGFloat = 220
+        static let lastActive: CGFloat = 110
         static let trailing: CGFloat = 34
     }
 
@@ -67,7 +69,8 @@ struct ProjectsTabView: View {
 
     @ViewBuilder private var list: some View {
         let tags = projectTagsInUse(model.rows)
-        let groups = projectList(model.rows, query: query, filter: filter, groupBy: groupBy)
+        let groups = projectList(projectsWithLastActive(model.rows, sessions: sessions), query: query, filter: filter, groupBy: groupBy, order: order)
+        let now = Date()
         Group {
             if model.rows.isEmpty {
                 SettingsGroup(title: "") {
@@ -119,15 +122,15 @@ struct ProjectsTabView: View {
                         SettingsGroup(title: group.title ?? "") {
                             if groupIndex == 0 {
                                 HStack(spacing: 12) {
-                                    Text("Project").frame(maxWidth: .infinity, alignment: .leading)
-                                    Text("Tags").frame(width: Column.tags, alignment: .leading)
+                                    sortTitle("Project", key: .name).frame(maxWidth: .infinity, alignment: .leading)
+                                    Text("Tags").frame(width: Column.tags, alignment: .leading).accessibilityHidden(true)
+                                    sortTitle("Last active", key: .lastActive).frame(width: Column.lastActive, alignment: .leading)
                                     Color.clear.frame(width: Column.trailing, height: 1)
                                 }
                                 .sectionLabel().padding(.vertical, 10)
-                                .accessibilityHidden(true)
                             }
                             ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
-                                projectRow(row, divider: groupIndex == 0 || index > 0)
+                                projectRow(row, now: now, divider: groupIndex == 0 || index > 0)
                             }
                         }
                     }
@@ -140,7 +143,22 @@ struct ProjectsTabView: View {
         cloneDestinationLine
     }
 
-    private func projectRow(_ row: ProjectRow, divider: Bool) -> some View {
+    /// A column title that sorts the list by `key` when clicked; the sorted one shows its direction.
+    private func sortTitle(_ title: String, key: ProjectSortKey) -> some View {
+        let sorted = order.key == key
+        return Button { order = order.clicked(key) } label: {
+            HStack(spacing: 3) {
+                Text(title)
+                if sorted { Glyph(order.ascending ? .chevronUp : .chevronDown, size: 8, bold: true).accessibilityHidden(true) }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Sort by \(title)")
+        .accessibilityValue(sorted ? (order.ascending ? "ascending" : "descending") : "")
+    }
+
+    private func projectRow(_ row: ProjectRow, now: Date, divider: Bool) -> some View {
         Button { open(row.path) } label: {
             HStack(spacing: 12) {
                 HStack(spacing: 12) {
@@ -165,6 +183,10 @@ struct ProjectsTabView: View {
                     }
                 }
                 .frame(width: Column.tags, alignment: .leading)
+
+                Text(row.lastActive.map { timeText($0, now: now) } ?? "—")
+                    .font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
+                    .frame(width: Column.lastActive, alignment: .leading)
 
                 HStack(spacing: 10) {
                     Spacer(minLength: 0)

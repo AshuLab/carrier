@@ -22,6 +22,8 @@ async function connectHost(path: string, timeoutMs?: number): Promise<CarrierCli
 }
 
 export const POLL_MS = 200;
+/** How often a chat at the prompt asks after its session: well under half of the host's idle close, which names a session by a request about it. */
+export const KEEP_MS = 20_000;
 
 /** The chat host's client, started on demand. */
 export async function hostClient(socketPath: string, start: typeof startDetached, timeoutMs?: number): Promise<CarrierClient> {
@@ -54,7 +56,7 @@ const describeOption = (o: Option) => `${o.label} (${o.id}): ${o.current}\n    o
  * Opens a conversation, or resumes a session, and runs it in plain lines: one line in, the answer out as it streams. `/quit` leaves and the
  * session stays open. Ctrl+C (`sigint`) while a turn runs interrupts it and returns to the prompt; at the prompt it leaves.
  */
-async function converse(client: CarrierClient, { start, input, pollMs, sigint }: { start: { cmd: 'open'; agent: string; folder: string } | { cmd: 'resume'; sessionId: string }; input: Readable; pollMs: number; sigint: EventEmitter }) {
+async function converse(client: CarrierClient, { start, input, pollMs, keepMs, sigint }: { start: { cmd: 'open'; agent: string; folder: string } | { cmd: 'resume'; sessionId: string }; input: Readable; pollMs: number; keepMs: number; sigint: EventEmitter }) {
   const write = (text: string) => void process.stdout.write(text);
   let opened;
   try {
@@ -178,7 +180,10 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
     }
   };
 
+  let keep: NodeJS.Timeout | undefined;
   try {
+    // A session that no request names closes after a while, and at the prompt nothing else asks: it is asked after the cursor, as /options does, so nothing waiting to be shown is consumed.
+    keep = setInterval(() => void client.request('events', { sessionId, after: cursor, limit: 1 }).catch(() => {}), keepMs);
     if (waitingOn) {
       turning = true;
       try {
@@ -245,6 +250,7 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
       }
     }
   } finally {
+    clearInterval(keep);
     sigint.off('SIGINT', onSigint);
   }
   write('\n');
@@ -256,7 +262,7 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
  */
 export async function chatCommand(
   flags: { list?: boolean; archived?: boolean; stop?: boolean; workspace?: string; agent?: string; resume?: string; archive?: string; unarchive?: string; delete?: string },
-  { start = startDetached, input = process.stdin, pollMs = POLL_MS, now = Date.now, sigint = process }: { start?: typeof startDetached; input?: Readable; pollMs?: number; now?: () => number; sigint?: EventEmitter } = {},
+  { start = startDetached, input = process.stdin, pollMs = POLL_MS, keepMs = KEEP_MS, now = Date.now, sigint = process }: { start?: typeof startDetached; input?: Readable; pollMs?: number; keepMs?: number; now?: () => number; sigint?: EventEmitter } = {},
 ): Promise<number> {
   const socketPath = chatPlacesOf().socket;
   if (flags.stop) {
@@ -301,7 +307,7 @@ export async function chatCommand(
   if (flags.resume !== undefined) {
     const client = await hostClient(socketPath, start);
     try {
-      await converse(client, { start: { cmd: 'resume', sessionId: flags.resume }, input, pollMs, sigint });
+      await converse(client, { start: { cmd: 'resume', sessionId: flags.resume }, input, pollMs, keepMs, sigint });
     } finally {
       client.close();
     }
@@ -312,7 +318,7 @@ export async function chatCommand(
     try {
       const agent = flags.agent ?? ((await client.request('agents')) as { name: string }[])[0]?.name;
       if (agent === undefined) throw new CliError(1, `chat.json lists no agents, so there is none to chat with; add one to the "agents" of ${chatConfigPathOf()}`);
-      await converse(client, { start: { cmd: 'open', agent, folder: resolve(flags.workspace) }, input, pollMs, sigint });
+      await converse(client, { start: { cmd: 'open', agent, folder: resolve(flags.workspace) }, input, pollMs, keepMs, sigint });
     } finally {
       client.close();
     }

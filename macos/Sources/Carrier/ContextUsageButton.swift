@@ -48,9 +48,9 @@ private struct ContextRingStyle: ButtonStyle {
 
         var body: some View {
             ZStack {
-                Ring(share: context, diameter: 19)
+                Ring(share: context, diameter: 20)
                 // what the last check said stays, dimmer, while a later one was refused: the detail says it is stale
-                Ring(share: limit, diameter: 10.5).opacity(stale ? 0.5 : 1)
+                Ring(share: limit, diameter: 12).opacity(stale ? 0.5 : 1)
             }
             .frame(width: 36, height: 36)
             .background(Circle().fill(Color.secondary.opacity(pressed ? 0.2 : hovering ? 0.14 : 0)))
@@ -65,7 +65,7 @@ private struct ContextRingStyle: ButtonStyle {
 private struct Ring: View {
     let share: Double?
     let diameter: CGFloat
-    private let width: CGFloat = 2.2
+    private let width: CGFloat = 2
 
     var body: some View {
         ZStack {

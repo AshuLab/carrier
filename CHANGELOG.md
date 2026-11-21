@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-21
+
+A new app icon and logo, a grouped menu bar menu, a message box that changes the session's agent, notices that read better, and a Mac that works less while Carrier is idle.
+
 ### Added
 
 - A ring beside the microphone in an open session shows how full the conversation's context is (the outer ring) and how much of the account's 5h limit is used (the inner one), in the Usage page's colors: the theme's accent, orange from 90 %. A click opens the detail: the context in tokens, the account's `5h`, `Weekly` and `Monthly` meters with when they reset and whether they are stale, and a button to the Usage page. Settings > Chat > Message box > Context and limits turns it off. Claude and Codex now report the size of the model's window with the turn's context so the app can say how full it is.

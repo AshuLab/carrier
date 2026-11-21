@@ -51,6 +51,10 @@ const controls = (): ChatControls => ({
   archive: async ({ archived }) => ({ archived }),
   delete: async () => ({}),
   rename: ({ title }) => ({ title }),
+  regenerateTitle: async ({ sessionId }) => {
+    if (sessionId === '00000000-0000-4000-8000-000000000000') throw new ChatRefused('Could not write a title: no text generator is chosen; choose one in Providers');
+    return { title: 'A generated title' };
+  },
   deletePreview: async ({ sessionIds }) => ({ sessionIds }),
   workspace: async ({ folder }) => ({ folder }),
   fetch: async ({ folder }) => ({ folder, fetched: true }),
@@ -106,7 +110,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'textGenerators'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'textGenerators', 'regenerateTitle'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -258,6 +262,16 @@ test('rename takes a session and a title, strict', async () => {
   expect(await c.ask(`{"id":1,"cmd":"rename","sessionId":"${uuid}","title":"New name"}`)).toEqual({ id: 1, ok: true, data: { title: 'New name' } });
   expect(await c.ask(`{"id":2,"cmd":"rename","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
   expect(await c.ask(`{"id":3,"cmd":"rename","sessionId":"${uuid}","title":"x","archived":true}`)).toEqual({ id: 3, ok: false, error: 'invalid request' });
+});
+
+test('regenerateTitle takes a session id, strict, and a refusal reaches the client in its words', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"regenerateTitle","sessionId":"${uuid}"}`)).toEqual({ id: 1, ok: true, data: { title: 'A generated title' } });
+  expect(await c.ask('{"id":2,"cmd":"regenerateTitle","sessionId":"00000000-0000-4000-8000-000000000000"}')).toEqual({ id: 2, ok: false, error: 'Could not write a title: no text generator is chosen; choose one in Providers' });
+  expect(await c.ask('{"id":3,"cmd":"regenerateTitle"}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":4,"cmd":"regenerateTitle","sessionId":"../x"}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":5,"cmd":"regenerateTitle","sessionId":"${uuid}","title":"x"}`)).toEqual({ id: 5, ok: false, error: 'invalid request' });
 });
 
 test('deletePreview takes one to 500 session ids and nothing else', async () => {

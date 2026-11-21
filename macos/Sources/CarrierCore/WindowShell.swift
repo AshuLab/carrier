@@ -87,7 +87,7 @@ public struct ArchiveRequest: Equatable {
     public var selection: Selection = .home {
         didSet {
             history.visit(selection)
-            if selection == .newSession { newSessionOpened += 1 }
+            if selection == .newSession, navigating == false { newSessionOpened += 1 }
             subagents = []
             subagentHeader = nil
             switch selection {
@@ -109,16 +109,28 @@ public struct ArchiveRequest: Equatable {
     public private(set) var history = SelectionHistory()
 
     /// ‹: the selection goes to the one before. The history is already there, so the selection's visit adds nothing.
+    /// The draft of a new session is kept: going back to it is not opening it, which starts it blank.
     public func goBack() {
         history.back()
-        selection = history.current
+        navigate(to: history.current)
     }
 
     /// ›: the selection goes to the one after.
     public func goForward() {
         history.forward()
-        selection = history.current
+        navigate(to: history.current)
     }
+
+    @ObservationIgnored private var navigating = false
+
+    private func navigate(to place: Selection) {
+        navigating = true
+        selection = place
+        navigating = false
+    }
+
+    /// A terminal that was closed leaves the history, as a session that is gone does.
+    public func terminalRemoved(_ id: UUID) { history.forget(.terminal(id: id)) }
 
     /// The subagent views open over the open conversation, outermost first, each the call that launched it: Back leaves the last. A session
     /// is left with none open.

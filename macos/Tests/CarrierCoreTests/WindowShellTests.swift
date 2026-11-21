@@ -351,3 +351,31 @@ private let fakeSessions = [
     history.forget(.session(id: "s1"))
     #expect(history.places == [.home, .sessions, .archive] && history.current == .archive)
 }
+
+@Test func goingBackToTheNewSessionDraftDoesNotOpenItAgain() {
+    let shell = WindowShell()
+    shell.selection = .newSession
+    #expect(shell.newSessionOpened == 1)
+    shell.selection = .session(id: "s1")
+    shell.goBack()
+    #expect(shell.selection == .newSession && shell.newSessionOpened == 1)
+    shell.goForward()
+    shell.goBack()
+    #expect(shell.newSessionOpened == 1)
+    // opening it from the sidebar or the menu is still a fresh start
+    shell.selection = .newSession
+    #expect(shell.newSessionOpened == 2)
+}
+
+@Test func aClosedTerminalLeavesTheHistory() {
+    let shell = WindowShell()
+    let first = UUID(), second = UUID()
+    shell.selection = .terminal(id: first)
+    shell.selection = .terminal(id: second)
+    // the window moves to the one left, then the terminal is forgotten
+    shell.selection = .terminal(id: first)
+    shell.terminalRemoved(second)
+    #expect(shell.history.places == [.home, .terminal(id: first)])
+    shell.goBack()
+    #expect(shell.selection == .home)
+}

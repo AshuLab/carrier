@@ -203,7 +203,11 @@ struct PanelView: View {
                 }
                 // the menu or the + while the draft is open: it starts blank again
                 .onChange(of: shell.newSessionOpened) { model.newSession.blank() }
-                .onChange(of: terminalStore.standaloneTerminals().map(\.id)) { reconcileSelectedTerminal() }
+                .onChange(of: terminalStore.standaloneTerminals().map(\.id)) { old, new in
+                    // the selection leaves a closed terminal first, so the history can forget it
+                    reconcileSelectedTerminal()
+                    for gone in Set(old).subtracting(new) { model.shell.terminalRemoved(gone) }
+                }
                 .toolbar { UpdatePill.item }
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
@@ -336,11 +340,14 @@ struct PanelView: View {
                 Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemIcon: .sidebar) }
                     .help("Show or hide the sidebar")
             }
-            ToolbarItemGroup(placement: .navigation) {
-                Button { shell.goBack() } label: { Label("Back", systemIcon: .chevronLeft) }
-                    .disabled(shell.history.canGoBack == false).help("Back")
-                Button { shell.goForward() } label: { Label("Forward", systemIcon: .chevronRight) }
-                    .disabled(shell.history.canGoForward == false).help("Forward")
+            // a subagent view has its own ‹ Back, one level up, in the same place: two with the same name would be one too many
+            if shell.subagentHeader == nil {
+                ToolbarItemGroup(placement: .navigation) {
+                    Button { shell.goBack() } label: { Label("Back", systemIcon: .chevronLeft) }
+                        .disabled(shell.history.canGoBack == false).help("Back")
+                    Button { shell.goForward() } label: { Label("Forward", systemIcon: .chevronRight) }
+                        .disabled(shell.history.canGoForward == false).help("Forward")
+                }
             }
             if isDevBuild {
                 ToolbarItem(placement: .navigation) {

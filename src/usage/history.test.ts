@@ -10,7 +10,7 @@ import type { Providers } from '../config/providers.ts';
 import { openDatabase } from '../storage/db.ts';
 import { epics } from '../storage/schema.ts';
 import { executions, type ExecutionUsage } from '../storage/executions.ts';
-import { createHistory, type HistoryFilter, type HistoryPorts, type HistoryRoots } from './history.ts';
+import { createHistory, SCAN_VERSION, type HistoryFilter, type HistoryPorts, type HistoryRoots } from './history.ts';
 import { createPriceOverrides } from './pricing.ts';
 import { realHistoryPorts } from './real.ts';
 
@@ -237,6 +237,190 @@ test('a message first written in an old log does not count in a week, even when 
   const { run } = setup();
   expect((await run(week)).totals.turns).toBe(0);
   expect((await run({ days: 90 })).totals.turns).toBe(1);
+});
+
+// ---- A host that restarts: what was read is kept in chat.db
+
+const rowsOf = (chat: ReturnType<typeof setup>['chat']) => chat.$client.prepare('select count(*) from usage_scan_files').pluck().get() as number;
+
+function seeded() {
+  write(join(dir, 'claude', 'p', 'a.jsonl'), [claudeLine({ id: 'm1', input: 100, output: 10 }), claudeLine({ id: 'm2', input: 5, output: 1 })]);
+  write(join(dir, 'codex', '2026', 'r.jsonl'), codexLog('cx-1', [{ input: 1000, cached: 800, output: 50, reasoning: 20 }, { input: 300, cached: 0, output: 10 }]));
+}
+
+test('a restarted host reads nothing of what the last one read, and gives the same answer', async () => {
+  seeded();
+  const before = await setup().run();
+  expect(before.totals.turns).toBe(4);
+
+  bytesRead = 0;
+  reads = [];
+  const restarted = setup(); // another createHistory on the same chat.db, with empty memory
+  expect(await restarted.run()).toEqual(before);
+  expect(bytesRead).toBe(0);
+  expect(reads).toEqual([]);
+  expect(rowsOf(restarted.chat)).toBe(2);
+});
+
+test('a restarted host reads only what was appended, and a file rewritten shorter is read from its start', async () => {
+  seeded();
+  await setup().run();
+  const file = join(dir, 'claude', 'p', 'a.jsonl');
+  const added = claudeLine({ id: 'm3', input: 7, output: 1 });
+  appendFileSync(file, `${added}\n`);
+  bytesRead = 0;
+  expect((await setup().run()).totals.tokens.input).toBe(112 + 500); // Claude 100 + 5 + 7, Codex 200 + 300 (what is not cached)
+  expect(bytesRead).toBeLessThan(added.length + 1 + 100); // the new line and the guard before it, not the files
+
+  write(file, [claudeLine({ id: 'x', input: 2, output: 1 })]); // shorter, and not what was there
+  bytesRead = 0;
+  const after = await setup().run();
+  expect(after.totals.tokens.input).toBe(2 + 500);
+  expect(bytesRead).toBeGreaterThan(0);
+  expect((await setup().run()).totals.tokens.input).toBe(2 + 500); // and what it kept is the new content
+});
+
+test('a row of another parser version is read again and written with the current one', async () => {
+  seeded();
+  const first = setup();
+  await first.run();
+  first.chat.$client.prepare('update usage_scan_files set version = 0').run();
+  bytesRead = 0;
+  const restarted = setup();
+  expect((await restarted.run()).totals.turns).toBe(4);
+  expect(bytesRead).toBeGreaterThan(0);
+  expect(restarted.chat.$client.prepare('select distinct version from usage_scan_files').pluck().all()).toEqual([SCAN_VERSION]);
+});
+
+test('a row that cannot be read is read again from the file, with a warning, and does not fail the call', async () => {
+  seeded();
+  const first = setup();
+  const before = await first.run();
+  first.chat.$client.prepare("update usage_scan_files set state = '{'").run();
+  warn.mockClear();
+  bytesRead = 0;
+  expect(await setup().run()).toEqual(before);
+  expect(bytesRead).toBeGreaterThan(0);
+  expect(warn).toHaveBeenCalled();
+});
+
+test('a file that is gone loses its row, and a row under a root that was not listed stays', async () => {
+  seeded();
+  const first = setup();
+  await first.run();
+  expect(rowsOf(first.chat)).toBe(2);
+
+  await setup().run(week, { claude: roots().claude, codex: [], agy: [] }); // an account filter: Codex was not asked about
+  expect(rowsOf(first.chat)).toBe(2);
+
+  rmSync(join(dir, 'claude', 'p', 'a.jsonl'));
+  await setup().run(week, { claude: roots().claude, codex: [], agy: [] });
+  expect(rowsOf(first.chat)).toBe(1); // the Claude file's row went, the Codex one stayed
+  expect(first.chat.$client.prepare('select kind from usage_scan_files').pluck().all()).toEqual(['codex']);
+});
+
+test('two looks at once, as the app asks for a week and a month, count a line that was appended once, also after a restart', async () => {
+  const file = join(dir, 'codex', '2026', 'r.jsonl');
+  const log = codexLog('cx-1', [{ input: 10, cached: 0, output: 1 }, { input: 20, cached: 0, output: 2 }, { input: 30, cached: 0, output: 3 }]);
+  write(file, log.slice(0, 3));
+  const { run } = setup();
+  await run();
+  appendFileSync(file, `${log.slice(3).join('\n')}\n`);
+  const [week7, month] = await Promise.all([run(week), run({ days: 30 })]);
+  expect([week7.totals.turns, month.totals.turns]).toEqual([3, 3]);
+  expect((await setup().run()).totals.turns).toBe(3); // and what was kept is not the doubled state
+});
+
+test('a look that finds nothing new writes nothing to the index', async () => {
+  seeded();
+  const { run, chat } = setup();
+  await run();
+  const write = vi.spyOn(chat, 'transaction');
+  await run();
+  await run({ days: 30 });
+  expect(write).not.toHaveBeenCalled();
+  appendFileSync(join(dir, 'claude', 'p', 'a.jsonl'), `${claudeLine({ id: 'm9', input: 1 })}\n`);
+  await run();
+  expect(write).toHaveBeenCalledOnce(); // only the file that grew
+});
+
+test('a row whose state is valid JSON of another shape is read again from the file, for each kind', async () => {
+  seeded();
+  const first = setup();
+  const before = await first.run();
+  first.chat.$client.prepare("update usage_scan_files set state = '{}'").run();
+  warn.mockClear();
+  bytesRead = 0;
+  expect(await setup().run()).toEqual(before);
+  expect(bytesRead).toBeGreaterThan(0);
+  expect(warn).toHaveBeenCalledTimes(2);
+});
+
+test('a folder that cannot be listed once keeps its rows, and the next look finds them', async () => {
+  seeded();
+  const { run, chat } = setup();
+  await run();
+  const list = ports.files.list;
+  let failing = true;
+  ports.files.list = async (root, suffix) => {
+    if (failing) throw Object.assign(new Error('too many open files'), { code: 'EMFILE' });
+    return list(root, suffix);
+  };
+  expect((await run()).totals.turns).toBe(0); // nothing could be seen this time
+  expect(rowsOf(chat)).toBe(2);
+  failing = false;
+  bytesRead = 0;
+  expect((await run()).totals.turns).toBe(4);
+  expect(bytesRead).toBe(0);
+});
+
+test('a group of rows that failed to be written is written by the next look, and the groups before it stay', async () => {
+  for (let i = 0; i < 250; i++) write(join(dir, 'claude', 'p', `f${i}.jsonl`), [claudeLine({ id: `m${i}`, input: 1 })]);
+  const { run, chat } = setup();
+  chat.$client.exec("create trigger fail_second_group before insert on usage_scan_files when (select count(*) from usage_scan_files) >= 100 begin select raise(abort, 'busy'); end");
+  expect((await run()).totals.turns).toBe(250); // the answer does not depend on the index
+  expect(rowsOf(chat)).toBe(100);
+  chat.$client.exec('drop trigger fail_second_group');
+  bytesRead = 0;
+  await run(); // nothing changed in the files
+  expect(rowsOf(chat)).toBe(250);
+  expect(bytesRead).toBe(0);
+});
+
+test('a row with the right shape and records that are not records is read again from the file', async () => {
+  seeded();
+  const first = setup();
+  const before = await first.run();
+  first.chat.$client.prepare(`update usage_scan_files set state = '{"sessionId":"x","model":"m","workspace":"","records":[{"at":1}]}' where kind = 'codex'`).run();
+  first.chat.$client.prepare(`update usage_scan_files set state = '[["k",{"at":1}]]' where kind = 'claude'`).run();
+  warn.mockClear();
+  bytesRead = 0;
+  expect(await setup().run()).toEqual(before);
+  expect(bytesRead).toBeGreaterThan(0);
+  expect(warn).toHaveBeenCalledTimes(2);
+});
+
+test('a look that fails does not hold the ones queued behind it', async () => {
+  seeded();
+  const { run } = setup();
+  const now = ports.clock.now;
+  let failures = 1; // the first look to read the clock fails
+  ports.clock.now = () => {
+    if (failures-- > 0) throw new Error('clock');
+    return now();
+  };
+  const [failed, after] = await Promise.allSettled([run(), run()]);
+  expect(failed.status).toBe('rejected');
+  expect(after.status).toBe('fulfilled');
+});
+
+test('a failure writing the index does not fail the call', async () => {
+  seeded();
+  const first = setup();
+  first.chat.$client.exec('drop table usage_scan_files');
+  warn.mockClear();
+  expect((await first.run()).totals.turns).toBe(4);
+  expect(warn).toHaveBeenCalled();
 });
 
 // ---- Codex

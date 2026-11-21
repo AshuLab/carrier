@@ -283,6 +283,44 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     generating = run.catch(() => {});
     return run;
   };
+  // Sessions whose title is being written in the background, so a second turn ending meanwhile does not ask twice.
+  const titling = new Set<string>();
+  /** Generates a cleaned title from `message` and `reply` (when there is one), logging and rethrowing on failure. */
+  const generateTitle = async (sessionId: string, message: string, reply?: string) => {
+    try {
+      const title = titleOf(await generate({ system: titleSystemMessage, text: titleText(message, reply) }));
+      if (title === '') throw new TextGeneratorFailed('the text generator answered with no text');
+      return title;
+    } catch (error) {
+      log.error('the text generator could not write a title', error, { sessionId });
+      throw error;
+    }
+  };
+  /**
+   * Titles a session in the background after a turn ends well: never a child, never over a renamed or already generated title,
+   * never when there is no reply yet, and never failing or delaying the session.
+   */
+  const autoTitle = async (sessionId: string) => {
+    if (closed || titling.has(sessionId)) return;
+    const found = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    if (found === undefined || found.parentSessionId !== null || titleSourceOf(found) !== 'first_line') return;
+    const first = firstMessage(sessionId);
+    if (first === undefined || first.text.trim() === '') return;
+    const reply = firstReply(sessionId, first.id);
+    if (reply === undefined) return;
+    titling.add(sessionId);
+    try {
+      const title = await generateTitle(sessionId, first.text, reply);
+      if (closed) return;
+      const current = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+      if (current === undefined || current.parentSessionId !== null || titleSourceOf(current) !== 'first_line') return;
+      db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, sessionId)).run();
+    } catch {
+      // already logged in generateTitle; the title stays the first line and the next turn tries again
+    } finally {
+      titling.delete(sessionId);
+    }
+  };
 
   // Worktrees are made one at a time: what a request checked (a free name) is still true when git adds.
   let making: Promise<unknown> = Promise.resolve();
@@ -405,6 +443,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       db.insert(chatTurns).values({ sessionId, startedAt, harness, agent, nativeId: live.conversation.nativeId ?? null, model: event.model ?? null, outcome: event.outcome, durationMs: clock.now() - startedAt, toolCalls: live.turn?.toolCalls ?? 0, usage: event.usage ?? null }).run();
       live.turn = undefined;
       void data.afterTurn(sessionId);
+      if (event.outcome === 'ok') void autoTitle(sessionId);
     }
     // The SDK runs subagents in the background, so a turn can end before them: the session is idle only when the turn is over and no task runs.
     const busy = live.turn !== undefined || live.tasks.size > 0;
@@ -1397,10 +1436,8 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       if (first === undefined || first.text.trim() === '') throw new ChatRefused('This session has no message to write a title from yet');
       let title: string;
       try {
-        title = titleOf(await generate({ system: titleSystemMessage, text: titleText(first.text, firstReply(sessionId, first.id)) }));
-        if (title === '') throw new TextGeneratorFailed('the text generator answered with no text');
+        title = await generateTitle(sessionId, first.text, firstReply(sessionId, first.id));
       } catch (error) {
-        log.error('the text generator could not write a title', error, { sessionId });
         throw new ChatRefused(`Could not write a title: ${error instanceof TextGeneratorFailed ? error.message : 'the text generator failed'}`);
       }
       db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, sessionId)).run();

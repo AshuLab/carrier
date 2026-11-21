@@ -8,7 +8,7 @@ import { openChatDatabase } from './db.ts';
 import type { Git, GitResult } from './git.ts';
 import { infoOf, pickPullRequest, pullRequestKey, type PullRequestInfo, type PullRequests } from './pull-requests.ts';
 import { sessions } from './schema.ts';
-import { createSessionData, DIFF_TTL_MS, DISCOVER_EVERY_MS, parseNumstat, STATE_TTL_MS, SWEEP_EVERY_MS } from './session-data.ts';
+import { createSessionData, DIFF_TTL_MS, DISCOVER_EVERY_MS, IDLE_DIFF_TTL_MS, IDLE_DISCOVER_EVERY_MS, parseNumstat, STATE_TTL_MS, SWEEP_EVERY_MS } from './session-data.ts';
 
 let dir: string;
 beforeEach(() => void (dir = mkdtempSync(join(tmpdir(), 'sd-'))));
@@ -223,10 +223,10 @@ test('a merged pull request is final and gives way only to a newer open one on t
   expect(s.data.view(s.row()).pr?.number).toBe(950);
 });
 
-test('a list starts one sweep at most every fifteen seconds, reads a diff again after a minute and asks the open pull requests together', async () => {
+test('a list starts one sweep at most every fifteen seconds, reads the diff of a working session again after a minute and asks the open pull requests together', async () => {
   const s = setup(
     { [ORIGIN]: 'git@github.com:AshuLab/carrier.git', 'rev-parse --abbrev-ref HEAD': 'feat/x\n', [DEFAULT]: 'origin/main', 'merge-base main HEAD': 'abc\n', 'diff --numstat --no-ext-diff --no-textconv --no-renames abc --': '2\t1\ta\n' },
-    { prRepo: 'AshuLab/carrier', prNumber: 5, prUrl: 'https://github.com/AshuLab/carrier/pull/5', prState: 'open', prCheckedAt: 0 },
+    { state: 'working', prRepo: 'AshuLab/carrier', prNumber: 5, prUrl: 'https://github.com/AshuLab/carrier/pull/5', prState: 'open', prCheckedAt: 0 },
   );
   s.clock.time = STATE_TTL_MS;
   s.pulls.open['ashulab/carrier#5'] = pr(5, 'open', 'failing');
@@ -255,8 +255,8 @@ test('a list starts one sweep at most every fifteen seconds, reads a diff again 
   expect(s.calls.filter((call) => call.command.startsWith('diff'))).toHaveLength(2);
 });
 
-test('a session with no pull request is looked for again after three minutes and not before', async () => {
-  const s = setup({ [ORIGIN]: 'git@github.com:AshuLab/carrier.git', 'rev-parse --abbrev-ref HEAD': 'feat/x\n', [DEFAULT]: 'origin/main' });
+test('a working session with no pull request is looked for again after three minutes and not before', async () => {
+  const s = setup({ [ORIGIN]: 'git@github.com:AshuLab/carrier.git', 'rev-parse --abbrev-ref HEAD': 'feat/x\n', [DEFAULT]: 'origin/main' }, { state: 'working' });
   const settle = () => new Promise((resolve) => setTimeout(resolve, 5));
   s.data.kick([s.row()]);
   await settle();
@@ -280,4 +280,93 @@ test('a list with no sessions does not use up the window of the sweep: the first
   s.data.kick([s.row()]);
   await settle();
   expect(s.data.view(s.row()).pr?.number).toBe(7);
+});
+
+const ANSWERS = { [ORIGIN]: 'git@github.com:AshuLab/carrier.git', 'rev-parse --abbrev-ref HEAD': 'feat/x\n', [DEFAULT]: 'origin/main', 'diff --numstat --no-ext-diff --no-textconv --no-renames HEAD --': '2\t1\ta\n' };
+const settle = () => new Promise((resolve) => setTimeout(resolve, 5));
+const diffsOf = (s: ReturnType<typeof setup>) => s.calls.filter((call) => call.command.startsWith('diff')).length;
+/** A list asked for at `time`. */
+async function listAt(s: ReturnType<typeof setup>, time: number) {
+  s.clock.time = time;
+  s.data.kick([s.row()]);
+  await settle();
+}
+
+test('an idle session whose last activity has not moved is read every ten minutes and looked for a pull request every thirty', async () => {
+  const s = setup(ANSWERS); // idle, lastActiveAt 0
+  await listAt(s, 0);
+  expect([diffsOf(s), s.pulls.finds.length]).toEqual([1, 1]);
+  for (let time = 20_000; time < IDLE_DIFF_TTL_MS; time += 20_000) await listAt(s, time); // the app lists every few seconds
+  expect([diffsOf(s), s.pulls.finds.length]).toEqual([1, 1]);
+  expect(s.calls.filter((call) => call.command === ORIGIN)).toHaveLength(1); // nothing was due: not even where it works was asked
+  await listAt(s, IDLE_DIFF_TTL_MS);
+  expect([diffsOf(s), s.pulls.finds.length]).toEqual([2, 1]);
+  await listAt(s, IDLE_DISCOVER_EVERY_MS);
+  expect([diffsOf(s), s.pulls.finds.length]).toEqual([3, 2]);
+});
+
+test('a session whose last activity moved is read again after a minute, and is believed for ten once it was read', async () => {
+  const s = setup(ANSWERS);
+  await listAt(s, 0);
+  s.db.update(sessions).set({ lastActiveAt: 5 }).where(eq(sessions.id, s.id)).run(); // it did something
+  await listAt(s, DIFF_TTL_MS - SWEEP_EVERY_MS); // a sweep inside the minute: nothing yet
+  expect(diffsOf(s)).toBe(1);
+  await listAt(s, DIFF_TTL_MS);
+  expect(diffsOf(s)).toBe(2);
+  await listAt(s, DIFF_TTL_MS + SWEEP_EVERY_MS * 4); // nothing since: idle again
+  expect(diffsOf(s)).toBe(2);
+  s.db.update(sessions).set({ lastActiveAt: 9 }).where(eq(sessions.id, s.id)).run();
+  await listAt(s, DIFF_TTL_MS * 2 + SWEEP_EVERY_MS * 4);
+  expect([diffsOf(s), s.pulls.finds.length]).toEqual([3, 2]); // and the pull request is looked for with the diff, after three minutes of activity at most
+});
+
+test('a session that works or waits is read every minute and looked for every three, whatever its last activity says', async () => {
+  const s = setup(ANSWERS, { state: 'waiting_approval' }); // a long silent tool: no events, lastActiveAt does not move
+  await listAt(s, 0);
+  await listAt(s, DIFF_TTL_MS);
+  expect(diffsOf(s)).toBe(2);
+  await listAt(s, DISCOVER_EVERY_MS);
+  expect(s.pulls.finds).toHaveLength(2);
+});
+
+test('where a session works is asked once for a sweep, whichever of the diff and the pull request is due', async () => {
+  const s = setup(ANSWERS);
+  await listAt(s, 0);
+  expect(s.calls.filter((call) => call.command === ORIGIN)).toHaveLength(1);
+  expect(diffsOf(s)).toBe(1);
+  expect(s.pulls.finds).toHaveLength(1);
+});
+
+test('a parent session is read as often as its children work: a child that works, or did something, keeps the minute', async () => {
+  const s = setup(ANSWERS);
+  const child = { id: 'c1', agent: 'claude', harness: 'claude' as const, folder: '/work/app', createdAt: 0, lastActiveAt: 0, parentSessionId: s.id, state: 'working' as const };
+  s.db.insert(sessions).values(child).run();
+  await listAt(s, 0);
+  await listAt(s, DIFF_TTL_MS); // the parent is idle and has done nothing, but its child writes in the same folder
+  expect(diffsOf(s)).toBe(2);
+  s.db.update(sessions).set({ state: 'idle', lastActiveAt: 7 }).where(eq(sessions.id, 'c1')).run(); // it finished
+  await listAt(s, DIFF_TTL_MS * 2); // a child's last event moved the family's activity
+  expect(diffsOf(s)).toBe(3);
+  await listAt(s, DIFF_TTL_MS * 3); // nothing since: idle
+  expect(diffsOf(s)).toBe(3);
+});
+
+test('a session that already has a pull request is not looked for one, idle or not', async () => {
+  const s = setup(ANSWERS, { prRepo: 'AshuLab/carrier', prNumber: 5, prUrl: 'https://github.com/AshuLab/carrier/pull/5', prState: 'merged', prCheckedAt: 0 });
+  await listAt(s, 0);
+  await listAt(s, IDLE_DISCOVER_EVERY_MS);
+  expect(s.pulls.finds).toEqual([]);
+});
+
+test('what a child did while the diff of its parent was being read is not taken as already read', async () => {
+  const s = setup(ANSWERS);
+  s.db.insert(sessions).values({ id: 'c1', agent: 'claude', harness: 'claude', folder: '/work/app', createdAt: 0, lastActiveAt: 0, parentSessionId: s.id, state: 'idle' }).run();
+  const run = s.git.run.bind(s.git);
+  s.git.run = async (folder, args, options) => {
+    if (args[0] === 'diff') s.db.update(sessions).set({ lastActiveAt: 9 }).where(eq(sessions.id, 'c1')).run(); // its last event lands while git runs
+    return run(folder, args, options);
+  };
+  await listAt(s, 0);
+  await listAt(s, DIFF_TTL_MS);
+  expect(diffsOf(s)).toBe(2);
 });

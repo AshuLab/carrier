@@ -1,4 +1,5 @@
 import { boundOutput, clean } from '../execution/events.ts';
+import { redact } from '../logging/redact.ts';
 import type { StepEvent } from './plan.ts';
 import type { ChatEvent } from './runner.ts';
 
@@ -55,8 +56,26 @@ const pastedBlock = /^(`{3,})pasted\n([\s\S]*?)\n\1[ \t]*$/gm;
 /** The message as a title or a preview reads it: each pasted block is "[Pasted text · 87 lines]". */
 export const withoutPasted = (text: string) => text.replace(pastedBlock, (_block, _fence, body: string) => `[Pasted text · ${body.split('\n').length} lines]`);
 
-/** What a list says of a session's last message: its words on one line, cut. */
-export const previewOf = (text: string) => clean(withoutPasted(text).replace(/\s+/g, ' ').trim(), chatCaps.preview);
+// `redact` hides `NAME="a value"` only when it sees the closing quote, so a quoted assignment that may close past what was read is read whole.
+const quotedAssignment = /(?:SECRET|TOKEN|PASSWORD|KEY)\w*=["']/i;
+
+/**
+ * What a list says of a session's last message: its words on one line, cut.
+ * Only the start of the message is read (a message can be 64,000 characters and a list asks for every session), as much as it takes for
+ * the words, redacted, to run twice the preview past its cut, and to the end of the word it falls in: a secret that straddles the cut is whole in what was read, and a private
+ * key block that was cut is redacted to the end (`redact`). A quoted assignment in what was read makes it read the whole message.
+ */
+export const previewOf = (text: string) => {
+  const plain = withoutPasted(text);
+  for (let take = 2_000; ; take *= 8) {
+    // up to the end of the word the cut falls in: a token that is one run (a JWT) is whole in what was read
+    const wordEnd = plain.slice(take).search(/\s/);
+    const end = take >= plain.length || wordEnd < 0 ? plain.length : take + wordEnd;
+    const words = plain.slice(0, end).replace(/\s+/g, ' ').trim();
+    if (end >= plain.length) return clean(words, chatCaps.preview);
+    if (quotedAssignment.test(words) === false && redact(words).length >= chatCaps.preview * 2) return clean(words, chatCaps.preview);
+  }
+};
 
 /** The title of a session: the first line of its first message, cut. */
 export const titleOf = (text: string) => clean(withoutPasted(text).trim().split('\n')[0]!, chatCaps.title);

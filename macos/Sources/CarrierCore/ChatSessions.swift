@@ -59,7 +59,8 @@ public func openMenuItems(_ row: SessionRow) -> [OpenItem] {
 }
 
 /// Asks the host for the sessions: `poll()` is called at the pace of `PollPace` and lists the active ones every time and the archived ones
-/// when `archivedEvery` seconds have passed since they were last read. A host that does not answer the list changes nothing: the rows stay
+/// when `archivedEvery` seconds have passed since they were last read (the host builds the whole archived list each time, and an archive, a restore or a
+/// delete from the app reads it again at once through `invalidateArchived`, and so does a session that leaves the active list without being in the archived one). A host that does not answer the list changes nothing: the rows stay
 /// as they were and the archived list is read again when it answers; one that fails only on the archived list keeps the last archived
 /// rows it had.
 public final class ChatSessionsPoller {
@@ -70,12 +71,14 @@ public final class ChatSessionsPoller {
     private let onChange: ([SessionRow]) -> Void
     private var archived: [ChatSession] = []
     private var archivedAt: Date?
+    /// The ids the last active list had: one that is gone from it and is not in the archived list was archived or deleted by something other than the app.
+    private var activeIds: Set<String> = []
     /// Set from any thread by `invalidateArchived`.
     private let stale = Mutex(false)
 
     public init(
         host: ChatHost,
-        archivedEvery: TimeInterval = 5,
+        archivedEvery: TimeInterval = 60,
         now: @escaping () -> Date = Date.init,
         onAuthoritativeSessionIds: @escaping (Set<String>) -> Void = { _ in },
         onChange: @escaping ([SessionRow]) -> Void
@@ -104,14 +107,19 @@ public final class ChatSessionsPoller {
             defer { flag = false }
             return flag
         }
+        let gone = activeIds.subtracting(active.map(\.id)).subtracting(archived.map(\.id))
         var archivedRefreshedThisPoll = false
-        if invalidated || (archivedAt.map({ now().timeIntervalSince($0) >= archivedEvery }) ?? true) {
+        if invalidated || !gone.isEmpty || (archivedAt.map({ now().timeIntervalSince($0) >= archivedEvery }) ?? true) {
             if let listed = try? await host.list(archived: true) {
                 archived = listed
                 archivedAt = now()
                 archivedRefreshedThisPoll = true
+            } else if invalidated {
+                stale.withLock { $0 = true } // the app asked for a read and it failed: asked again at the next poll
             }
         }
+        // what left the active list is remembered until the archived list has answered for it
+        if archivedRefreshedThisPoll || gone.isEmpty { activeIds = Set(active.map(\.id)) }
         let combined = active + archived
         outcome = "ok"
         onChange(sessionRows(combined))

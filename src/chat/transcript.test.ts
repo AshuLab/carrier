@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { boundEvent, chatCaps, previewOf, titleOf } from './transcript.ts';
+import { clean } from '../execution/events.ts';
+import { boundEvent, chatCaps, previewOf, titleOf, withoutPasted } from './transcript.ts';
 
 const log = Array.from({ length: 87 }, (_, i) => `line ${i + 1}`).join('\n');
 
@@ -64,5 +65,59 @@ describe('the stored form of an approval', () => {
     const choices = [{ id: 'allow', label: 'Allow', allow: true }];
     const stored = boundEvent({ kind: 'approval', approvalId: 'a1', tool: 'delegate_start', arg: 'x'.repeat(chatCaps.message + 10), choices })!;
     expect((stored.arg as string).length).toBe(chatCaps.message);
+  });
+});
+
+describe('the preview of a long message reads only its start', () => {
+  // what the preview was before it read only the start: the whole message redacted and then cut
+  const whole = (text: string) => clean(withoutPasted(text).replace(/\s+/g, ' ').trim(), chatCaps.preview);
+  const token = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789';
+  const prose = 'The quick brown fox, see src/chat/a.ts line 12.\n'.repeat(1_400);
+  const samples: Record<string, string> = {
+    short: 'Done. Tests pass.',
+    prose,
+    code: 'const a = { b: 1 }; // x\n'.repeat(2_700),
+    blanksFirst: `${' \n\t'.repeat(5_000)}hello world ${'a'.repeat(500)}`,
+    blanksBetween: `first${' '.repeat(40_000)}second ${'b'.repeat(300)}`,
+    pasted: `why?\n\n\`\`\`pasted\n${prose}\n\`\`\`\n${prose}`,
+    secretInside: `deploy with ${token} now ${prose}`,
+    secretAtTheEdge: `${'x'.repeat(190)} ${token} ${prose}`,
+    // 195 words, then blanks that make the first 2,000 characters end 5 characters into a key that `redact` knows from 16 characters on
+    keyAtTheRawEdge: `${'a'.repeat(195)}${' '.repeat(1_800)}sk-${'A'.repeat(30)} ${prose}`,
+    // a quoted value that opens in the preview and closes past what is read: redact hides the whole assignment only when it sees the closing quote
+    quotedSecret: `deploy with DB_PASSWORD="hunter2 correct horse${' battery staple'.repeat(150)}" thanks`,
+    quotedMultiline: `export API_KEY='${Array.from({ length: 200 }, (_, i) => `secret line ${i}`).join('\n')}'\n${prose}`,
+    // a token whose middle part runs past the first 2,000 characters: redact needs the third part to hide it
+    jwtPastTheRead: `token: eyJ${'a'.repeat(20)}.${'b'.repeat(1_990)}.${'c'.repeat(100)} tail ${prose}`,
+    nameRunPastTheRead: `see ${'KEY'.repeat(700)}=1 ${prose}`,
+    exactly: 'e'.repeat(chatCaps.preview),
+    justOver: 'e'.repeat(chatCaps.preview + 1),
+  };
+
+  it('is what reading the whole message gave, for prose, code, blanks, a pasted block and a secret near the cut', () => {
+    for (const [name, text] of Object.entries(samples)) expect(previewOf(text), name).toBe(whole(text));
+    expect(previewOf(samples.secretInside!)).toContain('[redacted]');
+    expect(previewOf(samples.secretAtTheEdge!)).not.toContain('ghp_');
+    expect(previewOf(samples.keyAtTheRawEdge!)).not.toContain('sk-');
+    expect(previewOf(samples.quotedSecret!)).not.toContain('hunter2');
+    expect(previewOf(samples.quotedMultiline!)).not.toContain('secret line');
+    expect(previewOf(samples.jwtPastTheRead!)).not.toContain('eyJ');
+  });
+
+  it('redacts a private key block that starts in the preview and runs past what was read', () => {
+    const key = `-----BEGIN PRIVATE KEY-----\n${'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC'.repeat(400)}\n-----END PRIVATE KEY-----\n${prose}`;
+    expect(previewOf(`here: ${key}`)).toBe(whole(`here: ${key}`));
+    expect(previewOf(`here: ${key}`)).not.toContain('MIIE');
+  });
+
+  it('is much cheaper than redacting and collapsing 64,000 characters', () => {
+    const text = prose.slice(0, chatCaps.message);
+    const time = (read: (text: string) => string) => {
+      for (let i = 0; i < 20; i++) read(text);
+      const start = performance.now();
+      for (let i = 0; i < 300; i++) read(text);
+      return performance.now() - start;
+    };
+    expect(time(previewOf) * 4).toBeLessThan(time(whole));
   });
 });

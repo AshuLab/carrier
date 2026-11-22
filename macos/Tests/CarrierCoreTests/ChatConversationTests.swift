@@ -906,6 +906,25 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
     #expect(rows.count == 1 && rows[0].status == .running && rows[0].reason == nil)
 }
 
+private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: String, _ detail: String? = nil) -> ChatEvent {
+    ChatEvent(id: id, at: id, kind: "step", status: status, step: "action", detail: detail, action: name, when: when)
+}
+
+@Test func eachActionIsARowOfItsOwnNamedByItsTitleWithTheTerminalIconAndTheOtherStepsHaveNone() {
+    let rows = preparationSteps(
+        [step(1, "clone", "done"), actionStep(2, "Install", "afterClone", "running"), actionStep(3, "Install", "afterClone", "done"), step(4, "worktree", "done"),
+         actionStep(5, "Install", "newWorktree", "running"), actionStep(6, "Copy env", "newWorktree", "failed", "Copy env failed with exit code 1: no such file")],
+        preparation: .failed, progress: "resolving"
+    )
+    #expect(rows.map(\.line) == ["Cloned the repository", "Ran Install", "Made the worktree", "Running Install…", "Copy env failed"])
+    #expect(rows.map(\.icon) == [nil, .terminal, nil, .terminal, .terminal])
+    #expect(Set(rows.map(\.id)).count == 5)
+    #expect(rows[3].progress == "resolving" && rows[4].reason == "Copy env failed with exit code 1: no such file")
+    // the outline keeps each row's icon and its own id
+    #expect(preparationOutline(rows).prefix(5).map(\.icon) == [nil, .terminal, nil, .terminal, .terminal])
+    #expect(Set(preparationOutline(rows).map(\.id)).count == preparationOutline(rows).count)
+}
+
 @Test func theListEndsWhenTheSessionIsNotBeingPreparedAnyMoreOrTheHostSaysNothing() {
     let events = [step(1, "agent", "done"), step(2, "message", "done")]
     #expect(preparationSteps(events, preparation: nil).isEmpty)

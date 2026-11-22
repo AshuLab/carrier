@@ -125,6 +125,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public let clone: ProjectClone?
     /// When a session last worked in it, from `projectsWithLastActive`; derived from the sessions, never stored in the file. nil when none did.
     public var lastActive: Date?
+    /// Whether Carrier watches its repository: its `owner/name` is in the engine config's `repos`, from `projectsWithWatched`; never stored in `projects.json`.
+    public var watched: Bool
     /// What the project takes on disk as the host last measured it, from `projectsWithDisk`; never stored. nil when it has not been measured.
     public var diskBytes: Int?
 
@@ -143,7 +145,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         actions: [ProjectAction] = [],
         defaults: ProjectDefaults = ProjectDefaults(),
         clone: ProjectClone? = nil,
-        lastActive: Date? = nil
+        lastActive: Date? = nil,
+        watched: Bool = false
     ) {
         self.path = path
         self.name = name
@@ -160,6 +163,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         self.defaults = defaults
         self.clone = clone
         self.lastActive = lastActive
+        self.watched = watched
     }
 
     /// The list's row for a clone started from Settings: named as the repository, at the folder it is made in.
@@ -181,6 +185,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         case nil: repo ?? path
         }
     }
+    /// What the list's Carrier column says.
+    public var carrierText: String { watched ? "Watching" : "Not watched" }
     /// What its tile's colour is made from, so it matches the project's sessions.
     public var colorKey: String { projectColorKey(path) }
     /// What the project's tile draws: its chosen colour and mark, else initials on a colour made from the name.
@@ -224,6 +230,16 @@ public func projectsWithLastActive(_ rows: [ProjectRow], sessions: [SessionRow])
     }
 }
 
+/// `rows` with `watched` set for those whose repository is in `repos` (the engine config's list, as it is read), compared as GitHub does, ignoring case.
+/// An unreadable config (`repos` nil) watches nothing.
+public func projectsWithWatched(_ rows: [ProjectRow], repos: [String]?) -> [ProjectRow] {
+    rows.map { row in
+        var row = row
+        row.watched = row.repo.map { isWatched($0, in: repos ?? []) } ?? false
+        return row
+    }
+}
+
 /// What the Projects list is ordered by: the name, when a session last worked in the project, or what it takes on disk.
 public enum ProjectSortKey: Equatable, Hashable, Sendable {
     case name
@@ -252,6 +268,8 @@ public enum ProjectFilter: Equatable, Hashable, Sendable {
     case all
     case tag(String)
     case localOnly
+    /// Only the projects Carrier watches.
+    case watched
     /// Only the projects left out of the sheet New session opens.
     case hidden
 }
@@ -312,6 +330,7 @@ public func projectList(
         case .all: return true
         case .tag(let tag): return row.tags.contains(tag)
         case .localOnly: return row.repo == nil
+        case .watched: return row.watched
         case .hidden: return row.hidden
         }
     }

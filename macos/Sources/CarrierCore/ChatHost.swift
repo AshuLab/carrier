@@ -689,11 +689,12 @@ func jsonString(_ text: String) -> String { String(decoding: (try? JSONEncoder()
 
 /// The reply of `open`: only the new session's id is read.
 /// Where a plan works: a folder that exists, a repository `owner/name` (the host clones it into its projects folder when the message is sent, or
-/// fetches it when it is there already), or a new project of this name (the host makes `<projects folder>/local/<name>` when the message is sent).
+/// fetches it when it is there already), or a new project of this name (the host makes `<projects folder>/local/<name>` when the message is sent). A new
+/// project keeps `project` as its `kind` on the wire, since an older host refuses another value.
 public enum PlanWorkspace: Equatable {
     case folder(String)
     case repo(String)
-    case project(String)
+    case newProject(String)
 }
 
 /// What a new session is before it exists (docs/adr/0018): where it works, the agent and the options the person chose (an id and a value each,
@@ -731,7 +732,7 @@ public struct SessionPlan: Equatable {
         let place = switch workspace {
         case .folder(let path): "{\"kind\":\"folder\",\"folder\":\(jsonString(path))}"
         case .repo(let name): "{\"kind\":\"repo\",\"repo\":\(jsonString(name))}"
-        case .project(let name): "{\"kind\":\"project\",\"name\":\(jsonString(name))}"
+        case .newProject(let name): "{\"kind\":\"project\",\"name\":\(jsonString(name))}"
         }
         var fields = [
             "\"workspace\":\(place)", "\"agent\":\(jsonString(agent))", "\"text\":\(jsonString(text))",
@@ -815,7 +816,7 @@ private struct CancelledReply: Decodable {
                 switch (workspace.kind, workspace.folder, workspace.repo, workspace.name) {
                 case ("folder", let folder?, _, _): place = .folder(folder)
                 case ("repo", _, let repo?, _): place = .repo(repo)
-                case ("project", _, _, let name?): place = .project(name)
+                case ("project", _, _, let name?): place = .newProject(name)
                 default: throw ControlError.badLine
                 }
                 let cut = worktree.flatMap { wanted in branch.map { WorktreeRequest(from: $0, name: wanted.name, startFrom: wanted.startFrom.flatMap(WorktreeStart.init(rawValue:))) } }

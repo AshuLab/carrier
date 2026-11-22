@@ -319,7 +319,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
         connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"\(opened)\",\"agent\":\"claude\"},\"options\":[]}}\n")
     }
     defer { server.stop() }
-    _ = try await SocketChatHost(socketPath: { server.path }).open(plan: SessionPlan(agent: "claude", workspace: .project("my-app"), text: "hi"))
+    _ = try await SocketChatHost(socketPath: { server.path }).open(plan: SessionPlan(agent: "claude", workspace: .newProject("my-app"), text: "hi"))
     let sent = try #require(lines.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] })
     let wired = try #require(sent["plan"] as? [String: Any])
     #expect(wired["workspace"] as? [String: String] == ["kind": "project", "name": "my-app"] && wired["branch"] == nil && wired["worktree"] == nil)
@@ -741,7 +741,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     #expect(model.repo == "acme/web" && model.toClone && model.folder == root + "/acme/web")
 
     // a new project fills it with a new project
-    model.choose(project: "my-idea")
+    model.choose(newProject: "my-idea")
     #expect(model.newProject == "my-idea" && model.folder == root + "/local/my-idea" && model.repo == nil)
 
     // nothing was asked of the host but what the draft shows, nothing was cloned or made, and nothing was written
@@ -752,7 +752,52 @@ private func projectsRoot(_ names: [String]) throws -> String {
     // the first message is what sends the plan
     model.text = "hello"
     #expect(await model.send() == opened)
-    #expect(host.plans == [SessionPlan(agent: "claude", workspace: .project("my-idea"), text: "hello")])
+    #expect(host.plans == [SessionPlan(agent: "claude", workspace: .newProject("my-idea"), text: "hello")])
+}
+
+@MainActor @Test func aFolderThatIsNotAProjectOffersAddAsProjectWhichWritesAnAddedEntryAndThenGoes() async throws {
+    let carrier = NSTemporaryDirectory() + "carrier-" + UUID().uuidString
+    let folder = NSTemporaryDirectory() + "plain-" + UUID().uuidString
+    try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(atPath: carrier)
+        try? FileManager.default.removeItem(atPath: folder)
+    }
+    let file = ProjectsFile(folder: carrier)
+    let model = NewSessionModel(host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in }, projects: ProjectsModel(host: FakeChat(), file: file) { _ in nil })
+    #expect(model.offersAddAsProject == false) // nothing chosen
+    await model.choose(folder: folder)
+    #expect(model.offersAddAsProject)
+    model.addAsProject()
+    #expect(model.offersAddAsProject == false && model.addProjectProblem == nil)
+    let entries = try file.read()
+    #expect(entries.map(\.path) == [folder] && entries[0].origin == "added")
+    // a project chosen again, or one that was added elsewhere, offers nothing
+    await model.choose(folder: folder)
+    #expect(model.offersAddAsProject == false)
+}
+
+@MainActor @Test func aRepositoryOrANewProjectOffersNoAddAsProjectAndAFileThatCannotBeWrittenSaysWhy() async throws {
+    let carrier = NSTemporaryDirectory() + "carrier-" + UUID().uuidString
+    let folder = NSTemporaryDirectory() + "plain-" + UUID().uuidString
+    try FileManager.default.createDirectory(atPath: carrier, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(atPath: carrier)
+        try? FileManager.default.removeItem(atPath: folder)
+    }
+    let file = ProjectsFile(folder: carrier)
+    let model = NewSessionModel(host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, projects: ProjectsModel(host: FakeChat(), file: file) { _ in nil })
+    model.choose(newProject: "my-idea")
+    #expect(model.offersAddAsProject == false) // the host registers a new project itself
+    await model.choose(repo: "acme/web")
+    #expect(model.offersAddAsProject == false)
+    try Data("{ nope".utf8).write(to: file.url)
+    await model.choose(folder: folder)
+    #expect(model.offersAddAsProject)
+    model.addAsProject()
+    #expect(model.addProjectProblem != nil && model.offersAddAsProject)
+    #expect(try String(contentsOf: file.url, encoding: .utf8) == "{ nope")
 }
 
 @MainActor @Test func aRepositoryToCloneOffersToWatchItOnByDefaultAndSaysWhyItCannotBe() async throws {
@@ -886,7 +931,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
 @MainActor @Test func choosingAProjectOnlyFillsThePlanAndOffersNoWorktreeNorBranch() async {
     let host = FakeChat()
     let model = await chosenDraft(host)
-    model.choose(project: "my-idea")
+    model.choose(newProject: "my-idea")
     #expect(host.calls.isEmpty)
     #expect(model.newProject == "my-idea" && model.folder == "/nowhere/local/my-idea")
     #expect(model.projectNote == "/nowhere/local/my-idea will be created, with git ready, when the message is sent.")
@@ -902,16 +947,16 @@ private func projectsRoot(_ names: [String]) throws -> String {
 @MainActor @Test func sendingAProjectPlanAsksTheHostForTheProjectStepAndNothingElse() async {
     let host = FakeChat()
     let model = await chosenDraft(host)
-    model.choose(project: "my-idea")
+    model.choose(newProject: "my-idea")
     model.text = "build it"
     #expect(await model.send() == opened)
-    #expect(host.plans == [SessionPlan(agent: "claude", workspace: .project("my-idea"), text: "build it")])
+    #expect(host.plans == [SessionPlan(agent: "claude", workspace: .newProject("my-idea"), text: "build it")])
     #expect(model.newProject == nil && model.folder == nil)
 }
 
 @MainActor @Test func aCancelledProjectPlanComesBackInTheDraft() async {
     let model = await chosenDraft(FakeChat())
-    model.restore(SessionPlan(agent: "claude", workspace: .project("my-idea"), text: "again"))
+    model.restore(SessionPlan(agent: "claude", workspace: .newProject("my-idea"), text: "again"))
     await model.load()
     #expect(model.newProject == "my-idea" && model.folder == "/nowhere/local/my-idea" && model.text == "again")
 }
@@ -1421,7 +1466,7 @@ private func gitHealth(_ git: ToolState) -> HostHealth { HostHealth(git: git, gh
     // a folder and a new project never depend on gh
     await model.choose(folder: "/w/api")
     #expect(model.folder == "/w/api" && model.workspaceProblem == nil)
-    model.choose(project: "my-idea")
+    model.choose(newProject: "my-idea")
     #expect(model.newProject == "my-idea")
     host.healthReply = HostHealth(git: .ready, gh: .unknown, agents: [])
     await store.check(.refresh)

@@ -141,7 +141,12 @@ public struct WatchNote: Equatable {
     /// The projects folder, where the host clones a repository and makes a new project when the first message is sent.
     public private(set) var projectsPath: String
 
+    /// Why Add as project could not write the entry, in words; nil when it worked or was not tried.
+    public private(set) var addProjectProblem: String?
+
     @ObservationIgnored private let host: ChatHost
+    /// The projects the app keeps, which Add as project writes to; nil in a draft that cannot add one.
+    @ObservationIgnored private let projects: ProjectsModel?
     @ObservationIgnored private let health: HealthStore?
     @ObservationIgnored private let projectsFolder: () -> String
     @ObservationIgnored private let readConfig: () -> Data?
@@ -186,11 +191,13 @@ public struct WatchNote: Equatable {
         status: ReloadStatus? = nil,
         readChatConfig: @escaping () throws -> Data? = currentChatConfig,
         start: @escaping () -> NewSessionStart = { AppPreferences().newSessionStart },
-        workIn: @escaping () -> WorkIn = { AppPreferences().workIn }
+        workIn: @escaping () -> WorkIn = { AppPreferences().workIn },
+        projects: ProjectsModel? = nil
     ) {
         self.start = start
         self.workIn = workIn
         self.host = host
+        self.projects = projects
         self.health = health
         self.offers = offers ?? AgentOfferStore()
         self.projectsFolder = projectsFolder
@@ -241,7 +248,7 @@ public struct WatchNote: Equatable {
         switch plan.workspace {
         case .folder(let path): await choose(folder: path)
         case .repo(let name): await choose(repo: name)
-        case .project(let name): choose(project: name)
+        case .newProject(let name): choose(newProject: name)
         }
         text = plan.text
         if agents.contains(where: { $0.name == plan.agent && $0.available }) { agent = plan.agent }
@@ -427,11 +434,24 @@ public struct WatchNote: Equatable {
 
     /// Chooses a new project as the workspace: only the plan is filled, the host makes the folder and runs `git init` when the message is
     /// sent. A project has no commits, so the draft offers neither a branch nor a worktree.
-    public func choose(project name: String) {
+    public func choose(newProject name: String) {
         let path = "\(projectsPath)/local/\(name)"
         reset(folder: path)
         newProject = name
         workspace = WorkspaceInfo(folder: path)
+    }
+
+    /// Whether the draft offers Add as project: the workspace is a folder the host read (not a repository, nor a new project, which the host registers
+    /// itself) that is not one of the person's projects. It goes once the folder is.
+    public var offersAddAsProject: Bool {
+        guard let projects, let folder, workspace != nil, repo == nil, newProject == nil else { return false }
+        return projects.rows.contains { isSameFolder($0.path, folder) } == false
+    }
+
+    /// Adds the folder as a project of origin `added`, with the writer the Projects page uses; `addProjectProblem` says why when it could not.
+    public func addAsProject() {
+        guard offersAddAsProject, let folder, let projects else { return }
+        addProjectProblem = projects.add(folder: folder) == nil ? projects.failure ?? projects.problems.first?.text ?? "That folder cannot be added" : nil
     }
 
     /// The line that says beforehand what sending will make, nil unless the workspace is a new project.
@@ -529,6 +549,7 @@ public struct WatchNote: Equatable {
 
     /// Chooses the workspace and asks the host what it is; the worktree choice starts over (a new folder has other branches and names).
     public func choose(folder path: String) async {
+        projects?.reload()
         reset(folder: path)
         await read(path)
     }
@@ -564,6 +585,7 @@ public struct WatchNote: Equatable {
         fetching = false
         unreachable = false
         folder = path
+        addProjectProblem = nil
         newProject = nil
         workspace = nil
         workspaceProblem = nil
@@ -755,7 +777,7 @@ public struct WatchNote: Equatable {
         guard hostOlder == false else { return nil }
         let id: String
         do {
-            id = try await host.open(plan: SessionPlan(agent: agent, workspace: newProject.map(PlanWorkspace.project) ?? repo.map(PlanWorkspace.repo) ?? .folder(folder), branch: branchChange?.to, worktree: worktreeRequest, options: chosenOptions, text: message))
+            id = try await host.open(plan: SessionPlan(agent: agent, workspace: newProject.map(PlanWorkspace.newProject) ?? repo.map(PlanWorkspace.repo) ?? .folder(folder), branch: branchChange?.to, worktree: worktreeRequest, options: chosenOptions, text: message))
         } catch {
             refusal = report(error, "open the session")
             return nil

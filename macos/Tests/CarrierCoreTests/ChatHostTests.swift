@@ -344,6 +344,17 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(plan == SessionPlan(agent: "claude", workspace: .repo("a/b"), worktree: WorktreeRequest(from: "feat/x"), text: "hi"))
 }
 
+@Test func aCancelledPlanForANewProjectIsReadBackFromTheKindThatStayedProject() async throws {
+    let server = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"project\",\"name\":\"my-app\"},\"agent\":\"claude\",\"text\":\"hi\"}}}\n")
+    }
+    defer { server.stop() }
+    let plan = try await SocketChatHost(socketPath: { server.path }).cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")
+    #expect(plan == SessionPlan(agent: "claude", workspace: .newProject("my-app"), text: "hi"))
+}
+
 @Test func aCancelledPlanWithAWorkspaceThisAppDoesNotKnowIsNotRead() async throws {
     let server = TestServer { connection in
         connection.send(hello("\"plan\""))

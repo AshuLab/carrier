@@ -263,7 +263,7 @@ struct AddProjectSheet: View {
     private func createProject() {
         guard form.canCreate(taken: model.isTaken), making == false else { return }
         if let newSession {
-            newSession.choose(project: form.name)
+            newSession.choose(newProject: form.name)
             dismiss()
             return
         }

@@ -91,7 +91,7 @@ The decoding, outcomes, command and store are tested (`DoctorChecksTests`), not 
 
 What the person sees: [new session](../docs/macos/new-session.md).
 
-The logic is `NewSessionModel` (`choose(_:)`, `choose(repo:)`, `choose(folder:)`, `choose(project:)`, `watch`), which the shared `Carrier/AddProjectSheet.swift` drives in New session's mode (`ProjectSheetMode.newSession`; the chooser popover, `WorkspaceSheet`, is gone) (`NewSessionTests`, a fake host).
+The logic is `NewSessionModel` (`choose(_:)`, `choose(repo:)`, `choose(folder:)`, `choose(newProject:)`, `watch`), which the shared `Carrier/AddProjectSheet.swift` drives in New session's mode (`ProjectSheetMode.newSession`; the chooser popover, `WorkspaceSheet`, is gone) (`NewSessionTests`, a fake host).
 The rule, the host client's decoding and the draft are tested (`HealthTests`, `ChatHostTests`, `NewSessionTests`); `AppDelegate`'s wiring is not.
 The list, script and opener are tested in `HealthFixTests` (hostile values run nothing); the button not.
 The worktree choice is `CarrierCore/WorktreeChoice.swift` (pure values over the `workspace` reply; `WorktreeChoiceTests`, golden files).

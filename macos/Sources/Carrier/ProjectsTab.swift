@@ -384,6 +384,7 @@ private struct ProjectDetailView: View {
 
     var body: some View {
         let exists = row.status == .ready
+        let page = ProjectPage(for: row)
         Group {
             if exists == false {
                 SettingsGroup(title: "") {
@@ -435,7 +436,7 @@ private struct ProjectDetailView: View {
                     }
                 }
             }
-            SettingsGroup(title: "New sessions here") {
+            SettingsGroup(title: "New sessions here", footer: page.notice) {
                 SettingsTabRow(
                     title: "Show when starting a session",
                     detail: row.hidden
@@ -447,8 +448,8 @@ private struct ProjectDetailView: View {
                         .labelsHidden().toggleStyle(.switch)
                 }
             }
-            if exists { worktreesGroup }
-            carrierGroup
+            if page.worktrees { worktreesGroup }
+            if page.carrier { carrierGroup }
             SettingsGroup(title: "") {
                 NavigationRow(title: "Actions", detail: "Commands run for a new worktree or after a clone", first: true, action: openActions) {
                     Text(projectActionsSummary(row.actions.count)).font(.scaled(12)).foregroundStyle(.secondary)
@@ -461,10 +462,12 @@ private struct ProjectDetailView: View {
                     } label: { Label("Reveal in Finder", icon: .folder).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(exists == false)
                 }
-                SettingsTabRow(title: "Remote", detail: row.repo ?? "No GitHub remote", mono: row.repo != nil) {
-                    if let repo = row.repo, let url = URL(string: "https://github.com/\(repo)") {
-                        Button { NSWorkspace.shared.open(url) } label: { Label("Open on GitHub", icon: .externalLink).labelStyle(.titleAndIcon) }
-                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                if page.carrier {
+                    SettingsTabRow(title: "Remote", detail: row.repo ?? "No GitHub remote", mono: row.repo != nil) {
+                        if let repo = row.repo, let url = URL(string: "https://github.com/\(repo)") {
+                            Button { NSWorkspace.shared.open(url) } label: { Label("Open on GitHub", icon: .externalLink).labelStyle(.titleAndIcon) }
+                                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                        }
                     }
                 }
                 SettingsTabRow(title: "Remove", detail: "Takes \(row.name) out of Carrier; its folder and worktrees stay") {
@@ -496,7 +499,7 @@ private struct ProjectDetailView: View {
         .task(id: row.path) {
             // a fresh figure is asked for and the host measures in the background; the list's follow loop reads it as it lands
             if row.status == .ready { await model.refreshDisk(.now, of: [row.path]) }
-            await loadWorktrees()
+            if page.worktrees { await loadWorktrees() }
         }
         .onAppear(perform: publishPin)
         .onChange(of: row.pinned) { publishPin() }

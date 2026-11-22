@@ -99,6 +99,9 @@ The group starts with Total, which says what the project takes on disk (the main
 Each row ends with a dot in its segment's colour and its size, a dash for a folder the host has not measured (a worktree made since).
 Opening the page asks the host for a fresh figure of this project (`projectDisk` with `refresh: now`) and shows the last known one meanwhile, so a project that was measured shows its sizes at once and they change when the new figure lands.
 A project whose folder is gone has no Worktrees and disk group, so no figure, and a dash in the list.
+A project whose folder is there but is not a git repository (`isGitRepository`: it has no `.git`) is a project like any other in the list, which searches, filters and sorts it, and a session started in it works in its folder.
+Its page has no Worktrees and disk group, no base branch row and no Carrier switch, and says why in one line under New sessions here ("Not a git repository, so it has no worktrees, base branch or Carrier switch."); its Work in choice offers only the base folder.
+What a page has is a pure function of the row (`ProjectPage`, `ProjectsListTests`).
 Each worktree's row has a Remove button before its size (the main clone has none) that asks the host for `removeProjectWorktree`: only the worktree's folder goes, with what git ignores in it, and its branch, its commits and its session stay, so the session's next message brings the folder back on its branch.
 The button is disabled, with "Its session is open" as its tooltip, while the worktree's session is open; with uncommitted changes it is pressed and the host refuses, and its words ("It has uncommitted changes") replace the row's second line in orange until the next try.
 A project that has a merged worktree also has a Clean up row, "Merged worktrees nothing blocks: 3 worktrees, 1.2 GB", with a Clean up button that asks "Clean up 3 worktrees, 1.2 GB?" and says the folders go and the branches and sessions stay.

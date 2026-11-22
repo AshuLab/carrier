@@ -93,6 +93,11 @@ public func projectFolderExists(_ path: String) -> Bool {
     return FileManager.default.fileExists(atPath: (path as NSString).expandingTildeInPath, isDirectory: &isFolder) && isFolder.boolValue
 }
 
+/// Whether `folder` (written with `~` or not) is a git repository: it has a `.git`, a folder or the file of a linked worktree.
+public func isGitRepository(_ folder: String) -> Bool {
+    FileManager.default.fileExists(atPath: (folder as NSString).expandingTildeInPath + "/.git")
+}
+
 /// One project of the list.
 public struct ProjectRow: Equatable, Identifiable, Sendable {
     /// The project's identity, as the file has it.
@@ -114,6 +119,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public let iconImage: String?
     /// Actions run in a new worktree or after a clone, from `projects.json`.
     public let actions: [ProjectAction]
+    /// Whether its folder is a git repository, read each time with the list and never stored; a project that is not one has no worktrees, base branch or Carrier switch.
+    public let isGit: Bool
     /// Set on a row that stands for a clone the host is running or that failed: it is not a project yet and cannot be opened.
     public let clone: ProjectClone?
     /// When a session last worked in it, from `projectsWithLastActive`; derived from the sessions, never stored in the file. nil when none did.
@@ -136,6 +143,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         iconMark: AppIcon? = nil,
         iconImage: String? = nil,
         actions: [ProjectAction] = [],
+        isGit: Bool = true,
         clone: ProjectClone? = nil,
         lastActive: Date? = nil,
         watched: Bool = false
@@ -152,6 +160,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         self.iconMark = iconMark
         self.iconImage = iconImage
         self.actions = actions
+        self.isGit = isGit
         self.clone = clone
         self.lastActive = lastActive
         self.watched = watched
@@ -184,8 +193,31 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public var tile: ProjectTile { projectTile(name: name, colorKey: colorKey, color: iconColor, mark: iconMark, image: iconImage) }
 }
 
-/// A row for each entry, in the file's order; `remote` says the GitHub `owner/name` of a folder, if any, and `exists` whether the folder is there.
-public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? = originRepo(ofFolder:), exists: (String) -> Bool = projectFolderExists) -> [ProjectRow] {
+/// What a project's page has, which depends on its folder (docs/specs/projects.md, Scope 21): a folder that is there but is not a git repository has no Worktrees
+/// and disk group, no base branch row and no Carrier switch, offers only the base folder to work in, and says why in one line. A folder that is gone is another notice.
+public struct ProjectPage: Equatable, Sendable {
+    public let worktrees: Bool
+    public let baseBranch: Bool
+    public let carrier: Bool
+    /// What the Work in choice offers.
+    public let workIn: [WorkIn]
+    public let notice: String?
+
+    public init(for row: ProjectRow) {
+        let plain = row.status == .ready && row.isGit == false
+        worktrees = row.status == .ready && plain == false
+        baseBranch = plain == false
+        carrier = plain == false
+        workIn = plain ? [.baseFolder] : WorkIn.allCases
+        notice = plain ? "Not a git repository, so it has no worktrees, base branch or Carrier switch." : nil
+    }
+}
+
+/// A row for each entry, in the file's order; `remote` says the GitHub `owner/name` of a folder, if any, `exists` whether the folder is there and `git` whether it is a repository.
+public func projectRows(
+    _ entries: [ProjectEntry], remote: (String) -> String? = originRepo(ofFolder:), exists: (String) -> Bool = projectFolderExists,
+    git: (String) -> Bool = isGitRepository
+) -> [ProjectRow] {
     entries.map {
         ProjectRow(
             path: $0.path,
@@ -199,7 +231,8 @@ public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? =
             iconColor: $0.iconColor.flatMap(ProjectColor.init(rawValue:)),
             iconMark: $0.iconMark.flatMap(AppIcon.init(rawValue:)),
             iconImage: $0.iconImage,
-            actions: $0.actions
+            actions: $0.actions,
+            isGit: git($0.path)
         )
     }
 }

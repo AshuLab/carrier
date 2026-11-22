@@ -98,6 +98,11 @@ public func isGitRepository(_ folder: String) -> Bool {
     FileManager.default.fileExists(atPath: (folder as NSString).expandingTildeInPath + "/.git")
 }
 
+/// The keys of a project's `defaults`.
+public enum ProjectDefaultKey: String, Sendable {
+    case agent, workIn, baseBranch
+}
+
 /// One project of the list.
 public struct ProjectRow: Equatable, Identifiable, Sendable {
     /// The project's identity, as the file has it.
@@ -121,6 +126,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public let actions: [ProjectAction]
     /// Whether its folder is a git repository, read each time with the list and never stored; a project that is not one has no worktrees, base branch or Carrier switch.
     public let isGit: Bool
+    /// What a new session here starts with, over Settings > Sessions.
+    public let defaults: ProjectDefaults
     /// Set on a row that stands for a clone the host is running or that failed: it is not a project yet and cannot be opened.
     public let clone: ProjectClone?
     /// When a session last worked in it, from `projectsWithLastActive`; derived from the sessions, never stored in the file. nil when none did.
@@ -144,6 +151,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         iconImage: String? = nil,
         actions: [ProjectAction] = [],
         isGit: Bool = true,
+        defaults: ProjectDefaults = ProjectDefaults(),
         clone: ProjectClone? = nil,
         lastActive: Date? = nil,
         watched: Bool = false
@@ -161,6 +169,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         self.iconImage = iconImage
         self.actions = actions
         self.isGit = isGit
+        self.defaults = defaults
         self.clone = clone
         self.lastActive = lastActive
         self.watched = watched
@@ -194,11 +203,13 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
 }
 
 /// What a project's page has, which depends on its folder (docs/specs/projects.md, Scope 21): a folder that is there but is not a git repository has no Worktrees
-/// and disk group, no base branch row and no Carrier switch, offers only the base folder to work in, and says why in one line. A folder that is gone is another notice.
+/// and disk group, no base branch row, no Remote row and no Carrier switch, offers only the base folder to work in, and says why in one line. A folder that is gone is another notice.
 public struct ProjectPage: Equatable, Sendable {
     public let worktrees: Bool
     public let baseBranch: Bool
     public let carrier: Bool
+    /// Whether the Folder group has the Remote row: a folder that is not a git repository has no remote to show.
+    public let remote: Bool
     /// What the Work in choice offers.
     public let workIn: [WorkIn]
     public let notice: String?
@@ -208,6 +219,7 @@ public struct ProjectPage: Equatable, Sendable {
         worktrees = row.status == .ready && plain == false
         baseBranch = plain == false
         carrier = plain == false
+        remote = plain == false
         workIn = plain ? [.baseFolder] : WorkIn.allCases
         notice = plain ? "Not a git repository, so it has no worktrees, base branch or Carrier switch." : nil
     }
@@ -232,7 +244,8 @@ public func projectRows(
             iconMark: $0.iconMark.flatMap(AppIcon.init(rawValue:)),
             iconImage: $0.iconImage,
             actions: $0.actions,
-            isGit: git($0.path)
+            isGit: git($0.path),
+            defaults: $0.defaults
         )
     }
 }
@@ -627,6 +640,16 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
     /// Hides the project from the sheet New session opens, or shows it again; shown leaves `hidden` out of the entry. Nothing else changes.
     @discardableResult public func setHidden(_ hidden: Bool, path: String) -> Bool {
         write { try file.update(path: path, key: "hidden", value: hidden ? true : nil) }
+    }
+
+    /// Sets what a new session here starts with: a nil value is the same as everywhere and takes its key out, and `defaults` goes when none is left.
+    @discardableResult public func setDefault(_ key: ProjectDefaultKey, _ value: String?, path: String) -> Bool {
+        write { try file.updateDefaults(path: path, changes: [key.rawValue: value]) }
+    }
+
+    /// The branches `path` has, local first, as the host reads them; empty when it is not a git repository or the host did not answer.
+    public func branches(of path: String) async -> [WorkspaceInfo.Branch] {
+        (try? await host.workspace(path))?.branches ?? []
     }
 
     /// Pins or unpins the project; unpinned leaves `pinned` out of the entry.

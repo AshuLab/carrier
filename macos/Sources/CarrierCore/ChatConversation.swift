@@ -72,6 +72,9 @@ public struct ChatEvent: Codable, Equatable {
     /// A `step` event of a session's preparation: which step, and (in `status`, `running`, `done` or `failed`) how it stands; `detail` is the reason a step failed.
     public var step: String?
     public var detail: String?
+    /// An `action` step is one of a project's actions: its name, and the moment it runs at (`afterClone` or `newWorktree`). Nil for any other event.
+    public var action: String?
+    public var when: String?
     /// The call that launched the subagent this event was made in; nil for the main agent's own. The main conversation does not draw an event that has one.
     public var parentCallId: String?
     /// A `task` event, the life of a subagent joined to its launching call by `callId`: `taskId` is what stopping it takes, `state` is
@@ -108,7 +111,7 @@ public struct ChatEvent: Codable, Equatable {
     public init(
         id: Int, at: Int, kind: String, text: String? = nil, callId: String? = nil, tool: String? = nil, arg: String? = nil, output: [String]? = nil,
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
-        model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, questions: [ChatQuestion]? = nil,
+        model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, action: String? = nil, when: String? = nil, questions: [ChatQuestion]? = nil,
         answers: [String: String]? = nil, parentCallId: String? = nil, taskId: String? = nil, state: String? = nil, agentType: String? = nil,
         lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil
     ) {
@@ -131,6 +134,8 @@ public struct ChatEvent: Codable, Equatable {
         self.usage = usage
         self.step = step
         self.detail = detail
+        self.action = action
+        self.when = when
         self.parentCallId = parentCallId
         self.taskId = taskId
         self.state = state

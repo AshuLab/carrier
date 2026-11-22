@@ -640,13 +640,14 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     #expect(repo.notice == nil)
 
     let plain = ProjectPage(for: ProjectRow(path: "/p/notes", name: "Notes", repo: nil, isGit: false))
-    #expect(plain.worktrees == false && plain.baseBranch == false && plain.carrier == false)
+    #expect(plain.worktrees == false && plain.baseBranch == false && plain.carrier == false && plain.remote == false)
+    #expect(repo.remote)
     #expect(plain.workIn == [.baseFolder])
     #expect(plain.notice == "Not a git repository, so it has no worktrees, base branch or Carrier switch.")
 
     // a folder that is gone is not said to be plain: its own notice is the page's, and the disk is hidden as before
     let gone = ProjectPage(for: ProjectRow(path: "/p/gone", name: "Gone", repo: nil, status: .notFound, isGit: false))
-    #expect(gone.notice == nil && gone.worktrees == false && gone.carrier)
+    #expect(gone.notice == nil && gone.worktrees == false && gone.carrier && gone.remote)
 }
 
 @Test func aProjectThatIsNotAGitRepositoryListsSearchesAndSortsLikeAnyOther() {

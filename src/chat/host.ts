@@ -11,6 +11,7 @@ import { codexChatRunner } from './codex.ts';
 import { chatConfigProblem, readChatConfig, type ChatSettings } from './config.ts';
 import { createDisk, measureWithDu, type Measure } from './disk.ts';
 import { realGit, type Git } from './git.ts';
+import { realShell, type Shell } from './shell.ts';
 import { createProjects, ghBranches, ghLogin, ghRepos, ghToken, type GithubRepos } from './projects.ts';
 import { ghPullRequests, type PullRequests } from './pull-requests.ts';
 import { openChatDatabase } from './db.ts';
@@ -49,6 +50,8 @@ export interface ChatHostDeps {
   runners: ChatSessionsDeps['runners'];
   env: NodeJS.ProcessEnv;
   git: Git;
+  /** What runs a project's actions. */
+  shell: Shell;
   /** How many bytes a folder takes, for the projects' sizes. */
   measure: Measure;
   /** The token of the person's `gh` login, for the clones. */
@@ -74,7 +77,7 @@ const realGithub = ({ githubCallTimeoutSeconds }: ChatSettings): GithubRepos => 
   branches: (repo) => ghBranches(repo, githubCallTimeoutSeconds * 1000),
 });
 
-const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, measure: measureWithDu, token: ghToken, github: realGithub(settings), pulls: ghPullRequests(settings.githubCallTimeoutSeconds * 1000), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses, startMcp: startMcpServer, usage: { ports: realUsagePorts, history: realHistoryPorts } });
+const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, shell: realShell, measure: measureWithDu, token: ghToken, github: realGithub(settings), pulls: ghPullRequests(settings.githubCallTimeoutSeconds * 1000), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses, startMcp: startMcpServer, usage: { ports: realUsagePorts, history: realHistoryPorts } });
 
 /**
  * Runs the chat host from the Carrier folder alone (`CARRIER_HOME`, else `~/.carrier`): its own lock, database and socket under
@@ -113,7 +116,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock, onCloneChange: () => idle?.recheck() });
   // the last value read, not the file: a conversation names its session several times a second (`list` and the clock pass read the file)
   const idleCloseMs = () => (ages.idleCloseMinutes === undefined ? IDLE_CLOSE_MS : ages.idleCloseMinutes * 60_000);
-  const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), idleCloseMs, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, pulls: deps.pulls, onLiveChange: () => idle?.recheck(), mcp: { registry: mcpRegistry, url: () => mcpServer?.url, tools: mcpTools.map((tool) => tool.name) } });
+  const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), idleCloseMs, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, shell: deps.shell, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, pulls: deps.pulls, onLiveChange: () => idle?.recheck(), mcp: { registry: mcpRegistry, url: () => mcpServer?.url, tools: mcpTools.map((tool) => tool.name) } });
   // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
   let cancelPass = () => {};
   let stopped = false;

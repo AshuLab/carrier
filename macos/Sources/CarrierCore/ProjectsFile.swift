@@ -35,6 +35,28 @@ public struct ProjectEntry: Equatable {
     public var iconMark: String? { (json["icon"] as? [String: Any])?["mark"] as? String }
     public var iconImage: String? { (json["icon"] as? [String: Any])?["image"] as? String }
     public var actions: [ProjectAction] { projectActions(from: json["actions"]) }
+    /// What a new session here starts with; a key that is not there, or a value the app has no name for, is unset.
+    public var defaults: ProjectDefaults {
+        let found = json["defaults"] as? [String: Any] ?? [:]
+        return ProjectDefaults(
+            agent: found["agent"] as? String,
+            workIn: (found["workIn"] as? String).flatMap { WorkIn(projectValue: $0) },
+            baseBranch: found["baseBranch"] as? String
+        )
+    }
+}
+
+/// The agent, where to work and the base branch a new session in a project starts with (`defaults` of its entry); nil is the same as everywhere.
+public struct ProjectDefaults: Equatable, Sendable {
+    public var agent: String?
+    public var workIn: WorkIn?
+    public var baseBranch: String?
+
+    public init(agent: String? = nil, workIn: WorkIn? = nil, baseBranch: String? = nil) {
+        self.agent = agent
+        self.workIn = workIn
+        self.baseBranch = baseBranch
+    }
 }
 
 private struct Field {
@@ -158,12 +180,22 @@ public func applyingProjectLocation(path: String, to folder: String, in json: Da
 /// `json` with the `icon` sub-keys in `changes` set or removed (`nil` removes that key, and `icon` is removed when no key remains).
 /// Every other key of `icon` (such as `image`), of the entry and of the file is kept.
 public func applyingProjectIconEdit(path: String, changes: [String: String?], to json: Data?) throws -> Data {
+    try applyingProjectObjectEdit(path: path, object: "icon", changes: changes, to: json)
+}
+
+/// `json` with the `defaults` sub-keys in `changes` set or removed (`nil` removes that key, and `defaults` is removed when no key remains), so a value
+/// left on the default writes nothing. Every other key of `defaults`, of the entry and of the file is kept.
+public func applyingProjectDefaultsEdit(path: String, changes: [String: String?], to json: Data?) throws -> Data {
+    try applyingProjectObjectEdit(path: path, object: "defaults", changes: changes, to: json)
+}
+
+private func applyingProjectObjectEdit(path: String, object key: String, changes: [String: String?], to json: Data?) throws -> Data {
     var object = try parse(json)
     var projects = object["projects"] as? [[String: Any]] ?? []
     guard let index = projects.firstIndex(where: { $0["path"] as? String == path }) else { throw ProjectsFileError.missing(path) }
-    var icon = projects[index]["icon"] as? [String: Any] ?? [:]
-    for (key, value) in changes { icon[key] = value }
-    projects[index]["icon"] = icon.isEmpty ? nil : icon
+    var inner = projects[index][key] as? [String: Any] ?? [:]
+    for (name, value) in changes { inner[name] = value }
+    projects[index][key] = inner.isEmpty ? nil : inner
     object["projects"] = projects
     let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
     _ = try parse(data)
@@ -272,6 +304,11 @@ public struct ProjectsFile {
         try applyingProjectIconEdit(path: path, changes: changes, to: bytes()).write(to: url, options: .atomic)
     }
 
+    /// Reads the file again now, changes one or more keys inside `defaults` of one project and writes the whole file atomically.
+    public func updateDefaults(path: String, changes: [String: String?]) throws {
+        try applyingProjectDefaultsEdit(path: path, changes: changes, to: bytes()).write(to: url, options: .atomic)
+    }
+
     /// Reads the file again now, applies `transform` to one project's `tags` and writes the whole file atomically.
     public func updateTags(path: String, transform: ([String]) -> [String]) throws {
         try applyingProjectTagsEdit(path: path, to: bytes(), transform: transform).write(to: url, options: .atomic)
@@ -283,5 +320,15 @@ public struct ProjectsFile {
         guard let data = try applyingProjectActions(actions, path: path, to: bytes()) else { return false }
         try data.write(to: url, options: .atomic)
         return true
+    }
+}
+
+extension WorkIn {
+    /// The words `projects.json` uses for it in `defaults.workIn`.
+    public var projectValue: String { self == .newWorktree ? "worktree" : "baseFolder" }
+
+    public init?(projectValue: String) {
+        guard let found = WorkIn.allCases.first(where: { $0.projectValue == projectValue }) else { return nil }
+        self = found
     }
 }

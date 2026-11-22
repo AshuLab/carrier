@@ -13,10 +13,15 @@ public struct StepRow: Equatable, Identifiable {
     public let line: String
     /// Why a failed step failed, in the host's words.
     public let reason: String?
-    /// While a clone runs: the last line of git's own progress.
+    /// While a clone runs: the last line of git's own progress; while an action runs, the last line it wrote.
     public let progress: String?
+    /// The name of the project's action this row is (the step is `action`), and the moment it runs at: each action is a row of its own.
+    public var action: String?
+    public var when: String?
+    /// The row's own icon, beside its line: an action is a command.
+    public var icon: AppIcon? { step == "action" ? .terminal : nil }
 
-    public var id: String { step }
+    public var id: String { [step, when, action].compactMap { $0 }.joined(separator: ":") }
 }
 
 /// The rows the session's `step` events make, in the order the steps first appeared. Nothing once the session is not being prepared
@@ -24,29 +29,31 @@ public struct StepRow: Equatable, Identifiable {
 /// preparation keeps its list, with the reason on the step that failed. `progress` goes on the step that is running.
 public func preparationSteps(_ events: [ChatEvent], preparation: ChatSession.Preparation?, progress: String? = nil) -> [StepRow] {
     guard preparation != nil else { return [] }
-    var order: [String] = []
+    var order: [StepRow] = []
     var latest: [String: (status: StepRow.Status, detail: String?)] = [:]
     for event in events where event.kind == "step" {
         guard let step = event.step, let status = event.status.flatMap(StepRow.Status.init(rawValue:)) else { continue }
-        if latest[step] == nil { order.append(step) }
-        latest[step] = (status, event.detail)
+        let key = StepRow(step: step, status: status, line: "", reason: nil, progress: nil, action: event.action, when: event.when)
+        if latest[key.id] == nil { order.append(key) }
+        latest[key.id] = (status, event.detail)
     }
-    return order.compactMap { step in
-        guard let now = latest[step] else { return nil }
+    return order.compactMap { key in
+        guard let now = latest[key.id] else { return nil }
         return StepRow(
-            step: step, status: now.status, line: stepLine(step, now.status), reason: now.status == .failed ? now.detail : nil,
-            progress: now.status == .running ? progress : nil
+            step: key.step, status: now.status, line: stepLine(key.step, now.status, action: key.action), reason: now.status == .failed ? now.detail : nil,
+            progress: now.status == .running ? progress : nil, action: key.action, when: key.when
         )
     }
 }
 
-private func stepLine(_ step: String, _ status: StepRow.Status) -> String {
+private func stepLine(_ step: String, _ status: StepRow.Status, action: String?) -> String {
     let words: (running: String, done: String, failed: String) = switch step {
     case "clone": ("Cloning the repository…", "Cloned the repository", "Could not clone the repository")
     case "fetch": ("Updating the repository…", "Updated the repository", "Could not update the repository")
     case "project": ("Creating the project…", "Created the project", "Could not create the project")
     case "worktree": ("Making the worktree…", "Made the worktree", "Could not make the worktree")
     case "checkout": ("Checking out the branch…", "Checked out the branch", "Could not check out the branch")
+    case "action": ("Running \(action ?? "an action")…", "Ran \(action ?? "an action")", "\(action ?? "An action") failed")
     case "agent": ("Starting the agent…", "Started the agent", "Could not start the agent")
     case "message": ("Waiting for the agent to answer…", "The agent answered", "The agent did not answer")
     default: ("Working on \(step)…", "Finished \(step)", "Could not finish \(step)")
@@ -65,15 +72,20 @@ public struct OutlineItem: Equatable, Identifiable {
     public let line: String
     public let reason: String?
     public let progress: String?
+    public var icon: AppIcon?
+    /// A row's own id, which tells the actions of one preparation apart; the step's name for a step that comes once.
+    public var id: String
 
-    public var id: String { step }
+    public init(step: String, status: StepRow.Status?, line: String, reason: String?, progress: String?, icon: AppIcon? = nil, id: String? = nil) {
+        (self.step, self.status, self.line, self.reason, self.progress, self.icon, self.id) = (step, status, line, reason, progress, icon, id ?? step)
+    }
 }
 
 /// The steps the host recorded and, after them, the two every preparation ends with (the agent starts, the message is sent) while they
 /// have not started, so the list shows where it is going and not only where it is. ponytail: a worktree that has not started is not
 /// known to be coming, so it joins the list when it does.
 public func preparationOutline(_ rows: [StepRow]) -> [OutlineItem] {
-    var items = rows.map { OutlineItem(step: $0.step, status: $0.status, line: $0.line, reason: $0.reason, progress: $0.progress) }
+    var items = rows.map { OutlineItem(step: $0.step, status: $0.status, line: $0.line, reason: $0.reason, progress: $0.progress, icon: $0.icon, id: $0.id) }
     let sent = rows.contains { $0.step == "message" }
     for (step, line) in [("agent", "Start the agent"), ("message", "Send your message")] where rows.contains(where: { $0.step == step }) == false {
         if step == "agent" && sent { continue }

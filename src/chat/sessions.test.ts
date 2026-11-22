@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { ChatAgent } from './config.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { openChatDatabase } from './db.ts';
-import { FakeChatRunner, FakeGit, fakeProjects, type FakeConversation, type FakeRepo } from './fake.ts';
+import { FakeChatRunner, FakeGit, FakeShell, fakeProjects, type FakeConversation, type FakeRepo } from './fake.ts';
 import { ChatRefused, type ChatEvent } from './runner.ts';
 import { chatCaps } from './transcript.ts';
 import { chatEvents, chatTurns, sessions as schemaSessions } from './schema.ts';
@@ -38,8 +38,9 @@ function setup(chat?: { agents: Record<string, Omit<ChatAgent, 'name'>> }, extra
   const claude = new FakeChatRunner();
   const onLiveChange = vi.fn();
   const git = extra.git ?? new FakeGit();
-  const sessions = createSessions({ db, agents, clock, runners: { claude }, env: { SOME: 'env' }, git, projects: fakeProjects(git, clock), binaryFound: (command) => command === 'claude', ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange, ...extra });
-  return { db, clock, claude, sessions, onLiveChange };
+  const shell = new FakeShell(); // no test runs a real command
+  const sessions = createSessions({ db, agents, clock, runners: { claude }, env: { SOME: 'env' }, git, shell, projects: fakeProjects(git, clock), binaryFound: (command) => command === 'claude', ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange, ...extra });
+  return { db, clock, claude, sessions, onLiveChange, shell: (extra.shell ?? shell) as FakeShell };
 }
 async function openOne(s = setup()) {
   const { session } = await s.sessions.open({ agent: 'claude', folder: work });
@@ -3667,4 +3668,185 @@ test('a child is told it cannot start children, and a parent whose mode changes 
   await s.sessions.setOption({ sessionId: parent.id, option: 'permissionMode', value: 'auto' });
   expect((await s.start(parent.id, 'edit', 'again')).childId).toBeDefined();
   expect(s.children()).toHaveLength(2);
+});
+
+// The actions of a project run as `action` steps of a preparation (docs/specs/projects.md, Actions; ADR 0039).
+type Act = { name: string; command: string; when?: 'newWorktree' | 'afterClone'; on?: boolean; onFail?: 'warn' | 'stop' };
+const withActions = (path: string, actions?: Act[]) => {
+  mkdirSync(join(dir, 'home'), { recursive: true });
+  writeFileSync(join(dir, projectsFile), JSON.stringify({ projects: [{ path, origin: 'added', ...(actions && { actions: actions.map((action) => ({ when: 'newWorktree', ...action })) }) }] }));
+};
+/** The steps with each action's name after it: `action:Install:running`. */
+const actionStepsOf = (s: ReturnType<typeof setup>, id: string) =>
+  (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((e) => e.kind === 'step').map((e) => (e.step === 'action' ? `action:${e.action}:${e.status}` : `${e.step}:${e.status}`) + (e.step === 'action' && e.detail !== undefined ? `:${e.detail}` : ''));
+const worktreeOf = () => join(dir, 'home', 'chat', 'worktrees', 'local', 'work', 'my-fix');
+
+test('the new-worktree actions run in order after the worktree and before the agent, in the worktree, with the project and the folder in the environment, and one that is off is skipped', async () => {
+  const s = repoSetup();
+  withActions(realpathSync(work), [{ name: 'Install', command: 'pnpm install' }, { name: 'Off', command: 'rm -rf x', on: false }, { name: 'Env', command: 'cp .env .', onFail: 'stop' }, { name: 'After', command: 'echo clone', when: 'afterClone' }]);
+  const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'my-fix' } }) });
+  await vi.waitFor(() => expect(actionStepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(actionStepsOf(s, session.id)).toEqual(['worktree:running', 'worktree:done', 'action:Install:running', 'action:Install:done', 'action:Env:running', 'action:Env:done', 'agent:running', 'agent:done', 'message:running']);
+  expect(s.shell.calls.map((call) => [call.command, call.folder])).toEqual([['pnpm install', worktreeOf()], ['cp .env .', worktreeOf()]]);
+  expect(s.shell.calls[0]!.env).toMatchObject({ SOME: 'env', CARRIER_PROJECT: realpathSync(work), CARRIER_FOLDER: worktreeOf() });
+  expect(s.claude.opened[0]).toMatchObject({ folder: worktreeOf() });
+});
+
+test('the after-clone actions run right after the clone, in the clone\'s folder, and the new-worktree ones do not run for a plan with no worktree', async () => {
+  const s = repoSession();
+  withActions(cloneOf(), [{ name: 'Setup', command: 'make setup', when: 'afterClone' }, { name: 'Tree', command: 'pnpm install' }]);
+  const { session } = await s.sessions.openPlan({ plan: repoPlan() });
+  await vi.waitFor(() => expect(actionStepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(actionStepsOf(s, session.id)).toEqual(['clone:running', 'clone:done', 'action:Setup:running', 'action:Setup:done', 'agent:running', 'agent:done', 'message:running']);
+  expect(s.shell.calls).toMatchObject([{ command: 'make setup', folder: cloneOf(), env: { CARRIER_PROJECT: cloneOf(), CARRIER_FOLDER: cloneOf() } }]);
+});
+
+test('with no action on for the moment there is no action step: no project, no actions, only off ones, or ones for the other moment', async () => {
+  const none = repoSetup();
+  const one = await none.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'one' } }) }); // not a project
+  const off = repoSetup();
+  withActions(realpathSync(work), [{ name: 'Off', command: 'x', on: false }, { name: 'Clone', command: 'y', when: 'afterClone' }]);
+  const two = await off.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'two' } }) });
+  const empty = repoSetup();
+  withActions(realpathSync(work));
+  const three = await empty.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'three' } }) });
+  for (const [s, id] of [[none, one.session.id], [off, two.session.id], [empty, three.session.id]] as const) {
+    await vi.waitFor(() => expect(actionStepsOf(s, id).at(-1)).toBe('message:running'));
+    expect(actionStepsOf(s, id)).toEqual(['worktree:running', 'worktree:done', 'agent:running', 'agent:done', 'message:running']);
+    expect(s.shell.calls).toEqual([]);
+  }
+});
+
+test('the last line an action writes is the step\'s progress while it runs, redacted, and gone when it ends', async () => {
+  const s = repoSetup();
+  withActions(realpathSync(work), [{ name: 'Install', command: 'pnpm install' }]);
+  s.shell.lines.set('pnpm install', ['resolving', `token ${token}`]);
+  let release!: () => void;
+  s.shell.pending = new Promise<void>((resolve) => (release = resolve));
+  const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'my-fix' } }) });
+  await vi.waitFor(() => expect((s.sessions.events({ sessionId: session.id, limit: 200 }) as any).progress).toMatch(/^token /));
+  expect((s.sessions.events({ sessionId: session.id, limit: 200 }) as any).progress).not.toContain(token);
+  release();
+  await vi.waitFor(() => expect(actionStepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect((s.sessions.events({ sessionId: session.id, limit: 200 }) as any).progress).toBeNull();
+});
+
+test('an action set to warn that fails leaves its step done with a notice naming it and the end of its output, redacted and cut, and the next one runs', async () => {
+  const s = repoSetup();
+  withActions(realpathSync(work), [{ name: 'Install', command: 'pnpm install' }, { name: 'Next', command: 'echo next' }]);
+  s.shell.results.set('pnpm install', { ok: false, code: 1, output: `${'noise\n'.repeat(2000)}the end ${token}` });
+  const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'my-fix' } }) });
+  await vi.waitFor(() => expect(actionStepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(actionStepsOf(s, session.id)).toContain('action:Install:done');
+  expect(actionStepsOf(s, session.id).some((step) => step.includes('failed'))).toBe(false);
+  expect(s.shell.calls.map((call) => call.command)).toEqual(['pnpm install', 'echo next']);
+  const [notice] = noticesOf(s, session.id);
+  expect(notice).toMatch(/^Install failed with exit code 1: .*the end /s);
+  expect(notice).not.toContain(token);
+  expect(notice!.length).toBeLessThan(chatCaps.error + 200);
+});
+
+test('an action set to stop that fails fails its step with the reason and the agent does not start, and Try again repeats from that action', async () => {
+  const s = repoSetup();
+  withActions(realpathSync(work), [{ name: 'Install', command: 'pnpm install' }, { name: 'Env', command: 'cp .env .', onFail: 'stop' }, { name: 'Last', command: 'echo last' }]);
+  s.shell.results.set('cp .env .', { ok: false, code: 2, output: 'cp: no such file' });
+  const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'my-fix' } }) });
+  await vi.waitFor(() => expect(s.sessions.list({}).sessions[0]).toMatchObject({ preparation: 'failed' }));
+  expect(actionStepsOf(s, session.id)).toEqual(['worktree:running', 'worktree:done', 'action:Install:running', 'action:Install:done', 'action:Env:running', 'action:Env:failed:Env failed with exit code 2: cp: no such file']);
+  expect(s.claude.opened).toEqual([]);
+  s.shell.results.clear();
+  await s.sessions.retryPreparation({ sessionId: session.id });
+  await vi.waitFor(() => expect(actionStepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(s.shell.calls.map((call) => call.command)).toEqual(['pnpm install', 'cp .env .', 'cp .env .', 'echo last']); // Install did not run again
+});
+
+test('Cancel on a preparation aborts the action that runs', async () => {
+  const s = repoSetup();
+  withActions(realpathSync(work), [{ name: 'Install', command: 'pnpm install' }, { name: 'Next', command: 'echo next' }]);
+  s.shell.pending = new Promise<void>(() => {});
+  const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'my-fix' } }) });
+  await vi.waitFor(() => expect(s.shell.calls).toHaveLength(1));
+  await s.sessions.cancelPreparation({ sessionId: session.id });
+  expect(rows('sessions')).toEqual([]);
+  expect(s.shell.calls).toHaveLength(1); // the next one never started
+  expect(s.claude.opened).toEqual([]);
+});
+
+test('a projects.json that does not match its schema adds a notice that actions did not run, once, and the session goes on', async () => {
+  const s = repoSetup();
+  mkdirSync(join(dir, 'home'), { recursive: true });
+  writeFileSync(join(dir, projectsFile), JSON.stringify({ projects: [{ path: realpathSync(work), origin: 'added', actions: [{ name: 'Install', command: ' ', when: 'newWorktree' }] }] }));
+  const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'my-fix' } }) });
+  await vi.waitFor(() => expect(actionStepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(noticesOf(s, session.id)).toEqual(["This project's actions did not run: projects.json projects.0.actions.0.command must not be blank."]);
+  expect(s.shell.calls).toEqual([]);
+  expect(actionStepsOf(s, session.id)).not.toContain('action:Install:running');
+});
+
+// The actions run again when the folder of a cleaned worktree comes back (docs/specs/projects.md, story 18; ADR 0039).
+const cleaned = async (actions?: Act[], name = 'one') => {
+  const s = worktreeSetup();
+  withActions(s.repo, actions);
+  const one = await s.inWorktree(name);
+  prMerged(s, one.id);
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  expect(existsSync(one.path)).toBe(false);
+  return { s, one };
+};
+
+test('resuming a session whose worktree folder was cleaned runs the new-worktree actions in it, in order, as steps, before the agent opens', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }, { name: 'Off', command: 'rm -rf x', on: false }, { name: 'Clone', command: 'make', when: 'afterClone' }, { name: 'Env', command: 'cp .env .' }]);
+  const opened = s.claude.opened.length;
+  s.shell.lines.set('pnpm install', ['resolving']);
+  await s.sessions.resume({ sessionId: one.id });
+  expect(actionStepsOf(s, one.id)).toEqual(['action:Install:running', 'action:Install:done', 'action:Env:running', 'action:Env:done']);
+  expect(s.shell.calls.map((call) => [call.command, call.folder])).toEqual([['pnpm install', one.path], ['cp .env .', one.path]]);
+  expect(s.shell.calls[0]!.env).toMatchObject({ CARRIER_PROJECT: s.repo, CARRIER_FOLDER: one.path });
+  expect(s.claude.opened).toHaveLength(opened + 1);
+  expect((s.sessions.events({ sessionId: one.id, limit: 200 }) as any).progress).toBeNull();
+});
+
+test('a worktree whose folder still exists, and a project with no action on, run nothing and add no step', async () => {
+  const present = worktreeSetup();
+  withActions(present.repo, [{ name: 'Install', command: 'pnpm install' }]);
+  const there = await present.inWorktree('there');
+  await present.sessions.resume({ sessionId: there.id });
+  expect(present.shell.calls).toEqual([]);
+  expect(actionStepsOf(present, there.id)).toEqual([]);
+
+  for (const [n, actions] of [undefined, [], [{ name: 'Off', command: 'x', on: false }], [{ name: 'Clone', command: 'y', when: 'afterClone' as const }]].entries()) {
+    const { s, one } = await cleaned(actions, `none-${n}`);
+    await s.sessions.resume({ sessionId: one.id });
+    expect(existsSync(one.path)).toBe(true);
+    expect(s.shell.calls).toEqual([]);
+    expect(actionStepsOf(s, one.id)).toEqual([]);
+  }
+});
+
+test('an action that warns when it fails leaves a notice and the session opens; one that stops refuses the open with the reason and cleans the folder again, and the next open runs them all', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }, { name: 'Env', command: 'cp .env .', onFail: 'stop' }, { name: 'Last', command: 'echo last' }]);
+  s.shell.results.set('pnpm install', { ok: false, code: 1, output: 'flaky' });
+  s.shell.results.set('cp .env .', { ok: false, code: 2, output: 'cp: no such file' });
+  await expect(s.sessions.resume({ sessionId: one.id })).rejects.toThrow('Env failed with exit code 2: cp: no such file. Open the session again');
+  expect(actionStepsOf(s, one.id)).toEqual(['action:Install:running', 'action:Install:done', 'action:Env:running', 'action:Env:failed:Env failed with exit code 2: cp: no such file']);
+  expect(noticesOf(s, one.id)).toEqual(['Install failed with exit code 1: flaky. The session went on without it.']);
+  expect(existsSync(one.path)).toBe(false);
+  expect(s.claude.conversations.some((conversation) => conversation.closed === false)).toBe(false);
+
+  s.shell.results.clear();
+  s.shell.calls.length = 0;
+  await s.sessions.resume({ sessionId: one.id });
+  expect(s.shell.calls.map((call) => call.command)).toEqual(['pnpm install', 'cp .env .', 'echo last']);
+});
+
+test('Cancel while the actions of a restored worktree run aborts the one that runs, skips the rest and keeps the session', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }, { name: 'Next', command: 'echo next' }]);
+  s.shell.pending = new Promise<void>(() => {});
+  const resuming = s.sessions.resume({ sessionId: one.id });
+  const refused = expect(resuming).rejects.toThrow('was cancelled');
+  await vi.waitFor(() => expect(s.shell.calls).toHaveLength(1));
+  await s.sessions.cancelPreparation({ sessionId: one.id });
+  await refused;
+  expect(s.shell.calls).toHaveLength(1);
+  expect(sessionIds(s)).toEqual([one.id]);
 });

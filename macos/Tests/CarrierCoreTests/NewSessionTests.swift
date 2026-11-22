@@ -2040,3 +2040,69 @@ private let freshInfo = WorkspaceInfo(
     }
     #expect(lines.count == 2 && lines[0].contains("\"ifStale\":true") && lines[1].contains("ifStale") == false)
 }
+
+// A project's defaults for a new session (docs/specs/projects.md, Scope 11): they fill the draft when the project is chosen and win over Settings > Sessions.
+
+/// A draft whose projects file holds `defaults` for `/work/web`; Settings > Sessions says `settings`.
+@MainActor private func draft(defaults: String?, settings: WorkIn = .baseFolder, host: FakeChat = FakeChat()) async throws -> NewSessionModel {
+    let carrier = NSTemporaryDirectory() + "carrier-" + UUID().uuidString
+    try FileManager.default.createDirectory(atPath: carrier, withIntermediateDirectories: true)
+    let extra = defaults.map { #","defaults":\#($0)"# } ?? ""
+    try Data(#"{"projects":[{"path":"/work/web","origin":"added"\#(extra)}]}"#.utf8).write(to: URL(fileURLWithPath: carrier + "/projects.json"))
+    host.agents = [ChatAgent(name: "codex", harness: "codex", found: true), ChatAgent(name: "claude", harness: "claude", found: true)]
+    host.workspaces["/work/web"] = WorkspaceInfo(
+        folder: "/work/web", branch: "main", defaultBranch: "main",
+        branches: [.init(name: "main", remote: false), .init(name: "develop", remote: false), .init(name: "origin/release", remote: true)]
+    )
+    let projects = ProjectsModel(host: host, file: ProjectsFile(folder: carrier)) { _ in nil }
+    projects.reload()
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, workIn: { settings }, projects: projects)
+    await model.load()
+    return model
+}
+
+@MainActor @Test func choosingAProjectFillsTheDraftWithItsAgentWorkInAndBaseBranchAndThePersonCanChangeThem() async throws {
+    let model = try await draft(defaults: #"{"agent":"claude","workIn":"worktree","baseBranch":"develop"}"#)
+    #expect(model.agent == "codex") // Settings > Sessions names none: the first provider that can work
+    await model.choose(folder: "/work/web")
+    #expect(model.agent == "claude" && model.worktree && model.startBranch == "develop")
+    // the draft shows them as its own choices, which the person changes there
+    model.agent = "codex"
+    await model.useWorktree(false)
+    model.choose(startBranch: "main")
+    #expect(model.agent == "codex" && model.worktree == false && model.startBranch == "main")
+}
+
+@MainActor @Test func aProjectsValueWinsOverSettingsSessionsAndAnUnsetOneFallsBackToIt() async throws {
+    // Settings says a new worktree: the project's base folder wins, and with no value the setting stands
+    let wins = try await draft(defaults: #"{"workIn":"baseFolder"}"#, settings: .newWorktree)
+    await wins.choose(folder: "/work/web")
+    #expect(wins.worktree == false)
+    let falls = try await draft(defaults: #"{"baseBranch":"develop"}"#, settings: .newWorktree)
+    await falls.choose(folder: "/work/web")
+    #expect(falls.worktree && falls.projectDefaults.workIn == nil)
+    // the same for the agent: the project's wins, an unset one keeps the one Settings > Sessions gave
+    let agent = try await draft(defaults: #"{"agent":"claude"}"#)
+    await agent.choose(folder: "/work/web")
+    #expect(agent.agent == "claude")
+    let unset = try await draft(defaults: nil)
+    await unset.choose(folder: "/work/web")
+    #expect(unset.agent == "codex" && unset.worktree == false && unset.startBranch == "main")
+}
+
+// A project that is not a git repository: a session started in it works in its folder, whatever Settings > Sessions or the project's defaults say.
+@MainActor @Test func aSessionInAProjectThatIsNotAGitRepositoryWorksInItsFolder() async throws {
+    let host = FakeChat()
+    let model = try await draft(defaults: #"{"workIn":"worktree"}"#, settings: .newWorktree, host: host)
+    host.workspaces["/work/web"] = WorkspaceInfo(folder: "/work/web", git: false)
+    await model.choose(folder: "/work/web")
+    #expect(model.offersWorktree == false && model.worktree == false)
+    #expect(model.sentence == "Work in web in the folder (not a git repository: no worktree)")
+}
+
+@MainActor @Test func aProjectsAgentThatCannotWorkAndABranchTheFolderLacksAreLeftOutOfTheDraft() async throws {
+    let host = FakeChat()
+    let model = try await draft(defaults: #"{"agent":"gone","baseBranch":"deleted"}"#, host: host)
+    await model.choose(folder: "/work/web")
+    #expect(model.agent == "codex" && model.startBranch == "main")
+}

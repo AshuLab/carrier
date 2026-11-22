@@ -54,3 +54,14 @@ import Testing
     #expect(FeedActions(model: nil) == FeedActions(model: nil))
     #expect(EnvironmentValues().feedActions == FeedActions(model: nil))
 }
+
+// A new stored property of the row has to be placed in one of the two lists below: in `compared` once `==` reads it (and the test above that
+// changes it), or in `notCompared` with the reason it does not need to. A property that is in neither makes this test fail, so it cannot be forgotten.
+@MainActor @Test func everyStoredPropertyOfARowIsComparedOrDeliberatelyLeftOut() {
+    let compared: Set<String> = ["row", "time", "summary", "pinned", "flippedHere", "agent", "commands", "offersWayOut", "work"]
+    // `flipped` is only written to, `flippedHere` is what is compared; the environment, the defaults and the states invalidate the row by themselves
+    let notCompared: Set<String> = ["flipped", "actions", "messageTimes", "hovering", "copied", "overCopy"]
+    // a property wrapper shows as `_name` (`__name` for a `@State`), so the underscores are dropped
+    let stored = Set(Mirror(reflecting: row()).children.compactMap { $0.label?.drop(while: { $0 == "_" }).description })
+    #expect(stored == compared.union(notCompared))
+}

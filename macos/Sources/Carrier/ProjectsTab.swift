@@ -348,6 +348,9 @@ private struct ProjectDetailView: View {
     @State private var removing: Set<String> = []
     @State private var removeProblems: [String: String] = [:]
     @State private var cleanUpNote: String?
+    /// The branches the project's folder has, read when the page opens; empty for a folder that is not a git repository, and while the host has not answered.
+    @State private var branches: [WorkspaceInfo.Branch] = []
+    private let catalog = ModelCatalog.shared
 
     var body: some View {
         let exists = row.status == .ready
@@ -413,6 +416,18 @@ private struct ProjectDetailView: View {
                     Toggle("Show when starting a session", isOn: Binding(get: { row.hidden == false }, set: { model.setHidden($0 == false, path: row.path) }))
                         .labelsHidden().toggleStyle(.switch)
                 }
+                SettingsTabRow(title: "Agent", detail: "What a new session here starts with; Same as everywhere is Settings > Sessions") {
+                    ChoicePopUp(label: "Agent", options: agentOptions, selection: defaultBinding(.agent, row.defaults.agent))
+                }
+                // a folder that is not a git repository has no worktree and no branch to choose
+                if branches.isEmpty == false {
+                    SettingsTabRow(title: "Work in", detail: "The base folder or a new worktree; Default is Settings > Sessions") {
+                        ChoicePopUp(label: "Work in", options: workInOptions, selection: defaultBinding(.workIn, row.defaults.workIn?.projectValue))
+                    }
+                    SettingsTabRow(title: "Base branch", detail: "The branch a new session here starts from; Default branch is the one checked out") {
+                        ChoicePopUp(label: "Base branch", options: branchOptions, selection: defaultBinding(.baseBranch, row.defaults.baseBranch))
+                    }
+                }
             }
             if exists { worktreesGroup }
             SettingsGroup(title: "") {
@@ -458,6 +473,7 @@ private struct ProjectDetailView: View {
             if row.status == .ready { await model.refreshDisk(.now, of: [row.path]) }
             await loadWorktrees()
         }
+        .task(id: row.path) { branches = await model.branches(of: row.path) }
         .onAppear(perform: publishPin)
         .onChange(of: row.pinned) { publishPin() }
         .onChange(of: row.path) { publishPin() }
@@ -537,6 +553,32 @@ private struct ProjectDetailView: View {
         case .uncommitted, .notPushed: .orange
         case .clean: .secondary
         }
+    }
+
+    /// A value of `defaults` as a select's: nil is the first entry, and choosing it takes the key out of the file.
+    private func defaultBinding(_ key: ProjectDefaultKey, _ value: String?) -> Binding<String?> {
+        Binding(get: { value }, set: { _ = model.setDefault(key, $0, path: row.path) })
+    }
+
+    /// The configured agents; one the project names that is no longer configured stays listed so the select says what the file holds.
+    private var agentOptions: [(value: String?, title: String)] {
+        var names = catalog.agents.map(\.name)
+        if let named = row.defaults.agent, names.contains(named) == false { names.append(named) }
+        return [(nil, "Same as everywhere")] + names.map { ($0, $0) }
+    }
+
+    private var workInOptions: [(value: String?, title: String)] {
+        [(nil, "Default")] + WorkIn.allCases.map { ($0.projectValue, $0 == .baseFolder ? "Base folder" : "New worktree") }
+    }
+
+    private var branchOptions: [(value: String?, title: String)] {
+        var names: [String] = []
+        for branch in branches {
+            let name = branch.remote && branch.name.hasPrefix("origin/") ? String(branch.name.dropFirst("origin/".count)) : branch.name
+            if names.contains(name) == false { names.append(name) }
+        }
+        if let named = row.defaults.baseBranch, names.contains(named) == false { names.append(named) }
+        return [(nil, "Default branch")] + names.map { ($0, $0) }
     }
 
     private func loadWorktrees() async {

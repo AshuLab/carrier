@@ -570,9 +570,19 @@ public struct WatchNote: Equatable {
         }
     }
 
-    /// A draft whose folder offers a worktree opens in one when Settings > Sessions says so; one that offers none stays on the base folder.
+    /// What the chosen project sets for a new session here: its agent, where to work and its base branch. Over Settings > Sessions, and the draft shows each
+    /// and lets the person change it. Empty for a folder that is not a project.
+    public private(set) var projectDefaults = ProjectDefaults()
+
+    /// A draft whose folder offers a worktree opens in one when the project, else Settings > Sessions, says so; one that offers none stays on the base folder.
+    /// The project's agent and base branch are filled first; an agent that cannot work, or a branch the folder does not have, is left as it was.
     private func openWhereSettingsSays() async {
-        if workIn() == .newWorktree { await useWorktree(true) }
+        if let wanted = projectDefaults.agent, wanted != agent, agents.contains(where: { $0.name == wanted && $0.available }) {
+            agent = wanted
+            await loadOptions()
+        }
+        if let base = projectDefaults.baseBranch, workspace?.branches.contains(where: { $0.name == base || $0.name == "origin/" + base }) == true { picked = base }
+        if (projectDefaults.workIn ?? workIn()) == .newWorktree { await useWorktree(true) }
     }
 
     /// Waits for the fetch that choosing a project started in the background, if one is running.
@@ -585,6 +595,7 @@ public struct WatchNote: Equatable {
         fetching = false
         unreachable = false
         folder = path
+        projectDefaults = path.flatMap { path in projects?.rows.first { isSameFolder($0.path, path) }?.defaults } ?? ProjectDefaults()
         addProjectProblem = nil
         newProject = nil
         workspace = nil

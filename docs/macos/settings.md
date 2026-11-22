@@ -98,7 +98,13 @@ The group starts with Total, which says what the project takes on disk (the main
 Each row ends with a dot in its segment's colour and its size, a dash for a folder the host has not measured (a worktree made since).
 Opening the page asks the host for a fresh figure of this project (`projectDisk` with `refresh: now`) and shows the last known one meanwhile, so a project that was measured shows its sizes at once and they change when the new figure lands.
 A project whose folder is gone has no Worktrees and disk group, so no figure, and a dash in the list.
-Removing a worktree comes with the clean-up slice of the same page.
+Each worktree's row has a Remove button before its size (the main clone has none) that asks the host for `removeProjectWorktree`: only the worktree's folder goes, with what git ignores in it, and its branch, its commits and its session stay, so the session's next message brings the folder back on its branch.
+The button is disabled, with "Its session is open" as its tooltip, while the worktree's session is open; with uncommitted changes it is pressed and the host refuses, and its words ("It has uncommitted changes") replace the row's second line in orange until the next try.
+A project that has a merged worktree also has a Clean up row, "Merged worktrees nothing blocks: 3 worktrees, 1.2 GB", with a Clean up button that asks "Clean up 3 worktrees, 1.2 GB?" and says the folders go and the branches and sessions stay.
+What it takes is every worktree whose session's pull request is merged and that nothing blocks (`cleanProjectWorktrees`, which the page asks without `run` for the figures and with it to act); one that has uncommitted changes or an open session is skipped, and a "Last clean up" row says what went and, for each one skipped, its folder's name and the reason.
+A worktree with no session, or whose session has no merged pull request, is never in Clean up, though it can be removed by hand.
+After a removal or a clean-up the page asks for a fresh figure of the project, so the total and the bar follow the folders that went.
+The size of each folder is what git does not count: the host walks the folder when Clean up asks, so the page asks only when a worktree is merged.
 The screen has an Actions row showing how many actions are set ("None" or "N actions") and a chevron, which opens an Actions screen of its own with the project's name under Actions in the toolbar.
 The Actions screen has two groups, New worktree and After clone, each listing its actions in order and ending in Add action, where each action has a name, an on switch, a delete button, a monospaced command field and an "If it fails" choice of Warn and continue or Stop the session.
 Each valid edit writes at once to the project's `actions` in `projects.json` (omitting `on` when on and `onFail` when Warn and continue), while a blank name or command is not written and is shown as a problem.

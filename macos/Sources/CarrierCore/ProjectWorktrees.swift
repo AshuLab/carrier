@@ -77,6 +77,11 @@ public struct WorktreeRow: Equatable, Identifiable, Sendable {
     /// The size as the row says it: a dash until it is measured.
     public var size: String { bytes.map(formatDiskSize) ?? "—" }
 
+    /// Whether the row has a Remove button: every worktree does, the main clone does not.
+    public var hasRemove: Bool { kind != nil }
+    /// Why its Remove button is disabled: only while its session is open. An uncommitted change is refused by the host, with its words, when the button is pressed.
+    public var removeBlockedBy: String? { kind == .sessionOpen ? worktreeOpenWords : nil }
+
     /// The row's second line: the session and the age, "Main clone" for the main one.
     public var detail: String { session.map { [$0, age].compactMap { $0 }.joined(separator: " · ") } ?? "Main clone" }
 }
@@ -107,4 +112,56 @@ private func stateWords(_ state: ProjectWorktree.State) -> String {
     case .notPushed: "Not pushed"
     case .clean: "Clean"
     }
+}
+
+/// What the host says when a session holds the worktree, which is also why the button is off while it is.
+public let worktreeOpenWords = "Its session is open"
+
+/// The reply of `cleanProjectWorktrees`: the merged worktrees nothing blocks (the ones Clean up removes, or removed) with the bytes each folder holds, and the ones it skips with the reason.
+public struct ProjectCleanup: Decodable, Equatable, Sendable {
+    public struct Removed: Decodable, Equatable, Sendable {
+        public let path: String
+        public let bytes: Int
+
+        public init(path: String, bytes: Int) {
+            self.path = path
+            self.bytes = bytes
+        }
+    }
+
+    public struct Skipped: Decodable, Equatable, Sendable {
+        public let path: String
+        public let reason: String
+
+        public init(path: String, reason: String) {
+            self.path = path
+            self.reason = reason
+        }
+    }
+
+    public let removed: [Removed]
+    public let skipped: [Skipped]
+
+    public init(removed: [Removed], skipped: [Skipped]) {
+        self.removed = removed
+        self.skipped = skipped
+    }
+
+    public var bytes: Int { removed.reduce(0) { $0 + $1.bytes } }
+}
+
+private func worktreeCount(_ count: Int) -> String { count == 1 ? "1 worktree" : "\(count) worktrees" }
+
+/// The Clean up button's detail: how many worktrees it takes and how much they hold ("3 worktrees, 1.2 GB"); nil when there is none to take, which hides the button.
+public func cleanUpWords(_ cleanup: ProjectCleanup) -> String? {
+    guard cleanup.removed.isEmpty == false else { return nil }
+    return "\(worktreeCount(cleanup.removed.count)), \(ByteCountFormatter.string(fromByteCount: Int64(cleanup.bytes), countStyle: .file))"
+}
+
+/// What Clean up reports after it ran: what went and, for each worktree it skipped, its folder's name and the reason.
+public func cleanUpReport(_ cleanup: ProjectCleanup) -> String {
+    var lines: [String] = []
+    if let taken = cleanUpWords(cleanup) { lines.append("Removed \(taken). Their branches and sessions stay.") }
+    for skip in cleanup.skipped { lines.append("Skipped \((skip.path as NSString).lastPathComponent): \(skip.reason).") }
+    return lines.isEmpty ? "Nothing to clean up." : lines.joined(separator: "\n")
 }

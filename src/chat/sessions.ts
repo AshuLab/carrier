@@ -28,7 +28,7 @@ import { checkName, suggestName } from './names.ts';
 import { createProject, projectFolder, type createProjects } from './projects.ts';
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
-import { clearWorktree, createWorktree, deleteWorktree, listWorktrees, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, folderBytes, listWorktrees, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
 import { worktreesDir } from './names.ts';
 import { checkout, FETCH_FRESH_MS, fetchFolder, inspectFolder } from './workspace.ts';
 
@@ -228,6 +228,51 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       } finally {
         clearing.delete(found.id);
       }
+    }
+  };
+  /** What `projectWorktrees` reads of each worktree, with what removing it needs: its session's row and whether it is open. */
+  type Entry = { worktree: ProjectWorktree; found: typeof sessions.$inferSelect | undefined; live: boolean; dirty: number };
+  const readProjectWorktrees = async (folder: string) => {
+    const base = checkFolder(folder, carrierHome());
+    const [main, ...linked] = await listWorktrees(git, base);
+    const real = (path: string) => (existsSync(path) ? realpathSync(path) : path);
+    const root = real(worktreesDir()) + sep;
+    const bySession = new Map(db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all().map((found) => [real(found.worktreePath!), found]));
+    const entries: Entry[] = [];
+    // one worktree after another: each reads two git processes, and this is one project's page opening
+    for (const { path, branch } of linked) {
+      if (existsSync(path) === false || real(path).startsWith(root) === false) continue;
+      const found = bySession.get(real(path));
+      const family = found === undefined ? undefined : familyClock(found);
+      // a detached HEAD has no branch to hold commits, so only its files count
+      const { dirty, unpushed } = await previewWorktree(git, { path, branch: branch ?? '', from: '', base }, branch === null ? [] : [branch]);
+      const state = family?.live ? 'sessionOpen' : dirty > 0 ? 'uncommitted' : found?.prState === 'merged' ? 'merged' : unpushed > 0 ? 'notPushed' : 'clean';
+      const worktree: ProjectWorktree = { path, branch, session: found === undefined ? null : { id: found.id, title: found.title }, lastActiveAt: family?.lastActiveAt ?? statSync(path).mtimeMs, state };
+      entries.push({ worktree, found, live: family?.live === true, dirty });
+    }
+    return { base, main: { path: base, branch: main?.branch ?? null }, entries };
+  };
+  /** Why a worktree cannot be removed now, or null. */
+  const blockOf = ({ live, dirty, found }: Entry) =>
+    live || (found !== undefined && (switching.has(found.id) || deleting.has(found.id))) ? 'Its session is open' : dirty > 0 ? 'It has uncommitted changes' : null;
+  /** Removes the folder of one worktree, as the clock's cleanup does: its session waits for it before opening the folder, and it is checked again just before git is asked. */
+  const removeProjectEntry = async (base: string, entry: Entry) => {
+    const { worktree, found } = entry;
+    const reason = blockOf(entry);
+    if (reason !== null) throw new ChatRefused(reason);
+    const made = { path: worktree.path, branch: worktree.branch ?? '', from: '', base };
+    const clear = async () => {
+      // taken up while git read it
+      if (found !== undefined && (familyClock(found).live || switching.has(found.id) || deleting.has(found.id))) throw new ChatRefused('Its session is open');
+      await clearWorktree(git, made);
+      log.info('removed the folder of a worktree by request, its branch is kept', { branch: worktree.branch });
+    };
+    const cleared = clear();
+    if (found !== undefined) clearing.set(found.id, cleared);
+    try {
+      await cleared;
+    } finally {
+      if (found !== undefined) clearing.delete(found.id);
     }
   };
   const childrenOf = (parentId: string): ChildSummary[] =>
@@ -1432,23 +1477,47 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
      * it has commits no other branch holds, else clean.
      */
     async projectWorktrees({ folder }: { folder: string }): Promise<ProjectWorktrees> {
-      const base = checkFolder(folder, carrierHome());
-      const [main, ...linked] = await listWorktrees(git, base);
-      const real = (path: string) => (existsSync(path) ? realpathSync(path) : path);
-      const root = real(worktreesDir()) + sep;
-      const bySession = new Map(db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all().map((found) => [real(found.worktreePath!), found]));
-      const worktrees: ProjectWorktree[] = [];
-      // one worktree after another: each reads two git processes, and this is one project's page opening
-      for (const { path, branch } of linked) {
-        if (existsSync(path) === false || real(path).startsWith(root) === false) continue;
-        const found = bySession.get(real(path));
-        const family = found === undefined ? undefined : familyClock(found);
-        // a detached HEAD has no branch to hold commits, so only its files count
-        const { dirty, unpushed } = await previewWorktree(git, { path, branch: branch ?? '', from: '', base }, branch === null ? [] : [branch]);
-        const state = family?.live ? 'sessionOpen' : dirty > 0 ? 'uncommitted' : found?.prState === 'merged' ? 'merged' : unpushed > 0 ? 'notPushed' : 'clean';
-        worktrees.push({ path, branch, session: found === undefined ? null : { id: found.id, title: found.title }, lastActiveAt: family?.lastActiveAt ?? statSync(path).mtimeMs, state });
+      const { main, entries } = await readProjectWorktrees(folder);
+      return { main, worktrees: entries.map(({ worktree }) => worktree) };
+    },
+
+    /** Removes only the folder of one worktree of a project and keeps its branch and its session, which brings the folder back on its next message; refused in words while its session is open or it has uncommitted changes. */
+    async removeProjectWorktree({ folder, path }: { folder: string; path: string }) {
+      const { base, entries } = await readProjectWorktrees(folder);
+      const entry = entries.find((candidate) => candidate.worktree.path === path);
+      if (entry === undefined) throw new ChatRefused('That is not a worktree of this project');
+      await removeProjectEntry(base, entry);
+      return {};
+    },
+
+    /**
+     * The worktrees of a project whose session's pull request is merged: the ones Clean up would remove, each with the bytes its folder holds, and the ones nothing lets it remove with the reason.
+     * With `run` it removes them (each one checked again just before) and answers what it removed and what it skipped.
+     */
+    async cleanProjectWorktrees({ folder, run }: { folder: string; run: boolean }) {
+      const { base, entries } = await readProjectWorktrees(folder);
+      const removed: { path: string; bytes: number }[] = [];
+      const skipped: { path: string; reason: string }[] = [];
+      for (const entry of entries.filter(({ found }) => found?.prState === 'merged')) {
+        const { path } = entry.worktree;
+        const reason = blockOf(entry);
+        if (reason !== null) {
+          skipped.push({ path, reason });
+          continue;
+        }
+        const bytes = await folderBytes(path);
+        if (run) {
+          try {
+            await removeProjectEntry(base, entry);
+          } catch (error) {
+            if (error instanceof ChatRefused === false) throw error;
+            skipped.push({ path, reason: error.message });
+            continue;
+          }
+        }
+        removed.push({ path, bytes });
       }
-      return { main: { path: base, branch: main?.branch ?? null }, worktrees };
+      return { removed, skipped };
     },
 
     /** What a folder is as a git repository, for the person to choose how to work in it. */

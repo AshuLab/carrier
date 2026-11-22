@@ -69,6 +69,11 @@ public func projectsFolderRefusal(_ folder: String, carrierFolder: String) -> St
     return nil
 }
 
+/// `path` made absolute against `base` and tidied of `.` and `..`. Not `URL(relativeTo:).path`: on some Foundation versions that drops the base.
+private func absolutePath(_ path: String, from base: String) -> String {
+    URL(fileURLWithPath: path.hasPrefix("/") ? path : base + "/" + path).standardized.path
+}
+
 /// Whether `folder` (an existing, readable real path) is inside a git worktree linked to another repository.
 private func isLinkedWorktree(_ folder: String) -> Bool {
     var dir = folder
@@ -83,10 +88,10 @@ private func isLinkedWorktree(_ folder: String) -> Bool {
             else { return false }
             let target = line.dropFirst("gitdir:".count).trimmingCharacters(in: .whitespaces)
             guard target.isEmpty == false else { return false }
-            let gitDir = URL(fileURLWithPath: target, relativeTo: URL(fileURLWithPath: dir, isDirectory: true)).standardized.path
+            let gitDir = absolutePath(target, from: dir)
             let commondir = (gitDir as NSString).appendingPathComponent("commondir")
             guard let common = try? String(contentsOfFile: commondir, encoding: .utf8) else { return false }
-            let resolved = URL(fileURLWithPath: common.trimmingCharacters(in: .whitespacesAndNewlines), relativeTo: URL(fileURLWithPath: gitDir, isDirectory: true)).standardized.path
+            let resolved = absolutePath(common.trimmingCharacters(in: .whitespacesAndNewlines), from: gitDir)
             return resolved != gitDir
         }
         let parent = (dir as NSString).deletingLastPathComponent

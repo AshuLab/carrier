@@ -4,32 +4,32 @@ import Foundation
 // macos/Tests/Fixtures/snapshot.json, written by the engine's test, is what the tests decode.
 // Every field the redesign added is optional: an engine that predates it sends none of them (snapshot-old-engine.json).
 
-public struct PanelSnapshot: Codable, Equatable {
-    public struct Slots: Codable, Equatable {
+public struct PanelSnapshot: Codable, Equatable, Sendable {
+    public struct Slots: Codable, Equatable, Sendable {
         public var busy: Int
         public var total: Int
     }
 
-    public struct QueuedEpic: Codable, Equatable {
+    public struct QueuedEpic: Codable, Equatable, Sendable {
         public var repo: String
         public var issue: Int
         public var title: String?
         public var queuedAt: Int?
     }
 
-    public struct Agent: Codable, Equatable {
+    public struct Agent: Codable, Equatable, Sendable {
         public var harness: String
         public var model: String
         public var provider: String?
     }
 
-    public struct Agents: Codable, Equatable {
+    public struct Agents: Codable, Equatable, Sendable {
         public var author: Agent
         public var reviewer: Agent
     }
 
-    public struct Engine: Codable, Equatable {
-        public struct RateLimit: Codable, Equatable {
+    public struct Engine: Codable, Equatable, Sendable {
+        public struct RateLimit: Codable, Equatable, Sendable {
             public var remaining: Int
             public var limit: Int
             public var resetAt: Int
@@ -42,7 +42,7 @@ public struct PanelSnapshot: Codable, Equatable {
         public var rateLimit: RateLimit?
     }
 
-    public struct Watched: Codable, Equatable {
+    public struct Watched: Codable, Equatable, Sendable {
         public var repo: String
         public var lastCheckedAt: Int?
         public var ok: Bool
@@ -50,8 +50,8 @@ public struct PanelSnapshot: Codable, Equatable {
         public var agents: Agents
     }
 
-    public struct Session: Codable, Equatable {
-        public struct Last: Codable, Equatable {
+    public struct Session: Codable, Equatable, Sendable {
+        public struct Last: Codable, Equatable, Sendable {
             public var kind: String
             public var text: String
             public var at: Int
@@ -68,7 +68,7 @@ public struct PanelSnapshot: Codable, Equatable {
         public var last: Last?
     }
 
-    public struct DoneEpic: Codable, Equatable {
+    public struct DoneEpic: Codable, Equatable, Sendable {
         public var repo: String
         public var issue: Int
         public var prNumber: Int?
@@ -79,8 +79,8 @@ public struct PanelSnapshot: Codable, Equatable {
     }
 
     /// A merged or cancelled epic that ended inside the engine's finished window.
-    public struct FinishedEpic: Codable, Equatable {
-        public enum Status: String, Codable {
+    public struct FinishedEpic: Codable, Equatable, Sendable {
+        public enum Status: String, Codable, Sendable {
             case merged, cancelled
         }
 
@@ -138,17 +138,17 @@ extension PanelSnapshot {
     }
 }
 
-public struct PanelEpic: Codable, Equatable {
-    public enum Status: String, Codable {
+public struct PanelEpic: Codable, Equatable, Sendable {
+    public enum Status: String, Codable, Sendable {
         case running
         case needsHuman = "needs_human"
     }
 
-    public enum Stage: String, Codable {
+    public enum Stage: String, Codable, Sendable {
         case ship, review, fix
     }
 
-    public struct Slices: Codable, Equatable {
+    public struct Slices: Codable, Equatable, Sendable {
         public var done: Int
         public var total: Int
     }

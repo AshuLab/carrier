@@ -136,6 +136,8 @@ final class WindowController: NSObject, NSWindowDelegate {
     private var stop: StopFlag?
     /// The window's list of sessions, followed while the window is open.
     private var sessionsTask: Task<Void, Never>?
+    /// The engine's state, followed while the window is open.
+    private var stateTask: Task<Void, Never>?
 
     /// Adds the "Open window" item at the end of the menu.
     func addMenuItem(to menu: NSMenu) {
@@ -575,6 +577,9 @@ final class WindowController: NSObject, NSWindowDelegate {
         stop = nil
         sessionsTask?.cancel()
         sessionsTask = nil
+        stateTask?.cancel()
+        stateTask = nil
+        EngineLink.shared.setTick(nil)
         model.state = nil
         if case .session(let id) = model.shell.selection { model.leave(id) }
         model.sessions = Sessions()
@@ -589,20 +594,19 @@ final class WindowController: NSObject, NSWindowDelegate {
         self.stop = stop
         let model = model
         let poller = model.epics.poller!
-        let monitor = ControlMonitor(
-            socketPath: { controlSocketPath() },
-            pollEvery: { PollPace.shared.seconds },
-            // closing the window cuts the wait short at once
-            wait: stop.wait,
-            // the epic on screen is read while someone can see the window, or when it was just asked for (a window that is opening is not on screen
-            // yet at its first tick): a hidden one is read again at the next tick after it shows
-            tick: { client in if PollPace.shared.looking || poller.hasPendingFocus { try poller.poll(client) } },
-            onChange: { state in
+        // the engine's state is the menu's too: one read for both. The epic on screen is read while someone can see the window, or when it was just
+        // asked for (a window that is opening is not on screen yet at its first tick): a hidden one is read again at the next tick after it shows
+        let link = EngineLink.shared
+        link.setTick { client in if PollPace.shared.looking || poller.hasPendingFocus { try poller.poll(client) } }
+        let states = link.states()
+        // a window that opens shows the state of the moment, not the last one the menu read
+        link.refresh()
+        stateTask = Task { @MainActor in
+            for await state in states {
                 // an equal state is not assigned: the observer ignores it anyway, and the "panel state" signpost counts only what differs
-                DispatchQueue.main.async { if stop.isSet == false, publishes(state, over: model.state) { model.state = state } }
+                if stop.isSet == false, publishes(state, over: model.state) { model.state = state }
             }
-        )
-        Thread.detachNewThread { monitor.run() }
+        }
         let sessions = ChatSessionsPoller(
             host: SocketChatHost(),
             onAuthoritativeSessionIds: { knownIds in

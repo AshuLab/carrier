@@ -137,6 +137,26 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     #expect(log == ["snapshot", "tick", "snapshot", "tick"])
 }
 
+@Test func aMonitorThatDoesNotReadSnapshotsOnlyTicksAndReportsNothing() throws {
+    var asked: [String] = []
+    let server = TestServer { connection in
+        connection.send(hello())
+        while let line = connection.readLine() {
+            guard let json = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any], let id = json["id"] as? Int else { return }
+            asked.append(json["cmd"] as? String ?? "")
+            connection.send("{\"id\":\(id),\"ok\":true,\"data\":null}\n")
+        }
+    }
+    defer { server.stop() }
+    var ticks = 0, told = 0
+    var waits = 0
+    ControlMonitor(
+        socketPath: { server.path }, wait: { _ in waits += 1; return waits < 2 }, log: { _ in }, readsSnapshot: false,
+        tick: { client in ticks += 1; _ = try client.request("pause") }, onChange: { _ in told += 1 }
+    ).run()
+    #expect(ticks == 2 && told == 0 && asked == ["pause", "pause"])
+}
+
 @Test func aPollReadsTheSnapshotFromTheReplyOnceNotThreeTimes() throws {
     let snapshot = String(decoding: try fixture(), as: UTF8.self)
     let server = TestServer { connection in

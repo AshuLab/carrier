@@ -62,3 +62,26 @@ import Testing
     #expect(flag.wait(60) == false && flag.isSet)
     #expect(ContinuousClock.now - again < .seconds(1))
 }
+
+@Test func aWakeCutsOneWaitShortAndKeepsGoing() async {
+    let flag = StopFlag()
+    // a wake that comes before the wait makes it return at once, once, and with the flag still down
+    flag.wake()
+    let began = ContinuousClock.now
+    #expect(flag.wait(60) == true && flag.isSet == false)
+    #expect(ContinuousClock.now - began < .seconds(1))
+    // and only once: the wait after it is the whole time (a wait never takes less than it was asked, whatever the load)
+    let second = ContinuousClock.now
+    #expect(flag.wait(0.2) == true)
+    #expect(ContinuousClock.now - second >= .milliseconds(190))
+    // one that comes during the wait
+    let waiting = Task {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            Thread.detachNewThread { continuation.resume(returning: flag.wait(60)) }
+        }
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+    flag.wake()
+    #expect(await waiting.value == true)
+    #expect(ContinuousClock.now - began < .seconds(30))
+}

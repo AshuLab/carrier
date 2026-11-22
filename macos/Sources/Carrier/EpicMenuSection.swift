@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 
 /// The epics in the menu, rebuilt each time the menu opens (`menuNeedsUpdate`), so a closed menu costs nothing. It keeps the
-/// latest state the monitor delivered. Main thread only.
+/// latest state the engine link delivered. Main thread only.
 final class EpicMenuSection: NSObject, NSMenuDelegate {
     static let shared = EpicMenuSection()
 

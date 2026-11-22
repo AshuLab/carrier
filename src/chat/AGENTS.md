@@ -64,7 +64,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   `delegate_wait` (`readsAsSession`) waits for the caller's children through `waitChildren`, and `history` also reads a child or the parent (`related`).
   The toolkits are under `mcp/`; the adapters take the `mcp` argument of `ChatRunner.open`.
 - `handoff.ts`: `buildHandoff`, the pure builder of a switched session's handoff from its stored events, 16,000 bytes at most (ADR 0032, linked above); it travels as `ChatRunner.open`'s `instructions` (Claude appends it to its system prompt, Codex sends `developerInstructions`).
-- `levels.ts`: the permission scale of four levels as pure data (`levelOf`, `childOptions`): a child gets the options of its agent at or under its parent's level (ADR 0033, linked above, and [ADR 0036](../../docs/adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)).
+- `levels.ts`: the permission scale of four levels as pure data (`levelOf`, `childOptions`): a child gets its agent's options at or under its parent's level, or the parent's when it sets none (ADR 0033, linked above, and [ADR 0036](../../docs/adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)).
 - `health.ts`: the `health` request (whether `git`, `gh` and each agent's CLI work and are signed in, as `ready`, `missing`, `signedOut` or `unknown`, only the verdicts; [spec](../../docs/specs/chat-host.md)).
 - `git.ts`: the port to the machine's git (`realGit` in production, `FakeGit` in `fake.ts`).
 - `workspace.ts`: what a folder is as a repository, and its fetch.

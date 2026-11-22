@@ -15,7 +15,12 @@ struct ProjectsTabView: View {
     let place: SettingsPlace
     let go: (SettingsPlace) -> Void
     var sessions: [SessionRow] = []
+    /// What the Carrier switch of a project needs to say when a change applies (the Repos page's inputs).
+    var state: ConnectionState?
+    var canReload = false
     private let model = ProjectsModel.shared
+    /// The engine config's repos as the file is when the page opens (and after a change of the switch); nil when it cannot be read.
+    @State private var watchedRepos: [String]?
     @State private var query = ""
     @State private var filter: ProjectFilter = .all
     @State private var groupBy: ProjectGrouping = .none
@@ -28,6 +33,7 @@ struct ProjectsTabView: View {
         static let tags: CGFloat = 220
         static let lastActive: CGFloat = 110
         static let disk: CGFloat = 70
+        static let carrier: CGFloat = 90
         static let trailing: CGFloat = 34
     }
 
@@ -70,6 +76,13 @@ struct ProjectsTabView: View {
         }
         // the file is another process's too: the list follows it while the page is open
         .task { await model.follow() }
+        // the engine config is read when the page opens and when a project's page does, so the switch shows the file as it is then
+        .onAppear(perform: loadWatched)
+        .onChange(of: place) { loadWatched() }
+    }
+
+    private func loadWatched() {
+        watchedRepos = (try? Data(contentsOf: URL(fileURLWithPath: configFilePath()))).flatMap { configRepoNames(json: $0) }
     }
 
     // MARK: the list
@@ -77,7 +90,7 @@ struct ProjectsTabView: View {
     @ViewBuilder private var list: some View {
         let shown = model.rows + model.cloneRows
         let tags = projectTagsInUse(shown)
-        let groups = projectList(projectsWithLastActive(shown, sessions: sessions), query: query, filter: filter, groupBy: groupBy, order: order)
+        let groups = projectList(projectsWithWatched(projectsWithLastActive(shown, sessions: sessions), repos: watchedRepos), query: query, filter: filter, groupBy: groupBy, order: order)
         let now = Date()
         Group {
             if shown.isEmpty {
@@ -112,6 +125,9 @@ struct ProjectsTabView: View {
                                 filter = filter == .tag(tag) ? .all : .tag(tag)
                             }
                         }
+                        FilterChip(title: "Watched", on: filter == .watched) {
+                            filter = filter == .watched ? .all : .watched
+                        }
                         FilterChip(title: "Local only", on: filter == .localOnly) {
                             filter = filter == .localOnly ? .all : .localOnly
                         }
@@ -137,6 +153,7 @@ struct ProjectsTabView: View {
                                     Text("Tags").frame(width: Column.tags, alignment: .leading).accessibilityHidden(true)
                                     sortTitle("Last active", key: .lastActive).frame(width: Column.lastActive, alignment: .leading)
                                     Text("Disk").frame(width: Column.disk, alignment: .leading).accessibilityHidden(true)
+                                    Text("Carrier").frame(width: Column.carrier, alignment: .leading).accessibilityHidden(true)
                                     Color.clear.frame(width: Column.trailing, height: 1)
                                 }
                                 .sectionLabel().padding(.vertical, 10)
@@ -246,6 +263,10 @@ struct ProjectsTabView: View {
                 // nothing measures a project yet: a dash, as for one never measured, and always one for a folder that is gone
                 Text("—").font(.scaled(12)).foregroundStyle(.secondary).frame(width: Column.disk, alignment: .leading).accessibilityHidden(true)
 
+                Text(row.carrierText)
+                    .font(.scaled(12)).foregroundStyle(row.watched ? Color.primary : .secondary).lineLimit(1)
+                    .frame(width: Column.carrier, alignment: .leading)
+
                 HStack(spacing: 10) {
                     Spacer(minLength: 0)
                     if row.pinned { Glyph(.pinFilled, size: 11, label: "Pinned").foregroundStyle(.secondary) }
@@ -310,7 +331,10 @@ struct ProjectsTabView: View {
 
     @ViewBuilder private func projectScreen(_ row: ProjectRow) -> some View {
         if let failure = model.failure { ProblemLine(text: failure) }
-        ProjectDetailView(row: row, model: model, openActions: { openActions(row.path) }, close: { go(SettingsPlace(.projects)) }, moved: open).id(row.path)
+        ProjectDetailView(
+            row: row, model: model, watchedRepos: watchedRepos, state: state, canReload: canReload, reloadWatched: loadWatched,
+            openActions: { openActions(row.path) }, close: { go(SettingsPlace(.projects)) }, moved: open
+        ).id(row.path)
     }
 
     // MARK: a file that does not match
@@ -329,6 +353,11 @@ struct ProjectsTabView: View {
 private struct ProjectDetailView: View {
     let row: ProjectRow
     let model: ProjectsModel
+    let watchedRepos: [String]?
+    let state: ConnectionState?
+    let canReload: Bool
+    /// Reads the engine config again after the switch wrote it.
+    let reloadWatched: () -> Void
     let openActions: () -> Void
     let close: () -> Void
     /// Called with the project's new path after Locate… wrote it, which is the page's place now.
@@ -347,6 +376,10 @@ private struct ProjectDetailView: View {
     @State private var removing: Set<String> = []
     @State private var removeProblems: [String: String] = [:]
     @State private var cleanUpNote: String?
+    /// Why the last change of the Carrier switch was refused, and the question asked before it goes off.
+    @State private var watchFailure: String?
+    @State private var confirmingStop = false
+    private let reloaded = ReloadStatus.shared
 
     var body: some View {
         let exists = row.status == .ready
@@ -414,6 +447,7 @@ private struct ProjectDetailView: View {
                 }
             }
             if exists { worktreesGroup }
+            carrierGroup
             SettingsGroup(title: "") {
                 NavigationRow(title: "Actions", detail: "Commands run for a new worktree or after a clone", first: true, action: openActions) {
                     Text(projectActionsSummary(row.actions.count)).font(.scaled(12)).foregroundStyle(.secondary)
@@ -452,11 +486,40 @@ private struct ProjectDetailView: View {
         } message: {
             Text(cleanUpQuestionWords)
         }
+        .alert("Stop watching \(row.repo ?? "")?", isPresented: $confirmingStop) {
+            Button("Cancel", role: .cancel) {}
+            Button("Stop watching", role: .destructive) { setWatching(false) }
+        } message: {
+            Text(row.repo.map { removalText(repoEpics($0, snapshot: snapshot), appliesNow: appliesWhileRunning(state: state, canReload: canReload)) } ?? "")
+        }
         .task(id: row.path) { await loadWorktrees() }
         .onAppear(perform: publishPin)
         .onChange(of: row.pinned) { publishPin() }
         .onChange(of: row.path) { publishPin() }
         .onDisappear { headerAction?.clear(owner) }
+    }
+
+    private var snapshot: PanelSnapshot? {
+        if case .running(let snapshot)? = state { return snapshot }
+        return nil
+    }
+
+    /// The Carrier group: the one switch that makes Carrier watch the project's repository (its `owner/name` in the engine config's repos).
+    private var carrierGroup: some View {
+        let watch = projectWatchRow(repo: row.repo, repos: watchedRepos, state: state, canReload: canReload, outcome: reloaded.outcome, failure: watchFailure)
+        return SettingsGroup(title: "Carrier") {
+            SettingsTabRow(title: "Let Carrier watch this project", detail: watch.detail, first: true, problem: watch.problem) {
+                Toggle("Let Carrier watch this project", isOn: Binding(get: { watch.isOn }, set: { $0 ? setWatching(true) : (confirmingStop = true) }))
+                    .labelsHidden().toggleStyle(.switch).disabled(watch.canChange == false)
+            }
+        }
+    }
+
+    /// Writes the engine config like the Repos page does and asks the engine to reload; a refusal is shown on the row.
+    private func setWatching(_ on: Bool) {
+        guard let repo = row.repo else { return }
+        watchFailure = saveWatch(on, repo: repo, path: configFilePath()).problem
+        reloadWatched()
     }
 
     /// The Worktrees and disk group: the main clone and each worktree Carrier made, asked of the host when the page opens.

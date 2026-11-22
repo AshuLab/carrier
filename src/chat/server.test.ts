@@ -69,6 +69,11 @@ const controls = (): ChatControls => ({
     if (folder === '/gone') throw new ChatRefused('That folder does not exist');
     return { main: { path: folder, branch: 'main' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] };
   },
+  removeProjectWorktree: async ({ path }) => {
+    if (path === '/open') throw new ChatRefused('Its session is open');
+    return {};
+  },
+  cleanProjectWorktrees: async ({ run }) => ({ removed: [{ path: '/w/a', bytes: run ? 2048 : 1024 }], skipped: [{ path: '/w/b', reason: 'It has uncommitted changes' }] }),
   dismissClone: () => ({ clones: [] }),
   newProject: async ({ name, parent }) => {
     if (name === 'taken') throw new ChatRefused('taken is already a project; choose another name');
@@ -370,6 +375,29 @@ test('projectWorktrees takes a folder and nothing else, and answers the main clo
   expect(await c.ask('{"id":1,"cmd":"projectWorktrees","folder":"/work/app"}')).toEqual({ id: 1, ok: true, data: { main: { path: '/work/app', branch: 'main' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] } });
   expect(await c.ask('{"id":2,"cmd":"projectWorktrees","folder":"/gone"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist' });
   const bad = ['{"id":10,"cmd":"projectWorktrees"}', '{"id":11,"cmd":"projectWorktrees","folder":""}', '{"id":12,"cmd":"projectWorktrees","folder":"/a","force":true}', `{"id":13,"cmd":"projectWorktrees","folder":"/${'a'.repeat(4096)}"}`];
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+});
+
+test('removeProjectWorktree takes a project folder and a worktree path, and cleanProjectWorktrees a folder and whether to run', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"removeProjectWorktree","folder":"/work/app","path":"/w/a"}')).toEqual({ id: 1, ok: true, data: {} });
+  expect(await c.ask('{"id":2,"cmd":"removeProjectWorktree","folder":"/work/app","path":"/open"}')).toEqual({ id: 2, ok: false, error: 'Its session is open' });
+  const removed = [{ path: '/w/a', bytes: 1024 }];
+  const skipped = [{ path: '/w/b', reason: 'It has uncommitted changes' }];
+  // asking without `run` only says what would go; the answer to `run` is what went
+  expect(await c.ask('{"id":3,"cmd":"cleanProjectWorktrees","folder":"/work/app"}')).toEqual({ id: 3, ok: true, data: { removed, skipped } });
+  expect(await c.ask('{"id":4,"cmd":"cleanProjectWorktrees","folder":"/work/app","run":true}')).toEqual({ id: 4, ok: true, data: { removed: [{ path: '/w/a', bytes: 2048 }], skipped } });
+  const bad = [
+    '{"id":10,"cmd":"removeProjectWorktree","folder":"/a"}',
+    '{"id":11,"cmd":"removeProjectWorktree","path":"/a"}',
+    '{"id":12,"cmd":"removeProjectWorktree","folder":"","path":"/a"}',
+    '{"id":13,"cmd":"removeProjectWorktree","folder":"/a","path":"/b","force":true}',
+    `{"id":14,"cmd":"removeProjectWorktree","folder":"/a","path":"/${'a'.repeat(4096)}"}`,
+    '{"id":15,"cmd":"cleanProjectWorktrees"}',
+    '{"id":16,"cmd":"cleanProjectWorktrees","folder":"/a","run":"yes"}',
+    '{"id":17,"cmd":"cleanProjectWorktrees","folder":"/a","run":true,"force":true}',
+  ];
   for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
 });
 

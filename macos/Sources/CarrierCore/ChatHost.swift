@@ -287,6 +287,12 @@ public protocol ChatHost {
     /// The worktrees of the project at `folder`: its main clone and each worktree git lists for it under Carrier's worktrees folder that is still on disk, with
     /// branch, session, age and state. Refused in words for a folder that is gone or not a repository. Only for a host whose hello lists `projects`.
     func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees
+    /// Removes only the folder of one worktree of the project at `folder`, keeping its branch and its session; refused in words while its session is open or it has
+    /// uncommitted changes. Only for a host whose hello lists `projects`.
+    func removeProjectWorktree(_ folder: String, path: String) async throws
+    /// What Clean up would remove from the project at `folder` (its merged worktrees nothing blocks, with the bytes each folder holds) and skip (with the reason);
+    /// with `run` it removes them and answers what it removed and skipped. Only for a host whose hello lists `projects`.
+    func cleanProjectWorktrees(_ folder: String, run: Bool) async throws -> ProjectCleanup
     /// Forgets a failed clone (one that is running stays) and answers the clones that are left. Only for a host whose hello lists `projects`.
     func dismissClone(_ repo: String) async throws -> [ProjectClone]
     /// Makes `<parent>/local/<name>` (the projects folder when `parent` is nil) with `git init` and registers it in `projects.json` with origin `created`; answers its
@@ -385,6 +391,8 @@ extension ChatHost {
     public func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone { throw ControlError.remote(projectsNeedNewerHost) }
     public func projectClones() async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
     public func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees { throw ControlError.remote(projectsNeedNewerHost) }
+    public func removeProjectWorktree(_ folder: String, path: String) async throws { throw ControlError.remote(projectsNeedNewerHost) }
+    public func cleanProjectWorktrees(_ folder: String, run: Bool) async throws -> ProjectCleanup { throw ControlError.remote(projectsNeedNewerHost) }
     public func dismissClone(_ repo: String) async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
     public func newProject(_ name: String, into parent: String?) async throws -> String { throw ControlError.remote(projectsNeedNewerHost) }
 
@@ -532,6 +540,23 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"folder\":\(jsonString(folder))"
         let path = socketPath()
         return try await Task.detached { try projectsRequest(path, "projectWorktrees", fields: fields) }.value
+    }
+
+    public func removeProjectWorktree(_ folder: String, path worktree: String) async throws {
+        // the host's own limits (src/chat/server.ts): neither empty nor over 4096 characters
+        if folder.isEmpty || folder.count > 4096 || worktree.isEmpty || worktree.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        let fields = ",\"folder\":\(jsonString(folder)),\"path\":\(jsonString(worktree))"
+        let path = socketPath()
+        // git removes the folder with what it ignores (dependencies, builds), which can take a while
+        let _: AnyReply = try await Task.detached { try projectsRequest(path, "removeProjectWorktree", fields: fields, timeout: 120) }.value
+    }
+
+    public func cleanProjectWorktrees(_ folder: String, run: Bool) async throws -> ProjectCleanup {
+        if folder.isEmpty || folder.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        let fields = ",\"folder\":\(jsonString(folder))" + (run ? ",\"run\":true" : "")
+        let path = socketPath()
+        // the host measures each folder before it answers, and removing them one by one takes as long as each takes
+        return try await Task.detached { try projectsRequest(path, "cleanProjectWorktrees", fields: fields, timeout: run ? 600 : 120) }.value
     }
 
     public func dismissClone(_ repo: String) async throws -> [ProjectClone] {
@@ -899,8 +924,8 @@ fileprivate func usageRequest<Reply: Decodable>(_ path: String, _ command: Strin
 }
 
 /// `chatRequest` for the `projects` capability, but a host that does not list it is told in the words of what to do about it.
-fileprivate func projectsRequest<Reply: Decodable>(_ path: String, _ command: String, fields: String = "") throws -> Reply {
-    do { return try chatRequest(path, command, requires: .projects, fields: fields) } catch ControlError.remote(let reason) where reason == "the chat host does not support \(command)" {
+fileprivate func projectsRequest<Reply: Decodable>(_ path: String, _ command: String, fields: String = "", timeout: TimeInterval = 5) throws -> Reply {
+    do { return try chatRequest(path, command, requires: .projects, fields: fields, timeout: timeout) } catch ControlError.remote(let reason) where reason == "the chat host does not support \(command)" {
         throw ControlError.remote(projectsNeedNewerHost)
     }
 }

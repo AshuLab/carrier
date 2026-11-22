@@ -151,3 +151,26 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     // a project the golden file does not list has its main clone and nothing else
     #expect(try await host.projectWorktrees(server.home + "/projects/notes") == .init(main: .init(path: server.home + "/projects/notes", branch: "main"), worktrees: []))
 }
+
+@Test func theFixtureChatHostRemovesAWorktreeAsTheHostDoesAndCleansUpTheMergedOnes() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let project = server.home + "/projects/carrier"
+    let worktree = { (name: String) in "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/" + name }
+    // an open session and uncommitted changes are refused with the host's words, and nothing is listed away
+    await #expect(throws: ControlError.remote("Its session is open")) { try await host.removeProjectWorktree(project, path: worktree("kerrigan")) }
+    await #expect(throws: ControlError.remote("It has uncommitted changes")) { try await host.removeProjectWorktree(project, path: worktree("zeratul")) }
+    await #expect(throws: ControlError.remote("That is not a worktree of this project")) { try await host.removeProjectWorktree(project, path: "/nowhere") }
+    #expect(try await host.projectWorktrees(project).worktrees.count == 5)
+
+    try await host.removeProjectWorktree(project, path: worktree("tassadar"))
+    #expect(try await host.projectWorktrees(project).worktrees.map(\.path).contains(worktree("tassadar")) == false)
+
+    let preview = try await host.cleanProjectWorktrees(project, run: false)
+    #expect(preview.removed.map(\.path) == [worktree("raynor")] && preview.skipped.map(\.path) == [worktree("zeratul")])
+    #expect(try await host.projectWorktrees(project).worktrees.count == 4) // a preview lists nothing away
+    #expect(try await host.cleanProjectWorktrees(project, run: true) == preview)
+    #expect(try await host.projectWorktrees(project).worktrees.count == 3)
+    #expect(try await host.cleanProjectWorktrees(project, run: false).removed.isEmpty)
+}

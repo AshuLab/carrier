@@ -104,6 +104,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     /// `owner/name` of its GitHub `origin`, when it has one.
     public let repo: String?
     public let pinned: Bool
+    /// Left out of the sheet New session opens (it stays in the sidebar and in this list).
+    public let hidden: Bool
     /// `notFound` when its folder is gone.
     public let status: ProjectStatus
     public let tags: [String]
@@ -123,6 +125,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         customName: String? = nil,
         repo: String?,
         pinned: Bool = false,
+        hidden: Bool = false,
         status: ProjectStatus = .ready,
         tags: [String] = [],
         iconColor: ProjectColor? = nil,
@@ -137,6 +140,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         self.customName = customName
         self.repo = repo
         self.pinned = pinned
+        self.hidden = hidden
         self.status = status
         self.tags = tags
         self.iconColor = iconColor
@@ -181,6 +185,7 @@ public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? =
             customName: $0.name,
             repo: remote($0.path),
             pinned: $0.pinned,
+            hidden: $0.hidden,
             status: exists($0.path) ? .ready : .notFound,
             tags: $0.tags,
             iconColor: $0.iconColor.flatMap(ProjectColor.init(rawValue:)),

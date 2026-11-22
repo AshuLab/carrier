@@ -428,7 +428,8 @@ describe.skipIf(!enabled)('the worktrees of a project, with the real git', () =>
 
     const { main, worktrees } = await s.projectWorktrees({ folder: base });
     const found = Object.fromEntries(worktrees.map((entry) => [entry.path, entry]));
-    expect(main).toEqual({ path: realpathSync(base), branch: 'main' });
+    // the project's only commit is held by a remote branch (the pushed worktree's)
+    expect(main).toEqual({ path: realpathSync(base), branch: 'main', state: 'clean' });
     expect(Object.keys(found).sort()).toEqual([clean, pushed, ahead, dirty, merged, live, orphan].map((entry) => entry.path).sort());
     expect(found[clean.path]).toMatchObject({ branch: clean.branch, session: { id: clean.id }, state: 'clean' });
     expect(found[pushed.path]).toMatchObject({ state: 'clean' });
@@ -440,6 +441,11 @@ describe.skipIf(!enabled)('the worktrees of a project, with the real git', () =>
     expect(found[orphan.path]).toMatchObject({ branch: null, session: null, state: 'clean', lastActiveAt: statSync(orphan.path).mtimeMs });
     // with a session the age is its last activity
     expect(found[clean.path]!.lastActiveAt).toBe(chatDb.select().from(sessions).where(eq(sessions.id, clean.id)).get()!.lastActiveAt);
+    // the main clone: a commit no remote holds is not pushed, a changed file is uncommitted (and wins over it)
+    git(base, 'commit', '-q', '--allow-empty', '-m', 'local only');
+    expect((await s.projectWorktrees({ folder: base })).main.state).toBe('notPushed');
+    writeFileSync(join(base, 'a.txt'), 'changed\n');
+    expect((await s.projectWorktrees({ folder: base })).main.state).toBe('uncommitted');
   });
 
   /** A project with one session per name, each in its own worktree and closed unless `live`. */

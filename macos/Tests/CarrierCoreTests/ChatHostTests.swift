@@ -683,7 +683,7 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.path })
     let listed = try await host.projectWorktrees("/w \"x\"")
-    #expect(listed.main == .init(path: "/Users/dev/projects/carrier", branch: "main"))
+    #expect(listed.main == .init(path: "/Users/dev/projects/carrier", branch: "main", state: .notPushed))
     #expect(listed.worktrees.map(\.state) == [.sessionOpen, .merged, .uncommitted, .notPushed, .clean])
     #expect(listed.worktrees[3].session == .init(id: "s-ahead") && listed.worktrees[4].session == nil)
     let sent = try #require(try JSONSerialization.jsonObject(with: Data(wire.all[0].utf8)) as? [String: Any])

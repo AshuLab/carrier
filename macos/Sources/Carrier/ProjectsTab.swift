@@ -365,6 +365,10 @@ private struct ProjectDetailView: View {
     let moved: (String) -> Void
     @Environment(\.settingsHeaderAction) private var headerAction
     @State private var confirmingRemove = false
+    /// A project Carrier made asks first whether its files go too (docs/adr/0040); the question the host's fresh answer or the Trash raised, and whether the move is under way.
+    @State private var choosingRemove = false
+    @State private var deletionAsk: DeletionAsk?
+    @State private var deleting = false
     @State private var owner = UUID()
     @State private var pickingIcon = false
     @State private var newTag = ""
@@ -467,9 +471,9 @@ private struct ProjectDetailView: View {
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                     }
                 }
-                SettingsTabRow(title: "Remove", detail: "Takes \(row.name) out of Carrier; its folder and worktrees stay") {
-                    Button(role: .destructive) { confirmingRemove = true } label: { Label("Remove…", icon: .trash) }
-                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                SettingsTabRow(title: "Remove", detail: canDeleteFromDisk(origin: row.origin) ? "Takes \(row.name) out of Carrier, and its files too if you choose" : "Takes \(row.name) out of Carrier; its folder and worktrees stay") {
+                    Button(role: .destructive) { canDeleteFromDisk(origin: row.origin) ? (choosingRemove = true) : (confirmingRemove = true) } label: { Label("Remove…", icon: .trash) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(deleting)
                 }
             }
         }
@@ -480,6 +484,19 @@ private struct ProjectDetailView: View {
             Button("Remove", role: .destructive) { if model.remove(path: row.path) { close() } }
         } message: {
             Text(projectRemovalWords)
+        }
+        .confirmationDialog("Remove \(row.name)?", isPresented: $choosingRemove, titleVisibility: .visible) {
+            Button("Remove from Carrier") { if model.remove(path: row.path) { close() } }
+            Button("Also delete from disk", role: .destructive) { Task { await deleteFromDisk(confirmed: false) } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("\(projectRemovalWords)\n\nAlso delete from disk: \(deleteFromDiskWords(worktrees: worktrees?.worktrees.count ?? 0, bytes: model.disk[(row.path as NSString).expandingTildeInPath]?.bytes))")
+        }
+        .alert(deletionAsk?.title ?? "", isPresented: Binding(get: { deletionAsk != nil }, set: { if $0 == false { deletionAsk = nil } }), presenting: deletionAsk) { ask in
+            Button(ask.canConfirm ? "Cancel" : "OK", role: .cancel) {}
+            if ask.canConfirm { Button("Move to the Trash anyway", role: .destructive) { Task { await deleteFromDisk(confirmed: true) } } }
+        } message: { ask in
+            Text(ask.message)
         }
         .alert(cleanup.flatMap(cleanUpWords).map { "Clean up \($0)?" } ?? "Clean up", isPresented: $confirmingCleanup) {
             Button("Cancel", role: .cancel) {}
@@ -599,6 +616,36 @@ private struct ProjectDetailView: View {
         case .merged: .green
         case .uncommitted, .notPushed: .orange
         case .clean: .secondary
+        }
+    }
+
+    /// The question or refusal that stops deleting a project from disk: `canConfirm` when it is unsaved work the person may accept, and not when it is a session that is open or a failure.
+    private struct DeletionAsk {
+        let title: String
+        let message: String
+        var canConfirm = false
+    }
+
+    /// Asks the host again just now (`deletionCheck`) and goes on only when nothing refuses and the unsaved work, if any, was confirmed; a failed move leaves everything where it was.
+    private func deleteFromDisk(confirmed: Bool) async {
+        deleting = true
+        defer { deleting = false }
+        do {
+            let (check, folders) = try await model.deletionCheck(of: row.path)
+            if check.canGoOn == false {
+                deletionAsk = DeletionAsk(title: "\(row.name) cannot be deleted yet", message: "\(check.refusals.joined(separator: "\n"))\n\nClose the sessions of the project first. Nothing was deleted.")
+            } else if check.needsConfirmation && confirmed == false {
+                deletionAsk = DeletionAsk(title: "\(row.name) has work that is not saved", message: "\(check.unsaved.joined(separator: "\n"))\n\nMoving it to the Trash keeps it there until the Trash is emptied.", canConfirm: true)
+            } else {
+                try model.deleteFromDisk(path: row.path, worktrees: folders)
+                close()
+            }
+        } catch ControlError.remote(let words) {
+            deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: words)
+        } catch let error as ProjectTrashError {
+            deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: error.words)
+        } catch {
+            deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: "The chat host did not answer. Nothing was deleted.")
         }
     }
 

@@ -108,6 +108,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public let hidden: Bool
     /// `notFound` when its folder is gone.
     public let status: ProjectStatus
+    /// How it came to be: `cloned` and `created` are what Carrier made, `added` a folder the person brought (docs/adr/0040).
+    public let origin: String
     public let tags: [String]
     public let iconColor: ProjectColor?
     public let iconMark: AppIcon?
@@ -131,6 +133,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         pinned: Bool = false,
         hidden: Bool = false,
         status: ProjectStatus = .ready,
+        origin: String = "added",
         tags: [String] = [],
         iconColor: ProjectColor? = nil,
         iconMark: AppIcon? = nil,
@@ -147,6 +150,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         self.pinned = pinned
         self.hidden = hidden
         self.status = status
+        self.origin = origin
         self.tags = tags
         self.iconColor = iconColor
         self.iconMark = iconMark
@@ -195,6 +199,7 @@ public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? =
             pinned: $0.pinned,
             hidden: $0.hidden,
             status: exists($0.path) ? .ready : .notFound,
+            origin: $0.origin,
             tags: $0.tags,
             iconColor: $0.iconColor.flatMap(ProjectColor.init(rawValue:)),
             iconMark: $0.iconMark.flatMap(AppIcon.init(rawValue:)),
@@ -476,6 +481,25 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
     /// What Clean up would remove from a project and skip, or with `run` what it removed and skipped.
     public func cleanUpWorktrees(of path: String, run: Bool) async throws -> ProjectCleanup {
         try await host.cleanProjectWorktrees((path as NSString).expandingTildeInPath, run: run)
+    }
+
+    /// Asks the host again, just now, what a project holds and which sessions it has, and what that says of deleting it from disk (`projectDeletionCheck`);
+    /// `worktrees` are the folders the Trash move takes with the project's. Throws the host's words when it cannot answer: nothing is deleted on a guess.
+    public func deletionCheck(of path: String) async throws -> (check: ProjectDeletionCheck, worktrees: [String]) {
+        let reply = try await worktrees(of: path)
+        let sessions = try await host.list(archived: false)
+        return (projectDeletionCheck(path: path, reply: reply, sessions: sessions), reply.worktrees.map(\.path))
+    }
+
+    /// Moves the project's folder and `worktrees` to the Trash and, only when that worked, takes the project out of the list. A folder that cannot be moved
+    /// throws its reason and leaves the project, its folders and the sessions as they were.
+    public func deleteFromDisk(path: String, worktrees: [String], trash: (URL) throws -> URL = systemTrash) throws {
+        // the question only offers it for what Carrier made, and this is the last place that can say no
+        guard let entry = rows.first(where: { $0.path == path }), canDeleteFromDisk(origin: entry.origin) else {
+            throw ProjectTrashError(words: "Carrier only deletes the projects it made, so nothing was deleted")
+        }
+        try moveProjectToTrash(path: path, worktrees: worktrees, carrierFolder: file.folder, home: home, trash: trash)
+        remove(path: path)
     }
 
     /// The rows of the clones that are running or failed, to show among the projects: they are not projects yet.

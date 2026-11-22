@@ -203,8 +203,33 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
    */
   const folderOf = async (found: typeof sessions.$inferSelect) => {
     await clearing.get(found.id)?.catch(() => undefined); // its failure is the clock's to log; what it left is looked at below
-    if (found.workspaceKind === 'worktree') await restoreWorktree(git, worktreeOf(found));
+    if (found.workspaceKind === 'worktree') {
+      const cleaned = existsSync(found.worktreePath!) === false;
+      await restoreWorktree(git, worktreeOf(found));
+      if (cleaned) await runRestoreActions(found);
+    }
     return checkFolder(found.folder, carrierHome());
+  };
+  /**
+   * The new-worktree actions of the project in a folder just brought back (ADR 0039), as the `action` steps of a preparation: the same progress and failure, and Cancel aborts the
+   * one that runs. When one stops the session or the person cancels, the folder is cleaned again so the next open brings it back and every action runs from the start.
+   * ponytail: the actions that had finished run again after a stop; skipping them needs a marker on the session, add it when a slow action makes that hurt.
+   */
+  const runRestoreActions = async (found: typeof sessions.$inferSelect) => {
+    const file = readProjectsFile();
+    const abort = new AbortController();
+    restoring.set(found.id, abort);
+    const after = db.select({ id: chatEvents.id }).from(chatEvents).where(eq(chatEvents.sessionId, found.id)).orderBy(desc(chatEvents.id)).limit(1).get()?.id ?? 0;
+    try {
+      if (await runActions(found.id, file, found.worktreeBase!, 'newWorktree', found.worktreePath!, abort.signal, after)) return;
+    } finally {
+      restoring.delete(found.id);
+      progress.delete(found.id);
+      told.delete(found.id);
+    }
+    await clearWorktree(git, worktreeOf(found)).catch((error) => log.error('cleaning a restored worktree again after a stopped action failed', error));
+    const stopped = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, found.id), eq(chatEvents.kind, 'step'), gt(chatEvents.id, after))).orderBy(desc(chatEvents.id)).limit(1).get()?.data;
+    throw new ChatRefused(abort.signal.aborted ? 'Setting up the worktree was cancelled; open the session again to bring it back' : `${stopped?.detail ?? 'An action failed'}. Open the session again to try the worktree's actions again`);
   };
 
   /** The cleanup of `chat.json`'s `worktreeCleanup`: removes the folder of an idle session's worktree whose PR is merged or that is archived and has had no activity for `afterInactiveDays`, never one with uncommitted work, and keeps its branch. */
@@ -348,6 +373,8 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   const preparing = new Map<string, { abort: AbortController; done: Promise<void> }>();
   // The latest line of git's progress for the clone of a session that is cloning: shown by `events`, never stored.
   const progress = new Map<string, string>();
+  // Sessions whose cleaned worktree is coming back and whose actions run: `cancelPreparation` aborts the one that runs.
+  const restoring = new Map<string, AbortController>();
   // Sessions whose preparation told that `projects.json` did not match, so a retry or a second moment does not say it again.
   const told = new Set<string>();
   const stepEvent = (sessionId: string, step: Step, status: StepEvent['status'], detail?: string, action?: Pick<StepEvent, 'action' | 'when'>) => store(sessionId, { kind: 'step', step, status, ...(detail !== undefined && { detail }), ...action });
@@ -749,7 +776,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
    * A failure that warns leaves its step done with a notice, one that stops fails the step. False once the preparation must not go on (a stop, or the person left).
    * ponytail: two actions of one moment with the same name count as one in a retry and in the app's list; the app's page can refuse a repeated name when that bites.
    */
-  async function runActions(sessionId: string, file: ReturnType<typeof readProjectsFile>, base: string, when: ActionWhen, folder: string, signal: AbortSignal): Promise<boolean> {
+  async function runActions(sessionId: string, file: ReturnType<typeof readProjectsFile>, base: string, when: ActionWhen, folder: string, signal: AbortSignal, after = 0): Promise<boolean> {
     if (file.ok === false) {
       // a notice once a preparation: the file's problem, and that an action that would have run did not
       if (told.has(sessionId) === false) store(sessionId, { kind: 'notice', text: `This project's actions did not run: projects.json ${file.errors[0]!.path} ${file.errors[0]!.message}.` });
@@ -760,7 +787,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     const todo = (file.projects.find((entry) => same(entry.path))?.actions ?? []).filter((action) => action.when === when && action.on !== false);
     for (const action of todo) {
       const label = { action: clean(action.name, chatCaps.title), when };
-      const finished = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).all().find((event) => event.data.step === 'action' && event.data.action === label.action && event.data.when === when);
+      const finished = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).all().find((event) => event.id > after && event.data.step === 'action' && event.data.action === label.action && event.data.when === when);
       if (finished?.data.status === 'done') continue;
       stepEvent(sessionId, 'action', 'running', undefined, label);
       const result = await shell.run(folder, action.command, { env: { ...env, CARRIER_PROJECT: base, CARRIER_FOLDER: folder }, signal, onProgress: (line) => void progress.set(sessionId, clean(line, chatCaps.preview)) });
@@ -1125,7 +1152,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   }
 
   return {
-    liveCount: () => new Set([...lives.keys(), ...preparing.keys()]).size,
+    liveCount: () => new Set([...lives.keys(), ...preparing.keys(), ...restoring.keys()]).size,
 
     agents: listAgents,
 
@@ -1252,6 +1279,11 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
 
     /** Stops the step that is running and deletes the session as a delete does, its worktree with it; answers the plan, for the app to put back in the draft. */
     async cancelPreparation({ sessionId }: { sessionId: string }) {
+      const restore = restoring.get(sessionId);
+      if (restore !== undefined) {
+        restore.abort(); // a worktree coming back: the session stays, only the action that runs stops
+        return { plan: null };
+      }
       const { state, plan } = row(sessionId);
       if (state !== 'preparing') throw new ChatRefused('This session is not being prepared, so there is nothing to cancel');
       deleting.add(sessionId); // a retry or a resume that comes in meanwhile is refused

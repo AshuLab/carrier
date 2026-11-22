@@ -221,7 +221,7 @@ struct NewProjectReply: Decodable { let folder: String }
 
 /// What a person is told when the chat host that is running is older than the app and has no projects requests: the app replaces an older host when
 /// no session is working, so the way out is to finish the work and restart the host.
-public let projectsNeedNewerHost = "The chat host that is running is older than this app and cannot clone projects. Restart the chat host (when no session is working) to use it."
+public let projectsNeedNewerHost = "The chat host that is running is older than this app and cannot manage projects. Restart the chat host (when no session is working) to use it."
 
 /// The reply of `repoBranches`: the default branch of a repository that need not be on disk and its branches (the first hundred, as GitHub lists
 /// them), and whether there are more.
@@ -284,6 +284,9 @@ public protocol ChatHost {
     func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone
     /// The clones started from Settings that are running or failed. Only for a host whose hello lists `projects`.
     func projectClones() async throws -> [ProjectClone]
+    /// The worktrees of the project at `folder`: its main clone and each worktree git lists for it under Carrier's worktrees folder that is still on disk, with
+    /// branch, session, age and state. Refused in words for a folder that is gone or not a repository. Only for a host whose hello lists `projects`.
+    func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees
     /// Forgets a failed clone (one that is running stays) and answers the clones that are left. Only for a host whose hello lists `projects`.
     func dismissClone(_ repo: String) async throws -> [ProjectClone]
     /// Makes `<parent>/local/<name>` (the projects folder when `parent` is nil) with `git init` and registers it in `projects.json` with origin `created`; answers its
@@ -381,6 +384,7 @@ extension ChatHost {
     /// A host that has no projects requests says it is older and to restart it.
     public func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone { throw ControlError.remote(projectsNeedNewerHost) }
     public func projectClones() async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
+    public func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees { throw ControlError.remote(projectsNeedNewerHost) }
     public func dismissClone(_ repo: String) async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
     public func newProject(_ name: String, into parent: String?) async throws -> String { throw ControlError.remote(projectsNeedNewerHost) }
 
@@ -520,6 +524,14 @@ public struct SocketChatHost: ChatHost {
     public func projectClones() async throws -> [ProjectClone] {
         let path = socketPath()
         return try await Task.detached { (try projectsRequest(path, "projectClones") as ProjectClonesReply).clones }.value
+    }
+
+    public func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees {
+        // the host's own limit (src/chat/server.ts): a folder that is not empty or over 4096 characters
+        if folder.isEmpty || folder.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        let fields = ",\"folder\":\(jsonString(folder))"
+        let path = socketPath()
+        return try await Task.detached { try projectsRequest(path, "projectWorktrees", fields: fields) }.value
     }
 
     public func dismissClone(_ repo: String) async throws -> [ProjectClone] {

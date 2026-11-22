@@ -67,6 +67,7 @@ export const chatRequest = z.union([
   // the `projects` capability: what the Projects page asks of the host
   z.strictObject({ id, cmd: z.literal('cloneProject'), repo: z.string().regex(repoNamePattern), parent: z.string().min(1).max(4096).optional() }),
   z.strictObject({ id, cmd: z.literal('projectClones') }),
+  z.strictObject({ id, cmd: z.literal('projectWorktrees'), folder: z.string().min(1).max(4096) }),
   z.strictObject({ id, cmd: z.literal('dismissClone'), repo: z.string().regex(repoNamePattern) }),
   z.strictObject({ id, cmd: z.literal('newProject'), name: z.string().regex(projectNamePattern), parent: z.string().min(1).max(4096).optional() }),
   z.strictObject({ id, cmd: z.literal('createProject'), name: z.string().regex(projectNamePattern) }),
@@ -120,6 +121,8 @@ export type ChatControls = {
   cloneProject(args: Args<'cloneProject'>): unknown;
   /** The clones started from Settings that are running or failed, with git's latest progress line or the reason. */
   projectClones(): unknown;
+  /** A project's main clone and the worktrees git lists for its folder that lie under the worktrees folder, each with its branch, session, age and state. */
+  projectWorktrees(args: Args<'projectWorktrees'>): Promise<unknown>;
   /** Forgets a failed clone; answers the clones that are left. */
   dismissClone(args: Args<'dismissClone'>): unknown;
   /** Makes `<parent>/local/<name>` with `git init` and registers it as a project with origin `created`; answers its folder. */
@@ -191,6 +194,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.cloneProject({ repo: request.repo, parent: request.parent });
     case 'projectClones':
       return controls.projectClones();
+    case 'projectWorktrees':
+      return controls.projectWorktrees({ folder: request.folder });
     case 'dismissClone':
       return controls.dismissClone({ repo: request.repo });
     case 'newProject':

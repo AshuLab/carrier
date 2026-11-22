@@ -65,6 +65,10 @@ const controls = (): ChatControls => ({
     return { repo, folder: `${parent ?? '/projects'}/${repo}`, state: 'cloning' };
   },
   projectClones: () => ({ clones: [{ repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning', progress: 'Receiving objects: 45%' }] }),
+  projectWorktrees: async ({ folder }) => {
+    if (folder === '/gone') throw new ChatRefused('That folder does not exist');
+    return { main: { path: folder, branch: 'main' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] };
+  },
   dismissClone: () => ({ clones: [] }),
   newProject: async ({ name, parent }) => {
     if (name === 'taken') throw new ChatRefused('taken is already a project; choose another name');
@@ -357,6 +361,15 @@ test('the projects requests: a clone starts and answers at once, the clones in f
     '{"id":15,"cmd":"dismissClone"}',
     '{"id":16,"cmd":"dismissClone","repo":"a/b/c"}',
   ];
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+});
+
+test('projectWorktrees takes a folder and nothing else, and answers the main clone and the worktrees', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"projectWorktrees","folder":"/work/app"}')).toEqual({ id: 1, ok: true, data: { main: { path: '/work/app', branch: 'main' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] } });
+  expect(await c.ask('{"id":2,"cmd":"projectWorktrees","folder":"/gone"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist' });
+  const bad = ['{"id":10,"cmd":"projectWorktrees"}', '{"id":11,"cmd":"projectWorktrees","folder":""}', '{"id":12,"cmd":"projectWorktrees","folder":"/a","force":true}', `{"id":13,"cmd":"projectWorktrees","folder":"/${'a'.repeat(4096)}"}`];
   for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
 });
 

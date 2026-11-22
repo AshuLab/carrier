@@ -623,3 +623,36 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).newProject("my-app", into: nil) }
     #expect(asked == false)
 }
+
+@Test func theProjectWorktreesRequestGoesOnTheWireAndTheGoldenReplyDecodes() async throws {
+    let wire = Asked()
+    let golden = try String(contentsOfFile: fixtures + "/chat-project-worktrees.json", encoding: .utf8)
+    let carrier = try #require(try JSONSerialization.jsonObject(with: Data(golden.utf8)) as? [String: Any])["carrier"] as Any
+    let reply = String(decoding: try JSONSerialization.data(withJSONObject: carrier), as: UTF8.self)
+    let server = TestServer { connection in
+        connection.send(hello("\"projects\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        wire.add(line)
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(reply)}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    let listed = try await host.projectWorktrees("/w \"x\"")
+    #expect(listed.main == .init(path: "/Users/dev/projects/carrier", branch: "main"))
+    #expect(listed.worktrees.map(\.state) == [.sessionOpen, .merged, .uncommitted, .notPushed, .clean])
+    #expect(listed.worktrees[3].session == .init(id: "s-ahead") && listed.worktrees[4].session == nil)
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(wire.all[0].utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "projectWorktrees" && sent["folder"] as? String == "/w \"x\"" && sent.keys.sorted() == ["cmd", "folder", "id"])
+    // what the host would refuse never goes out
+    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.projectWorktrees("") }
+
+    // a host without the capability is told it is older, and is sent nothing
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).projectWorktrees("/w") }
+    #expect(asked == false)
+}

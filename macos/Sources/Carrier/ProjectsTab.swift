@@ -340,6 +340,13 @@ private struct ProjectDetailView: View {
     @State private var newTag = ""
     @State private var worktrees: ProjectWorktrees?
     @State private var worktreesProblem: String?
+    /// What Clean up would take, asked when the page has a merged worktree; nil while it is not known.
+    @State private var cleanup: ProjectCleanup?
+    @State private var confirmingCleanup = false
+    /// The worktrees whose Remove is running (or Clean up's), the reason the host refused each one, and what the last Clean up did.
+    @State private var removing: Set<String> = []
+    @State private var removeProblems: [String: String] = [:]
+    @State private var cleanUpNote: String?
 
     var body: some View {
         let exists = row.status == .ready
@@ -439,6 +446,12 @@ private struct ProjectDetailView: View {
         } message: {
             Text(projectRemovalWords)
         }
+        .alert(cleanup.flatMap(cleanUpWords).map { "Clean up \($0)?" } ?? "Clean up", isPresented: $confirmingCleanup) {
+            Button("Cancel", role: .cancel) {}
+            Button("Clean up", role: .destructive) { Task { await runCleanup() } }
+        } message: {
+            Text(cleanUpQuestionWords)
+        }
         .task(id: row.path) { await loadWorktrees() }
         .onAppear(perform: publishPin)
         .onChange(of: row.pinned) { publishPin() }
@@ -451,9 +464,28 @@ private struct ProjectDetailView: View {
         SettingsGroup(title: "Worktrees and disk", footer: "The worktrees Carrier made for sessions of this project.") {
             if let worktrees {
                 ForEach(Array(worktreeRows(worktrees, now: Date()).enumerated()), id: \.element.id) { index, item in
-                    SettingsTabRow(title: item.branch, detail: item.detail, first: index == 0, mono: true) {
-                        if let state = item.state, let kind = item.kind { StatusChip(text: state, tint: worktreeTint(kind)) }
+                    SettingsTabRow(title: item.branch, detail: item.detail, first: index == 0, mono: true, problem: removeProblems[item.id]) {
+                        HStack(spacing: 8) {
+                            if let state = item.state, let kind = item.kind { StatusChip(text: state, tint: worktreeTint(kind)) }
+                            if item.hasRemove {
+                                Button { Task { await removeWorktree(item.id) } } label: { Label("Remove", icon: .trash) }
+                                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                                    .disabled(item.removeBlockedBy != nil || removing.contains(item.id))
+                                    .help(item.removeBlockedBy ?? "Removes this worktree's folder; its branch and its session stay")
+                                    .accessibilityLabel("Remove the worktree \(item.branch)")
+                            }
+                        }
                     }
+                }
+                if let cleanup, let words = cleanUpWords(cleanup) {
+                    SettingsTabRow(title: "Clean up", detail: "Merged worktrees nothing blocks: \(words)") {
+                        Button { confirmingCleanup = true } label: { Label("Clean up", icon: .trash) }
+                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                            .disabled(removing.isEmpty == false)
+                    }
+                }
+                if let cleanUpNote {
+                    SettingsTabRow(title: "Last clean up", detail: cleanUpNote) { EmptyView() }
                 }
             } else if let worktreesProblem {
                 SettingsTabRow(title: "Worktrees", detail: "", first: true, problem: worktreesProblem) { EmptyView() }
@@ -462,6 +494,9 @@ private struct ProjectDetailView: View {
             }
         }
     }
+
+    /// What the alert of Clean up says it takes and leaves.
+    private var cleanUpQuestionWords: String { "Their folders go, with what git ignores in them. Their branches and their sessions stay, and a session's next message brings its folder back." }
 
     private func worktreeTint(_ state: ProjectWorktree.State) -> Color {
         switch state {
@@ -475,13 +510,47 @@ private struct ProjectDetailView: View {
     private func loadWorktrees() async {
         guard row.status == .ready else { return }
         do {
-            worktrees = try await model.worktrees(of: row.path)
+            let listed = try await model.worktrees(of: row.path)
+            worktrees = listed
             worktreesProblem = nil
+            // measuring what Clean up takes walks the folders, so only a project with a merged worktree asks
+            cleanup = listed.worktrees.contains { $0.state == .merged } ? try? await model.cleanUpWorktrees(of: row.path, run: false) : nil
         } catch ControlError.remote(let words) {
             worktreesProblem = words
         } catch {
             worktreesProblem = "The chat host did not answer."
         }
+    }
+
+    /// Removes one worktree's folder; the host's reason for refusing it stays in that row until the next try.
+    private func removeWorktree(_ path: String) async {
+        removing.insert(path)
+        defer { removing.remove(path) }
+        do {
+            try await model.removeWorktree(path, of: row.path)
+            removeProblems[path] = nil
+            cleanUpNote = nil
+        } catch ControlError.remote(let words) {
+            removeProblems[path] = words
+        } catch {
+            removeProblems[path] = "The chat host did not answer."
+        }
+        await loadWorktrees()
+    }
+
+    private func runCleanup() async {
+        guard let cleanup else { return }
+        removing = Set(cleanup.removed.map(\.path))
+        defer { removing = [] }
+        do {
+            cleanUpNote = cleanUpReport(try await model.cleanUpWorktrees(of: row.path, run: true))
+            removeProblems = [:]
+        } catch ControlError.remote(let words) {
+            cleanUpNote = words
+        } catch {
+            cleanUpNote = "The chat host did not answer."
+        }
+        await loadWorktrees()
     }
 
     /// The system's folder panel for the project's new place; the folder goes through the check for folders that cannot be projects before the path is replaced.

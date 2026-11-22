@@ -656,3 +656,44 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).projectWorktrees("/w") }
     #expect(asked == false)
 }
+
+@Test func theRemoveAndCleanUpRequestsGoOnTheWireAndTheGoldenReplyDecodes() async throws {
+    let wire = Asked()
+    let golden = try String(contentsOfFile: fixtures + "/chat-project-cleanup.json", encoding: .utf8)
+    let carrier = try #require(try JSONSerialization.jsonObject(with: Data(golden.utf8)) as? [String: Any])["carrier"] as Any
+    let reply = String(decoding: try JSONSerialization.data(withJSONObject: carrier), as: UTF8.self)
+    let server = TestServer { connection in
+        connection.send(hello("\"projects\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        wire.add(line)
+        let cmd = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["cmd"] as? String
+        connection.send(cmd == "removeProjectWorktree" ? "{\"id\":\(id),\"ok\":false,\"error\":\"It has uncommitted changes\"}\n" : "{\"id\":\(id),\"ok\":true,\"data\":\(reply)}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    let preview = try await host.cleanProjectWorktrees("/p/app", run: false)
+    #expect(cleanUpWords(preview) == "1 worktree, \(ByteCountFormatter.string(fromByteCount: 1_288_490_189, countStyle: .file))" && preview.skipped.map(\.reason) == ["It has uncommitted changes"])
+    _ = try await host.cleanProjectWorktrees("/p/app", run: true)
+    await #expect(throws: ControlError.remote("It has uncommitted changes")) { try await host.removeProjectWorktree("/p/app", path: "/w/a \"x\"") }
+    // what the host would refuse never goes out
+    await #expect(throws: ControlError.remote("That folder cannot be used")) { try await host.removeProjectWorktree("/p/app", path: "") }
+    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.cleanProjectWorktrees("", run: true) }
+
+    let sent = try wire.all.map { try #require(try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]) }
+    #expect(sent.count == 3)
+    #expect(sent[0].keys.sorted() == ["cmd", "folder", "id"] && sent[0]["cmd"] as? String == "cleanProjectWorktrees")
+    #expect(sent[1].keys.sorted() == ["cmd", "folder", "id", "run"] && sent[1]["run"] as? Bool == true)
+    #expect(sent[2].keys.sorted() == ["cmd", "folder", "id", "path"] && sent[2]["path"] as? String == "/w/a \"x\"" && sent[2]["cmd"] as? String == "removeProjectWorktree")
+
+    // a host without the capability is told it is older, and is sent nothing
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    let oldHost = SocketChatHost(socketPath: { older.path })
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { try await oldHost.removeProjectWorktree("/p/app", path: "/w") }
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await oldHost.cleanProjectWorktrees("/p/app", run: false) }
+    #expect(asked == false)
+}

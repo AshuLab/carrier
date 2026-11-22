@@ -428,6 +428,16 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
         try await host.projectWorktrees((path as NSString).expandingTildeInPath)
     }
 
+    /// Removes the folder of one worktree of a project (the host keeps its branch and its session); throws the host's words when it refuses.
+    public func removeWorktree(_ worktree: String, of path: String) async throws {
+        try await host.removeProjectWorktree((path as NSString).expandingTildeInPath, path: worktree)
+    }
+
+    /// What Clean up would remove from a project and skip, or with `run` what it removed and skipped.
+    public func cleanUpWorktrees(of path: String, run: Bool) async throws -> ProjectCleanup {
+        try await host.cleanProjectWorktrees((path as NSString).expandingTildeInPath, run: run)
+    }
+
     /// The rows of the clones that are running or failed, to show among the projects: they are not projects yet.
     public var cloneRows: [ProjectRow] { clones.map(ProjectRow.init(clone:)) }
 

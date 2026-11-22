@@ -977,26 +977,49 @@ private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: Str
     #expect(Set(preparationOutline(rows).map(\.id)).count == preparationOutline(rows).count)
 }
 
-@Test func aRestoreListsOnlyTheActionsThatEndTheLogAndNotTheStepsOfEarlierTurns() {
+@Test func aRestoreListsOnlyTheStepsFromItsWorktreeMarkerThatEndTheLogAndNotTheStepsOfEarlierTurns() {
     let log = [
-        step(1, "worktree", "done"), actionStep(2, "Install", "newWorktree", "done"), step(3, "agent", "done"), step(4, "message", "done"), say(5),
-        actionStep(6, "Install", "newWorktree", "done"), ChatEvent(id: 7, at: 7, kind: "notice", text: "x"), actionStep(7 + 1, "Copy env", "newWorktree", "running"),
+        step(1, "worktree", "running"), step(2, "worktree", "done"), actionStep(3, "Install", "newWorktree", "done"), step(4, "agent", "done"), step(5, "message", "done"), say(6),
+        step(7, "worktree", "running"), step(8, "worktree", "done"), actionStep(9, "Install", "newWorktree", "done"), ChatEvent(id: 10, at: 10, kind: "notice", text: "x"),
+        actionStep(11, "Copy env", "newWorktree", "running"),
     ]
     let restore = preparationSteps(log, preparation: .running, progress: "copying", restoring: true)
-    #expect(restore.map(\.line) == ["Ran Install", "Running Copy env…"] && restore.map(\.progress) == [nil, "copying"])
+    #expect(restore.map(\.line) == ["Made the worktree", "Ran Install", "Running Copy env…"] && restore.map(\.progress) == [nil, nil, "copying"])
     // the same log read as a preparation lists every step, as before
     #expect(preparationSteps(log, preparation: .running).map(\.step) == ["worktree", "action", "agent", "message", "action"])
-    // a restore whose first action has not started has nothing to list
-    #expect(preparationSteps(Array(log.prefix(5)), preparation: .running, restoring: true).isEmpty)
+    // a restore whose first action has not started lists the worktree row, and the steps of the turns before it are not its own
+    #expect(preparationSteps(Array(log.prefix(7)), preparation: .running, restoring: true).map(\.line) == ["Making the worktree…"])
+    #expect(preparationSteps(Array(log.prefix(8)), preparation: .running, restoring: true).map(\.line) == ["Made the worktree"])
+    // a restore whose worktree could not come back says why
+    let failed = preparationSteps(Array(log.prefix(6)) + [step(7, "worktree", "running"), step(8, "worktree", "failed", "gone")], preparation: .running, restoring: true)
+    #expect(failed.map(\.status) == [.failed] && failed.first?.reason == "gone")
+}
+
+@Test func restoresOneAfterTheOtherListOnlyTheLastAndOneThatGoesOnKeepsTheFirstTrysFinishedActions() {
+    // two restores with no other step between them: only the last one's rows
+    let back = [
+        step(1, "worktree", "running"), step(2, "worktree", "done"), actionStep(3, "Install", "newWorktree", "done"), actionStep(4, "Old only", "newWorktree", "done"),
+        step(5, "worktree", "running"), step(6, "worktree", "done"), actionStep(7, "Install", "newWorktree", "running"),
+    ]
+    #expect(preparationSteps(back, preparation: .running, restoring: true).map(\.line) == ["Made the worktree", "Running Install…"])
+    // a restore that stopped and goes on has the one marker of its first try, and the actions it finished still show
+    let resumed = [step(1, "message", "done"), step(2, "worktree", "running"), step(3, "worktree", "done"), actionStep(4, "Install", "newWorktree", "done"), actionStep(5, "Copy env", "newWorktree", "failed"), actionStep(6, "Copy env", "newWorktree", "running")]
+    #expect(preparationSteps(resumed, preparation: .running, restoring: true).map(\.line) == ["Made the worktree", "Ran Install", "Running Copy env…"])
+    // a log from before the marker: the trailing actions, as they were
+    let old = [step(1, "message", "done"), actionStep(2, "Install", "newWorktree", "done"), actionStep(3, "Copy env", "newWorktree", "running")]
+    #expect(preparationSteps(old, preparation: .running, restoring: true).map(\.line) == ["Ran Install", "Running Copy env…"])
 }
 
 @MainActor @Test func theModelScopesTheStepsToTheRestoreWhenTheSessionIsNotPreparingButItsPreparationRuns() async {
     let host = ScriptedHost()
     host.preparation = .running
-    host.events = [step(1, "agent", "done"), step(2, "message", "done"), say(3), actionStep(4, "Install", "newWorktree", "running")]
+    host.events = [step(1, "agent", "done"), step(2, "message", "done"), say(3), step(4, "worktree", "running")]
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
     await model.poll()
-    #expect(model.steps.map(\.line) == ["Running Install…"])
+    #expect(model.steps.map(\.line) == ["Making the worktree…"])
+    host.events += [step(5, "worktree", "done"), actionStep(6, "Install", "newWorktree", "running")]
+    await model.poll()
+    #expect(model.steps.map(\.line) == ["Made the worktree", "Running Install…"])
 }
 
 @Test func theListEndsWhenTheSessionIsNotBeingPreparedAnyMoreOrTheHostSaysNothing() {

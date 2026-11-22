@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -4375,7 +4375,7 @@ test('resuming a session whose worktree folder was cleaned runs the new-worktree
   const opened = s.claude.opened.length;
   s.shell.lines.set('pnpm install', ['resolving']);
   await s.sessions.resume({ sessionId: one.id });
-  expect(actionStepsOf(s, one.id)).toEqual(['action:Install:running', 'action:Install:done', 'action:Env:running', 'action:Env:done']);
+  expect(actionStepsOf(s, one.id)).toEqual(['worktree:running', 'worktree:done', 'action:Install:running', 'action:Install:done', 'action:Env:running', 'action:Env:done']);
   expect(s.shell.calls.map((call) => [call.command, call.folder])).toEqual([['pnpm install', one.path], ['cp .env .', one.path]]);
   expect(s.shell.calls[0]!.env).toMatchObject({ CARRIER_PROJECT: s.repo, CARRIER_FOLDER: one.path });
   expect(s.claude.opened).toHaveLength(opened + 1);
@@ -4395,7 +4395,7 @@ test('a worktree whose folder still exists, and a project with no action on, run
     await s.sessions.resume({ sessionId: one.id });
     expect(existsSync(one.path)).toBe(true);
     expect(s.shell.calls).toEqual([]);
-    expect(actionStepsOf(s, one.id)).toEqual([]);
+    expect(actionStepsOf(s, one.id)).toEqual(['worktree:running', 'worktree:done']); // the folder coming back is a step even when no action follows
   }
 });
 
@@ -4404,7 +4404,7 @@ test('an action that warns when it fails leaves a notice and the session opens; 
   s.shell.results.set('pnpm install', { ok: false, code: 1, output: 'flaky' });
   s.shell.results.set('cp .env .', { ok: false, code: 2, output: 'cp: no such file' });
   await expect(s.sessions.resume({ sessionId: one.id })).rejects.toThrow('Env failed with exit code 2: cp: no such file. Open the session again');
-  expect(actionStepsOf(s, one.id)).toEqual(['action:Install:running', 'action:Install:done', 'action:Env:running', 'action:Env:failed:Env failed with exit code 2: cp: no such file']);
+  expect(actionStepsOf(s, one.id)).toEqual(['worktree:running', 'worktree:done', 'action:Install:running', 'action:Install:done', 'action:Env:running', 'action:Env:failed:Env failed with exit code 2: cp: no such file']);
   expect(noticesOf(s, one.id)).toEqual(['Install failed with exit code 1: flaky. The session went on without it.']);
   expect(existsSync(one.path)).toBe(true);
   expect(s.claude.conversations.some((conversation) => conversation.closed === false)).toBe(false);
@@ -4413,6 +4413,40 @@ test('an action that warns when it fails leaves a notice and the session opens; 
   s.shell.calls.length = 0;
   await s.sessions.resume({ sessionId: one.id });
   expect(s.shell.calls.map((call) => call.command)).toEqual(['cp .env .', 'echo last']); // Install had finished
+  expect(actionStepsOf(s, one.id).filter((step) => step.startsWith('worktree'))).toEqual(['worktree:running', 'worktree:done']); // the folder was there: no second marker
+});
+
+test('a worktree that cannot come back fails its marker in words, and the next open makes a marker of its own', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }]);
+  const base = s.repo;
+  renameSync(base, `${base}-moved`);
+  await expect(s.sessions.resume({ sessionId: one.id })).rejects.toThrow('the folder it was made from is gone');
+  expect(actionStepsOf(s, one.id)).toEqual(['worktree:running', 'worktree:failed']);
+  const failed = (s.sessions.events({ sessionId: one.id, limit: 200 }).events as any[]).filter((e) => e.kind === 'step').at(-1);
+  expect(failed.detail).toContain('the folder it was made from is gone');
+  renameSync(`${base}-moved`, base);
+  await s.sessions.resume({ sessionId: one.id });
+  expect(actionStepsOf(s, one.id)).toEqual(['worktree:running', 'worktree:failed', 'worktree:running', 'worktree:done', 'action:Install:running', 'action:Install:done']);
+});
+
+test('two restores one after another each begin with a marker of their own, and the second skips nothing of the first', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }]);
+  await s.sessions.resume({ sessionId: one.id });
+  await s.sessions.close({ sessionId: one.id });
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  s.shell.calls.length = 0;
+  await s.sessions.resume({ sessionId: one.id });
+  expect(actionStepsOf(s, one.id)).toEqual(['worktree:running', 'worktree:done', 'action:Install:running', 'action:Install:done', 'worktree:running', 'worktree:done', 'action:Install:running', 'action:Install:done']);
+  expect(s.shell.calls).toHaveLength(1);
+});
+
+test('a restore that ends with its marker and no action reads as finished, so the next open of the folder runs nothing', async () => {
+  const { s, one } = await cleaned(undefined);
+  await s.sessions.resume({ sessionId: one.id });
+  await s.sessions.close({ sessionId: one.id });
+  await s.sessions.resume({ sessionId: one.id });
+  expect(actionStepsOf(s, one.id).filter((step) => step.startsWith('worktree'))).toEqual(['worktree:running', 'worktree:done']);
+  expect(s.shell.calls).toEqual([]);
 });
 
 test('a restore that finished starts over when the folder is cleaned again: every action runs again', async () => {
@@ -4454,7 +4488,7 @@ test('while a worktree comes back its session reports a preparation that runs, a
   const second = s.sessions.resume({ sessionId: one.id });
   expect(s.sessions.list({}).sessions[0]).toMatchObject({ preparation: 'running' });
   expect((s.sessions.events({ sessionId: one.id, limit: 200 }) as any).session).toMatchObject({ preparation: 'running' });
-  expect(actionStepsOf(s, one.id)).toEqual(['action:Install:running']);
+  expect(actionStepsOf(s, one.id)).toEqual(['worktree:running', 'worktree:done', 'action:Install:running']);
   await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
   expect(existsSync(one.path)).toBe(true);
   await expect(s.sessions.delete({ sessionId: one.id })).rejects.toThrow('being prepared');

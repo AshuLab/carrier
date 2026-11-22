@@ -27,16 +27,16 @@ public struct StepRow: Equatable, Identifiable {
 /// The rows the session's `step` events make, in the order the steps first appeared. Nothing once the session is not being prepared
 /// (`preparation` is nil: the agent answered, or the host does not prepare sessions), so the list ends with the answer; a failed
 /// preparation keeps its list, with the reason on the step that failed. `progress` goes on the step that is running.
-/// `restoring`: the session exists and its worktree folder is coming back, whose only steps are the project's actions; the log also holds the steps
-/// of the original preparation and of the agent's start, so only the `action` steps that end it are the restore's (ponytail: two restores with no
-/// other step between them share the run; a name that was in the first and not in the second shows as a row until the agent speaks again).
+/// `restoring`: the session exists and its worktree folder is coming back, whose steps are the `worktree` one that opens a restore and the project's actions; the log also
+/// holds the steps of the original preparation and of the agent's start, so only the `worktree` and `action` steps that end it are the restore's, from the latest `worktree`
+/// one: restores one after another each begin with their own, and a restore that goes on after it stopped keeps the first try's, so its finished actions still show.
 public func preparationSteps(_ events: [ChatEvent], preparation: ChatSession.Preparation?, progress: String? = nil, restoring: Bool = false) -> [StepRow] {
     guard preparation != nil else { return [] }
     var events = events
     if restoring {
         let steps = events.filter { $0.kind == "step" }
-        let run = steps.reversed().prefix { $0.step == "action" }
-        let first = run.last?.id ?? Int.max
+        let run = steps.reversed().prefix { $0.step == "action" || $0.step == "worktree" }
+        let first = run.first { $0.step == "worktree" }?.id ?? run.last?.id ?? Int.max
         events = events.filter { $0.id >= first }
     }
     var order: [StepRow] = []

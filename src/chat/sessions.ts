@@ -222,13 +222,18 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     return checkFolder(found.folder, carrierHome());
   };
   /**
-   * Where a restore that stopped began, as the id just before its first event: the `action` steps that end the session's log, when the last of them is not done. The original
-   * preparation ends with the agent's steps, and a restore that finished ends with a done action, so a log that ends with an action running or failed is a restore to go on with.
+   * Where a restore that stopped began, as the id just before its first event: the steps that end the session's log, the `action` ones and the `worktree` marker a restore opens with
+   * (`bringBack`), when the last of them is not done. The original preparation ends with the agent's steps, and a restore that finished ends with a done action or marker, so a log
+   * that ends with a step running or failed is a restore to go on with. The run begins at the latest marker, so restores one after another are not taken for one.
    */
   const unfinishedRestore = (sessionId: string) => {
     const steps = db.select({ id: chatEvents.id, data: chatEvents.data }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).all();
-    const end = steps.findIndex((event) => event.data.step !== 'action');
-    const run = end === -1 ? steps : steps.slice(0, end);
+    const run: typeof steps = [];
+    for (const event of steps) {
+      if (event.data.step !== 'action' && event.data.step !== 'worktree') break;
+      run.push(event);
+      if (event.data.step === 'worktree' && event.data.status === 'running') break; // where the marker began
+    }
     return run.length > 0 && run[0]!.data.status !== 'done' ? run.at(-1)!.id - 1 : undefined;
   };
   /**
@@ -255,10 +260,21 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   /**
    * The new-worktree actions of the project in a folder just brought back (ADR 0039), as the `action` steps of a preparation: the same progress and failure, and Cancel aborts the
    * one that runs. When one stops the session or the person cancels, the folder stays and the open is refused; the next open goes on from the action that stopped.
-   * `after` is where the actions of this restore begin in the log, so what an earlier restore finished is not taken for this one's.
+   * The folder coming back is the `worktree` step that opens a restore, so the app has a row to show before the first action; a restore that goes on from one that stopped (`unfinished`)
+   * finds its folder and keeps the marker of the first try. `after` is where this restore begins in the log, so what an earlier restore finished is not taken for this one's.
    */
   const bringBack = async (found: typeof sessions.$inferSelect, signal: AbortSignal, unfinished: number | undefined) => {
-    await restoreWorktree(git, worktreeOf(found));
+    if (unfinished === undefined) {
+      stepEvent(found.id, 'worktree', 'running');
+      try {
+        await restoreWorktree(git, worktreeOf(found));
+      } catch (error) {
+        if (error instanceof ChatRefused === false) log.error('bringing back a worktree failed', error);
+        failStep(found.id, 'worktree', error instanceof ChatRefused ? error.message : 'The worktree could not be brought back');
+        throw error;
+      }
+      stepEvent(found.id, 'worktree', 'done');
+    }
     const file = readProjectsFile();
     if (file.ok) told.delete(found.id); // a notice that says the file is invalid is told again only once it was valid in between
     const after = unfinished ?? db.select({ id: chatEvents.id }).from(chatEvents).where(eq(chatEvents.sessionId, found.id)).orderBy(desc(chatEvents.id)).limit(1).get()?.id ?? 0;

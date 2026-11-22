@@ -24,7 +24,7 @@ private func makeRow(_ path: String, name: String? = nil, repo: String? = nil) -
 
     #expect(state.mode == .settings)
     #expect(state.sections.count == 1)
-    #expect(state.sections[0].title == "Suggested")
+    #expect(state.sections[0].title == "Suggested folders")
     #expect(state.items.map(\.title) == ["web", "notes"])
     #expect(state.items.map(\.detail) == ["~/work/web", "~/notes"])
     #expect(state.items.map(\.actionTitle) == ["Add", "Add"])
@@ -238,10 +238,10 @@ private let myRepos = [
 
 @Test func withNothingTypedTheRepositoriesFollowTheSuggestedFolders() {
     let state = projectSheetState(mode: .settings, query: "", recent: [RecentFolder(name: "web", path: "/Users/ana/web")], projects: [], github: github(myRepos), home: "/Users/ana")
-    #expect(state.sections.map(\.title) == ["Suggested", "Your repositories"])
+    #expect(state.sections.map(\.title) == ["Suggested folders", "Your repositories"])
     #expect(state.items.count == 4)
     // with no GitHub knowledge (an older host, or Settings before it loaded) the sheet is the folder sheet it was
-    #expect(projectSheetState(mode: .settings, query: "", recent: [RecentFolder(name: "web", path: "/Users/ana/web")], projects: [], home: "/Users/ana").sections.map(\.title) == ["Suggested"])
+    #expect(projectSheetState(mode: .settings, query: "", recent: [RecentFolder(name: "web", path: "/Users/ana/web")], projects: [], home: "/Users/ana").sections.map(\.title) == ["Suggested folders"])
 }
 
 @Test func aRepositoryThatIsAlreadyAProjectShowsOpenInsteadOfClone() {
@@ -334,4 +334,51 @@ private let myRepos = [
     // the folder chosen for this project is the one looked at
     form.chosenParent = "/elsewhere"
     #expect(form.problem(taken: taken) == nil && form.canCreate(taken: taken))
+}
+
+// MARK: the sheet in New session mode (docs/specs/projects.md, Scope 10, 12 and 23)
+
+@Test func inNewSessionTheProjectsThatAreNotHiddenComeFirstWithTheirTileNameAndFolderAndTheSuggestedFoldersAreOnlyWhatIsNotAProject() {
+    let home = "/Users/ana"
+    let web = ProjectRow(path: "/Users/ana/work/web", name: "Site", repo: nil, iconColor: .teal)
+    let hidden = ProjectRow(path: "/Users/ana/work/old", name: "Old", repo: nil, hidden: true)
+    let recent = [RecentFolder(name: "web", path: "/Users/ana/work/web"), RecentFolder(name: "old", path: "/Users/ana/work/old"), RecentFolder(name: "notes", path: "/Users/ana/notes")]
+
+    let state = projectSheetState(mode: .newSession, query: "", recent: recent, projects: [web, hidden], github: github(myRepos), home: home)
+
+    #expect(state.sections.map(\.title) == ["Projects", "Suggested folders", "Your repositories"])
+    let first = state.items[0]
+    #expect(first.kind == .existingProject(web) && first.title == "Site" && first.detail == "~/work/web" && first.tile == web.tile && first.actionTitle == "Use")
+    // a hidden project is not listed, and its folder is not suggested: it is a project
+    #expect(state.sections[1].items.map(\.title) == ["notes"])
+    #expect(state.items.contains { $0.title == "Old" } == false)
+    #expect(state.firstResult == first)
+    // typing filters the projects by name, folder and repository
+    #expect(projectSheetState(mode: .newSession, query: "site", recent: recent, projects: [web, hidden], home: home).items.map(\.title) == ["Site"])
+    #expect(projectSheetState(mode: .newSession, query: "work/web", recent: recent, projects: [web, hidden], home: home).items.map(\.title) == ["Site"])
+}
+
+@Test func aHiddenProjectIsStillTheProjectAPathOrItsRepositoryNames() {
+    let hidden = ProjectRow(path: "/Users/ana/work/old", name: "Old", repo: "acme/web", hidden: true)
+    let byPath = projectSheetState(mode: .newSession, query: "/Users/ana/work/old", recent: [], projects: [hidden], home: "/Users/ana")
+    #expect(byPath.firstResult?.kind == .existingProject(hidden))
+    let byRepo = projectSheetState(mode: .newSession, query: "acme/web", recent: [], projects: [hidden], github: github(myRepos), home: "/Users/ana")
+    #expect(byRepo.firstResult?.kind == .existingProject(hidden))
+}
+
+@Test func inNewSessionARepositoryToCloneSaysItIsClonedWhenTheFirstMessageIsSentOffersNoOtherFolderAndOffersToWatchIt() {
+    let state = projectSheetState(mode: .newSession, query: "acme/new-thing", recent: [], projects: [], github: github(myRepos), home: "/Users/ana")
+    let first = state.firstResult
+    #expect(first?.kind == .cloneRepo(repo: "acme/new-thing", parent: nil) && first?.actionTitle == "Use")
+    #expect(first?.destination == ProjectSheetDestination(line: "Cloned into ~/Carrier/projects/acme/new-thing when you send the first message", parent: "/Users/ana/Carrier/projects", isChosen: false, canChoose: false))
+    #expect(first?.watch == ProjectSheetWatch(problem: nil))
+    var known = github(myRepos)
+    known.watched = ["acme/new-thing"]
+    #expect(projectSheetState(mode: .newSession, query: "acme/new-thing", recent: [], projects: [], github: known, home: "/Users/ana").firstResult?.watch?.problem == "acme/new-thing is already watched")
+}
+
+@Test func theModesAgreeOnWhatActsAtOnce() {
+    #expect(ProjectSheetMode.settings.actsAtOnce && ProjectSheetMode.newSession.actsAtOnce == false)
+    #expect(ProjectSheetMode.settings.includesExistingProjects == false && ProjectSheetMode.newSession.includesExistingProjects)
+    #expect(ProjectSheetMode.newSession.title == "Choose where to work" && ProjectSheetMode.settings.title == "Add project")
 }

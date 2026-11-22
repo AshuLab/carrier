@@ -574,3 +574,52 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     #expect(asked == false)
     #expect(projectsNeedNewerHost.contains("older") && projectsNeedNewerHost.contains("Restart"))
 }
+
+@Test func theFixtureHostMakesANewProjectRegistersItWithOriginCreatedAndRefusesWhatTheHostRefuses() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let made = try await host.newProject("my-app", into: nil)
+    #expect(made == server.home + "/chat/projects/local/my-app")
+    var isFolder: ObjCBool = false
+    #expect(FileManager.default.fileExists(atPath: made, isDirectory: &isFolder) && isFolder.boolValue)
+    let entry = try ProjectsFile(folder: server.home).read().first { $0.path == made }
+    #expect(entry?.origin == "created")
+    // a name whose folder is there is refused with the reason and nothing is written
+    let before = try ProjectsFile(folder: server.home).read().count
+    await #expect(throws: ControlError.remote("my-app is already a project; choose another name")) { _ = try await host.newProject("my-app", into: nil) }
+    #expect(try ProjectsFile(folder: server.home).read().count == before)
+    // the parent chosen for this one project
+    let parent = server.home + "/elsewhere"
+    #expect(try await host.newProject("other", into: parent) == parent + "/local/other")
+    // what the host would refuse never goes out
+    await #expect(throws: ControlError.remote("Use only letters, digits, _, . and -")) { _ = try await host.newProject("a b", into: nil) }
+    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.newProject("x", into: "") }
+}
+
+@Test func theNewProjectRequestGoesOnTheWireAndTheGoldenReplyDecodes() async throws {
+    let wire = Asked()
+    let golden = try String(contentsOfFile: fixtures + "/chat-new-project.json", encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+    let server = TestServer { connection in
+        connection.send(hello("\"projects\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        wire.add(line)
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(golden)}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    let folder = try await host.newProject("my-app", into: "/w \"x\"")
+    #expect(folder == "/Users/dev/.carrier/chat/projects/local/my-app")
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(wire.all[0].utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "newProject" && sent["name"] as? String == "my-app" && sent["parent"] as? String == "/w \"x\"" && sent.keys.sorted() == ["cmd", "id", "name", "parent"])
+
+    // a host without the capability is told it is older, and is sent nothing
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).newProject("my-app", into: nil) }
+    #expect(asked == false)
+}

@@ -217,6 +217,7 @@ public struct ProjectClone: Decodable, Equatable, Identifiable, Sendable {
 }
 
 struct ProjectClonesReply: Decodable { let clones: [ProjectClone] }
+struct NewProjectReply: Decodable { let folder: String }
 
 /// What a person is told when the chat host that is running is older than the app and has no projects requests: the app replaces an older host when
 /// no session is working, so the way out is to finish the work and restart the host.
@@ -285,6 +286,10 @@ public protocol ChatHost {
     func projectClones() async throws -> [ProjectClone]
     /// Forgets a failed clone (one that is running stays) and answers the clones that are left. Only for a host whose hello lists `projects`.
     func dismissClone(_ repo: String) async throws -> [ProjectClone]
+    /// Makes `<parent>/local/<name>` (the projects folder when `parent` is nil) with `git init` and registers it in `projects.json` with origin `created`; answers its
+    /// folder. Refused in words for a name that is not a plain folder name, a folder that is already there or a parent inside Carrier's own folders, and nothing is
+    /// written then. Only for a host whose hello lists `projects`; an older one is told to restart.
+    func newProject(_ name: String, into parent: String?) async throws -> String
     /// The state of `git`, `gh` and each chat agent on the host's machine; `refresh` skips the answer the host kept for thirty seconds.
     /// Only for a host whose hello lists `health`.
     func health(refresh: Bool) async throws -> HostHealth
@@ -377,6 +382,7 @@ extension ChatHost {
     public func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone { throw ControlError.remote(projectsNeedNewerHost) }
     public func projectClones() async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
     public func dismissClone(_ repo: String) async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
+    public func newProject(_ name: String, into parent: String?) async throws -> String { throw ControlError.remote(projectsNeedNewerHost) }
 
     /// A host that cannot say how the machine is refuses; the app only asks one that lists `health`.
     public func health(refresh: Bool) async throws -> HostHealth { throw ControlError.remote("the chat host does not support health") }
@@ -520,6 +526,15 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"repo\":\(jsonString(repo))"
         let path = socketPath()
         return try await Task.detached { (try projectsRequest(path, "dismissClone", fields: fields) as ProjectClonesReply).clones }.value
+    }
+
+    public func newProject(_ name: String, into parent: String?) async throws -> String {
+        // the host's own limits (src/chat/server.ts): a plain folder name, and a parent that is not empty or over 4096 characters
+        if let refusal = projectNameProblem(name) { throw ControlError.remote(refusal) }
+        if let parent, parent.isEmpty || parent.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        let fields = ",\"name\":\(jsonString(name))" + (parent.map { ",\"parent\":\(jsonString($0))" } ?? "")
+        let path = socketPath()
+        return try await Task.detached { (try projectsRequest(path, "newProject", fields: fields) as NewProjectReply).folder }.value
     }
 
     /// The probes of a request run in parallel with five seconds each, so the wait is longer than the 5 seconds of the other requests.

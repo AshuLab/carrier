@@ -433,6 +433,19 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
         return started
     }
 
+    /// Asks the host to make `<parent>/local/<name>` with `git init` and register it (origin `created`), then reads the file so the project is in `rows`; answers its
+    /// folder, or throws the host's words when it refuses (a folder that is already there, a name it does not take, a host that is older).
+    public func createProject(_ name: String, into parent: String?) async throws -> String {
+        let folder = try await host.newProject(name, into: parent)
+        reload()
+        return folder
+    }
+
+    /// Whether `path` is a project of the list or a folder that is already there: a new project cannot be made at it.
+    public func isTaken(_ path: String) -> Bool {
+        rows.contains { isSameFolder($0.path, path) } || FileManager.default.fileExists(atPath: path)
+    }
+
     /// Forgets a failed clone: the host drops it and the row goes.
     public func dismissClone(_ repo: String) async {
         if let left = try? await host.dismissClone(repo) { clones = left }

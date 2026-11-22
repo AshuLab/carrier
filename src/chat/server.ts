@@ -68,6 +68,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('cloneProject'), repo: z.string().regex(repoNamePattern), parent: z.string().min(1).max(4096).optional() }),
   z.strictObject({ id, cmd: z.literal('projectClones') }),
   z.strictObject({ id, cmd: z.literal('dismissClone'), repo: z.string().regex(repoNamePattern) }),
+  z.strictObject({ id, cmd: z.literal('newProject'), name: z.string().regex(projectNamePattern), parent: z.string().min(1).max(4096).optional() }),
   z.strictObject({ id, cmd: z.literal('createProject'), name: z.string().regex(projectNamePattern) }),
   z.strictObject({ id, cmd: z.literal('githubRepos'), page: z.int().min(1).max(100) }),
   z.strictObject({ id, cmd: z.literal('repoBranches'), repo: z.string().regex(repoNamePattern) }),
@@ -121,6 +122,8 @@ export type ChatControls = {
   projectClones(): unknown;
   /** Forgets a failed clone; answers the clones that are left. */
   dismissClone(args: Args<'dismissClone'>): unknown;
+  /** Makes `<parent>/local/<name>` with `git init` and registers it as a project with origin `created`; answers its folder. */
+  newProject(args: Args<'newProject'>): Promise<unknown>;
   createProject(args: Args<'createProject'>): Promise<unknown>;
   githubRepos(args: Args<'githubRepos'>): Promise<unknown>;
   /** The default branch and the branches of a repository that need not be on disk; read-only. */
@@ -190,6 +193,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.projectClones();
     case 'dismissClone':
       return controls.dismissClone({ repo: request.repo });
+    case 'newProject':
+      return controls.newProject({ name: request.name, parent: request.parent });
     case 'createProject':
       return controls.createProject({ name: request.name });
     case 'githubRepos':

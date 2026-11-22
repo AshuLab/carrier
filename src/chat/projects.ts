@@ -113,15 +113,15 @@ const projectsFolder = (inside?: string): string => {
   return inside === undefined ? folder : checkProjectsFolder(join(folder, inside), carrierHome());
 };
 
-/** Where a new project of this name is made: `<projects folder>/local/<name>`. */
-export function projectFolder(name: string): string {
+/** Where a new project of this name is made: `<projects folder>/local/<name>`, or `<parent>/local/<name>` for a project that goes elsewhere. */
+export function projectFolder(name: string, parent?: string): string {
   if (projectNamePattern.test(name) === false) throw new ChatRefused(`"${name}" is not a plain folder name`);
-  return join(projectsFolder(), 'local', name);
+  return parent === undefined ? join(projectsFolder(), 'local', name) : checkProjectsFolder(join(parent, 'local', name), carrierHome());
 }
 
 /** Makes the project's folder and runs `git init -b main` in it. A name that is taken is refused and nothing is changed; a `git init` that fails removes what this call made. */
-export async function createProject(git: Git, name: string): Promise<{ folder: string }> {
-  const dest = projectFolder(name);
+export async function createProject(git: Git, name: string, parent?: string): Promise<{ folder: string }> {
+  const dest = projectFolder(name, parent);
   await mkdir(dirname(dest), { recursive: true });
   try {
     await mkdir(dest); // not recursive: it fails when anything is there, and what is there is not ours to touch
@@ -307,6 +307,25 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
 
     /** Makes `<projects folder>/local/<name>` and runs `git init -b main` in it (the `createProject` request, for apps older than the plan). */
     createProject: ({ name }: { name: string }) => createProject(git, name),
+
+    /**
+     * Makes `<parent or the projects folder>/local/<name>` with `git init` and registers it in `projects.json` with origin `created`; answers its folder.
+     * A name whose folder is there, or a project already at that path, is refused and nothing is written; a `projects.json` that does not match its schema
+     * is refused before anything is made.
+     */
+    async newProject({ name, parent }: { name: string; parent?: string }): Promise<{ folder: string }> {
+      const dest = projectFolder(name, parent);
+      const listed = readProjectsFile();
+      if (listed.ok === false) throw new ChatRefused(`projects.json ${listed.errors[0]!.path} ${listed.errors[0]!.message}; fix the file and try again`);
+      if (listed.projects.some((entry) => entry.path === dest)) throw new ChatRefused(`${name} is already a project; choose another name`);
+      const { folder } = await createProject(git, name, parent);
+      const written = updateProjectsFile((current) => (current.some((entry) => entry.path === folder) ? current : [...current, { path: folder, origin: 'created' }]));
+      if (written.ok === false) {
+        await rm(folder, { recursive: true, force: true }); // this call made it, and it is empty
+        throw new ChatRefused(`projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}; fix the file and try again`);
+      }
+      return { folder };
+    },
 
     /**
      * Starts bringing `repo` into `parent/<owner>/<name>` (the projects folder when `parent` is absent) and answers at once: the clone runs in the

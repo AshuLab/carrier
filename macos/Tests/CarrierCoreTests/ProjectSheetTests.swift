@@ -287,3 +287,51 @@ private let myRepos = [
     #expect(state.firstResult?.kind == .addPath(path: "/Users/ana/work/acme/web"))
     #expect(state.items.contains { $0.kind.isRepository } == false)
 }
+
+// MARK: New project… (docs/specs/projects.md, Scope 5)
+
+@Test func theNewProjectFormShowsTheDefaultFolderThenTheOneChosenForThisProject() {
+    var form = NewProjectForm(defaultParent: "/Users/ana/Carrier/projects")
+    #expect(form.folder == "/Users/ana/Carrier/projects/local/<name>")
+    #expect(form.destinationLine(home: "/Users/ana") == "Creates ~/Carrier/projects/local/<name>")
+    form.name = "my-app"
+    #expect(form.folder == "/Users/ana/Carrier/projects/local/my-app")
+    form.chosenParent = "/Volumes/work"
+    #expect(form.folder == "/Volumes/work/local/my-app" && form.defaultParent == "/Users/ana/Carrier/projects")
+    #expect(form.destinationLine(home: "/Users/ana") == "Creates /Volumes/work/local/my-app")
+}
+
+@Test func aNameThatIsNotLettersNumbersDotsAndDashesIsRefusedWithTheReason() {
+    var form = NewProjectForm(defaultParent: "/p")
+    let free: (String) -> Bool = { _ in false }
+    // nothing typed yet: no complaint, and Create is off
+    #expect(form.problem(taken: free) == nil && form.canCreate(taken: free) == false)
+    let refused: [(String, String)] = [
+        ("my app", "Use only letters, digits, _, . and -"),
+        ("a/b", "Use only letters, digits, _, . and -"),
+        ("café", "Use only letters, digits, _, . and -"),
+        (".hidden", "A name starts with a letter, a digit or _"),
+        ("-x", "A name starts with a letter, a digit or _"),
+        (String(repeating: "a", count: 101), "A name has at most 100 characters"),
+    ]
+    for (name, reason) in refused {
+        form.name = name
+        #expect(form.problem(taken: free) == reason, "\(name)")
+        #expect(form.canCreate(taken: free) == false)
+    }
+    for name in ["my-app", "app.2", "_x", "A1", String(repeating: "a", count: 100)] {
+        form.name = name
+        #expect(form.problem(taken: free) == nil && form.canCreate(taken: free), "\(name)")
+    }
+}
+
+@Test func aNameWhoseFolderIsThereIsRefusedWithTheReason() {
+    var form = NewProjectForm(defaultParent: "/p")
+    form.name = "mine"
+    let taken: (String) -> Bool = { $0 == "/p/local/mine" }
+    #expect(form.problem(taken: taken) == "mine is already a project; choose another name")
+    #expect(form.canCreate(taken: taken) == false)
+    // the folder chosen for this project is the one looked at
+    form.chosenParent = "/elsewhere"
+    #expect(form.problem(taken: taken) == nil && form.canCreate(taken: taken))
+}

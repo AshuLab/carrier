@@ -395,6 +395,33 @@ public func projectSheetState(
     return state
 }
 
+/// The sheet's New project… form (docs/specs/projects.md, Scope 5): a name, and where it is made: `<parent>/local/<name>`, with the projects folder as the
+/// parent unless the person chose another for this one project.
+public struct NewProjectForm: Equatable, Sendable {
+    public var name = ""
+    /// The folder chosen with Choose… for this project only; nil keeps `defaultParent`.
+    public var chosenParent: String?
+    /// The projects folder.
+    public let defaultParent: String
+
+    public init(defaultParent: String) { self.defaultParent = defaultParent }
+
+    public var parent: String { chosenParent ?? defaultParent }
+    /// Where the project is made; `<name>` stands for the name until one is typed.
+    public var folder: String { parent + "/local/" + (name.isEmpty ? "<name>" : name) }
+    public func destinationLine(home: String = NSHomeDirectory()) -> String { "Creates " + abbreviatedSheetPath(folder, home: home) }
+
+    /// Why Create cannot go ahead, in the words to show in orange: the name is not a plain folder name (the host's pattern), or something is already at its
+    /// folder (`taken` says whether a folder or a project is). nil while nothing is typed and when the name can be used; the host checks both again.
+    public func problem(taken: (String) -> Bool) -> String? {
+        guard name.isEmpty == false else { return nil }
+        if let refusal = projectNameProblem(name) { return refusal }
+        return taken(folder) ? "\(name) is already a project; choose another name" : nil
+    }
+
+    public func canCreate(taken: (String) -> Bool) -> Bool { name.isEmpty == false && problem(taken: taken) == nil }
+}
+
 /// What dropping one or more paths onto the sheet in Settings did.
 public enum ProjectDropOutcome: Equatable, Sendable {
     /// One folder was added or already existed: close the sheet and open its page.

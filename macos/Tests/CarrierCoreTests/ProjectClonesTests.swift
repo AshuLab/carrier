@@ -11,6 +11,9 @@ final class CloneHost: ChatHost, @unchecked Sendable {
     var failure: Error?
     private(set) var started: [(repo: String, parent: String?)] = []
     private(set) var asked = 0
+    /// What `newProject` was asked, and the entry the real host would write (the file of `registerIn`), so the model finds the project after.
+    private(set) var made: [(name: String, parent: String?)] = []
+    var registerIn: ProjectsFile?
     init(_ clones: [ProjectClone] = []) { self.clones = clones }
     var current: [ProjectClone] { get { lock.withLock { clones } } set { lock.withLock { clones = newValue } } }
 
@@ -19,6 +22,13 @@ final class CloneHost: ChatHost, @unchecked Sendable {
         let clone = ProjectClone(repo: repo, folder: (parent ?? "/projects") + "/" + repo, state: .cloning)
         lock.withLock { started.append((repo, parent)); clones.append(clone) }
         return clone
+    }
+    func newProject(_ name: String, into parent: String?) async throws -> String {
+        if let failure { throw failure }
+        lock.withLock { made.append((name, parent)) }
+        let folder = (parent ?? "/projects") + "/local/" + name
+        if let registerIn { try registerIn.add(folder: folder) }
+        return folder
     }
     func projectClones() async throws -> [ProjectClone] {
         lock.withLock { asked += 1 }
@@ -141,4 +151,43 @@ private func temporaryFolder() throws -> String {
     host.failure = ControlError.closed
     await model.refreshClones()
     #expect(model.cloneRows.count == 1)
+}
+
+// MARK: a new project (docs/specs/projects.md, Scope 5)
+
+@MainActor @Test func aNewProjectIsAskedOfTheHostAndIsInTheListWhenItAnswers() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProjectsFile(folder: folder)
+    let host = CloneHost()
+    host.registerIn = file
+    let model = ProjectsModel(host: host, file: file) { _ in nil }
+    #expect(model.rows.isEmpty)
+    let made = try await model.createProject("my-app", into: "/Volumes/work")
+    #expect(made == "/Volumes/work/local/my-app")
+    #expect(host.made.count == 1 && host.made[0].name == "my-app" && host.made[0].parent == "/Volumes/work")
+    // the page can open it at once: the file was read again after the answer
+    #expect(model.rows.map(\.path) == ["/Volumes/work/local/my-app"])
+}
+
+@MainActor @Test func aRefusedNewProjectThrowsTheHostsWordsAndLeavesTheListAlone() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let host = CloneHost()
+    host.failure = ControlError.remote("mine is already a project; choose another name")
+    let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder)) { _ in nil }
+    await #expect(throws: ControlError.remote("mine is already a project; choose another name")) { _ = try await model.createProject("mine", into: nil) }
+    #expect(model.rows.isEmpty)
+}
+
+@MainActor @Test func aFolderThatIsThereOrAProjectOfTheListTakesTheNameOfANewOne() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProjectsFile(folder: folder)
+    try file.add(folder: folder + "/gone")
+    let model = ProjectsModel(host: CloneHost(), file: file) { _ in nil }
+    model.reload()
+    #expect(model.isTaken(folder + "/gone"), "a project whose folder is gone still holds its path")
+    #expect(model.isTaken(folder), "a folder that is there")
+    #expect(model.isTaken(folder + "/free") == false)
 }

@@ -381,6 +381,9 @@ private struct ProjectDetailView: View {
     @State private var removing: Set<String> = []
     @State private var removeProblems: [String: String] = [:]
     @State private var cleanUpNote: String?
+    /// The branches the project's folder has, read when the page opens; empty for a folder that is not a git repository, and while the host has not answered.
+    @State private var branches: [WorkspaceInfo.Branch] = []
+    private let catalog = ModelCatalog.shared
     /// Why the last change of the Carrier switch was refused, and the question asked before it goes off.
     @State private var watchFailure: String?
     @State private var confirmingStop = false
@@ -388,6 +391,7 @@ private struct ProjectDetailView: View {
 
     var body: some View {
         let exists = row.status == .ready
+        let page = ProjectPage(for: row)
         Group {
             if exists == false {
                 SettingsGroup(title: "") {
@@ -439,7 +443,7 @@ private struct ProjectDetailView: View {
                     }
                 }
             }
-            SettingsGroup(title: "New sessions here") {
+            SettingsGroup(title: "New sessions here", footer: page.notice) {
                 SettingsTabRow(
                     title: "Show when starting a session",
                     detail: row.hidden
@@ -450,9 +454,20 @@ private struct ProjectDetailView: View {
                     Toggle("Show when starting a session", isOn: Binding(get: { row.hidden == false }, set: { model.setHidden($0 == false, path: row.path) }))
                         .labelsHidden().toggleStyle(.switch)
                 }
+                SettingsTabRow(title: "Agent", detail: "What a new session here starts with; Same as everywhere is Settings > Sessions") {
+                    ChoicePopUp(label: "Agent", options: agentOptions, selection: defaultBinding(.agent, row.defaults.agent))
+                }
+                SettingsTabRow(title: "Work in", detail: "The base folder or a new worktree; Default is Settings > Sessions") {
+                    ChoicePopUp(label: "Work in", options: workInOptions, selection: defaultBinding(.workIn, row.defaults.workIn?.projectValue))
+                }
+                if page.baseBranch {
+                    SettingsTabRow(title: "Base branch", detail: "The branch a new session here starts from; Default branch is the one checked out") {
+                        ChoicePopUp(label: "Base branch", options: branchOptions, selection: defaultBinding(.baseBranch, row.defaults.baseBranch))
+                    }
+                }
             }
-            if exists { worktreesGroup }
-            carrierGroup
+            if page.worktrees { worktreesGroup }
+            if page.carrier { carrierGroup }
             SettingsGroup(title: "") {
                 NavigationRow(title: "Actions", detail: "Commands run for a new worktree or after a clone", first: true, action: openActions) {
                     Text(projectActionsSummary(row.actions.count)).font(.scaled(12)).foregroundStyle(.secondary)
@@ -465,10 +480,12 @@ private struct ProjectDetailView: View {
                     } label: { Label("Reveal in Finder", icon: .folder).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(exists == false)
                 }
-                SettingsTabRow(title: "Remote", detail: row.repo ?? "No GitHub remote", mono: row.repo != nil) {
-                    if let repo = row.repo, let url = URL(string: "https://github.com/\(repo)") {
-                        Button { NSWorkspace.shared.open(url) } label: { Label("Open on GitHub", icon: .externalLink).labelStyle(.titleAndIcon) }
-                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                if page.remote {
+                    SettingsTabRow(title: "Remote", detail: row.repo ?? "No GitHub remote", mono: row.repo != nil) {
+                        if let repo = row.repo, let url = URL(string: "https://github.com/\(repo)") {
+                            Button { NSWorkspace.shared.open(url) } label: { Label("Open on GitHub", icon: .externalLink).labelStyle(.titleAndIcon) }
+                                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                        }
                     }
                 }
                 SettingsTabRow(title: "Remove", detail: canDeleteFromDisk(origin: row.origin) ? "Takes \(row.name) out of Carrier, and its files too if you choose" : "Takes \(row.name) out of Carrier; its folder and worktrees stay") {
@@ -512,9 +529,12 @@ private struct ProjectDetailView: View {
         }
         .task(id: row.path) {
             // a fresh figure is asked for and the host measures in the background; the list's follow loop reads it as it lands
-            if row.status == .ready { await model.refreshDisk(.now, of: [row.path]) }
-            await loadWorktrees()
+            if page.worktrees {
+                await model.refreshDisk(.now, of: [row.path])
+                await loadWorktrees()
+            }
         }
+        .task(id: row.path) { branches = await model.branches(of: row.path) }
         .onAppear(perform: publishPin)
         .onChange(of: row.pinned) { publishPin() }
         .onChange(of: row.path) { publishPin() }
@@ -647,6 +667,32 @@ private struct ProjectDetailView: View {
         } catch {
             deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: "The chat host did not answer. Nothing was deleted.")
         }
+    }
+
+    /// A value of `defaults` as a select's: nil is the first entry, and choosing it takes the key out of the file.
+    private func defaultBinding(_ key: ProjectDefaultKey, _ value: String?) -> Binding<String?> {
+        Binding(get: { value }, set: { _ = model.setDefault(key, $0, path: row.path) })
+    }
+
+    /// The configured agents; one the project names that is no longer configured stays listed so the select says what the file holds.
+    private var agentOptions: [(value: String?, title: String)] {
+        var names = catalog.agents.map(\.name)
+        if let named = row.defaults.agent, names.contains(named) == false { names.append(named) }
+        return [(nil, "Same as everywhere")] + names.map { ($0, $0) }
+    }
+
+    private var workInOptions: [(value: String?, title: String)] {
+        [(nil, "Default")] + ProjectPage(for: row).workIn.map { ($0.projectValue, $0 == .baseFolder ? "Base folder" : "New worktree") }
+    }
+
+    private var branchOptions: [(value: String?, title: String)] {
+        var names: [String] = []
+        for branch in branches {
+            let name = branch.remote && branch.name.hasPrefix("origin/") ? String(branch.name.dropFirst("origin/".count)) : branch.name
+            if names.contains(name) == false { names.append(name) }
+        }
+        if let named = row.defaults.baseBranch, names.contains(named) == false { names.append(named) }
+        return [(nil, "Default branch")] + names.map { ($0, $0) }
     }
 
     private func loadWorktrees() async {

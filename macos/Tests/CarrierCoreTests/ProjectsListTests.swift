@@ -621,3 +621,43 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     // an unreadable engine config watches nothing
     #expect(projectsWithWatched(rows, repos: nil).allSatisfy { $0.watched == false })
 }
+
+@Test func aFolderIsAGitRepositoryWhenItHasADotGit() throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    #expect(isGitRepository(folder) == false)
+    try FileManager.default.createDirectory(atPath: folder + "/.git", withIntermediateDirectories: true)
+    #expect(isGitRepository(folder))
+    let entries = try readProjects(Data(#"{"projects":[{"path":"\#(folder)","origin":"added"}]}"#.utf8))
+    #expect(projectRows(entries) { _ in nil }.map(\.isGit) == [true])
+}
+
+@Test func theGroupsOfAProjectThatIsNotAGitRepositorySayWhyAndOfferOnlyTheBaseFolder() {
+    let repo = ProjectPage(for: ProjectRow(path: "/p/repo", name: "Repo", repo: "acme/repo"))
+    #expect(repo == ProjectPage(for: ProjectRow(path: "/p/repo", name: "Repo", repo: nil, isGit: true)))
+    #expect(repo.worktrees && repo.baseBranch && repo.carrier)
+    #expect(repo.workIn == [.baseFolder, .newWorktree])
+    #expect(repo.notice == nil)
+
+    let plain = ProjectPage(for: ProjectRow(path: "/p/notes", name: "Notes", repo: nil, isGit: false))
+    #expect(plain.worktrees == false && plain.baseBranch == false && plain.carrier == false && plain.remote == false)
+    #expect(repo.remote)
+    #expect(plain.workIn == [.baseFolder])
+    #expect(plain.notice == "Not a git repository, so it has no worktrees, base branch or Carrier switch.")
+
+    // a folder that is gone is not said to be plain: its own notice is the page's, and the disk is hidden as before
+    let gone = ProjectPage(for: ProjectRow(path: "/p/gone", name: "Gone", repo: nil, status: .notFound, isGit: false))
+    #expect(gone.notice == nil && gone.worktrees == false && gone.carrier && gone.remote)
+}
+
+@Test func aProjectThatIsNotAGitRepositoryListsSearchesAndSortsLikeAnyOther() {
+    let table = [
+        ProjectRow(path: "/p/zeta", name: "Zeta", repo: "acme/zeta"),
+        ProjectRow(path: "/p/notes", name: "Notes", repo: nil, tags: ["docs"], isGit: false),
+        ProjectRow(path: "/p/alpha", name: "Alpha", repo: nil, isGit: false),
+    ]
+    #expect(projectList(table).flatMap(\.rows).map(\.name) == ["Alpha", "Notes", "Zeta"])
+    #expect(projectList(table, query: "docs").flatMap(\.rows).map(\.name) == ["Notes"])
+    #expect(projectList(table, filter: .localOnly).flatMap(\.rows).map(\.name) == ["Alpha", "Notes"])
+    #expect(projectList(table, order: ProjectOrder(key: .name, ascending: false)).flatMap(\.rows).map(\.name) == ["Zeta", "Notes", "Alpha"])
+}

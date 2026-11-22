@@ -95,3 +95,30 @@ private let twoProjects = #"""
     let untagged = try applyingProjectTagsEdit(path: "/a", to: tagged) { _ in [] }
     #expect(try readProjects(untagged)[0].json["tags"] == nil)
 }
+
+@Test func defaultsRoundTripThroughTheFileKeepingEveryOtherKeyAndAValueOnTheDefaultWritesNothing() throws {
+    // a value is written under `defaults` and read back; the other keys of the entry and of `defaults` stay
+    let set = try applyingProjectDefaultsEdit(path: "/a", changes: ["agent": "claude", "baseBranch": "develop"], to: Data(twoProjects.utf8))
+    var entries = try readProjects(set)
+    #expect(entries[0].defaults == ProjectDefaults(agent: "claude", workIn: .newWorktree, baseBranch: "develop"))
+    #expect(entries[0].iconImage == "a.png" && entries[0].actions.count == 1 && entries[1].hidden)
+    // a value left on the default takes its key out, and `defaults` goes with the last one; an entry with none has none
+    let base = try applyingProjectDefaultsEdit(path: "/a", changes: ["workIn": "baseFolder"], to: set)
+    #expect(try readProjects(base)[0].defaults.workIn == .baseFolder)
+    let cleared = try applyingProjectDefaultsEdit(path: "/a", changes: ["agent": nil, "workIn": nil, "baseBranch": nil], to: base)
+    entries = try readProjects(cleared)
+    #expect(entries[0].json["defaults"] == nil && entries[0].defaults == ProjectDefaults() && entries[0].name == "A")
+    #expect(try readProjects(Data(twoProjects.utf8))[1].json["defaults"] == nil)
+    // a value the schema does not know is refused and nothing is written
+    #expect(throws: ProjectsFileError.self) { try applyingProjectDefaultsEdit(path: "/a", changes: ["workIn": "elsewhere"], to: Data(twoProjects.utf8)) }
+}
+
+@MainActor @Test func theModelWritesADefaultAndTakesItOutAgain() throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    try Data(twoProjects.utf8).write(to: URL(fileURLWithPath: folder + "/projects.json"))
+    let model = ProjectsModel(file: ProjectsFile(folder: folder)) { _ in nil }
+    model.reload()
+    #expect(model.setDefault(.agent, "claude", path: "/a") && model.rows[0].defaults.agent == "claude" && model.rows[0].defaults.workIn == .newWorktree)
+    #expect(model.setDefault(.agent, nil, path: "/a") && model.rows[0].defaults.agent == nil)
+}

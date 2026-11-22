@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 import { z } from 'zod';
 import { carrierHome, projectsPathOf } from './places.ts';
 
-// `projects.json` (ADR 0038): the person's projects, read by the app and the chat host and written by both.
+// `projects.json` (ADR 0041): the person's projects, read by the app and the chat host and written by both.
 // `macos/Sources/CarrierCore/ProjectsFile.swift` checks the same rules; `projects.test.ts` writes the fixture its contract test reads.
 
 const text = z.string().regex(/\S/, 'must not be blank');

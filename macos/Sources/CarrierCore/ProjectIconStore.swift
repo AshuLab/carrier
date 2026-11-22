@@ -16,7 +16,7 @@ public enum ProjectIconStoreError: Error, LocalizedError, Equatable, Sendable {
     }
 }
 
-/// Manages the copied, reduced PNGs for project icons inside `<carrierFolder>/app/project-icons/` (docs/specs/projects.md, ADR 0038).
+/// Manages the copied, reduced PNGs for project icons inside `<carrierFolder>/app/project-icons/` (docs/specs/projects.md, ADR 0041).
 public struct ProjectIconStore: Sendable, Equatable {
     public static let maxPixelSize: Int = 256
 

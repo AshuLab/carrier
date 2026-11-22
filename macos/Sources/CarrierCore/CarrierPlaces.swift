@@ -22,7 +22,7 @@ public struct CarrierPlaces: Sendable, Equatable {
     public var engineConfig: String { folder + "/engine.json" }
     public var chatConfig: String { folder + "/chat.json" }
     public var providers: String { folder + "/providers.json" }
-    /// The person's projects, read by the app and the chat host and written by both (docs/adr/0038).
+    /// The person's projects, read by the app and the chat host and written by both (docs/adr/0041).
     public var projects: String { folder + "/projects.json" }
 
     // The engine's: its clones, review checkouts, state and logs.

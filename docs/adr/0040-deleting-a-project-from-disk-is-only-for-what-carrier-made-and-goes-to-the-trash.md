@@ -12,7 +12,7 @@ A folder the person added by hand was never Carrier's.
 ## Decision
 
 Removing a project asks one thing: remove it only from Carrier, where the entry goes and the files and the worktrees stay, or also delete it from disk.
-Deleting from disk is offered only for a project whose `origin` is `cloned` or `created` ([0038](0038-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md)), a folder Carrier made. A project added by hand offers only Remove from Carrier.
+Deleting from disk is offered only for a project whose `origin` is `cloned` or `created` ([0041](0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md)), a folder Carrier made. A project added by hand offers only Remove from Carrier.
 Deleting moves the project's folder and its session worktrees to the Trash and never removes them outright.
 It stops, saying why, when the folder or any of its worktrees has uncommitted changes or branches that are not pushed, and goes on only if the person confirms after seeing which.
 It does not go ahead at all while a session of the project is working, waiting or open, as [0035](0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md) never touches one; the other sessions stay as history, with a notice that their folder is gone, and cannot go on.

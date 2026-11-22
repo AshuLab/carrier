@@ -27,7 +27,7 @@ private struct SessionContextMenu: ViewModifier {
         menu.allowsContextMenuPlugIns = false
         // an item the menu cannot use stays off: with auto-enabling the target it has would turn it on
         menu.autoenablesItems = false
-        let sections = sessionMenu(row, pinned: pinnedIds(pinnedStored).contains(row.id), canFilter: filterWorkspace != nil)
+        let sections = sessionMenu(row, pinned: pinnedIds(pinnedStored).contains(row.id), canFilter: filterWorkspace != nil, canRegenerateTitle: actions.canRegenerateTitle)
         for (index, section) in sections.enumerated() {
             if index > 0 { menu.addItem(.separator()) }
             for item in section { menu.addItem(menuItem(item)) }

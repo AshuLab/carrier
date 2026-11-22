@@ -13,18 +13,12 @@ private func golden(_ name: String) throws -> [String: Any] {
     try #require(JSONSerialization.jsonObject(with: Data(contentsOf: fixtures.appendingPathComponent(name))) as? [String: Any])
 }
 
-/// Cases the app knows that no host announces, each on purpose.
-private let unannounced: [ControlClient.Capability: String] = [
-    .regenerateTitle: "the app's own request for a title again; no host announces it yet (docs/specs/sessions-in-the-app.md)",
-]
-
 @Test func everyCapabilityAHostAnnouncesIsACaseTheAppKnows() throws {
     let file = try golden("capabilities.json")
     let announced = (file["engine"] as? [String] ?? []) + (file["chat"] as? [String] ?? [])
     #expect(announced.isEmpty == false)
     #expect(announced.filter { ControlClient.Capability(rawValue: $0) == nil } == [])
-    let silent = ControlClient.Capability.allCases.filter { announced.contains($0.rawValue) == false }
-    #expect(Set(silent) == Set(unannounced.keys))
+    #expect(ControlClient.Capability.allCases.filter { announced.contains($0.rawValue) == false } == [])
 }
 
 @Test func theFixtureServerAnnouncesOnlyNamesTheAppKnows() throws {

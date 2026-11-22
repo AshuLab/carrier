@@ -14,8 +14,6 @@ struct PanelView: View {
     private let terminalStore = CarrierTerminalStore.shared
     /// The last Check now pressed from the toolbar, for the button to say it is checking.
     @State private var checkAsked: CheckAsked?
-    /// The sidebar column's width, for the logo in its title bar.
-    @State private var sidebarWidth = SidebarStore().width
     /// The window's size, for the sheets over it.
     @State private var windowSize = CGSize(width: 1100, height: 700)
     /// The right panel's width: also the empty toolbar item that keeps the epic's buttons off it.
@@ -210,10 +208,8 @@ struct PanelView: View {
                     reconcileSelectedTerminal()
                     for gone in Set(old).subtracting(new) { model.shell.terminalRemoved(gone) }
                 }
-                // what the logo has room for depends on the column's width
-                .onGeometryChange(for: Double.self) { Double($0.size.width) } action: { sidebarWidth = $0 }
-                // the logo is drawn over the title bar at an exact place, clear of the window's buttons and of the update, which stays at the right edge
-                .overlay(alignment: .top) { BrandLogo(sidebarWidth: sidebarWidth).ignoresSafeArea(edges: .top).allowsHitTesting(false) }
+                // the logo (the mark, centred) is drawn over the title bar at an exact place, clear of the window's buttons and of the update, which stays at the right edge
+                .overlay(alignment: .top) { BrandLogo().ignoresSafeArea(edges: .top).allowsHitTesting(false) }
                 .toolbar {
                     ToolbarSpacer(.flexible, placement: .automatic)
                     UpdatePill.item

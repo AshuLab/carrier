@@ -3,7 +3,7 @@ import Foundation
 import Observation
 
 // The Projects page's list (docs/specs/projects.md): one row for each entry of `projects.json`, and a model that keeps the rows in step with the file.
-// The remote is read from the repository each time and is never stored (docs/adr/0038).
+// The remote is read from the repository each time and is never stored (docs/adr/0041).
 
 /// `owner/name` of a GitHub remote URL (`git@github.com:o/n.git`, `https://github.com/o/n`, `ssh://git@github.com/o/n.git`); nil for any other host or shape.
 public func gitHubRepo(fromRemote remote: String) -> String? {

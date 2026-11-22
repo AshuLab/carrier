@@ -1,6 +1,6 @@
 import Foundation
 
-// `projects.json` in the Carrier folder (docs/adr/0038): the person's projects, read by the app and the chat host and written by both.
+// `projects.json` in the Carrier folder (docs/adr/0041): the person's projects, read by the app and the chat host and written by both.
 // The rules below are `src/config/projects.ts`'s, field by field; `ContractTests` runs the fixture its test writes through both. A file that
 // does not match is reported with the field named and is never written over. An edit keeps every entry, and every key of the entry, it does not touch.
 

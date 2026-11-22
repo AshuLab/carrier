@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a0f7c9f6-3d5e-43bb-9363-3e1bf876c507",
+  "id": "ddf9b64f-b12d-4375-bb5b-44bee72ef81d",
   "prevId": "2cc36145-5d49-4d21-8278-3778f80ac549",
   "tables": {
     "chat_events": {
@@ -181,44 +181,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "project_sizes": {
-      "name": "project_sizes",
-      "columns": {
-        "folder": {
-          "name": "folder",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "bytes": {
-          "name": "bytes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "parts": {
-          "name": "parts",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "measuredAt": {
-          "name": "measuredAt",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "sessions": {
       "name": "sessions",
       "columns": {
@@ -288,6 +250,13 @@
         },
         "title": {
           "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "titleSource": {
+          "name": "titleSource",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

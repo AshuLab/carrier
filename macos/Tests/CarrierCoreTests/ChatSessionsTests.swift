@@ -302,7 +302,8 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     var worktrees: [String: SessionDeletePreview.Worktree] = [:]
     var previewError: Error?
     var previewed: [[String]] = []
-    func capabilities() async throws -> Set<ControlClient.Capability> { [] }
+    var listed: Set<ControlClient.Capability> = []
+    func capabilities() async throws -> Set<ControlClient.Capability> { listed }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] {
         previewed.append(ids)
@@ -766,6 +767,17 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(await actions.restore("a") == nil)
     #expect(await actions.delete("b") == nil)
     #expect(host.changes == ["archive a", "restore a", "delete b"] && changed == 3)
+}
+
+@MainActor @Test func theMenuOffersRegenerateTitleOnlyAfterTheHostListsIt() async {
+    let host = FakeHost()
+    let actions = SessionActions(host: host, log: { _ in })
+    #expect(actions.canRegenerateTitle == false)
+    await actions.learnHost()
+    #expect(actions.canRegenerateTitle == false)
+    host.listed = [.regenerateTitle]
+    await actions.learnHost()
+    #expect(actions.canRegenerateTitle)
 }
 
 @MainActor @Test func sessionActionsRespectTerminalRemovalConfirmationAndCleanUpOnSuccess() async {

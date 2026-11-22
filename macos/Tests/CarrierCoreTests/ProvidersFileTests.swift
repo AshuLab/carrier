@@ -64,11 +64,17 @@ private final class ProvidersHost: ChatHost, @unchecked Sendable {
     var capabilitiesAnswer: Set<ControlClient.Capability> = [.providers]
     var reply: HostProviders
     var asked = 0
+    var regenerateTitlesCalls = 0
+    var regenerateTitlesResult: Result<Int, Error> = .success(0)
 
     init(_ json: String) throws { reply = try JSONDecoder().decode(HostProviders.self, from: Data(json.utf8)) }
 
     func capabilities() async throws -> Set<ControlClient.Capability> { capabilitiesAnswer }
     func providers() async throws -> HostProviders { asked += 1; return reply }
+    func regenerateTitles() async throws -> Int {
+        regenerateTitlesCalls += 1
+        return try regenerateTitlesResult.get()
+    }
 
     func agents() async throws -> [ChatAgent] { [] }
     func open(plan: SessionPlan) async throws -> String { "" }
@@ -567,6 +573,152 @@ private final class LockedAnswers: @unchecked Sendable {
     _ = await store.save(name: "claude-work", draft: work)
     await store.settled()
     #expect(store.editProblem == nil && store.editNote == nil)
+}
+
+// MARK: the text generator
+
+private func object(_ data: Data) throws -> [String: Any] { try #require(JSONSerialization.jsonObject(with: data) as? [String: Any]) }
+
+@Test func choosingATextGeneratorWritesOneEntryByNameAndKeepsEveryOtherKey() throws {
+    let existing = Data(#"{"future":{"a":1},"providers":{"claude":{"harness":"claude","newKey":true}},"textGenerators":{"mine":{"kind":"ollama","model":"x"}}}"#.utf8)
+    let json = try object(applyingTextGenerator((server: "ollama", model: "qwen3:8b"), to: existing))
+    #expect((json["future"] as? [String: Int]) == ["a": 1])
+    #expect((json["providers"] as? [String: [String: Any]])?["claude"]?["newKey"] as? Bool == true)
+    let generators = try #require(json["textGenerators"] as? [String: [String: String]])
+    // the one the person wrote by hand stays, the app's is named after the server
+    #expect(generators == ["mine": ["kind": "ollama", "model": "x"], "ollama": ["kind": "ollama", "model": "qwen3:8b"]])
+    #expect(json["textGenerator"] as? String == "ollama")
+}
+
+@Test func choosingAnotherReplacesWhatTheAppWroteAndNeverTouchesTheProvidersMap() throws {
+    let first = try applyingTextGenerator((server: "ollama", model: "qwen3:8b"), to: nil)
+    // a file with no providers key stays without it: the engine has its defaults then
+    #expect(try object(first)["providers"] == nil)
+    let second = try object(applyingTextGenerator((server: "lmstudio", model: "gemma"), to: first))
+    #expect((second["textGenerators"] as? [String: [String: String]]) == ["lmstudio": ["kind": "lmstudio", "model": "gemma"]])
+    #expect(second["textGenerator"] as? String == "lmstudio")
+    // another model of the same server replaces the model
+    let third = try object(applyingTextGenerator((server: "lmstudio", model: "llama"), to: try applyingTextGenerator((server: "lmstudio", model: "gemma"), to: nil)))
+    #expect((third["textGenerators"] as? [String: [String: String]]) == ["lmstudio": ["kind": "lmstudio", "model": "llama"]])
+}
+
+@Test func clearingRemovesTheChoiceAndTheEntryTheAppWroteAndKeepsTheRest() throws {
+    let chosen = try applyingTextGenerator((server: "ollama", model: "qwen3:8b"), to: Data(#"{"future":1,"providers":{"claude":{"harness":"claude"}}}"#.utf8))
+    let cleared = try object(applyingTextGenerator(nil, to: chosen))
+    #expect(cleared["textGenerator"] == nil && cleared["textGenerators"] == nil)
+    #expect(cleared["future"] as? Int == 1 && (cleared["providers"] as? [String: Any])?.keys.sorted() == ["claude"])
+    // an entry the person wrote stays, only the choice goes
+    let mine = Data(#"{"textGenerators":{"local":{"kind":"ollama","model":"x"}},"textGenerator":"local"}"#.utf8)
+    let kept = try object(applyingTextGenerator(nil, to: mine))
+    #expect(kept["textGenerator"] == nil && (kept["textGenerators"] as? [String: [String: String]]) == ["local": ["kind": "ollama", "model": "x"]])
+}
+
+@Test func aFileTheAppCannotReadIsNeverOverwrittenByATextGeneratorChoice() throws {
+    for bad in ["[1]", "not json", #"{"textGenerators":[]}"#, #"{"textGenerators":"x"}"#] {
+        #expect(throws: ProvidersFileError.notAnObject) { try applyingTextGenerator((server: "ollama", model: "m"), to: Data(bad.utf8)) }
+        #expect(throws: ProvidersFileError.notAnObject) { try applyingTextGenerator(nil, to: Data(bad.utf8)) }
+    }
+    // a server or model the engine would refuse is never written
+    for bad in [(server: "openai", model: "m"), (server: "ollama", model: "  ")] {
+        #expect(throws: (any Error).self) { try applyingTextGenerator(bad, to: nil) }
+    }
+}
+
+@MainActor @Test func theTextGeneratorIsWrittenAndTheEngineAskedOnlyWhileTheHostListsIt() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    let mine = #"{"providers":{"codex":{"harness":"codex"}},"extra":1}"#
+    try file.write(Data(mine.utf8))
+    let host = try ProvidersHost(replyJSON(accounts: [account("codex", found: true)]))
+    var asked = 0
+    let store = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { asked += 1; return .applied })
+    await store.load()
+    #expect(store.generatorEditable == false)
+    // an older host would refuse the keys: nothing is written, nothing is asked, and the page says why
+    #expect(await store.chooseTextGenerator((server: "ollama", model: "qwen3:8b")) == false)
+    #expect(try text(file) == mine && asked == 0 && store.editProblem?.contains("Update") == true)
+    host.capabilitiesAnswer = [.providers, .textGenerators]
+    await store.load()
+    #expect(store.generatorEditable)
+    #expect(await store.chooseTextGenerator((server: "ollama", model: "qwen3:8b")))
+    await store.settled()
+    #expect(asked == 1 && store.editProblem == nil)
+    let json = try object(try #require(try file.read()))
+    #expect(json["textGenerator"] as? String == "ollama" && json["extra"] as? Int == 1)
+    // the engine's refusal is shown with the key it names
+    let refusing = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { .refused("textGenerator: \"x\" is not declared in textGenerators") })
+    await refusing.load()
+    #expect(await refusing.chooseTextGenerator(nil))
+    await refusing.settled()
+    #expect(refusing.editProblem?.contains("textGenerator:") == true)
+    host.capabilitiesAnswer = []
+    await store.load()
+    #expect(store.generatorEditable == false)
+}
+
+@MainActor @Test func theChosenGeneratorIsReadFromTheHostBeforeTheEnginesReloadAnswers() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    let host = try ProvidersHost(replyJSON(accounts: [account("codex", found: true)]))
+    host.capabilitiesAnswer = [.providers, .textGenerators]
+    var readsWhenReloaded = 0
+    let store = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { readsWhenReloaded = host.asked; return .applied })
+    await store.load()
+    #expect(await store.chooseTextGenerator((server: "ollama", model: "qwen3:8b")))
+    await store.settled()
+    // the load after the write came first: the reload saw the first load and that one
+    #expect(readsWhenReloaded == 2 && host.asked == 3)
+}
+
+@MainActor @Test func earlierTitlesActionIsGatedByCapabilityAndReportsStartedZeroOrRefusal() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    let host = try ProvidersHost(replyJSON(accounts: [account("codex", found: true)]))
+    let store = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { .applied })
+
+    // without regenerateTitles in hello, nothing is asked
+    host.capabilitiesAnswer = [.providers, .textGenerators]
+    await store.load()
+    #expect(store.canRegenerateTitles == false)
+    await store.regenerateTitles()
+    #expect(host.regenerateTitlesCalls == 0 && store.retitleOutcome == nil)
+
+    // with regenerateTitles in hello, started count, 0, and refusal are recorded
+    host.capabilitiesAnswer = [.providers, .textGenerators, .regenerateTitles]
+    await store.load()
+    #expect(store.canRegenerateTitles)
+    host.regenerateTitlesResult = .success(3)
+    await store.regenerateTitles()
+    #expect(host.regenerateTitlesCalls == 1 && store.retitleOutcome == .started(3))
+    #expect(store.retitleOutcome?.words == "Started 3 sessions in the background")
+
+    host.regenerateTitlesResult = .success(0)
+    await store.regenerateTitles()
+    #expect(store.retitleOutcome == .started(0))
+    #expect(store.retitleOutcome?.words == "Nothing to title: every session already has a title")
+
+    host.regenerateTitlesResult = .failure(ControlError.remote("Could not write titles: no text generator is chosen; choose one in Providers"))
+    await store.regenerateTitles()
+    #expect(store.retitleOutcome == .refused("Could not write titles: no text generator is chosen; choose one in Providers"))
+
+    // changing the generator or dismissing clears the previous outcome
+    #expect(await store.chooseTextGenerator((server: "ollama", model: "qwen3:8b")))
+    #expect(store.retitleOutcome == nil)
+    await store.regenerateTitles()
+    #expect(store.retitleOutcome != nil)
+    store.dismissProblem()
+    #expect(store.retitleOutcome == nil)
+
+    // losing the capability clears it too
+    host.regenerateTitlesResult = .success(1)
+    await store.regenerateTitles()
+    #expect(store.retitleOutcome == .started(1))
+    host.capabilitiesAnswer = [.providers, .textGenerators]
+    await store.load()
+    #expect(store.canRegenerateTitles == false && store.retitleOutcome == nil)
 }
 
 @MainActor @Test func labelIconAndColorAreOfferedOnlyWhileTheHostSaysItKnowsThem() async throws {

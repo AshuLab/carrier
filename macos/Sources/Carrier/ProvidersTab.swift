@@ -166,7 +166,86 @@ struct ProvidersTabView: View {
                 }
             }
         }
+        if filter.isEmpty { textGeneratorsGroup(page) }
         checkGroup
+    }
+
+    // MARK: the text generators
+
+    /// The model that writes text for Carrier, chosen among the models the local servers list; `ProvidersStore.chooseTextGenerator` writes it. A server
+    /// that does not answer or has no model says so and cannot be chosen; a host that does not list `textGenerators` is told to update and offers nothing.
+    @ViewBuilder private func textGeneratorsGroup(_ page: ProvidersPage) -> some View {
+        SettingsGroup(title: "Text generators", footer: "A model that turns text into text, with no tools. It runs on a server of this Mac, and Carrier asks it for the text it needs.") {
+            SettingsTabRow(title: "In use", detail: page.generatorInUse ?? "None chosen", first: true) {
+                if page.textGenerator != nil, store.generatorEditable {
+                    Button { Task { await store.chooseTextGenerator(nil) } } label: { Label("Clear", icon: .close) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize().help("Removes the choice from providers.json")
+                }
+            }
+            if store.generatorEditable {
+                ForEach(page.servers) { server in
+                    SettingsTabRow(
+                        title: server.title, detail: server.generatorNote ?? "Choose one of its models",
+                        leading: AnyView(ProviderTile(icon: nil, symbol: server.id == "ollama" ? .server : .desktop))
+                    ) {
+                        if server.generatorNote == nil { generatorChoice(server) }
+                    }
+                }
+                if page.textGenerator != nil, store.canRegenerateTitles {
+                    retitleEarlierRow
+                }
+            } else {
+                // the installed carrier would refuse the whole file with these keys in it, so they are not offered until it is updated
+                SettingsTabRow(title: "Choosing is not available", detail: "Update carrier and restart the chat host to choose one") {
+                    Glyph(.refresh).foregroundStyle(.secondary).accessibilityHidden(true)
+                }
+            }
+        }
+        if let problem = store.editProblem { SettingsGroup(title: "") { ProblemLine(text: problem, font: .scaled(11)) } }
+        if let note = store.editNote {
+            SettingsGroup(title: "") { Label(note, icon: .info).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+        }
+    }
+
+    /// The server's models and, first, Not used: the one in use shows chosen on its server, and Not used on it clears the choice.
+    private func generatorChoice(_ server: ProviderServer) -> some View {
+        ChoicePopUp(
+            label: "Model of \(server.title)",
+            options: [(value: "", title: "Not used")] + server.generatorModels.map { (value: $0, title: $0) },
+            selection: Binding(
+                get: { server.generatorModel ?? "" },
+                set: { model in
+                    if model.isEmpty == false { Task { await store.chooseTextGenerator((server: server.id, model: model)) } }
+                    else if server.generatorModel != nil { Task { await store.chooseTextGenerator(nil) } }
+                }
+            )
+        )
+    }
+
+    private var retitleEarlierRow: some View {
+        let detail = switch store.retitleOutcome {
+        case .started?: store.retitleOutcome!.words
+        case .refused?, nil: "Sessions whose title is still their first line"
+        }
+        let problem: String? = if case .refused(let reason) = store.retitleOutcome { reason } else { nil }
+        return SettingsTabRow(title: "Titles of earlier sessions", detail: detail, problem: problem) {
+            HStack(spacing: 8) {
+                if store.retitling {
+                    ProgressView().controlSize(.small).accessibilityLabel("Starting")
+                }
+                Button {
+                    Task {
+                        await store.regenerateTitles()
+                        if let words = store.retitleOutcome?.words { AccessibilityNotification.Announcement(words).post() }
+                    }
+                } label: {
+                    Label("Write titles", icon: .sparkles)
+                }
+                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
+                .disabled(store.retitling)
+                .help("Starts writing titles in the background for earlier sessions")
+            }
+        }
     }
 
     // MARK: a provider

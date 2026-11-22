@@ -26,6 +26,8 @@ import { redact } from '../logging/redact.ts';
 import { ChatRefused, type BackgroundTask, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
 import { clean } from '../execution/events.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
+import { noTextGenerator, TEXT_GENERATOR_LIMIT_MS, TextGeneratorFailed, type TextGenerator } from './text-generator.ts';
+import { titleSystemMessage, titleText } from './title-prompt.ts';
 import { boundEvent, chatCaps, previewOf, titleOf } from './transcript.ts';
 import { checkName, checkWorktreeClash, suggestName } from './names.ts';
 import { createProject, projectFolder, type createProjects } from './projects.ts';
@@ -66,6 +68,7 @@ const idleFor = (row: { state: State; lastActiveAt: number }, live: boolean, now
 
 type Harness = (typeof sessions.$inferSelect)['harness'];
 type State = (typeof sessions.$inferSelect)['state'];
+export type TitleSource = NonNullable<(typeof sessions.$inferSelect)['titleSource']>;
 
 /** Where a session works: the folder it was opened in, or a worktree made for it from that base folder. */
 export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: string; from: string; base: string; path: string };
@@ -78,7 +81,7 @@ export type ProjectWorktrees = { main: { path: string; branch: string | null; st
 /** A child session as its parent's summary lists it; `level` is the permission level it runs at, and `needsPerson` says that it waits for an approval or a question. */
 export type ChildSummary = { id: string; agent: string; harness: Harness; state: State; level: Level | null; needsPerson: boolean };
 
-export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'prRepo' | 'prNumber' | 'prUrl' | 'prState' | 'prChecks' | 'prCheckedAt' | 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath' | 'delegationRequestId'> & {
+export type SessionSummary = Omit<typeof sessions.$inferSelect, 'titleSource' | 'keptAt' | 'prRepo' | 'prNumber' | 'prUrl' | 'prState' | 'prChecks' | 'prCheckedAt' | 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath' | 'delegationRequestId'> & {
   workspace: SessionWorkspace;
   /** The sessions that this one started by delegating, oldest first. */
   children: ChildSummary[];
@@ -143,6 +146,8 @@ export type ChatSessionsDeps = {
   idleCloseMs?: () => number;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
+  /** What writes a session's title (ADR 0038); a host that is given none refuses the request in words. */
+  textGenerator?: TextGenerator;
   /** The chat MCP: the registry that issues each conversation's token and the URL of the endpoint, which is undefined when the host could not start it. Without this a host has no MCP and says nothing of it. */
   mcp?: { registry: McpSessionRegistry; url: () => string | undefined; /** Every tool of the chat MCP, by name, which the adapters are told when a conversation opens. */ tools: string[] };
 };
@@ -168,7 +173,7 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, shell = realShell, projects, binaryFound, probes = realProbes, machine = realMachine, ages, idleCloseMs = () => IDLE_CLOSE_MS, onLiveChange, mcp, pulls = noPullRequests }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, shell = realShell, projects, binaryFound, probes = realProbes, machine = realMachine, ages, idleCloseMs = () => IDLE_CLOSE_MS, onLiveChange, mcp, pulls = noPullRequests, textGenerator = noTextGenerator }: ChatSessionsDeps) {
   const data = createSessionData({ db, git, pulls, clock });
   const listed = () => (typeof agents === 'function' ? agents() : agents);
   const health = createHealth({ agents, clock, binaryFound, probes });
@@ -328,7 +333,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       level: isScaleHarness(child.harness) ? (levelOf(child.harness, optionsOf(child.id, child.options)) ?? null) : null,
       needsPerson: child.state === 'waiting_approval',
     }));
-  const summary = ({ keptAt: _keptAt, prRepo: _prRepo, prNumber: _prNumber, prUrl: _prUrl, prState: _prState, prChecks: _prChecks, prCheckedAt: _prCheckedAt, options: _options, pid: _pid, pgid: _pgid, command: _command, delegationRequestId: _delegationRequestId, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
+  const summary = ({ titleSource: _titleSource, keptAt: _keptAt, prRepo: _prRepo, prNumber: _prNumber, prUrl: _prUrl, prState: _prState, prChecks: _prChecks, prCheckedAt: _prCheckedAt, options: _options, pid: _pid, pgid: _pgid, command: _command, delegationRequestId: _delegationRequestId, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
     ...rest,
     children: childrenOf(rest.id),
     preparation: rest.state === 'preparing' ? 'running' : plan === null ? null : 'failed',
@@ -342,6 +347,74 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     const last = db.select({ model: chatTurns.model }).from(chatTurns).where(eq(chatTurns.sessionId, sessionId)).orderBy(desc(chatTurns.id)).limit(1).get();
     const text = message?.data.text;
     return { lastMessage: typeof text === 'string' && text.trim() !== '' ? previewOf(text) : null, turns, model: last?.model ?? null };
+  };
+
+  /** The first message of a session, as stored (redacted and bounded): what its title is written from and what the legacy rule compares. */
+  const firstMessage = (sessionId: string) => {
+    const found = db.select({ id: chatEvents.id, data: chatEvents.data }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'user'))).orderBy(asc(chatEvents.id)).limit(1).get();
+    return found === undefined ? undefined : { id: found.id, text: typeof found.data.text === 'string' ? found.data.text : '' };
+  };
+  /** The first reply of the session's own agent (not a subagent's) after that message, when it has one. */
+  const firstReply = (sessionId: string, after: number) => {
+    const found = db.select({ data: chatEvents.data }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'assistant'), gt(chatEvents.id, after), sql`json_extract(${chatEvents.data}, '$.parentCallId') is null`)).orderBy(asc(chatEvents.id)).limit(1).get();
+    const text = found?.data.text;
+    return typeof text === 'string' && text.trim() !== '' ? text : undefined;
+  };
+  /** Where a row's title came from. A row from before the column has none: a title equal to the first line of its first message is a first-line one, any other was set by the person. */
+  const titleSourceOf = (found: typeof sessions.$inferSelect): TitleSource | null => {
+    if (found.titleSource !== null || found.title === null) return found.titleSource;
+    const first = firstMessage(found.id);
+    return first !== undefined && found.title === titleOf(first.text) ? 'first_line' : 'renamed';
+  };
+  // One call to the generator at a time: two sessions that ask together do not make a server load a model twice. A call that passes the limit is a failure, whatever the generator does after.
+  let generating: Promise<unknown> = Promise.resolve();
+  const generate = (input: { system: string; text: string }) => {
+    const call = () =>
+      new Promise<string>((resolve, reject) => {
+        const cancel = clock.after(TEXT_GENERATOR_LIMIT_MS, async () => reject(new TextGeneratorFailed(`the text generator did not answer within ${TEXT_GENERATOR_LIMIT_MS / 1000} seconds`)));
+        textGenerator.generate(input).then(resolve, reject).finally(cancel);
+      });
+    const run = generating.then(call, call);
+    generating = run.catch(() => {});
+    return run;
+  };
+  // Sessions whose title is being written in the background, so a second turn ending meanwhile does not ask twice.
+  const titling = new Set<string>();
+  /** Generates a cleaned title from `message` and `reply` (when there is one), logging and rethrowing on failure. */
+  const generateTitle = async (sessionId: string, message: string, reply?: string) => {
+    try {
+      const title = titleOf(await generate({ system: titleSystemMessage, text: titleText(message, reply) }));
+      if (title === '') throw new TextGeneratorFailed('the text generator answered with no text');
+      return title;
+    } catch (error) {
+      log.error('the text generator could not write a title', error, { sessionId });
+      throw error;
+    }
+  };
+  /**
+   * Titles a session in the background after a turn ends well: never a child, never over a renamed or already generated title,
+   * never when there is no reply yet, and never failing or delaying the session.
+   */
+  const autoTitle = async (sessionId: string) => {
+    if (closed || titling.has(sessionId)) return;
+    const found = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    if (found === undefined || found.parentSessionId !== null || titleSourceOf(found) !== 'first_line') return;
+    const first = firstMessage(sessionId);
+    if (first === undefined || first.text.trim() === '') return;
+    const reply = firstReply(sessionId, first.id);
+    if (reply === undefined) return;
+    titling.add(sessionId);
+    try {
+      const title = await generateTitle(sessionId, first.text, reply);
+      if (closed) return;
+      const current = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+      if (current === undefined || current.parentSessionId !== null || titleSourceOf(current) !== 'first_line') return;
+      db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, sessionId)).run();
+    } catch {
+      // already logged in generateTitle; the title stays the first line and the next turn tries again
+    } finally {
+      titling.delete(sessionId);
+    }
   };
 
   // Worktrees are made one at a time: what a request checked (a free name) is still true when git adds.
@@ -485,6 +558,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       live.turn = undefined;
       // what the turn ran says what to read again; a turn with no record of it reads everything
       void data.afterTurn(sessionId, ran === undefined ? undefined : { acted: ran.acted, github: githubWorkOf(ran.commands) });
+      if (event.outcome === 'ok') void autoTitle(sessionId);
     }
     // The SDK runs subagents in the background, so a turn can end before them: the session is idle only when the turn is over and no task runs.
     const busy = live.turn !== undefined || live.tasks.size > 0;
@@ -1027,7 +1101,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     const options = { ...plan.options, ...(model !== undefined && { model }) };
     const now = clock.now();
     const childId = randomUUID();
-    db.insert(sessions).values({ id: childId, agent: chosen.name, harness: launch.harness, folder: current.folder, options, title: titleOf(task), state: 'working', createdAt: now, lastActiveAt: now, parentSessionId: parentId, delegationRequestId: requestId ?? null }).run();
+    db.insert(sessions).values({ id: childId, agent: chosen.name, harness: launch.harness, folder: current.folder, options, title: titleOf(task), titleSource: 'first_line', state: 'working', createdAt: now, lastActiveAt: now, parentSessionId: parentId, delegationRequestId: requestId ?? null }).run();
 
     const issued = issueMcp(childId, true);
     const open = (async () => {
@@ -1291,7 +1365,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       const plan = { ...asked, text: claimAttachments(asked.text, id) };
       const created = db
         .insert(sessions)
-        .values({ id, agent: target.launch.chosen.name, harness: target.launch.harness, folder: target.folder, plan, title: titleOf(plan.text), state: 'preparing', createdAt: now, lastActiveAt: now })
+        .values({ id, agent: target.launch.chosen.name, harness: target.launch.harness, folder: target.folder, plan, title: titleOf(plan.text), titleSource: 'first_line', state: 'preparing', createdAt: now, lastActiveAt: now })
         .returning()
         .get();
       begin(created.id, target, plan); // before the answer, so the host is never idle between the reply and the first step
@@ -1405,7 +1479,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       text = claimAttachments(text, sessionId);
       const shown = invoked === undefined ? text : `/${invoked.name}${text === '' ? '' : ` ${text}`}`;
       if (shown.length > chatCaps.message) throw new ChatRefused(`That message has ${shown.length} characters; the most a message can have is ${chatCaps.message}`);
-      if (current.title === null) db.update(sessions).set({ title: titleOf(shown) }).where(eq(sessions.id, sessionId)).run();
+      if (current.title === null) db.update(sessions).set({ title: titleOf(shown), titleSource: 'first_line' }).where(eq(sessions.id, sessionId)).run();
       deliver(sessionId, live, shown, text, invoked);
       return {};
     },
@@ -1539,9 +1613,62 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       refuseChild(sessionId, 'renamed');
       const named = titleOf(title);
       if (named === '') throw new ChatRefused('A title cannot be empty');
-      db.update(sessions).set({ title: named }).where(eq(sessions.id, sessionId)).run();
+      db.update(sessions).set({ title: named, titleSource: 'renamed' }).where(eq(sessions.id, sessionId)).run();
       return {};
     },
+
+    /** Writes the session's title again from its first message and first reply with the chosen text generator, over any title (the person asked); answers it. Refused in words, with the title as it was, when the generator gives none. */
+    async regenerateTitle({ sessionId }: { sessionId: string }) {
+      refuseChild(sessionId, 'retitled');
+      const first = firstMessage(sessionId);
+      if (first === undefined || first.text.trim() === '') throw new ChatRefused('This session has no message to write a title from yet');
+      let title: string;
+      try {
+        title = await generateTitle(sessionId, first.text, firstReply(sessionId, first.id));
+      } catch (error) {
+        throw new ChatRefused(`Could not write a title: ${error instanceof TextGeneratorFailed ? error.message : 'the text generator failed'}`);
+      }
+      db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, sessionId)).run();
+      return { title };
+    },
+
+    /** Starts writing a title with the chosen text generator for every session of the list and the archive whose title is still its first line, one at a time in the background, and answers how many it started. */
+    regenerateTitles() {
+      try {
+        textGenerator.chosen?.();
+      } catch (error) {
+        throw new ChatRefused(`Could not write titles: ${error instanceof TextGeneratorFailed ? error.message : 'no text generator is chosen; choose one in Providers'}`);
+      }
+      const candidates: { id: string; first: { id: number; text: string } }[] = [];
+      for (const found of db.select().from(sessions).where(isNull(sessions.parentSessionId)).orderBy(desc(sessions.lastActiveAt)).all()) {
+        if (deleting.has(found.id) || titleSourceOf(found) !== 'first_line') continue;
+        const first = firstMessage(found.id);
+        if (first !== undefined && first.text.trim() !== '') candidates.push({ id: found.id, first });
+      }
+      if (candidates.length > 0) {
+        void (async () => {
+          for (const { id, first } of candidates) {
+            if (closed) return;
+            const current = db.select().from(sessions).where(eq(sessions.id, id)).get();
+            if (current === undefined || deleting.has(id) || titleSourceOf(current) !== 'first_line') continue;
+            try {
+              const title = await generateTitle(id, first.text, firstReply(id, first.id));
+              if (closed) return;
+              const latest = db.select().from(sessions).where(eq(sessions.id, id)).get();
+              if (latest === undefined || deleting.has(id) || titleSourceOf(latest) !== 'first_line') continue;
+              db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, id)).run();
+            } catch {
+              if (closed) return;
+              // already logged in generateTitle; skip and go on with the rest
+            }
+          }
+        })();
+      }
+      return { started: candidates.length };
+    },
+
+    /** Where the session's title came from, for the automatic title and the bulk one: `first_line`, `generated` or `renamed`, null when it has no title. */
+    titleSource: (sessionId: string) => titleSourceOf(row(sessionId)),
 
     /**
      * The clock's pass: archives each session left alone for `archiveAfterDays`, then deletes each archived one left alone for `deleteAfterDays`, sparing

@@ -12,7 +12,7 @@ The commands run on the person's Mac with the person's credentials, so where the
 
 ## Decision
 
-A project's actions are kept in its entry of `projects.json` ([0038](0038-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md)), written by the person in Settings.
+A project's actions are kept in its entry of `projects.json` ([0041](0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md)), written by the person in Settings.
 Carrier never reads a command from a file inside a repository, whether it is `.carrier/`, `package.json`, a git hook or anything else, so cloning or fetching a repository that is someone else's cannot make Carrier run anything.
 
 An action has a name, a command, when it runs (in a new worktree, or after a clone), whether it is on, and what happens when it fails: warn and continue, the default, or stop the session.

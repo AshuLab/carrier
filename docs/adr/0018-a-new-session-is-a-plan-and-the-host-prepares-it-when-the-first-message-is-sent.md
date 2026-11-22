@@ -1,6 +1,6 @@
 # 0018 - A new session is a plan, and the host prepares it when the first message is sent
 
-- Status: accepted; a clone or a new project also happens at once when the person adds a project by hand in Settings, and one made at the first message becomes a project ([0038](0038-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md))
+- Status: accepted; a clone or a new project also happens at once when the person adds a project by hand in Settings, and one made at the first message becomes a project ([0041](0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md))
 - Date: 2026-11-04
 
 ## Context

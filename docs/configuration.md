@@ -121,7 +121,7 @@ The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `C
 }
 ```
 
-The file has one key, `providers`, and no other.
+The file has three keys, `providers` and the two of [Text generators](#text-generators), and no other.
 
 | Field of a provider | Required | Meaning |
 |----------------------|----------|---------|
@@ -147,6 +147,51 @@ A flag in `launchArgs` is judged by its name, so `--model=x` and `--model x` are
 The file holds no secret; a log names an account and a flag, never the value of an argument.
 
 Without `providers.json` there is one account per harness, named after it: `claude`, `codex` and `agy`, each with this Mac's own login (no `configDir`). A role may name them. A file that has a `providers` key replaces them: only the accounts it lists exist.
+
+### Text generators
+
+A text generator is a model that turns text into text with no tools: a local server, LM Studio or Ollama, and one of its models.
+It is declared in `providers.json` next to the accounts, and one of them is named as the one in use:
+
+```json
+{
+  "textGenerators": {
+    "local": { "kind": "ollama", "model": "qwen3:8b" },
+    "studio": { "kind": "lmstudio", "model": "google/gemma-4-12b" }
+  },
+  "textGenerator": "local"
+}
+```
+
+| Key | Required | Meaning |
+|-----|----------|---------|
+| `textGenerators` | no | The generators by name, each `{ "kind", "model" }`. The name follows the same rule as an account's. Without it, `{}`. |
+| `textGenerators.<name>.kind` | yes | The server: `lmstudio` or `ollama`, the local ones on this Mac. |
+| `textGenerators.<name>.model` | yes | The model the server runs: one trimmed, non-empty string. |
+| `textGenerator` | no | The name of the generator in use. It must be a key of `textGenerators`, so a name with none declared, or `""`, is refused. Without it there is no generator. |
+
+An unknown key inside a generator is refused.
+The engine reads these keys with the same schema as the chat host and ignores them; the chat host reports the one in use in its `providers` reply.
+A file that does not match stops the engine's start, is refused by `carrier reload` and is answered by the host as a problem, each naming the key.
+
+The strict schema is why the host's hello lists `textGenerators`: a `carrier` that does not list it refuses a file with these keys, so the Mac app writes them only while it is there.
+
+The chat host calls the generator in use to write session titles, in three cases:
+
+- Automatically, in the background, when the first turn of a session ends well: the title comes from the first message and the first reply, and the person never waits for it.
+  A session started by a delegation (a child) keeps its own title.
+  An automatic title only replaces a first-line title, so a title the person set with Rename is never replaced and a generated title is not rewritten by the next turn.
+  When the call fails, the title stays as it was, the cause goes to the log without any notice in the session, and the session tries again at the end of its next turn while its title is still the first line.
+- When the person asks for one session (Regenerate title in a session's menu, the `regenerateTitle` request): the new title replaces whatever the title is, a renamed one included, and the request answers it.
+- For the earlier sessions (the `regenerateTitles` request, "Titles of earlier sessions" in Providers): in the background and one session at a time, for every session of the list and of the archive whose title is still the first line, children left out.
+  It answers at once how many sessions it will do; the titles show in the lists as they land.
+
+Each call sends the server a fixed system message and the session's first message and first reply, each cut to 2,000 characters, with no tools, to `/v1/chat/completions` on the server's default port (LM Studio 1234, Ollama 11434).
+It reads `providers.json` at each use, so a change needs no restart, and it makes one call at a time, each with a limit of 30 seconds.
+A call can fail: the server is not running, the model is missing, there is no answer in 30 seconds, or the answer is empty.
+Then the title stays as it was and the cause is in `<folder>/chat/logs/chat-host.log`.
+`regenerateTitle` is refused, with words that say to choose a generator in Providers or what failed.
+`regenerateTitles` is refused only when no generator is chosen (or `providers.json` is invalid); once it has started, a session whose call fails is skipped, logged, and the rest go on.
 
 `carrier init` does not ask which providers to use: it looks for the agent CLIs on the Mac (their real binary, never a wrapper under `~/.paradev` or `~/.superset`), shows where each is with its version and whether it is signed in, and writes one account per CLI it found, named after it. It says how many accounts it added, and then asks only for extra accounts (another login of the same CLI, or one on a local server), with Enter meaning no. The accounts go to `providers.json` in the Carrier folder, even when `--out` puts the config elsewhere, and the recap says so. The flags that declare an account (`--author-provider` and the like) add it to the file, and `--yes` writes it without asking. When it edits an existing setup it starts from the accounts already in that file instead. When assigning roles, each role points at a declared account (a `provider` in the file) and specifies its model.
 
@@ -319,7 +364,7 @@ A chat applies every key of its account that starts the CLI: `configDir` and `co
 
 ## Projects
 
-The projects you work on live in `projects.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json`, `chat.json` and `providers.json`: [ADR 0038](adr/0038-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md).
+The projects you work on live in `projects.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json`, `chat.json` and `providers.json`: [ADR 0038](adr/0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md).
 The app and the chat host both read and write it, each reading the file again just before it writes, so you can edit it by hand while Carrier runs.
 It is optional: without it there are no projects.
 A file that does not match is reported with the field named and neither the app nor the host writes over it.

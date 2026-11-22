@@ -204,7 +204,7 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
       const reply = await cloneRepo({ repo: clone.repo, folder: clone.folder }, abort.signal, (line) => void (clone.progress = line));
       // a folder that was already there and only fetched is added, not cloned (docs/specs/projects.md, Who writes what)
       const origin = reply.fetched ? 'added' : 'cloned';
-      // a worktree directory that is another project's is refused (ADR 0038); what was cloned stays, as the person's
+      // a worktree directory that is another project's is refused (ADR 0041); what was cloned stays, as the person's
       const listed = readProjectsFile();
       if (listed.ok) {
         await checkWorktreeClash(git, reply.folder, listed.projects).catch((error: unknown) => {

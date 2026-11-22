@@ -130,7 +130,7 @@ public func worktreeDirectory(folder: String, repo: String?) -> String {
 
 /// Why adding `folder` (whose GitHub `owner/name` is `repo`, if any) would clash with one of `projects`, in words naming it; nil when it would not. A clash is
 /// another project whose worktree directory is the same, compared without regard to case; the same folder is already a project, not a clash.
-/// The twin of `checkWorktreeClash` in src/chat/names.ts (ADR 0038).
+/// The twin of `checkWorktreeClash` in src/chat/names.ts (ADR 0041).
 public func worktreeClashRefusal(folder: String, repo: String?, among projects: [ProjectRow]) -> String? {
     let mine = worktreeDirectory(folder: folder, repo: repo)
     for project in projects where isSameFolder(project.path, folder) == false {

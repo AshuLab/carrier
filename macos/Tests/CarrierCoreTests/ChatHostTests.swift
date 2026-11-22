@@ -93,7 +93,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .interrupt, .stopTask, .worktreeStart, .fetchIfStale, .projects])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .interrupt, .stopTask, .worktreeStart, .fetchIfStale, .projects, .textGenerators, .regenerateTitle, .regenerateTitles])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -741,4 +741,33 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { try await oldHost.removeProjectWorktree("/p/app", path: "/w") }
     await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await oldHost.cleanProjectWorktrees("/p/app", run: false) }
     #expect(asked == false)
+}
+
+@Test func regenerateTitlesSendsOnlyWhileTheHelloListsItAndDecodesStartedOrRefusal() async throws {
+    let asked = Asked()
+    let server = TestServer { connection in
+        connection.send(hello(#""regenerateTitles""#))
+        guard let line = connection.readLine(), let json = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any], let id = json["id"] as? Int else { return }
+        asked.add(line)
+        if asked.all.count == 1 {
+            connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"started\":4}}\n")
+        } else {
+            connection.send("{\"id\":\(id),\"ok\":false,\"error\":\"Could not write titles: no text generator is chosen; choose one in Providers\"}\n")
+        }
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    #expect(try await host.regenerateTitles() == 4)
+    await #expect(throws: ControlError.remote("Could not write titles: no text generator is chosen; choose one in Providers")) { _ = try await host.regenerateTitles() }
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(asked.all[0].utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "regenerateTitles" && sent.keys.sorted() == ["cmd", "id"])
+
+    var askedOlder = false
+    let older = TestServer { connection in
+        connection.send(hello(#""textGenerators","regenerateTitle""#))
+        askedOlder = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    await #expect(throws: ControlError.remote("the chat host does not support regenerateTitles")) { _ = try await SocketChatHost(socketPath: { older.path }).regenerateTitles() }
+    #expect(askedOlder == false)
 }

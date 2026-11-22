@@ -48,6 +48,9 @@
     "worktreeStart",
     "fetchIfStale",
     "listsRev",
-    "projects"
+    "projects",
+    "textGenerators",
+    "regenerateTitle",
+    "regenerateTitles"
   ]
 }

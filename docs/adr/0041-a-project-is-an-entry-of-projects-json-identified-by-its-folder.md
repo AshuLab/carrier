@@ -1,4 +1,4 @@
-# 0038 - A project is an entry of `projects.json`, identified by its folder
+# 0041 - A project is an entry of `projects.json`, identified by its folder
 
 - Status: accepted; amends [0015](0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md) (the list the chat works from, and what the projects folder is) and [0018](0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md) (when a clone or a new project happens)
 - Date: 2026-11-21

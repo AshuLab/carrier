@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// The app's writing of projects.json (docs/adr/0038): one field of one entry changed, every other entry and key kept, the file written whole,
+// The app's writing of projects.json (docs/adr/0041): one field of one entry changed, every other entry and key kept, the file written whole,
 // a file that does not match reported with the field and never written over.
 
 private func temporaryFolder() throws -> String {

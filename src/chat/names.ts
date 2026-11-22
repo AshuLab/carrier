@@ -55,7 +55,7 @@ const real = (path: string) => {
 
 /**
  * Refuses `folder` (already checked, a real path) as a project when its worktree directory (`worktreeDirectory`, the one `worktreePath` makes) is the one of
- * another of `projects`, naming it (ADR 0038). Compared without regard to case, as the disk may. A project whose folder git cannot read is skipped.
+ * another of `projects`, naming it (ADR 0041). Compared without regard to case, as the disk may. A project whose folder git cannot read is skipped.
  */
 export async function checkWorktreeClash(git: Git, folder: string, projects: { path: string; name?: string }[]): Promise<void> {
   const mine = worktreeDirectory(await inspectFolder(git, folder)).toLowerCase();

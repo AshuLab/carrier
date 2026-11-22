@@ -22,6 +22,7 @@ import { delegateStart, delegateWait } from './mcp/delegate.ts';
 import { history } from './mcp/history.ts';
 import { McpSessionRegistry, startMcpServer, type McpServer } from './mcp.ts';
 import { startChatServer } from './server.ts';
+import { realTextGenerator, type TextGenerator } from './text-generator.ts';
 import { realMachine, type Machine } from '../doctor/detect.ts';
 import { realProbes, type HealthProbes } from './health.ts';
 import { binaryFound, createSessions, IDLE_CLOSE_MS, type ChatSessionsDeps, type LiveSettings } from './sessions.ts';
@@ -67,6 +68,8 @@ export interface ChatHostDeps {
   processes: Processes;
   /** Starts the chat MCP's loopback server. */
   startMcp: typeof startMcpServer;
+  /** What writes a session's title: the generator `providers.json` names, unless a test replaces it. */
+  textGenerator: TextGenerator;
   /** What the `usage` request touches on the machine; the real ports unless a test replaces them (the clock is the host's). */
   usage: Pick<UsageDeps, 'ports' | 'history'>;
 }
@@ -77,7 +80,7 @@ const realGithub = ({ githubCallTimeoutSeconds }: ChatSettings): GithubRepos => 
   branches: (repo) => ghBranches(repo, githubCallTimeoutSeconds * 1000),
 });
 
-const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, shell: realShell, measure: measureWithDu, token: ghToken, github: realGithub(settings), pulls: ghPullRequests(settings.githubCallTimeoutSeconds * 1000), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses, startMcp: startMcpServer, usage: { ports: realUsagePorts, history: realHistoryPorts } });
+const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, shell: realShell, measure: measureWithDu, token: ghToken, github: realGithub(settings), pulls: ghPullRequests(settings.githubCallTimeoutSeconds * 1000), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses, startMcp: startMcpServer, usage: { ports: realUsagePorts, history: realHistoryPorts }, textGenerator: realTextGenerator() });
 
 /**
  * Runs the chat host from the Carrier folder alone (`CARRIER_HOME`, else `~/.carrier`): its own lock, database and socket under
@@ -116,7 +119,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock, onCloneChange: () => idle?.recheck() });
   // the last value read, not the file: a conversation names its session several times a second (`list` and the clock pass read the file)
   const idleCloseMs = () => (ages.idleCloseMinutes === undefined ? IDLE_CLOSE_MS : ages.idleCloseMinutes * 60_000);
-  const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), idleCloseMs, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, shell: deps.shell, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, pulls: deps.pulls, onLiveChange: () => idle?.recheck(), mcp: { registry: mcpRegistry, url: () => mcpServer?.url, tools: mcpTools.map((tool) => tool.name) } });
+  const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), idleCloseMs, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, shell: deps.shell, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, pulls: deps.pulls, textGenerator: deps.textGenerator, onLiveChange: () => idle?.recheck(), mcp: { registry: mcpRegistry, url: () => mcpServer?.url, tools: mcpTools.map((tool) => tool.name) } });
   // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
   let cancelPass = () => {};
   let stopped = false;

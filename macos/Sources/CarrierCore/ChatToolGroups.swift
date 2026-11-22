@@ -448,6 +448,14 @@ public func togglingToolGroups(in rows: [FeedRow], flipped: Set<String>) -> Set<
     return unfold ? flipped.union(ids) : flipped.subtracting(ids)
 }
 
+/// The keys of `flipped` that belong to one row of the feed: its own id and the ones under it (`"<id>/..."`, a thought or a call of its run). A row
+/// is drawn from these and from nothing else of `flipped`, so it is drawn again only when these change, not when another row's key does.
+public func flippedKeys(of id: String, in flipped: Set<String>) -> Set<String> {
+    if flipped.isEmpty { return [] }
+    let under = id + "/"
+    return flipped.filter { $0 == id || $0.hasPrefix(under) }
+}
+
 /// The text of the agent's last answer; nil when it has not written one.
 public func lastAnswer(in rows: [FeedRow]) -> String? {
     for row in rows.reversed() {

@@ -196,7 +196,7 @@ struct ProvidersTabView: View {
                 }
             } else {
                 // the installed carrier would refuse the whole file with these keys in it, so they are not offered until it is updated
-                SettingsTabRow(title: "Choosing is not available", detail: "The installed carrier does not know text generators yet. Update it (brew upgrade carrier) and restart the chat host to choose one", roomy: true) {
+                SettingsTabRow(title: "Choosing is not available", detail: "Update carrier and restart the chat host to choose one") {
                     Glyph(.refresh).foregroundStyle(.secondary).accessibilityHidden(true)
                 }
             }
@@ -209,18 +209,17 @@ struct ProvidersTabView: View {
 
     /// The server's models and, first, Not used: the one in use shows chosen on its server, and Not used on it clears the choice.
     private func generatorChoice(_ server: ProviderServer) -> some View {
-        let models = server.generatorModels
-        return SelectMenu(
-            items: ["Not used"] + models,
+        ChoicePopUp(
+            label: "Model of \(server.title)",
+            options: [(value: "", title: "Not used")] + server.generatorModels.map { (value: $0, title: $0) },
             selection: Binding(
-                get: { server.generatorModel.flatMap { models.firstIndex(of: $0) }.map { $0 + 1 } ?? 0 },
-                set: { index in
-                    if index > 0 { Task { await store.chooseTextGenerator((server: server.id, model: models[index - 1])) } }
+                get: { server.generatorModel ?? "" },
+                set: { model in
+                    if model.isEmpty == false { Task { await store.chooseTextGenerator((server: server.id, model: model)) } }
                     else if server.generatorModel != nil { Task { await store.chooseTextGenerator(nil) } }
                 }
             )
         )
-        .accessibilityLabel("Model of \(server.title)")
     }
 
     private var retitleEarlierRow: some View {

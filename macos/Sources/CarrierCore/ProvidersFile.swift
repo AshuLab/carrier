@@ -36,7 +36,7 @@ public func applyingAccounts(_ accounts: [(name: String, harness: String)], to j
     return try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
 }
 
-/// The servers a text generator can be (`textGeneratorKinds` of `src/config/providers.ts`). The entry the app writes is named after its server, so the entries it wrote before are the ones with those names.
+/// The servers a text generator can be (`localKinds` of `src/harnesses/local.ts`, the kinds `src/config/providers.ts` accepts). The entry the app writes is named after its server, so the entries it wrote before are the ones with those names.
 public let textGeneratorServers = ["lmstudio", "ollama"]
 
 /// `json` with the text generator chosen: one entry `textGenerators.<server>` of `{ kind, model }` and `textGenerator` naming it, in place of what

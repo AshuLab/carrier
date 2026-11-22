@@ -570,10 +570,11 @@ public struct SocketChatHost: ChatHost {
     private struct TitleReply: Decodable { let title: String }
     private struct TitlesReply: Decodable { let started: Int }
 
+    /// The host's one generator call has 30 seconds and the call waits behind the one in progress, so the wait for the reply is longer than the 5 seconds of the other requests.
     public func regenerateTitle(_ id: String) async throws -> String {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
-        let reply: TitleReply = try await Task.detached { try chatRequest(path, "regenerateTitle", requires: .regenerateTitle, fields: fields) }.value
+        let reply: TitleReply = try await Task.detached { try chatRequest(path, "regenerateTitle", requires: .regenerateTitle, fields: fields, timeout: 70) }.value
         return reply.title
     }
 

@@ -416,7 +416,8 @@ public enum RetitleOutcome: Equatable {
             return false
         }
         retitleOutcome = nil
-        return await change("choose a text generator") { try applyingTextGenerator(choice, to: $0) }
+        // the host reads the file at each use, so the page can show the choice before the engine's reload answers (up to 6 seconds)
+        return await change("choose a text generator", showAtOnce: true) { try applyingTextGenerator(choice, to: $0) }
     }
 
     /// Asks the host to title earlier sessions whose title is still their first line, in the background. Only sent while the host lists `regenerateTitles`.
@@ -434,7 +435,7 @@ public enum RetitleOutcome: Equatable {
 
     /// Reads the file and writes what `make` returns; a refusal writes nothing. It gives back as soon as the file is written, so the editor closes
     /// at once: the engine is asked, and the host looked at again, in the background, and a `problem` it answers is what the page shows (`settled`).
-    private func change(_ what: String, _ make: (Data?) throws -> Data) async -> Bool {
+    private func change(_ what: String, showAtOnce: Bool = false, _ make: (Data?) throws -> Data) async -> Bool {
         dismissProblem()
         do {
             let file = file()
@@ -465,6 +466,7 @@ public enum RetitleOutcome: Equatable {
         // the older answer is still asked for (the engine reads the file anyway), but its look at the host would land after the newer one's
         follow?.cancel()
         follow = Task {
+            if showAtOnce { await load() }
             let outcome = await status.answer(reload)
             if mine == changes {
                 engineSaid(outcome)

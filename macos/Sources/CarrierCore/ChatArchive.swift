@@ -144,10 +144,10 @@ public func archiveBlock(_ row: SessionRow) -> String? {
 }
 
 /// The context menu of a session row in the sidebar, on the Sessions home and in the Archive, as sections the view separates with a
-/// divider: Stop (while it works) and Pin; Rename and Regenerate title; Open in Terminal, Copy (path, branch name, session id) and, where the
+/// divider: Stop (while it works) and Pin; Rename and, while the host lists `regenerateTitle` (`canRegenerateTitle`), Regenerate title; Open in Terminal, Copy (path, branch name, session id) and, where the
 /// view can filter (`canFilter`, the home), Filter by the workspace; Archive (Restore for an archived one) and, for an archived one, Delete.
 /// An archived session is not listed in the groups, so it has no Pin.
-public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool = false) -> [[SessionMenuItem]] {
+public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool = false, canRegenerateTitle: Bool = false) -> [[SessionMenuItem]] {
     var copies = [SessionMenuItem("Path", "folder", .copy(row.folder))]
     if let branch = row.branch { copies.append(SessionMenuItem("Branch name", "arrow.triangle.branch", .copy(branch))) }
     copies.append(SessionMenuItem("Session id", "number", .copy(row.id)))
@@ -159,9 +159,11 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
     if canFilter { open.append(SessionMenuItem("Filter by \u{201C}\(row.workspace)\u{201D}", "line.3.horizontal.decrease", .filterWorkspace(row.workspace))) }
     var end = [row.archived ? SessionMenuItem("Restore", "arrow.uturn.backward", .restore) : SessionMenuItem("Archive", "archivebox", .archive, disabledReason: archiveBlock(row))]
     if row.archived { end.append(SessionMenuItem("Delete\u{2026}", "trash", .delete, destructive: true)) }
+    var title = [SessionMenuItem("Rename\u{2026}", "pencil", .rename)]
+    if canRegenerateTitle { title.append(SessionMenuItem("Regenerate title", "sparkles", .regenerateTitle)) }
     return [
         control,
-        [SessionMenuItem("Rename\u{2026}", "pencil", .rename), SessionMenuItem("Regenerate title", "sparkles", .regenerateTitle)],
+        title,
         open,
         end,
     ].filter { $0.isEmpty == false }
@@ -186,6 +188,9 @@ public enum SessionRemovalKind: Sendable {
     /// row goes when it is asked and not when the host has ended its agent and the next read arrives.
     @ObservationIgnored private let leaving = Mutex<Set<String>>([])
     public var archiving: Set<String> { leaving.withLock { $0 } }
+    /// Whether the host's hello lists `regenerateTitle`, as `learnHost` last read it; the menu is built at once and cannot wait for the hello.
+    @ObservationIgnored private let titlesRegenerable = Mutex(false)
+    public var canRegenerateTitle: Bool { titlesRegenerable.withLock { $0 } }
     @ObservationIgnored public var confirmSessionRemoval: @MainActor (SessionRemovalKind, [String]) async -> Bool = { _, _ in true }
     @ObservationIgnored public var didRemoveSession: @MainActor (String) -> Void = { _ in }
 
@@ -232,6 +237,12 @@ public enum SessionRemovalKind: Sendable {
     public func stop(_ id: String) async -> String? { await run("stop", id) { try await $0.interrupt(id) } }
 
     public func rename(_ id: String, _ title: String) async -> String? { await run("rename", id) { try await $0.rename(id, title) } }
+
+    /// Reads what the host can do (its hello is kept by the link, so this is cheap) for the menus drawn after it.
+    public func learnHost() async {
+        let listed = (try? await host.capabilities())?.contains(.regenerateTitle) ?? false
+        titlesRegenerable.withLock { $0 = listed }
+    }
 
     public func regenerateTitle(_ id: String) async -> String? { await run("regenerate the title", id) { _ = try await $0.regenerateTitle(id) } }
 

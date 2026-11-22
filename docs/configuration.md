@@ -175,10 +175,19 @@ A file that does not match stops the engine's start, is refused by `carrier relo
 
 The strict schema is why the host's hello lists `textGenerators`: a `carrier` that does not list it refuses a file with these keys, so the Mac app writes them only while it is there.
 
-The chat host calls the generator in use to write a session's title when the person asks for it (Regenerate title in a session's menu, the `regenerateTitle` request).
-It sends the server a fixed system message and the session's first message and first reply, each cut to 2,000 characters, with no tools, to `/v1/chat/completions` on the server's default port (LM Studio 1234, Ollama 11434).
-It reads `providers.json` at each request, so a change needs no restart, and it makes one call at a time, each with a limit of 30 seconds.
-With no generator chosen, or when the call fails (the server is not running, the model is missing, no answer in 30 seconds, an empty answer), the request is refused with words that say to choose one in Providers or what failed, the title stays as it was, and the cause is in `<folder>/chat/logs/chat-host.log`.
+The chat host calls the generator in use to write session titles, in three cases:
+
+- Automatically, in the background, when the first turn of a session ends well: the title comes from the first message and the first reply, and the person never waits for it.
+  A session started by a delegation (a child) keeps its own title.
+  An automatic title only replaces a first-line title, so a title the person set with Rename is never replaced and a generated title is not rewritten by the next turn.
+  When the call fails, the title stays as it was, the cause goes to the log without any notice in the session, and the session tries again at the end of its next turn while its title is still the first line.
+- When the person asks for one session (Regenerate title in a session's menu, the `regenerateTitle` request): the new title replaces whatever the title is, a renamed one included, and the request answers it.
+- For the earlier sessions (the `regenerateTitles` request, "Titles of earlier sessions" in Providers): in the background and one session at a time, for every session of the list and of the archive whose title is still the first line, children left out.
+  It answers at once how many sessions it will do; the titles show in the lists as they land.
+
+Each call sends the server a fixed system message and the session's first message and first reply, each cut to 2,000 characters, with no tools, to `/v1/chat/completions` on the server's default port (LM Studio 1234, Ollama 11434).
+It reads `providers.json` at each use, so a change needs no restart, and it makes one call at a time, each with a limit of 30 seconds.
+With no generator chosen, or when the call fails (the server is not running, the model is missing, no answer in 30 seconds, an empty answer), `regenerateTitle` and `regenerateTitles` are refused with words that say to choose one in Providers or what failed, the title stays as it was, and the cause is in `<folder>/chat/logs/chat-host.log`.
 
 `carrier init` does not ask which providers to use: it looks for the agent CLIs on the Mac (their real binary, never a wrapper under `~/.paradev` or `~/.superset`), shows where each is with its version and whether it is signed in, and writes one account per CLI it found, named after it. It says how many accounts it added, and then asks only for extra accounts (another login of the same CLI, or one on a local server), with Enter meaning no. The accounts go to `providers.json` in the Carrier folder, even when `--out` puts the config elsewhere, and the recap says so. The flags that declare an account (`--author-provider` and the like) add it to the file, and `--yes` writes it without asking. When it edits an existing setup it starts from the accounts already in that file instead. When assigning roles, each role points at a declared account (a `provider` in the file) and specifies its model.
 

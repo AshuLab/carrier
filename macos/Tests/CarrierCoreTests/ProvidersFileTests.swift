@@ -657,6 +657,21 @@ private func object(_ data: Data) throws -> [String: Any] { try #require(JSONSer
     #expect(store.generatorEditable == false)
 }
 
+@MainActor @Test func theChosenGeneratorIsReadFromTheHostBeforeTheEnginesReloadAnswers() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    let host = try ProvidersHost(replyJSON(accounts: [account("codex", found: true)]))
+    host.capabilitiesAnswer = [.providers, .textGenerators]
+    var readsWhenReloaded = 0
+    let store = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { readsWhenReloaded = host.asked; return .applied })
+    await store.load()
+    #expect(await store.chooseTextGenerator((server: "ollama", model: "qwen3:8b")))
+    await store.settled()
+    // the load after the write came first: the reload saw the first load and that one
+    #expect(readsWhenReloaded == 2 && host.asked == 3)
+}
+
 @MainActor @Test func earlierTitlesActionIsGatedByCapabilityAndReportsStartedZeroOrRefusal() async throws {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }

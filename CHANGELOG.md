@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The menu and the window share one read of the engine's state: with the window open the engine now builds and sends one snapshot at each pace and not two (80 snapshots in 10 s became 42 in a run of two readers at a quarter-second pace against the fixture engine, measured; about 0.9 ms of the engine's time each, for 60 epics, so the change is small in time and larger in how many connections and decodes the app makes). The window opens on a read of the moment and not on the last one of the menu.
 - When a session's turn ends, its row reads again only what the turn can have changed. A turn that only talked reads nothing. One that ran commands reads the lines it changed, and asks GitHub only after a `git push`, a new branch, `gh pr create` or `gh pr merge`, and only for what they move: the pull request of the branch, or the state of the one the session has. Before, every turn end asked GitHub, even after a plain answer.
 - A child that an agent starts with `delegate_start` runs at its parent's permission level when its own agent sets no permission, and not at the one that asks before almost every command: under a parent in `auto` the child no longer stops for an approval to read. An agent configured with a permission keeps it as the most its child gets.
 - `delegate_wait` says what a child that needs an approval is waiting for: the tool and the command, or the question it asks, for up to four things, and how many more there are.

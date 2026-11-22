@@ -97,9 +97,9 @@ import SwiftUI
     /// The draft of a new session; it starts the chat host when it is not running (#503) before it opens the session.
     // built on the main thread, where the app creates its window
     let newSession = MainActor.assumeIsolated {
-        NewSessionModel(host: SocketChatHost(), health: AppHealth.store, offers: .shared) {
+        NewSessionModel(host: SocketChatHost(), health: AppHealth.store, offers: .shared, ensureHost: {
             await withCheckedContinuation { continuation in ChatHostStarter.shared.ensureRunning { continuation.resume(returning: $0) } }
-        }
+        }, projects: .shared)
     }
 }
 
@@ -399,7 +399,7 @@ final class WindowController: NSObject, NSWindowDelegate {
             lines.append("new session repo \(text): \(result.destination?.line ?? "none"), \"\(draft.sentence)\", branches \(draft.picker(query: "")?.local.map(\.name) ?? []), problem \(draft.workspaceProblem ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered"), \(draft.sendSteps.count) send steps, watching \(draft.watching)")
         }
         // New project: only the plan is filled (the draft then offers no worktree)
-        draft.choose(project: "my-idea")
+        draft.choose(newProject: "my-idea")
         lines.append("new session project my-idea: \"\(draft.sentence)\", worktree \(draft.offersWorktree ? "offered" : "not offered")")
         return lines.joined(separator: "\n")
     }

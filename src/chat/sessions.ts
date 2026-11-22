@@ -1,10 +1,11 @@
 import { accessSync, constants, existsSync, realpathSync, rmSync, statSync } from 'node:fs';
-import { sep } from 'node:path';
+import { basename, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/places.ts';
+import { updateProjectsFile, readProjectsFile } from '../config/projects.ts';
 import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
 import { claimAttachments, releaseAttachments, sessionFolder } from './attachments.ts';
 import type { ChatAgent, ChatSettings, WorktreeCleanup } from './config.ts';
@@ -19,12 +20,12 @@ import { childOptions, delegationRefusal, isScaleHarness, type Level, levelOf } 
 import type { ChildReport, McpSessionRegistry } from './mcp.ts';
 import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
-import type { Plan, Step, StepEvent } from './plan.ts';
+import { newProjectKind, type Plan, type Step, type StepEvent } from './plan.ts';
 import { ChatRefused, type BackgroundTask, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
 import { clean } from '../execution/events.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, previewOf, titleOf } from './transcript.ts';
-import { checkName, suggestName } from './names.ts';
+import { checkName, checkWorktreeClash, suggestName } from './names.ts';
 import { createProject, projectFolder, type createProjects } from './projects.ts';
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
@@ -682,7 +683,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   }
 
   /** The `project` step of a plan: makes the folder with `git init` and records it as the session's. False once the step failed and was recorded. A project already made by an earlier try is reused. */
-  async function makeProject(sessionId: string, name: string): Promise<boolean> {
+  async function makeNewProject(sessionId: string, name: string): Promise<boolean> {
     if (lastStatus(sessionId, 'project') === 'done') return true;
     stepEvent(sessionId, 'project', 'running');
     try {
@@ -715,12 +716,31 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     }
   }
 
+  /**
+   * Once a preparation that cloned or made its workspace has succeeded, the folder is a project in `projects.json` (docs/specs/projects.md, Who writes what): `created` for a
+   * new project, `cloned` when the clone step ran in this preparation (a retry counts the one an earlier try did) and `added` for a folder that was only fetched. A folder that
+   * is a project already is left as it is. A folder that cannot be written is told in a notice, since the session itself went well.
+   */
+  async function register(sessionId: string, plan: Plan, folder: string) {
+    if (plan.workspace.kind === 'folder') return; // a folder the person chose stays a plain workspace until they add it
+    const origin = plan.workspace.kind === newProjectKind ? 'created' : lastStatus(sessionId, 'clone') === 'done' ? 'cloned' : 'added';
+    try {
+      const listed = readProjectsFile();
+      if (listed.ok) await checkWorktreeClash(git, folder, listed.projects);
+      const written = updateProjectsFile((current) => (current.some((entry) => entry.path === folder) ? current : [...current, { path: folder, origin }]));
+      if (written.ok === false) throw new ChatRefused(`projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}`);
+    } catch (error) {
+      if (error instanceof ChatRefused === false) log.error('registering the project of a session failed', error, { folder });
+      store(sessionId, { kind: 'notice', text: `${basename(folder)} was not added to your projects: ${error instanceof ChatRefused ? error.message : 'projects.json could not be written'}.` });
+    }
+  }
+
   /** The steps of a plan, in the background: it never throws, a failure is recorded as a step that failed. */
   async function prepare(sessionId: string, launch: Launch, base: string, plan: Plan, signal: AbortSignal) {
     try {
-      if (plan.workspace.kind === 'project' && (await makeProject(sessionId, plan.workspace.name)) === false) return;
+      if (plan.workspace.kind === newProjectKind && (await makeNewProject(sessionId, plan.workspace.name)) === false) return;
       if (plan.workspace.kind === 'repo' && (await bring(sessionId, plan.workspace.repo, signal)) === false) return;
-      const folder = await arrange(sessionId, plan.workspace.kind === 'project' ? row(sessionId).folder : base, plan, signal);
+      const folder = await arrange(sessionId, plan.workspace.kind === newProjectKind ? row(sessionId).folder : base, plan, signal);
       if (folder === undefined || signal.aborted) return;
       stepEvent(sessionId, 'agent', 'running');
       const { chosen } = launch;
@@ -749,6 +769,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       if (db.select({ id: chatEvents.id }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'user'))).limit(1).get() === undefined) store(sessionId, { kind: 'user', text: plan.text });
       try {
         conversation.send(plan.text);
+        await register(sessionId, plan, base);
       } catch (error) {
         log.error('the first message could not be sent to the agent', error);
         live.awaitingAnswer = false;
@@ -769,7 +790,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const targetOf = (plan: Plan) => {
     const chosen = listed().find((candidate) => candidate.name === plan.agent);
     if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${plan.agent}"`);
-    return { launch: launchOf(chosen), folder: plan.workspace.kind === 'project' ? projectFolder(plan.workspace.name) : plan.workspace.kind === 'repo' ? projects.repoFolder(plan.workspace.repo) : checkFolder(plan.workspace.folder, carrierHome()) };
+    return { launch: launchOf(chosen), folder: plan.workspace.kind === newProjectKind ? projectFolder(plan.workspace.name) : plan.workspace.kind === 'repo' ? projects.repoFolder(plan.workspace.repo) : checkFolder(plan.workspace.folder, carrierHome()) };
   };
   /** Runs the steps of a plan in the background. */
   const begin = (sessionId: string, { launch, folder }: ReturnType<typeof targetOf>, plan: Plan) => {

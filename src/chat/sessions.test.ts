@@ -2369,6 +2369,75 @@ test('a repository that is not owner/name, or a projects folder that is not vali
   expect(s.git.calls).toEqual([]);
 });
 
+// A preparation that cloned or made its workspace registers it in projects.json (docs/specs/projects.md, Who writes what).
+const projectsFile = join('home', 'projects.json');
+const registered = () => (existsSync(join(dir, projectsFile)) ? (JSON.parse(readFileSync(join(dir, projectsFile), 'utf8')).projects as { path: string; origin: string }[]) : []);
+
+test('a plan that clones writes an entry with origin cloned, a new project one with created, and a repository that was only fetched one with added, keeping the rest of the file', async () => {
+  mkdirSync(join(dir, 'home'), { recursive: true });
+  writeFileSync(join(dir, projectsFile), JSON.stringify({ projects: [{ path: '/elsewhere', origin: 'added', pinned: true, tags: ['x'] }] }));
+  const cloned = repoSession();
+  await cloned.sessions.openPlan({ plan: repoPlan() });
+  await vi.waitFor(() => expect(registered()).toContainEqual({ path: cloneOf(), origin: 'cloned' }));
+  expect(registered()[0]).toEqual({ path: '/elsewhere', origin: 'added', pinned: true, tags: ['x'] });
+
+  const made = setup();
+  await made.sessions.openPlan({ plan: projectPlan() });
+  await vi.waitFor(() => expect(registered()).toContainEqual({ path: join(projectsDir(), 'my-app'), origin: 'created' }));
+
+  const fetched = repoSession();
+  mkdirSync(join(cloneOf('acme/there'), '.git'), { recursive: true });
+  fetched.git.repos.set(cloneOf('acme/there'), { head: 'main', branches: ['main'], origin: 'git@github.com:acme/there.git' });
+  await fetched.sessions.openPlan({ plan: repoPlan({}, 'acme/there') });
+  await vi.waitFor(() => expect(registered()).toContainEqual({ path: cloneOf('acme/there'), origin: 'added' }));
+});
+
+test('a failed or cancelled preparation writes no entry, and a retry that finishes writes one that says cloned', async () => {
+  const failing = repoSession();
+  failing.claude.refuseWith = 'claude is not logged in';
+  const { session } = await failing.sessions.openPlan({ plan: repoPlan() });
+  await vi.waitFor(() => expect(failing.sessions.list({}).sessions[0]).toMatchObject({ preparation: 'failed' }));
+  expect(registered()).toEqual([]); // the clone is done, the preparation is not
+  failing.claude.refuseWith = undefined;
+  await failing.sessions.retryPreparation({ sessionId: session.id });
+  await vi.waitFor(() => expect(registered()).toEqual([{ path: cloneOf(), origin: 'cloned' }]));
+
+  const brokenClone = repoSession();
+  brokenClone.git.failures.set(`clone -- https://github.com/acme/other.git ${cloneOf('acme/other')}`, { ok: false, code: 128, stderr: 'fatal: no' });
+  await brokenClone.sessions.openPlan({ plan: repoPlan({}, 'acme/other') });
+  await vi.waitFor(() => expect(brokenClone.sessions.list({}).sessions.at(-1)).toMatchObject({ preparation: 'failed' }));
+
+  const cancelled = repoSession();
+  cancelled.git.clonePending = new Promise<void>(() => {});
+  const two = await cancelled.sessions.openPlan({ plan: repoPlan({}, 'acme/two') });
+  await vi.waitFor(() => expect(existsSync(cloneOf('acme/two'))).toBe(true));
+  await cancelled.sessions.cancelPreparation({ sessionId: two.session.id });
+  expect(registered()).toEqual([{ path: cloneOf(), origin: 'cloned' }]);
+});
+
+test('a path that is a project already is not repeated or changed, and a folder the person chose is not made one', async () => {
+  mkdirSync(join(dir, 'home'), { recursive: true });
+  writeFileSync(join(dir, projectsFile), JSON.stringify({ projects: [{ path: cloneOf(), origin: 'added', name: 'mine' }] }));
+  const s = repoSession();
+  await s.sessions.openPlan({ plan: repoPlan() });
+  await vi.waitFor(() => expect(s.claude.opened).toHaveLength(1));
+  const plain = setup();
+  await plain.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(plain.claude.opened).toHaveLength(1));
+  expect(registered()).toEqual([{ path: cloneOf(), origin: 'added', name: 'mine' }]);
+});
+
+test('a projects.json that cannot be written leaves the session going and says so in a notice', async () => {
+  mkdirSync(join(dir, 'home'), { recursive: true });
+  writeFileSync(join(dir, projectsFile), '{ nope');
+  const s = repoSession();
+  s.claude.setup = (conversation) => void (conversation.reply = () => {});
+  const { session } = await s.sessions.openPlan({ plan: repoPlan() });
+  await vi.waitFor(() => expect((s.sessions.events({ sessionId: session.id, limit: 200 }).events as any[]).some((e) => e.kind === 'notice' && e.text.includes('was not added to your projects'))).toBe(true));
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ preparation: 'running' });
+  expect(readFileSync(join(dir, projectsFile), 'utf8')).toBe('{ nope');
+});
+
 test('list says when the clock deletes an archived session: lastActiveAt plus deleteAfterDays, and nothing for one not archived or kept', async () => {
   const s = worktreeSetup();
   const kept = await s.inWorktree('kept', { status: [' M a.ts'] });

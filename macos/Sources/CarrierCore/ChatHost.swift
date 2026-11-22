@@ -287,6 +287,9 @@ public protocol ChatHost {
     /// The worktrees of the project at `folder`: its main clone and each worktree git lists for it under Carrier's worktrees folder that is still on disk, with
     /// branch, session, age and state. Refused in words for a folder that is gone or not a repository. Only for a host whose hello lists `projects`.
     func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees
+    /// What each project folder takes on disk as the host last measured it (nil bytes: never), and which of them it has queued or is measuring; `refresh` says what it
+    /// measures meanwhile. A folder that is gone or not allowed is left out of the answer. Only for a host whose hello lists `projects`.
+    func projectDisk(_ folders: [String], refresh: ProjectDiskRefresh) async throws -> ProjectDiskReply
     /// Removes only the folder of one worktree of the project at `folder`, keeping its branch and its session; refused in words while its session is open or it has
     /// uncommitted changes. Only for a host whose hello lists `projects`.
     func removeProjectWorktree(_ folder: String, path: String) async throws
@@ -391,6 +394,7 @@ extension ChatHost {
     public func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone { throw ControlError.remote(projectsNeedNewerHost) }
     public func projectClones() async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
     public func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees { throw ControlError.remote(projectsNeedNewerHost) }
+    public func projectDisk(_ folders: [String], refresh: ProjectDiskRefresh) async throws -> ProjectDiskReply { throw ControlError.remote(projectsNeedNewerHost) }
     public func removeProjectWorktree(_ folder: String, path: String) async throws { throw ControlError.remote(projectsNeedNewerHost) }
     public func cleanProjectWorktrees(_ folder: String, run: Bool) async throws -> ProjectCleanup { throw ControlError.remote(projectsNeedNewerHost) }
     public func dismissClone(_ repo: String) async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
@@ -540,6 +544,15 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"folder\":\(jsonString(folder))"
         let path = socketPath()
         return try await Task.detached { try projectsRequest(path, "projectWorktrees", fields: fields) }.value
+    }
+
+    public func projectDisk(_ folders: [String], refresh: ProjectDiskRefresh) async throws -> ProjectDiskReply {
+        // the host's own limits (src/chat/server.ts): 1 to 500 folders, none empty or over 4096 characters; what it would refuse never goes out
+        let asked = folders.filter { $0.isEmpty == false && $0.count <= 4096 }.prefix(500)
+        if asked.isEmpty { return ProjectDiskReply(projects: []) }
+        let fields = ",\"folders\":[" + asked.map(jsonString).joined(separator: ",") + "]" + (refresh == .read ? "" : ",\"refresh\":\"\(refresh.rawValue)\"")
+        let path = socketPath()
+        return try await Task.detached { try projectsRequest(path, "projectDisk", fields: fields) }.value
     }
 
     public func removeProjectWorktree(_ folder: String, path worktree: String) async throws {

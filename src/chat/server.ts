@@ -68,6 +68,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('cloneProject'), repo: z.string().regex(repoNamePattern), parent: z.string().min(1).max(4096).optional() }),
   z.strictObject({ id, cmd: z.literal('projectClones') }),
   z.strictObject({ id, cmd: z.literal('projectWorktrees'), folder: z.string().min(1).max(4096) }),
+  z.strictObject({ id, cmd: z.literal('projectDisk'), folders: z.array(z.string().min(1).max(4096)).min(1).max(500), refresh: z.enum(['stale', 'now']).optional() }),
   z.strictObject({ id, cmd: z.literal('removeProjectWorktree'), folder: z.string().min(1).max(4096), path: z.string().min(1).max(4096) }),
   z.strictObject({ id, cmd: z.literal('cleanProjectWorktrees'), folder: z.string().min(1).max(4096), run: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('dismissClone'), repo: z.string().regex(repoNamePattern) }),
@@ -125,6 +126,8 @@ export type ChatControls = {
   projectClones(): unknown;
   /** A project's main clone and the worktrees git lists for its folder that lie under the worktrees folder, each with its branch, session, age and state. */
   projectWorktrees(args: Args<'projectWorktrees'>): Promise<unknown>;
+  /** What each project takes on disk as last measured (none yet: nulls), and which are queued or running; `stale` queues those never measured or a day old, `now` all of them. */
+  projectDisk(args: Args<'projectDisk'>): unknown;
   /** Removes the folder of one worktree of a project, keeping its branch and session; refused while its session is open or it has uncommitted changes. */
   removeProjectWorktree(args: Args<'removeProjectWorktree'>): Promise<unknown>;
   /** The merged worktrees of a project that Clean up would remove (with their bytes) and the ones it skips (with the reason); `run` removes them. */
@@ -202,6 +205,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.projectClones();
     case 'projectWorktrees':
       return controls.projectWorktrees({ folder: request.folder });
+    case 'projectDisk':
+      return controls.projectDisk({ folders: request.folders, refresh: request.refresh });
     case 'removeProjectWorktree':
       return controls.removeProjectWorktree({ folder: request.folder, path: request.path });
     case 'cleanProjectWorktrees':

@@ -39,3 +39,29 @@ private func ms(daysAgo days: Double) -> Double { (now.timeIntervalSince1970 - d
 @Test func aProjectWithNoWorktreesHasOnlyItsMainClone() {
     #expect(worktreeRows(ProjectWorktrees(main: .init(path: "/p/app", branch: "main"), worktrees: []), now: now, format: format).count == 1)
 }
+
+@Test func theRemoveButtonIsOnEveryWorktreeAndOffOnlyWhileItsSessionIsOpen() {
+    let reply = ProjectWorktrees(main: .init(path: "/p/app", branch: "main"), worktrees: [
+        .init(path: "/w/a", branch: "carrier/a", session: .init(id: "1"), lastActiveAt: ms(daysAgo: 1), state: .sessionOpen),
+        .init(path: "/w/b", branch: "carrier/b", session: .init(id: "2"), lastActiveAt: ms(daysAgo: 1), state: .uncommitted),
+        .init(path: "/w/c", branch: "carrier/c", session: nil, lastActiveAt: ms(daysAgo: 1), state: .clean),
+    ])
+    let rows = worktreeRows(reply, now: now, format: format)
+    #expect(rows.map(\.hasRemove) == [false, true, true, true])
+    // an open session turns it off with the reason; uncommitted changes are the host's refusal, said when it is pressed
+    #expect(rows.map(\.removeBlockedBy) == [nil, "Its session is open", nil, nil])
+}
+
+@Test func cleanUpSaysHowManyWorktreesAndHowMuchBeforeAndWhatWentAndWasSkippedAfter() {
+    // the size is the system's own words, in the person's locale
+    let size = { (bytes: Int64) in ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) }
+    let one = ProjectCleanup(removed: [.init(path: "/w/a", bytes: 1_000_000_000)], skipped: [])
+    #expect(cleanUpWords(one) == "1 worktree, \(size(1_000_000_000))")
+    let two = ProjectCleanup(removed: [.init(path: "/w/a", bytes: 1_000_000_000), .init(path: "/w/b", bytes: 500_000_000)], skipped: [.init(path: "/h/worktrees/o/r/busy", reason: "Its session is open")])
+    #expect(cleanUpWords(two) == "2 worktrees, \(size(1_500_000_000))")
+    #expect(cleanUpReport(two) == "Removed 2 worktrees, \(size(1_500_000_000)). Their branches and sessions stay.\nSkipped busy: Its session is open.")
+    // nothing to take hides the button; a report of nothing says so
+    let none = ProjectCleanup(removed: [], skipped: [])
+    #expect(cleanUpWords(none) == nil && cleanUpReport(none) == "Nothing to clean up.")
+    #expect(cleanUpReport(.init(removed: [], skipped: [.init(path: "/w/x", reason: "It has uncommitted changes")])) == "Skipped x: It has uncommitted changes.")
+}

@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, rmSync } from 'node:fs';
-import { resolve, sep } from 'node:path';
+import { lstat, readdir } from 'node:fs/promises';
+import { join, resolve, sep } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import type { Git, GitResult } from './git.ts';
 import { BRANCH_PREFIX, invalidReason, repository, worktreePath, worktreesDir } from './names.ts';
@@ -110,6 +111,19 @@ export async function listWorktrees(git: Git, folder: string): Promise<ListedWor
     throw new ChatRefused('Git could not list the worktrees of this folder');
   }
   return parseWorktreeList(listed.out);
+}
+
+/** What a folder takes on disk, in bytes: the blocks of every file and folder under it, links not followed. A path that cannot be read counts nothing. ponytail: a file hard-linked twice counts twice. */
+export async function folderBytes(path: string): Promise<number> {
+  try {
+    const stats = await lstat(path);
+    let total = stats.blocks * 512;
+    if (stats.isDirectory() === false) return total;
+    for (const name of await readdir(path)) total += await folderBytes(join(path, name));
+    return total;
+  } catch {
+    return 0;
+  }
 }
 
 /** The number `git rev-list --count` printed. */

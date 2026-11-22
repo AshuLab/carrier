@@ -366,6 +366,16 @@ private let myRepos = [
     #expect(byRepo.firstResult?.kind == .existingProject(hidden))
 }
 
+@Test func inSettingsAHiddenProjectIsStillAlreadyAProjectByPathAndRepositoryAndItsFolderIsNotSuggested() {
+    let hidden = ProjectRow(path: "/Users/ana/work/old", name: "Old", repo: "acme/web", hidden: true)
+    let recent = [RecentFolder(name: "old", path: "/Users/ana/work/old")]
+    #expect(projectSheetState(mode: .settings, query: "", recent: recent, projects: [hidden], home: "/Users/ana").items.isEmpty)
+    let byPath = projectSheetState(mode: .settings, query: "/Users/ana/work/old", recent: recent, projects: [hidden], home: "/Users/ana")
+    #expect(byPath.firstResult?.kind == .existingProject(hidden) && byPath.firstResult?.detail == "Already a project · Open")
+    let byRepo = projectSheetState(mode: .settings, query: "acme/web", recent: [], projects: [hidden], github: github(myRepos), home: "/Users/ana")
+    #expect(byRepo.firstResult?.kind == .existingProject(hidden))
+}
+
 @Test func inNewSessionARepositoryToCloneSaysItIsClonedWhenTheFirstMessageIsSentOffersNoOtherFolderAndOffersToWatchIt() {
     let state = projectSheetState(mode: .newSession, query: "acme/new-thing", recent: [], projects: [], github: github(myRepos), home: "/Users/ana")
     let first = state.firstResult

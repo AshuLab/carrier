@@ -92,7 +92,6 @@ struct ConversationView: View {
     }
 
     private var conversation: some View {
-        @Bindable var scroll = self.scroll
         // derived once per evaluation: the feed the tools' mode and the reasoning setting leave, with the closing lines folded into their messages
         let shown = foldingClosingLines(visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning))
         return ScrollView {
@@ -156,7 +155,7 @@ struct ConversationView: View {
         // the end of the conversation is what shows; it stays in view as it grows only when Follow new output is on (the model says when to scroll)
         .defaultScrollAnchor(followsOutput ? .bottom : nil)
         .defaultScrollAnchor(.top, for: .alignment)
-        .scrollPosition($scroll.position)
+        .modifier(ScrollsWith(scroll: scroll))
         .onScrollGeometryChange(for: Bool.self) { $0.visibleRect.maxY >= $0.contentSize.height - 24 } action: { _, atEnd in model.atEnd = atEnd }
         .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in
             if scroll.visible != Set(ids) { scroll.visible = Set(ids) }
@@ -677,6 +676,17 @@ extension EnvironmentValues {
 @MainActor @Observable final class ScrollState {
     var position = ScrollPosition()
     var visible: Set<String> = []
+}
+
+/// `scrollPosition` reads the position as it is applied, so applied in the view's own body it would draw the whole feed at each change; here
+/// the read is this modifier's.
+private struct ScrollsWith: ViewModifier {
+    let scroll: ScrollState
+
+    func body(content: Content) -> some View {
+        @Bindable var scroll = scroll
+        content.scrollPosition($scroll.position)
+    }
 }
 
 /// The timeline at the edge. It reads the rows on screen here, so a scroll draws it and not the conversation.

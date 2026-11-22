@@ -115,6 +115,9 @@ struct ProjectsTabView: View {
                         FilterChip(title: "Local only", on: filter == .localOnly) {
                             filter = filter == .localOnly ? .all : .localOnly
                         }
+                        FilterChip(title: "Hidden", on: filter == .hidden) {
+                            filter = filter == .hidden ? .all : .hidden
+                        }
                     }
                 }
                 if groups.isEmpty {
@@ -212,6 +215,8 @@ struct ProjectsTabView: View {
                         Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
                         if let status = row.status.text {
                             Label(status, icon: .warningFilled, size: 11).font(.scaled(11)).foregroundStyle(.orange).lineLimit(1)
+                        } else if row.hidden {
+                            Label("Hidden", icon: .eyeOff, size: 11).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
                         } else {
                             Text(row.line).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                         }
@@ -219,6 +224,7 @@ struct ProjectsTabView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .opacity(row.hidden ? 0.55 : 1)
 
                 Group {
                     if row.tags.isEmpty {
@@ -393,6 +399,18 @@ private struct ProjectDetailView: View {
                             .frame(width: settingsSelectWidth, alignment: .leading)
                         }
                     }
+                }
+            }
+            SettingsGroup(title: "New sessions here") {
+                SettingsTabRow(
+                    title: "Show when starting a session",
+                    detail: row.hidden
+                        ? "\(row.name) does not appear in the new session picker. Nothing is deleted: it stays in this list and its sessions stay in the sidebar."
+                        : "\(row.name) is listed when you choose where to work in a new session",
+                    first: true
+                ) {
+                    Toggle("Show when starting a session", isOn: Binding(get: { row.hidden == false }, set: { model.setHidden($0 == false, path: row.path) }))
+                        .labelsHidden().toggleStyle(.switch)
                 }
             }
             if exists { worktreesGroup }

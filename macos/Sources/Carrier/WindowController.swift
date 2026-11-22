@@ -385,32 +385,22 @@ final class WindowController: NSObject, NSWindowDelegate {
                 await draft.useWorktree(false)
             }
         }
-        // the workspace popover: what it lists, and the GitHub URL step against the host (a repository it lists, then one it does not)
+        // the sheet New session opens: what it lists (the projects that are not hidden, folders used lately, the person's repositories) and what choosing fills
         draft.openPicker()
-        lines.append("new session picker: recent \(draft.recent.map(\.name)), projects \(draft.projects.map(\.name)), sources \(draft.sources.map(\.rawValue)), footer \(draft.projectsPath)")
-        draft.show(.url)
+        var github = ProjectSheetGithub(defaultParent: draft.projectsPath)
+        github.watched = draft.watched
+        let known = ProjectsModel.shared.rows
+        func sheet(_ query: String) -> ProjectSheetState { projectSheetState(mode: .newSession, query: query, recent: draft.recent, projects: known, github: github) }
+        lines.append("new session sheet: \(sheet("").sections.map { "\($0.title ?? "result") \($0.items.count)" }), projects \(known.filter { $0.hidden == false }.map(\.name)), folder \(draft.projectsPath)")
+        // a repository (one the host lists, then one it does not) only fills the plan; nothing is cloned and the repository is watched unless the person said no
         for text in ["https://github.com/AshuLab/web", "AshuLab/api", "AshuLab/nope"] {
-            draft.urlText = text
-            let worked = await draft.useRepo()
-            lines.append("new session repo \(text): \(draft.repoButton), \(worked ? "used" : "refused"), \"\(draft.sentence)\", branches \(draft.picker(query: "")?.local.map(\.name) ?? []), problem \(draft.workspaceProblem ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered"), \(draft.sendSteps.count) send steps")
+            guard let result = sheet(text).firstResult else { continue }
+            await draft.choose(result)
+            lines.append("new session repo \(text): \(result.destination?.line ?? "none"), \"\(draft.sentence)\", branches \(draft.picker(query: "")?.local.map(\.name) ?? []), problem \(draft.workspaceProblem ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered"), \(draft.sendSteps.count) send steps, watching \(draft.watching)")
         }
-        // My GitHub repositories against the host: page 1 with the login, Load more, and a repository chosen from the list
-        await draft.showRepos()
-        lines.append("new session repos: login \(draft.login ?? "none"), \(draft.repoRows().count) loaded, more \(draft.repoList.hasMore), watched \(draft.repoRows().filter(\.watched).map(\.name))")
-        await draft.loadRepos()
-        lines.append("new session repos page 2: \(draft.repoRows().count) loaded, more \(draft.repoList.hasMore), reason \(draft.reposReason ?? "none")")
-        draft.watch = false  // a smoke pass never writes the config
-        if let first = draft.repoRows().first {
-            await draft.choose(repo: first.name)
-            lines.append("new session repo \(first.name): \"\(draft.sentence)\", problem \(draft.workspaceProblem ?? "none")")
-        }
-        // New project: only the plan is filled (the draft then offers no worktree), and a name that is taken is refused beforehand
-        draft.show(.project)
-        for name in ["my-idea", "web"] {
-            draft.projectName = name
-            let worked = draft.useProject()
-            lines.append("new session project \(name): \(worked ? "used" : "refused: \(draft.projectNameWarning ?? "no reason")"), \"\(draft.sentence)\", worktree \(draft.offersWorktree ? "offered" : "not offered")")
-        }
+        // New project: only the plan is filled (the draft then offers no worktree)
+        draft.choose(project: "my-idea")
+        lines.append("new session project my-idea: \"\(draft.sentence)\", worktree \(draft.offersWorktree ? "offered" : "not offered")")
         return lines.joined(separator: "\n")
     }
 

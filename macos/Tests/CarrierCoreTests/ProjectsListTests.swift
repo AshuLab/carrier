@@ -276,6 +276,11 @@ private func temporaryFolder() throws -> String {
 
     // pin, tags, and icon colour/mark (setting colour or mark clears any image)
     #expect(model.setPinned(true, path: "/a/carrier"))
+    // hiding writes `hidden` and only that; showing again takes the key out
+    #expect(model.setHidden(true, path: "/a/carrier") && model.rows[0].hidden)
+    #expect(try file.read()[0].json["hidden"] as? Bool == true && file.read()[0].pinned)
+    #expect(model.setHidden(false, path: "/a/carrier") && model.rows[0].hidden == false)
+    #expect(try file.read()[0].json["hidden"] == nil)
     #expect(model.addTag("  Swift ", path: "/a/carrier"))
     #expect(model.addTag("SWIFT", path: "/a/carrier"))
     #expect(model.addTag("macOS", path: "/a/carrier"))
@@ -402,6 +407,13 @@ private func temporaryFolder() throws -> String {
     #expect(projectList(table, filter: .localOnly).flatMap(\.rows).map(\.name) == ["Beta", "Notes"])
     #expect(projectList(table, query: "beta", filter: .localOnly).flatMap(\.rows).map(\.name) == ["Beta"])
     #expect(projectList(table, query: "handbook", filter: .localOnly).isEmpty)
+
+    // the Hidden chip shows only the hidden ones, and hiding leaves the project in every other view of the list
+    let withHidden = table + [ProjectRow(path: "/p/old", name: "Old", repo: nil, hidden: true)]
+    #expect(projectList(withHidden, filter: .hidden).flatMap(\.rows).map(\.name) == ["Old"])
+    #expect(projectList(table, filter: .hidden).isEmpty)
+    #expect(projectList(withHidden).flatMap(\.rows).map(\.name).contains("Old"))
+    #expect(projectList(withHidden, filter: .localOnly).flatMap(\.rows).map(\.name) == ["Beta", "Notes", "Old"])
 
     // grouped by tag: each appears under its first tag only, untagged last, pinned first inside each group
     #expect(projectList(table, groupBy: .tag) == [

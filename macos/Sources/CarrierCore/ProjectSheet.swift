@@ -3,70 +3,47 @@ import Foundation
 // The shared Add project / workspace sheet's pure model (docs/specs/projects.md, "Add project"):
 // one function of the mode, the query, the recent folders and the projects.
 
-/// How the shared sheet acts: in Settings a choice acts at once; another mode (New session) can be added here without rewriting the model.
+/// How the shared sheet acts: in Settings a choice acts at once; in New session it only fills the plan, and nothing is cloned or written until the
+/// first message is sent (docs/adr/0018).
 public enum ProjectSheetMode: Equatable, Sendable {
     case settings
+    case newSession
 
     public var title: String {
         switch self {
         case .settings: "Add project"
+        case .newSession: "Choose where to work"
         }
     }
 
     public var subtitle: String {
         switch self {
         case .settings: "Paste a GitHub address, search your repositories, or choose a folder on this Mac."
+        case .newSession: "Pick a project, paste a GitHub address, or choose a folder. Nothing is cloned or made until you send the first message."
         }
     }
 
-    public var fieldPlaceholder: String {
-        switch self {
-        case .settings: "Paste a GitHub address, search, or type a path…"
-        }
-    }
+    public var fieldPlaceholder: String { "Paste a GitHub address, search, or type a path…" }
 
-    public var folderActionTitle: String {
-        switch self {
-        case .settings: "Add"
-        }
-    }
+    /// Whether a choice acts at once (Settings) or only fills the plan (New session).
+    public var actsAtOnce: Bool { self == .settings }
 
-    public var addFolderTitle: String {
-        switch self {
-        case .settings: "Add folder"
-        }
-    }
+    public var folderActionTitle: String { actsAtOnce ? "Add" : "Use" }
 
-    public var existingDetail: String {
-        switch self {
-        case .settings: "Already a project · Open"
-        }
-    }
+    public var addFolderTitle: String { actsAtOnce ? "Add folder" : "Use folder" }
 
-    public var existingActionTitle: String {
-        switch self {
-        case .settings: "Open"
-        }
-    }
+    public var existingDetail: String { "Already a project · Open" }
 
-    /// Settings suggests only folders that are not projects; New session will list existing projects first.
-    public var includesExistingProjects: Bool {
-        switch self {
-        case .settings: false
-        }
-    }
+    public var existingActionTitle: String { actsAtOnce ? "Open" : "Use" }
 
-    public var openPanelPrompt: String {
-        switch self {
-        case .settings: "Add"
-        }
-    }
+    public var repoActionTitle: String { actsAtOnce ? "Clone" : "Use" }
 
-    public var openPanelMessage: String {
-        switch self {
-        case .settings: "Choose the folder of a project"
-        }
-    }
+    /// Settings suggests only folders that are not projects; New session lists the projects that are not hidden first.
+    public var includesExistingProjects: Bool { actsAtOnce == false }
+
+    public var openPanelPrompt: String { actsAtOnce ? "Add" : "Use" }
+
+    public var openPanelMessage: String { actsAtOnce ? "Choose the folder of a project" : "Choose the folder to work in" }
 }
 
 /// One row of the shared sheet.
@@ -102,6 +79,8 @@ public struct ProjectSheetResult: Equatable, Identifiable, Sendable {
     public var problem: String?
     /// Where a clone goes, for a repository to clone.
     public var destination: ProjectSheetDestination?
+    /// "Let Carrier watch this repo", on a repository to clone in New session only (a choice of the plan, acted on once the first message was prepared).
+    public var watch: ProjectSheetWatch?
 
     public var isEnabled: Bool { problem == nil }
 
@@ -115,14 +94,22 @@ public struct ProjectSheetResult: Equatable, Identifiable, Sendable {
     }
 }
 
+/// The watch choice of a repository to clone in New session: nil `problem` means it can be on.
+public struct ProjectSheetWatch: Equatable, Sendable {
+    /// Why Carrier cannot watch it (already watched, or a folder name another watched repo has), in words.
+    public let problem: String?
+}
+
 /// Where a repository to clone will be made: the line under it, and whether the person chose a folder for this clone.
 public struct ProjectSheetDestination: Equatable, Sendable {
-    /// "Clones into ~/Carrier/projects/owner/name".
+    /// "Clones into ~/Carrier/projects/owner/name" in Settings; "Cloned into ~/Carrier/projects/owner/name when you send the first message" in New session.
     public let line: String
     /// The folder the clone goes in, before `<owner>/<name>`.
     public let parent: String
     /// True when the person chose `parent` for this clone with Choose…; false when it is the default.
     public let isChosen: Bool
+    /// Whether Choose… is offered: not in New session, where the host clones into the projects folder when the message is sent.
+    public var canChoose = true
 }
 
 /// How far the check that the person's login can see a pasted repository got.
@@ -152,6 +139,8 @@ public struct ProjectSheetGithub: Equatable, Sendable {
     public var chosenParents: [String: String] = [:]
     /// What was found out about the repositories that are not in `repos`, by lower-case `owner/name`.
     public var visibility: [String: RepoCheck] = [:]
+    /// The `repos` of the engine's config, for the watch choice; nil when the file cannot be read.
+    public var watched: [String]?
     /// Whether the host can clone (its hello lists `projects`); when it cannot, a repository says the host is older and to restart it.
     public var canClone = true
     public var now: Date = Date()
@@ -274,7 +263,7 @@ public func projectSheetState(
             id: "existing:\(project.path)",
             kind: .existingProject(project),
             title: project.name,
-            detail: mode.existingDetail,
+            detail: mode.includesExistingProjects ? abbreviatedSheetPath(project.path, home: home) : mode.existingDetail,
             actionTitle: mode.existingActionTitle,
             tile: project.tile
         )
@@ -304,12 +293,16 @@ public func projectSheetState(
             kind: .cloneRepo(repo: repo, parent: chosen),
             title: listed == nil ? "Clone \(repo)" : repo,
             detail: listed?.about ?? "",
-            actionTitle: "Clone",
+            actionTitle: mode.repoActionTitle,
             tile: projectTile(name: repo.split(separator: "/").last.map(String.init) ?? repo, colorKey: repo),
             chip: listed?.isPrivate == true ? "Private" : nil,
             pushed: pushedLine(listed?.pushedAt, now: github.now),
             problem: problem,
-            destination: ProjectSheetDestination(line: "Clones into " + abbreviatedSheetPath(parent + "/" + repo, home: home), parent: parent, isChosen: chosen != nil)
+            destination: ProjectSheetDestination(
+                line: (mode.actsAtOnce ? "Clones into " : "Cloned into ") + abbreviatedSheetPath(parent + "/" + repo, home: home) + (mode.actsAtOnce ? "" : " when you send the first message"),
+                parent: parent, isChosen: chosen != nil, canChoose: mode.actsAtOnce
+            ),
+            watch: mode.actsAtOnce ? nil : ProjectSheetWatch(problem: github.watched.flatMap { repoProblem(repo, joining: $0) })
         )
     }
 
@@ -349,11 +342,12 @@ public func projectSheetState(
                     || abbreviatedSheetPath(folder.path, home: home).localizedCaseInsensitiveContains(trimmed))
         }
         if matchingSuggested.isEmpty == false {
-            sections.append(ProjectSheetSection(id: "suggested", title: "Suggested", items: matchingSuggested.map(suggestedResult)))
+            sections.append(ProjectSheetSection(id: "suggested", title: "Suggested folders", items: matchingSuggested.map(suggestedResult)))
         }
     } else {
         if mode.includesExistingProjects {
-            let matchingProjects = trimmed.isEmpty ? projects : projects.filter {
+            let shown = projects.filter { $0.hidden == false }
+            let matchingProjects = trimmed.isEmpty ? shown : shown.filter {
                 $0.name.localizedCaseInsensitiveContains(trimmed)
                     || $0.path.localizedCaseInsensitiveContains(trimmed)
                     || ($0.repo?.localizedCaseInsensitiveContains(trimmed) ?? false)
@@ -380,7 +374,7 @@ public func projectSheetState(
                 || abbreviatedSheetPath(folder.path, home: home).localizedCaseInsensitiveContains(trimmed)
         }
         if matchingSuggested.isEmpty == false {
-            sections.append(ProjectSheetSection(id: "suggested", title: "Suggested", items: matchingSuggested.map(suggestedResult)))
+            sections.append(ProjectSheetSection(id: "suggested", title: "Suggested folders", items: matchingSuggested.map(suggestedResult)))
         }
 
         let repos = matchingRepos(trimmed, except: reference)

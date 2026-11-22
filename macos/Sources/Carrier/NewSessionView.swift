@@ -87,7 +87,7 @@ struct NewSessionView: View {
                     )
                 }
                 .buttonStyle(SelectButtonStyle()).accessibilityLabel("Workspace")
-                .sheet(isPresented: $foldersOpen) { WorkspaceSheet(model: model, openHealth: openHealth).themed() }
+                .sheet(isPresented: $foldersOpen) { AddProjectSheet(mode: .newSession, model: ProjectsModel.shared, recent: model.recent, newSession: model, openHealth: openHealth).themed() }
                 if model.folder != nil {
                     // the circle of the selects' chevrons, with a cross
                     Button { model.clearWorkspace() } label: {

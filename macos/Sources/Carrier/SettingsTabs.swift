@@ -1142,7 +1142,7 @@ struct ChatTabView: View {
                 ForEach(sampleConversation()) { row in
                     FeedRowView(
                         row: row, time: nil, summary: nil, pinned: false, flipped: $flipped, agent: "claude", commands: [], offersWayOut: false,
-                        work: WorkState(live: false, waiting: false, since: nil), continueTurn: {}, retry: {}, answer: { _, _ in }
+                        work: WorkState(live: false, waiting: false, since: nil)
                     )
                 }
             }

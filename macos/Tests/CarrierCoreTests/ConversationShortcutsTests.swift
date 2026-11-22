@@ -62,6 +62,15 @@ private func openGroups(_ rows: [FeedRow], flipped: Set<String>) -> [Bool] {
     #expect(togglingToolGroups(in: rows, flipped: ["x"]) == ["x"])
 }
 
+// A row is drawn again when its own keys of `flipped` change, and not when a key of another row does.
+@Test func aRowTakesFromFlippedItsOwnKeyAndTheOnesUnderIt() {
+    let flipped: Set<String> = ["e5", "e5/e6", "e5/earlier", "e50", "e50/e6", "e55/e6", "e4", "x/e5"]
+    #expect(flippedKeys(of: "e5", in: flipped) == ["e5", "e5/e6", "e5/earlier"])
+    #expect(flippedKeys(of: "e50", in: flipped) == ["e50", "e50/e6"])
+    #expect(flippedKeys(of: "e7", in: flipped).isEmpty)
+    #expect(flippedKeys(of: "e5", in: []).isEmpty)
+}
+
 @Test func theLastAnswerIsTheTextOfTheLastAgentMessage() {
     #expect(lastAnswer(in: feed()) == "first")
     let rows = feed() + [.user(id: "u", text: "more"), .agent(id: "a2", text: "second", inProgress: false), .turnEnd(id: "t", TurnSummary(duration: "12s"))]

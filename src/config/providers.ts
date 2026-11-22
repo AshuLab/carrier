@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { z } from 'zod';
+import { localKinds } from '../harnesses/local.ts';
 import { harnessNames, localProvidersOf } from '../harnesses/names.ts';
 import { carrierHome, expandHome, providersPathOf } from './places.ts';
 import { refusedLaunchArg } from './launch-args.ts';
@@ -92,15 +93,37 @@ export const runtimeOf = ({ command, autoCompact, idleCompaction, launchArgs }: 
 /** Without `providers.json`: one account per harness, named after it, with this Mac's own login. */
 export const defaultAccounts: Providers = Object.fromEntries(harnessNames.map((harness) => [harness, { harness }]));
 
-const providersFileSchema = z.strictObject({ providers: accounts.default(defaultAccounts) });
+/** A text generator: a model that turns text into text with no tools, on one of the local servers on this Mac (`localKinds`). */
+const textGenerator = z.strictObject({ kind: z.enum(localKinds), model: z.string().trim().min(1) });
+export type TextGenerator = z.infer<typeof textGenerator>;
+
+const providersFileSchema = z.strictObject({
+  providers: accounts.default(defaultAccounts),
+  textGenerators: z.record(z.string(), textGenerator).default({}),
+  /** The name of the generator in use. */
+  textGenerator: z.string().optional(),
+}).superRefine((file, ctx) => {
+  for (const name of Object.keys(file.textGenerators)) {
+    if (!optionNamePattern.test(name)) {
+      ctx.addIssue({ code: 'custom', path: ['textGenerators', name], message: `textGenerators.${name}: a text generator name is a lowercase word: letters, digits and hyphens, starting with a letter, up to 40 characters` });
+    }
+  }
+  if (file.textGenerator !== undefined && Object.hasOwn(file.textGenerators, file.textGenerator) === false) {
+    ctx.addIssue({ code: 'custom', path: ['textGenerator'], message: `textGenerator: "${file.textGenerator}" is not declared in textGenerators` });
+  }
+});
 
 export type ProvidersError = { path: string; message: string };
-export type ProvidersResult = { ok: true; providers: Providers } | { ok: false; errors: ProvidersError[] };
+/** `textGenerator` is the one in use, when the file names one. */
+export type ProvidersResult = { ok: true; providers: Providers; textGenerator?: TextGenerator & { name: string } } | { ok: false; errors: ProvidersError[] };
 
-/** The accounts from the parsed contents of `providers.json` (`{}` when there is no file: the default accounts). */
+/** The accounts and the text generator in use from the parsed contents of `providers.json` (`{}` when there is no file: the default accounts, no generator). */
 export function loadProviders(json: unknown): ProvidersResult {
   const parsed = providersFileSchema.safeParse(json);
-  if (parsed.success) return { ok: true, providers: parsed.data.providers };
+  if (parsed.success) {
+    const { providers, textGenerators, textGenerator: name } = parsed.data;
+    return { ok: true, providers, ...(name !== undefined && { textGenerator: { name, ...textGenerators[name]! } }) };
+  }
   return { ok: false, errors: parsed.error.issues.map((issue) => ({ path: issue.path.join('.') || '(root)', message: issue.message })) };
 }
 

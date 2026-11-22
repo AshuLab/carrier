@@ -3,6 +3,8 @@ import type { Plan } from './plan.ts';
 
 export const sessionStates = ['working', 'waiting_approval', 'idle', 'preparing'] as const;
 
+export const titleSources = ['first_line', 'generated', 'renamed'] as const;
+
 /** A user session: one conversation with a provider's agent in a folder. */
 export const sessions = sqliteTable(
   'sessions',
@@ -17,6 +19,7 @@ export const sessions = sqliteTable(
     worktreeBase: text(), // the folder it was made from
     worktreePath: text(),
     title: text(),
+    titleSource: text({ enum: titleSources }), // where the title came from; null for a row from before it was kept, which `titleSourceOf` reads by a rule
     options: text({ mode: 'json' }).$type<Record<string, string>>(),
     plan: text({ mode: 'json' }).$type<Plan>(), // what the host is preparing, or failed to, with the first message; null once the agent answered it
     nativeId: text(), // the provider's id for the conversation, to resume it

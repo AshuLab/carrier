@@ -36,3 +36,4 @@ Folders hold the code or mockups of a spike and are linked from the document tha
 - [switch-and-delegate-spike](switch-and-delegate-spike.md): what the spike found about handoffs, one tool asking for approval, permission levels and usage limits (2026-11-16).
 - [chat-subagents](chat-subagents.md): a real chat session with subagents, what the SDK sends and the two questions the epic left open (2026-11-17).
 - [macos-performance-baseline](macos-performance-baseline.md): CPU, memory, launch and `usage` of the macOS app on 0.13.1, measured with the signposts of #1115 (2026-11-19).
+- [session-titles-model-and-prompt](session-titles-model-and-prompt.md): which local model and system message write session titles, measured on LM Studio (2026-11-21).

@@ -1,7 +1,7 @@
 # src/config
 
 The Carrier folder (`~/.carrier`, or `CARRIER_HOME`, [ADR 0034](../../docs/adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)) holds the engine's config at `<folder>/engine.json` and the accounts at `<folder>/providers.json` ([ADR 0020](../../docs/adr/0020-accounts-live-in-a-file-both-processes-read.md)).
-`providers.ts` is the accounts' schema and reader, and `engine.json` refuses a `providers` key.
+`providers.ts` is the accounts' schema and reader, and `engine.json` refuses a `providers` key; the file's two other keys, `textGenerators` (a map by name of `{ kind, model }`) and `textGenerator` (the one in use, a key of the map), are in the same schema, read by the chat host and ignored by the engine ([ADR 0038](../../docs/adr/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md)).
 The engine's files are in `<folder>/engine/`: `state/` (`carrier.db`, `control.sock`, `carrier.lock`), `logs/`, `repos/`, `reviews/` and `worktrees/`.
 `places.ts` computes every path in the folder (the three files at the top, the engine's and the chat's places), and nothing else decides them; `--config` only chooses the engine's config file.
 Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also has the app's places.

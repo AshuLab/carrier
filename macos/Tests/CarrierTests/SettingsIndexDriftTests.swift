@@ -18,7 +18,7 @@ import Testing
     /// form is open.
     private static let notSearched: Set<String> = [
         "Details", "Label, icon and color", "Name", "Config folder", "Days", "Add account", "Carrier \\(version)",
-        "Where it runs", "Advanced", "Remove account", "Accounts", "Models", "Version", "Signed out", "Use in an agent", "Found on this Mac", "Sign-ins and quotas", "Look at this Mac again",
+        "Where it runs", "Advanced", "Remove account", "Accounts", "Models", "Version", "Signed out", "Use in an agent", "Found on this Mac", "Sign-ins and quotas", "Look at this Mac again", "In use", "Choosing is not available",
         "A session you stop using today", "Left alone", "Most dictations in a day", "Most words in a day", "Longest dictation", "Longest streak", "\\(metric.title) per day",
     ]
 

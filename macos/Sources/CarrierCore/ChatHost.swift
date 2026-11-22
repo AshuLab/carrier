@@ -290,6 +290,8 @@ public protocol ChatHost {
     func rename(_ id: String, _ title: String) async throws
     /// Asks the host to write the session's title again from what was said in it and answers the new one. Only for a host whose hello lists `regenerateTitle`.
     func regenerateTitle(_ id: String) async throws -> String
+    /// Starts writing titles in the background for earlier sessions whose title is still their first line and answers how many it started. Only for a host whose hello lists `regenerateTitles`.
+    func regenerateTitles() async throws -> Int
     /// What deleting these sessions would discard, one entry per id in the order asked; the host refuses the whole request when an id is unknown.
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview]
 }
@@ -352,6 +354,9 @@ extension ChatHost {
 
     /// A host that cannot write titles refuses; the app only asks one that lists `regenerateTitle`.
     public func regenerateTitle(_ id: String) async throws -> String { throw ControlError.remote("the chat host does not support regenerateTitle") }
+
+    /// A host that cannot write earlier titles refuses; the app only asks one that lists `regenerateTitles`.
+    public func regenerateTitles() async throws -> Int { throw ControlError.remote("the chat host does not support regenerateTitles") }
 
     /// A host that knows no commands sends the text as it is.
     public func send(_ id: String, _ text: String, command: String?) async throws { try await send(id, text) }
@@ -563,12 +568,20 @@ public struct SocketChatHost: ChatHost {
     }
 
     private struct TitleReply: Decodable { let title: String }
+    private struct TitlesReply: Decodable { let started: Int }
 
+    /// The host's one generator call has 30 seconds and the call waits behind the one in progress, so the wait for the reply is longer than the 5 seconds of the other requests.
     public func regenerateTitle(_ id: String) async throws -> String {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
-        let reply: TitleReply = try await Task.detached { try chatRequest(path, "regenerateTitle", requires: .regenerateTitle, fields: fields) }.value
+        let reply: TitleReply = try await Task.detached { try chatRequest(path, "regenerateTitle", requires: .regenerateTitle, fields: fields, timeout: 70) }.value
         return reply.title
+    }
+
+    public func regenerateTitles() async throws -> Int {
+        let path = socketPath()
+        let reply: TitlesReply = try await Task.detached { try chatRequest(path, "regenerateTitles", requires: .regenerateTitles) }.value
+        return reply.started
     }
 
     /// The host takes 1 to 500 ids a request, so a longer list goes in several; a commit shared by two worktrees counts for both only when they are asked together.

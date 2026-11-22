@@ -2090,6 +2090,16 @@ private let freshInfo = WorkspaceInfo(
     #expect(unset.agent == "codex" && unset.worktree == false && unset.startBranch == "main")
 }
 
+// A project that is not a git repository: a session started in it works in its folder, whatever Settings > Sessions or the project's defaults say.
+@MainActor @Test func aSessionInAProjectThatIsNotAGitRepositoryWorksInItsFolder() async throws {
+    let host = FakeChat()
+    let model = try await draft(defaults: #"{"workIn":"worktree"}"#, settings: .newWorktree, host: host)
+    host.workspaces["/work/web"] = WorkspaceInfo(folder: "/work/web", git: false)
+    await model.choose(folder: "/work/web")
+    #expect(model.offersWorktree == false && model.worktree == false)
+    #expect(model.sentence == "Work in web in the folder (not a git repository: no worktree)")
+}
+
 @MainActor @Test func aProjectsAgentThatCannotWorkAndABranchTheFolderLacksAreLeftOutOfTheDraft() async throws {
     let host = FakeChat()
     let model = try await draft(defaults: #"{"agent":"gone","baseBranch":"deleted"}"#, host: host)

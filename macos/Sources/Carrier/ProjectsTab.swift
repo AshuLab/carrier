@@ -387,6 +387,7 @@ private struct ProjectDetailView: View {
 
     var body: some View {
         let exists = row.status == .ready
+        let page = ProjectPage(for: row)
         Group {
             if exists == false {
                 SettingsGroup(title: "") {
@@ -438,7 +439,7 @@ private struct ProjectDetailView: View {
                     }
                 }
             }
-            SettingsGroup(title: "New sessions here") {
+            SettingsGroup(title: "New sessions here", footer: page.notice) {
                 SettingsTabRow(
                     title: "Show when starting a session",
                     detail: row.hidden
@@ -452,18 +453,17 @@ private struct ProjectDetailView: View {
                 SettingsTabRow(title: "Agent", detail: "What a new session here starts with; Same as everywhere is Settings > Sessions") {
                     ChoicePopUp(label: "Agent", options: agentOptions, selection: defaultBinding(.agent, row.defaults.agent))
                 }
-                // a folder that is not a git repository has no worktree and no branch to choose
-                if branches.isEmpty == false {
-                    SettingsTabRow(title: "Work in", detail: "The base folder or a new worktree; Default is Settings > Sessions") {
-                        ChoicePopUp(label: "Work in", options: workInOptions, selection: defaultBinding(.workIn, row.defaults.workIn?.projectValue))
-                    }
+                SettingsTabRow(title: "Work in", detail: "The base folder or a new worktree; Default is Settings > Sessions") {
+                    ChoicePopUp(label: "Work in", options: workInOptions, selection: defaultBinding(.workIn, row.defaults.workIn?.projectValue))
+                }
+                if page.baseBranch {
                     SettingsTabRow(title: "Base branch", detail: "The branch a new session here starts from; Default branch is the one checked out") {
                         ChoicePopUp(label: "Base branch", options: branchOptions, selection: defaultBinding(.baseBranch, row.defaults.baseBranch))
                     }
                 }
             }
-            if exists { worktreesGroup }
-            carrierGroup
+            if page.worktrees { worktreesGroup }
+            if page.carrier { carrierGroup }
             SettingsGroup(title: "") {
                 NavigationRow(title: "Actions", detail: "Commands run for a new worktree or after a clone", first: true, action: openActions) {
                     Text(projectActionsSummary(row.actions.count)).font(.scaled(12)).foregroundStyle(.secondary)
@@ -476,10 +476,12 @@ private struct ProjectDetailView: View {
                     } label: { Label("Reveal in Finder", icon: .folder).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(exists == false)
                 }
-                SettingsTabRow(title: "Remote", detail: row.repo ?? "No GitHub remote", mono: row.repo != nil) {
-                    if let repo = row.repo, let url = URL(string: "https://github.com/\(repo)") {
-                        Button { NSWorkspace.shared.open(url) } label: { Label("Open on GitHub", icon: .externalLink).labelStyle(.titleAndIcon) }
-                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                if page.remote {
+                    SettingsTabRow(title: "Remote", detail: row.repo ?? "No GitHub remote", mono: row.repo != nil) {
+                        if let repo = row.repo, let url = URL(string: "https://github.com/\(repo)") {
+                            Button { NSWorkspace.shared.open(url) } label: { Label("Open on GitHub", icon: .externalLink).labelStyle(.titleAndIcon) }
+                                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                        }
                     }
                 }
                 SettingsTabRow(title: "Remove", detail: "Takes \(row.name) out of Carrier; its folder and worktrees stay") {
@@ -510,8 +512,10 @@ private struct ProjectDetailView: View {
         }
         .task(id: row.path) {
             // a fresh figure is asked for and the host measures in the background; the list's follow loop reads it as it lands
-            if row.status == .ready { await model.refreshDisk(.now, of: [row.path]) }
-            await loadWorktrees()
+            if page.worktrees {
+                await model.refreshDisk(.now, of: [row.path])
+                await loadWorktrees()
+            }
         }
         .task(id: row.path) { branches = await model.branches(of: row.path) }
         .onAppear(perform: publishPin)
@@ -631,7 +635,7 @@ private struct ProjectDetailView: View {
     }
 
     private var workInOptions: [(value: String?, title: String)] {
-        [(nil, "Default")] + WorkIn.allCases.map { ($0.projectValue, $0 == .baseFolder ? "Base folder" : "New worktree") }
+        [(nil, "Default")] + ProjectPage(for: row).workIn.map { ($0.projectValue, $0 == .baseFolder ? "Base folder" : "New worktree") }
     }
 
     private var branchOptions: [(value: String?, title: String)] {

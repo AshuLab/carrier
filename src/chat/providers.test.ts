@@ -95,3 +95,19 @@ test('a providers.json that does not match answers the problem with the key and 
   writeFile('{ not json');
   expect((await providers()()).problem).toMatchObject({ path: '(file)' });
 });
+
+test('the text generator the file names is in the reply with its name, kind and model, and absent when it names none', async () => {
+  writeFile(JSON.stringify({ textGenerators: { local: { kind: 'ollama', model: 'qwen3:8b' }, studio: { kind: 'lmstudio', model: 'gemma' } }, textGenerator: 'local' }));
+  expect((await providers()()).textGenerator).toEqual({ name: 'local', kind: 'ollama', model: 'qwen3:8b' });
+  writeFile(JSON.stringify({ textGenerators: { local: { kind: 'ollama', model: 'qwen3:8b' } } }));
+  expect(await providers()()).not.toHaveProperty('textGenerator');
+  writeProviders({ claude: { harness: 'claude' } });
+  expect(await providers()()).not.toHaveProperty('textGenerator');
+});
+
+test('a file whose textGenerator is not declared answers the problem with no generator', async () => {
+  writeFile(JSON.stringify({ textGenerators: {}, textGenerator: 'local' }));
+  const reply = await providers()();
+  expect(reply).toMatchObject({ accounts: [], problem: { path: 'textGenerator' } });
+  expect(reply).not.toHaveProperty('textGenerator');
+});

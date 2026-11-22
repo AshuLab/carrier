@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { FakeClock } from '../orchestration/fake.ts';
 import type { Git, GitResult } from './git.ts';
 import { createProjects, type GithubRepos } from './projects.ts';
+import { noGeneratorChosen, TextGeneratorFailed, type TextGenerator } from './text-generator.ts';
 import { ChatRefused, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 
 /**
@@ -91,6 +92,39 @@ export class FakeChatRunner implements ChatRunner {
     this.setup(conversation);
     this.conversations.push(conversation);
     return conversation;
+  }
+}
+
+/**
+ * A text generator that plays what a test tells it: `answer` is what it says (a string), `fail` makes it reject with that reason,
+ * `hang` makes it never answer. The calls it got are in `calls`, and `active` is how many are in flight at once at most.
+ */
+export class FakeTextGenerator implements TextGenerator {
+  answer = 'A title';
+  fail: string | undefined;
+  hang = false;
+  calls: { system: string; text: string }[] = [];
+  running = 0;
+  /** The most calls that were in flight at the same time. */
+  mostRunning = 0;
+  /** Set to hold each answer until the test calls it; the answer then goes out. */
+  held: (() => void)[] | undefined;
+
+  chosen() {
+    if (this.fail === noGeneratorChosen) throw new TextGeneratorFailed(noGeneratorChosen);
+  }
+
+  async generate(input: { system: string; text: string }) {
+    this.calls.push(input);
+    this.mostRunning = Math.max(this.mostRunning, ++this.running);
+    try {
+      if (this.hang) await new Promise<never>(() => {});
+      if (this.held !== undefined) await new Promise<void>((release) => this.held!.push(release));
+      if (this.fail !== undefined) throw new TextGeneratorFailed(this.fail);
+      return this.answer;
+    } finally {
+      this.running--;
+    }
   }
 }
 

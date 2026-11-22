@@ -121,3 +121,32 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     await #expect(throws: ControlError.remote("The agent \"claude-beta\" is not found on this machine")) { try await host.switchAgent(idle.id, to: "claude-beta") }
     await #expect(throws: ControlError.remote("This session is working; interrupt it or wait, then switch its agent")) { try await host.switchAgent(working.id, to: "codex") }
 }
+
+@Test func theFixtureChatHostWritesANewTitleAndRefusesInWordsWhereTheListSaysSo() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let sessions = try await host.list(archived: false)
+    let fixable = try #require(sessions.first { $0.title == "Fix the flaky login test" })
+    #expect(try await host.regenerateTitle(fixable.id) == "Regenerated title")
+    #expect(try await host.list(archived: false).first { $0.id == fixable.id }?.title == "Regenerated title")
+
+    let refused = try #require(sessions.first { $0.title == "Explore the pricing page layout" })
+    await #expect(throws: ControlError.remote("Could not write a title: no text generator is chosen; choose one in Providers")) { try await host.regenerateTitle(refused.id) }
+    #expect(try await host.list(archived: false).first { $0.id == refused.id }?.title == "Explore the pricing page layout")
+}
+
+@Test func theFixtureChatHostRegeneratesEarlierTitlesWhenAGeneratorIsChosen() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    await #expect(throws: ControlError.remote("Could not write titles: no text generator is chosen; choose one in Providers")) { _ = try await host.regenerateTitles() }
+
+    let file = ProvidersFile(folder: server.home)
+    try file.write(applyingTextGenerator((server: "ollama", model: "qwen3:8b"), to: try file.read()))
+    let started = try await host.regenerateTitles()
+    #expect(started > 0)
+    #expect(try await host.regenerateTitles() == 0)
+    let fixable = try #require(try await host.list(archived: false).first { $0.id == "f6a7b8c9-5d4e-4f10-8b3c-4d5e6f7a8b06" })
+    #expect(fixable.title == "Regenerated title")
+}

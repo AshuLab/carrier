@@ -56,6 +56,7 @@ import SwiftUI
     /// A new list from the host, on the main thread.
     func adopt(_ rows: [SessionRow]) {
         hostRows = rows
+        Task { await actions.learnHost() }
         refreshUnread()
     }
 

@@ -45,3 +45,4 @@ A status that names a later record means that record changed part or all of this
 | 0035 | [A worktree's folder goes when its work is done, and its branch stays](0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md) | accepted |
 | 0036 | [A session delegates in every mode, and a child runs at its parent's permission level](0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) | accepted |
 | 0037 | [A new worktree is cut from the remote branch by default, and choosing a project fetches it](0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md) | accepted |
+| 0038 | [A text generator is declared in `providers.json`, and the chat host writes session titles with it](0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md) | proposed |

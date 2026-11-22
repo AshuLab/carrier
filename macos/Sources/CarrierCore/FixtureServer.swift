@@ -13,7 +13,7 @@ public enum FixtureError: Error, Equatable {
 /// asked and not answered as pending, `answer`, which records the answer as an event, `archive` and `delete` on the listed sessions
 /// (kept in memory, refused for a working or waiting one as the host does), `deletePreview`, which says what `chat-delete-preview.json`
 /// holds for the sessions it names and `worktree: null` for the other listed ones, and the worktree requests from `chat-workspace.json`
-/// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder; `ifStale` is accepted and the answer is the same: a window that has passed; a git folder not listed there is refused as a remote that cannot be reached), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see, and `cloneProject` refuses it the same way while one it or `chat-github-repos.json` lists starts cloning and stays at git's progress line), `chat-project-worktrees.json` (`projectWorktrees`, by the folder's name; a project not listed has its main clone and no worktrees), `chat-project-clones.json` (`projectClones`: the clones running or failed at the start, which `cloneProject` and `dismissClone` change in memory; the file is optional), `newProject` (makes `<parent or the projects folder>/local/<name>` and registers it in the home's `projects.json` with origin `created`, refusing a name the host would refuse and a folder that is already there; no git runs), `chat-providers.json` (`providers`), `chat-usage.json` (`usage`, the same sample for any filter; `usageOverride` is accepted and changes nothing), `chat-names.json` (`suggestName`,
+/// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder; `ifStale` is accepted and the answer is the same: a window that has passed; a git folder not listed there is refused as a remote that cannot be reached), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see, and `cloneProject` refuses it the same way while one it or `chat-github-repos.json` lists starts cloning and stays at git's progress line), `chat-project-worktrees.json` (`projectWorktrees`, by the folder's name; a project not listed has its main clone and no worktrees), `chat-project-disk.json` (`projectDisk`, by the folder's name, its `main` part standing for the folder itself; a project not listed has never been measured and nothing is ever measuring), `chat-project-clones.json` (`projectClones`: the clones running or failed at the start, which `cloneProject` and `dismissClone` change in memory; the file is optional), `newProject` (makes `<parent or the projects folder>/local/<name>` and registers it in the home's `projects.json` with origin `created`, refusing a name the host would refuse and a folder that is already there; no git runs), `chat-providers.json` (`providers`), `chat-usage.json` (`usage`, the same sample for any filter; `usageOverride` is accepted and changes nothing), `chat-names.json` (`suggestName`,
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; `switchAgent` gives an idle session another listed agent and a notice that says so; anything else is an error.
@@ -75,6 +75,8 @@ public final class FixtureServer {
     private let chatBranches: [String: [String: Any]]
     /// `chat-project-worktrees.json`: the `projectWorktrees` reply by the project folder's name; any other project has its main clone and no worktrees.
     private let chatProjectWorktrees: [String: [String: Any]]
+    /// `chat-project-disk.json`: the `projectDisk` figure by the project folder's name.
+    private let chatProjectDisk: [String: [String: Any]]
     /// The clones from Settings the host runs or has failed: `chat-project-clones.json` at the start, then what `cloneProject` and `dismissClone` change (read with `lock`).
     private var chatClones: [[String: Any]]
     private let chatProviders: [String: Any]
@@ -162,6 +164,7 @@ public final class FixtureServer {
         chatGithubRepos = try golden("chat-github-repos.json", as: [String: [String: Any]].self)
         chatBranches = try golden("chat-branches.json", as: [String: [String: Any]].self)
         chatProjectWorktrees = try golden("chat-project-worktrees.json", as: [String: [String: Any]].self)
+        chatProjectDisk = try golden("chat-project-disk.json", as: [String: [String: Any]].self)
         chatClones = (try? golden("chat-project-clones.json", as: [String: Any].self))?["clones"] as? [[String: Any]] ?? []
         chatProviders = try golden("chat-providers.json", as: [String: Any].self)
         chatNames = try golden("chat-names.json", as: [String: Any].self)
@@ -457,6 +460,17 @@ public final class FixtureServer {
             var reply = chatProjectWorktrees[(folder as NSString).lastPathComponent] ?? ["main": ["branch": "main"], "worktrees": [Any]()]
             reply["main"] = ["path": folder, "branch": (reply["main"] as? [String: Any])?["branch"] ?? NSNull()]
             return Self.answer(id, reply)
+        case "projectDisk":
+            guard let folders = request?["folders"] as? [String] else { break }
+            return Self.answer(id, ["projects": folders.map { folder in
+                guard var figure = chatProjectDisk[(folder as NSString).lastPathComponent] else {
+                    return ["folder": folder, "bytes": NSNull(), "measuredAt": NSNull(), "parts": [String: Any]()] as [String: Any]
+                }
+                // the golden file names the project's own folder "main", as the host's answer names it by its real path
+                figure["parts"] = (figure["parts"] as? [String: Any] ?? [:]).reduce(into: [String: Any]()) { $0[$1.key == "main" ? folder : $1.key] = $1.value }
+                figure["folder"] = folder
+                return figure
+            }, "measuring": [String]()])
         case "dismissClone":
             guard let repo = request?["repo"] as? String else { break }
             return Self.answer(id, ["clones": locked {

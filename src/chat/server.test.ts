@@ -69,6 +69,7 @@ const controls = (): ChatControls => ({
     if (folder === '/gone') throw new ChatRefused('That folder does not exist');
     return { main: { path: folder, branch: 'main' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] };
   },
+  projectDisk: ({ folders, refresh }) => ({ projects: folders.map((folder) => ({ folder, bytes: 2048, measuredAt: 5, parts: { [folder]: 2048 } })), measuring: refresh === 'now' ? folders : [] }),
   dismissClone: () => ({ clones: [] }),
   newProject: async ({ name, parent }) => {
     if (name === 'taken') throw new ChatRefused('taken is already a project; choose another name');
@@ -370,6 +371,17 @@ test('projectWorktrees takes a folder and nothing else, and answers the main clo
   expect(await c.ask('{"id":1,"cmd":"projectWorktrees","folder":"/work/app"}')).toEqual({ id: 1, ok: true, data: { main: { path: '/work/app', branch: 'main' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] } });
   expect(await c.ask('{"id":2,"cmd":"projectWorktrees","folder":"/gone"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist' });
   const bad = ['{"id":10,"cmd":"projectWorktrees"}', '{"id":11,"cmd":"projectWorktrees","folder":""}', '{"id":12,"cmd":"projectWorktrees","folder":"/a","force":true}', `{"id":13,"cmd":"projectWorktrees","folder":"/${'a'.repeat(4096)}"}`];
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+});
+
+test('projectDisk takes one to 500 folders and a refresh of stale or now, and nothing else', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"projectDisk","folders":["/work/app"]}')).toEqual({ id: 1, ok: true, data: { projects: [{ folder: '/work/app', bytes: 2048, measuredAt: 5, parts: { '/work/app': 2048 } }], measuring: [] } });
+  expect(await c.ask('{"id":2,"cmd":"projectDisk","folders":["/work/app"],"refresh":"now"}')).toMatchObject({ ok: true, data: { measuring: ['/work/app'] } });
+  const many = JSON.stringify(Array.from({ length: 500 }, (_, index) => `/w/${index}`));
+  expect(await c.ask(`{"id":3,"cmd":"projectDisk","folders":${many}}`)).toMatchObject({ ok: true });
+  const bad = ['{"id":10,"cmd":"projectDisk"}', '{"id":11,"cmd":"projectDisk","folders":[]}', '{"id":12,"cmd":"projectDisk","folders":[""]}', '{"id":13,"cmd":"projectDisk","folders":["/a"],"refresh":"always"}', '{"id":14,"cmd":"projectDisk","folders":["/a"],"force":true}', `{"id":15,"cmd":"projectDisk","folders":${JSON.stringify(Array.from({ length: 501 }, () => '/a'))}}`, `{"id":16,"cmd":"projectDisk","folders":["/${'a'.repeat(4096)}"]}`, '{"id":17,"cmd":"projectDisk","folders":"/a"}'];
   for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
 });
 

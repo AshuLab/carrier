@@ -77,7 +77,7 @@ struct ProjectsTabView: View {
     @ViewBuilder private var list: some View {
         let shown = model.rows + model.cloneRows
         let tags = projectTagsInUse(shown)
-        let groups = projectList(projectsWithLastActive(shown, sessions: sessions), query: query, filter: filter, groupBy: groupBy, order: order)
+        let groups = projectList(projectsWithDisk(projectsWithLastActive(shown, sessions: sessions), figures: model.disk), query: query, filter: filter, groupBy: groupBy, order: order)
         let now = Date()
         Group {
             if shown.isEmpty {
@@ -133,7 +133,7 @@ struct ProjectsTabView: View {
                                     sortTitle("Project", key: .name).frame(maxWidth: .infinity, alignment: .leading)
                                     Text("Tags").frame(width: Column.tags, alignment: .leading).accessibilityHidden(true)
                                     sortTitle("Last active", key: .lastActive).frame(width: Column.lastActive, alignment: .leading)
-                                    Text("Disk").frame(width: Column.disk, alignment: .leading).accessibilityHidden(true)
+                                    sortTitle("Disk", key: .disk).frame(width: Column.disk, alignment: .leading)
                                     Color.clear.frame(width: Column.trailing, height: 1)
                                 }
                                 .sectionLabel().padding(.vertical, 10)
@@ -237,8 +237,9 @@ struct ProjectsTabView: View {
                     .font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
                     .frame(width: Column.lastActive, alignment: .leading)
 
-                // nothing measures a project yet: a dash, as for one never measured, and always one for a folder that is gone
-                Text("—").font(.scaled(12)).foregroundStyle(.secondary).frame(width: Column.disk, alignment: .leading).accessibilityHidden(true)
+                // the host's last figure, and a dash for a project it has not measured and always for a folder that is gone
+                Text(row.diskBytes.map(formatDiskSize) ?? "—").font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
+                    .frame(width: Column.disk, alignment: .leading)
 
                 HStack(spacing: 10) {
                     Spacer(minLength: 0)
@@ -421,20 +422,47 @@ private struct ProjectDetailView: View {
         } message: {
             Text(projectRemovalWords)
         }
-        .task(id: row.path) { await loadWorktrees() }
+        .task(id: row.path) {
+            // a fresh figure is asked for and the host measures in the background; the list's follow loop reads it as it lands
+            if row.status == .ready { await model.refreshDisk(.now, of: [row.path]) }
+            await loadWorktrees()
+        }
         .onAppear(perform: publishPin)
         .onChange(of: row.pinned) { publishPin() }
         .onChange(of: row.path) { publishPin() }
         .onDisappear { headerAction?.clear(owner) }
     }
 
-    /// The Worktrees and disk group: the main clone and each worktree Carrier made, asked of the host when the page opens.
+    /// The Worktrees and disk group: the total and a bar, then the main clone and each worktree Carrier made with its size. The worktrees are asked of the host when
+    /// the page opens, and so is a fresh measure; the last known figure stays on show meanwhile.
     @ViewBuilder private var worktreesGroup: some View {
-        SettingsGroup(title: "Worktrees and disk", footer: "The worktrees Carrier made for sessions of this project.") {
+        let figure = model.disk[(row.path as NSString).expandingTildeInPath]
+        let measuring = model.measuring.contains((row.path as NSString).expandingTildeInPath)
+        SettingsGroup(title: "Worktrees and disk", footer: "The worktrees Carrier made for sessions of this project, and what each folder takes on disk.") {
             if let worktrees {
-                ForEach(Array(worktreeRows(worktrees, now: Date()).enumerated()), id: \.element.id) { index, item in
-                    SettingsTabRow(title: item.branch, detail: item.detail, first: index == 0, mono: true) {
-                        if let state = item.state, let kind = item.kind { StatusChip(text: state, tint: worktreeTint(kind)) }
+                let items = worktreeRows(worktrees, sizes: figure?.parts ?? [:], now: Date())
+                let shares = diskShares(items)
+                SettingsTabRow(title: "Total", detail: diskTotalWords(figure, measuring: measuring, now: Date()), first: true) {
+                    HStack(spacing: 8) {
+                        if measuring { ProgressView().controlSize(.small) }
+                        Text(figure?.bytes.map(formatDiskSize) ?? "—").fontWeight(.medium).monospacedDigit()
+                    }
+                }
+                if shares.isEmpty == false {
+                    DiskBar(shares: shares, color: { diskColor($0, in: items) })
+                        .padding(.vertical, 10).frame(maxWidth: .infinity)
+                        .overlay(alignment: .top) { SettingsDivider() }
+                }
+                ForEach(items) { item in
+                    SettingsTabRow(title: item.branch, detail: item.detail, mono: true) {
+                        HStack(spacing: 10) {
+                            if let state = item.state, let kind = item.kind { StatusChip(text: state, tint: worktreeTint(kind)) }
+                            HStack(spacing: 6) {
+                                Circle().fill(diskColor(item.id, in: items)).frame(width: 7, height: 7).accessibilityHidden(true)
+                                Text(item.size).font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary)
+                            }
+                            .frame(width: 76, alignment: .trailing)
+                        }
                     }
                 }
             } else if let worktreesProblem {
@@ -443,6 +471,12 @@ private struct ProjectDetailView: View {
                 SettingsTabRow(title: "Worktrees", detail: "", first: true) { ProgressView().controlSize(.small) }
             }
         }
+    }
+
+    /// The colour of a folder in the bar and before its size: the main clone the theme's accent, then one for each worktree, round again after six.
+    private func diskColor(_ id: String, in items: [WorktreeRow]) -> Color {
+        let palette: [Color] = [.themeAccent, .teal, .indigo, .purple, .pink, .mint]
+        return palette[(items.firstIndex { $0.id == id } ?? 0) % palette.count]
     }
 
     private func worktreeTint(_ state: ProjectWorktree.State) -> Color {
@@ -787,5 +821,25 @@ private struct ProjectActionsView: View {
         drafts = refreshed
         savedById = Dictionary(uniqueKeysWithValues: refreshed.map { ($0.id, $0.action) })
         lastWritten = latest
+    }
+}
+
+/// The bar of a project's disk: one segment for each folder, as wide as its share, in the colour of its dot.
+struct DiskBar: View {
+    let shares: [DiskShare]
+    let color: (String) -> Color
+
+    var body: some View {
+        GeometryReader { geometry in
+            let room = geometry.size.width - CGFloat(shares.count - 1)
+            HStack(spacing: 1) {
+                ForEach(shares) { share in color(share.id).frame(width: max(2, room * share.fraction)) }
+            }
+            .frame(width: geometry.size.width, alignment: .leading)
+            .background(Color.primary.opacity(0.12))
+            .clipShape(Capsule())
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
+        }
+        .frame(height: 8).accessibilityHidden(true)
     }
 }

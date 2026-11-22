@@ -71,6 +71,11 @@ public struct WorktreeRow: Equatable, Identifiable, Sendable {
     public let state: String?
     /// What `state` is said of, for the colour of its chip.
     public let kind: ProjectWorktree.State?
+    /// What the folder takes on disk, as the host last measured it; nil when it has not (a worktree made since).
+    public var bytes: Int?
+
+    /// The size as the row says it: a dash until it is measured.
+    public var size: String { bytes.map(formatDiskSize) ?? "—" }
 
     /// The row's second line: the session and the age, "Main clone" for the main one.
     public var detail: String { session.map { [$0, age].compactMap { $0 }.joined(separator: " · ") } ?? "Main clone" }
@@ -78,9 +83,9 @@ public struct WorktreeRow: Equatable, Identifiable, Sendable {
 
 private func branchWords(_ branch: String?) -> String { branch ?? "Detached HEAD" }
 
-/// The main clone first, then each worktree as the host listed it.
-public func worktreeRows(_ reply: ProjectWorktrees, now: Date, format: TimeFormat = .stored()) -> [WorktreeRow] {
-    let main = WorktreeRow(id: reply.main.path, branch: branchWords(reply.main.branch), session: nil, age: nil, state: nil, kind: nil)
+/// The main clone first, then each worktree as the host listed it; `sizes` are the host's figures by folder.
+public func worktreeRows(_ reply: ProjectWorktrees, sizes: [String: Int] = [:], now: Date, format: TimeFormat = .stored()) -> [WorktreeRow] {
+    let main = WorktreeRow(id: reply.main.path, branch: branchWords(reply.main.branch), session: nil, age: nil, state: nil, kind: nil, bytes: sizes[reply.main.path])
     return [main] + reply.worktrees.map { worktree in
         WorktreeRow(
             id: worktree.path,
@@ -88,7 +93,8 @@ public func worktreeRows(_ reply: ProjectWorktrees, now: Date, format: TimeForma
             session: worktree.session.map { $0.title ?? "Untitled session" } ?? "No session",
             age: timeText(Date(timeIntervalSince1970: worktree.lastActiveAt / 1000), now: now, format: format),
             state: stateWords(worktree.state),
-            kind: worktree.state
+            kind: worktree.state,
+            bytes: sizes[worktree.path]
         )
     }
 }

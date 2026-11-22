@@ -79,3 +79,17 @@ test('the delegation migration adds the parent and the request id to the session
   expect(() => insert.run('c7', 'ghost', null)).toThrow(/FOREIGN KEY/);
   db.$client.close();
 });
+
+test('the project size cache is a table of the chat database, one row a project, and it is made again in a database that lost it', () => {
+  const file = join(dir, 'chat.db');
+  const first = openChatDatabase(file);
+  const upsert = first.$client.prepare('insert into project_sizes (folder, bytes, parts, measuredAt) values (?, ?, ?, ?) on conflict(folder) do update set bytes = excluded.bytes, parts = excluded.parts, measuredAt = excluded.measuredAt');
+  upsert.run('/p/app', 10_000_000_000, '{"/p/app":10000000000}', 1);
+  upsert.run('/p/app', 12_000_000_000, '{"/p/app":12000000000}', 2);
+  expect(first.$client.prepare('select * from project_sizes').all()).toEqual([{ folder: '/p/app', bytes: 12_000_000_000, parts: '{"/p/app":12000000000}', measuredAt: 2 }]);
+  first.$client.close();
+  rmSync(file);
+  const again = openChatDatabase(file);
+  expect(again.$client.prepare('select count(*) as n from project_sizes').get()).toEqual({ n: 0 });
+  again.$client.close();
+});

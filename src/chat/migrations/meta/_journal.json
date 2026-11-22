@@ -78,6 +78,13 @@
       "when": 1795224219645,
       "tag": "0010_nappy_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1795316735156,
+      "tag": "0011_mean_raider",
+      "breakpoints": true
     }
   ]
 }

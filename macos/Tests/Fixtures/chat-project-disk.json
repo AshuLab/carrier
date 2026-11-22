@@ -1,0 +1,19 @@
+{
+  "carrier": {
+    "bytes": 6420000000,
+    "measuredAt": 1792000000000,
+    "parts": {
+      "main": 1830000000,
+      "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/kerrigan": 1790000000,
+      "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/raynor": 1210000000,
+      "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/zeratul": 940000000,
+      "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/artanis": 460000000,
+      "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/tassadar": 190000000
+    }
+  },
+  "notes": {
+    "bytes": 4300000,
+    "measuredAt": 1792000000000,
+    "parts": { "main": 4300000 }
+  }
+}

@@ -635,6 +635,40 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     #expect(asked == false)
 }
 
+@Test func theProjectDiskRequestGoesOnTheWireWithTheHostsLimitsAndItsReplyDecodes() async throws {
+    let wire = Asked()
+    let server = TestServer { connection in
+        connection.send(hello("\"projects\""))
+        while let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int {
+            wire.add(line)
+            connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"projects\":[{\"folder\":\"/w \\\"x\\\"\",\"bytes\":6420000000,\"measuredAt\":1792000000000,\"parts\":{\"/w \\\"x\\\"\":6420000000}},{\"folder\":\"/new\",\"bytes\":null,\"measuredAt\":null,\"parts\":{}}],\"measuring\":[\"/new\"]}}\n")
+        }
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    let reply = try await host.projectDisk(["/w \"x\"", "/new"], refresh: .stale)
+    #expect(reply.projects == [.init(folder: "/w \"x\"", bytes: 6_420_000_000, measuredAt: 1_792_000_000_000, parts: ["/w \"x\"": 6_420_000_000]), .init(folder: "/new", bytes: nil)])
+    #expect(reply.measuring == ["/new"])
+    // a read sends no refresh; what the host would refuse (an empty folder, one over 4096 characters) never goes out, and with nothing left nothing is asked
+    _ = try await host.projectDisk(["/a", "", String(repeating: "a", count: 4097)], refresh: .read)
+    let none = try await host.projectDisk(["", String(repeating: "a", count: 4097)], refresh: .now)
+    #expect(none == ProjectDiskReply(projects: []))
+    let sent = try wire.all.map { try #require(try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]) }
+    #expect(sent.count == 2)
+    #expect(sent[0]["cmd"] as? String == "projectDisk" && sent[0]["folders"] as? [String] == ["/w \"x\"", "/new"] && sent[0]["refresh"] as? String == "stale" && sent[0].keys.sorted() == ["cmd", "folders", "id", "refresh"])
+    #expect(sent[1]["folders"] as? [String] == ["/a"] && sent[1].keys.sorted() == ["cmd", "folders", "id"])
+
+    // a host without the capability is told it is older, and is sent nothing
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).projectDisk(["/w"], refresh: .now) }
+    #expect(asked == false)
+}
+
 @Test func theProjectWorktreesRequestGoesOnTheWireAndTheGoldenReplyDecodes() async throws {
     let wire = Asked()
     let golden = try String(contentsOfFile: fixtures + "/chat-project-worktrees.json", encoding: .utf8)

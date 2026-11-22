@@ -35,6 +35,14 @@ final class CloneHost: ChatHost, @unchecked Sendable {
         if let failure { throw failure }
         return current
     }
+    /// What `projectDisk` was asked, and what it answers from the folders and the refresh.
+    private(set) var diskAsked: [(folders: [String], refresh: ProjectDiskRefresh)] = []
+    var diskAnswer: @Sendable ([String], ProjectDiskRefresh) -> ProjectDiskReply = { _, _ in ProjectDiskReply(projects: []) }
+    func projectDisk(_ folders: [String], refresh: ProjectDiskRefresh) async throws -> ProjectDiskReply {
+        lock.withLock { diskAsked.append((folders, refresh)) }
+        if let failure { throw failure }
+        return diskAnswer(folders, refresh)
+    }
     func dismissClone(_ repo: String) async throws -> [ProjectClone] {
         lock.withLock { clones.removeAll { $0.repo == repo && $0.state == .failed } }
         return current

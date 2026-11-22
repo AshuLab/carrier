@@ -9,6 +9,7 @@ import { sweepPending } from './attachments.ts';
 import { claudeChatRunner } from './claude.ts';
 import { codexChatRunner } from './codex.ts';
 import { chatConfigProblem, readChatConfig, type ChatSettings } from './config.ts';
+import { createDisk, measureWithDu, type Measure } from './disk.ts';
 import { realGit, type Git } from './git.ts';
 import { realShell, type Shell } from './shell.ts';
 import { createProjects, ghBranches, ghLogin, ghRepos, ghToken, type GithubRepos } from './projects.ts';
@@ -51,6 +52,8 @@ export interface ChatHostDeps {
   git: Git;
   /** What runs a project's actions. */
   shell: Shell;
+  /** How many bytes a folder takes, for the projects' sizes. */
+  measure: Measure;
   /** The token of the person's `gh` login, for the clones. */
   token: () => Promise<string>;
   /** The person's GitHub repositories and login, for the list. */
@@ -74,7 +77,7 @@ const realGithub = ({ githubCallTimeoutSeconds }: ChatSettings): GithubRepos => 
   branches: (repo) => ghBranches(repo, githubCallTimeoutSeconds * 1000),
 });
 
-const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, shell: realShell, token: ghToken, github: realGithub(settings), pulls: ghPullRequests(settings.githubCallTimeoutSeconds * 1000), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses, startMcp: startMcpServer, usage: { ports: realUsagePorts, history: realHistoryPorts } });
+const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, shell: realShell, measure: measureWithDu, token: ghToken, github: realGithub(settings), pulls: ghPullRequests(settings.githubCallTimeoutSeconds * 1000), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses, startMcp: startMcpServer, usage: { ports: realUsagePorts, history: realHistoryPorts } });
 
 /**
  * Runs the chat host from the Carrier folder alone (`CARRIER_HOME`, else `~/.carrier`): its own lock, database and socket under
@@ -109,6 +112,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     return ages;
   };
   const usage = createUsage({ ports: { ...deps.usage.ports, clock: deps.clock }, history: deps.usage.history, db, folder: carrierHome(), agents: () => chatAgentsOf(settings.agents), env: deps.env });
+  const disk = createDisk({ db, clock: deps.clock, git: deps.git, measure: deps.measure });
   const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock, onCloneChange: () => idle?.recheck() });
   // the last value read, not the file: a conversation names its session several times a second (`list` and the clock pass read the file)
   const idleCloseMs = () => (ages.idleCloseMinutes === undefined ? IDLE_CLOSE_MS : ages.idleCloseMinutes * 60_000);
@@ -151,6 +155,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
       stopped = true;
       await sessions.closeAll(); // also tells the pass in flight to leave the next session alone
       await projects.stop();
+      disk.stop();
       await passInFlight; // so the database is not closed under a worktree that is half removed
       close();
       log.info('chat host stopped');
@@ -168,7 +173,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
       joined: () => void idle?.joined(),
       left: () => void idle?.left(),
     };
-    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, cloneRepo: projects.cloneRepo, cloneProject: projects.cloneProject, projectClones: projects.projectClones, dismissClone: projects.dismissClone, newProject: projects.newProject, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
+    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, projectDisk: disk.projectDisk, cloneRepo: projects.cloneRepo, cloneProject: projects.cloneProject, projectClones: projects.projectClones, dismissClone: projects.dismissClone, newProject: projects.newProject, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
   } catch (error) {
     close();
     throw error;

@@ -606,3 +606,18 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     #expect(model.rows.map(\.path) == [moved, taken])
     #expect(model.rows[0].name == "App" && model.rows[0].tags == ["x"] && model.rows[0].status == .ready)
 }
+
+@Test func theListSaysWhichProjectsCarrierWatchesAndAChipShowsOnlyThose() {
+    let rows = [
+        ProjectRow(path: "/p/web", name: "Web", repo: "Acme/Web"),
+        ProjectRow(path: "/p/api", name: "Api", repo: "acme/api"),
+        ProjectRow(path: "/p/notes", name: "Notes", repo: nil),
+    ]
+    let marked = projectsWithWatched(rows, repos: ["acme/web", "other/thing"])
+    #expect(marked.map(\.carrierText) == ["Watching", "Not watched", "Not watched"])
+    #expect(projectList(marked, filter: .watched).flatMap(\.rows).map(\.name) == ["Web"])
+    #expect(projectList(marked, query: "api", filter: .watched).isEmpty)
+    #expect(projectList(marked).flatMap(\.rows).count == 3)
+    // an unreadable engine config watches nothing
+    #expect(projectsWithWatched(rows, repos: nil).allSatisfy { $0.watched == false })
+}

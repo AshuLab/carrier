@@ -118,6 +118,10 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public let clone: ProjectClone?
     /// When a session last worked in it, from `projectsWithLastActive`; derived from the sessions, never stored in the file. nil when none did.
     public var lastActive: Date?
+    /// Whether Carrier watches its repository: its `owner/name` is in the engine config's `repos`, from `projectsWithWatched`; never stored in `projects.json`.
+    public var watched: Bool
+    /// What the project takes on disk as the host last measured it, from `projectsWithDisk`; never stored. nil when it has not been measured.
+    public var diskBytes: Int?
 
     public init(
         path: String,
@@ -133,7 +137,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         iconImage: String? = nil,
         actions: [ProjectAction] = [],
         clone: ProjectClone? = nil,
-        lastActive: Date? = nil
+        lastActive: Date? = nil,
+        watched: Bool = false
     ) {
         self.path = path
         self.name = name
@@ -149,6 +154,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         self.actions = actions
         self.clone = clone
         self.lastActive = lastActive
+        self.watched = watched
     }
 
     /// The list's row for a clone started from Settings: named as the repository, at the folder it is made in.
@@ -170,6 +176,8 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         case nil: repo ?? path
         }
     }
+    /// What the list's Carrier column says.
+    public var carrierText: String { watched ? "Watching" : "Not watched" }
     /// What its tile's colour is made from, so it matches the project's sessions.
     public var colorKey: String { projectColorKey(path) }
     /// What the project's tile draws: its chosen colour and mark, else initials on a colour made from the name.
@@ -212,13 +220,24 @@ public func projectsWithLastActive(_ rows: [ProjectRow], sessions: [SessionRow])
     }
 }
 
-/// What the Projects list is ordered by: the name, or when a session last worked in the project.
+/// `rows` with `watched` set for those whose repository is in `repos` (the engine config's list, as it is read), compared as GitHub does, ignoring case.
+/// An unreadable config (`repos` nil) watches nothing.
+public func projectsWithWatched(_ rows: [ProjectRow], repos: [String]?) -> [ProjectRow] {
+    rows.map { row in
+        var row = row
+        row.watched = row.repo.map { isWatched($0, in: repos ?? []) } ?? false
+        return row
+    }
+}
+
+/// What the Projects list is ordered by: the name, when a session last worked in the project, or what it takes on disk.
 public enum ProjectSortKey: Equatable, Hashable, Sendable {
     case name
     case lastActive
+    case disk
 }
 
-/// The order of the Projects list; the pinned come first whatever it is. Name goes A to Z and Last active most recent first until the same title is clicked again.
+/// The order of the Projects list; the pinned come first whatever it is. Name goes A to Z, Last active most recent first and Disk biggest first until the same title is clicked again.
 public struct ProjectOrder: Equatable, Sendable {
     public var key: ProjectSortKey
     public var ascending: Bool
@@ -239,6 +258,8 @@ public enum ProjectFilter: Equatable, Hashable, Sendable {
     case all
     case tag(String)
     case localOnly
+    /// Only the projects Carrier watches.
+    case watched
     /// Only the projects left out of the sheet New session opens.
     case hidden
 }
@@ -277,8 +298,8 @@ public func projectTagsInUse(_ rows: [ProjectRow]) -> [String] {
     }
 }
 
-/// Filters `rows` by `query` (name, remote or tag) and `filter`, orders pinned first then by `order` (a project no session worked in goes last by last activity,
-/// either way), and groups by `groupBy` (`none`, or `tag` under
+/// Filters `rows` by `query` (name, remote or tag) and `filter`, orders pinned first then by `order` (a project no session worked in, or never measured, goes last by
+/// last activity or disk, either way), and groups by `groupBy` (`none`, or `tag` under
 /// each project's first tag and `"untagged"` when it has none). Returns empty when nothing matches.
 public func projectList(
     _ rows: [ProjectRow],
@@ -299,6 +320,7 @@ public func projectList(
         case .all: return true
         case .tag(let tag): return row.tags.contains(tag)
         case .localOnly: return row.repo == nil
+        case .watched: return row.watched
         case .hidden: return row.hidden
         }
     }
@@ -306,8 +328,9 @@ public func projectList(
     func ordered(_ items: [ProjectRow]) -> [ProjectRow] {
         items.sorted { a, b in
             if a.pinned != b.pinned { return a.pinned }
-            if order.key == .lastActive {
-                switch (a.lastActive, b.lastActive) {
+            if order.key != .name {
+                let metric: (ProjectRow) -> Double? = { order.key == .disk ? $0.diskBytes.map(Double.init) : $0.lastActive?.timeIntervalSince1970 }
+                switch (metric(a), metric(b)) {
                 case (nil, nil): break
                 case (nil, _): return false
                 case (_, nil): return true
@@ -315,7 +338,7 @@ public func projectList(
                 }
             }
             let cmp = a.name.localizedCaseInsensitiveCompare(b.name)
-            if cmp != .orderedSame { return (cmp == .orderedAscending) == (order.key == .lastActive || order.ascending) }
+            if cmp != .orderedSame { return (cmp == .orderedAscending) == (order.key != .name || order.ascending) }
             return a.path < b.path
         }
     }
@@ -367,6 +390,10 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
     public private(set) var projectsFolderProblem: String?
     /// The clones the host runs or that failed, as it last said (`refreshClones`).
     public private(set) var clones: [ProjectClone] = []
+    /// What the host last said each project folder takes on disk, by the folder with `~` expanded; a project never measured is not here.
+    public private(set) var disk: [String: ProjectDiskFigure] = [:]
+    /// The project folders the host has queued or is measuring, as it last said.
+    public private(set) var measuring: Set<String> = []
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let file: ProjectsFile
     @ObservationIgnored private let imageStore: ProjectIconStore
@@ -416,11 +443,24 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
     /// while one is running, so a page with none open does not talk to it. ponytail: a poll of a small file, which also sees an edit made in place; a file watcher if it ever costs.
     public func follow(every interval: Duration = .seconds(1)) async {
         await refreshClones()
+        // the figures the host has, and the projects it has not measured for a day are measured again, one at a time, in the background
+        await refreshDisk(.stale)
         while Task.isCancelled == false {
             reload()
             try? await Task.sleep(for: interval)
             if clones.contains(where: { $0.state == .cloning }) { await refreshClones() }
+            if measuring.isEmpty == false { await refreshDisk(.read, of: Array(measuring)) }
         }
+    }
+
+    /// Asks the host what `paths` (the projects whose folder is there, when nil) take on disk, and for it to measure as `refresh` says; keeps the figures it answers and
+    /// which of those folders it has queued. A host that does not answer leaves what was known: the figures are the host's, and a dash is all the page has to say.
+    public func refreshDisk(_ refresh: ProjectDiskRefresh, of paths: [String]? = nil) async {
+        let folders = (paths ?? rows.filter { $0.status == .ready }.map(\.path)).map { ($0 as NSString).expandingTildeInPath }
+        guard folders.isEmpty == false, let reply = try? await host.projectDisk(folders, refresh: refresh) else { return }
+        for figure in reply.projects where figure.bytes != nil && disk[figure.folder] != figure { disk[figure.folder] = figure }
+        let queued = measuring.subtracting(folders).union(reply.measuring)
+        if queued != measuring { measuring = queued }
     }
 
     /// The worktrees of a project, as the host lists them (`projectWorktrees`); the host is asked about the folder as written, `~` expanded.

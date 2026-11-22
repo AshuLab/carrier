@@ -358,11 +358,34 @@ private let myRepos = [
     #expect(projectSheetState(mode: .newSession, query: "work/web", recent: recent, projects: [web, hidden], home: home).items.map(\.title) == ["Site"])
 }
 
+@Test func inNewSessionAHiddenProjectIsNotListedNorItsFolderSuggestedWhileAShownOneIs() {
+    let shown = ProjectRow(path: "/Users/ana/work/web", name: "Web", repo: nil)
+    let hidden = ProjectRow(path: "/Users/ana/work/old", name: "Old", repo: nil, hidden: true)
+    let recent = [RecentFolder(name: "old", path: "/Users/ana/work/old"), RecentFolder(name: "web", path: "/Users/ana/work/web")]
+    for query in ["", "old", "web"] {
+        let state = projectSheetState(mode: .newSession, query: query, recent: recent, projects: [shown, hidden], home: "/Users/ana")
+        #expect(state.items.contains { $0.title == "Old" || $0.detail == "~/work/old" } == false, Comment(rawValue: query))
+        #expect(state.items.contains { $0.kind == .suggestedFolder(RecentFolder(name: "old", path: "/Users/ana/work/old")) } == false)
+    }
+    let listed = projectSheetState(mode: .newSession, query: "", recent: recent, projects: [shown, hidden], home: "/Users/ana")
+    #expect(listed.items.map(\.title) == ["Web"])
+}
+
 @Test func aHiddenProjectIsStillTheProjectAPathOrItsRepositoryNames() {
     let hidden = ProjectRow(path: "/Users/ana/work/old", name: "Old", repo: "acme/web", hidden: true)
     let byPath = projectSheetState(mode: .newSession, query: "/Users/ana/work/old", recent: [], projects: [hidden], home: "/Users/ana")
     #expect(byPath.firstResult?.kind == .existingProject(hidden))
     let byRepo = projectSheetState(mode: .newSession, query: "acme/web", recent: [], projects: [hidden], github: github(myRepos), home: "/Users/ana")
+    #expect(byRepo.firstResult?.kind == .existingProject(hidden))
+}
+
+@Test func inSettingsAHiddenProjectIsStillAlreadyAProjectByPathAndRepositoryAndItsFolderIsNotSuggested() {
+    let hidden = ProjectRow(path: "/Users/ana/work/old", name: "Old", repo: "acme/web", hidden: true)
+    let recent = [RecentFolder(name: "old", path: "/Users/ana/work/old")]
+    #expect(projectSheetState(mode: .settings, query: "", recent: recent, projects: [hidden], home: "/Users/ana").items.isEmpty)
+    let byPath = projectSheetState(mode: .settings, query: "/Users/ana/work/old", recent: recent, projects: [hidden], home: "/Users/ana")
+    #expect(byPath.firstResult?.kind == .existingProject(hidden) && byPath.firstResult?.detail == "Already a project · Open")
+    let byRepo = projectSheetState(mode: .settings, query: "acme/web", recent: [], projects: [hidden], github: github(myRepos), home: "/Users/ana")
     #expect(byRepo.firstResult?.kind == .existingProject(hidden))
 }
 

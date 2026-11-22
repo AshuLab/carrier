@@ -102,3 +102,11 @@ export const usagePriceOverrides = sqliteTable('usage_price_overrides', {
   outputUsdPerMillion: real(),
   updatedAt: integer().notNull(), // ms since epoch
 });
+
+/** What a project takes on disk, as the host last measured it (`disk.ts`): a cache, so losing the file only means measuring again. */
+export const projectSizes = sqliteTable('project_sizes', {
+  folder: text().primaryKey(), // the project's folder, as the app asked for it
+  bytes: integer().notNull(), // its main clone and its worktrees together
+  parts: text({ mode: 'json' }).$type<Record<string, number>>().notNull(), // bytes of each folder measured, by path
+  measuredAt: integer().notNull(), // ms since epoch
+});

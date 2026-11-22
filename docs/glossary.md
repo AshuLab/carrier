@@ -163,6 +163,7 @@ _Avoid_: repo (for the folder; a repo is `owner/name` on GitHub), watched repo, 
 _Avoid_: hook (git's word), script, setup.
 
 **New session draft** - What the app shows in New session before the first message: a plan (a folder, a repository to clone or a new project; the branch, worktree and its name; the agent and its options; the text). Choosing or changing any of it does nothing on the machine, and it is blank every time New session opens and after a send ([0018](adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
+The plan's workspace is one of three kinds: a `folder` that exists, a `repo` to clone or fetch, or a new project (`newProject` in Swift and `newProjectKind` in TypeScript, `project` on the wire so an older host still reads it), an empty folder the host makes with `git init`.
 _Avoid_: new chat, form.
 
 **Preparation** - What the chat host does after the first message is sent, in the background and in order, only the steps the plan needs: `clone` (or `fetch`) or `project`, `worktree` or `checkout`, the project's `actions`, `agent`, `message`. The session is `preparing` and shows the steps until the agent answers; a failed step stops it with the reason in words and Try again repeats what did not finish, while Cancel stops the running step and deletes the session (a finished clone stays in the projects folder). A repository to watch is added to the engine's `repos` only after the agent has answered.

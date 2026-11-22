@@ -36,9 +36,16 @@ Nothing is restarted.
 
 ## A new project
 
-New project… in the sheet's footer swaps the sheet for the form of Settings (`NewProjectForm`) in its own mode: a name only, "Will be created in" with the path it will make (`<projects folder>/local/<name>`, no Choose…) and the button "Use this project"; it keeps its button off for a name the host would refuse (`projectNameProblem`, the host's own pattern, or a `local/<name>` already in the projects folder), and only fills the plan (`NewSessionModel.newProject`, with `choose(project:)`): nothing is made on the Mac and the draft says the path will be created when the message is sent; `send` puts the project in the plan (`PlanWorkspace.project`) and the host runs its `project` step (a folder with `git init -b main`).
+New project… in the sheet's footer swaps the sheet for the form of Settings (`NewProjectForm`) in its own mode: a name only, "Will be created in" with the path it will make (`<projects folder>/local/<name>`, no Choose…) and the button "Use this project"; it keeps its button off for a name the host would refuse (`projectNameProblem`, the host's own pattern, or a `local/<name>` already in the projects folder), and only fills the plan (`NewSessionModel.newProject`, with `choose(newProject:)`): nothing is made on the Mac and the draft says the path will be created when the message is sent; `send` puts the project in the plan (`PlanWorkspace.newProject`, whose `kind` stays `project` on the wire so an older host still reads it) and the host runs its `project` step (a folder with `git init -b main`).
 The app no longer calls `createProject`.
 It has no watch box, and having no commits (`WorkspaceInfo.offersWorktree` needs a branch) the sentence reads "in the folder (new project, no commits yet: no worktree)".
+
+## Add as project
+
+A folder chosen with Open a folder (or dropped, or a recent one) stays a plain workspace.
+Under the sentence the draft then shows a small Secondary button, Add as project (`NewSessionModel.offersAddAsProject`, drawn in `NewSessionView`), that writes an entry of origin `added` with the same writer the Projects page uses (`ProjectsModel.add`, which refuses a folder that cannot be a project and says why next to the button, `addProjectProblem`).
+The button is gone once the folder is a project, and a repository, a new project and a folder the host could not read never show it.
+A repository the host clones, a repository only fetched and a new project are registered by the host when the preparation succeeds, with no button ([the chat host](../../src/chat/AGENTS.md)).
 
 ## When a tool is missing or signed out
 

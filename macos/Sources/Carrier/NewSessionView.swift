@@ -114,6 +114,15 @@ struct NewSessionView: View {
             .accessibilityElement(children: .contain)
             if model.branchesPartial { Text("Only the first branches GitHub lists are offered; the others can be checked out once the repository is on this Mac.").font(.subheadline).foregroundStyle(.secondary) }
             if let note = model.projectNote { Label(note, icon: .folderPlus).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
+            if model.offersAddAsProject {
+                // a folder chosen with Open a folder stays a plain workspace until the person adds it
+                HStack(spacing: 8) {
+                    Button { model.addAsProject() } label: { Label("Add as project", icon: .folderPlus).labelStyle(.titleAndIcon) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                        .help("Keep this folder in your projects")
+                    if let problem = model.addProjectProblem { Text(problem).font(.subheadline).foregroundStyle(.orange) }
+                }
+            }
             if case .problem(let reason) = model.nameState, model.worktree {
                 ProblemNotice(title: "That name cannot be used", detail: reason)
             }

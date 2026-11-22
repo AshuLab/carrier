@@ -152,6 +152,19 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     #expect(try await host.projectWorktrees(server.home + "/projects/notes") == .init(main: .init(path: server.home + "/projects/notes", branch: "main"), worktrees: []))
 }
 
+@Test func theFixtureChatHostAnswersTheDiskOfAProjectByItsFolderNameAndNeverMeasuredForTheRest() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let carrier = server.home + "/projects/carrier"
+    let reply = try await host.projectDisk([carrier, server.home + "/projects/studio"], refresh: .stale)
+    #expect(reply.measuring.isEmpty)
+    // the golden's "main" is the folder asked for, and the parts add up to the total
+    #expect(reply.projects[0].bytes == 6_420_000_000 && reply.projects[0].parts[carrier] == 1_830_000_000 && reply.projects[0].parts.count == 6)
+    #expect(reply.projects[0].parts.values.reduce(0, +) == reply.projects[0].bytes)
+    #expect(reply.projects[1] == .init(folder: server.home + "/projects/studio", bytes: nil))
+}
+
 @Test func theFixtureChatHostRemovesAWorktreeAsTheHostDoesAndCleansUpTheMergedOnes() async throws {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }

@@ -26,6 +26,8 @@ export const plan = z
 
 export type Plan = z.infer<typeof plan>;
 
-export type Step = 'clone' | 'fetch' | 'project' | 'worktree' | 'checkout' | 'agent' | 'message';
-/** One transition of a step of a session's preparation. `detail` is the reason in words, never git's raw stderr. */
-export type StepEvent = { kind: 'step'; step: Step; status: 'running' | 'done' | 'failed'; detail?: string };
+export type Step = 'clone' | 'fetch' | 'project' | 'worktree' | 'checkout' | 'action' | 'agent' | 'message';
+/** The moments a project's actions run at (ADR 0039). */
+export type ActionWhen = 'afterClone' | 'newWorktree';
+/** One transition of a step of a session's preparation. `detail` is the reason in words, never git's raw stderr. An `action` step names its action (`action`, cut) and the moment it runs at (`when`): each action is a step of its own. */
+export type StepEvent = { kind: 'step'; step: Step; status: 'running' | 'done' | 'failed'; detail?: string; action?: string; when?: ActionWhen };

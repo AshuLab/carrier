@@ -25,7 +25,7 @@ struct PreparationStepsView: View {
     private var current: OutlineItem? { items.first { $0.status == .running || $0.status == .failed } }
     private var failed: Bool { preparation == .failed || current?.status == .failed }
     /// Changes when the step it is on does, or how it stands.
-    private var key: String { "\(current?.step ?? "")-\(current?.status?.rawValue ?? "")" }
+    private var key: String { "\(current?.id ?? "")-\(current?.status?.rawValue ?? "")" }
 
     var body: some View {
         TickingTimeline(every: 1) { context in
@@ -148,6 +148,7 @@ struct PreparationStepsView: View {
     private func row(_ item: OutlineItem) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             mark(item.status).frame(width: 16)
+            if let icon = item.icon { Glyph(icon, size: 12).foregroundStyle(.secondary) }
             Text(item.line).foregroundStyle(item.status == nil ? AnyShapeStyle(.tertiary) : item.status == .done ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
         }
         .accessibilityElement(children: .combine)

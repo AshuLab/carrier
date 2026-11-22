@@ -2,6 +2,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { FakeClock } from '../orchestration/fake.ts';
 import type { Git, GitResult } from './git.ts';
+import type { Shell, ShellResult } from './shell.ts';
 import { createProjects, type GithubRepos } from './projects.ts';
 import { ChatRefused, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 
@@ -248,3 +249,23 @@ export class FakeGit implements Git {
 /** What brings repositories onto the Mac, over a fake git and a fake `gh`: the token is `ghp_fake`, GitHub lists nothing and knows `main` and `feat/x` for any repository. */
 export const fakeProjects = (git: Git, clock = new FakeClock(), github: Partial<GithubRepos> = {}) =>
   createProjects({ git, clock, token: async () => 'ghp_fake', github: { repos: async () => ({ repos: [], hasMore: false }), login: async () => 'me', branches: async () => ({ default: 'main', branches: ['main', 'feat/x'], hasMore: false }), ...github } });
+
+/** A `Shell` that runs nothing: it records each command and ends as `results` says (ok by default), after playing the `lines` it has for the command as progress. */
+export class FakeShell implements Shell {
+  /** Every command run, in order, with the folder and the environment it was given. */
+  calls: { folder: string; command: string; env: NodeJS.ProcessEnv }[] = [];
+  /** How a command ends, by the command: not here, it succeeds. */
+  results = new Map<string, Extract<ShellResult, { ok: false }>>();
+  /** The lines a command writes before it ends, by the command. */
+  lines = new Map<string, string[]>();
+  /** While set, a command waits for it (or for its signal to abort) before it ends: a command that is still running. */
+  pending: Promise<void> | undefined;
+
+  async run(folder: string, command: string, { env, signal, onProgress }: Parameters<Shell['run']>[2]): Promise<ShellResult> {
+    this.calls.push({ folder, command, env });
+    for (const line of this.lines.get(command) ?? []) onProgress(line);
+    if (this.pending !== undefined) await Promise.race([this.pending, new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }))]);
+    if (signal.aborted) return { ok: false, code: null, aborted: true, output: '' };
+    return this.results.get(command) ?? { ok: true };
+  }
+}

@@ -187,7 +187,10 @@ The chat host calls the generator in use to write session titles, in three cases
 
 Each call sends the server a fixed system message and the session's first message and first reply, each cut to 2,000 characters, with no tools, to `/v1/chat/completions` on the server's default port (LM Studio 1234, Ollama 11434).
 It reads `providers.json` at each use, so a change needs no restart, and it makes one call at a time, each with a limit of 30 seconds.
-With no generator chosen, or when the call fails (the server is not running, the model is missing, no answer in 30 seconds, an empty answer), `regenerateTitle` and `regenerateTitles` are refused with words that say to choose one in Providers or what failed, the title stays as it was, and the cause is in `<folder>/chat/logs/chat-host.log`.
+A call can fail: the server is not running, the model is missing, there is no answer in 30 seconds, or the answer is empty.
+Then the title stays as it was and the cause is in `<folder>/chat/logs/chat-host.log`.
+`regenerateTitle` is refused, with words that say to choose a generator in Providers or what failed.
+`regenerateTitles` is refused only when no generator is chosen (or `providers.json` is invalid); once it has started, a session whose call fails is skipped, logged, and the rest go on.
 
 `carrier init` does not ask which providers to use: it looks for the agent CLIs on the Mac (their real binary, never a wrapper under `~/.paradev` or `~/.superset`), shows where each is with its version and whether it is signed in, and writes one account per CLI it found, named after it. It says how many accounts it added, and then asks only for extra accounts (another login of the same CLI, or one on a local server), with Enter meaning no. The accounts go to `providers.json` in the Carrier folder, even when `--out` puts the config elsewhere, and the recap says so. The flags that declare an account (`--author-provider` and the like) add it to the file, and `--yes` writes it without asking. When it edits an existing setup it starts from the accounts already in that file instead. When assigning roles, each role points at a declared account (a `provider` in the file) and specifies its model.
 

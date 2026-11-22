@@ -145,6 +145,16 @@ public func applyingProjectEdit(path: String, key: String, value: Any?, to json:
     return data
 }
 
+/// `json` with the project at `path` pointing at `folder`, its new place: only `path` changes, every other key of the entry and of the file is kept. A folder that
+/// is another project's (written any way) throws `invalid` and gives nothing to write. The sessions that remember the old path are not this file's.
+public func applyingProjectLocation(path: String, to folder: String, in json: Data?) throws -> Data {
+    let projects = try readProjects(json)
+    if let index = projects.firstIndex(where: { $0.path != path && isSameFolder($0.path, folder) }) {
+        throw ProjectsFileError.invalid([ProjectsProblem(path: "projects.\(index).path", message: "is already another project's folder")])
+    }
+    return try applyingProjectEdit(path: path, key: "path", value: folder, to: json)
+}
+
 /// `json` with the `icon` sub-keys in `changes` set or removed (`nil` removes that key, and `icon` is removed when no key remains).
 /// Every other key of `icon` (such as `image`), of the entry and of the file is kept.
 public func applyingProjectIconEdit(path: String, changes: [String: String?], to json: Data?) throws -> Data {
@@ -250,6 +260,11 @@ public struct ProjectsFile {
     /// Reads the file again now, changes one key of one project and writes the whole file through a temporary file that replaces it.
     public func update(path: String, key: String, value: Any?) throws {
         try applyingProjectEdit(path: path, key: key, value: value, to: bytes()).write(to: url, options: .atomic)
+    }
+
+    /// Reads the file again now, points the project at `path` to `folder` and writes the whole file atomically.
+    public func locate(path: String, to folder: String) throws {
+        try applyingProjectLocation(path: path, to: folder, in: bytes()).write(to: url, options: .atomic)
     }
 
     /// Reads the file again now, changes one or more keys inside `icon` of one project and writes the whole file atomically.

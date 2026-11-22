@@ -27,6 +27,7 @@ struct ProjectsTabView: View {
     private enum Column {
         static let tags: CGFloat = 220
         static let lastActive: CGFloat = 110
+        static let disk: CGFloat = 70
         static let trailing: CGFloat = 34
     }
 
@@ -74,11 +75,12 @@ struct ProjectsTabView: View {
     // MARK: the list
 
     @ViewBuilder private var list: some View {
-        let tags = projectTagsInUse(model.rows)
-        let groups = projectList(projectsWithLastActive(model.rows, sessions: sessions), query: query, filter: filter, groupBy: groupBy, order: order)
+        let shown = model.rows + model.cloneRows
+        let tags = projectTagsInUse(shown)
+        let groups = projectList(projectsWithLastActive(shown, sessions: sessions), query: query, filter: filter, groupBy: groupBy, order: order)
         let now = Date()
         Group {
-            if model.rows.isEmpty {
+            if shown.isEmpty {
                 SettingsGroup(title: "") {
                     EmptyStateView(
                         icon: .folder, title: "No projects yet", line: "Add a folder you work in and it shows here.",
@@ -131,6 +133,7 @@ struct ProjectsTabView: View {
                                     sortTitle("Project", key: .name).frame(maxWidth: .infinity, alignment: .leading)
                                     Text("Tags").frame(width: Column.tags, alignment: .leading).accessibilityHidden(true)
                                     sortTitle("Last active", key: .lastActive).frame(width: Column.lastActive, alignment: .leading)
+                                    Text("Disk").frame(width: Column.disk, alignment: .leading).accessibilityHidden(true)
                                     Color.clear.frame(width: Column.trailing, height: 1)
                                 }
                                 .sectionLabel().padding(.vertical, 10)
@@ -164,14 +167,54 @@ struct ProjectsTabView: View {
         .accessibilityValue(sorted ? (order.ascending ? "ascending" : "descending") : "")
     }
 
-    private func projectRow(_ row: ProjectRow, now: Date, divider: Bool) -> some View {
+    /// A clone that is running or failed: it is not a project yet, so the row has no chevron and cannot be opened. It shows git's progress line, or the
+    /// reason the clone failed in orange with a way to dismiss it.
+    private func cloneRow(_ row: ProjectRow, _ clone: ProjectClone, divider: Bool) -> some View {
+        HStack(spacing: 12) {
+            ProjectIcon(tile: row.tile)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
+                    switch clone.state {
+                    case .cloning: StatusChip(text: "Cloning", tint: .accentColor)
+                    case .failed: StatusChip(text: "Failed", tint: .orange)
+                    }
+                }
+                Text(row.line)
+                    .font(.scaled(11)).foregroundStyle(clone.state == .failed ? Color.orange : .secondary)
+                    .lineLimit(clone.state == .failed ? 3 : 1).truncationMode(.tail)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if clone.state == .failed {
+                Button("Dismiss") { Task { await model.dismissClone(clone.repo) } }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    .accessibilityLabel("Dismiss the failed clone of \(clone.repo)")
+            }
+        }
+        .padding(.vertical, 10).frame(minHeight: 46)
+        .overlay(alignment: .top) { if divider { SettingsDivider() } }
+    }
+
+    @ViewBuilder private func projectRow(_ row: ProjectRow, now: Date, divider: Bool) -> some View {
+        if let clone = row.clone {
+            cloneRow(row, clone, divider: divider)
+        } else {
+            openableRow(row, now: now, divider: divider)
+        }
+    }
+
+    private func openableRow(_ row: ProjectRow, now: Date, divider: Bool) -> some View {
         Button { open(row.path) } label: {
             HStack(spacing: 12) {
                 HStack(spacing: 12) {
                     ProjectIcon(tile: row.tile, imageFolder: model.carrierFolder)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
-                        Text(row.line).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                        if let status = row.status.text {
+                            Label(status, icon: .warningFilled, size: 11).font(.scaled(11)).foregroundStyle(.orange).lineLimit(1)
+                        } else {
+                            Text(row.line).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -193,6 +236,9 @@ struct ProjectsTabView: View {
                 Text(row.lastActive.map { timeText($0, now: now) } ?? "—")
                     .font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
                     .frame(width: Column.lastActive, alignment: .leading)
+
+                // nothing measures a project yet: a dash, as for one never measured, and always one for a folder that is gone
+                Text("—").font(.scaled(12)).foregroundStyle(.secondary).frame(width: Column.disk, alignment: .leading).accessibilityHidden(true)
 
                 HStack(spacing: 10) {
                     Spacer(minLength: 0)
@@ -258,7 +304,7 @@ struct ProjectsTabView: View {
 
     @ViewBuilder private func projectScreen(_ row: ProjectRow) -> some View {
         if let failure = model.failure { ProblemLine(text: failure) }
-        ProjectDetailView(row: row, model: model, openActions: { openActions(row.path) }, close: { go(SettingsPlace(.projects)) }).id(row.path)
+        ProjectDetailView(row: row, model: model, openActions: { openActions(row.path) }, close: { go(SettingsPlace(.projects)) }, moved: open).id(row.path)
     }
 
     // MARK: a file that does not match
@@ -279,6 +325,8 @@ private struct ProjectDetailView: View {
     let model: ProjectsModel
     let openActions: () -> Void
     let close: () -> Void
+    /// Called with the project's new path after Locate… wrote it, which is the page's place now.
+    let moved: (String) -> Void
     @Environment(\.settingsHeaderAction) private var headerAction
     @State private var confirmingRemove = false
     @State private var owner = UUID()
@@ -286,8 +334,15 @@ private struct ProjectDetailView: View {
     @State private var newTag = ""
 
     var body: some View {
-        let exists = FileManager.default.fileExists(atPath: (row.path as NSString).expandingTildeInPath)
+        let exists = row.status == .ready
         Group {
+            if exists == false {
+                SettingsGroup(title: "") {
+                    SettingsTabRow(title: "Folder not found", detail: "", first: true, problem: "\(row.path) is not there any more. Locate it to open the project again.") {
+                        Button("Locate…", action: locate).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    }
+                }
+            }
             SettingsGroup(title: "Identity") {
                 SettingsTabRow(title: "Name", detail: "Empty uses the folder's name", first: true) {
                     ProjectNameField(stored: row.customName ?? "", prompt: row.folderName) { model.setName($0, path: row.path) }
@@ -367,6 +422,18 @@ private struct ProjectDetailView: View {
         .onChange(of: row.pinned) { publishPin() }
         .onChange(of: row.path) { publishPin() }
         .onDisappear { headerAction?.clear(owner) }
+    }
+
+    /// The system's folder panel for the project's new place; the folder goes through the check for folders that cannot be projects before the path is replaced.
+    private func locate() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Locate"
+        panel.message = "Choose the new place of \(row.name)"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if model.locate(path: row.path, to: url.path) { moved(url.path) }
     }
 
     private func publishPin() {

@@ -31,3 +31,10 @@ test('a gh that took too long to give the token is not taken for one that is sig
   execFile.mockImplementation((_cmd: string, _args: string[], _opts: object, done: (error: object, out: string) => void) => done({ code: 1 }, ''));
   await expect(ghToken()).rejects.toThrow('not signed in');
 });
+
+test('a repository gh cannot find says so in the words of a clone, and another gh failure keeps its own', async () => {
+  execFile.mockImplementation((_cmd: string, _args: string[], _opts: object, done: (error: object, out: string) => void) => done({ code: 1, stderr: 'gh: Not Found (HTTP 404)' }, ''));
+  await expect(ghBranches('acme/secret', 1000)).rejects.toThrow('acme/secret was not found, or your GitHub login cannot see it');
+  execFile.mockImplementation((_cmd: string, _args: string[], _opts: object, done: (error: object, out: string) => void) => done({ code: 4, stderr: 'To get started with GitHub CLI, please run:  gh auth login' }, ''));
+  await expect(ghBranches('acme/secret', 1000)).rejects.toThrow('gh is not signed in');
+});

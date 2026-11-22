@@ -77,6 +77,22 @@ public func removingProjectTag(_ tag: String, from tags: [String]) -> [String] {
     tags.filter { $0 != tag }
 }
 
+/// Whether the project's folder is there to open.
+public enum ProjectStatus: Equatable, Sendable {
+    case ready
+    /// The folder no longer exists (moved or deleted): the list says so and the page offers Locate….
+    case notFound
+
+    /// What the list and the page say for it; nil when there is nothing to say.
+    public var text: String? { self == .notFound ? "Folder not found" : nil }
+}
+
+/// Whether `path` (written with `~` or not) is a folder that exists.
+public func projectFolderExists(_ path: String) -> Bool {
+    var isFolder: ObjCBool = false
+    return FileManager.default.fileExists(atPath: (path as NSString).expandingTildeInPath, isDirectory: &isFolder) && isFolder.boolValue
+}
+
 /// One project of the list.
 public struct ProjectRow: Equatable, Identifiable, Sendable {
     /// The project's identity, as the file has it.
@@ -88,12 +104,16 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     /// `owner/name` of its GitHub `origin`, when it has one.
     public let repo: String?
     public let pinned: Bool
+    /// `notFound` when its folder is gone.
+    public let status: ProjectStatus
     public let tags: [String]
     public let iconColor: ProjectColor?
     public let iconMark: AppIcon?
     public let iconImage: String?
     /// Actions run in a new worktree or after a clone, from `projects.json`.
     public let actions: [ProjectAction]
+    /// Set on a row that stands for a clone the host is running or that failed: it is not a project yet and cannot be opened.
+    public let clone: ProjectClone?
     /// When a session last worked in it, from `projectsWithLastActive`; derived from the sessions, never stored in the file. nil when none did.
     public var lastActive: Date?
 
@@ -103,11 +123,13 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         customName: String? = nil,
         repo: String?,
         pinned: Bool = false,
+        status: ProjectStatus = .ready,
         tags: [String] = [],
         iconColor: ProjectColor? = nil,
         iconMark: AppIcon? = nil,
         iconImage: String? = nil,
         actions: [ProjectAction] = [],
+        clone: ProjectClone? = nil,
         lastActive: Date? = nil
     ) {
         self.path = path
@@ -115,27 +137,43 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
         self.customName = customName
         self.repo = repo
         self.pinned = pinned
+        self.status = status
         self.tags = tags
         self.iconColor = iconColor
         self.iconMark = iconMark
         self.iconImage = iconImage
         self.actions = actions
+        self.clone = clone
         self.lastActive = lastActive
     }
+
+    /// The list's row for a clone started from Settings: named as the repository, at the folder it is made in.
+    public init(clone: ProjectClone) {
+        self.init(path: clone.folder, name: clone.repo.split(separator: "/").last.map(String.init) ?? clone.repo, repo: clone.repo, clone: clone)
+    }
+
+    /// Whether a click on the row opens the project's page: not while it is cloning or after its clone failed.
+    public var isOpenable: Bool { clone == nil }
 
     public var id: String { path }
     /// The folder's own name (what the Name field falls back to when emptied).
     public var folderName: String { projectFolderName(path) }
     /// What the row says under the name: the repository, else where the folder is.
-    public var line: String { repo ?? path }
+    public var line: String {
+        switch clone?.state {
+        case .cloning: clone?.progress ?? "Cloning…"
+        case .failed: clone?.error ?? "The clone failed"
+        case nil: repo ?? path
+        }
+    }
     /// What its tile's colour is made from, so it matches the project's sessions.
     public var colorKey: String { projectColorKey(path) }
     /// What the project's tile draws: its chosen colour and mark, else initials on a colour made from the name.
     public var tile: ProjectTile { projectTile(name: name, colorKey: colorKey, color: iconColor, mark: iconMark, image: iconImage) }
 }
 
-/// A row for each entry, in the file's order; `remote` says the GitHub `owner/name` of a folder, if any.
-public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? = originRepo(ofFolder:)) -> [ProjectRow] {
+/// A row for each entry, in the file's order; `remote` says the GitHub `owner/name` of a folder, if any, and `exists` whether the folder is there.
+public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? = originRepo(ofFolder:), exists: (String) -> Bool = projectFolderExists) -> [ProjectRow] {
     entries.map {
         ProjectRow(
             path: $0.path,
@@ -143,6 +181,7 @@ public func projectRows(_ entries: [ProjectEntry], remote: (String) -> String? =
             customName: $0.name,
             repo: remote($0.path),
             pinned: $0.pinned,
+            status: exists($0.path) ? .ready : .notFound,
             tags: $0.tags,
             iconColor: $0.iconColor.flatMap(ProjectColor.init(rawValue:)),
             iconMark: $0.iconMark.flatMap(AppIcon.init(rawValue:)),
@@ -318,6 +357,9 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
     public private(set) var projectsPath: String
     /// Why the last Change… of the default folder was refused, in words; the old folder stands.
     public private(set) var projectsFolderProblem: String?
+    /// The clones the host runs or that failed, as it last said (`refreshClones`).
+    public private(set) var clones: [ProjectClone] = []
+    @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let file: ProjectsFile
     @ObservationIgnored private let imageStore: ProjectIconStore
     @ObservationIgnored private let remote: (String) -> String?
@@ -328,12 +370,14 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
     public var carrierFolder: String { file.folder }
 
     public init(
+        host: ChatHost = SocketChatHost(),
         file: ProjectsFile = .current(),
         remote: @escaping (String) -> String? = originRepo(ofFolder:),
         readChatConfig: @escaping () throws -> Data? = currentChatConfig,
         writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
         home: String = NSHomeDirectory()
     ) {
+        self.host = host
         self.file = file
         self.imageStore = ProjectIconStore(folder: file.folder)
         self.remote = remote
@@ -360,12 +404,38 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
         if problems != newProblems { problems = newProblems }
     }
 
-    /// Reloads now and then again each `interval`, until the task is cancelled. ponytail: a poll of a small file, which also sees an edit made in place; a file watcher if it ever costs.
+    /// Reloads now and then again each `interval`, until the task is cancelled. The host is asked for its clones once, and again at each turn only
+    /// while one is running, so a page with none open does not talk to it. ponytail: a poll of a small file, which also sees an edit made in place; a file watcher if it ever costs.
     public func follow(every interval: Duration = .seconds(1)) async {
+        await refreshClones()
         while Task.isCancelled == false {
             reload()
             try? await Task.sleep(for: interval)
+            if clones.contains(where: { $0.state == .cloning }) { await refreshClones() }
         }
+    }
+
+    /// The rows of the clones that are running or failed, to show among the projects: they are not projects yet.
+    public var cloneRows: [ProjectRow] { clones.map(ProjectRow.init(clone:)) }
+
+    /// Asks the host which clones run or failed. A host that is not running, or is older, leaves what was known: the clones are the host's, and what
+    /// it cannot say is not a reason to forget them. The file is read after, so a clone that just finished is a project when it stops being a clone.
+    public func refreshClones() async {
+        guard let latest = try? await host.projectClones() else { return }
+        if clones != latest { clones = latest }
+        reload()
+    }
+
+    /// Starts cloning `repo` into `parent` (nil: the projects folder) and puts the clone in the list at once; throws the host's words when it refuses.
+    @discardableResult public func startClone(_ repo: String, into parent: String?) async throws -> ProjectClone {
+        let started = try await host.cloneProject(repo, into: parent)
+        clones = clones.filter { $0.id != started.id } + [started]
+        return started
+    }
+
+    /// Forgets a failed clone: the host drops it and the row goes.
+    public func dismissClone(_ repo: String) async {
+        if let left = try? await host.dismissClone(repo) { clones = left }
     }
 
     /// Adds `folder` as a project, or says it already is one and writes nothing. nil when it could not be written: `problems` says why when the file does not
@@ -387,6 +457,24 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
         if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) { return refusal }
         let others = projectRows((try? file.read()) ?? [], remote: remote).filter { $0.path != replacing }
         return worktreeClashRefusal(folder: folder, repo: remote(folder), among: others)
+    }
+
+    /// Points the project at `path` to `folder`, its new place, after the check for folders that cannot be projects; everything else of the entry stays and
+    /// so do the sessions that remember the old path. False when nothing was written: `failure` says why, or `problems` when the file does not match.
+    @discardableResult public func locate(path: String, to folder: String) -> Bool {
+        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) {
+            failure = refusal
+            return false
+        }
+        if rows.contains(where: { $0.path != path && isSameFolder($0.path, folder) }) {
+            failure = "That folder is already a project"
+            return false
+        }
+        if let refusal = addRefusal(folder: folder, replacing: path) {
+            failure = refusal
+            return false
+        }
+        return write { try file.locate(path: path, to: folder) }
     }
 
     /// Clears the last add failure (for example when a sheet is dismissed).

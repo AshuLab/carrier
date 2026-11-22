@@ -8,7 +8,7 @@ const engineFolders = (home: string) => [enginePlacesOf(home).dir];
 const chatOwnFolders = (home: string) => [...engineFolders(home), chatPlacesOf(home).state, chatPlacesOf(home).logs, chatPlacesOf(home).worktrees, chatPlacesOf(home).pending, chatPlacesOf(home).sessions];
 
 // The real path of a path that may not exist yet: its nearest existing ancestor, resolved, plus the rest.
-const realOfNearest = (path: string): string => {
+export const realOfNearest = (path: string): string => {
   try {
     return realpathSync(path);
   } catch {

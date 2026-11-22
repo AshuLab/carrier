@@ -319,12 +319,37 @@ public enum ProjectFilter: Equatable, Hashable, Sendable {
 public enum ProjectGrouping: String, CaseIterable, Equatable, Hashable, Sendable {
     case none
     case tag
+    /// Under Watching and Not watched, the words of the Carrier column.
+    case carrier
 
     public var title: String {
         switch self {
         case .none: "None"
         case .tag: "Tag"
+        case .carrier: "Carrier"
         }
+    }
+}
+
+/// Which of the Projects list's secondary columns fit: the Project column keeps `project` points and the others give way, Tags first and then Carrier, so a
+/// project's name is never squeezed out by columns of fixed width. Last active and Disk (the sortable ones) always stay. `contentWidth` is the width inside the card.
+public struct ProjectColumns: Equatable, Sendable {
+    public static let project: CGFloat = 150
+    public static let tags: CGFloat = 120
+    public static let lastActive: CGFloat = 90
+    public static let disk: CGFloat = 64
+    public static let carrier: CGFloat = 90
+    public static let trailing: CGFloat = 34
+    public static let gap: CGFloat = 12
+
+    public let showsTags: Bool
+    public let showsCarrier: Bool
+
+    public init(contentWidth: CGFloat) {
+        func needed(_ widths: [CGFloat]) -> CGFloat { widths.reduce(0, +) + Self.gap * CGFloat(widths.count - 1) }
+        let base = [Self.project, Self.lastActive, Self.disk, Self.trailing]
+        showsCarrier = contentWidth >= needed(base + [Self.carrier])
+        showsTags = contentWidth >= needed(base + [Self.carrier, Self.tags])
     }
 }
 
@@ -350,8 +375,8 @@ public func projectTagsInUse(_ rows: [ProjectRow]) -> [String] {
 }
 
 /// Filters `rows` by `query` (name, remote or tag) and `filter`, orders pinned first then by `order` (a project no session worked in, or never measured, goes last by
-/// last activity or disk, either way), and groups by `groupBy` (`none`, or `tag` under
-/// each project's first tag and `"untagged"` when it has none). Returns empty when nothing matches.
+/// last activity or disk, either way), and groups by `groupBy` (`none`; `tag` under each project's first tag and `"untagged"` when it has none; or `carrier` under
+/// "Watching" then "Not watched", leaving out the one with no rows). Returns empty when nothing matches.
 public func projectList(
     _ rows: [ProjectRow],
     query: String = "",
@@ -417,6 +442,11 @@ public func projectList(
             groups.append(ProjectGroup(id: "untagged", title: "untagged", rows: ordered(untagged)))
         }
         return groups
+    case .carrier:
+        return [(true, "Watching"), (false, "Not watched")].compactMap { watched, title in
+            let rows = matched.filter { $0.watched == watched }
+            return rows.isEmpty ? nil : ProjectGroup(id: "carrier:\(watched)", title: title, rows: ordered(rows))
+        }
     }
 }
 

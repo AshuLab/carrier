@@ -19,6 +19,8 @@ struct SettingsTabRow<Control: View>: View {
     /// What is wrong with the value, in words: it takes the place of the detail, in orange and with a warning mark, the title keeps its colour, and
     /// every `settingsField` and `NumberField` inside the row draws itself as invalid (`\.settingsInvalid`). One argument; nothing else to pass.
     var problem: String?
+    /// The detail wraps over as many lines as it needs, for a report whose every line the person has to read (Projects' Last clean up), where it is otherwise cut at two.
+    var wrapsDetail = false
     /// A tile at the row's left, before the title (an account's avatar); the text keeps its place after it.
     var leading: AnyView?
     @ViewBuilder var control: Control
@@ -31,7 +33,7 @@ struct SettingsTabRow<Control: View>: View {
                 Group {
                     if let problem { Label(problem, icon: .warningFilled, size: 11).foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
                 }
-                .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(11)).lineLimit(2).truncationMode(.middle)
+                .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(11)).lineLimit(wrapsDetail ? nil : 2).truncationMode(.middle)
             }
             if let note {
                 // cut in the middle to one line: the whole of it (a long PATH) is in the tooltip, and it can be selected to copy

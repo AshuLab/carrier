@@ -528,7 +528,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var retried = 0
     var cancelled = 0
     var refusePreparation: ControlError?
-    var cancelPlan = SessionPlan(agent: "claude", folder: "/x", text: "hello")
+    var cancelPlan: SessionPlan? = SessionPlan(agent: "claude", folder: "/x", text: "hello")
     /// What the hello of the host lists; a host that predates `stopTask` leaves it out.
     var capabilities: Set<ControlClient.Capability> = [.stopTask]
     var stopped: [String] = []
@@ -553,7 +553,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
         if let refusePreparation { throw refusePreparation }
         preparation = .running
     }
-    func cancelPreparation(_ id: String) async throws -> SessionPlan {
+    func cancelPreparation(_ id: String) async throws -> SessionPlan? {
         cancelled += 1
         if let refusePreparation { throw refusePreparation }
         return cancelPlan
@@ -977,6 +977,28 @@ private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: Str
     #expect(Set(preparationOutline(rows).map(\.id)).count == preparationOutline(rows).count)
 }
 
+@Test func aRestoreListsOnlyTheActionsThatEndTheLogAndNotTheStepsOfEarlierTurns() {
+    let log = [
+        step(1, "worktree", "done"), actionStep(2, "Install", "newWorktree", "done"), step(3, "agent", "done"), step(4, "message", "done"), say(5),
+        actionStep(6, "Install", "newWorktree", "done"), ChatEvent(id: 7, at: 7, kind: "notice", text: "x"), actionStep(7 + 1, "Copy env", "newWorktree", "running"),
+    ]
+    let restore = preparationSteps(log, preparation: .running, progress: "copying", restoring: true)
+    #expect(restore.map(\.line) == ["Ran Install", "Running Copy env…"] && restore.map(\.progress) == [nil, "copying"])
+    // the same log read as a preparation lists every step, as before
+    #expect(preparationSteps(log, preparation: .running).map(\.step) == ["worktree", "action", "agent", "message", "action"])
+    // a restore whose first action has not started has nothing to list
+    #expect(preparationSteps(Array(log.prefix(5)), preparation: .running, restoring: true).isEmpty)
+}
+
+@MainActor @Test func theModelScopesTheStepsToTheRestoreWhenTheSessionIsNotPreparingButItsPreparationRuns() async {
+    let host = ScriptedHost()
+    host.preparation = .running
+    host.events = [step(1, "agent", "done"), step(2, "message", "done"), say(3), actionStep(4, "Install", "newWorktree", "running")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.steps.map(\.line) == ["Running Install…"])
+}
+
 @Test func theListEndsWhenTheSessionIsNotBeingPreparedAnyMoreOrTheHostSaysNothing() {
     let events = [step(1, "agent", "done"), step(2, "message", "done")]
     #expect(preparationSteps(events, preparation: nil).isEmpty)
@@ -989,6 +1011,7 @@ private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: Str
     let host = ScriptedHost()
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
     host.preparation = .running
+    host.state = .preparing
     host.progress = "Receiving objects: 10%"
     host.events = [step(1, "clone", "running")]
     await model.poll()
@@ -1026,6 +1049,7 @@ private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: Str
     await model.poll()
     #expect(model.preparation == .failed && model.steps.map(\.status) == [.failed])
     host.events.append(step(2, "agent", "running"))
+    host.state = .preparing // as the host sets it when it retries
     await model.retryPreparation()
     #expect(host.retried == 1 && model.preparation == .running && model.steps.map(\.status) == [.running] && model.preparationRefusal == nil)
 }
@@ -1041,6 +1065,15 @@ private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: Str
     host.refusePreparation = .remote("This session is not being prepared, so there is nothing to cancel")
     #expect(await model.cancelPreparation() == nil)
     #expect(model.preparationRefusal == "This session is not being prepared, so there is nothing to cancel")
+}
+
+@MainActor @Test func cancelOfARestoreHasNoPlanAndIsNotARefusal() async {
+    let host = ScriptedHost()
+    host.preparation = .running
+    host.cancelPlan = nil
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    #expect(await model.cancelPreparation() == nil)
+    #expect(host.cancelled == 1 && model.preparationRefusal == nil)
 }
 
 @MainActor @Test func cancelGivesBackThePlanTheHostStoredWithTheText() async {

@@ -13,7 +13,7 @@ import { tokenEnv } from '../execution/git-workspaces.ts';
 import { readChatConfig } from './config.ts';
 import { checkProjectsFolder } from './folder.ts';
 import type { Git, GitResult } from './git.ts';
-import { checkWorktreeClash } from './names.ts';
+import { checkWorktreeClash, samePath } from './names.ts';
 import { ChatRefused } from './runner.ts';
 import { parseOrigin } from './workspace.ts';
 
@@ -212,7 +212,7 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
           throw error;
         });
       }
-      const written = updateProjectsFile((current) => (current.some((entry) => entry.path === reply.folder) ? current : [...current, { path: reply.folder, origin }]));
+      const written = updateProjectsFile((current) => (current.some((entry) => samePath(entry.path, reply.folder)) ? current : [...current, { path: reply.folder, origin }]));
       if (written.ok === false) throw new ChatRefused(`${clone.repo} was cloned to ${reply.folder}, but projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}; fix the file and add the folder again`);
       clones.delete(clone.repo.toLowerCase());
     } catch (error) {
@@ -317,9 +317,9 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
       const dest = projectFolder(name, parent);
       const listed = readProjectsFile();
       if (listed.ok === false) throw new ChatRefused(`projects.json ${listed.errors[0]!.path} ${listed.errors[0]!.message}; fix the file and try again`);
-      if (listed.projects.some((entry) => entry.path === dest)) throw new ChatRefused(`${name} is already a project; choose another name`);
+      if (listed.projects.some((entry) => samePath(entry.path, dest))) throw new ChatRefused(`${name} is already a project; choose another name`);
       const { folder } = await createProject(git, name, parent);
-      const written = updateProjectsFile((current) => (current.some((entry) => entry.path === folder) ? current : [...current, { path: folder, origin: 'created' }]));
+      const written = updateProjectsFile((current) => (current.some((entry) => samePath(entry.path, folder)) ? current : [...current, { path: folder, origin: 'created' }]));
       if (written.ok === false) {
         await rm(folder, { recursive: true, force: true }); // this call made it, and it is empty
         throw new ChatRefused(`projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}; fix the file and try again`);
@@ -337,7 +337,8 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
       if (known?.state === 'cloning') return { ...known };
       const folder = repoFolder(repo, parent);
       const listed = readProjectsFile();
-      if (listed.ok && listed.projects.some((entry) => entry.path === folder)) throw new ChatRefused(`${repo} is already a project`);
+      if (listed.ok === false) throw new ChatRefused(`projects.json ${listed.errors[0]!.path} ${listed.errors[0]!.message}; fix the file and try again`);
+      if (listed.projects.some((entry) => samePath(entry.path, folder))) throw new ChatRefused(`${repo} is already a project`);
       const clone: ProjectClone = { repo, folder, state: 'cloning' };
       clones.set(repo.toLowerCase(), clone);
       const abort = new AbortController();

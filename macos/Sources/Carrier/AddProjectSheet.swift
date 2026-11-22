@@ -115,11 +115,6 @@ struct AddProjectSheet: View {
             }
             .onKeyPress(.downArrow) { move(1, in: current, proxy: proxy) }
             .onKeyPress(.upArrow) { move(-1, in: current, proxy: proxy) }
-            .onKeyPress(.return) {
-                guard let item = highlightedOrFirst(in: current) else { return .ignored }
-                activate(item)
-                return .handled
-            }
             .onKeyPress(.escape) {
                 dismiss()
                 return .handled
@@ -413,7 +408,7 @@ struct AddProjectSheet: View {
             Toggle("Let Carrier watch this repo", isOn: Binding(get: { on }, set: { newSession.watch = $0 }))
                 .toggleStyle(.switch).controlSize(.small).font(.scaled(11))
                 .disabled(watch.problem != nil)
-            if let reason = watch.problem { Text(reason).font(.scaled(11)).foregroundStyle(.orange).lineLimit(2) }
+            if let reason = watch.problem { ProblemLine(text: reason, font: .scaled(11), announces: false) }
             Spacer(minLength: 0)
         }
     }

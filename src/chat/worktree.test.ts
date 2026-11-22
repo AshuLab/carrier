@@ -1,11 +1,11 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FakeGit } from './fake.ts';
 import { ChatRefused } from './runner.ts';
 import { countPorcelain } from './workspace.ts';
-import { createWorktree, parseCount, parseWorktreeList } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, parseCount, parseWorktreeList } from './worktree.ts';
 
 test('parseCount reads the number rev-list --count printed, and 0 for anything else', () => {
   expect(parseCount('3\n')).toBe(3);
@@ -89,6 +89,28 @@ test('a local start of a branch the repository has only on origin is refused as 
     await expect(createWorktree(git, folder, { from: 'dev', name: 'my-fix', startFrom: 'local' })).rejects.toThrow(new ChatRefused('The branch to start from is not one this repository lists'));
     expect(git.calls.some((call) => call.args[1] === 'add')).toBe(false);
   } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('a worktree is found under a Carrier folder that is a symlink whichever way its path is spelled, as git lists it resolved', async () => {
+  const { folder, git } = startRepo();
+  const link = `${home}-link`;
+  try {
+    symlinkSync(home, link);
+    vi.stubEnv('CARRIER_HOME', link);
+    const made = await createWorktree(git, folder, { from: 'main', name: 'my-fix' });
+    expect(made.path.startsWith(link)).toBe(true);
+    const resolved = { ...made, path: realpathSync(made.path) };
+    expect(resolved.path).not.toBe(made.path);
+    await clearWorktree(git, resolved); // the path git lists, as the project's page hands it back
+    expect(git.calls.some((call) => call.args[1] === 'remove')).toBe(true);
+    await deleteWorktree(git, made); // the path the session recorded
+    // a path that only looks like it is under the folder is still refused
+    mkdirSync(join(home, 'chat', 'worktrees-other', 'a', 'b', 'my-fix'), { recursive: true });
+    await expect(clearWorktree(git, { ...made, path: join(link, 'chat', 'worktrees-other', 'a', 'b', 'my-fix') })).rejects.toThrow('not one Carrier made');
+  } finally {
+    rmSync(link, { force: true });
     rmSync(folder, { recursive: true, force: true });
   }
 });

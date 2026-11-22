@@ -53,6 +53,9 @@ const real = (path: string) => {
   }
 };
 
+/** Whether a project's stored path (absolute or `~/`) and a folder are the same place, symlinks resolved, as `checkWorktreeClash` and `ProjectsFile.swift` take them. */
+export const samePath = (stored: string, folder: string) => real(expandHome(stored)) === real(folder);
+
 /**
  * Refuses `folder` (already checked, a real path) as a project when its worktree directory (`worktreeDirectory`, the one `worktreePath` makes) is the one of
  * another of `projects`, naming it (ADR 0041). Compared without regard to case, as the disk may. A project whose folder git cannot read is skipped.

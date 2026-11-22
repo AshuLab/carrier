@@ -3,6 +3,7 @@ import { lstat, readdir } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import type { Git, GitResult } from './git.ts';
+import { realOfNearest } from './folder.ts';
 import { BRANCH_PREFIX, invalidReason, repository, worktreePath, worktreesDir } from './names.ts';
 import { ChatRefused } from './runner.ts';
 import { countPorcelain } from './workspace.ts';
@@ -132,11 +133,15 @@ export const parseCount = (out: string) => Number.parseInt(out.trim(), 10) || 0;
 /** The entries a worktree folder holds besides its `.git` link: what is left to lose when git cannot read the worktree. */
 const filesLeft = (path: string) => (existsSync(path) ? readdirSync(path).filter((entry) => entry !== '.git').length : 0);
 
-/** The path of a recorded worktree, which must be `<worktrees>/<owner>/<repo>/<name>` with the branch `carrier/<name>`; refuses anything else, so a tampered record removes nothing. */
+/**
+ * The path of a recorded worktree, which must be `<worktrees>/<owner>/<repo>/<name>` with the branch `carrier/<name>`; refuses anything else, so a tampered record removes nothing.
+ * Both are compared with their symlinks resolved, as git lists a worktree by its real path, so a Carrier folder that is a link (or sits under one) holds the path either way.
+ */
 function recorded({ path, branch }: MadeWorktree): string {
   const target = resolve(path);
-  const root = resolve(worktreesDir());
-  const [owner, repo, name, ...deeper] = target.startsWith(root + sep) ? target.slice(root.length + 1).split(sep) : [];
+  const real = realOfNearest(target);
+  const root = realOfNearest(resolve(worktreesDir()));
+  const [owner, repo, name, ...deeper] = real.startsWith(root + sep) ? real.slice(root.length + 1).split(sep) : [];
   if (owner === undefined || repo === undefined || name === undefined || deeper.length > 0 || invalidReason(name) !== null || branch !== `${BRANCH_PREFIX}${name}`) throw new ChatRefused('This session\'s worktree is not one Carrier made, so nothing was removed');
   return target;
 }

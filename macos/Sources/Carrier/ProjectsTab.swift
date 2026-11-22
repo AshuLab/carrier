@@ -29,13 +29,10 @@ struct ProjectsTabView: View {
 
     static let actionsPath = "actions"
 
-    private enum Column {
-        static let tags: CGFloat = 220
-        static let lastActive: CGFloat = 110
-        static let disk: CGFloat = 70
-        static let carrier: CGFloat = 90
-        static let trailing: CGFloat = 34
-    }
+    /// The page's width, to drop the Tags and Carrier columns when the Project column would be left with less than `ProjectColumns.project`; the list takes the
+    /// window, less the page's 24 and the card's 14 on each side.
+    @State private var pageWidth: CGFloat = 0
+    private var columns: ProjectColumns { ProjectColumns(contentWidth: pageWidth - 28) }
 
     private var showingActions: Bool { place.path.count > 1 && place.path[1] == Self.actionsPath }
 
@@ -62,6 +59,7 @@ struct ProjectsTabView: View {
                 problems
             }
         }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { pageWidth = $0 }
         .preference(key: SettingsTitleKey.self, value: chosen.map {
             showingActions ? SettingsTitle(text: "Actions", subtitle: $0.name) : SettingsTitle(text: $0.name, subtitle: $0.line)
         })
@@ -78,7 +76,8 @@ struct ProjectsTabView: View {
         .task { await model.follow() }
         // the engine config is read when the page opens and when a project's page does, so the switch shows the file as it is then
         .onAppear(perform: loadWatched)
-        .onChange(of: place) { loadWatched() }
+        // a refusal or a failed write belongs to the screen it happened on, not to the one the person goes to next
+        .onChange(of: place) { loadWatched(); model.clearFailure() }
     }
 
     private func loadWatched() {
@@ -148,13 +147,17 @@ struct ProjectsTabView: View {
                     ForEach(Array(groups.enumerated()), id: \.element.id) { groupIndex, group in
                         SettingsGroup(title: group.title ?? "") {
                             if groupIndex == 0 {
-                                HStack(spacing: 12) {
-                                    sortTitle("Project", key: .name).frame(maxWidth: .infinity, alignment: .leading)
-                                    Text("Tags").frame(width: Column.tags, alignment: .leading).accessibilityHidden(true)
-                                    sortTitle("Last active", key: .lastActive).frame(width: Column.lastActive, alignment: .leading)
-                                    sortTitle("Disk", key: .disk).frame(width: Column.disk, alignment: .leading)
-                                    Text("Carrier").frame(width: Column.carrier, alignment: .leading).accessibilityHidden(true)
-                                    Color.clear.frame(width: Column.trailing, height: 1)
+                                HStack(spacing: ProjectColumns.gap) {
+                                    sortTitle("Project", key: .name).frame(minWidth: ProjectColumns.project, maxWidth: .infinity, alignment: .leading)
+                                    if columns.showsTags {
+                                        Text("Tags").frame(width: ProjectColumns.tags, alignment: .leading).accessibilityHidden(true)
+                                    }
+                                    sortTitle("Last active", key: .lastActive).frame(width: ProjectColumns.lastActive, alignment: .leading)
+                                    sortTitle("Disk", key: .disk).frame(width: ProjectColumns.disk, alignment: .leading)
+                                    if columns.showsCarrier {
+                                        Text("Carrier").frame(width: ProjectColumns.carrier, alignment: .leading).accessibilityHidden(true)
+                                    }
+                                    Color.clear.frame(width: ProjectColumns.trailing, height: 1)
                                 }
                                 .sectionLabel().padding(.vertical, 10)
                             }
@@ -225,7 +228,7 @@ struct ProjectsTabView: View {
 
     private func openableRow(_ row: ProjectRow, now: Date, divider: Bool) -> some View {
         Button { open(row.path) } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: ProjectColumns.gap) {
                 HStack(spacing: 12) {
                     ProjectIcon(tile: row.tile, imageFolder: model.carrierFolder)
                     VStack(alignment: .leading, spacing: 1) {
@@ -240,40 +243,44 @@ struct ProjectsTabView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: ProjectColumns.project, maxWidth: .infinity, alignment: .leading)
                 .opacity(row.hidden ? 0.55 : 1)
 
-                Group {
-                    if row.tags.isEmpty {
-                        Color.clear.frame(height: 1)
-                    } else {
-                        FlowLayout(spacing: 4) {
-                            ForEach(row.tags, id: \.self) { tag in
-                                StatusChip(text: tag, tint: .secondary)
+                if columns.showsTags {
+                    Group {
+                        if row.tags.isEmpty {
+                            Color.clear.frame(height: 1)
+                        } else {
+                            FlowLayout(spacing: 4) {
+                                ForEach(row.tags, id: \.self) { tag in
+                                    StatusChip(text: tag, tint: .secondary)
+                                }
                             }
                         }
                     }
+                    .frame(width: ProjectColumns.tags, alignment: .leading)
                 }
-                .frame(width: Column.tags, alignment: .leading)
 
                 Text(row.lastActive.map { timeText($0, now: now) } ?? "—")
                     .font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
-                    .frame(width: Column.lastActive, alignment: .leading)
+                    .frame(width: ProjectColumns.lastActive, alignment: .leading)
 
                 // the host's last figure, and a dash for a project it has not measured and always for a folder that is gone
                 Text(row.diskBytes.map(formatDiskSize) ?? "—").font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
-                    .frame(width: Column.disk, alignment: .leading)
+                    .frame(width: ProjectColumns.disk, alignment: .leading)
 
-                Text(row.carrierText)
-                    .font(.scaled(12)).foregroundStyle(row.watched ? Color.primary : .secondary).lineLimit(1)
-                    .frame(width: Column.carrier, alignment: .leading)
+                if columns.showsCarrier {
+                    Text(row.carrierText)
+                        .font(.scaled(12)).foregroundStyle(row.watched ? Color.primary : .secondary).lineLimit(1)
+                        .frame(width: ProjectColumns.carrier, alignment: .leading)
+                }
 
                 HStack(spacing: 10) {
                     Spacer(minLength: 0)
                     if row.pinned { Glyph(.pinFilled, size: 11, label: "Pinned").foregroundStyle(.secondary) }
                     Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary).accessibilityHidden(true)
                 }
-                .frame(width: Column.trailing, alignment: .trailing)
+                .frame(width: ProjectColumns.trailing, alignment: .trailing)
             }
             .padding(.vertical, 10).frame(minHeight: 46)
             .contentShape(Rectangle())
@@ -611,7 +618,7 @@ private struct ProjectDetailView: View {
                     }
                 }
                 if let cleanUpNote {
-                    SettingsTabRow(title: "Last clean up", detail: cleanUpNote) { EmptyView() }
+                    SettingsTabRow(title: "Last clean up", detail: cleanUpNote, wrapsDetail: true) { EmptyView() }
                 }
             } else if let worktreesProblem {
                 SettingsTabRow(title: "Worktrees", detail: "", first: true, problem: worktreesProblem) { EmptyView() }

@@ -429,6 +429,26 @@ private func temporaryFolder() throws -> String {
     ])
 }
 
+@Test func theListGroupsByWhetherCarrierWatchesEachProjectWithEmptyGroupsOmitted() {
+    let table = projectsWithWatched([
+        ProjectRow(path: "/p/zeta", name: "Zeta", repo: "acme/zeta"),
+        ProjectRow(path: "/p/alpha", name: "Alpha", repo: "acme/alpha"),
+        ProjectRow(path: "/p/beta", name: "Beta", repo: "acme/beta", pinned: true),
+        ProjectRow(path: "/p/notes", name: "Notes", repo: nil),
+    ], repos: ["Acme/Zeta", "acme/beta"])
+
+    // Watching first, then Not watched, pinned first and then by name inside each
+    #expect(projectList(table, groupBy: .carrier) == [
+        ProjectGroup(id: "carrier:true", title: "Watching", rows: [table[2], table[0]]),
+        ProjectGroup(id: "carrier:false", title: "Not watched", rows: [table[1], table[3]]),
+    ])
+    // the filters apply first, and a group with no rows is not there
+    #expect(projectList(table, filter: .watched, groupBy: .carrier).map(\.title) == ["Watching"])
+    #expect(projectList(table, filter: .localOnly, groupBy: .carrier).map(\.title) == ["Not watched"])
+    #expect(projectList(table, query: "nothing", groupBy: .carrier).isEmpty)
+    #expect(ProjectGrouping.allCases.map(\.title) == ["None", "Tag", "Carrier"])
+}
+
 @MainActor @Test func changingTheDefaultCloneFolderWritesChatJsonAndRefusesCarrierFolders() throws {
     let carrier = try temporaryFolder()
     let target = try temporaryFolder()
@@ -660,4 +680,15 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     #expect(projectList(table, query: "docs").flatMap(\.rows).map(\.name) == ["Notes"])
     #expect(projectList(table, filter: .localOnly).flatMap(\.rows).map(\.name) == ["Alpha", "Notes"])
     #expect(projectList(table, order: ProjectOrder(key: .name, ascending: false)).flatMap(\.rows).map(\.name) == ["Zeta", "Notes", "Alpha"])
+}
+
+// Settings' detail is the window minus a sidebar of 200 to 300, the page's 2 x 24 and the card's 2 x 14; the window is 760 wide at least and 940 at first.
+@Test func theProjectsColumnsGiveWayBeforeTheProjectColumnDoes() {
+    let card = { (window: CGFloat, sidebar: CGFloat) in window - sidebar - 48 - 28 }
+    #expect(ProjectColumns(contentWidth: card(760, 200)) == ProjectColumns(contentWidth: 484))
+    #expect(ProjectColumns(contentWidth: 484).showsCarrier && ProjectColumns(contentWidth: 484).showsTags == false)
+    #expect(ProjectColumns(contentWidth: card(940, 240)).showsTags)
+    #expect(ProjectColumns(contentWidth: card(940, 300)).showsTags == false)
+    #expect(ProjectColumns(contentWidth: 300).showsCarrier == false && ProjectColumns(contentWidth: 300).showsTags == false)
+    #expect(ProjectColumns(contentWidth: 0).showsCarrier == false)
 }

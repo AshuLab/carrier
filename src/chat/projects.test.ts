@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -568,6 +568,23 @@ test('a repository that is already a project is refused at once, and the entries
   expect(registered()[0]).toEqual({ path: dest, origin: 'added', name: 'Mine' });
 });
 
+test('a repository whose folder is a project under another spelling (~/ or a symlink) is refused, and a projects.json that does not match refuses before anything is cloned', async () => {
+  const host = fakeProjects(git);
+  const dest = join(projects(), 'acme', 'app');
+  mkdirSync(dest, { recursive: true });
+  const link = join(root, 'link');
+  symlinkSync(dest, link);
+  writeFileSync(join(root, 'projects.json'), JSON.stringify({ projects: [{ path: link, origin: 'added' }] }));
+  expect(() => host.cloneProject({ repo: 'acme/app' })).toThrow('acme/app is already a project');
+  vi.stubEnv('HOME', root);
+  writeFileSync(join(root, 'projects.json'), JSON.stringify({ projects: [{ path: `~/${dest.slice(root.length + 1)}`, origin: 'added' }] }));
+  expect(() => host.cloneProject({ repo: 'acme/app' })).toThrow('acme/app is already a project');
+  writeFileSync(join(root, 'projects.json'), '{"projects": 7}');
+  expect(() => host.cloneProject({ repo: 'acme/other' })).toThrow(/^projects\.json .*fix the file and try again$/);
+  expect(clones()).toHaveLength(0);
+  expect(host.projectClones().clones).toEqual([]);
+});
+
 test('a clone whose worktree directory is another project\'s is not registered, names that project, and an owner that differs is', async () => {
   const other = join(realpathSync(root), 'elsewhere', 'app-copy'); // a real path: the host compares real paths
   mkdirSync(other, { recursive: true });
@@ -592,12 +609,12 @@ test('a parent inside Carrier\'s own folders and a name that is not owner/name n
   expect(host.projectClones()).toEqual({ clones: [] });
 });
 
-test('a projects.json that does not match is not written over: the clone stays and the failure says to fix the file', async () => {
+test('a projects.json that does not match is not written over: the clone is refused before git runs and the failure says to fix the file', async () => {
   writeFileSync(join(root, 'projects.json'), '{"projects":[{"path":"/x"}]}');
   const host = fakeProjects(git);
-  host.cloneProject({ repo: 'acme/app' });
-  await vi.waitFor(() => expect(host.projectClones().clones[0]?.state).toBe('failed'));
-  expect(host.projectClones().clones[0]!.error).toContain('fix the file');
+  expect(() => host.cloneProject({ repo: 'acme/app' })).toThrow(/fix the file/);
+  expect(clones()).toHaveLength(0);
+  expect(existsSync(join(projects(), 'acme', 'app'))).toBe(false);
   expect(readFileSync(join(root, 'projects.json'), 'utf8')).toBe('{"projects":[{"path":"/x"}]}');
 });
 

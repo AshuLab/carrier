@@ -22,13 +22,17 @@ They do not run in the engine's worktrees for an epic.
 
 ## Alternatives considered
 
-A file in the repository that the team shares. It is convenient and travels with the code, and it is a way for any repository to run commands on the Mac of whoever clones it.
+A file in the repository that the team shares.
+It is convenient and travels with the code, and it is a way for any repository to run commands on the Mac of whoever clones it.
 
-A fixed list of presets (install dependencies, copy the environment file). It is safe and it covers the common case, and it cannot say `cp "$CARRIER_MAIN/.env" .env` or anything a project needs that is its own.
+A fixed list of presets (install dependencies, copy the environment file).
+It is safe and it covers the common case, and it cannot say `cp "$CARRIER_MAIN/.env" .env` or anything a project needs that is its own.
 
-Running them in the engine's worktrees as well. An epic runs unattended and in a clone the person never opens; nobody has asked for it, and [0012](0012-sessions-and-epics-are-two-separate-worlds.md) keeps the two worlds apart.
+Running them in the engine's worktrees as well.
+An epic runs unattended and in a clone the person never opens; nobody has asked for it, and [0012](0012-sessions-and-epics-are-two-separate-worlds.md) keeps the two worlds apart.
 
-Stopping the session on any failure by default. A flaky install would block every session; the person who wants a hard stop sets it on that action.
+Stopping the session on any failure by default.
+A flaky install would block every session; the person who wants a hard stop sets it on that action.
 
 ## Consequences
 

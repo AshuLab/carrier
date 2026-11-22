@@ -254,8 +254,9 @@ public protocol ChatHost {
     /// a failed preparation. Only for a host whose hello lists `plan`.
     func retryPreparation(_ id: String) async throws
     /// Stops the running step and deletes the session with its worktree; answers the plan it was opened with, for the draft to take back.
-    /// Refused in words for a session that is not being prepared. Only for a host whose hello lists `plan`.
-    func cancelPreparation(_ id: String) async throws -> SessionPlan
+    /// Refused in words for a session that is not being prepared. Nil when the session stays (a worktree coming back: only its running action stops).
+    /// Only for a host whose hello lists `plan`.
+    func cancelPreparation(_ id: String) async throws -> SessionPlan?
     /// What an agent offers (its options with the values it would start with, and the commands to invoke) before a session exists; the host
     /// starts the agent to know, and keeps the answer.
     func agentOptions(_ agent: String) async throws -> AgentOffer
@@ -384,7 +385,7 @@ extension ChatHost {
     public func retryPreparation(_ id: String) async throws { throw ControlError.remote("the chat host does not support retryPreparation") }
 
     /// A host that cannot prepare a session from a plan has nothing to cancel.
-    public func cancelPreparation(_ id: String) async throws -> SessionPlan { throw ControlError.remote("the chat host does not support cancelPreparation") }
+    public func cancelPreparation(_ id: String) async throws -> SessionPlan? { throw ControlError.remote("the chat host does not support cancelPreparation") }
 
     /// A host that cannot list an agent's options before a session says it lists none.
     public func agentOptions(_ agent: String) async throws -> AgentOffer { AgentOffer() }
@@ -470,11 +471,11 @@ public struct SocketChatHost: ChatHost {
     }
 
     /// Deleting a worktree takes git a while, so the wait for the reply is longer than the 5 seconds of the other requests.
-    public func cancelPreparation(_ id: String) async throws -> SessionPlan {
+    public func cancelPreparation(_ id: String) async throws -> SessionPlan? {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
         let reply: CancelledReply = try await Task.detached { try chatRequest(path, "cancelPreparation", requires: .plan, fields: fields, timeout: 30) }.value
-        return try reply.plan.plan
+        return try reply.plan?.plan
     }
 
     public func agentOptions(_ agent: String) async throws -> AgentOffer {
@@ -843,7 +844,7 @@ private struct OpenedReply: Decodable {
     let session: Session
 }
 
-/// The reply of `cancelPreparation`: the plan as the host stored it.
+/// The reply of `cancelPreparation`: the plan as the host stored it, or null when the session stays (a restore of a worktree).
 private struct CancelledReply: Decodable {
     struct Stored: Decodable {
         struct Workspace: Decodable {
@@ -875,7 +876,7 @@ private struct CancelledReply: Decodable {
             }
         }
     }
-    let plan: Stored
+    let plan: Stored?
 }
 
 private struct SuggestedName: Decodable { let name: String }

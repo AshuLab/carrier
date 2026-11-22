@@ -724,6 +724,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     @ObservationIgnored private var baseFolder: String?
     @ObservationIgnored private var known = true
     @ObservationIgnored private var preparingSession = false
+    /// A worktree folder that comes back for a session that exists: the host reports the preparation as running while its actions run, though the session is not `preparing`.
+    @ObservationIgnored private var restoring = false
     private static let settle: TimeInterval = 1
     /// Whether the session is in the archive: its transcript is read only and the box gives way to a notice with Resume.
     public private(set) var archived = false
@@ -932,6 +934,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             changed = changed || reply.pending != pending
             pending = reply.pending
             if preparation != reply.preparation { preparation = reply.preparation }
+            restoring = reply.preparation == .running && reply.state != .preparing
             progress = reply.progress
             loaded = true
             failure = nil
@@ -961,7 +964,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             failure = message
             failures += 1
         }
-        let preparing = preparationSteps(events, preparation: preparation, progress: progress)
+        let preparing = preparationSteps(events, preparation: preparation, progress: progress, restoring: restoring)
         if preparing != steps { steps = preparing }
         if changed {
             let next = feed()
@@ -1066,11 +1069,13 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     }
 
     /// Cancel while preparing: the host stops the running step and deletes the session, and answers the plan for the draft to take back; nil
-    /// when it refused, which is said in words and leaves the session as it was.
+    /// when it refused, which is said in words (`preparationRefusal`) and leaves the session as it was, or when the session stays (a worktree
+    /// coming back: only its running action stops, and there is no draft to refill), which says nothing.
     public func cancelPreparation() async -> SessionPlan? {
         do {
             let plan = try await host.cancelPreparation(sessionId)
             preparationRefusal = nil
+            if plan == nil { await poll() }
             return plan
         } catch {
             preparationRefusal = report(error, "cancel the preparation")

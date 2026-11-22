@@ -2954,6 +2954,16 @@ test('a path that is a project already is not repeated or changed, and a folder 
   expect(registered()).toEqual([{ path: cloneOf(), origin: 'added', name: 'mine' }]);
 });
 
+test('a project stored with ~/ is the same one as its absolute path: a preparation that clones it does not repeat it', async () => {
+  vi.stubEnv('HOME', dir);
+  mkdirSync(join(dir, 'home'), { recursive: true });
+  writeFileSync(join(dir, projectsFile), JSON.stringify({ projects: [{ path: `~/${cloneOf().slice(dir.length + 1)}`, origin: 'added', name: 'mine' }] }));
+  const s = repoSession();
+  await s.sessions.openPlan({ plan: repoPlan() });
+  await vi.waitFor(() => expect(s.claude.opened).toHaveLength(1));
+  expect(registered()).toHaveLength(1);
+});
+
 test('a projects.json that cannot be written leaves the session going and says so in a notice', async () => {
   mkdirSync(join(dir, 'home'), { recursive: true });
   writeFileSync(join(dir, projectsFile), '{ nope');
@@ -4389,23 +4399,34 @@ test('a worktree whose folder still exists, and a project with no action on, run
   }
 });
 
-test('an action that warns when it fails leaves a notice and the session opens; one that stops refuses the open with the reason and cleans the folder again, and the next open runs them all', async () => {
+test('an action that warns when it fails leaves a notice and the session opens; one that stops refuses the open with the reason and keeps the folder, and the next open goes on from that action', async () => {
   const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }, { name: 'Env', command: 'cp .env .', onFail: 'stop' }, { name: 'Last', command: 'echo last' }]);
   s.shell.results.set('pnpm install', { ok: false, code: 1, output: 'flaky' });
   s.shell.results.set('cp .env .', { ok: false, code: 2, output: 'cp: no such file' });
   await expect(s.sessions.resume({ sessionId: one.id })).rejects.toThrow('Env failed with exit code 2: cp: no such file. Open the session again');
   expect(actionStepsOf(s, one.id)).toEqual(['action:Install:running', 'action:Install:done', 'action:Env:running', 'action:Env:failed:Env failed with exit code 2: cp: no such file']);
   expect(noticesOf(s, one.id)).toEqual(['Install failed with exit code 1: flaky. The session went on without it.']);
-  expect(existsSync(one.path)).toBe(false);
+  expect(existsSync(one.path)).toBe(true);
   expect(s.claude.conversations.some((conversation) => conversation.closed === false)).toBe(false);
 
   s.shell.results.clear();
   s.shell.calls.length = 0;
   await s.sessions.resume({ sessionId: one.id });
-  expect(s.shell.calls.map((call) => call.command)).toEqual(['pnpm install', 'cp .env .', 'echo last']);
+  expect(s.shell.calls.map((call) => call.command)).toEqual(['cp .env .', 'echo last']); // Install had finished
 });
 
-test('Cancel while the actions of a restored worktree run aborts the one that runs, skips the rest and keeps the session', async () => {
+test('a restore that finished starts over when the folder is cleaned again: every action runs again', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }, { name: 'Env', command: 'cp .env .' }]);
+  await s.sessions.resume({ sessionId: one.id });
+  await s.sessions.close({ sessionId: one.id });
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  expect(existsSync(one.path)).toBe(false);
+  s.shell.calls.length = 0;
+  await s.sessions.resume({ sessionId: one.id });
+  expect(s.shell.calls.map((call) => call.command)).toEqual(['pnpm install', 'cp .env .']);
+});
+
+test('Cancel while the actions of a restored worktree run aborts the one that runs, skips the rest, keeps the session and the folder, and the next open runs that action again', async () => {
   const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }, { name: 'Next', command: 'echo next' }]);
   s.shell.pending = new Promise<void>(() => {});
   const resuming = s.sessions.resume({ sessionId: one.id });
@@ -4415,4 +4436,68 @@ test('Cancel while the actions of a restored worktree run aborts the one that ru
   await refused;
   expect(s.shell.calls).toHaveLength(1);
   expect(sessionIds(s)).toEqual([one.id]);
+  expect(existsSync(one.path)).toBe(true);
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ preparation: null });
+
+  s.shell.pending = undefined;
+  await s.sessions.resume({ sessionId: one.id });
+  expect(s.shell.calls.map((call) => call.command)).toEqual(['pnpm install', 'pnpm install', 'echo next']);
+});
+
+test('while a worktree comes back its session reports a preparation that runs, a second open waits for it instead of opening in the half-made folder, and the cleanup, delete and archive leave the folder alone', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }]);
+  let release!: () => void;
+  s.shell.pending = new Promise<void>((resolve) => (release = resolve));
+  const opened = s.claude.opened.length;
+  const first = s.sessions.resume({ sessionId: one.id });
+  await vi.waitFor(() => expect(s.shell.calls).toHaveLength(1));
+  const second = s.sessions.resume({ sessionId: one.id });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ preparation: 'running' });
+  expect((s.sessions.events({ sessionId: one.id, limit: 200 }) as any).session).toMatchObject({ preparation: 'running' });
+  expect(actionStepsOf(s, one.id)).toEqual(['action:Install:running']);
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  expect(existsSync(one.path)).toBe(true);
+  await expect(s.sessions.delete({ sessionId: one.id })).rejects.toThrow('being prepared');
+  await expect(s.sessions.archive({ sessionId: one.id, archived: true })).rejects.toThrow('being prepared');
+  expect(sessionIds(s)).toEqual([one.id]);
+  expect(s.claude.opened).toHaveLength(opened); // nothing opened in the folder while the action runs
+
+  release();
+  await Promise.all([first, second]);
+  expect(s.shell.calls).toHaveLength(1); // one restore, shared
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ preparation: null });
+  expect(s.claude.conversations.filter((conversation) => conversation.closed === false)).toHaveLength(1);
+});
+
+test('a restore that is cancelled while the other open waits answers both, and Cancel answers only once it has unwound', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }]);
+  s.shell.pending = new Promise<void>(() => {});
+  const [first, second] = [s.sessions.resume({ sessionId: one.id }), s.sessions.resume({ sessionId: one.id })];
+  const refused = Promise.all([expect(first).rejects.toThrow('was cancelled'), expect(second).rejects.toThrow('was cancelled')]);
+  await vi.waitFor(() => expect(s.shell.calls).toHaveLength(1));
+  await s.sessions.cancelPreparation({ sessionId: one.id });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ preparation: null }); // nothing is left running when Cancel answers
+  await refused;
+});
+
+test('a projects.json that does not match is told once for a session, however many times its worktree is restored, and again after the file matched in between', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }]);
+  const invalid = () => writeFileSync(join(dir, projectsFile), JSON.stringify({ projects: [{ path: s.repo, origin: 'added', actions: [{ name: 'Install', command: ' ', when: 'newWorktree' }] }] }));
+  const clean = async () => {
+    await s.sessions.close({ sessionId: one.id });
+    await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+    expect(existsSync(one.path)).toBe(false);
+  };
+  invalid();
+  await s.sessions.resume({ sessionId: one.id });
+  await clean();
+  await s.sessions.resume({ sessionId: one.id });
+  expect(noticesOf(s, one.id)).toHaveLength(1);
+  await clean();
+  withActions(s.repo, [{ name: 'Install', command: 'pnpm install' }]);
+  await s.sessions.resume({ sessionId: one.id });
+  await clean();
+  invalid();
+  await s.sessions.resume({ sessionId: one.id });
+  expect(noticesOf(s, one.id)).toHaveLength(2);
 });

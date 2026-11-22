@@ -11,6 +11,8 @@ export interface Shell {
 
 /** How much of the end of a command's output is kept. */
 const KEPT = 64 * 1024;
+/** How long a command has to end after the stop (SIGTERM) before its group is killed. */
+export const STOP_GRACE_MS = 3000;
 // eslint-disable-next-line no-control-regex
 const ansi = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
 
@@ -34,17 +36,25 @@ export const realShell: Shell = {
       };
       child.stdout.on('data', take);
       child.stderr.on('data', take);
-      const stop = () => {
+      let killer: NodeJS.Timeout | undefined;
+      const signalGroup = (name: 'SIGTERM' | 'SIGKILL') => {
         try {
-          process.kill(-child.pid!, 'SIGTERM');
+          process.kill(-child.pid!, name);
         } catch {
           // already gone
         }
+      };
+      // a command that traps or ignores the stop would hold the cancel for as long as it likes: the group is killed after the grace
+      const stop = () => {
+        signalGroup('SIGTERM');
+        killer = setTimeout(() => signalGroup('SIGKILL'), STOP_GRACE_MS);
+        killer.unref();
       };
       signal.addEventListener('abort', stop, { once: true });
       child.on('error', (error) => resolve({ ok: false, code: null, output: error.message }));
       child.on('close', (code) => {
         signal.removeEventListener('abort', stop);
+        clearTimeout(killer);
         lines('', true);
         if (signal.aborted) return resolve({ ok: false, code: null, aborted: true, output });
         resolve(code === 0 ? { ok: true } : { ok: false, code, output });

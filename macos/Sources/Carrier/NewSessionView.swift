@@ -120,7 +120,7 @@ struct NewSessionView: View {
                     Button { model.addAsProject() } label: { Label("Add as project", icon: .folderPlus).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                         .help("Keep this folder in your projects")
-                    if let problem = model.addProjectProblem { Text(problem).font(.subheadline).foregroundStyle(.orange) }
+                    if let problem = model.addProjectProblem { ProblemLine(text: problem, font: .scaled(12)) }
                 }
             }
             if case .problem(let reason) = model.nameState, model.worktree {

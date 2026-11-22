@@ -130,6 +130,24 @@ public func projectFolderRefusal(_ folder: String, carrierFolder: String = curre
     return nil
 }
 
+/// The folder of `worktrees/` a repository's worktrees live in: `<owner>/<repo>`, or `local/<folder name>` without a GitHub origin. The rule of
+/// `worktreeDirectory` in src/chat/names.ts, which `worktreePath` makes worktrees by; `worktree-clash.json` is the table both tests read.
+public func worktreeDirectory(folder: String, repo: String?) -> String {
+    repo ?? "local/" + (normalizedFolder(folder) as NSString).lastPathComponent
+}
+
+/// Why adding `folder` (whose GitHub `owner/name` is `repo`, if any) would clash with one of `projects`, in words naming it; nil when it would not. A clash is
+/// another project whose worktree directory is the same, compared without regard to case; the same folder is already a project, not a clash.
+/// The twin of `checkWorktreeClash` in src/chat/names.ts (ADR 0038).
+public func worktreeClashRefusal(folder: String, repo: String?, among projects: [ProjectRow]) -> String? {
+    let mine = worktreeDirectory(folder: folder, repo: repo)
+    for project in projects where isSameFolder(project.path, folder) == false {
+        let theirs = worktreeDirectory(folder: project.path, repo: project.repo)
+        if theirs.lowercased() == mine.lowercased() { return "The worktrees of \(project.name) already use the folder \(theirs); two projects cannot share it" }
+    }
+    return nil
+}
+
 /// `json` with `projectsFolder` set to `folder`; the file's other keys are left as they were. `json` nil is a `chat.json` that is not
 /// there yet, which this makes. nil when `json` is not a JSON object: the app never overwrites a file it cannot read.
 public func applyingProjectsFolder(_ folder: String, to json: Data?) -> Data? {

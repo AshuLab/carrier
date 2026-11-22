@@ -52,7 +52,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `health.ts`: the `health` request (whether `git`, `gh` and each agent's CLI work and are signed in, as `ready`, `missing`, `signedOut` or `unknown`, only the verdicts; [spec](../../docs/specs/chat-host.md)).
 - `git.ts`: the port to the machine's git (`realGit` in production, `FakeGit` in `fake.ts`).
 - `workspace.ts`: what a folder is as a repository, and its fetch.
-- `names.ts` and `words.ts`: the worktree name and its word lists.
+- `names.ts` and `words.ts`: the worktree name and its word lists, where a worktree lives (`worktreeDirectory`, `worktreePath`) and `checkWorktreeClash`, which refuses a project whose worktree directory is another's (its shared table is `macos/Tests/Fixtures/worktree-clash.json`).
 - `worktree.ts`: the creation, the delete preview and the removal of a session's worktree under `<folder>/chat/worktrees` ([ADR 0014](../../docs/adr/0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md)).
 - `transcript.ts`: the redact-then-cut limits.
 - `schema.ts`, `db.ts`, `migrations/`: its own database (`pnpm db:generate` generates both).

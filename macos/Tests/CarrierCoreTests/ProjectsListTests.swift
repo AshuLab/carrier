@@ -93,6 +93,48 @@ private func temporaryFolder() throws -> String {
     #expect(try Data(contentsOf: ProjectsFile(folder: folder).url) == written)
 }
 
+@MainActor @Test func addRefusesAFolderWhoseWorktreeDirectoryIsAnotherProjectsAndNamesIt() throws {
+    let carrier = try temporaryFolder()
+    let work = try temporaryFolder()
+    defer {
+        try? FileManager.default.removeItem(atPath: carrier)
+        try? FileManager.default.removeItem(atPath: work)
+    }
+    for name in ["first", "second", "third"] { try FileManager.default.createDirectory(atPath: work + "/" + name, withIntermediateDirectories: true) }
+    let repos = [work + "/first": "acme/app", work + "/second": "acme/app", work + "/third": "other/app"]
+    let model = ProjectsModel(file: ProjectsFile(folder: carrier)) { repos[$0] }
+    model.reload()
+    #expect(model.add(folder: work + "/first") == .added(work + "/first"))
+    #expect(model.add(folder: work + "/second") == nil)
+    #expect(model.failure == "The worktrees of first already use the folder acme/app; two projects cannot share it")
+    #expect(model.rows.map(\.name) == ["first"])
+    #expect(model.add(folder: work + "/third") == .added(work + "/third"))
+    // Locate…: the project being moved does not clash with itself
+    #expect(model.addRefusal(folder: work + "/second", replacing: work + "/first") == nil)
+    #expect(model.addRefusal(folder: work + "/second", replacing: nil) != nil)
+}
+
+@MainActor @Test func locateRefusesAFolderWhoseWorktreeDirectoryIsAnotherProjectsAndNamesIt() throws {
+    let carrier = try temporaryFolder()
+    let work = try temporaryFolder()
+    defer {
+        try? FileManager.default.removeItem(atPath: carrier)
+        try? FileManager.default.removeItem(atPath: work)
+    }
+    let gone = work + "/gone", kept = work + "/kept", clash = work + "/clash", free = work + "/free"
+    for folder in [kept, clash, free] { try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true) }
+    let repos = [gone: "acme/app", kept: "acme/app", clash: "acme/app", free: "other/app"]
+    let file = ProjectsFile(folder: carrier)
+    try Data(#"{"projects":[{"path":"\#(gone)","origin":"cloned"},{"path":"\#(kept)","name":"Kept","origin":"added"}]}"#.utf8).write(to: file.url)
+    let model = ProjectsModel(file: file) { repos[$0] }
+    model.reload()
+    #expect(model.locate(path: gone, to: clash) == false)
+    #expect(model.failure == "The worktrees of Kept already use the folder acme/app; two projects cannot share it")
+    #expect(model.rows.map(\.path) == [gone, kept])
+    #expect(model.locate(path: gone, to: free))
+    #expect(model.rows.map(\.path) == [free, kept])
+}
+
 @MainActor @Test func addRefusesFoldersThatCannotBeProjectsWithTheirReasonAndWritesNothing() throws {
     let carrier = try temporaryFolder()
     let work = try temporaryFolder()

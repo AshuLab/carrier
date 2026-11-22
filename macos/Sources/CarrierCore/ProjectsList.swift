@@ -441,13 +441,22 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
     /// Adds `folder` as a project, or says it already is one and writes nothing. nil when it could not be written: `problems` says why when the file does not
     /// match its schema, `failure` when the folder is refused or the disk refused.
     @discardableResult public func add(folder: String) -> ProjectAdd? {
-        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) {
+        if let refusal = addRefusal(folder: folder, replacing: nil) {
             failure = refusal
             return nil
         }
         var added: ProjectAdd?
         _ = write { added = try file.add(folder: folder) }
         return added
+    }
+
+    /// Why `folder` cannot be a project: `projectFolderRefusal`, else a worktree directory that is another project's (`worktreeClashRefusal`), naming it.
+    /// `replacing` is the path of the project being pointed at `folder` (Locate…), which does not count as another. nil when it can; a file that does not
+    /// read is left to the write, which says why.
+    public func addRefusal(folder: String, replacing: String?) -> String? {
+        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) { return refusal }
+        let others = projectRows((try? file.read()) ?? [], remote: remote).filter { $0.path != replacing }
+        return worktreeClashRefusal(folder: folder, repo: remote(folder), among: others)
     }
 
     /// Points the project at `path` to `folder`, its new place, after the check for folders that cannot be projects; everything else of the entry stays and
@@ -459,6 +468,10 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
         }
         if rows.contains(where: { $0.path != path && isSameFolder($0.path, folder) }) {
             failure = "That folder is already a project"
+            return false
+        }
+        if let refusal = addRefusal(folder: folder, replacing: path) {
+            failure = refusal
             return false
         }
         return write { try file.locate(path: path, to: folder) }

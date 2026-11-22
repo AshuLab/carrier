@@ -13,6 +13,7 @@ import { tokenEnv } from '../execution/git-workspaces.ts';
 import { readChatConfig } from './config.ts';
 import { checkProjectsFolder } from './folder.ts';
 import type { Git, GitResult } from './git.ts';
+import { checkWorktreeClash } from './names.ts';
 import { ChatRefused } from './runner.ts';
 import { parseOrigin } from './workspace.ts';
 
@@ -203,6 +204,14 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
       const reply = await cloneRepo({ repo: clone.repo, folder: clone.folder }, abort.signal, (line) => void (clone.progress = line));
       // a folder that was already there and only fetched is added, not cloned (docs/specs/projects.md, Who writes what)
       const origin = reply.fetched ? 'added' : 'cloned';
+      // a worktree directory that is another project's is refused (ADR 0038); what was cloned stays, as the person's
+      const listed = readProjectsFile();
+      if (listed.ok) {
+        await checkWorktreeClash(git, reply.folder, listed.projects).catch((error: unknown) => {
+          if (error instanceof ChatRefused) throw new ChatRefused(`${error.message}; ${reply.folder} was left as it is`);
+          throw error;
+        });
+      }
       const written = updateProjectsFile((current) => (current.some((entry) => entry.path === reply.folder) ? current : [...current, { path: reply.folder, origin }]));
       if (written.ok === false) throw new ChatRefused(`${clone.repo} was cloned to ${reply.folder}, but projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}; fix the file and add the folder again`);
       clones.delete(clone.repo.toLowerCase());

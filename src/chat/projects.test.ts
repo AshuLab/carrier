@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -508,6 +508,21 @@ test('a repository that is already a project is refused at once, and the entries
   host.cloneProject({ repo: 'acme/other' });
   await vi.waitFor(() => expect(registered()).toHaveLength(2));
   expect(registered()[0]).toEqual({ path: dest, origin: 'added', name: 'Mine' });
+});
+
+test('a clone whose worktree directory is another project\'s is not registered, names that project, and an owner that differs is', async () => {
+  const other = join(realpathSync(root), 'elsewhere', 'app-copy'); // a real path: the host compares real paths
+  mkdirSync(other, { recursive: true });
+  git.repos.set(other, { head: 'main', branches: ['main'], origin: 'https://github.com/acme/app.git' });
+  const before = JSON.stringify({ projects: [{ path: other, origin: 'added', name: 'App copy' }] });
+  writeFileSync(join(root, 'projects.json'), before);
+  const host = fakeProjects(git);
+  host.cloneProject({ repo: 'acme/app' });
+  await vi.waitFor(() => expect(host.projectClones().clones[0]?.state).toBe('failed'));
+  expect(host.projectClones().clones[0]!.error).toContain('The worktrees of App copy already use the folder acme/app; two projects cannot share it');
+  expect(readFileSync(join(root, 'projects.json'), 'utf8')).toBe(before);
+  host.cloneProject({ repo: 'other/app' });
+  await vi.waitFor(() => expect(registered()).toHaveLength(2));
 });
 
 test('a parent inside Carrier\'s own folders and a name that is not owner/name never reach git', () => {

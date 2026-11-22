@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { carrierHome } from '../config/places.ts';
+import { carrierHome, expandHome } from '../config/places.ts';
 import { updateProjectsFile, readProjectsFile } from '../config/projects.ts';
 import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
 import { claimAttachments, releaseAttachments, sessionFolder } from './attachments.ts';
@@ -20,7 +20,9 @@ import { childOptions, delegationRefusal, isScaleHarness, type Level, levelOf } 
 import type { ChildReport, McpSessionRegistry } from './mcp.ts';
 import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
-import { newProjectKind, type Plan, type Step, type StepEvent } from './plan.ts';
+import { type ActionWhen, newProjectKind, type Plan, type Step, type StepEvent } from './plan.ts';
+import { realShell, type Shell } from './shell.ts';
+import { redact } from '../logging/redact.ts';
 import { ChatRefused, type BackgroundTask, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
 import { clean } from '../execution/events.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
@@ -34,6 +36,8 @@ import { worktreesDir } from './names.ts';
 import { checkout, FETCH_FRESH_MS, fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
+
+const real = (path: string) => (existsSync(path) ? realpathSync(path) : path);
 
 const noPullRequests: PullRequests = { find: async () => null, states: async () => new Map() };
 
@@ -108,6 +112,8 @@ export type ChatSessionsDeps = {
   env: NodeJS.ProcessEnv;
   /** The `git` of the machine. */
   git: Git;
+  /** What runs a project's actions; the machine's own `sh` unless a test replaces it. */
+  shell?: Shell;
   /** What brings a repository onto the Mac, for a plan that clones one. */
   projects: Pick<ReturnType<typeof createProjects>, 'cloneRepo' | 'repoFolder' | 'stepOf'>;
   /** Whether an agent's binary is there. */
@@ -149,7 +155,7 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, idleCloseMs = () => IDLE_CLOSE_MS, onLiveChange, mcp, pulls = noPullRequests }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, shell = realShell, projects, binaryFound, probes = realProbes, machine = realMachine, ages, idleCloseMs = () => IDLE_CLOSE_MS, onLiveChange, mcp, pulls = noPullRequests }: ChatSessionsDeps) {
   const data = createSessionData({ db, git, pulls, clock });
   const listed = () => (typeof agents === 'function' ? agents() : agents);
   const health = createHealth({ agents, clock, binaryFound, probes });
@@ -236,7 +242,6 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const readProjectWorktrees = async (folder: string) => {
     const base = checkFolder(folder, carrierHome());
     const [main, ...linked] = await listWorktrees(git, base);
-    const real = (path: string) => (existsSync(path) ? realpathSync(path) : path);
     const root = real(worktreesDir()) + sep;
     const bySession = new Map(db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all().map((found) => [real(found.worktreePath!), found]));
     const entries: Entry[] = [];
@@ -343,15 +348,17 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const preparing = new Map<string, { abort: AbortController; done: Promise<void> }>();
   // The latest line of git's progress for the clone of a session that is cloning: shown by `events`, never stored.
   const progress = new Map<string, string>();
-  const stepEvent = (sessionId: string, step: Step, status: StepEvent['status'], detail?: string) => store(sessionId, { kind: 'step', step, status, ...(detail !== undefined && { detail }) });
+  // Sessions whose preparation told that `projects.json` did not match, so a retry or a second moment does not say it again.
+  const told = new Set<string>();
+  const stepEvent = (sessionId: string, step: Step, status: StepEvent['status'], detail?: string, action?: Pick<StepEvent, 'action' | 'when'>) => store(sessionId, { kind: 'step', step, status, ...(detail !== undefined && { detail }), ...action });
   /** How the last event of a step left it, undefined when the step never ran. */
   const lastStatus = (sessionId: string, step: Step) => {
     const events = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).all();
     return events.find((event) => event.data.step === step)?.data.status as StepEvent['status'] | undefined;
   };
   /** Stops a preparation at a step: the session is idle, the plan stays and the event says why. */
-  const failStep = (sessionId: string, step: Step, detail: string) => {
-    stepEvent(sessionId, step, 'failed', detail);
+  const failStep = (sessionId: string, step: Step, detail: string, action?: Pick<StepEvent, 'action' | 'when'>) => {
+    stepEvent(sessionId, step, 'failed', detail, action);
     db.update(sessions).set({ state: 'idle', lastActiveAt: clock.now() }).where(eq(sessions.id, sessionId)).run();
   };
   // A host that stopped mid-preparation left sessions whose last step is still running: it comes back failed as interrupted.
@@ -735,13 +742,56 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     }
   }
 
+  /**
+   * The `action` steps of a preparation at one moment (ADR 0039): the project's actions that are on for `when`, in the listed order, each a step of its own run through
+   * `sh -c` in `folder` with the host's environment plus `CARRIER_PROJECT` (the project's base folder) and `CARRIER_FOLDER`. The project is the entry of `projects.json` whose
+   * path is `base`, read once for the preparation (`file`); with no action on there is no step. One that finished in an earlier try is skipped, so Try again repeats from the one that stopped.
+   * A failure that warns leaves its step done with a notice, one that stops fails the step. False once the preparation must not go on (a stop, or the person left).
+   * ponytail: two actions of one moment with the same name count as one in a retry and in the app's list; the app's page can refuse a repeated name when that bites.
+   */
+  async function runActions(sessionId: string, file: ReturnType<typeof readProjectsFile>, base: string, when: ActionWhen, folder: string, signal: AbortSignal): Promise<boolean> {
+    if (file.ok === false) {
+      // a notice once a preparation: the file's problem, and that an action that would have run did not
+      if (told.has(sessionId) === false) store(sessionId, { kind: 'notice', text: `This project's actions did not run: projects.json ${file.errors[0]!.path} ${file.errors[0]!.message}.` });
+      told.add(sessionId);
+      return true;
+    }
+    const same = (path: string) => real(expandHome(path)) === real(base);
+    const todo = (file.projects.find((entry) => same(entry.path))?.actions ?? []).filter((action) => action.when === when && action.on !== false);
+    for (const action of todo) {
+      const label = { action: clean(action.name, chatCaps.title), when };
+      const finished = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).all().find((event) => event.data.step === 'action' && event.data.action === label.action && event.data.when === when);
+      if (finished?.data.status === 'done') continue;
+      stepEvent(sessionId, 'action', 'running', undefined, label);
+      const result = await shell.run(folder, action.command, { env: { ...env, CARRIER_PROJECT: base, CARRIER_FOLDER: folder }, signal, onProgress: (line) => void progress.set(sessionId, clean(line, chatCaps.preview)) });
+      progress.delete(sessionId);
+      if (result.ok) {
+        stepEvent(sessionId, 'action', 'done', undefined, label);
+        continue;
+      }
+      if (signal.aborted) return false; // the person left: the session goes with its steps
+      const end = redact(result.output).trim().slice(-chatCaps.error);
+      const why = `${label.action} failed${result.code === null ? '' : ` with exit code ${result.code}`}${end === '' ? '' : `: ${end}`}`;
+      if (action.onFail === 'stop') {
+        failStep(sessionId, 'action', why, label);
+        return false;
+      }
+      stepEvent(sessionId, 'action', 'done', undefined, label);
+      store(sessionId, { kind: 'notice', text: `${why}. The session went on without it.` });
+    }
+    return true;
+  }
+
   /** The steps of a plan, in the background: it never throws, a failure is recorded as a step that failed. */
   async function prepare(sessionId: string, launch: Launch, base: string, plan: Plan, signal: AbortSignal) {
     try {
       if (plan.workspace.kind === newProjectKind && (await makeNewProject(sessionId, plan.workspace.name)) === false) return;
       if (plan.workspace.kind === 'repo' && (await bring(sessionId, plan.workspace.repo, signal)) === false) return;
+      const file = readProjectsFile(); // at each preparation, so a change is for the next one
+      if (lastStatus(sessionId, 'clone') === 'done' && (await runActions(sessionId, file, base, 'afterClone', base, signal)) === false) return;
       const folder = await arrange(sessionId, plan.workspace.kind === newProjectKind ? row(sessionId).folder : base, plan, signal);
       if (folder === undefined || signal.aborted) return;
+      if ((plan.worktree !== undefined || plan.branch !== undefined) && (await runActions(sessionId, file, base, 'newWorktree', folder, signal)) === false) return;
       stepEvent(sessionId, 'agent', 'running');
       const { chosen } = launch;
       const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...plan.options };
@@ -782,6 +832,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       log.error('preparing a session failed', error);
     } finally {
       preparing.delete(sessionId);
+      told.delete(sessionId);
       onLiveChange();
     }
   }

@@ -415,6 +415,11 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
         }
     }
 
+    /// The worktrees of a project, as the host lists them (`projectWorktrees`); the host is asked about the folder as written, `~` expanded.
+    public func worktrees(of path: String) async throws -> ProjectWorktrees {
+        try await host.projectWorktrees((path as NSString).expandingTildeInPath)
+    }
+
     /// The rows of the clones that are running or failed, to show among the projects: they are not projects yet.
     public var cloneRows: [ProjectRow] { clones.map(ProjectRow.init(clone:)) }
 

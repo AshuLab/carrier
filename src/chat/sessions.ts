@@ -1,4 +1,5 @@
-import { accessSync, constants, existsSync, rmSync } from 'node:fs';
+import { accessSync, constants, existsSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
@@ -27,7 +28,8 @@ import { checkName, suggestName } from './names.ts';
 import { createProject, projectFolder, type createProjects } from './projects.ts';
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
-import { clearWorktree, createWorktree, deleteWorktree, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, listWorktrees, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
+import { worktreesDir } from './names.ts';
 import { checkout, FETCH_FRESH_MS, fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
@@ -53,6 +55,10 @@ type State = (typeof sessions.$inferSelect)['state'];
 
 /** Where a session works: the folder it was opened in, or a worktree made for it from that base folder. */
 export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: string; from: string; base: string; path: string };
+
+/** One worktree of a project's page: the session that made it (or none) and its state, see `projectWorktrees`. */
+export type ProjectWorktree = { path: string; branch: string | null; session: { id: string; title: string | null } | null; lastActiveAt: number; state: 'sessionOpen' | 'uncommitted' | 'merged' | 'notPushed' | 'clean' };
+export type ProjectWorktrees = { main: { path: string; branch: string | null }; worktrees: ProjectWorktree[] };
 
 /** A child session as its parent's summary lists it; `level` is the permission level it runs at, and `needsPerson` says that it waits for an approval or a question. */
 export type ChildSummary = { id: string; agent: string; harness: Harness; state: State; level: Level | null; needsPerson: boolean };
@@ -1417,6 +1423,32 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         });
       }
       return { sessions: previews };
+    },
+
+    /**
+     * A project's worktrees for its page: the main clone and each worktree git lists for the project's folder that lies under the worktrees folder and is still on disk,
+     * joined to the session whose worktree it is (none for an orphan). Its age is the session's last activity, or the folder's modification time with no session.
+     * The state, in this order: the session is open, it has uncommitted changes, its session's pull request is merged (so a squash merge is not "not pushed"),
+     * it has commits no other branch holds, else clean.
+     */
+    async projectWorktrees({ folder }: { folder: string }): Promise<ProjectWorktrees> {
+      const base = checkFolder(folder, carrierHome());
+      const [main, ...linked] = await listWorktrees(git, base);
+      const real = (path: string) => (existsSync(path) ? realpathSync(path) : path);
+      const root = real(worktreesDir()) + sep;
+      const bySession = new Map(db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all().map((found) => [real(found.worktreePath!), found]));
+      const worktrees: ProjectWorktree[] = [];
+      // one worktree after another: each reads two git processes, and this is one project's page opening
+      for (const { path, branch } of linked) {
+        if (existsSync(path) === false || real(path).startsWith(root) === false) continue;
+        const found = bySession.get(real(path));
+        const family = found === undefined ? undefined : familyClock(found);
+        // a detached HEAD has no branch to hold commits, so only its files count
+        const { dirty, unpushed } = await previewWorktree(git, { path, branch: branch ?? '', from: '', base }, branch === null ? [] : [branch]);
+        const state = family?.live ? 'sessionOpen' : dirty > 0 ? 'uncommitted' : found?.prState === 'merged' ? 'merged' : unpushed > 0 ? 'notPushed' : 'clean';
+        worktrees.push({ path, branch, session: found === undefined ? null : { id: found.id, title: found.title }, lastActiveAt: family?.lastActiveAt ?? statSync(path).mtimeMs, state });
+      }
+      return { main: { path: base, branch: main?.branch ?? null }, worktrees };
     },
 
     /** What a folder is as a git repository, for the person to choose how to work in it. */

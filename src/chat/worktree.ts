@@ -87,6 +87,31 @@ export async function removeWorktree(git: Git, { path, branch, base }: MadeWorkt
   if (deleted.ok === false) log.error('the branch of a worktree that was not kept could not be removed', { code: deleted.code });
 }
 
+/** A worktree as `git worktree list --porcelain` reports it: its folder and its branch, null when HEAD is detached or the repository is bare. */
+export type ListedWorktree = { path: string; branch: string | null };
+
+/** The paragraphs of `git worktree list --porcelain`: the main working tree first, then each linked one. */
+export function parseWorktreeList(out: string): ListedWorktree[] {
+  return out
+    .split(/\n\n+/)
+    .map((block) => block.split('\n'))
+    .flatMap((lines) => {
+      const path = lines.find((line) => line.startsWith('worktree '))?.slice('worktree '.length);
+      const branch = lines.find((line) => line.startsWith('branch refs/heads/'))?.slice('branch refs/heads/'.length) ?? null;
+      return path === undefined ? [] : [{ path, branch }];
+    });
+}
+
+/** What git lists for `folder`: its main working tree first, then the linked ones. A folder git cannot read refuses with a fixed sentence. */
+export async function listWorktrees(git: Git, folder: string): Promise<ListedWorktree[]> {
+  const listed = await git.run(folder, ['worktree', 'list', '--porcelain']);
+  if (listed.ok === false) {
+    log.error('git could not list the worktrees of a folder', { code: listed.code, timedOut: listed.timedOut === true });
+    throw new ChatRefused('Git could not list the worktrees of this folder');
+  }
+  return parseWorktreeList(listed.out);
+}
+
 /** The number `git rev-list --count` printed. */
 export const parseCount = (out: string) => Number.parseInt(out.trim(), 10) || 0;
 

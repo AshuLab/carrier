@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -10,6 +10,8 @@ import { clearWorktree, createWorktree, previewWorktree, removeWorktree, restore
 import { openChatDatabase } from './db.ts';
 import { FakeChatRunner, fakeProjects } from './fake.ts';
 import { createSessions } from './sessions.ts';
+import { sessions } from './schema.ts';
+import { eq } from 'drizzle-orm';
 import { FakeClock } from '../orchestration/fake.ts';
 import { fetchFolder, inspectFolder } from './workspace.ts';
 
@@ -385,6 +387,65 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
     await s.delete({ sessionId: id });
     expect(git(base, 'branch', '--list', branch).trim()).toBe('');
     expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(1);
+  });
+});
+
+describe.skipIf(!enabled)('the worktrees of a project, with the real git', () => {
+  let home: string;
+  beforeAll(() => void (dir = realpathSync(mkdtempSync(join(tmpdir(), 'carrier-pw-')))));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  beforeEach(() => {
+    home = join(dir, `home-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(home, { recursive: true });
+    vi.stubEnv('CARRIER_HOME', home);
+  });
+  afterEach(() => void vi.unstubAllEnvs());
+
+  const db = () => openChatDatabase(join(home, 'chat.db'));
+  const sessionsOf = (chatDb = db()) => createSessions({ db: chatDb, agents: [{ name: 'claude', account: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+
+  test('lists the main clone and each worktree under the worktrees folder, joined to its session, with each state, an orphan and a vanished folder left out', async () => {
+    const chatDb = db();
+    const s = sessionsOf(chatDb);
+    const base = repoAt('project');
+    const open = async (name: string, { live = false } = {}) => {
+      const { session } = await s.open({ agent: 'claude', folder: base, worktree: { from: 'main', name } });
+      if (live === false) await s.close({ sessionId: session.id });
+      return { id: session.id, ...(session.workspace as { path: string; branch: string }) };
+    };
+    const [clean, pushed, ahead, dirty, merged, orphan, gone] = [await open('clean'), await open('pushed'), await open('ahead'), await open('dirty'), await open('merged'), await open('orphan'), await open('gone')];
+    const live = await open('live', { live: true });
+    git(pushed.path, 'commit', '-q', '--allow-empty', '-m', 'pushed');
+    git(pushed.path, 'update-ref', `refs/remotes/origin/${pushed.branch}`, git(pushed.path, 'rev-parse', 'HEAD').trim());
+    git(ahead.path, 'commit', '-q', '--allow-empty', '-m', 'mine'); // a commit no other branch holds
+    writeFileSync(join(dirty.path, 'a.txt'), 'changed\n');
+    git(merged.path, 'commit', '-q', '--allow-empty', '-m', 'squashed on GitHub'); // not on any remote branch either, but its pull request is merged
+    chatDb.update(sessions).set({ prState: 'merged' }).where(eq(sessions.id, merged.id)).run();
+    chatDb.delete(sessions).where(eq(sessions.id, orphan.id)).run();
+    git(orphan.path, 'checkout', '-q', '--detach'); // no branch to hold commits: only its files count
+    rmSync(gone.path, { recursive: true, force: true }); // git still lists the folder until it prunes
+    git(base, 'worktree', 'add', '-q', '-b', 'mine', join(dir, `elsewhere-${Math.random().toString(36).slice(2)}`)); // a worktree git lists that is not under the worktrees folder
+
+    const { main, worktrees } = await s.projectWorktrees({ folder: base });
+    const found = Object.fromEntries(worktrees.map((entry) => [entry.path, entry]));
+    expect(main).toEqual({ path: realpathSync(base), branch: 'main' });
+    expect(Object.keys(found).sort()).toEqual([clean, pushed, ahead, dirty, merged, live, orphan].map((entry) => entry.path).sort());
+    expect(found[clean.path]).toMatchObject({ branch: clean.branch, session: { id: clean.id }, state: 'clean' });
+    expect(found[pushed.path]).toMatchObject({ state: 'clean' });
+    expect(found[ahead.path]).toMatchObject({ state: 'notPushed' });
+    expect(found[dirty.path]).toMatchObject({ state: 'uncommitted' });
+    expect(found[merged.path]).toMatchObject({ state: 'merged' });
+    expect(found[live.path]).toMatchObject({ state: 'sessionOpen' });
+    // an orphan has no session, and its age is the folder's modification time
+    expect(found[orphan.path]).toMatchObject({ branch: null, session: null, state: 'clean', lastActiveAt: statSync(orphan.path).mtimeMs });
+    // with a session the age is its last activity
+    expect(found[clean.path]!.lastActiveAt).toBe(chatDb.select().from(sessions).where(eq(sessions.id, clean.id)).get()!.lastActiveAt);
+  });
+
+  test('a folder that is not a repository is refused in words', async () => {
+    const plain = join(dir, 'plain-pw');
+    mkdirSync(plain);
+    await expect(sessionsOf().projectWorktrees({ folder: plain })).rejects.toThrow('Git could not list the worktrees of this folder');
   });
 });
 

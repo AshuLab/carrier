@@ -5,13 +5,19 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FakeGit } from './fake.ts';
 import { ChatRefused } from './runner.ts';
 import { countPorcelain } from './workspace.ts';
-import { createWorktree, parseCount } from './worktree.ts';
+import { createWorktree, parseCount, parseWorktreeList } from './worktree.ts';
 
 test('parseCount reads the number rev-list --count printed, and 0 for anything else', () => {
   expect(parseCount('3\n')).toBe(3);
   expect(parseCount('0\n')).toBe(0);
   expect(parseCount('')).toBe(0);
   expect(parseCount('fatal')).toBe(0);
+});
+
+test('parseWorktreeList reads the main tree first, then each linked one, with its branch or none when detached', () => {
+  const out = 'worktree /a/app\nHEAD 111\nbranch refs/heads/main\n\nworktree /h/worktrees/acme/app/kerrigan\nHEAD 222\nbranch refs/heads/carrier/kerrigan\n\nworktree /h/worktrees/acme/app/zerg\nHEAD 333\ndetached\n\nworktree /h/gone\nHEAD 444\nbranch refs/heads/x\nprunable gitdir file points to non-existent location\n';
+  expect(parseWorktreeList(out)).toEqual([{ path: '/a/app', branch: 'main' }, { path: '/h/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan' }, { path: '/h/worktrees/acme/app/zerg', branch: null }, { path: '/h/gone', branch: 'x' }]);
+  expect(parseWorktreeList('')).toEqual([]);
 });
 
 test('dirty is the number of lines git status --porcelain prints', () => {

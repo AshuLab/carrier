@@ -140,3 +140,14 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     #expect(projectIdentity(path: "/Users/dev/agent-forge", in: rows).tile.image == rows[4].iconImage)
     #expect(projectIdentity(path: "/Users/dev/web", in: rows).tile.image == nil && projectIdentity(repo: "acme/web", in: rows)?.tile.image == rows[4].iconImage)
 }
+
+@Test func theFixtureChatHostAnswersTheWorktreesOfAProjectByItsFolderName() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let listed = try await host.projectWorktrees(server.home + "/projects/carrier")
+    #expect(listed.main == .init(path: server.home + "/projects/carrier", branch: "main"))
+    #expect(listed.worktrees.count == 5 && listed.worktrees.contains { $0.session == nil })
+    // a project the golden file does not list has its main clone and nothing else
+    #expect(try await host.projectWorktrees(server.home + "/projects/notes") == .init(main: .init(path: server.home + "/projects/notes", branch: "main"), worktrees: []))
+}

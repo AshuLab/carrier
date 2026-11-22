@@ -332,6 +332,8 @@ private struct ProjectDetailView: View {
     @State private var owner = UUID()
     @State private var pickingIcon = false
     @State private var newTag = ""
+    @State private var worktrees: ProjectWorktrees?
+    @State private var worktreesProblem: String?
 
     var body: some View {
         let exists = row.status == .ready
@@ -386,6 +388,7 @@ private struct ProjectDetailView: View {
                     }
                 }
             }
+            if exists { worktreesGroup }
             SettingsGroup(title: "") {
                 NavigationRow(title: "Actions", detail: "Commands run for a new worktree or after a clone", first: true, action: openActions) {
                     Text(projectActionsSummary(row.actions.count)).font(.scaled(12)).foregroundStyle(.secondary)
@@ -418,10 +421,49 @@ private struct ProjectDetailView: View {
         } message: {
             Text(projectRemovalWords)
         }
+        .task(id: row.path) { await loadWorktrees() }
         .onAppear(perform: publishPin)
         .onChange(of: row.pinned) { publishPin() }
         .onChange(of: row.path) { publishPin() }
         .onDisappear { headerAction?.clear(owner) }
+    }
+
+    /// The Worktrees and disk group: the main clone and each worktree Carrier made, asked of the host when the page opens.
+    @ViewBuilder private var worktreesGroup: some View {
+        SettingsGroup(title: "Worktrees and disk", footer: "The worktrees Carrier made for sessions of this project.") {
+            if let worktrees {
+                ForEach(Array(worktreeRows(worktrees, now: Date()).enumerated()), id: \.element.id) { index, item in
+                    SettingsTabRow(title: item.branch, detail: item.detail, first: index == 0, mono: true) {
+                        if let state = item.state, let kind = item.kind { StatusChip(text: state, tint: worktreeTint(kind)) }
+                    }
+                }
+            } else if let worktreesProblem {
+                SettingsTabRow(title: "Worktrees", detail: "", first: true, problem: worktreesProblem) { EmptyView() }
+            } else {
+                SettingsTabRow(title: "Worktrees", detail: "", first: true) { ProgressView().controlSize(.small) }
+            }
+        }
+    }
+
+    private func worktreeTint(_ state: ProjectWorktree.State) -> Color {
+        switch state {
+        case .sessionOpen: .accentColor
+        case .merged: .green
+        case .uncommitted, .notPushed: .orange
+        case .clean: .secondary
+        }
+    }
+
+    private func loadWorktrees() async {
+        guard row.status == .ready else { return }
+        do {
+            worktrees = try await model.worktrees(of: row.path)
+            worktreesProblem = nil
+        } catch ControlError.remote(let words) {
+            worktreesProblem = words
+        } catch {
+            worktreesProblem = "The chat host did not answer."
+        }
     }
 
     /// The system's folder panel for the project's new place; the folder goes through the check for folders that cannot be projects before the path is replaced.

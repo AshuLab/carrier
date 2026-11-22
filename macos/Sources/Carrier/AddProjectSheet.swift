@@ -5,12 +5,17 @@ import UniformTypeIdentifiers
 
 /// The shared sheet for choosing a folder or project (docs/specs/projects.md, "Add project"): one search/path field, suggested recent
 /// folders, a pasted GitHub address or a search over the person's repositories (cloned with the host, the list showing the clone), drag and drop,
-/// keyboard navigation, Open a folder… and New project…, which swaps the sheet for a form (a name and where it is made). Driven by `ProjectSheetMode`.
+/// keyboard navigation, Open a folder… and New project…, which swaps the sheet for a form (a name and where it is made). Driven by `ProjectSheetMode`:
+/// in Settings a choice acts at once; in New session (`newSession` is the draft) a choice only fills its plan, and nothing is cloned or written until the
+/// first message is sent.
 struct AddProjectSheet: View {
     let mode: ProjectSheetMode
     let model: ProjectsModel
     let recent: [RecentFolder]
-    let openProject: (String) -> Void
+    var openProject: (String) -> Void = { _ in }
+    var newSession: NewSessionModel?
+    /// Opens the Health tab of Settings, for the reason `gh` gives when it blocks the repositories.
+    var openHealth: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
@@ -35,7 +40,8 @@ struct AddProjectSheet: View {
 
     private var state: ProjectSheetState {
         var known = github
-        known.defaultParent = model.projectsPath
+        known.defaultParent = newSession?.projectsPath ?? model.projectsPath
+        known.watched = newSession?.watched
         return projectSheetState(mode: mode, query: query, recent: effectiveRecent, projects: model.rows, github: known)
     }
 
@@ -69,6 +75,14 @@ struct AddProjectSheet: View {
                         ProblemLine(text: problem)
                     } else if let notice = current.notice {
                         ProblemLine(text: notice, announces: false)
+                    }
+                    if let gh = newSession?.ghState, gh.blocks {
+                        HealthFixButton(tool: .gh, state: gh)
+                        Button("Open Health in Settings") {
+                            dismiss()
+                            openHealth()
+                        }
+                        .buttonStyle(.link).font(.scaled(12))
                     }
                 }
                 .padding(.horizontal, 24)
@@ -115,6 +129,7 @@ struct AddProjectSheet: View {
                 guard loadedOnce == false else { return }
                 loadedOnce = true
                 let host = SocketChatHost()
+                newSession?.openPicker()
                 if recent.isEmpty {
                     let active = (try? await host.list(archived: false)) ?? []
                     let archived = (try? await host.list(archived: true)) ?? []
@@ -151,13 +166,15 @@ struct AddProjectSheet: View {
             .buttonStyle(SecondaryCapsuleButtonStyle())
             .keyboardShortcut("o", modifiers: .command)
             .help("Open a folder on this Mac (\u{2318}O)")
-            Button("New project…") {
-                form = NewProjectForm(defaultParent: model.projectsPath)
-                problem = nil
-                creating = true
+            if mode.actsAtOnce || newSession?.hostCreates == true {
+                Button("New project…") {
+                    form = NewProjectForm(defaultParent: newSession?.projectsPath ?? model.projectsPath)
+                    problem = nil
+                    creating = true
+                }
+                .buttonStyle(SecondaryCapsuleButtonStyle())
+                .help(mode.actsAtOnce ? "Make an empty git folder and add it as a project" : "Work in a new empty git folder, made when you send the first message")
             }
-            .buttonStyle(SecondaryCapsuleButtonStyle())
-            .help("Make an empty git folder and add it as a project")
             Spacer(minLength: 8)
             Button("Cancel") { dismiss() }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
@@ -182,7 +199,7 @@ struct AddProjectSheet: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("New project").font(.scaled(16, weight: .semibold))
-                        Text("An empty git folder, added as a project.").font(.scaled(12)).foregroundStyle(.secondary)
+                        Text(mode.actsAtOnce ? "An empty git folder, added as a project." : "An empty git folder, made when you send the first message.").font(.scaled(12)).foregroundStyle(.secondary)
                     }
                 }
                 VStack(alignment: .leading, spacing: 6) {
@@ -197,7 +214,7 @@ struct AddProjectSheet: View {
                     Text("Letters, numbers, dots and dashes").font(.scaled(11)).foregroundStyle(.tertiary)
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Create in").sectionLabel()
+                    Text(mode.actsAtOnce ? "Create in" : "Will be created in").sectionLabel()
                     HStack(spacing: 8) {
                         Text(form.destinationLine().dropFirst("Creates ".count))
                             .font(.scaled(11, design: .monospaced))
@@ -205,9 +222,11 @@ struct AddProjectSheet: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
                             .help(form.folder)
-                        Button("Choose…", action: chooseNewProjectParent)
-                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                            .accessibilityLabel("Choose where the new project is made")
+                        if mode.actsAtOnce {
+                            Button("Choose…", action: chooseNewProjectParent)
+                                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                                .accessibilityLabel("Choose where the new project is made")
+                        }
                         Spacer(minLength: 0)
                     }
                 }
@@ -230,7 +249,7 @@ struct AddProjectSheet: View {
                 Button("Cancel") { dismiss() }
                     .buttonStyle(SecondaryCapsuleButtonStyle())
                     .keyboardShortcut(.cancelAction)
-                Button("Create", action: createProject)
+                Button(mode.actsAtOnce ? "Create" : "Use this project", action: createProject)
                     .buttonStyle(PrimaryCapsuleButtonStyle())
                     .disabled(form.canCreate(taken: model.isTaken) == false || making)
             }
@@ -243,6 +262,11 @@ struct AddProjectSheet: View {
 
     private func createProject() {
         guard form.canCreate(taken: model.isTaken), making == false else { return }
+        if let newSession {
+            newSession.choose(project: form.name)
+            dismiss()
+            return
+        }
         making = true
         problem = nil
         let name = form.name
@@ -361,19 +385,36 @@ struct AddProjectSheet: View {
         if let problem = item.problem {
             ProblemLine(text: problem).padding(.horizontal, 10).padding(.bottom, 4)
         } else if let destination = item.destination, case .cloneRepo(let repo, _) = item.kind {
-            HStack(spacing: 8) {
-                Text(destination.line)
-                    .font(.scaled(11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(destination.parent + "/" + repo)
-                Button("Choose…") { chooseParent(for: repo, current: destination.parent) }
-                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                    .accessibilityLabel("Choose where \(repo) is cloned")
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text(destination.line)
+                        .font(.scaled(11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(destination.parent + "/" + repo)
+                    if destination.canChoose {
+                        Button("Choose…") { chooseParent(for: repo, current: destination.parent) }
+                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                            .accessibilityLabel("Choose where \(repo) is cloned")
+                    }
+                    Spacer(minLength: 0)
+                }
+                if let watch = item.watch, let newSession { watchChoice(watch, newSession) }
             }
             .padding(.horizontal, 10).padding(.bottom, 4)
+        }
+    }
+
+    /// "Let Carrier watch this repo": on by default, a choice of the plan acted on once the first message was prepared; off, with the reason, when it cannot be on.
+    private func watchChoice(_ watch: ProjectSheetWatch, _ newSession: NewSessionModel) -> some View {
+        let on = watch.problem == nil && newSession.watch
+        return HStack(spacing: 8) {
+            Toggle("Let Carrier watch this repo", isOn: Binding(get: { on }, set: { newSession.watch = $0 }))
+                .toggleStyle(.switch).controlSize(.small).font(.scaled(11))
+                .disabled(watch.problem != nil)
+            if let reason = watch.problem { Text(reason).font(.scaled(11)).foregroundStyle(.orange).lineLimit(2) }
+            Spacer(minLength: 0)
         }
     }
 
@@ -391,8 +432,8 @@ struct AddProjectSheet: View {
     private var dropVeil: some View {
         VStack(spacing: 4) {
             Glyph(.folderPlus, size: 22).foregroundStyle(Color.themeAccent)
-            Text("Drop folders to add").font(.scaled(14, weight: .semibold))
-            Text("Folders are added to your projects; files are refused").font(.scaled(12)).foregroundStyle(.secondary)
+            Text(mode.actsAtOnce ? "Drop folders to add" : "Drop a folder to work in").font(.scaled(14, weight: .semibold))
+            Text(mode.actsAtOnce ? "Folders are added to your projects; files are refused" : "The folder fills the plan; nothing is written").font(.scaled(12)).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.themeAccent.opacity(0.14)))
@@ -423,20 +464,22 @@ struct AddProjectSheet: View {
     }
 
     private func activate(_ item: ProjectSheetResult) {
-        switch mode {
-        case .settings:
-            switch item.kind {
-            case .addPath(let path):
-                addFolder(path)
-            case .suggestedFolder(let folder):
-                addFolder(folder.path)
-            case .existingProject(let project):
-                dismiss()
-                openProject(project.path)
-            case .cloneRepo(let repo, let parent):
-                guard item.isEnabled else { return }
-                clone(repo, into: parent)
-            }
+        guard item.isEnabled else { return }
+        if let newSession {
+            dismiss()
+            Task { await newSession.choose(item) }
+            return
+        }
+        switch item.kind {
+        case .addPath(let path):
+            addFolder(path)
+        case .suggestedFolder(let folder):
+            addFolder(folder.path)
+        case .existingProject(let project):
+            dismiss()
+            openProject(project.path)
+        case .cloneRepo(let repo, let parent):
+            clone(repo, into: parent)
         }
     }
 
@@ -447,7 +490,7 @@ struct AddProjectSheet: View {
         let found = (try? await host.capabilities()) ?? []
         capabilities = found
         // a host that did not answer is not one that is older: the clone itself says so
-        if found.isEmpty == false { github.canClone = found.contains(.projects) }
+        if found.isEmpty == false { github.canClone = found.contains(newSession == nil ? .projects : .repoBranches) }
         guard found.contains(.githubRepos) else { return }
         for page in 1...Self.listedPages {
             do {
@@ -525,6 +568,11 @@ struct AddProjectSheet: View {
 
     private func addFolder(_ path: String) {
         problem = nil
+        if let newSession {
+            dismiss()
+            Task { await newSession.choose(folder: path) }
+            return
+        }
         switch model.add(folder: path) {
         case .added(let addedPath), .existing(let addedPath):
             dismiss()
@@ -571,6 +619,10 @@ struct AddProjectSheet: View {
 
     private func applyDrop(_ paths: [String]) {
         problem = nil
+        if newSession != nil, let first = paths.first {
+            addFolder(first)
+            return
+        }
         let outcome = applyDroppedProjectPaths(paths) { path in
             let result = model.add(folder: path)
             return (result, model.failure ?? model.problems.first?.text)

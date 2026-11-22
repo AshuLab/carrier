@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// What the workspace popover needs without a model: the URL step's text, the projects folder and what is in it.
+// What the shared sheet needs without a model: a pasted address and the projects folder.
 
 @Test func theUrlStepAcceptsOneRepositoryInTheFormsTheSpecListsAndNothingElse() {
     for text in [
@@ -28,21 +28,6 @@ import Testing
     #expect(folder("{\"projectsFolder\":\"~/Projects/carrier\"}") == "/Users/x/Projects/carrier")
     #expect(folder("{\"projectsFolder\":\"/srv/p\"}") == "/srv/p")
     #expect(folder("{\"projectsFolder\":\"\"}") == "/Users/x/.carrier/chat/projects")
-}
-
-@Test func theProjectsFoldersAreTheOwnerAndRepoFoldersOnDiskByName() throws {
-    let root = NSTemporaryDirectory() + "projects-\(UUID().uuidString)"
-    defer { try? FileManager.default.removeItem(atPath: root) }
-    for path in ["vemec/blog", "AshuLab/carrier", "local/my-idea", ".hidden/x", "AshuLab/.cache"] {
-        try FileManager.default.createDirectory(atPath: root + "/" + path, withIntermediateDirectories: true)
-    }
-    FileManager.default.createFile(atPath: root + "/AshuLab/notes.txt", contents: Data())
-    #expect(projectFolders(in: root) == [
-        ProjectFolder(name: "AshuLab/carrier", path: root + "/AshuLab/carrier"),
-        ProjectFolder(name: "local/my-idea", path: root + "/local/my-idea"),
-        ProjectFolder(name: "vemec/blog", path: root + "/vemec/blog"),
-    ])
-    #expect(projectFolders(in: root + "/nowhere").isEmpty)
 }
 
 @Test func aProjectNameIsOnePlainFolderNameOfAtMostAHundredCharacters() {
@@ -75,21 +60,6 @@ import Testing
     try FileManager.default.createDirectory(atPath: base + "/carrier/engine/worktrees", withIntermediateDirectories: true)
     try FileManager.default.createSymbolicLink(atPath: base + "/alias", withDestinationPath: base + "/carrier/engine/worktrees")
     #expect(projectsFolderRefusal(base + "/alias", carrierFolder: base + "/carrier") != nil)
-}
-
-@Test func withGhMissingOrSignedOutOnlyTheSourcesThatNeedItAreOffAndSayWhy() {
-    let needGh: [WorkspaceSource] = [.githubURL, .githubRepos]
-    let noGh: [WorkspaceSource] = [.localFolder, .newProject]
-    for gh in [ToolState.missing, .signedOut] {
-        for source in needGh { #expect(workspaceSourceReason(source, gh: gh) != nil, "\(source) \(gh)") }
-        for source in noGh { #expect(workspaceSourceReason(source, gh: gh) == nil, "\(source) \(gh)") }
-    }
-    #expect(workspaceSourceReason(.githubURL, gh: .missing)?.contains("not installed") == true)
-    #expect(workspaceSourceReason(.githubRepos, gh: .signedOut)?.contains("signed out") == true)
-    // ready, unknown and a host that did not report the health leave every source on
-    for gh in [ToolState.ready, .unknown, nil] {
-        for source in needGh + noGh { #expect(workspaceSourceReason(source, gh: gh) == nil, "\(source) \(String(describing: gh))") }
-    }
 }
 
 private struct ProjectFolderFixture: Decodable {

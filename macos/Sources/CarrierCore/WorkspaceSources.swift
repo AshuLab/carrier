@@ -1,21 +1,8 @@
 import Foundation
 
-// The pieces of the workspace popover that need no model (docs/specs/workspace-sources.md): what the URL step accepts, where the
-// projects folder is and what is in it. `NewSessionModel` drives the popover with them.
+// The pieces of the shared sheet that need no model: what a pasted address is, where the projects folder is and the checks on a folder.
 
-/// Why `source` is off, in words; nil when it is on. Only the sources that list and clone with the person's `gh` login (a GitHub URL and
-/// My GitHub repositories, ADR 0015) are off, and only for a `gh` that is `missing` or `signedOut`: `ready`, `unknown` and a host that did
-/// not report the health (`gh` nil) leave the sheet as it was. A local folder, the recent folders and a new project never depend on `gh`.
-public func workspaceSourceReason(_ source: WorkspaceSource, gh: ToolState?) -> String? {
-    guard source == .githubURL || source == .githubRepos else { return nil }
-    switch gh {
-    case .missing: return "gh is not installed. See Health in Settings."
-    case .signedOut: return "gh is signed out. See Health in Settings."
-    case .ready, .unknown, nil: return nil
-    }
-}
-
-/// `owner/repo` for what the URL step was given, nil when it is not exactly one GitHub repository: the form itself, with or without
+/// `owner/repo` for what the sheet field was given, nil when it is not exactly one GitHub repository: the form itself, with or without
 /// `.git`, a trailing slash, `github.com/` or `https://github.com/` in front. The host takes only the `owner/repo` form, and only
 /// with the characters and parts its own pattern takes (no empty, `.` or `..` part).
 public func repoReference(_ text: String) -> String? {
@@ -160,25 +147,6 @@ public func applyingProjectsFolder(_ folder: String, to json: Data?) -> Data? {
     return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
 }
 
-/// A folder the projects folder holds: `name` is `<owner>/<repo>` (`local/<name>` for a new project) and `path` its full path.
-public struct ProjectFolder: Equatable {
-    public let name: String
-    public let path: String
-}
-
-/// The `<owner>/<repo>` folders of the projects folder, read from disk, by name; none when the folder is not there.
-public func projectFolders(in root: String) -> [ProjectFolder] {
-    func folders(_ path: String) -> [String] {
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: path)) ?? []
-        return names.filter { name in
-            var isFolder: ObjCBool = false
-            return name.hasPrefix(".") == false && FileManager.default.fileExists(atPath: path + "/" + name, isDirectory: &isFolder) && isFolder.boolValue
-        }
-    }
-    return folders(root).flatMap { owner in folders(root + "/" + owner).map { ProjectFolder(name: owner + "/" + $0, path: root + "/" + owner + "/" + $0) } }
-        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-}
-
 private func currentConfigURL() -> URL { URL(fileURLWithPath: configFilePath()) }
 
 /// The config file's bytes, read each time so a change in the file is followed; nil when it cannot be read.
@@ -246,22 +214,3 @@ public func saveProjectsFolder(
 /// `projectsFolder` of the chat's `chat.json`.
 public func currentProjectsFolder() -> String { projectsFolder(chatJSON: try? currentChatConfig(), carrierFolder: currentCarrierFolder(), home: NSHomeDirectory()) }
 
-/// A row of My GitHub repositories: when it was last pushed, whether the config already watches it, and why the "watch" box would not
-/// apply to it when it is not watched but cannot be (a folder name another watched repo has).
-public struct GithubRepoRow: Equatable, Identifiable {
-    public var name: String
-    public var isPrivate: Bool
-    public var pushed: String
-    public var watched: Bool
-    public var cannotWatch: String?
-    public var id: String { name }
-}
-
-/// The loaded repositories that contain `query` (case-insensitive), in order, each with what the watch box would do for it.
-public func githubRepoRows(_ repos: [AvailableRepo], watched: [String], query: String, now: Date = Date()) -> [GithubRepoRow] {
-    let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
-    return repos.filter { needle.isEmpty || $0.name.lowercased().contains(needle) }.map { repo in
-        let isWatched = watched.contains { $0.lowercased() == repo.name.lowercased() }
-        return GithubRepoRow(name: repo.name, isPrivate: repo.isPrivate, pushed: pushedLine(repo.pushedAt, now: now), watched: isWatched, cannotWatch: isWatched ? nil : repoProblem(repo.name, joining: watched))
-    }
-}

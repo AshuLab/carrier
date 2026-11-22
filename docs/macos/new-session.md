@@ -82,6 +82,12 @@ A host whose hello lacks `worktreeStart` takes no `startFrom`: a Remote choice i
 A repository that is not on this Mac yet has no local side: no tabs, the two sections it always had, and a plan with no `startFrom`.
 The sheet of a session in the person's own folder (`browsing`) is not changed, and neither is its pick.
 
+## A project's defaults
+
+A project can set the agent, where to work and the base branch a new session there starts with ([Settings' Projects page](settings.md#projects-page)).
+Choosing the project (`choose(folder:)`, `choose(repo:)`; the match is `isSameFolder` against `ProjectsModel.rows`) fills the draft from its `defaults` (`NewSessionModel.projectDefaults`) once the host has said what the folder is: the agent, when it can work, else the draft keeps the one it had; the base branch, when the folder has it, as the branch the draft starts from; and the worktree switch, which the project's Work in wins over Settings > Sessions' "Work in", which stands when the project sets none.
+The draft shows each of them as its own choice (the agent chip, the worktree choice and the branch picker), so the person changes them there, and the next folder starts over from its own project's values.
+
 ## Choosing a project fetches it
 
 Choosing a folder, or a repository already in the projects folder, that is a git repository with an `origin` fetches it in the background (`NewSessionModel.choose(folder:)`, then `fetch(whenChosen:)`).

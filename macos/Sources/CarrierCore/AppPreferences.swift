@@ -738,7 +738,7 @@ public struct NewSessionStart: Equatable {
 }
 
 /// Where a new session opens when its folder offers a worktree; a draft's own choice stays above it.
-public enum WorkIn: String, CaseIterable {
+public enum WorkIn: String, CaseIterable, Sendable {
     case baseFolder, newWorktree
 
     public var title: String { self == .baseFolder ? "The base folder" : "A new worktree" }

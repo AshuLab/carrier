@@ -19,7 +19,7 @@ import Testing
     private static let notSearched: Set<String> = [
         "Details", "Label, icon and color", "Name", "Config folder", "Days", "Add account", "Carrier \\(version)",
         "Where it runs", "Advanced", "Remove account", "Accounts", "Models", "Version", "Signed out", "Use in an agent", "Found on this Mac", "Sign-ins and quotas", "Look at this Mac again",
-        "A session you stop using today", "Identity", "New sessions here", "Show when starting a session", "Icon", "Tags", "Folder", "Folder not found", "Remote", "Remove",
+        "A session you stop using today", "Identity", "New sessions here", "Show when starting a session", "Agent", "Base branch", "Icon", "Tags", "Folder", "Folder not found", "Remote", "Remove",
         "New worktree", "After clone", "Command", "If it fails", "Worktrees and disk", "Worktrees", "Total", "Clean up", "Last clean up", "Let Carrier watch this project",
         "Left alone", "Most dictations in a day", "Most words in a day", "Longest dictation", "Longest streak", "\\(metric.title) per day",
     ]

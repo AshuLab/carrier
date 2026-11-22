@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 /// The shared sheet for choosing a folder or project (docs/specs/projects.md, "Add project"): one search/path field, suggested recent
 /// folders, a pasted GitHub address or a search over the person's repositories (cloned with the host, the list showing the clone), drag and drop,
-/// keyboard navigation, and Open a folder…. Driven by `ProjectSheetMode`.
+/// keyboard navigation, Open a folder… and New project…, which swaps the sheet for a form (a name and where it is made). Driven by `ProjectSheetMode`.
 struct AddProjectSheet: View {
     let mode: ProjectSheetMode
     let model: ProjectsModel
@@ -21,7 +21,12 @@ struct AddProjectSheet: View {
     @State private var github = ProjectSheetGithub(defaultParent: "")
     @State private var checkTask: Task<Void, Never>?
     @State private var capabilities: Set<ControlClient.Capability> = []
+    @State private var creating = false
+    @State private var form = NewProjectForm(defaultParent: "")
+    @State private var making = false
+    @State private var loadedOnce = false
     @FocusState private var fieldFocused: Bool
+    @FocusState private var nameFocused: Bool
 
     /// ponytail: five pages of thirty are read, the newest pushes; a person with more types the address or searches for it, which the check below handles.
     private static let listedPages = 5
@@ -35,8 +40,12 @@ struct AddProjectSheet: View {
     }
 
     var body: some View {
+        if creating { newProjectForm } else { chooser }
+    }
+
+    private var chooser: some View {
         let current = state
-        ScrollViewReader { proxy in
+        return ScrollViewReader { proxy in
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 14) {
                     header
@@ -102,6 +111,9 @@ struct AddProjectSheet: View {
                 return .handled
             }
             .task {
+                // Back from New project… shows the chooser again: what was read stays
+                guard loadedOnce == false else { return }
+                loadedOnce = true
                 let host = SocketChatHost()
                 if recent.isEmpty {
                     let active = (try? await host.list(archived: false)) ?? []
@@ -139,6 +151,13 @@ struct AddProjectSheet: View {
             .buttonStyle(SecondaryCapsuleButtonStyle())
             .keyboardShortcut("o", modifiers: .command)
             .help("Open a folder on this Mac (\u{2318}O)")
+            Button("New project…") {
+                form = NewProjectForm(defaultParent: model.projectsPath)
+                problem = nil
+                creating = true
+            }
+            .buttonStyle(SecondaryCapsuleButtonStyle())
+            .help("Make an empty git folder and add it as a project")
             Spacer(minLength: 8)
             Button("Cancel") { dismiss() }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
@@ -146,6 +165,119 @@ struct AddProjectSheet: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
+    }
+
+    // MARK: New project
+
+    /// The form of New project…: a name (a plain folder name) and where it is made, `<projects folder>/local/<name>` with Choose… for this one only. Create asks the
+    /// host to make the folder and register it, then closes the sheet and opens the project's page; a name whose folder is there is refused with the reason and nothing is written.
+    private var newProjectForm: some View {
+        let reason = form.problem(taken: model.isTaken)
+        return VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    Glyph(.folderPlus, size: 16).foregroundStyle(Color.themeAccent)
+                        .frame(width: 36, height: 36)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("New project").font(.scaled(16, weight: .semibold))
+                        Text("An empty git folder, added as a project.").font(.scaled(12)).foregroundStyle(.secondary)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Name").sectionLabel()
+                    TextField("", text: $form.name, prompt: Text("my-project"))
+                        .settingsField(icon: .folder, focused: $nameFocused)
+                        .autocorrectionDisabled()
+                        .writingToolsBehavior(.disabled)
+                        .accessibilityLabel("Name of the new project")
+                        .onSubmit(createProject)
+                        .onChange(of: form.name) { problem = nil }
+                    Text("Letters, numbers, dots and dashes").font(.scaled(11)).foregroundStyle(.tertiary)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Create in").sectionLabel()
+                    HStack(spacing: 8) {
+                        Text(form.destinationLine().dropFirst("Creates ".count))
+                            .font(.scaled(11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help(form.folder)
+                        Button("Choose…", action: chooseNewProjectParent)
+                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                            .accessibilityLabel("Choose where the new project is made")
+                        Spacer(minLength: 0)
+                    }
+                }
+                if let line = problem ?? reason { ProblemLine(text: line) }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 22)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 0)
+            SettingsDivider()
+            HStack(spacing: 12) {
+                Button("Back") {
+                    problem = nil
+                    creating = false
+                }
+                .buttonStyle(SecondaryCapsuleButtonStyle())
+                Spacer(minLength: 8)
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(SecondaryCapsuleButtonStyle())
+                    .keyboardShortcut(.cancelAction)
+                Button("Create", action: createProject)
+                    .buttonStyle(PrimaryCapsuleButtonStyle())
+                    .disabled(form.canCreate(taken: model.isTaken) == false || making)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+        }
+        .frame(width: 580, height: 460)
+        .onAppear { nameFocused = true }
+    }
+
+    private func createProject() {
+        guard form.canCreate(taken: model.isTaken), making == false else { return }
+        making = true
+        problem = nil
+        let name = form.name
+        let parent = form.chosenParent
+        Task {
+            defer { making = false }
+            do {
+                let folder = try await model.createProject(name, into: parent)
+                dismiss()
+                openProject(folder)
+            } catch ControlError.remote(let words) {
+                problem = words
+            } catch {
+                problem = hostNotRunning
+            }
+        }
+    }
+
+    /// The folder panel for the folder this one project is made in (the default is left as it is); refused for a folder inside Carrier's own.
+    private func chooseNewProjectParent() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: form.parent)
+        panel.prompt = "Choose"
+        panel.message = "Choose the folder the new project is made in"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if let refusal = projectsFolderRefusal(url.path, carrierFolder: currentCarrierFolder()) {
+            problem = refusal
+            return
+        }
+        problem = nil
+        form.chosenParent = url.path
     }
 
     // MARK: Results

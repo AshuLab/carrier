@@ -165,7 +165,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
       joined: () => void idle?.joined(),
       left: () => void idle?.left(),
     };
-    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, cloneRepo: projects.cloneRepo, cloneProject: projects.cloneProject, projectClones: projects.projectClones, dismissClone: projects.dismissClone, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
+    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, cloneRepo: projects.cloneRepo, cloneProject: projects.cloneProject, projectClones: projects.projectClones, dismissClone: projects.dismissClone, newProject: projects.newProject, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
   } catch (error) {
     close();
     throw error;

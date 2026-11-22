@@ -66,6 +66,10 @@ const controls = (): ChatControls => ({
   },
   projectClones: () => ({ clones: [{ repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning', progress: 'Receiving objects: 45%' }] }),
   dismissClone: () => ({ clones: [] }),
+  newProject: async ({ name, parent }) => {
+    if (name === 'taken') throw new ChatRefused('taken is already a project; choose another name');
+    return { folder: `${parent ?? '/projects'}/local/${name}` };
+  },
   createProject: async ({ name }) => ({ folder: `/projects/local/${name}` }),
   githubRepos: async ({ page }) => ({ page }),
   repoBranches: async ({ repo }) => ({ repo }),
@@ -352,6 +356,22 @@ test('the projects requests: a clone starts and answers at once, the clones in f
     '{"id":14,"cmd":"projectClones","repo":"a/b"}',
     '{"id":15,"cmd":"dismissClone"}',
     '{"id":16,"cmd":"dismissClone","repo":"a/b/c"}',
+  ];
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+});
+
+test('newProject takes a plain folder name and an optional parent, and nothing else', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"newProject","name":"my-app"}')).toEqual({ id: 1, ok: true, data: { folder: '/projects/local/my-app' } });
+  expect(await c.ask('{"id":2,"cmd":"newProject","name":"my-app","parent":"/work"}')).toEqual({ id: 2, ok: true, data: { folder: '/work/local/my-app' } });
+  expect(await c.ask('{"id":3,"cmd":"newProject","name":"taken"}')).toEqual({ id: 3, ok: false, error: 'taken is already a project; choose another name' });
+  const bad = [
+    '{"id":10,"cmd":"newProject"}',
+    '{"id":11,"cmd":"newProject","name":"a/b"}',
+    '{"id":12,"cmd":"newProject","name":".hidden"}',
+    '{"id":13,"cmd":"newProject","name":"a","parent":""}',
+    '{"id":14,"cmd":"newProject","name":"a","force":true}',
   ];
   for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
 });

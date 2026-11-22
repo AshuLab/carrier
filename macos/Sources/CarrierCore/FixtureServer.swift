@@ -13,7 +13,7 @@ public enum FixtureError: Error, Equatable {
 /// asked and not answered as pending, `answer`, which records the answer as an event, `archive` and `delete` on the listed sessions
 /// (kept in memory, refused for a working or waiting one as the host does), `deletePreview`, which says what `chat-delete-preview.json`
 /// holds for the sessions it names and `worktree: null` for the other listed ones, and the worktree requests from `chat-workspace.json`
-/// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder; `ifStale` is accepted and the answer is the same: a window that has passed; a git folder not listed there is refused as a remote that cannot be reached), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see, and `cloneProject` refuses it the same way while one it or `chat-github-repos.json` lists starts cloning and stays at git's progress line), `chat-project-clones.json` (`projectClones`: the clones running or failed at the start, which `cloneProject` and `dismissClone` change in memory; the file is optional), `chat-providers.json` (`providers`), `chat-usage.json` (`usage`, the same sample for any filter; `usageOverride` is accepted and changes nothing), `chat-names.json` (`suggestName`,
+/// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder; `ifStale` is accepted and the answer is the same: a window that has passed; a git folder not listed there is refused as a remote that cannot be reached), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see, and `cloneProject` refuses it the same way while one it or `chat-github-repos.json` lists starts cloning and stays at git's progress line), `chat-project-clones.json` (`projectClones`: the clones running or failed at the start, which `cloneProject` and `dismissClone` change in memory; the file is optional), `newProject` (makes `<parent or the projects folder>/local/<name>` and registers it in the home's `projects.json` with origin `created`, refusing a name the host would refuse and a folder that is already there; no git runs), `chat-providers.json` (`providers`), `chat-usage.json` (`usage`, the same sample for any filter; `usageOverride` is accepted and changes nothing), `chat-names.json` (`suggestName`,
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; `switchAgent` gives an idle session another listed agent and a notice that says so; anything else is an error.
@@ -373,6 +373,22 @@ public final class FixtureServer {
         return Self.answer(id, clone)
     }
 
+    /// `newProject`: the folder and the entry, as the host makes them, without git; refused as the host refuses.
+    private func newProject(_ id: Int, _ name: String, parent: String?) -> Data {
+        if let refusal = projectNameProblem(name) { return Self.refused(id, refusal) }
+        let folder = (parent ?? currentProjectsFolderOfFixture) + "/local/" + name
+        guard FileManager.default.fileExists(atPath: folder) == false else { return Self.refused(id, "\(name) is already a project; choose another name") }
+        do {
+            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+            let file = ProjectsFile(folder: home)
+            try file.add(folder: folder)
+            try file.update(path: folder, key: "origin", value: "created")
+        } catch {
+            return Self.refused(id, "git could not start the project \(name)")
+        }
+        return Self.answer(id, ["folder": folder])
+    }
+
     private var currentProjectsFolderOfFixture: String { CarrierPlaces(folder: home).chatProjects }
 
     private func chatReply(to line: Data) -> Data {
@@ -428,6 +444,9 @@ public final class FixtureServer {
         case "cloneProject":
             guard let repo = request?["repo"] as? String else { break }
             return cloneProject(id, repo, parent: request?["parent"] as? String)
+        case "newProject":
+            guard let name = request?["name"] as? String else { break }
+            return newProject(id, name, parent: request?["parent"] as? String)
         case "projectClones":
             return Self.answer(id, ["clones": locked { chatClones }])
         case "dismissClone":

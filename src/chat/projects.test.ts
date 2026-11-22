@@ -406,6 +406,64 @@ test('a folder that cannot be made is not reported as one that is already there'
   }
 });
 
+// A new project from Settings (the `projects` capability): the host makes the folder, runs git init and registers the entry with origin created.
+const projectsFile = () => join(root, 'projects.json');
+
+test('newProject makes <projects>/local/<name> with git init and registers it with origin created', async () => {
+  const client = await connect();
+  const reply = await client.request('newProject', { name: 'my-app' });
+  expect(reply).toEqual({ folder: localProject('my-app') });
+  // the app's golden reply has the same shape (macos/Tests/Fixtures/chat-new-project.json)
+  const golden = JSON.parse(readFileSync(join(import.meta.dirname, '..', '..', 'macos', 'Tests', 'Fixtures', 'chat-new-project.json'), 'utf8'));
+  expect(Object.keys(golden)).toEqual(Object.keys(reply as object));
+  expect(git.calls).toEqual([{ folder: localProject('my-app'), args: ['init', '-b', 'main'], timeoutMs: undefined, env: undefined }]);
+  expect(JSON.parse(readFileSync(projectsFile(), 'utf8')).projects).toEqual([{ path: localProject('my-app'), origin: 'created' }]);
+  client.close();
+});
+
+test('newProject with a parent makes <parent>/local/<name>, and a parent inside Carrier\'s own folder is refused with nothing written', async () => {
+  const client = await connect();
+  const parent = join(root, 'elsewhere');
+  expect(await client.request('newProject', { name: 'x', parent })).toEqual({ folder: join(parent, 'local', 'x') });
+  await expect(client.request('newProject', { name: 'y', parent: join(root, 'chat', 'worktrees') })).rejects.toThrow("Carrier's own");
+  await expect(client.request('newProject', { name: 'z', parent: 'relative' })).rejects.toThrow('absolute');
+  expect(JSON.parse(readFileSync(projectsFile(), 'utf8')).projects).toEqual([{ path: join(parent, 'local', 'x'), origin: 'created' }]);
+  expect(git.calls).toHaveLength(1);
+  client.close();
+});
+
+test('newProject refuses a name whose folder exists, or that is already a project, and writes nothing', async () => {
+  mkdirSync(localProject('mine'), { recursive: true });
+  writeFileSync(join(localProject('mine'), 'mine.txt'), 'mine');
+  writeFileSync(projectsFile(), JSON.stringify({ projects: [{ path: localProject('gone'), origin: 'added' }] }));
+  const before = readFileSync(projectsFile(), 'utf8');
+  const client = await connect();
+  await expect(client.request('newProject', { name: 'mine' })).rejects.toThrow('mine is already a project; choose another name');
+  await expect(client.request('newProject', { name: 'gone' })).rejects.toThrow('gone is already a project; choose another name');
+  expect(readFileSync(projectsFile(), 'utf8')).toBe(before);
+  expect(existsSync(join(localProject('mine'), '.git'))).toBe(false);
+  expect(git.calls).toHaveLength(0);
+  client.close();
+});
+
+test('newProject with a projects.json that does not match its schema makes nothing and leaves the file alone', async () => {
+  writeFileSync(projectsFile(), '{"projects": 7}');
+  const client = await connect();
+  await expect(client.request('newProject', { name: 'fine' })).rejects.toThrow(/^projects\.json .*fix the file and try again$/);
+  expect(existsSync(localProject('fine'))).toBe(false);
+  expect(readFileSync(projectsFile(), 'utf8')).toBe('{"projects": 7}');
+  client.close();
+});
+
+test('a newProject whose git init fails leaves nothing behind and no entry', async () => {
+  git.failures.set('init -b main', { ok: false, code: 1, stderr: 'fatal: x' });
+  const client = await connect();
+  await expect(client.request('newProject', { name: 'broken' })).rejects.toThrow(/^git could not start the project broken$/);
+  expect(existsSync(localProject('broken'))).toBe(false);
+  expect(existsSync(projectsFile())).toBe(false);
+  client.close();
+});
+
 // A clone started from Settings (the `projects` capability): it runs in the background and the folder is registered in projects.json when it ends.
 const registered = () => JSON.parse(readFileSync(join(root, 'projects.json'), 'utf8')).projects;
 const held = () => {

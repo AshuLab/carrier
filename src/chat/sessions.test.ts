@@ -3782,3 +3782,71 @@ test('a projects.json that does not match its schema adds a notice that actions 
   expect(s.shell.calls).toEqual([]);
   expect(actionStepsOf(s, session.id)).not.toContain('action:Install:running');
 });
+
+// The actions run again when the folder of a cleaned worktree comes back (docs/specs/projects.md, story 18; ADR 0039).
+const cleaned = async (actions?: Act[], name = 'one') => {
+  const s = worktreeSetup();
+  withActions(s.repo, actions);
+  const one = await s.inWorktree(name);
+  prMerged(s, one.id);
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  expect(existsSync(one.path)).toBe(false);
+  return { s, one };
+};
+
+test('resuming a session whose worktree folder was cleaned runs the new-worktree actions in it, in order, as steps, before the agent opens', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }, { name: 'Off', command: 'rm -rf x', on: false }, { name: 'Clone', command: 'make', when: 'afterClone' }, { name: 'Env', command: 'cp .env .' }]);
+  const opened = s.claude.opened.length;
+  s.shell.lines.set('pnpm install', ['resolving']);
+  await s.sessions.resume({ sessionId: one.id });
+  expect(actionStepsOf(s, one.id)).toEqual(['action:Install:running', 'action:Install:done', 'action:Env:running', 'action:Env:done']);
+  expect(s.shell.calls.map((call) => [call.command, call.folder])).toEqual([['pnpm install', one.path], ['cp .env .', one.path]]);
+  expect(s.shell.calls[0]!.env).toMatchObject({ CARRIER_PROJECT: s.repo, CARRIER_FOLDER: one.path });
+  expect(s.claude.opened).toHaveLength(opened + 1);
+  expect((s.sessions.events({ sessionId: one.id, limit: 200 }) as any).progress).toBeNull();
+});
+
+test('a worktree whose folder still exists, and a project with no action on, run nothing and add no step', async () => {
+  const present = worktreeSetup();
+  withActions(present.repo, [{ name: 'Install', command: 'pnpm install' }]);
+  const there = await present.inWorktree('there');
+  await present.sessions.resume({ sessionId: there.id });
+  expect(present.shell.calls).toEqual([]);
+  expect(actionStepsOf(present, there.id)).toEqual([]);
+
+  for (const [n, actions] of [undefined, [], [{ name: 'Off', command: 'x', on: false }], [{ name: 'Clone', command: 'y', when: 'afterClone' as const }]].entries()) {
+    const { s, one } = await cleaned(actions, `none-${n}`);
+    await s.sessions.resume({ sessionId: one.id });
+    expect(existsSync(one.path)).toBe(true);
+    expect(s.shell.calls).toEqual([]);
+    expect(actionStepsOf(s, one.id)).toEqual([]);
+  }
+});
+
+test('an action that warns when it fails leaves a notice and the session opens; one that stops refuses the open with the reason and cleans the folder again, and the next open runs them all', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }, { name: 'Env', command: 'cp .env .', onFail: 'stop' }, { name: 'Last', command: 'echo last' }]);
+  s.shell.results.set('pnpm install', { ok: false, code: 1, output: 'flaky' });
+  s.shell.results.set('cp .env .', { ok: false, code: 2, output: 'cp: no such file' });
+  await expect(s.sessions.resume({ sessionId: one.id })).rejects.toThrow('Env failed with exit code 2: cp: no such file. Open the session again');
+  expect(actionStepsOf(s, one.id)).toEqual(['action:Install:running', 'action:Install:done', 'action:Env:running', 'action:Env:failed:Env failed with exit code 2: cp: no such file']);
+  expect(noticesOf(s, one.id)).toEqual(['Install failed with exit code 1: flaky. The session went on without it.']);
+  expect(existsSync(one.path)).toBe(false);
+  expect(s.claude.conversations.some((conversation) => conversation.closed === false)).toBe(false);
+
+  s.shell.results.clear();
+  s.shell.calls.length = 0;
+  await s.sessions.resume({ sessionId: one.id });
+  expect(s.shell.calls.map((call) => call.command)).toEqual(['pnpm install', 'cp .env .', 'echo last']);
+});
+
+test('Cancel while the actions of a restored worktree run aborts the one that runs, skips the rest and keeps the session', async () => {
+  const { s, one } = await cleaned([{ name: 'Install', command: 'pnpm install' }, { name: 'Next', command: 'echo next' }]);
+  s.shell.pending = new Promise<void>(() => {});
+  const resuming = s.sessions.resume({ sessionId: one.id });
+  const refused = expect(resuming).rejects.toThrow('was cancelled');
+  await vi.waitFor(() => expect(s.shell.calls).toHaveLength(1));
+  await s.sessions.cancelPreparation({ sessionId: one.id });
+  await refused;
+  expect(s.shell.calls).toHaveLength(1);
+  expect(sessionIds(s)).toEqual([one.id]);
+});

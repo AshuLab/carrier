@@ -6,6 +6,7 @@ Nothing is cloned, created or written until the first message is sent, and the d
 Choosing a repository, a project or a folder only fills the plan.
 Sending makes one `open` and the chat host prepares the session in the background, in this order and only the steps the plan needs: `clone` (or `fetch` when the repository is already in the projects folder) or `project`; `worktree` or `checkout`; `agent`; `message`.
 When the folder is a project with actions on, each one is a step of its own: the after-clone ones right after the `clone`, the new-worktree ones after the `worktree` or `checkout` and before the `agent`, in the listed order ([project actions](../glossary.md)); with none on there is no such step and nothing is shown.
+The new-worktree ones run again, as the same kind of step, when a session's next message brings back the folder of a cleaned worktree, before the agent goes on; a worktree whose folder is there runs none.
 The conversation lists the steps, each running, done or failed, until the agent answers.
 A failed step stops there with its reason in words and the message kept; Try again repeats the steps that did not finish and reuses what was made.
 Cancel, while it runs, stops the step, deletes the session with its worktree (a half clone goes too, a finished clone stays in the projects folder) and puts the plan and the text back in the draft.

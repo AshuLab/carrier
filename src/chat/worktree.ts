@@ -158,6 +158,20 @@ export async function previewWorktree(git: Git, made: MadeWorktree, batch: strin
   return { dirty: countPorcelain(status.out), unpushed: parseCount(ahead.out) };
 }
 
+/** What moving a project's own folder to the Trash would lose: the lines `git status --porcelain` prints in it and the commits of its branch that no remote branch holds (all of them with no remote). No branch, or one with no commits yet, has none. */
+export async function previewMain(git: Git, folder: string, branch: string | null): Promise<{ dirty: number; unpushed: number }> {
+  const hasBranch = branch !== null && (await branchExists(git, folder, branch));
+  const [status, ahead] = await Promise.all([
+    git.run(folder, ['--no-optional-locks', 'status', '--porcelain']),
+    hasBranch ? git.run(folder, ['rev-list', '--count', `refs/heads/${branch}`, '--not', '--remotes']) : Promise.resolve<GitResult>({ ok: true, out: '0' }),
+  ]);
+  if (status.ok === false || ahead.ok === false) {
+    log.error('git could not read a project folder to preview its deletion', { status: status.ok ? 0 : status.code, ahead: ahead.ok ? 0 : ahead.code });
+    throw new ChatRefused('Git could not read the folder of this project');
+  }
+  return { dirty: countPorcelain(status.out), unpushed: parseCount(ahead.out) };
+}
+
 /**
  * The cleanup's half of a delete: removes only the folder of a session's recorded worktree and keeps its branch, so `restoreWorktree`
  * can bring it back. The caller has checked it holds no uncommitted work; what is ignored (builds, dependencies) goes with it.

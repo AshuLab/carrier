@@ -146,10 +146,10 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     let listed = try await host.projectWorktrees(server.home + "/projects/carrier")
-    #expect(listed.main == .init(path: server.home + "/projects/carrier", branch: "main"))
+    #expect(listed.main == .init(path: server.home + "/projects/carrier", branch: "main", state: .notPushed))
     #expect(listed.worktrees.count == 5 && listed.worktrees.contains { $0.session == nil })
     // a project the golden file does not list has its main clone and nothing else
-    #expect(try await host.projectWorktrees(server.home + "/projects/notes") == .init(main: .init(path: server.home + "/projects/notes", branch: "main"), worktrees: []))
+    #expect(try await host.projectWorktrees(server.home + "/projects/notes") == .init(main: .init(path: server.home + "/projects/notes", branch: "main", state: .clean), worktrees: []))
 }
 
 @Test func theFixtureChatHostAnswersTheDiskOfAProjectByItsFolderNameAndNeverMeasuredForTheRest() async throws {

@@ -535,6 +535,8 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var refusingStopTask: ControlError?
     /// The state the host reports with its events; nil leaves the model's as it was (idle).
     var state: ChatSession.State?
+    /// The folder the summary of `events` says the session works from.
+    var baseFolder: String?
     var interrupts = 0
     /// Set, the next `events` waits on it before it reads the page: a test holds a round in flight while another starts.
     var hold: (@Sendable () async -> Void)?
@@ -568,7 +570,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     }
     /// What the summary of an `events` reply says of the session, when the host does: as it is, an archived session that was resumed says `live`.
     private var facts: SessionFacts? {
-        summaryHasLive ? SessionFacts(agent: "claude", archived: archivedSession, live: live, background: background) : nil
+        summaryHasLive ? SessionFacts(agent: "claude", archived: archivedSession, live: live, background: background, baseFolder: baseFolder) : nil
     }
     func resume(_ id: String) async throws {
         resumed += 1
@@ -624,6 +626,56 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     host.events += (452...651).map(say)
     await model.poll()
     #expect(model.cursor == 651 && host.asked.suffix(2).map(\.after) == [451, 651])
+}
+
+// A project deleted from disk leaves its idle sessions as history: a notice says their folder is gone and a send is refused (docs/adr/0040).
+
+@MainActor @Test func anIdleSessionWhoseFolderWasDeletedSaysSoAndRefusesASendWithoutAskingTheHost() async {
+    let host = ScriptedHost()
+    host.state = .idle
+    host.live = false
+    host.baseFolder = "/projects/gone"
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, folderExists: { $0 != "/projects/gone" })
+    await model.poll()
+    #expect(model.folderGone)
+    model.draft = "hello"
+    await model.submit()
+    #expect(model.refusal == folderGoneRefusal && model.draft == "hello")
+    // nothing reached the host: not a resume, not a send
+    #expect(host.sent.isEmpty && host.resumed == 0)
+    #expect(folderGoneNotice.title.contains("folder was deleted"))
+}
+
+@MainActor @Test func theFolderNoticeIsOnlyForAnIdleSessionWhoseFolderIsReallyGone() async {
+    func read(_ prepare: (ScriptedHost) -> Void, exists: Bool = false) async -> Bool {
+        let host = ScriptedHost()
+        host.baseFolder = "/projects/gone"
+        prepare(host)
+        let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, folderExists: { _ in exists })
+        await model.poll()
+        return model.folderGone
+    }
+    #expect(await read { $0.state = .idle })
+    // the folder is there, or the session works, or waits, or is being prepared (a clone has not made its folder yet), or failed preparing, or is archived, or the host does not say
+    #expect(await read({ $0.state = .idle }, exists: true) == false)
+    #expect(await read { $0.state = .working } == false)
+    #expect(await read { $0.state = .waitingApproval } == false)
+    #expect(await read { $0.state = .preparing } == false)
+    #expect(await read { $0.state = .idle; $0.preparation = .failed } == false)
+    #expect(await read { $0.state = .idle; $0.archivedSession = true } == false)
+    #expect(await read { $0.state = .idle; $0.baseFolder = nil } == false)
+    // an idle session in a folder that is there is sent to as ever
+}
+
+@MainActor @Test func aSessionWhoseFolderIsThereIsSentToAsEver() async {
+    let host = ScriptedHost()
+    host.state = .idle
+    host.baseFolder = "/projects/app"
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, folderExists: { _ in true })
+    await model.poll()
+    model.draft = "hello"
+    await model.submit()
+    #expect(model.folderGone == false && model.refusal == nil && host.sent == ["hello"])
 }
 
 @MainActor @Test func theStreamingTextIsTheMessageInProgressAndGoesWhenTheMessageIsStored() async {

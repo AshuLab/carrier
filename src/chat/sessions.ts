@@ -31,7 +31,7 @@ import { checkName, checkWorktreeClash, suggestName } from './names.ts';
 import { createProject, projectFolder, type createProjects } from './projects.ts';
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
-import { clearWorktree, createWorktree, deleteWorktree, folderBytes, listWorktrees, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, folderBytes, listWorktrees, previewMain, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
 import { worktreesDir } from './names.ts';
 import { checkout, FETCH_FRESH_MS, fetchFolder, inspectFolder } from './workspace.ts';
 
@@ -63,7 +63,8 @@ export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: 
 
 /** One worktree of a project's page: the session that made it (or none) and its state, see `projectWorktrees`. */
 export type ProjectWorktree = { path: string; branch: string | null; session: { id: string; title: string | null } | null; lastActiveAt: number; state: 'sessionOpen' | 'uncommitted' | 'merged' | 'notPushed' | 'clean' };
-export type ProjectWorktrees = { main: { path: string; branch: string | null }; worktrees: ProjectWorktree[] };
+/** What the project's own folder holds that would be lost with it: uncommitted changes, commits on its branch that no other branch or remote holds, else clean. */
+export type ProjectWorktrees = { main: { path: string; branch: string | null; state: 'uncommitted' | 'notPushed' | 'clean' }; worktrees: ProjectWorktree[] };
 
 /** A child session as its parent's summary lists it; `level` is the permission level it runs at, and `needsPerson` says that it waits for an approval or a question. */
 export type ChildSummary = { id: string; agent: string; harness: Harness; state: State; level: Level | null; needsPerson: boolean };
@@ -1578,11 +1579,13 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
      * A project's worktrees for its page: the main clone and each worktree git lists for the project's folder that lies under the worktrees folder and is still on disk,
      * joined to the session whose worktree it is (none for an orphan). Its age is the session's last activity, or the folder's modification time with no session.
      * The state, in this order: the session is open, it has uncommitted changes, its session's pull request is merged (so a squash merge is not "not pushed"),
-     * it has commits no other branch holds, else clean.
+     * it has commits no other branch holds, else clean. The main clone says only whether it has uncommitted changes, commits on its branch that no remote holds, or neither,
+     * which is what the app reads before it moves a project to the Trash.
      */
     async projectWorktrees({ folder }: { folder: string }): Promise<ProjectWorktrees> {
       const { main, entries } = await readProjectWorktrees(folder);
-      return { main, worktrees: entries.map(({ worktree }) => worktree) };
+      const unsaved = await previewMain(git, main.path, main.branch);
+      return { main: { ...main, state: unsaved.dirty > 0 ? 'uncommitted' : unsaved.unpushed > 0 ? 'notPushed' : 'clean' }, worktrees: entries.map(({ worktree }) => worktree) };
     },
 
     /** Removes only the folder of one worktree of a project and keeps its branch and its session, which brings the folder back on its next message; refused in words while its session is open or it has uncommitted changes. */

@@ -463,7 +463,8 @@ public final class FixtureServer {
         case "projectWorktrees":
             guard let folder = request?["folder"] as? String else { break }
             var reply = chatProjectWorktrees[(folder as NSString).lastPathComponent] ?? ["main": ["branch": "main"], "worktrees": [Any]()]
-            reply["main"] = ["path": folder, "branch": (reply["main"] as? [String: Any])?["branch"] ?? NSNull()]
+            let main = reply["main"] as? [String: Any]
+            reply["main"] = ["path": folder, "branch": main?["branch"] ?? NSNull(), "state": main?["state"] ?? "clean"]
             let gone = locked { removedWorktrees }
             reply["worktrees"] = (reply["worktrees"] as? [[String: Any]])?.filter { gone.contains($0["path"] as? String ?? "") == false }
             return Self.answer(id, reply)

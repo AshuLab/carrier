@@ -42,10 +42,13 @@ public struct ProjectWorktrees: Decodable, Equatable, Sendable {
     public struct Main: Decodable, Equatable, Sendable {
         public let path: String
         public let branch: String?
+        /// What the project's own folder would lose in the Trash: `uncommitted`, `notPushed` (commits no remote holds) or `clean`; nil from a host that does not say.
+        public let state: ProjectWorktree.State?
 
-        public init(path: String, branch: String?) {
+        public init(path: String, branch: String?, state: ProjectWorktree.State? = nil) {
             self.path = path
             self.branch = branch
+            self.state = state
         }
     }
 
@@ -150,7 +153,7 @@ public struct ProjectCleanup: Decodable, Equatable, Sendable {
     public var bytes: Int { removed.reduce(0) { $0 + $1.bytes } }
 }
 
-private func worktreeCount(_ count: Int) -> String { count == 1 ? "1 worktree" : "\(count) worktrees" }
+func worktreeCount(_ count: Int) -> String { count == 1 ? "1 worktree" : "\(count) worktrees" }
 
 /// The Clean up button's detail: how many worktrees it takes and how much they hold ("3 worktrees, 1.2 GB"); nil when there is none to take, which hides the button.
 public func cleanUpWords(_ cleanup: ProjectCleanup) -> String? {

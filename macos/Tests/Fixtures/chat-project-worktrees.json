@@ -1,6 +1,6 @@
 {
   "carrier": {
-    "main": { "path": "/Users/dev/projects/carrier", "branch": "main" },
+    "main": { "path": "/Users/dev/projects/carrier", "branch": "main", "state": "notPushed" },
     "worktrees": [
       { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/kerrigan", "branch": "carrier/kerrigan", "session": { "id": "s-open", "title": "Add the retry button" }, "lastActiveAt": 1792000000000, "state": "sessionOpen" },
       { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/raynor", "branch": "carrier/raynor", "session": { "id": "s-done", "title": "Fix the sync loop" }, "lastActiveAt": 1791000000000, "state": "merged" },

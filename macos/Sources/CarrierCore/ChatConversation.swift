@@ -101,10 +101,15 @@ public struct ChatEvent: Codable, Equatable {
     public struct Switched: Codable, Equatable {
         public let from: String
         public let to: String
+        /// The models they run, as the host says them: the old agent's last turn (else its option) and the new conversation's own; nil from a host that does not say.
+        public let fromModel: String?
+        public let toModel: String?
 
-        public init(from: String, to: String) {
+        public init(from: String, to: String, fromModel: String? = nil, toModel: String? = nil) {
             self.from = from
             self.to = to
+            self.fromModel = fromModel
+            self.toModel = toModel
         }
     }
 
@@ -288,6 +293,8 @@ public enum FeedRow: Equatable, Identifiable {
     case decided(id: String, text: String, allow: Bool)
     /// An approval that is not waiting any more and was not answered (its turn ended): one plain line.
     case line(id: String, text: String)
+    /// The point where the session changed agent: who it was and who it is, drawn as a divider with both agents and a line of what carried over.
+    case switched(id: String, ChatEvent.Switched)
     /// An error event: the provider's text, in the banner of a failed turn.
     case error(id: String, text: String)
     /// A turn the person stopped: the mark with Continue.
@@ -296,9 +303,14 @@ public enum FeedRow: Equatable, Identifiable {
     public var id: String {
         switch self {
         case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .approval(let id, _), .decided(let id, _, _),
-            .line(let id, _), .error(let id, _), .stopped(let id): id
+            .line(let id, _), .switched(let id, _), .error(let id, _), .stopped(let id): id
         }
     }
+}
+
+/// What the divider of a change of agent says under the two agents: what the new one has of the conversation and what it does not.
+public func handoffDetail(to agent: String) -> String {
+    "\(agent) goes on from a selection of the messages above and can read the rest. Reasoning and tool results did not carry over."
 }
 
 /// The row of the mark or banner that offers a way out (Continue, Try again): the last stopped or failed turn, and only while the
@@ -474,9 +486,10 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             release()
             rows.append(.error(id: id, text: event.text ?? "Something went wrong"))
         case "notice":
-            // said by the host (a resume that began a new conversation): a plain line, never the banner of a failed turn
+            // said by the host (a resume that began a new conversation): a plain line, never the banner of a failed turn; a change of agent is its own row
             release()
-            if let text = event.text { rows.append(.line(id: id, text: text)) }
+            if let switched = event.switched { rows.append(.switched(id: id, switched)) }
+            else if let text = event.text { rows.append(.line(id: id, text: text)) }
         default:
             continue
         }

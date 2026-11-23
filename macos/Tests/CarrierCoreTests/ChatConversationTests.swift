@@ -21,6 +21,7 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         case .approval(_, let card): "card: \(card.question) | \(card.arg ?? "") | \(card.choices.map(\.label).joined(separator: " / "))"
         case .decided(_, let text, let allow): "\(allow ? "allowed" : "declined"): \(text)"
         case .line(_, let text): "line: \(text)"
+        case .switched(_, let switched): "switched: \(switched.from) -> \(switched.to)"
         case .error(_, let text): "error: \(text)"
         case .stopped: "stopped"
         }
@@ -289,6 +290,16 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         ChatEvent(id: 2, at: 1, kind: "notice", text: "The agent could not find this conversation"),
     ])
     #expect(rows.last == .line(id: "e2", text: "The agent could not find this conversation"))
+    #expect(openOutcome(rows) == nil)
+}
+
+@Test func aChangeOfAgentIsItsOwnRowWithBothAgentsAndWordsOfWhatCarriedOver() {
+    let rows = chatFeed([
+        ChatEvent(id: 1, at: 0, kind: "user", text: "Hola"),
+        ChatEvent(id: 2, at: 1, kind: "notice", text: "The agent changed from claude-teams-lu to codex. ...", switched: .init(from: "claude-teams-lu", to: "codex", fromModel: "claude-sonnet-5-5", toModel: "gpt-5")),
+    ])
+    #expect(rows.last == .switched(id: "e2", .init(from: "claude-teams-lu", to: "codex", fromModel: "claude-sonnet-5-5", toModel: "gpt-5")) && rows.last?.id == "e2")
+    #expect(handoffDetail(to: "codex") == "codex goes on from a selection of the messages above and can read the rest. Reasoning and tool results did not carry over.")
     #expect(openOutcome(rows) == nil)
 }
 

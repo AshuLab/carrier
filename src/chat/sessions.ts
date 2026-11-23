@@ -1264,6 +1264,8 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options };
       if (options.model !== undefined) await checkModel(agent, options.model);
 
+      // the model the old agent ran, read before the new conversation takes its place: its own last turn's, which is what a turn's footer says, else its option
+      const fromModel = db.select({ model: chatTurns.model }).from(chatTurns).where(and(eq(chatTurns.sessionId, sessionId), eq(chatTurns.agent, current.agent), isNotNull(chatTurns.model))).orderBy(desc(chatTurns.id)).limit(1).get()?.model ?? optionsOf(sessionId, current.options).model;
       const handoff = handoffOf(sessionId);
       const issued = issueMcp(sessionId);
       let conversation: ChatConversation | undefined;
@@ -1287,7 +1289,8 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       }
       db.update(sessions).set({ harness: launch.harness, agent: chosen.name, options, nativeId: conversation.nativeId ?? null, lastActiveAt: clock.now() }).where(eq(sessions.id, sessionId)).run();
       attach(sessionId, conversation, issued.invocationId, 'idle', { record: old === undefined });
-      store(sessionId, { kind: 'notice', text: `The agent changed from ${current.agent} to ${chosen.name}. ${chosen.name} goes on from a selection of the messages above and can read the rest; reasoning and tool results did not carry over.`, switched: { from: current.agent, to: chosen.name } });
+      const toModel = conversation.options.find((option) => option.id === 'model')?.current;
+      store(sessionId, { kind: 'notice', text: `The agent changed from ${current.agent} to ${chosen.name}. ${chosen.name} goes on from a selection of the messages above and can read the rest; reasoning and tool results did not carry over.`, switched: { from: current.agent, to: chosen.name, ...(fromModel != null && { fromModel }), ...(toModel !== undefined && { toModel }) } });
       if (old !== undefined) {
         revoke(old.invocationId);
         await old.conversation.close().catch((closing) => log.error('closing the conversation of the agent that was switched away from failed', closing));

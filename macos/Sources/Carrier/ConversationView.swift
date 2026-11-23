@@ -404,6 +404,8 @@ struct FeedRowView: View, Equatable {
             ApprovalDecidedView(text: text, allow: allow)
         case .line(_, let text):
             Text(text).codeFont(12).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
+        case .switched(_, let switched):
+            AgentSwitchDivider(switched: switched)
         case .error(_, let text):
             BannerView(banner: failedTurnBanner(agent: ProviderIdentityStore.shared.shortName(of: agent), error: text), agent: agent, copyDetails: true, retry: offersWayOut ? actions.retry : nil)
         case .stopped:

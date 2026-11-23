@@ -100,9 +100,13 @@
     {"at": 1792100067900, "kind": "tool_start", "callId": "g7", "tool": "Bash", "arg": "git diff --stat", "id": 97},
     {"at": 1792100068600, "kind": "tool_end", "callId": "g7", "tool": "Bash", "status": "ok", "output": [" src/Carrier/WorkCard.swift | 6 ++++--"], "id": 98},
     {"at": 1792100069300, "kind": "assistant", "text": "Seven calls and three thoughts in one run: open it and fold it again to see how it grows.", "id": 99},
-    {"at": 1792100070000, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 900, "output_tokens": 220, "cache_read_input_tokens": 6000}, "id": 100}
+    {"at": 1792100070000, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 900, "output_tokens": 220, "cache_read_input_tokens": 6000}, "id": 100},
+    {"at": 1792100071000, "kind": "notice", "text": "The agent changed from claude to codex. codex goes on from a selection of the messages above and can read the rest; reasoning and tool results did not carry over.", "switched": {"from": "claude", "to": "codex", "fromModel": "claude-sonnet-5-5", "toModel": "gpt-5"}, "id": 101},
+    {"at": 1792100072000, "kind": "user", "text": "Go on from here, now with the other agent.", "id": 102},
+    {"at": 1792100073000, "kind": "assistant", "text": "Going on. I read the selection of the messages above.", "id": 103},
+    {"at": 1792100074000, "kind": "turn_end", "outcome": "ok", "model": "gpt-5", "usage": {"input_tokens": 400, "output_tokens": 60}, "id": 104}
   ],
-  "cursor": 100,
+  "cursor": 104,
   "streaming": "",
   "options": [
     {"id": "model", "label": "Model", "values": [{"id": "sonnet", "label": "Sonnet"}, {"id": "opus", "label": "Opus"}], "current": "sonnet"},

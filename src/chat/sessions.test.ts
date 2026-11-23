@@ -3953,7 +3953,7 @@ test('a switch answers the session and the options of the new agent, and the nex
   expect(s.codex.opened[0]!.resume).toBeUndefined();
 
   // the notice says it, and carries the agents as the config names them
-  expect(s.notices(id)).toEqual([expect.objectContaining({ switched: { from: 'a', to: 'b' }, text: expect.stringContaining('from a to b') })]);
+  expect(s.notices(id)).toEqual([expect.objectContaining({ switched: { from: 'a', to: 'b', fromModel: 'haiku', toModel: 'gpt-5' }, text: expect.stringContaining('from a to b') })]);
   // the old conversation ended and its token is gone; the new one holds one
   expect(old.closed).toBe(true);
   expect(s.registry.lookup(tokenOfOld)).toBeUndefined();
@@ -4047,7 +4047,7 @@ test('a second switch hands over what was said since, the new agent gets the han
   s.codex.conversations[0]!.emit({ kind: 'assistant', text: 'Building.' }, { kind: 'turn_end', outcome: 'ok' });
   await s.sessions.switchAgent({ sessionId: id, agent: 'other' });
   expect(s.claude.opened.at(-1)!.instructions).toContain('Building.');
-  expect(s.notices(id).map((notice) => notice.switched)).toEqual([{ from: 'a', to: 'b' }, { from: 'b', to: 'other' }]);
+  expect(s.notices(id).map((notice) => notice.switched)).toEqual([{ from: 'a', to: 'b', fromModel: 'haiku', toModel: 'gpt-5' }, { from: 'b', to: 'other', fromModel: 'gpt-5', toModel: 'haiku' }]); // b ran no turn: its option, not the model of a
 });
 
 /** Runs a switch that has to be refused and shows the session as it was: the old conversation live and open, nothing stored, the next message going to it. */

@@ -762,6 +762,8 @@ test('a result freeing a slot while another epic is still being reserved never l
 // --- failures: retries and timeout ---
 
 const eventsOf = (db: Db) => db.select().from(epicEvents).all();
+// What the engine records when it spends a retry or a recovery attempt on an epic.
+const retriesOf = (db: Db) => eventsOf(db).filter((e) => e.type === 'execution_retried' || e.type === 'recovered');
 const statuses = (db: Db) => executionsOf(db).map((e) => e.status);
 
 test.each([
@@ -1937,6 +1939,8 @@ test('a fix whose saved workspace is not on disk stops the epic in needs_human w
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: `could not prepare the workspace: the saved workspace ${gone} does not exist` });
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
   expect(executionsOf(engine.db).map((e) => e.stage)).toEqual(['ship', 'review']);
+  expect(retriesOf(engine.db)).toEqual([]);
+  expect(rows(engine.db)[0]?.recoveries).toBe(0);
 });
 
 test('a resume at fix whose saved workspace is not on disk stops the epic with kind workspace and launches no agent', async () => {
@@ -1950,6 +1954,9 @@ test('a resume at fix whose saved workspace is not on disk stops the epic with k
 
   expect(runner.tasks).toEqual([]);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: 'could not prepare the workspace: the saved workspace /w/epic does not exist' });
+  expect(retriesOf(engine.db)).toEqual([]);
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'fix')).toEqual([]);
+  expect(rows(engine.db)[0]?.recoveries).toBe(0);
 });
 
 test('the poll recovering a fix whose saved workspace is not on disk stops the epic with kind workspace and launches no agent', async () => {
@@ -1962,6 +1969,9 @@ test('the poll recovering a fix whose saved workspace is not on disk stops the e
   await clock.advance(5 * MIN);
   expect(runner.tasks).toEqual([]);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: 'could not prepare the workspace: the saved workspace /w/epic does not exist' });
+  expect(retriesOf(engine.db)).toEqual([]);
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'fix')).toEqual([]);
+  expect(rows(engine.db)[0]?.recoveries).toBe(0);
 });
 
 test('the final PR\'s branch is kept when ship is validated, and a restart from needs_human clears the kind', async () => {

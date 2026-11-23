@@ -784,7 +784,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   async function settle(execution: Execution) {
     if (stopping || suspended) return; // stays `finished` without a result: the next run imports it
     const epic = fresh(execution.epicId);
-    if (outside(epic.id)) return; // ended from outside or stopped: nothing new moves
+    if (outside(epic.id)) {
+      worktreeListFailures.delete(execution.executionId); // cancelled or parked between two tries of `git worktree list`: its count goes
+      return; // ended from outside or stopped: nothing new moves
+    }
     const epoch = epochOf(epic.id);
     const expected = expectedOf(epic, execution);
     const raw = readResult(execution);

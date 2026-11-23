@@ -25,6 +25,23 @@ private func small(_ issues: Set<Int> = [4, 5], _ change: (inout PanelSnapshot) 
     #expect(items[0].title == "Carrier" && items[0].detail == "GitHub is not answering" && items[0].selection == nil)
 }
 
+@Test func aSkillThatIsMissingIsNamedShortAndItsReasonIsNotRepeatedWhateverItsCase() throws {
+    let items = yourTurn(try small([4]) { snapshot in
+        let at = snapshot.epics.firstIndex { $0.issue == 4 }!
+        snapshot.epics[at].needsHumanKind = "skill_missing"
+        snapshot.epics[at].needsHumanReason = "the skill My-Ship (skills.ship) is not installed for the author"
+    })
+    let detail = items.first { $0.title == "api #4" }!.detail
+    #expect(detail.hasPrefix("Skill missing · the skill My-Ship (skills.ship) is not installed for the author"))
+    // a kind the sidebar has no words for shows the reason once, even with capitals in it
+    let other = yourTurn(try small([4]) { snapshot in
+        let at = snapshot.epics.firstIndex { $0.issue == 4 }!
+        snapshot.epics[at].needsHumanKind = "from_the_future"
+        snapshot.epics[at].needsHumanReason = "Something New"
+    })
+    #expect(other.first { $0.title == "api #4" }!.detail.hasPrefix("Something New · "))
+}
+
 @Test func needsYouEpicsComeMostRecentFirstWithTheirKindAndAnIssueLink() throws {
     let items = yourTurn(try small()).filter { $0.kind == .needsYou }
     #expect(items.map(\.title) == ["api #5", "api #4"])

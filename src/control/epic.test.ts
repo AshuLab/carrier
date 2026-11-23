@@ -19,6 +19,7 @@ import { epics } from '../storage/schema.ts';
 import { epicOf, git as engineGit, limited, MAX_ROUNDS } from './epic.ts';
 import { enginePlacesOf } from '../config/places.ts';
 import { defaultLabels } from '../orchestration/github.ts';
+import { FakeSkills } from '../harnesses/fake-skills.ts';
 
 // the binary `withGit` hands over, replaced for the test that checks it is the one started
 const handed = vi.hoisted(() => ({ binary: undefined as string | undefined }));
@@ -70,7 +71,7 @@ async function drive(script: (string[] | 'approved')[], { maxReviews = 5, flaky 
   };
   const engine = createEngine({
     profileDeclared: () => true,
-    db, github, clock, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces: new FakeWorkspaces(), quota: new FakeQuota().read, places: enginePlacesOf(dir),
+    db, github, clock, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces: new FakeWorkspaces(), quota: new FakeQuota().read, places: enginePlacesOf(dir), skills: new FakeSkills(),
   });
   await engine.start();
   await clock.advance(5 * MIN);

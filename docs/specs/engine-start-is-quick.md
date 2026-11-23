@@ -10,7 +10,7 @@ The cost grows with the number of repos watched: a hundred repos would be about 
 
 We know it is solved when the time Carrier takes to answer on its socket does not depend on how many repos it watches, and Start Carrier on the six repos of this Mac answers in a few seconds.
 
-What start-up has to do and what it does not: the owned labels (`solve:epic:running`, `solve:epic:ready-for-test`, `solve:epic:needs-human`) are needed only when the engine writes a status label on an epic's issue, which happens when it takes an epic, when a stage ends and when it puts back a label that differs. Nothing reads them at start. The other start-up step, `recover`, is the safe restart after a cut (orphan agents, interrupted executions, running epics relaunched, labels put back) and costs by the epics in flight, not by the repos: on this Mac, 13 epics and one call to GitHub.
+What start-up has to do and what it does not: the owned labels (`carrier:status:running`, `carrier:status:ready-for-test`, `carrier:status:needs-human`) are needed only when the engine writes a status label on an epic's issue, which happens when it takes an epic, when a stage ends and when it puts back a label that differs. Nothing reads them at start. The other start-up step, `recover`, is the safe restart after a cut (orphan agents, interrupted executions, running epics relaunched, labels put back) and costs by the epics in flight, not by the repos: on this Mac, 13 epics and one call to GitHub.
 
 ## Solution
 

@@ -7,7 +7,8 @@ The first, [the engine never leaves an epic stuck](engine-never-stuck.md), took 
 The numbers of the stories below are the ones of the original.
 The Decisions and the testing seams below are the original's and are written again for each epic when its turn comes.
 The second, [a review to trust, and an intake in order](review-to-trust-and-intake.md), took stories 20 to 40; they are no longer in this file either.
-The order of the rest: the labels' new defaults and the skills; several reviewers and a lead.
+The third, [labels and skills the person names](labels-and-skills-the-person-names.md), took stories 41 to 47, 63, 64 and 66; they are no longer in this file either, and the one left is several reviewers and a lead.
+The one left to do: several reviewers and a lead.
 
 ## Problem
 
@@ -39,24 +40,6 @@ The parts still to do, each useful without the next.
 The parts on never being stuck come first, because the review round with several reviewers and the automatic recovery both depend on retries and recovery working per execution and per attempt; the labels and the stage skills are independent of the rest and can go at any point, and the wake-up on quota needs the resume from a stage and the attempt rule of the first two.
 The order of work: never stuck first, because the attempt rule is under the rest; the labels' first part, which commits what is already in the working tree and changes the defaults, can go beside it; then recover and resume from a stage; then a review to trust, intake and the skills, which do not depend on each other; then the wake-up on quota, which needs the resume from a stage; and the reviewers and the lead last, because they touch the most of the engine and need the attempt rule, the head rule and a state per role.
 
-### Labels the person names
-
-Every label gets a name in the config (the `labels` block in `engine.json`), all distinct, with defaults that follow who writes them: `solve:epic` and `solve:epic:ready` stay as Solve writes them, and what Carrier writes becomes `carrier:status:running`, `carrier:status:ready-for-test` and `carrier:status:needs-human`.
-Two optional groups, off until named, add a label per stage (`carrier:stage:building`, `carrier:stage:reviewing`, `carrier:stage:fixing-review`, `carrier:stage:lead-reviewing`) and per kind of stop (`carrier:reason:review-limit` and the others, `carrier:reason:skill-missing`, `carrier:reason:engine-error`, `carrier:reason:reviewers-failed` and `carrier:reason:lead-limit` among them).
-The decision and the alternatives are in [ADR 0043](../adr/0043-labels-are-named-by-who-writes-them-and-every-one-is-configurable.md).
-A reload applies the names to the next check, `carrier doctor` checks that each repo has the labels Carrier reads (`epic`, `ready`) and says the person creates one that is not a default, and the snapshot carries the names for the panel and the app.
-
-### Skills the person names
-
-A `skills` block in `engine.json` names the skill each stage invokes, with a repo's `skills` replacing what it names and inheriting the rest, as `agents` does, and a role's own `skills` (the author, the reviewer, each extra reviewer and the lead can carry one) winning over both: the role's own, then the repo's, then the global, then Solve's defaults.
-The defaults are Solve's: `ship`, `code-review` with `code-post` to publish, and `code-resolve`; a review's `publish` may be `null` for a skill that publishes by itself.
-A skill is only a name, checked when the config loads, and Carrier keeps the rest of the prompt and the result contract for every skill.
-What a skill has to leave the engine, per stage, is the contract of [ADR 0045](../adr/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md): above all, a ship skill works in its own linked worktree and leaves an open pull request that closes the epic.
-The skill is saved with the epic's configuration when it starts, so a reload does not change a running epic.
-Before an epic starts, the engine checks that each skill of each of its roles exists for the harness and account of that role, and a missing one stops the epic in needs-human with a new kind, `skill_missing`, with no agent run spent and no retry; `carrier doctor` runs the same check.
-The epic stops only when the check can tell the skill is absent: where it cannot, it lets the epic go on and `doctor` says so.
-How a run that names a skill the tool does not have ends is an open question, and until it is answered only the check before the start stops the epic.
-
 ### Several reviewers and a lead
 
 The decision is [ADR 0048](../adr/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md).
@@ -79,12 +62,6 @@ A command that sets any state lost, because it would let a person leave SQLite i
 Labels as the first way to control an epic lost, because the poll sees a label up to five minutes later and anyone who can label issues in the repo could start agents that spend credits; the person works from the Mac, so the label orders go last.
 Restarting the engine as the answer lost, because it interrupts every other epic's agents.
 Letting the engine crash and rely on a supervisor lost, because nothing restarts a detached engine.
-Stage and reason labels on by default lost, because each stage label is an extra write at every stage change.
-Renaming Solve's two labels lost, because Solve puts `solve:epic:ready` at its hand-off and the epic would stop queueing without a sound.
-A `labelPrefix` setting lost, because Solve's labels do not follow it and a person's own names would not fit one prefix.
-Free text for a stage lost, because it would reach the prompt unchecked and the prompt's snapshots would stop pinning what an agent is told.
-A list of skills per stage lost, because the review says different things about reviewing and about publishing.
-Configuring the whole prompt lost, because the contract and the verify-first rule are what let the engine trust any skill.
 Reviewers one after another lost, because the person wants them in parallel, though it would have kept the one-execution rule.
 A `reviewers` list in place of `reviewer` lost, because it breaks every config and the app.
 Repeating the whole round after the lead asks for changes lost, because the lead is the final reviewer and an exchange with the author alone is cheaper.
@@ -96,13 +73,6 @@ On by default lost, because it spends credits unattended and the person should c
 
 ## Scope
 
-41. As the person, I name each label of the five roles in `labels`, and a config where two roles, stages or kinds of stop share a label, whatever the case, is refused naming the second.
-42. As the person, the defaults are `solve:epic` and `solve:epic:ready` for what Solve writes and `carrier:status:*` for what Carrier writes, and the stage and reason labels are off until I name them.
-43. As the person, a reload applies the label names to the next check, `carrier doctor` reports a repo missing a label Carrier reads, and tells me to create it myself when its name is not a default.
-44. As the person, I name the skill of each stage in `skills`, globally and per repo, a repo inheriting what it does not name, a role's own `skills` winning over both, and a name with anything but letters, digits, `:`, `.`, `_` and `-`, or longer than 64 characters, is refused when the config loads.
-45. As the person, the prompts invoke the configured skill, spelled `/name` or `$name` by harness, and the skill of an epic that is running does not change with a reload.
-46. As the person, an epic whose skill the check can tell is missing for its role's harness and account stops in needs-human with `skill_missing` before any agent run, and `carrier doctor` reports the same.
-47. As the person, where the check cannot tell, the epic goes on and `carrier doctor` says so.
 48. As the person, I configure up to three extra reviewers with `agents.extraReviewers`, each with its own profile, provider, model, effort, persona and skills, and a repo's list replaces the whole list.
 49. As the person, a review round runs every reviewer in parallel on the same head, each in its own checkout, and ends when all of them have settled.
 50. As the person, a reviewer that fails or cannot conclude does not stop the round, one verdict is enough, and with no verdict the epic stops in needs-human with `reviewers_failed` naming each reviewer and why.
@@ -118,10 +88,7 @@ On by default lost, because it spends credits unattended and the person should c
 60. As the person, an authentication failure of the profile of any role, an extra reviewer or the lead included, stops the epics that use it.
 61. As the person, `carrier restart` takes an option for `--reviewer-2` to `--reviewer-4` and `--lead` as it does for `--author` and `--reviewer`.
 62. As the person, a resume at a stage goes through the queue, remembers the stage and the rounds granted, takes a slot like any epic, and the cap of rounds is kept per epic.
-63. As the person, a role's own `skills` wins over the repo's, the repo's over the global, and the global over Solve's defaults.
-64. As the person, an epic that started before this version, whose saved configuration has no `skills` and no extra reviewers, goes on with Solve's defaults and one reviewer.
 65. As the person with an app that does not know the stage `lead`, the snapshot reports it as `review` with an optional `lead` flag, so the app does not fail to read it.
-66. As the person, each part leaves its user documentation written: `configuration.md`, `cli.md`, `troubleshooting.md`, the CHANGELOG and the glossary, and the specs it changes.
 
 ## Decisions
 
@@ -202,7 +169,7 @@ Testing seams, per story, preferring the seams the repo has:
 - Stories 11 and 12: the process hygiene in `src/harnesses/host-runner.integration.test.ts`, gated as the others are, and the idle rule as a pure function of the clock and the time of the last output, in its own unit test.
 - Stories 13 to 19 and 61: the request and its refusals in `src/control/server.test.ts`, the capabilities in `src/control/capabilities-contract.test.ts`, the replies as goldens in `src/control/replies.test.ts`, the commands in `src/terminal/cli/commands/restart.test.ts` and a new one for `recover`, and the engine side in `engine.test.ts`.
 - Stories 67 to 74: `engine.test.ts` with the injected clock and a fake quota port the engine reads (the probe's `QuotaSnapshot`, with `resetsAt` and a fresh read that can fail or be rate limited), plus the pure rule that takes the exhausted windows and the failover options to a `resumeAt` in its own unit test.
-- Stories 41 to 48, 63 and 65 (the snapshot, with its contract test): the config in `src/config/load.test.ts`, the label check and the skill check in `src/doctor/doctor.test.ts`, the snapshot in `src/status/snapshot.test.ts` and `snapshot-contract.test.ts`, the prompts in `build-prompt.test.ts`, and the contract with the app in `src/config/engine-config-contract.test.ts`.
+- Stories 65 (the snapshot, with its contract test): the config in `src/config/load.test.ts`, the label check and the skill check in `src/doctor/doctor.test.ts`, the snapshot in `src/status/snapshot.test.ts` and `snapshot-contract.test.ts`, the prompts in `build-prompt.test.ts`, and the contract with the app in `src/config/engine-config-contract.test.ts`.
 - Story 66 has no test: the documentation is checked in review.
 - The macOS side of the contract fixtures and the app's own views are out of this epic, and the Swift contract tests fail until `EngineConfig.swift` carries the new fields.
 
@@ -224,10 +191,3 @@ More than four reviewers, reviewers one after another as an option, and a limit 
 Skipping the observations pass on resume, any command that sets a state, a migration of the labels on epics already in flight, and the findings of the engine review that are only suspected: child processes that outlive their agent, a clone whose base is stale, and the environment a child inherits, until there is evidence.
 
 The review of how Carrier treats text written by third parties that the agents read, and of updating the engine while epics are running.
-
-## Open questions
-
-How to tell that a skill exists, for each harness.
-Claude, Codex and Antigravity look in different places (the account's folder, the user's, the repo's), and the check has to read those for the account a role runs on.
-It needs a look at each CLI's real layout, and a run with a skill that is not installed to see what each one does with an unknown `/name` or `$name`.
-That run also decides whether a first run that reports an unknown skill can stop the epic in `skill_missing`, which stays out of this epic until then.

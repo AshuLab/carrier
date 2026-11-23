@@ -24,7 +24,7 @@ What Carrier writes is `carrier:*`: `carrier:status:running`, `carrier:status:re
 A stage label sits beside `running`, and a reason label beside `needs-human`.
 The stage and reason groups are off by default because each stage label is one more write to GitHub at every stage change.
 
-The new defaults ship in 0.5.0 with no migration.
+The new defaults ship with no migration and no cleanup: Carrier removes only the labels it names now, so an old name stays on the issues that have it.
 
 ## Alternatives considered
 

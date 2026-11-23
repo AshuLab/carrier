@@ -9,6 +9,7 @@ import type { Config } from '../config/schema.ts';
 import { doctorCommand } from '../terminal/cli/commands/doctor.ts';
 import { cliLoggedIn, runDoctor, type Check, type DoctorDeps } from './doctor.ts';
 import { defaultLabels } from '../orchestration/github.ts';
+import { FakeSkills } from '../harnesses/fake-skills.ts';
 
 const folder = '/tmp/carrier-doctor';
 const doctor = (cfg: Config, ...rest: Parameters<typeof runDoctor> extends [unknown, unknown, ...infer Rest] ? Rest : never) => runDoctor(cfg, folder, ...rest);
@@ -49,6 +50,7 @@ const deps = (overrides: Partial<DoctorDeps> = {}): DoctorDeps => ({
   loggedIn: async () => true,
   commandRuns: async () => true,
   startAgy: () => fakeAgy({ stdout: '{"status":"SUCCESS"}', end: true }),
+  skills: new FakeSkills(),
   ...overrides,
 });
 
@@ -69,6 +71,10 @@ test('everything in place: all checks pass and no token reaches the report', asy
     'forge agent tassadar-agent can mint a token for AshuLab/carrier',
     'forge agent artanis-agent can read AshuLab/carrier',
     'AshuLab/carrier has the Solve labels',
+    'AshuLab/carrier author can use the skill ship',
+    'AshuLab/carrier author can use the skill code-resolve',
+    'AshuLab/carrier reviewer can use the skill code-review',
+    'AshuLab/carrier reviewer can use the skill code-post',
   ]);
   expect(JSON.stringify(checks)).not.toContain('secret-token');
 });
@@ -190,7 +196,7 @@ test('two profile names for the same bot are one mint check that stands for both
 
 test('the checks about a repo carry it with their profiles, the others carry neither, and never one without the other', async () => {
   const checks = await doctor(config({ repos: [{ name: 'AshuLab/one' }, { name: 'AshuLab/two', agents: { author: { profile: 'b' }, reviewer: { profile: 'a' } } }] }), deps());
-  const about = checks.filter((c) => c.repo !== undefined).map((c) => [c.name, c.repo, c.profiles]);
+  const about = checks.filter((c) => c.repo !== undefined && !c.name.includes(' can use the skill ')).map((c) => [c.name, c.repo, c.profiles]);
   expect(about).toEqual([
     ['forge agent artanis-agent can mint a token for AshuLab/one', 'AshuLab/one', ['a']],
     ['forge agent tassadar-agent can mint a token for AshuLab/one', 'AshuLab/one', ['b']],
@@ -507,4 +513,67 @@ test('without --json the report is the summary line, not an array', async () => 
   const { code, out } = await printed(() => doctorCommand(config(), folder, false, deps()));
   expect([code, out]).toEqual([0, expect.stringMatching(/All \d+ checks passed\n$/)]);
   expect(out.trimStart().startsWith('[')).toBe(false);
+});
+
+const skillChecks = (checks: Check[]) => checks.filter((check) => / can use the skill /.test(check.name));
+
+test('each skill a role invokes is asked of its harness, for its account and the repo clone', async () => {
+  const skills = new FakeSkills();
+  const cfg = config({ providers: { claude: { harness: 'claude', configDir: '/tmp/acct' }, codex: { harness: 'codex' } } });
+  const checks = await runDoctor(cfg, folder, deps({ skills }));
+  expect(skillChecks(checks).map((check) => [check.status, check.repo, check.profiles])).toEqual(Array(4).fill(['ok', 'AshuLab/carrier', expect.any(Array)]));
+  expect(skills.asked).toEqual([
+    { harness: 'claude', configDir: '/tmp/acct', folder: `${folder}/engine/repos/AshuLab/carrier`, name: 'ship' },
+    { harness: 'claude', configDir: '/tmp/acct', folder: `${folder}/engine/repos/AshuLab/carrier`, name: 'code-resolve' },
+    { harness: 'codex', configDir: undefined, folder: `${folder}/engine/repos/AshuLab/carrier`, name: 'code-review' },
+    { harness: 'codex', configDir: undefined, folder: `${folder}/engine/repos/AshuLab/carrier`, name: 'code-post' },
+  ]);
+});
+
+test('a skill the person named that is absent is a failure with a remedy', async () => {
+  const skills = new FakeSkills();
+  skills.answers['my-ship'] = 'absent';
+  const checks = await doctor(config({ skills: { ship: 'my-ship' } }), deps({ skills }));
+  expect(failed(checks)).toMatchObject([{ name: 'AshuLab/carrier author can use the skill my-ship', detail: expect.stringContaining('does not find it'), fix: expect.stringContaining('my-ship') }]);
+});
+
+test('a skill that is Solve\'s default and absent is only a warning', async () => {
+  const skills = new FakeSkills();
+  skills.answers['code-review'] = 'absent';
+  const checks = await doctor(config(), deps({ skills }));
+  expect(failed(checks)).toEqual([]);
+  expect(skillChecks(checks).filter((check) => check.status === 'warn')).toMatchObject([{ name: 'AshuLab/carrier reviewer can use the skill code-review', detail: expect.stringContaining('default') }]);
+});
+
+test('a skill the check cannot tell about is a warning, named or not', async () => {
+  const skills = new FakeSkills();
+  skills.answers['my-ship'] = 'cannot-tell';
+  skills.answers['code-post'] = 'cannot-tell';
+  const checks = await doctor(config({ skills: { ship: 'my-ship' } }), deps({ skills }));
+  expect(failed(checks)).toEqual([]);
+  expect(skillChecks(checks).filter((check) => check.status === 'warn').map((check) => check.name)).toEqual(['AshuLab/carrier author can use the skill my-ship', 'AshuLab/carrier reviewer can use the skill code-post']);
+});
+
+test.each([['codex', 'Codex'], ['agy', 'Antigravity']] as const)('the three answers are shown for a %s role as for a Claude one', async (harness, label) => {
+  const skills = new FakeSkills();
+  skills.answers['code-review'] = 'absent';
+  skills.answers['code-post'] = 'cannot-tell';
+  const cfg = config({ providers: { claude: { harness: 'claude' }, other: { harness } }, agents: { author: { profile: 'a', provider: 'claude', model: 'm' }, reviewer: { profile: 'b', provider: 'other', model: 'm' } } });
+  const checks = skillChecks(await doctor(cfg, deps({ skills })));
+  expect(skills.asked.map((asked) => asked.harness)).toEqual(['claude', 'claude', harness, harness]);
+  expect(checks.map((check) => [check.name, check.status])).toEqual([
+    ['AshuLab/carrier author can use the skill ship', 'ok'],
+    ['AshuLab/carrier author can use the skill code-resolve', 'ok'],
+    ['AshuLab/carrier reviewer can use the skill code-review', 'warn'],
+    ['AshuLab/carrier reviewer can use the skill code-post', 'warn'],
+  ]);
+  expect(checks[2]!.detail).toBe(`${label} does not find it for the account of the reviewer (it is Solve's default, so the epic runs anyway)`);
+  expect(checks[3]!.detail).toBe(`could not tell whether ${label} finds it: some place it looks could not be read`);
+  expect(checks[3]!.fix).toContain('plugin list');
+});
+
+test('a review that does not publish with another skill has no check for it', async () => {
+  const checks = await doctor(config({ skills: { review: { publish: null } } }), deps());
+  expect(skillChecks(checks).map((check) => check.name)).not.toContain('AshuLab/carrier reviewer can use the skill code-post');
+  expect(skillChecks(checks)).toHaveLength(3);
 });

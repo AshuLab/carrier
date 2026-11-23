@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- `carrier doctor` shows, for each role of each repo, whether each skill the role invokes is present, absent or cannot be told for the account the role runs on, with a failure for a named skill that is absent and a warning for a default that is absent and for any it cannot tell.
+  Claude Code, Codex and Antigravity (`agy`) are each read where they look for skills (see Troubleshooting); an answer is absent only when every place was read, and cannot tell when one could not be.
 - `carrier recover <repo>#<issue>` continues a running epic whose agent is gone from its real state, and refuses with a reason when the epic is not running or an agent of it is really alive.
   It also refuses while Carrier is recovering its epics at start, or when there is nothing a recovery would move.
   Each use that continued the epic leaves a `recovered` event in the epic's history.
@@ -33,9 +35,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An `api_error` is retried after 30 seconds, then 2 minutes, then 10 minutes.
   The due time is saved with the epic, so a retry that comes due while Carrier is down starts at the first poll after it starts, and the panel and `carrier status` show it.
 - A repo that GitHub answers badly (a timeout, a 5xx or a network error) is skipped for that cycle and shown with its reason, and the other repos go on.
+- `skills` in `engine.json`, globally, per repo and per role (`agents.author.skills`, `agents.reviewer.skills`), names the skill of each stage (`ship`, `review` with `publish`, `fix`).
+  The defaults are Solve's (`ship`, `code-review` with `code-post`, `code-resolve`), a name is checked when the config loads, and the resolved skills are saved with an epic when it starts.
+- The prompts of ship, review and fix invoke the skills an epic was saved with, spelled `/name` (`$name` for Codex).
+  A review whose `publish` is `null` no longer tells the agent to publish with a second skill, and the sentences about Solve's `solve.md` and the design artifacts on the remote are said only with Solve's `ship`.
+  With the defaults the prompts are unchanged.
+- A new kind of stop, `skill_missing` (`labels.reasons.skill_missing` names its label): an epic stops in needs-human, with no agent run spent and no retry, when a skill you named is absent for the harness and account of the role that invokes it, checked before it starts, resumes or changes the option of a role.
+  A skill that is Solve's default, or an answer of cannot tell, never stops an epic.
 
 ### Changed
 
+- The labels Carrier writes default to `carrier:status:running`, `carrier:status:ready-for-test` and `carrier:status:needs-human`, because Carrier writes them and not Solve; `solve:epic` and `solve:epic:ready` stay as Solve writes them.
+  An issue that already has `solve:epic:running`, `solve:epic:ready-for-test` or `solve:epic:needs-human` keeps it, since Carrier only removes the labels it names now and nothing cleans the old names.
+  Set them in `labels` to keep the old ones.
+  The app's epic header also hides labels that start with `carrier:`.
 - The poll recovers a running epic that has no live agent and nothing scheduled, at most three times in a row, and each recovery is an event; the next failure stops the epic in `engine_error`.
   It also moves an epic whose last execution timed out and was parked.
 - A resumed epic starts a new attempt: only the executions since its current start count for its retries and for the failover's memory, and its retries are back to the maximum.

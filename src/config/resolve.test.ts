@@ -61,7 +61,7 @@ describe('resolveRepoConfig', () => {
     });
     expect(JSON.parse(JSON.stringify(effective))).toEqual(effective);
     expect(JSON.stringify(effective)).not.toContain('secret');
-    expect(Object.keys(effective)).toEqual(['name', 'sharedIdentity', 'providers', 'agents']);
+    expect(Object.keys(effective)).toEqual(['name', 'sharedIdentity', 'providers', 'skills', 'agents']);
   });
 });
 
@@ -119,4 +119,27 @@ test('a repo that overrides only the effort gets it, with every other field inhe
   expect(agents.author).toMatchObject({ ...resolvedAuthor, effort: 'max' });
   expect(resolveFirst({ agents: global }).agents.author.effort).toBe('low');
   expect(resolveFirst({}).agents.author).not.toHaveProperty('effort');
+});
+
+describe('resolveRepoConfig skills', () => {
+  test('the epic\'s config carries the skills resolved for the repo: role over repo over global over Solve\'s', () => {
+    const resolved = resolveFirst({
+      skills: { ship: 'g-ship', fix: 'g-fix' },
+      agents: { ...base.agents, reviewer: { ...base.agents.reviewer, skills: { review: { review: 'role-review' } } } },
+      repos: [{ name: 'AshuLab/carrier', skills: { fix: 'r-fix', review: { publish: null } }, agents: { author: { skills: { ship: 'role-ship' } } } }],
+    });
+    expect(resolved.skills).toEqual({
+      ship: { name: 'role-ship', named: true },
+      review: { review: { name: 'role-review', named: true }, publish: null },
+      fix: { name: 'r-fix', named: true },
+    });
+  });
+
+  test('without any skills named they are Solve\'s, none named', () => {
+    expect(resolveFirst({}).skills).toEqual({
+      ship: { name: 'ship', named: false },
+      review: { review: { name: 'code-review', named: false }, publish: { name: 'code-post', named: false } },
+      fix: { name: 'code-resolve', named: false },
+    });
+  });
 });

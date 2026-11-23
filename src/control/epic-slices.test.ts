@@ -14,6 +14,7 @@ import { epicOf } from './epic.ts';
 import { startControlServer } from './server.ts';
 import { enginePlacesOf } from '../config/places.ts';
 import { defaultLabels } from '../orchestration/github.ts';
+import { FakeSkills } from '../harnesses/fake-skills.ts';
 
 // The slices a poll cached, served by the epic request over a real socket from a real (temp) SQLite, with the engine and a fake GitHub.
 const MIN = 60_000;
@@ -70,7 +71,7 @@ test('the epic reply carries the cached slices with their read time and says whe
       { number: 10, title: 'First', state: 'closed', blockedBy: [], assignee: 'someone', prNumber: 30, prState: 'merged', prMergedAt: 900, closedAt: 1_000 },
     ],
   };
-  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces: new FakeWorkspaces(), quota: new FakeQuota().read, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces: new FakeWorkspaces(), quota: new FakeQuota().read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   await engine.start();
   await clock.advance(5 * MIN); // reserved
   await clock.advance(5 * MIN); // read while running
@@ -89,7 +90,7 @@ test('an epic whose slices were never read answers an empty list that is not par
   const github = new FakeGitHub();
   const clock = new FakeClock();
   github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }] };
-  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner: new FakeAgentRunner(), workspaces: new FakeWorkspaces(), quota: new FakeQuota().read, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner: new FakeAgentRunner(), workspaces: new FakeWorkspaces(), quota: new FakeQuota().read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   await engine.start();
   await clock.advance(5 * MIN);
   engine.stop();
@@ -104,7 +105,7 @@ test('the epic reply carries the pull request block, null while the epic has non
   github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }] };
   const pr = { number: 50, url: 'https://github.com/AshuLab/a/pull/50', draft: true, mergeState: 'DIRTY', reviewDecision: 'REVIEW_REQUIRED', checks: { passing: 10, failing: 1, pending: 0 } };
   github.pullRequestBlocks['AshuLab/a#50'] = pr;
-  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces: new FakeWorkspaces(), quota: new FakeQuota().read, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces: new FakeWorkspaces(), quota: new FakeQuota().read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   await engine.start();
   await clock.advance(5 * MIN); // reserved, in ship
   expect((await askEpic()).data.pr).toBeNull();
@@ -126,7 +127,7 @@ test('the epic reply carries the cached review threads in GitHub order and says 
   const threads = [thread('z'), thread('a', { line: null, outdated: true, author: null, bot: true, resolved: true, firstLine: '' })];
   github.pullRequestBlocks['AshuLab/a#50'] = { number: 50, url: 'https://github.com/AshuLab/a/pull/50', draft: false, mergeState: 'CLEAN', reviewDecision: null, checks: null };
   github.reviewThreads['AshuLab/a#50'] = { threads, truncated: true };
-  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces: new FakeWorkspaces(), quota: new FakeQuota().read, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces: new FakeWorkspaces(), quota: new FakeQuota().read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   await engine.start();
   await clock.advance(5 * MIN); // reserved, no pull request yet
   expect((await askEpic()).data).toMatchObject({ threads: [], threadsTruncated: false });

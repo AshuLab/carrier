@@ -4,12 +4,20 @@
     "labels": {
       "epic": "solve:epic",
       "ready": "solve:epic:ready",
-      "running": "solve:epic:running",
-      "readyForTest": "solve:epic:ready-for-test",
-      "needsHuman": "solve:epic:needs-human"
+      "running": "carrier:status:running",
+      "readyForTest": "carrier:status:ready-for-test",
+      "needsHuman": "carrier:status:needs-human"
     },
     "finishedWindowDays": 15,
     "logLevel": "info",
+    "skills": {
+      "ship": "ship",
+      "review": {
+        "review": "code-review",
+        "publish": "code-post"
+      },
+      "fix": "code-resolve"
+    },
     "limits": {
       "maxConcurrentEpics": 3,
       "maxReviews": 5,

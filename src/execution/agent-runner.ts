@@ -1,4 +1,5 @@
 import type { AccountRuntime } from '../config/providers.ts';
+import type { ResolvedSkills } from '../config/skills.ts';
 import type { HarnessName } from '../harnesses/names.ts';
 import type { ExecutionUsage, failureKinds } from '../storage/executions.ts';
 import type { AgentEvent } from './events.ts';
@@ -17,6 +18,7 @@ export interface AgentTask extends AccountRuntime {
   persona?: { name?: string; prompt?: string }; // of the role, told in the prompt
   effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'; // of the role: how hard the model thinks; absent, the CLI's own
   sharedIdentity?: boolean; // the epic's author and reviewer use one GitHub profile: the prompt asks for the signature
+  skills?: ResolvedSkills; // the skills the stage invokes, as the epic was saved with; absent: Solve's defaults
   workspace: string; // checkout where the agent runs
   resultPath: string; // where the caller writes its JSON
   timeoutMs: number | null; // null = unlimited

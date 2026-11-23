@@ -1,6 +1,6 @@
 # 0045 - Each stage runs a skill the config names, and Carrier keeps the contract
 
-- Status: accepted
+- Status: accepted; amended on 2026-11-23 by the research on where each harness looks
 - Date: 2026-11-22
 
 ## Context
@@ -28,11 +28,12 @@ A skill has to leave the engine what it checks:
 - review: blockers and observations, which the prompt asks the agent to put in the result with stable ids.
 - fix: an answer to each finding on the pull request, leaving the threads open.
 
-Before an epic starts, the engine checks that each skill its stages name exists for the harness and the account of the role that runs it.
-A skill that does not exist stops the epic in needs-human with the kind `skill_missing`, naming the skill, the role and where it looked, and no agent run is spent and nothing is retried.
+Before an epic starts, resumes or changes the option of a role, the engine checks that each skill the role invokes exists for the harness and the account of that role, with three answers: present, absent, or cannot tell.
+A skill the person named in their configuration that is absent stops the epic in needs-human with the kind `skill_missing`, naming the skill, the role and where it looked, and no agent run is spent and nothing is retried.
+A skill that is Solve's default never stops an epic, whatever the answer, because the person has not asked for it and a role that runs today must keep running.
 `carrier doctor` runs the same check for the roles of each repo, so the person sees it before an epic is queued.
 The epic stops only when the check can tell that the skill is absent: where it cannot read where a harness looks, it lets the epic go on and `carrier doctor` says so.
-A run that ends with the harness reporting an unknown skill stops the epic in `skill_missing` as well, instead of being retried, so what the check cannot see is still caught the first time.
+A run that ends with the harness reporting an unknown skill does not stop the epic in `skill_missing`: [the research](../research/skill-discovery-per-harness.md) found that no harness reports it as an error for the prompts Carrier sends, so only the check before the start is a signal to rely on.
 
 The skill of each stage is saved with the epic's effective configuration when it starts, so a reload does not change the skill of an epic that is running ([0023](0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)).
 
@@ -44,11 +45,12 @@ Configuring the whole prompt lost, because the result contract and the verify-fi
 Global only lost, because how a repo is reviewed belongs to the repo.
 Stopping also when the check cannot tell lost, because a valid install in a place the check does not know would be blocked with no way out.
 Leaving a missing skill to fail inside the run lost, because the agent may treat an unknown `/name` as plain text and spend a whole run before the engine sees a missing result, and the retries would repeat it.
+Stopping for a default skill that is absent lost, because a role on Codex with no Solve skills runs today.
 
 ## Consequences
 
 A skill that does not meet the contract fails in ways the engine already knows: a missing result is an invalid result and is retried, a wrong pull request or no worktree stops the epic with its kind.
 The sentences of the prompts that name Solve's own files (the `solve.md` worktree mode) are said only with the default ship skill, and the contract sentences are said for every skill.
-Where each harness looks for a skill (the account's own folder, the user's, the repo's) differs, so the check has to read those places for the account the role runs on, and it is only as good as that reading: how far it can tell that a skill is absent is an open question of the spec.
+Where each harness looks for a skill (the account's own folder, the user's, the repo's) differs, so the check has to read those places for the account the role runs on, and it is only as good as that reading: it answers absent only when it read every place the harness reads, and cannot tell where something it cannot read could hold the skill.
 `skill_missing` is a new kind of stop, so it gets a reason label and a line in the app's resume card like the others.
 Each stage's contract becomes documented behavior that a skill author can rely on, so changing it later is a breaking change for them.

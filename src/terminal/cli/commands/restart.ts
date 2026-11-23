@@ -23,7 +23,7 @@ const refusals: Record<string, (target: string) => string> = {
   'extra rounds need a stage': () => '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.',
   'extra rounds need a review limit': (target) => `--extra-rounds grants rounds to an epic that stopped on the review limit, and ${target} stopped for another reason.`,
   'pull request not open': () => 'The epic\'s pull request is not open any more, so nothing was changed. Restart it from ship, or reopen the pull request.',
-  'pull request head changed': () => 'The pull request has a different head than the one Carrier saved, so nothing was changed. Restart it from ship to start over.',
+  'pull request head changed': () => 'The pull request has a different head than the one Carrier saved, so nothing was changed. Restart it with --from review to review the new head, or from ship to start over.',
 };
 
 /**

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { fit, renderDashboard, visibleLength, type DashboardOptions } from './dashboard.ts';
+import { fit, renderDashboard, unansweredLine, visibleLength, type DashboardOptions } from './dashboard.ts';
 import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
 
 const now = 10 * 3_600_000;
@@ -92,8 +92,10 @@ test('queue, needs you, ready for test, and a problem banner', () => {
 
 test('a ready-for-test epic with observations nobody answered says how many and why', () => {
   const done = { repo: 'AshuLab/carrier', issue: 28, title: 'Menu bar', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: null };
-  expect(plain(snap({ done: [{ ...done, unansweredObservations: { count: 2, reason: 'already_taken' } }] }))).toContain('Menu bar\n   2 observations left unanswered: the one pass was already taken');
-  expect(plain(snap({ done: [{ ...done, unansweredObservations: { count: 1, reason: 'last_round' } }] }))).toContain('1 observation left unanswered: the round was the last its cap allows');
+  expect(plain(snap({ done: [{ ...done, unansweredObservations: { count: 2, reason: 'already_taken' } }] }))).toContain('Menu bar\n   2 unanswered observations: pass already taken');
+  expect(plain(snap({ done: [{ ...done, unansweredObservations: { count: 1, reason: 'last_round' } }] }))).toContain('1 unanswered observation: last round');
+  // the reason is never cut, down to the 50-column floor
+  for (const reason of ['already_taken', 'last_round'] as const) expect(plain(snap({ done: [{ ...done, unansweredObservations: { count: 12, reason } }] }), 50)).toContain(unansweredLine({ count: 12, reason }));
   expect(plain(snap({ done: [done] }))).not.toContain('unanswered');
 });
 

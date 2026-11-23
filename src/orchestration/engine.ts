@@ -721,7 +721,6 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // The profile's authentication signal repeated: the running epics that use it stop for a person, with their runs, and the others go on.
   // `detail` is the message of the error, redacted like any other reason. The profile is never swapped for another one.
   async function stopProfile(profile: string, detail?: string) {
-    authSignals.delete(profile); // the person's fix is a new start: the next signal is a first one again
     for (const epic of db.select().from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
       const { author, reviewer } = epic.config!.agents;
       if (author.profile !== profile && reviewer.profile !== profile) continue;
@@ -729,6 +728,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
       await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
     }
+    // Only now, with every run of the profile stopped: a signal that ends one while it is stopped would otherwise count as a first one and be remembered again.
+    authSignals.delete(profile); // the person's fix is a new start: the next signal is a first one again
     await freeSlot();
   }
 
@@ -884,6 +885,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
     let problem: { kind: 'workspace' | 'pr_invalid'; text: string } | null = null;
     let movedTo: string | null = null; // a review whose head moved while it ran: the head GitHub has now, which the next review is made on
+    let superseded = false; // that review judged a head that is not the pull request's any more, whether the epic reviews again or stops at the repeat cap
     let workspace: string | undefined;
     let branch: string | undefined; // the final PR's branch
     if (parsed.result.outcome !== 'needs_human') {
@@ -892,6 +894,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const invalid = prProblem(epic, found, pr, execution.stage);
       if (invalid) problem = { kind: 'pr_invalid', text: invalid };
       else if (execution.stage === 'review' && found!.headSha !== pr.headSha) {
+        superseded = true;
         if (epic.headRepeats >= maxHeadRepeats) problem = { kind: 'pr_invalid', text: `the head of PR #${pr.number} changed during the review ${epic.headRepeats + 1} times in a row` };
         else movedTo = found!.headSha;
       }
@@ -923,11 +926,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // A stage change reaches the issue when a stage has a label: the label follows (labelPending) like a status change does.
       const update = (set: Partial<Epic>) => tx.update(epics).set({ ...set, ...(set.stage !== undefined && { recoveries: 0, autoResumes: 0, ...(stageLabelled() && { labelPending: true }) }) }).where(eq(epics.id, epic.id)).run();
       if (execution.stage === 'review' && !problem && !movedTo) tx.update(epics).set({ headRepeats: 0 }).where(eq(epics.id, epic.id)).run(); // a review completed on its own head
+      // The verdict judged a head that is not the pull request's any more: kept as the execution it is, never read by a later round (a resume at review included).
+      if (superseded) tx.update(callerResults).set({ outcome: supersededOutcome }).where(eq(callerResults.executionId, execution.executionId)).run();
       if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, 'agent_needs_human', result.reason);
       else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.text);
       else if (movedTo) {
-        // The verdict judged a head that is not the pull request's any more: kept as the execution it is, never read by the next round, and the stage and round stay.
-        tx.update(callerResults).set({ outcome: supersededOutcome }).where(eq(callerResults.executionId, execution.executionId)).run();
+        // The stage and round stay: the same stage reviews the new head.
         tx.update(epics).set({ prHeadSha: movedTo, headRepeats: epic.headRepeats + 1 }).where(eq(epics.id, epic.id)).run();
         tx.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'review_repeated', data: { executionId: execution.executionId, round: epic.round, from: result.pr.headSha, to: movedTo, repeats: epic.headRepeats + 1 } }).run();
         tx.insert(executionEvents).values({ executionId: execution.executionId, at: clock.now(), kind: 'note', payload: { text: `The head of PR #${result.pr.number} moved from ${result.pr.headSha} to ${movedTo} while this review ran: its verdict is set aside and the new head is reviewed again.` } }).run(); // what the events reply of this execution shows

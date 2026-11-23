@@ -31,9 +31,9 @@ export function fit(line: string, columns: number): string {
   return open ? `${out}\x1b[0m` : out;
 }
 
-/** What an epic that went to ready for test with observations nobody answered says: how many and why. */
+/** What an epic that went to ready for test with observations nobody answered says: how many and why, short enough to show whole at 50 columns. */
 export const unansweredLine = ({ count, reason }: UnansweredObservations) =>
-  `${count} observation${count === 1 ? '' : 's'} left unanswered: ${reason === 'already_taken' ? 'the one pass was already taken' : 'the round was the last its cap allows'}`;
+  `${count} unanswered observation${count === 1 ? '' : 's'}: ${reason === 'already_taken' ? 'pass already taken' : 'last round'}`;
 
 const stages = ['ship', 'review', 'fix'] as const;
 

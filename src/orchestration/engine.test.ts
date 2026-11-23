@@ -21,6 +21,7 @@ import { epicEvents, executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { failureStreak } from './retry.ts';
 import { callerResults } from '../storage/caller-results.ts';
+import { latestBlockers } from './blockers.ts';
 import { FakeClock, FakeGitHub, FakeQuota } from './fake.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
@@ -2091,6 +2092,14 @@ test('a third moved head in a row stops the epic in pr_invalid, never ready, wit
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
 
+test('the review that hits the cap of repeats is superseded too: a resume at review never reads its verdict or its blockers', async () => {
+  const engine = await reviewing(reviewedWhile([HEAD2, HEAD3, HEAD4], () => ({ outcome: 'changes_requested', blockers: [{ title: 'about a head that is gone' }] })));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'pr_invalid', headRepeats: 2 });
+  expect(engine.db.select().from(callerResults).all().map((r) => r.outcome)).toEqual(['completed', 'superseded', 'superseded', 'superseded']); // the ship result, then the three reviews
+  expect(latestBlockers(engine.db, 1)).toEqual([]);
+  expect((await epicOf(engine.db, 'AshuLab/a', 1))?.rounds).toEqual([]); // no round of its own either
+});
+
 test('the count of repeats starts again when a review completes on its own head', async () => {
   // two repeats, then a review that completes on its own head with changes
   const pushes = [HEAD2, HEAD3];
@@ -3563,6 +3572,30 @@ test('a second authentication signal of the profile in another epic stops the ep
   expect(rows(engine.db).map((e) => e.needsHumanReason)).toEqual(['authentication error for profile a: 401 again', 'authentication error for profile a: 401 again']);
   expect(runner.stopped).toEqual([runsOf(1)[1]!.executionId]);
   expect(runsOf(2)).toHaveLength(1);
+});
+
+test('a signal that ends while the profile is being stopped does not bring its memory back: a restarted epic gets its first-signal retry', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  let release!: () => void;
+  const secondSignals = new Promise<void>((resolve) => (release = resolve));
+  runner.behavior = (task) => {
+    if (task.epic === 2) return { exit: 'auth_failed', failure: authFailure(notLoggedIn), when: secondSignals };
+    if (runsOf(1).length === 1) return { exit: 'auth_failed', failure: authFailure(notLoggedIn) }; // the first signal of the profile
+    return { exit: 'auth_failed', failure: authFailure(notLoggedIn), when: secondSignals };
+  };
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runsOf(1)).toHaveLength(2));
+  release(); // the second signal of both epics arrives together
+  await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1, 2]));
+  await flush();
+  runner.behavior = (task) => (runsOf(1).length === 3 ? { exit: 'auth_failed', failure: authFailure(notLoggedIn) } : { exit: 'hang' });
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  await vi.waitFor(() => expect(runsOf(1)).toHaveLength(4)); // the single signal after the stop is retried, not a second one
+  expect(byStatus(engine.db, 'running')).toEqual([1]);
 });
 
 test('an execution of the profile that ends with no authentication signal clears the memory, so a later single signal is a first one again', async () => {

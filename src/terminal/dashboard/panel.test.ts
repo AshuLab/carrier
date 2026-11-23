@@ -35,6 +35,20 @@ afterEach(() => vi.useRealTimers());
 
 const snapshot = () => ({ ...state, now: Date.now() });
 
+test('without a terminal a new retry time of an api_error is a state change: each backoff line is written', () => {
+  const { out, writes } = output(false);
+  state.epics = [{ ...epic, lastError: 'HTTP 529', retryAt: 30_000 }];
+  const stop = startPanel(snapshot, out);
+  const before = writes.length;
+  vi.advanceTimersByTime(5000);
+  expect(writes).toHaveLength(before); // the countdown ticking is not a change
+  state.epics = [{ ...epic, lastError: 'HTTP 529', retryAt: 150_000 }]; // the second retry, same error
+  vi.advanceTimersByTime(1000);
+  expect(writes).toHaveLength(before + 1);
+  expect(writes.at(-1)).toContain('retries: in');
+  stop();
+});
+
 test('on a terminal it redraws in place with ANSI every second', () => {
   const { out, writes } = output(true);
   const stop = startPanel(snapshot, out);

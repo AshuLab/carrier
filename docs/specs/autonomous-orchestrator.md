@@ -54,7 +54,11 @@ The engine combines the stage with the caller result:
 
 An observation is a finding of a `completed` review that does not stop approval. The pass runs once per epic and never at the last round, and the engine tells it from a fix for blockers by the epic's latest stored review result (`completed` or `changes_requested`). See [ADR 0009](../adr/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md) and [the observations spec](review-observations-pass.md).
 
-A review that is inconclusive for lack of context is `needs_human` from the reviewer. A new commit invalidates the previous verdict: a commit that was not reviewed is never declared ready. Each imported result is validated against GitHub: the PR exists, is open, references the epic and its head matches the reported SHA. If the reference does not match, the epic goes to `needs_human` with that reason; repeating the execution does not fix it. A head that changed during a review is not that: the result is set aside, never read for the next round, and the review runs again on the new head without counting a round, at most twice in a row, and a third move stops the epic with `pr_invalid` ([ADR 0047](../adr/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md)).
+A review that is inconclusive for lack of context is `needs_human` from the reviewer.
+A new commit invalidates the previous verdict: a commit that was not reviewed is never declared ready.
+Each imported result is validated against GitHub: the PR exists, is open, references the epic and its head matches the reported SHA.
+If the reference does not match, the epic goes to `needs_human` with that reason; repeating the execution does not fix it.
+A head that changed during a review is not that: the result is set aside, never read for the next round, and the review runs again on the new head without counting a round, at most twice in a row, and a third move stops the epic with `pr_invalid` ([ADR 0047](../adr/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md)).
 
 Author and reviewer apply the repo's rules to choose and evaluate tests, CI and blockers; the engine does not ([ADR 0001](../adr/0001-separate-coordination-from-repo-evaluation.md)). Test/CI fixes and reruns are the agent's internal work and the engine does not count them. In a repo without CI, the review and the test evidence reported by the skills are enough, and the absence of CI is recorded. Diego tests the PR and decides the merge.
 
@@ -66,7 +70,10 @@ Technical failures (the agent process ends badly, missing or invalid JSON, trans
 
 If the final PR is merged while there is active work, its executions are stopped, sessions and history are kept and no new turns are launched. If the epic's issue or its final PR is closed without merge, the epic is cancelled: its agents are stopped, what was done is kept and the reason is shown in the terminal. Neither merges nor closures of slices done by `ship` trigger these rules. The PR state check is technical coordination, not code evaluation.
 
-An authentication signal of a profile (an agent that says it is not logged in, or no token for the profile) is a technical failure of that execution, retried like any other; a second signal of the same profile, in the retry or in another epic, stops the epics that use it, with the message of the error as the reason in the terminal, and the others continue ([ADR 0050](../adr/0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md)). An execution of the profile that ends with no signal forgets the first one. If the orchestrator's profile fails, its GitHub operations are suspended. The profile is never switched automatically.
+An authentication signal of a profile (an agent that says it is not logged in, or no token for the profile) is a technical failure of that execution, retried like any other; a second signal of the same profile, in the retry or in another epic, stops the epics that use it, with the message of the error as the reason in the terminal, and the others continue ([ADR 0050](../adr/0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md)).
+An execution of the profile that ends with no signal forgets the first one.
+If the orchestrator's profile fails, its GitHub operations are suspended.
+The profile is never switched automatically.
 
 ### Agents on the host
 

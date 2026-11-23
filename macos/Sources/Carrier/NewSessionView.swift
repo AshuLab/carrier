@@ -88,14 +88,6 @@ struct NewSessionView: View {
                 }
                 .buttonStyle(SelectButtonStyle()).accessibilityLabel("Workspace")
                 .sheet(isPresented: $foldersOpen) { AddProjectSheet(mode: .newSession, model: ProjectsModel.shared, recent: model.recent, newSession: model, openHealth: openHealth).themed() }
-                if model.folder != nil {
-                    // the circle of the selects' chevrons, with a cross
-                    Button { model.clearWorkspace() } label: {
-                        Glyph(.close, size: 8, bold: true).foregroundStyle(.primary.opacity(0.85))
-                            .frame(width: 18, height: 18).background(Circle().fill(Color.primary.opacity(0.12)))
-                    }
-                    .buttonStyle(.plain).accessibilityLabel("Clear workspace").help("Clear the workspace")
-                }
                 // GitHub's branches are being read, or the fetch that choosing a project starts is bringing its own up to date
                 if model.loadingBranches || model.fetching { ProgressView().controlSize(.small).accessibilityLabel(model.fetching ? "Fetching branches" : "Reading branches") }
                 if model.folder != nil {

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The new session screen no longer has a ✕ beside the workspace; click the workspace to choose another.
 - A role that runs as your own `gh` login (Settings > Agents) shows your GitHub picture, not a gray person.
 - A worktree session names its folder in the header, under the title ("AshuLab/carrier · plagued-marine-hatchery"), and the toolbar pill is the branch alone.
   The card on the sidebar row says whose worktree it is, the branch it was cut from, and the folder by its name with the whole path under it.

@@ -37,7 +37,7 @@ struct BrandLogo: View {
     }
 
     private var badge: some View {
-        Text("DEV MODE").font(.system(size: 10, weight: .bold)).tracking(0.8).foregroundStyle(Self.devPink).lineLimit(1)
+        Text("DEV MODE").font(.scaled(10, weight: .bold)).tracking(0.8).foregroundStyle(Self.devPink).lineLimit(1)
             .padding(.horizontal, 7).padding(.vertical, 1)
             .background(Capsule().fill(Self.devPink.opacity(0.14)))
             .overlay(Capsule().strokeBorder(Self.devPink.opacity(0.4), lineWidth: 1))

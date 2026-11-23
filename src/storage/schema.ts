@@ -56,6 +56,8 @@ export const epics = sqliteTable(
     resumeAt: integer(),
     // Automatic resumes in a row (ADR 0049): back to 0 when one of the epic's executions ends with anything but `usage_limit`; the stop after the third stays in needs-human.
     autoResumes: integer().notNull().default(0),
+    // Reviews made again in a row because the pull request's head moved while one ran (ADR 0047): back to 0 when a review completes on its own head or the epic starts a new attempt; a third move stops it in `pr_invalid`.
+    headRepeats: integer().notNull().default(0),
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

@@ -1797,13 +1797,92 @@ test('a ready epic frees its slot for the next one', async () => {
   expect(rows(engine.db).map((e) => e.status)).toEqual(['ready_for_test', 'running']);
 });
 
-test('a head that changed during the review sends the epic to needs_human, never ready', async () => {
-  const engine = await reviewing((task) => {
-    pull(50, { headSha: HEAD2 }); // a commit lands while the reviewer works
-    return { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) };
-  });
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'the head changed during the review', reviewedSha: null });
+const HEAD3 = 'd'.repeat(40);
+const HEAD4 = 'e'.repeat(40);
+// A reviewer whose run is made at the head it was given and, for each head in `pushes`, lands a commit while it works: the head GitHub has at its end is the next one.
+const reviewedWhile = (pushes: string[], outcome: (task: AgentTask) => object = () => ({ outcome: 'completed', verification: { ci: 'passed', evidence: 'ok' } })) => (task: AgentTask) => {
+  const next = pushes.shift();
+  if (next) pull(50, { headSha: next });
+  return { write: result(task, { ...outcome(task), pr: { number: 50, headSha: task.context.pr!.headSha } }) };
+};
+
+test('a head that moved during the review is reviewed again on the new head, counting no round, and the epic is ready on the head that was reviewed', async () => {
+  const engine = await reviewing(reviewedWhile([HEAD2]));
+  expect(runner.tasks.map((t) => [t.stage, t.context.round, t.context.pr?.headSha])).toEqual([['ship', undefined, undefined], ['review', 1, SHA], ['review', 1, HEAD2]]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, prHeadSha: HEAD2, reviewedSha: HEAD2, headRepeats: 0, labelPending: false });
+  expect(eventsOf(engine.db)).toMatchObject([{ epicId: 1, type: 'review_repeated', data: { round: 1, from: SHA, to: HEAD2, repeats: 1 } }]);
+  expect(labelsOf(1)).toEqual(['solve:epic:ready-for-test']);
+  // the superseded execution says so in its own events, which the app reads
+  const [superseded] = executionsOf(engine.db).filter((e) => e.stage === 'review');
+  expect(engine.db.select().from(executionEvents).where(eq(executionEvents.executionId, superseded!.executionId)).all()).toMatchObject([{ kind: 'note', payload: { text: expect.stringContaining(`from ${SHA} to ${HEAD2}`) } }]);
+});
+
+test('a third moved head in a row stops the epic in pr_invalid, never ready, with the count saved and each repeat an event', async () => {
+  const engine = await reviewing(reviewedWhile([HEAD2, HEAD3, HEAD4]));
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'pr_invalid', round: 1, headRepeats: 2, reviewedSha: null });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('changed during the review 3 times in a row');
+  expect(eventsOf(engine.db).filter((e) => e.type === 'review_repeated').map((e) => e.data)).toMatchObject([{ from: SHA, to: HEAD2, repeats: 1 }, { from: HEAD2, to: HEAD3, repeats: 2 }]);
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+});
+
+test('the count of repeats starts again when a review completes on its own head', async () => {
+  // two repeats, then a review that completes on its own head with changes
+  const pushes = [HEAD2, HEAD3];
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => {
+    if (task.stage === 'ship') return { sessionId: 's-ship', write: completed(task) };
+    if (task.stage === 'fix') {
+      pull(50, { headSha: HEAD4 });
+      return fixDone(task, HEAD4);
+    }
+    return task.context.round === 2 ? { exit: 'stopped' } : reviewedWhile(pushes, () => ({ outcome: 'changes_requested', blockers: [{ title: 'x' }] }))(task);
+  };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review', 'review', 'fix', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ round: 2, stage: 'review', headRepeats: 0 });
+});
+
+test('a restart of the epic clears the count of repeats', async () => {
+  const engine = await reviewing(reviewedWhile([HEAD2, HEAD3, HEAD4]));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', headRepeats: 2 });
+  runner.behavior = () => ({ exit: 'hang' });
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', headRepeats: 0 });
+});
+
+test('the result of a review of a superseded head is kept but its blockers and summary never reach the next round', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  let reviews = 0;
+  runner.behavior = (task) => {
+    if (task.stage === 'ship') return { sessionId: 's-ship', write: completed(task) };
+    if (task.stage === 'fix') return fixDone(task);
+    reviews++;
+    const asking = (extra: object) => ({ write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: task.context.pr!.headSha }, ...extra }) });
+    if (reviews === 1) return asking({ blockers: [{ title: 'answered in round 1' }], summary: 'round 1 summary' });
+    if (reviews === 2) {
+      pull(50, { headSha: HEAD2 }); // a push lands during the round 2 review, which asks for changes on the head it saw
+      return asking({ blockers: [{ title: 'about a head that is gone' }], summary: 'stale summary' });
+    }
+    return { exit: 'stopped' };
+  };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(runner.tasks.map((t) => [t.stage, t.context.round])).toEqual([['ship', undefined], ['review', 1], ['fix', 1], ['review', 2], ['review', 2]]);
+  const [, , , superseded, again] = runner.tasks as AgentTask[];
+  expect(superseded!.context.blockers).toEqual([{ title: 'answered in round 1' }]);
+  expect(again!.context).toMatchObject({ round: 2, pr: { number: 50, headSha: HEAD2 }, blockers: [{ title: 'answered in round 1' }], previousSummaries: ['round 1 summary', 'done'] });
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'review').map((e) => e.status)).toEqual(['finished', 'finished', 'interrupted']);
+  expect(engine.db.select().from(callerResults).all().map((r) => r.outcome)).toEqual(['completed', 'changes_requested', 'completed', 'superseded']);
 });
 
 test('a needs_human review, an inconclusive one included, stops the epic with its reason', async () => {

@@ -116,7 +116,43 @@ func theMessageBoxBuildsInEveryStateOfADictationAtWideAndNarrowWidths(state: Dic
             return answer
         }
     )
-    return DictationController(registry: registry, capture: ScriptedCapture(), microphone: access)
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture(), microphone: access)
+    // macOS is asked once the window is drawn, which the app's launch does: the tests do it at once
+    dictation.refreshMicrophone()
+    return dictation
+}
+
+@MainActor @Test func theAudioSweepReadsTheHistoryEvenWithNoLimitOfDays() async {
+    let folder = NSTemporaryDirectory() + "carrier-sweep-\(UUID().uuidString)"
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let dictation = DictationController(registry: RecognizerRegistry(), capture: ScriptedCapture(), recordsFolder: folder)
+    #expect(dictation.records.loaded == false)
+    dictation.startAudioSweep()
+    for _ in 0..<5000 where dictation.records.loaded == false { try? await Task.sleep(for: .milliseconds(2)) }
+    #expect(dictation.records.loaded)
+}
+
+@MainActor @Test func theInitDoesNotAskMacOSForTheMicrophoneAndRefreshingReadsIt() {
+    nonisolated(unsafe) var asked = 0
+    let access = MicrophoneAccess(status: { asked += 1; return .denied }, request: { false })
+    let dictation = DictationController(registry: RecognizerRegistry(), capture: ScriptedCapture(), microphone: access)
+    #expect(asked == 0 && dictation.microphone == .notAsked)
+    dictation.refreshMicrophone()
+    #expect(asked == 1 && dictation.microphone == .denied)
+}
+
+@MainActor @Test func comingBackActiveBeforeTheFirstFrameWaitsForItAndAfterAsksAtOnce() {
+    nonisolated(unsafe) var asked = 0
+    let access = MicrophoneAccess(status: { asked += 1; return .allowed }, request: { true })
+    let phases = LaunchPhases()
+    let dictation = DictationController(registry: RecognizerRegistry(), capture: ScriptedCapture(), microphone: access, launch: phases)
+    NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+    #expect(asked == 0 && dictation.microphone == .notAsked)
+    phases.fire()
+    #expect(asked == 1 && dictation.microphone == .allowed)
+    // the person comes back from System Settings once the window is drawn
+    NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+    #expect(asked == 2)
 }
 
 private let boxField = DictationField(owner: "box", text: { "" }, caret: { 0 }, put: { _, _, _ in })

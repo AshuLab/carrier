@@ -188,7 +188,46 @@ func aFailureSaysItsCauseAndLeavesNothingBehind(failure: ModelDownloadFailure) a
     #expect(FileManager.default.fileExists(atPath: partial.path) == false)
     #expect(relaunched.state(of: tiny) == .notDownloaded)
     #expect(relaunched.state(of: parakeet) == .downloaded)
+    #expect(relaunched.usedBytes == 0, "the init counts off the main thread")
+    await relaunched.measured()
     #expect(relaunched.usedBytes == 1_500)
+}
+
+/// Holds a count until the test lets it end.
+private actor Gate {
+    private var open = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        if open { return }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+
+    func release() {
+        open = true
+        waiting.forEach { $0.resume() }
+        waiting = []
+    }
+}
+
+/// The count the init starts ends after a person's own refresh (a delete here), and it holds the old number: it must not write over the newer.
+@MainActor @Test func aCountThatEndsAfterANewerOneDoesNotWriteOverIt() async throws {
+    let root = try temporaryRoot()
+    let first = store(root, Script([.succeeds]), holds: false)
+    first.download(parakeet.id)
+    await first.settled()
+    let gate = Gate()
+    let relaunched = ModelStore(
+        root: root, models: { [apple, parakeet, tiny] }, downloader: FakeDownloader(script: Script([]), holds: false), inUse: { nil },
+        count: { _ in
+            await gate.wait()
+            return 1_500
+        })
+    #expect(relaunched.delete(parakeet.id))
+    #expect(relaunched.usedBytes == 0)
+    await gate.release()
+    await relaunched.measured()
+    #expect(relaunched.usedBytes == 0)
 }
 
 @MainActor @Test func storageIsTheSizeOfTheFilesUnderTheFolder() async throws {
@@ -228,6 +267,7 @@ func aFailureSaysItsCauseAndLeavesNothingBehind(failure: ModelDownloadFailure) a
     let late = ModelStore(root: root, models: { listed }, downloader: FakeDownloader(script: script, holds: false), inUse: { nil })
     listed = [apple, parakeet, tiny]
     #expect(late.state(of: parakeet) == .downloaded)
+    await late.measured()
     #expect(late.usedBytes == 1_500)
     late.download(parakeet.id)
     await late.settled()

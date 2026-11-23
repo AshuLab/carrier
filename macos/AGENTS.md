@@ -114,7 +114,7 @@ What the person sees: [usage](../docs/macos/usage.md).
 
 What the person sees: [dictation](../docs/macos/dictation.md).
 
-The logic: `CarrierCore/Dictation.swift`, `DictationSession.swift`, `TentativeText.swift`, `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read.
+The logic: `CarrierCore/Dictation.swift`, `DictationSession.swift`, `TentativeText.swift`, `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read; `LaunchPhases`: after the first frame.
 Readiness: `speechModelStep`, `ModelSlot`, run by `DictationController.warmUp`; `DictationSession.run` captures before `prepare`.
 Firm and tentative: `DictationEvent.partial`, `TentativeText.tentativeRange`, `GlobalDictation.split`.
 The page is `Carrier/DictationTab.swift` (`reset(.dictation)` restores `AppPreferences.keys(of:)`); views untested.
@@ -122,11 +122,11 @@ The page is `Carrier/DictationTab.swift` (`reset(.dictation)` restores `AppPrefe
 ### Global dictation
 
 See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, scripted recognizer; Hold is `.up`); shortcut `DictationShortcut.swift`; paste or copy `PasteDecision.swift`; box or widget `DictationRoute.swift` (box side `MessageBox.dictateRequest`).
-`Carrier/GlobalDictationController.swift` wires `GlobalHotKey`, `DictationWidget` and `ClipboardPaste`; the views are untested.
+`Carrier/GlobalDictationController.swift` wires `GlobalHotKey`, `DictationWidget`, `ClipboardPaste`; views untested.
 
 ### History, statistics and cleanup
 
-[History](../docs/macos/dictation.md#history) and [statistics](../docs/macos/dictation.md#statistics): `DictationRecords.swift` (fake clock, fed by `DictationSession.take`), `DictationAudio.swift`, `DictationStatistics.swift`; the player is untested.
+[History](../docs/macos/dictation.md#history) and [statistics](../docs/macos/dictation.md#statistics): `DictationRecords.swift` (fake clock, fed by `DictationSession.take`; `load()` is async), `DictationAudio.swift`, `DictationStatistics.swift`; the player is untested.
 Cleanup: `DictationCleanup.swift` (`TextModelClient`, `CleanupRun`) and `LocalModelClient.swift`; the `.cleaning` state of `DictationSession` is in `DictationSessionTests`; `CleanupController.swift`, `CleanupGroup.swift` untested.
 
 ## Embedded terminal

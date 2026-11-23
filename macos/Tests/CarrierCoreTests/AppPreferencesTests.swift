@@ -605,7 +605,7 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(store.dictationSounds == DictationSounds())
 }
 
-@MainActor @Test func keepingTheTextIsOnByDefaultSurvivesARelaunchAndResetsWithDictationWithoutTouchingTheHistory() {
+@MainActor @Test func keepingTheTextIsOnByDefaultSurvivesARelaunchAndResetsWithDictationWithoutTouchingTheHistory() async {
     let (name, defaults) = dictationDefaults()
     let store = AppPreferences(defaults: defaults)
     #expect(store.dictationKeepText && AppPreferences.dictationKeepTextKey == "dictation.history.keepText")
@@ -620,7 +620,9 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     #expect(store.dictationKeepText == false)
     store.reset(.dictation)
     #expect(store.dictationKeepText)
-    #expect(records.entries == [kept] && DictationRecords(carrierFolder: folder, keep: { true }).entries == [kept])
+    let again = DictationRecords(carrierFolder: folder, keep: { true })
+    await again.load()
+    #expect(records.entries == [kept] && again.entries == [kept])
 }
 
 @Test func theAudioOfTheHistoryIsOffAndThirtyDaysByDefaultSurvivesARelaunchFallsBackAndResetsWithDictation() {

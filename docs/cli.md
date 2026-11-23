@@ -67,10 +67,13 @@ The panel is a dependency-free ANSI dashboard: uptime, repos watched and the nex
 
 ## Restart a stopped epic
 
-`carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--from <ship|review|fix>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose. In a terminal and without flags it asks for each role, with the current option preselected and the role that failed marked; without a terminal it keeps the current options. The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session. With `--from review` or `--from fix` the epic keeps its round, pull request, worktree and blockers and starts at that stage instead of ship; it still goes through the queue and takes a slot.
+`carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--from <ship|review|fix>] [--extra-rounds <K>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose. In a terminal and without flags it asks for each role, with the current option preselected and the role that failed marked; without a terminal it keeps the current options. The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session. With `--from review` or `--from fix` the epic keeps its round, pull request, worktree and blockers and starts at that stage instead of ship; it still goes through the queue and takes a slot.
 Carrier refuses it, with the reason printed, when the epic has no pull request, when the pull request is not open, or when its head is not the one Carrier saved: restart it from ship then.
+An epic that stopped on the review limit and is resumed at `review` or `fix` gets more review rounds counted from the round it is at: `limits.maxReviews` of them by default, or `--extra-rounds K` (a positive whole number) of them.
+`--extra-rounds` needs `--from review` or `--from fix` and is refused otherwise, as the engine refuses it when it is not.
+The epic stops again with `review_limit` when it has used them, and the panel shows its own cap in the round.
 `--from ship`, or no `--from`, starts from ship with the review rounds reset, as before.
-A Carrier that does not list `resumeFromStage` in its hello is not asked, and the command says it is too old (restart it).
+A Carrier that does not list `resumeFromStage` in its hello is not asked for `--from` or `--extra-rounds`, and the command says it is too old (restart it).
 A restart that names a stage is an event of the epic, `resumed`, that says a command asked for it.
 It prints one line and exits 0; a refusal prints the engine's reason and exits 1 (so does no Carrier running), a malformed argument or another protocol exits 2.
 

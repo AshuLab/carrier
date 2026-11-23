@@ -50,6 +50,8 @@ export const epics = sqliteTable(
     recoveries: integer().notNull().default(0),
     // The stage a resume asked for (`review` or `fix`): kept while the epic waits in the queue, so a restart of the engine in between keeps it. Null: start from ship.
     resumeStage: text({ enum: ['review', 'fix'] }),
+    // The cap of review rounds a resume granted this epic; null: the live `maxReviews`. A restart from ship clears it with the rounds.
+    roundLimit: integer(),
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

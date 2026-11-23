@@ -366,6 +366,7 @@ _Avoid_: unstick, fix the state, reset, retry (an execution retry is the automat
 
 **Resume from a stage** - Resuming an epic at `review` or `fix` instead of `ship`, keeping its round, pull request, worktree and blockers.
 When the epic stopped on the review limit, resuming gives it more rounds counted from the current one, by default the same number as `maxReviews`, which a flag can change.
+The epic keeps that cap as its `roundLimit`; an epic with none follows the live `maxReviews`, and a restart from ship clears it with the rounds.
 _Avoid_: restart from review, rewind.
 
 **Stage skill** - The skill a stage invokes, named in the `skills` block of the config (a repo's `skills` replaces what it names): by default Solve's `ship`, `code-review` with `code-post` to publish, and `code-resolve`.

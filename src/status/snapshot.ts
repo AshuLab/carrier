@@ -90,7 +90,7 @@ export function buildSnapshot(
         status: e.status as 'running' | 'needs_human',
         stage: e.stage,
         round: e.round,
-        maxReviews,
+        maxReviews: e.roundLimit ?? maxReviews,
         blockers: blockers.length,
         stageSince: e.stageStartedAt ?? e.startedAt ?? now,
         lastActivityAt: e.lastActivityAt,

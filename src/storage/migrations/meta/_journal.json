@@ -183,6 +183,13 @@
       "when": 1795442861155,
       "tag": "0025_wet_cloak",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1795443483029,
+      "tag": "0026_crazy_serpent_society",
+      "breakpoints": true
     }
   ]
 }

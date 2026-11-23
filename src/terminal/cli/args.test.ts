@@ -81,6 +81,13 @@ test('restart takes --from ship, review or fix and refuses any other', () => {
   expect(usage()).toContain('--from <ship|review|fix>');
 });
 
+test('restart takes --extra-rounds as a positive whole number and refuses zero, a negative, a fraction and text, naming the flag', () => {
+  expect(parseCli(['restart', 'A/a#1', '--from', 'review', '--extra-rounds', '3'])).toMatchObject({ ok: true, flags: { 'extra-rounds': '3' } });
+  for (const rounds of ['0', '-1', '1.5', 'two', '', '007']) expect(parseCli(['restart', 'A/a#1', `--extra-rounds=${rounds}`])).toEqual({ ok: false, message: '--extra-rounds takes a positive whole number' });
+  expect(parseCli(['restart', 'A/a#1', '--extra-rounds', '-1'])).toMatchObject({ ok: false, message: expect.stringContaining('--extra-rounds') });
+  expect(usage()).toContain('--extra-rounds <K>');
+});
+
 test('recover takes one owner/name#N and nothing else', () => {
   expect(parseCli(['recover', 'AshuLab/carrier#12'])).toMatchObject({ ok: true, command: 'recover', target: { repo: 'AshuLab/carrier', issue: 12 } });
   expect(parseCli(['recover'])).toMatchObject({ ok: false, message: expect.stringContaining('recover takes one epic as owner/name#N') });

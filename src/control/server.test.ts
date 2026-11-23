@@ -317,7 +317,18 @@ test('resumeEpic passes the stage named in from, and refuses any other', async (
   expect(resumeEpic).not.toHaveBeenCalled();
 });
 
-test.each(['unknown epic', 'not stopped', 'github unavailable', 'did not restart', 'unknown option', 'no pull request', 'pull request not open', 'pull request head changed'] as const)('resumeEpic refused as "%s" is that reason in the reply', async (reason) => {
+test('resumeEpic passes extraRounds, a positive whole number, and refuses zero, a negative, a fraction and anything else', async () => {
+  const resumeEpic = vi.fn(() => Promise.resolve());
+  await open(undefined, { ...fakeControls().controls, resumeEpic });
+  const c = await client();
+  expect(await c.ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"review","extraRounds":3}')).toEqual({ id: 4, ok: true });
+  expect(resumeEpic).toHaveBeenLastCalledWith('AshuLab/carrier', 5, { author: undefined, reviewer: undefined, from: 'review', extraRounds: 3 });
+  resumeEpic.mockClear();
+  for (const extraRounds of ['0', '-1', '1.5', '"3"', 'null', '1e400']) expect(await c.ask(`{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"review","extraRounds":${extraRounds}}`)).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  expect(resumeEpic).not.toHaveBeenCalled();
+});
+
+test.each(['unknown epic', 'not stopped', 'github unavailable', 'did not restart', 'unknown option', 'no pull request', 'pull request not open', 'pull request head changed', 'extra rounds need a stage'] as const)('resumeEpic refused as "%s" is that reason in the reply', async (reason) => {
   await open(undefined, { ...fakeControls().controls, resumeEpic: () => Promise.reject(new ResumeRefused(reason)) });
   expect(await (await client()).ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: reason });
 });
@@ -398,7 +409,7 @@ const validFields = {
   epic: { repo: 'AshuLab/carrier', issue: 5 },
   files: { repo: 'AshuLab/carrier', issue: 5 },
   fileDiff: { repo: 'AshuLab/carrier', issue: 5, section: 'slice-12', path: 'src/a.ts' },
-  resumeEpic: { repo: 'AshuLab/carrier', issue: 5, author: 'codex', reviewer: 'claude-ashu', from: 'review' },
+  resumeEpic: { repo: 'AshuLab/carrier', issue: 5, author: 'codex', reviewer: 'claude-ashu', from: 'review', extraRounds: 3 },
   recoverEpic: { repo: 'AshuLab/carrier', issue: 5 },
 } as const;
 const badRepos = ['', 'carrier', 'a/b/c', '../b', 'a/..', './b', 'a/.', '/b', 'a/', 'a b/c', 'a/b?x', `${'a'.repeat(200)}/b`, 7, null];
@@ -426,6 +437,7 @@ const invalidRequests: (readonly [string, Record<string, unknown>])[] = [
       ['', 'Codex', 'a b', '1abc', '-a', 'a'.repeat(41), '../x', 7, null].map((option) => [`${cmd} with ${role} ${JSON.stringify(option)}`, invalid(cmd, { [role]: option })] as const),
     ),
   ),
+  ...[0, -1, 1.5, '3', null].map((extraRounds) => [`resumeEpic with extraRounds ${JSON.stringify(extraRounds)}`, invalid('resumeEpic', { extraRounds })] as const),
   ...['', 'merged', 'Review', 'ship ', 7, null].map((from) => [`resumeEpic with from ${JSON.stringify(from)}`, invalid('resumeEpic', { from })] as const),
   ['events with no execution id', invalid('events', { executionId: undefined })],
   ['events with no limit', invalid('events', { limit: undefined })],
@@ -454,7 +466,7 @@ test('no request takes a status, a stage or a round, and each accepts exactly th
     fileDiff: ['issue', 'path', 'repo', 'section'],
     availableRepos: ['page'],
     reload: [],
-    resumeEpic: ['author', 'from', 'issue', 'repo', 'reviewer'],
+    resumeEpic: ['author', 'extraRounds', 'from', 'issue', 'repo', 'reviewer'],
     recoverEpic: ['issue', 'repo'],
   });
   expect(Object.values(accepted).flat().filter((field) => ['status', 'stage', 'round', 'rounds'].includes(field))).toEqual([]);

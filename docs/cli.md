@@ -47,6 +47,14 @@ Without `--author` and `--reviewer`, `--yes` gives the author the first account 
 
 `carrier doctor` verifies the tools are installed, that each identity can get a token for each repo, that the orchestrator can read it, and that each repo it could read has the labels Carrier reads (`labels.epic` and `labels.ready`, by default `solve:epic` and `solve:epic:ready`; the fix is to run `solve:setup` in the repo). It checks a config of yours or a hand-written one at any time. `carrier schema` prints the JSON Schema of the config for your editor.
 
+For each role of each repo it also asks whether each skill the role invokes exists for the account the role runs on: the author's `ship` and `fix`, the reviewer's `review` and `publish` (none when `publish` is `null`), as `skills` in the config names them.
+Each skill gets one check with one of three answers.
+Present is ok.
+Absent means Carrier read every place the harness looks and none had the skill: it fails when you named the skill, and only warns when it is Solve's default, because an epic runs without it today.
+Cannot tell is a warning: a place the harness may read could not be read (the plugin list failed or was unreadable), or Carrier has no reader for the harness yet, which is the case for Codex and Antigravity, so they always answer cannot tell.
+For Claude Code the places are the account's `skills/<name>/SKILL.md` and `commands/<name>.md` (its `configDir`, or `~/.claude`), `.claude/skills/<name>` in the repo and its parent folders up to the repo root, and the skills of each plugin `claude plugin list --json` reports for that account.
+A bare name matches `<name>` or `<plugin>:<name>`.
+
 `carrier doctor --json` prints the checks as a JSON array (`{ name, status, detail?, fix?, repo?, profiles? }`, `status` `ok`, `warn` or `fail`; `repo` and `profiles`, the names under `config.profiles` the check stands for, are set together on the checks about one repo) and nothing else, with the same exit code (1 when any fails); the macOS app's Health tab reads it.
 
 ## Writing the config by hand

@@ -893,7 +893,7 @@ test('list says the delete date from the ages in chat.json, read at each request
   expect(await deleteAt()).toBeNull();
 });
 
-test('stopping the host while a pass waits in git lets the pass finish without deleting anything, and no pass runs an hour later', async () => {
+test('stopping the host while a pass waits in git lets the pass finish without deleting or cleaning anything, and no pass runs an hour later', async () => {
   const clock = new FakeClock();
   const h = await worktreeHost(clock);
   const first = await inWorktree(h, 'first');
@@ -906,7 +906,7 @@ test('stopping the host while a pass waits in git lets the pass finish without d
   const arrived = new Promise<void>((resolve) => (reached = resolve));
   const run = h.git.run.bind(h.git);
   h.git.run = async (folder, args, options) => (reached(), await gate, run(folder, args, options));
-  const pass = clock.advance(31 * DAY); // the hourly passes run until the one at day 30 waits in git for the first session
+  const pass = clock.advance(31 * DAY); // the hourly passes run until one waits in git for the first session: the cleanup at day 15, or the delete at day 30
   await arrived;
   const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
   const stopping = stops.at(-1)!();

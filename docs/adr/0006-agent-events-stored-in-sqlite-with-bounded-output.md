@@ -1,6 +1,6 @@
 # 0006 - The engine records what the agents do as events in SQLite, with bounded and redacted output
 
-- Status: accepted
+- Status: accepted; amended by [0042](0042-a-session-worktree-folder-is-cleaned-by-default.md): the raw `stdout.log` is capped at 50 MiB per stream, so it is no longer the complete output and replay source of a very long run
 - Date: 2026-10-21
 
 ## Context

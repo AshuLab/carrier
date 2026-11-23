@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A chat session's worktree folder is removed once its pull request is merged, or once the session is archived and untouched for 14 days.
+  The whole folder goes, including every file git ignores: build output and dependencies, but also a local `.env` or config kept inside the worktree, which does not come back.
+  Its branch stays, and the folder comes back when you resume the session, without its dependencies until something installs them.
+  A folder is kept when it has uncommitted or untracked files, files git is told not to show, an initialised submodule, a detached HEAD, or a commit that only the worktree's own reflog holds.
+  A project's `newWorktree` actions run again each time the folder comes back, so one that copies a file from the project (`cp "$CARRIER_PROJECT/.env" .`) puts it in again.
+  Set `worktreeCleanup` in `chat.json` to change it, or `"afterPrMerged": false` and `"afterInactiveDays": "never"` to keep every folder.
+- An agent run's raw output log is capped at 50 MB per stream; the newest part is kept, in `stdout.log` and the `.1` file beside it.
 - The app download is smaller: the release binary ships without its debug symbols, which are kept as a dSYM on each GitHub Release.
   On one measured build the binary is 29 MB smaller on disk (68.3 MB to 39.1 MB) and the zip 4 MB smaller (26.2 MB to 22.0 MB, 16 %).
 

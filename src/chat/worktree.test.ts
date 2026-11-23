@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FakeGit } from './fake.ts';
 import { ChatRefused } from './runner.ts';
 import { countPorcelain } from './workspace.ts';
-import { clearWorktree, createWorktree, deleteWorktree, parseCount, parseWorktreeList } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, parseCount, parseWorktreeList, REMOVE_TIMEOUT_MS, restoreWorktree } from './worktree.ts';
 
 test('parseCount reads the number rev-list --count printed, and 0 for anything else', () => {
   expect(parseCount('3\n')).toBe(3);
@@ -111,6 +111,25 @@ test('a worktree is found under a Carrier folder that is a symlink whichever way
     await expect(clearWorktree(git, { ...made, path: join(link, 'chat', 'worktrees-other', 'a', 'b', 'my-fix') })).rejects.toThrow('not one Carrier made');
   } finally {
     rmSync(link, { force: true });
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('clearing a worktree folder takes the time it is given, git\'s default when none, and deleting one gets the long limit, so a big folder is not stopped halfway', async () => {
+  const { folder, git } = startRepo();
+  try {
+    const made = await createWorktree(git, folder, { from: 'main', name: 'my-fix' });
+    const removeCall = () => git.calls.findLast((call) => call.args[0] === 'worktree' && call.args[1] === 'remove');
+    await clearWorktree(git, made, REMOVE_TIMEOUT_MS);
+    expect(removeCall()?.timeoutMs).toBe(REMOVE_TIMEOUT_MS);
+    expect(REMOVE_TIMEOUT_MS).toBeGreaterThanOrEqual(120_000);
+    await restoreWorktree(git, made);
+    await clearWorktree(git, made);
+    expect(removeCall()?.timeoutMs).toBeUndefined();
+    await restoreWorktree(git, made);
+    await deleteWorktree(git, made);
+    expect(removeCall()?.timeoutMs).toBe(REMOVE_TIMEOUT_MS);
+  } finally {
     rmSync(folder, { recursive: true, force: true });
   }
 });

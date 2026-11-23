@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { ChatAgent } from './config.ts';
+import { type ChatAgent, loadChatConfig } from './config.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { openChatDatabase } from './db.ts';
 import { FakeChatRunner, FakeGit, FakeShell, FakeTextGenerator, fakeProjects, type FakeConversation, type FakeRepo } from './fake.ts';
@@ -1829,6 +1829,11 @@ test('a git that fails on one session leaves it alone, logs the failure and does
 });
 
 const cleanup = (worktreeCleanup: { afterPrMerged: boolean; afterInactiveDays: number | 'never' }) => ({ archiveAfterDays: 'never' as const, deleteAfterDays: 'never' as const, worktreeCleanup });
+const loadChatConfigDefaults = () => {
+  const loaded = loadChatConfig({});
+  if (loaded.ok === false) throw new Error('the defaults of chat.json must load');
+  return loaded.settings;
+};
 const prMerged = (s: { db: ReturnType<typeof setup>['db'] }, id: string) => s.db.update(schemaSessions).set({ prState: 'merged' }).where(eq(schemaSessions.id, id)).run();
 
 test('worktree cleanup is off by default: a merged, long-archived session keeps its worktree folder', async () => {
@@ -1868,6 +1873,26 @@ test('afterInactiveDays removes the folder of a session archived and left alone 
   expect([due, active, short].map((w) => existsSync(w.path))).toEqual([false, true, true]);
 });
 
+test('with the default settings the folder goes with a merged PR or after 14 idle days archived, and stays for 13 days, a live session, uncommitted work or one not archived', async () => {
+  const s = worktreeSetup();
+  const merged = await s.inWorktree('merged');
+  const stale = await s.inWorktree('stale'); // open PR, archived by hand, idle 14 days
+  const dirty = await s.inWorktree('dirty', { status: ['?? notes.md'] });
+  const unarchived = await s.inWorktree('unarchived');
+  const live = await s.inWorktree('live');
+  prMerged(s, merged.id);
+  prMerged(s, live.id);
+  await s.sessions.resume({ sessionId: live.id });
+  s.clock.time = 1 * DAY;
+  const recent = await s.inWorktree('recent'); // archived, idle 13 days at the pass
+  for (const sessionId of [stale.id, dirty.id, recent.id]) await s.sessions.archive({ sessionId, archived: true });
+  s.clock.time = 14 * DAY; // under archiveAfterDays (15): the pass archives nothing itself
+  await s.sessions.applyClock(loadChatConfigDefaults());
+  expect([merged, stale, dirty, unarchived, live, recent].map((w) => existsSync(w.path))).toEqual([false, false, true, true, true, true]);
+  expect(s.base.branches).toContain(stale.branch);
+  expect(sessionIds(s)).toContain(stale.id);
+});
+
 test('a live session is never cleaned up, and resuming one whose folder was cleaned brings it back on its branch', async () => {
   const s = worktreeSetup();
   const one = await s.inWorktree('one');
@@ -1882,6 +1907,96 @@ test('a live session is never cleaned up, and resuming one whose folder was clea
   await s.sessions.resume({ sessionId: one.id });
   expect(existsSync(one.path)).toBe(true);
   expect(s.git.calls.at(-1)?.args).toEqual(['worktree', 'add', one.path, one.branch]);
+});
+
+test('the folder is kept when the worktree HEAD is detached, as a commit there is held by no branch, and cleaned when HEAD is on another branch, as that branch lives in the shared clone', async () => {
+  const s = worktreeSetup();
+  const detached = await s.inWorktree('detached');
+  const moved = await s.inWorktree('moved');
+  const home = await s.inWorktree('home');
+  for (const w of [detached, moved, home]) prMerged(s, w.id);
+  s.git.repos.get(detached.path)!.head = null;
+  s.git.repos.get(moved.path)!.head = 'other';
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  expect([detached, moved, home].map((w) => existsSync(w.path))).toEqual([true, false, false]);
+});
+
+test('the folder is kept when the worktree holds a submodule, shown by its git dir or a gitlink with a repository in it, as its commits live in the worktree\'s own git dir', async () => {
+  const s = worktreeSetup();
+  const modules = await s.inWorktree('modules');
+  const gitlink = await s.inWorktree('gitlink');
+  const bare = await s.inWorktree('bare'); // a gitlink whose folder holds no repository: a submodule never initialised here
+  const plain = await s.inWorktree('plain');
+  for (const w of [modules, gitlink, bare, plain]) prMerged(s, w.id);
+  mkdirSync(join(`${modules.path}.private`, 'modules', 'sub'), { recursive: true });
+  s.git.repos.get(gitlink.path)!.index = ['H 160000 1111111111111111111111111111111111111111 0\tsub'];
+  s.git.repos.get(bare.path)!.index = ['H 160000 1111111111111111111111111111111111111111 0\tsub'];
+  mkdirSync(join(gitlink.path, 'sub'), { recursive: true });
+  writeFileSync(join(gitlink.path, 'sub', '.git'), 'gitdir: elsewhere\n');
+  mkdirSync(join(bare.path, 'sub'), { recursive: true });
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  expect([modules, gitlink, bare, plain].map((w) => existsSync(w.path))).toEqual([true, true, false, false]);
+});
+
+test('a resume that comes in while the cleanup removes the folder waits for it and brings the folder back', async () => {
+  const s = worktreeSetup();
+  const one = await s.inWorktree('one');
+  prMerged(s, one.id);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let reached!: () => void;
+  const arrived = new Promise<void>((resolve) => (reached = resolve));
+  const run = s.git.run.bind(s.git);
+  s.git.run = async (folder, args, options) => {
+    if (args[0] === 'worktree' && args[1] === 'remove') (reached(), await held);
+    return run(folder, args, options);
+  };
+  const pass = s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  await arrived;
+  const resuming = s.sessions.resume({ sessionId: one.id });
+  await new Promise((resolve) => setTimeout(resolve, 20)); // it is waiting on the removal and has not opened anything
+  expect(s.claude.opened).toHaveLength(1);
+  release();
+  await pass;
+  await resuming;
+  expect(existsSync(one.path)).toBe(true);
+  expect(s.git.calls.at(-1)?.args).toEqual(['worktree', 'add', one.path, one.branch]);
+});
+
+test('the cleanup gives git the long limit to remove a folder, and a folder with no .git, which git cannot read, is kept with everything in it and left for the next pass', async () => {
+  const s = worktreeSetup();
+  const broken = await s.inWorktree('broken');
+  const whole = await s.inWorktree('whole');
+  for (const w of [broken, whole]) prMerged(s, w.id);
+  rmSync(join(broken.path, '.git')); // what a removal killed halfway can leave
+  writeFileSync(join(broken.path, 'stale.txt'), 's');
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  expect(existsSync(whole.path)).toBe(false);
+  expect(s.git.calls.find((call) => call.args[1] === 'remove')?.timeoutMs).toBeGreaterThanOrEqual(120_000);
+  expect(s.git.calls.filter((call) => call.args[1] === 'remove')).toHaveLength(1); // never asked for the broken one
+  expect(readFileSync(join(broken.path, 'stale.txt'), 'utf8')).toBe('s');
+  expect(sessionIds(s)).toContain(broken.id);
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' })); // it tries again, and keeps it again
+  expect(existsSync(join(broken.path, 'stale.txt'))).toBe(true);
+});
+
+test('a session restored from the archive while git reads its worktree keeps the folder', async () => {
+  const s = worktreeSetup();
+  const one = await s.inWorktree('one');
+  await s.sessions.archive({ sessionId: one.id, archived: true });
+  s.clock.time = 20 * DAY;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let reached!: () => void;
+  const arrived = new Promise<void>((resolve) => (reached = resolve));
+  const run = s.git.run.bind(s.git);
+  s.git.run = async (folder, args, options) => (reached(), await held, run(folder, args, options));
+  const pass = s.sessions.applyClock(cleanup({ afterPrMerged: false, afterInactiveDays: 14 }));
+  await arrived;
+  await s.sessions.archive({ sessionId: one.id, archived: false });
+  release();
+  await pass;
+  expect(existsSync(one.path)).toBe(true);
 });
 
 test('a resume still opening when the cleanup takes the folder is refused, leaves no agent behind, and the next one brings the folder back', async () => {

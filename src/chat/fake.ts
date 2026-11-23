@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FakeClock } from '../orchestration/fake.ts';
 import type { Git, GitResult } from './git.ts';
@@ -145,6 +145,11 @@ export type FakeRepo = {
   originHead?: string;
   /** The lines `git status --porcelain` prints. */
   status?: string[];
+  /** The entries `git ls-files -v -s -z` prints (`H 100644 <oid> 0\t<path>`): none when absent. */
+  index?: string[];
+  /** The lines of `git reflog show --format=%H%x09%gs HEAD` and of `... --format=%H <the branch>`: none when absent. */
+  reflog?: string[];
+  branchReflog?: string[];
   /** Where git says FETCH_HEAD is, when a test wants a fetch time. */
   fetchHead?: string;
   /** The folders of the linked worktrees git made here, with their branches: `worktree add` fills it and `worktree remove` empties it. */
@@ -216,6 +221,11 @@ export class FakeGit implements Git {
     if (repo === undefined) return { ok: false, code: 128, stderr: 'fatal: not a git repository' };
     const out = (...printed: string[]) => ({ ok: true as const, out: printed.map((line) => `${line}\n`).join('') });
     const no = { ok: false as const, code: 1, stderr: '' };
+    // a worktree folder has the `.git` file git writes in it, which `worktree remove` deletes first
+    const madeFolder = (path: string) => {
+      mkdirSync(path, { recursive: true });
+      writeFileSync(join(path, '.git'), `gitdir: ${path}.private\n`);
+    };
     const [verb, ...rest] = args[0] === '--no-optional-locks' ? args.slice(1) : args;
     if (verb === 'rev-parse' && rest.includes('--verify')) return [...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`)].includes(rest.at(-1)!) ? out(rest.at(-1)!) : no;
     if (verb === 'worktree' && rest[0] === 'add') {
@@ -226,7 +236,7 @@ export class FakeGit implements Git {
         // worktree add <path> <branch>: an existing branch checked out again in a new folder
         const [, again, existing] = rest;
         if (repo.branches.includes(existing!) === false) return { ok: false, code: 128, stderr: 'fatal: invalid reference' };
-        mkdirSync(again!, { recursive: true });
+        madeFolder(again!);
         (repo.worktrees ??= []).push({ path: again!, branch: existing! });
         return out();
       }
@@ -234,7 +244,7 @@ export class FakeGit implements Git {
       const [branch, path, start] = rest.slice(3);
       const known = [...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`)];
       if (repo.branches.includes(branch!) || known.includes(start!) === false) return { ok: false, code: 128, stderr: 'fatal: invalid reference' };
-      mkdirSync(path!, { recursive: true });
+      madeFolder(path!);
       repo.branches.push(branch!);
       (repo.worktrees ??= []).push({ path: path!, branch: branch! });
       return out();
@@ -275,6 +285,8 @@ export class FakeGit implements Git {
       return out();
     }
     if (verb === 'fetch') return out();
+    if (verb === 'ls-files') return { ok: true as const, out: (repo.index ?? []).map((entry) => `${entry}\0`).join('') };
+    if (verb === 'reflog') return out(...((rest.at(-1) === 'HEAD' ? repo.reflog : repo.branchReflog) ?? []));
     if (verb === 'status') return out(...(repo.status ?? []));
     return { ok: false, code: 129, stderr: `the fake git does not know ${verb}` };
   }

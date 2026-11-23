@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -8,6 +8,7 @@ import { createProjects } from './projects.ts';
 import { ChatRefused } from './runner.ts';
 import { clearWorktree, createWorktree, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
 import { openChatDatabase } from './db.ts';
+import { loadChatConfig } from './config.ts';
 import { FakeChatRunner, fakeProjects } from './fake.ts';
 import { createSessions } from './sessions.ts';
 import { sessions } from './schema.ts';
@@ -354,6 +355,199 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
     expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(1);
     expect(stateOf(base)).toEqual(before);
     expect(s.list({}).sessions).toEqual([]);
+  });
+
+  test('the default clock pass takes the folder of a session archived and idle 14 days, with its ignored build, and keeps the branch, the unpushed commit and the session; resuming brings the folder back', async () => {
+    const base = repoAt('clock-clean');
+    writeFileSync(join(base, '.gitignore'), 'build/\n');
+    git(base, 'add', '.');
+    git(base, 'commit', '-q', '-m', 'ignore');
+    mkdirSync(home, { recursive: true });
+    const clock = new FakeClock();
+    const s = createSessions({ db: openChatDatabase(join(home, 'chat.db')), agents: [{ name: 'claude', account: 'claude' }], clock, runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+    const { session: opened } = await s.open({ agent: 'claude', folder: base, worktree: { from: 'main', name: 'parked' } });
+    const { path, branch } = opened.workspace as { path: string; branch: string };
+    writeFileSync(join(path, 'work.txt'), 'w\n');
+    git(path, 'add', '.');
+    git(path, 'commit', '-q', '-m', 'work'); // on no remote
+    const tip = git(path, 'rev-parse', 'HEAD').trim();
+    mkdirSync(join(path, 'build'));
+    writeFileSync(join(path, 'build', 'big.bin'), 'x'.repeat(100_000));
+    await s.close({ sessionId: opened.id });
+    await s.archive({ sessionId: opened.id, archived: true });
+    const settings = loadChatConfig({});
+    if (settings.ok === false) throw new Error('the defaults load');
+
+    clock.time += 13 * 24 * 60 * 60_000;
+    await s.applyClock(settings.settings);
+    expect(existsSync(path)).toBe(true); // 13 days: not yet
+    clock.time += 24 * 60 * 60_000;
+    await s.applyClock(settings.settings);
+    expect(existsSync(path)).toBe(false);
+    expect(git(base, 'rev-parse', branch).trim()).toBe(tip);
+    expect(s.list({ archived: true }).sessions.map((one) => one.id)).toEqual([opened.id]);
+
+    await s.resume({ sessionId: opened.id });
+    expect(git(path, 'branch', '--show-current').trim()).toBe(branch);
+    expect(readFileSync(join(path, 'work.txt'), 'utf8')).toBe('w\n');
+    expect(existsSync(join(path, 'build'))).toBe(false);
+  });
+
+  test('the clock pass keeps the folder when the worktree HEAD is detached with a commit or mid-rebase, and cleans one on another branch, whose commit the shared clone keeps', async () => {
+    const base = repoAt('clock-head');
+    mkdirSync(home, { recursive: true });
+    const clock = new FakeClock();
+    const s = createSessions({ db: openChatDatabase(join(home, 'chat.db')), agents: [{ name: 'claude', account: 'claude' }], clock, runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+    const parked = async (name: string) => {
+      const { session } = await s.open({ agent: 'claude', folder: base, worktree: { from: 'main', name } });
+      await s.close({ sessionId: session.id });
+      await s.archive({ sessionId: session.id, archived: true });
+      return session.workspace as { path: string; branch: string };
+    };
+    const commit = (path: string, file: string, text: string) => {
+      writeFileSync(join(path, file), text);
+      git(path, 'add', '.');
+      git(path, 'commit', '-q', '-m', `edit ${file}`);
+      return git(path, 'rev-parse', 'HEAD').trim();
+    };
+    const detached = await parked('detached');
+    git(detached.path, 'switch', '-q', '--detach');
+    const lost = commit(detached.path, 'only-here.txt', 'x\n'); // held by no branch
+    const aside = await parked('aside');
+    git(aside.path, 'switch', '-q', '-c', 'other');
+    const onOther = commit(aside.path, 'other.txt', 'x\n');
+    const rebasing = await parked('rebasing');
+    commit(rebasing.path, 'README.md', 'mine\n');
+    commit(base, 'README.md', 'theirs\n'); // main moves on the same line
+    expect(() => git(rebasing.path, 'rebase', 'main')).toThrow(); // stops on the conflict
+    const settled = await parked('settled'); // control: on its branch, nothing to keep
+    const settings = loadChatConfig({});
+    if (settings.ok === false) throw new Error('the defaults load');
+
+    clock.time += 14 * 24 * 60 * 60_000;
+    await s.applyClock(settings.settings);
+    expect([detached, aside, rebasing, settled].map((w) => existsSync(w.path))).toEqual([true, false, true, false]);
+    expect(git(detached.path, 'rev-parse', 'HEAD').trim()).toBe(lost);
+    expect(git(base, 'rev-parse', 'other').trim()).toBe(onOther); // the branch lives in the clone, not in the removed folder
+  });
+
+  /** A host over the real git with a clock of its own, and sessions parked (closed and archived) in worktrees of `base`; `pass` is the clock's cleanup 14 days later, with the default settings. */
+  const parkedHost = (base: string) => {
+    mkdirSync(home, { recursive: true });
+    const clock = new FakeClock();
+    const s = createSessions({ db: openChatDatabase(join(home, 'chat.db')), agents: [{ name: 'claude', account: 'claude' }], clock, runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+    const parked = async (name: string) => {
+      const { session } = await s.open({ agent: 'claude', folder: base, worktree: { from: 'main', name } });
+      await s.close({ sessionId: session.id });
+      await s.archive({ sessionId: session.id, archived: true });
+      return { id: session.id, ...(session.workspace as { path: string; branch: string }) };
+    };
+    const pass = async () => {
+      const settings = loadChatConfig({});
+      if (settings.ok === false) throw new Error('the defaults load');
+      clock.time += 14 * 24 * 60 * 60_000;
+      await s.applyClock(settings.settings);
+    };
+    return { s, parked, pass };
+  };
+  const commitIn = (path: string, file: string, text: string) => {
+    writeFileSync(join(path, file), text);
+    git(path, 'add', '.');
+    git(path, 'commit', '-q', '-m', `edit ${file}`);
+    return git(path, 'rev-parse', 'HEAD').trim();
+  };
+
+  test('the clock pass keeps a worktree whose submodule holds a commit no branch has, though its status is clean', async () => {
+    const base = repoAt('clock-sub');
+    const source = repoAt('sub-source');
+    const { parked, pass } = parkedHost(base);
+    const subbed = await parked('subbed');
+    const plain = await parked('plain'); // control
+    git(subbed.path, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', source, 'sub');
+    git(subbed.path, 'commit', '-q', '-m', 'add the submodule');
+    const inside = commitIn(join(subbed.path, 'sub'), 'inside.txt', 'x\n'); // in the submodule's git dir, which lives in the worktree's own
+    git(subbed.path, 'add', 'sub');
+    git(subbed.path, 'commit', '-q', '-m', 'move the pointer');
+    expect(git(subbed.path, 'status', '--porcelain')).toBe('');
+    await pass();
+    expect([subbed, plain].map((w) => existsSync(w.path))).toEqual([true, false]);
+    expect(git(join(subbed.path, 'sub'), 'rev-parse', 'HEAD').trim()).toBe(inside);
+  });
+
+  test('the clock pass keeps a worktree with changes git is told not to see, and one whose git config hides untracked files', async () => {
+    const base = repoAt('clock-shadow');
+    const { parked, pass } = parkedHost(base);
+    const assumed = await parked('assumed');
+    const skipped = await parked('skipped');
+    const hidden = await parked('hidden');
+    const settled = await parked('settled'); // control
+    for (const [w, flag] of [[assumed, '--assume-unchanged'], [skipped, '--skip-worktree']] as const) {
+      git(w.path, 'update-index', flag, 'a.txt');
+      writeFileSync(join(w.path, 'a.txt'), 'only here\n');
+      expect(git(w.path, 'status', '--porcelain')).toBe('');
+    }
+    git(hidden.path, 'config', 'status.showUntrackedFiles', 'no');
+    writeFileSync(join(hidden.path, 'notes.md'), 'only here\n');
+    expect(git(hidden.path, 'status', '--porcelain')).toBe('');
+    await pass();
+    expect([assumed, skipped, hidden, settled].map((w) => existsSync(w.path))).toEqual([true, true, true, false]);
+    expect(readFileSync(join(assumed.path, 'a.txt'), 'utf8')).toBe('only here\n');
+  });
+
+  test('the clock pass keeps a worktree with a commit made on a detached HEAD and then switched back to its branch, and not one whose commits were only amended or rebased', async () => {
+    const base = repoAt('clock-dangling');
+    const { parked, pass } = parkedHost(base);
+    const dangling = await parked('dangling');
+    git(dangling.path, 'switch', '-q', '--detach');
+    const lost = commitIn(dangling.path, 'only-here.txt', 'x\n');
+    git(dangling.path, 'switch', '-q', dangling.branch);
+    expect(git(dangling.path, 'status', '--porcelain')).toBe('');
+    const rewritten = await parked('rewritten'); // a commit amended and one rebased away: their old versions are in the reflog and held by no branch
+    commitIn(rewritten.path, 'one.txt', '1\n');
+    git(rewritten.path, 'commit', '-q', '--amend', '-m', 'amended');
+    commitIn(rewritten.path, 'two.txt', '2\n');
+    commitIn(base, 'moved.txt', 'm\n');
+    git(rewritten.path, 'rebase', '-q', 'main');
+    const pushed = await parked('pushed'); // a detached commit that a branch holds is safe
+    git(pushed.path, 'switch', '-q', '--detach');
+    commitIn(pushed.path, 'kept.txt', 'x\n');
+    git(pushed.path, 'branch', 'saved');
+    git(pushed.path, 'switch', '-q', pushed.branch);
+    await pass();
+    expect([dangling, rewritten, pushed].map((w) => existsSync(w.path))).toEqual([true, false, false]);
+    expect(git(dangling.path, 'cat-file', '-t', lost).trim()).toBe('commit');
+  });
+
+  test('a commit made detached and left behind is still found under a long reflog, with no window on it', async () => {
+    const base = repoAt('clock-long-reflog');
+    const { parked, pass } = parkedHost(base);
+    const buried = await parked('buried');
+    git(buried.path, 'switch', '-q', '--detach');
+    const lost = commitIn(buried.path, 'only-here.txt', 'x\n');
+    git(buried.path, 'switch', '-q', buried.branch);
+    // 1,100 later entries of HEAD's reflog, written the way git does, so the commit is far from its top
+    const log = join(git(buried.path, 'rev-parse', '--absolute-git-dir').trim(), 'logs', 'HEAD');
+    const tip = git(buried.path, 'rev-parse', 'HEAD').trim();
+    appendFileSync(log, Array.from({ length: 1100 }, () => `${tip} ${tip} Carrier <c@example.com> 1700000000 +0000\tcheckout: moving from a to b\n`).join(''));
+    await pass();
+    expect(existsSync(buried.path)).toBe(true);
+    expect(git(buried.path, 'cat-file', '-t', lost).trim()).toBe('commit');
+  });
+
+  test('a folder git cannot read, with no .git or a .git that is a dangling link, is kept with all its files, and a good one beside it is cleaned', async () => {
+    const base = repoAt('clock-half');
+    const { parked, pass } = parkedHost(base);
+    const none = await parked('none');
+    const dangling = await parked('dangling-link');
+    const good = await parked('good');
+    for (const w of [none, dangling]) writeFileSync(join(w.path, 'mine.txt'), 'm');
+    rmSync(join(none.path, '.git'));
+    rmSync(join(dangling.path, '.git'));
+    symlinkSync(join(dir, 'nowhere'), join(dangling.path, '.git'));
+    await pass();
+    expect([none, dangling, good].map((w) => existsSync(w.path))).toEqual([true, true, false]);
+    expect([none, dangling].map((w) => readFileSync(join(w.path, 'mine.txt'), 'utf8'))).toEqual(['m', 'm']);
+    expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(3); // registrations stay: the fix is by hand
   });
 
   test('with the base folder removed first the files left in the worktree folder are counted, and the folder is removed directly', async () => {

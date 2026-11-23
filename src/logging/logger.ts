@@ -1,9 +1,11 @@
-import { appendFileSync, closeSync, existsSync, fstatSync, mkdirSync, openSync, renameSync, writeSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, fstatSync, mkdirSync, openSync, renameSync, statSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { format } from 'node:util';
-import { configureUniversalLogger, LogLevel } from '@ashulab/universal-logger';
+import { configureUniversalLogger, createScopedLogger, LogLevel } from '@ashulab/universal-logger';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { redact } from './redact.ts';
+
+const log = createScopedLogger('logger');
 
 /**
  * Sends everything the process writes with console.* (the library and its dependencies included) to `file`,
@@ -60,14 +62,31 @@ export const taskContext = (c: { repo: string; epic: number; executionId: string
 const MAX_PENDING = 64 * 1024;
 
 /**
- * Where the whole output of one execution goes: `<logs>/executions/<executionId>/{stdout,stderr}.log`.
+ * Where the output of one execution goes: `<logs>/executions/<executionId>/{stdout,stderr}.log`.
  * Only whole lines are redacted and written, so a token split across two chunks is still caught; `flush` writes what is left when the run ends.
+ * Past `maxBytes` a stream moves to `<stream>.log.1` (the one before goes) and starts again, so each takes at most twice that: the tail is what is read, and the events are already in SQLite.
  */
-export function executionOutput(logs: string, executionId: string) {
+export function executionOutput(logs: string, executionId: string, maxBytes = 50 * 1024 * 1024) {
   const dir = join(logs, 'executions', executionId);
   mkdirSync(dir, { recursive: true });
   const pending = { stdout: '', stderr: '' };
-  const append = (stream: 'stdout' | 'stderr', text: string) => text && appendFileSync(join(dir, `${stream}.log`), redact(text));
+  const sizeOf = (file: string) => (existsSync(file) ? statSync(file).size : 0);
+  const sizes = { stdout: sizeOf(join(dir, 'stdout.log')), stderr: sizeOf(join(dir, 'stderr.log')) };
+  const append = (stream: 'stdout' | 'stderr', text: string) => {
+    if (!text) return;
+    const file = join(dir, `${stream}.log`);
+    const clean = redact(text);
+    if (sizes[stream] > 0 && sizes[stream] + Buffer.byteLength(clean) > maxBytes) {
+      try {
+        renameSync(file, `${file}.1`);
+      } catch (error) {
+        log.warn('could not rotate the output log of an execution', { executionId, stream, error: String(error) });
+      }
+      sizes[stream] = 0;
+    }
+    appendFileSync(file, clean);
+    sizes[stream] += Buffer.byteLength(clean);
+  };
   return {
     write(stream: 'stdout' | 'stderr', chunk: string) {
       const text = pending[stream] + chunk;

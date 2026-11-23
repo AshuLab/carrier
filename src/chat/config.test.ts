@@ -32,7 +32,7 @@ test('without the file, or with an empty one, every setting has its default', ()
     deleteAfterDays: 30,
     worktreeStart: 'remote',
     idleCloseMinutes: 10,
-    worktreeCleanup: { afterPrMerged: false, afterInactiveDays: 'never' },
+    worktreeCleanup: { afterPrMerged: true, afterInactiveDays: 14 },
   };
   expect(readChatConfig()).toEqual({ ok: true, settings: defaults });
   write('{}');
@@ -46,7 +46,8 @@ test('a key that is set replaces its default, agents in the order written and `~
     ok: true,
     settings: { agents: [{ name: 'zed', account: 'codex' }, { name: 'work', ...agents.work }], projectsFolder: join(homedir(), 'Projects'), githubCallTimeoutSeconds: 5, logLevel: 'debug', archiveAfterDays: 7, deleteAfterDays: 'never', worktreeStart: 'local', idleCloseMinutes: 30, worktreeCleanup: { afterPrMerged: true, afterInactiveDays: 3 } },
   });
-  expect(loadChatConfig({ worktreeCleanup: { afterPrMerged: true } }, folder)).toMatchObject({ ok: true, settings: { worktreeCleanup: { afterPrMerged: true, afterInactiveDays: 'never' } } });
+  expect(loadChatConfig({ worktreeCleanup: { afterPrMerged: false } }, folder)).toMatchObject({ ok: true, settings: { worktreeCleanup: { afterPrMerged: false, afterInactiveDays: 14 } } });
+  expect(loadChatConfig({ worktreeCleanup: { afterInactiveDays: 'never' } }, folder)).toMatchObject({ ok: true, settings: { worktreeCleanup: { afterPrMerged: true, afterInactiveDays: 'never' } } });
   expect(loadChatConfig({ agents: {} }, folder)).toMatchObject({ ok: true, settings: { agents: [] } }); // none, not the defaults
 });
 

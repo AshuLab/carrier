@@ -200,6 +200,43 @@ describe('host runner with a fake claude binary', () => {
     expect((await runner.run(taskIn('auth', { model: 'auth' })).done).exit).toBe('auth_failed');
   });
 
+  const childPid = (task: AgentTask) => Number(readFileSync(join(task.workspace, 'child.pid'), 'utf8'));
+  const gone = (pid: number) => () => {
+    try {
+      process.kill(pid, 0);
+      return false;
+    } catch {
+      return true;
+    }
+  };
+
+  test('a leader that exits leaves no process of its group alive', async () => {
+    const task = taskIn('group-exit', { model: 'child' });
+    expect((await runner.run(task).done).exit).toBe('ok');
+    await expect.poll(gone(childPid(task))).toBe(true);
+  });
+
+  test('stop() kills the child of a leader that already exited on SIGTERM', async () => {
+    const task = taskIn('group-term', { model: 'child-term' });
+    const run = runner.run(task);
+    const seen = observe(run);
+    await expect.poll(() => seen.sessions.length).toBe(1);
+    await run.stop();
+    await expect.poll(gone(childPid(task))).toBe(true);
+  });
+
+  test('a leader that exits while a child outside its group holds its stdout ends the run without waiting for the pipe', async () => {
+    const task = taskIn('pipe-held', { model: 'child-escaped' });
+    const started = Date.now();
+    try {
+      expect((await runner.run(task).done).exit).toBe('ok');
+      expect(Date.now() - started).toBeLessThan(4000);
+      expect(gone(childPid(task))()).toBe(false);
+    } finally {
+      process.kill(childPid(task), 'SIGKILL');
+    }
+  });
+
   test('no token for the profile is auth_failed and does not start the agent', async () => {
     const failing = new HostAgentRunner({ binaries: { claude: fakeBinary }, credentials: async () => { throw new Error('Agent not found: x'); } });
     const run = failing.run(taskIn('no-token'));

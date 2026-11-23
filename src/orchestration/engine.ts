@@ -235,6 +235,18 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     await freeSlot().catch((err) => log.error('freeing the slot of a stopped epic failed', err));
   }
 
+  // One pending item of the poll (a finished execution, a retry): an unexpected error in it stops that epic and the poll goes on; what is about
+  // everyone (the profile, GitHub down, the database) goes up and stops the poll, which logs it with its message.
+  async function isolating(epicId: number, repo: string, step: () => Promise<void>) {
+    try {
+      await forRepo(repo, step);
+    } catch (e) {
+      if (e instanceof AuthError || e instanceof GitHubUnavailable || isDatabaseError(e)) throw e;
+      log.error('pending work failed', e, { epicId });
+      await stopEpic(epicId, e);
+    }
+  }
+
   // Mirrors the label, then launches the author unless the epic already has one; an epic restarted on options chosen takes them first.
   // `epoch` is the epic's when the caller read the row: a park and a restore in between made it another launch's to make.
   const begin = async (epic: Epic, epoch = epochOf(epic.id)) => {
@@ -558,7 +570,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // Running epics whose last execution failed and was not relaunched yet (GitHub was down).
   async function retryPending() {
-    for (const { id, repo } of db.select({ id: epics.id, repo: epics.repo }).from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) await forRepo(repo, () => retry(id));
+    for (const { id, repo } of db.select({ id: epics.id, repo: epics.repo }).from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) await isolating(id, repo, () => retry(id));
   }
 
   // Summaries the caller left in earlier review and fix turns, oldest first.
@@ -743,7 +755,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       .where(and(eq(executions.status, 'finished'), isNull(callerResults.executionId)))
       .orderBy(asc(executions.startedAt))
       .all();
-    for (const { execution } of pending) await forRepo(fresh(execution.epicId).repo, () => settle(execution));
+    for (const { execution } of pending) await isolating(execution.epicId, fresh(execution.epicId).repo, () => settle(execution));
   }
 
   // SQLite is the authority: a label that did not reach GitHub is retried here.

@@ -259,3 +259,28 @@ private final class AgentBox: @unchecked Sendable {
     first.draft = ""
     #expect(ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory).draft.isEmpty)
 }
+
+// MARK: forgetting a deleted session
+
+@Test func forgettingASessionRemovesEveryKeyItHasAndNoOtherSessions() throws {
+    let suite = "carrier.tests.forget.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let memory = OptionsMemory.stored(in: defaults)
+    let command = ChatCommand(id: "review", name: "review", description: "Review", argumentHint: nil)
+    for id in ["gone", "kept"] {
+        memory.save(id, claude)
+        memory.saveCommands(id, [command])
+        memory.saveAgent(id, "claude")
+        memory.saveDraft(id, "half a thought")
+    }
+    #expect(Set(defaults.dictionaryRepresentation().keys.filter { $0.hasSuffix(".gone") }) == Set(SessionKey.allCases.map { $0.key("gone") }))
+
+    memory.forget("gone")
+
+    #expect(defaults.dictionaryRepresentation().keys.contains { $0.hasSuffix(".gone") } == false)
+    #expect(memory.load("gone").isEmpty && memory.loadCommands("gone").isEmpty && memory.loadAgent("gone") == "" && memory.loadDraft("gone") == "")
+    #expect(memory.load("kept").count == claude.count && memory.loadCommands("kept").count == 1)
+    #expect(memory.loadAgent("kept") == "claude" && memory.loadDraft("kept") == "half a thought")
+    memory.saveDraft("kept", "")
+}

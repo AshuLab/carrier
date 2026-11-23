@@ -134,6 +134,10 @@ export class GitWorkspaces implements Workspaces {
     });
   }
 
+  async exists(path: string) {
+    return existsSync(path);
+  }
+
   async findWorktree(repo: string, branch: string) {
     return this.serial(repo, async () => (await this.linkedWorktrees(this.clonePath(repo))).find((w) => w.branch === branch)?.path ?? null);
   }

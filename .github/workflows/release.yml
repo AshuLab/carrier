@@ -265,6 +265,9 @@ jobs:
           APP_UUID="$(xcrun dwarfdump --uuid check/Carrier.app/Contents/MacOS/Carrier | awk '{print $2}')"
           DSYM_UUID="$(xcrun dwarfdump --uuid check/Carrier.dSYM | awk '{print $2}')"
           test -n "$APP_UUID" && test "$APP_UUID" = "$DSYM_UUID" || { echo "the dSYM's UUID ($DSYM_UUID) is not the app binary's ($APP_UUID)" >&2; exit 1; }
+          # and the binary in the zip is the stripped one (the linker's own OPT marker is no debug map)
+          STABS="$(nm -a check/Carrier.app/Contents/MacOS/Carrier | awk '$2 == "-" && $5 != "OPT"' | wc -l | tr -d ' ')"
+          test "$STABS" = 0 || { echo "the app's binary in the zip still has its debug map ($STABS STABs): it was not stripped" >&2; exit 1; }
 
       # The key only reaches the signing tool through the environment and its standard input: never a file, an argument or the log.
       - name: Sign the zip

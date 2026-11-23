@@ -893,7 +893,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // Stopped between claiming the launch and inserting the execution: no agent ever ran, so launching is not a blind restart.
       db.update(epics).set({ stage: null }).where(eq(epics.id, id)).run();
       await launch(fresh(id), 'ship');
+    } else if (last.status === 'timed_out') {
+      // The run ended while the epic was parked, so its end handler did not stop it for a person: it does now, as that handler does.
+      toNeedsHuman(db, id, 'timeout', `the ${last.stage} execution exceeded the time limit`);
+      await freeSlot();
     } else if (last.status === 'interrupted') {
+      if (epic.stage !== last.stage) return; // the epic moved on (or has no stage yet): this cut execution is not where it stands
       // The agent may have written its result just before the cut: import it once instead of launching again.
       if (parseCallerResult(readResult(last), expectedOf(epic, last)).ok) {
         db.update(executions).set({ status: 'finished' }).where(eq(executions.executionId, last.executionId)).run();

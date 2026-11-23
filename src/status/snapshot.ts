@@ -112,6 +112,7 @@ export function buildSnapshot(
         agents: epicAgents(e),
         options: optionsOf(e),
         ...(e.resumeAt !== null && { resumeAt: e.resumeAt }),
+        ...(e.status === 'running' && e.retryAt !== null && { retryAt: e.retryAt }),
       };
     }),
   };

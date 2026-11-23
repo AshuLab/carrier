@@ -37,6 +37,8 @@ export type PanelEpic = {
   options?: EpicOptions;
   /** ms since epoch: when an epic stopped on its quota resumes by itself; absent when it does not. */
   resumeAt?: number;
+  /** ms since epoch: when the retry of a running epic's `api_error` starts; absent when none waits. */
+  retryAt?: number;
 };
 
 export type PanelSnapshot = {

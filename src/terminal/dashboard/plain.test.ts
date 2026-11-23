@@ -37,6 +37,13 @@ test('an epic that resumes by itself says when, and one past its time says at th
   expect(renderPanel(snapshot({ epics: [epic({ status: 'needs_human' })] })).join('\n')).not.toContain('resumes');
 });
 
+test('a running epic waiting to retry says in how long, and at the next check once the time has passed', () => {
+  const lines = (retryAt?: number) => renderPanel(snapshot({ epics: [epic({ ...(retryAt !== undefined && { retryAt }) })] })).join('\n');
+  expect(lines(now + 150_000)).toContain('retries: in 2m 30s');
+  expect(lines(now - 1_000)).toContain('retries: at the next check');
+  expect(lines()).not.toContain('retries:');
+});
+
 test('slices show next to the round when GitHub reports some, and nothing when it sends none or the epic has no sub-issues', () => {
   const line = (slices: PanelEpic['slices']) => renderPanel(snapshot({ epics: [epic({ round: 2, slices })] }))[1];
   expect(line({ done: 3, total: 5 })).toContain('round 2/5  slices 3/5  blockers 0');

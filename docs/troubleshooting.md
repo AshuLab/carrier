@@ -116,6 +116,15 @@ An epic that reaches ready for test with observations left says how many and why
 `last_round`: the review was the last round the epic's cap allows (`maxReviews`, or what a resume granted), so no pass could run.
 Nothing is stopped and Carrier does nothing more about them: read the observations in the epic's last round and decide whether they matter before you merge.
 
+## An epic waits before it retries
+
+A technical failure of an execution is retried up to `limits.maxExecutionRetries` times, and how long the retry waits depends on the failure.
+An `api_error` (the service overloaded or down, a 5xx, a network error) waits 30 seconds before the first retry, 2 minutes before the second and 10 minutes before the third and any later one.
+A failure of any other kind, such as a process that was killed or crashed, is retried at once.
+The wait is by the kind of the failure that just ended and its position among the epic's failures of this attempt, so an `api_error` that follows a crash is the second failure and waits 2 minutes.
+`carrier status`, the panel and the app's snapshot (`retryAt`) show when a waiting retry starts, and the wait is not counted as a retry until it starts.
+The wait is a time saved with the epic, not a sleep: stopping Carrier does not wait for it, and a retry that came due while Carrier was stopped starts at the first check after it starts again.
+
 ## An epic ends in `solve:epic:needs-human`
 
 The reason is in the panel and the logs. Carrier stops the epic and leaves everything as it was (sessions, worktrees, uncommitted work); the others keep going. Common reasons:

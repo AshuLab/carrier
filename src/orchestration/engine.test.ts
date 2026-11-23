@@ -887,6 +887,87 @@ test('with maxExecutionRetries 3 there are four attempts, then the epic needs a 
   expect(runner.tasks.filter((t) => t.epic === 1)).toHaveLength(4);
 });
 
+// --- failures: the wait before the retry of an api_error ---
+
+const apiError: AgentFailure = { kind: 'api_error', detail: 'HTTP 529: Overloaded', exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null };
+const startedAts = (db: Db) => executionsOf(db).map((e) => e.startedAt);
+
+test('an api_error is retried after 30 seconds, 2 minutes and 10 minutes with the injected clock, and not before, whatever the polls say', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', failure: apiError });
+  const engine = await start(1);
+  await clock.advance(5 * MIN); // the poll takes the epic, and its first execution fails
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ retryAt: 5 * MIN + 30_000 }));
+  expect(runner.tasks).toHaveLength(1);
+
+  await clock.advance(30_000 - 1);
+  await flush();
+  expect(runner.tasks).toHaveLength(1);
+  await clock.advance(1);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ retryAt: 5 * MIN + 30_000 + 2 * MIN }));
+
+  await clock.advance(2 * MIN - 1);
+  await flush();
+  expect(runner.tasks).toHaveLength(2);
+  await clock.advance(1);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+  const third = 5 * MIN + 30_000 + 2 * MIN;
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ retryAt: third + 10 * MIN }));
+
+  await clock.advance(10 * MIN - 1); // two polls fall inside the wait and start nothing
+  await flush();
+  expect(runner.tasks).toHaveLength(3);
+  await clock.advance(1);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(4));
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted', retryAt: null }));
+  expect(startedAts(engine.db)).toEqual([5 * MIN, 5 * MIN + 30_000, third, third + 10 * MIN]);
+});
+
+test('a process that died is retried at once, and an api_error after a crash waits by its position in the streak', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', ...(runner.tasks.length >= 3 && { failure: apiError }) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3)); // two crashes, each retried in the same instant
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ retryAt: 5 * MIN + 10 * MIN })); // the api_error is the third failure of the streak
+  expect(startedAts(engine.db)).toEqual([5 * MIN, 5 * MIN, 5 * MIN]);
+});
+
+test('an engine stopped while a retry waits stops at once, keeps the due time, and starts nothing afterwards', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', failure: apiError });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ retryAt: 5 * MIN + 30_000 }));
+
+  await engine.shutdown(); // resolves with the clock where it is: it waits for nothing
+  expect(clock.now()).toBe(5 * MIN);
+  await clock.advance(30 * MIN);
+  expect(runner.tasks).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', retryAt: 5 * MIN + 30_000 });
+});
+
+test('a retry that came due while the engine was down starts at the first poll after it starts', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', failure: apiError });
+  const first = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(first.db)[0]).toMatchObject({ retryAt: 5 * MIN + 30_000 }));
+  await first.shutdown();
+  dbs.pop()!.$client.close();
+
+  await clock.advance(2 * 3_600_000); // the engine stays down well past the due time
+  runner.behavior = (task) => (task.resumeSession ? { exit: 'hang' } : { exit: 'failed', failure: apiError });
+  const second = await start(1);
+  expect(runner.tasks).toHaveLength(1); // starting alone does not launch it
+  expect(rows(second.db)[0]).toMatchObject({ status: 'running', retryAt: 5 * MIN + 30_000 });
+  await clock.advance(5 * MIN); // the first poll
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  expect(runner.tasks[1]).toMatchObject({ stage: 'ship', resumeSession: 's' });
+  expect(rows(second.db)[0]).toMatchObject({ status: 'running', retryAt: null });
+});
+
 // An epic that ran out of retries, resumed a minute later: the executions it had before the resume are another attempt's.
 async function exhaustedThenResumed(config = repos) {
   github.ready = { 'AshuLab/a': ready(1) };

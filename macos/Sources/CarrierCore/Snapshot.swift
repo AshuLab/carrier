@@ -189,6 +189,8 @@ public struct PanelEpic: Codable, Equatable, Sendable {
     public var agents: PanelSnapshot.Agents?
     /// ms since epoch: when an epic stopped on its quota resumes by itself; absent when it does not (or on an engine that predates it).
     public var resumeAt: Int?
+    /// ms since epoch: when the retry of a running epic's `api_error` starts; absent when none waits (or on an engine that predates it).
+    public var retryAt: Int?
 }
 
 /// Why a snapshot did not decode; `field` is the path of the offending value, like `epics.0.slices.total`.

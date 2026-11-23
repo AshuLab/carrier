@@ -253,7 +253,8 @@
           "model": "gpt-5",
           "provider": "ollama"
         }
-      }
+      },
+      "retryAt": 100030000
     },
     {
       "repo": "acme/api",

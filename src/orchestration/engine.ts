@@ -216,7 +216,20 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     rejected.add(repo);
     checks.set(repo, { at: clock.now(), ok: false, error: e.message });
   }
+  // GitHub unavailable for one repo (a timeout, a 5xx, a network error) when the poll reads it is the same: the repo is skipped for the cycle with its reason,
+  // the others go on, and the longest wait GitHub asked for among those failures is the wait before the next cycle. Only a poll fills this: it is empty outside one.
+  // A rate limit is the account's, not a repo's: it is never skipped, it ends the poll (`endsPoll`).
+  const skipped = new Set<string>();
+  let longestWait = 0;
+  const endsPoll = (e: unknown) => e instanceof AuthError || (e instanceof GitHubUnavailable && e.kind === 'rate_limited');
+  function skip(repo: string, e: GitHubUnavailable) {
+    log.warn('GitHub unavailable for a repo, skipping it this cycle', { repo, error: e.message });
+    skipped.add(repo);
+    longestWait = Math.max(longestWait, e.retryAfterMs ?? 0);
+    checks.set(repo, { at: clock.now(), ok: false, error: e.message });
+  }
   async function forRepo(repo: string, step: () => Promise<unknown>) {
+    if (skipped.has(repo)) return false;
     try {
       await step();
       return true;
@@ -982,7 +995,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   async function fillSlots() {
     for (;;) {
       if (stopping || suspended || paused) return;
-      const epic = reserve(db, { maxConcurrent: settings().maxConcurrentEpics, now: clock.now(), repos: repos().filter((r) => !rejected.has(r.name)) });
+      const epic = reserve(db, { maxConcurrent: settings().maxConcurrentEpics, now: clock.now(), repos: repos().filter((r) => !rejected.has(r.name) && !skipped.has(r.name)) });
       if (!epic) return;
       const epoch = epochOf(epic.id);
       const cancelWith = (cancelReason: string) =>
@@ -1222,7 +1235,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // The same read carries the title and labels of the epics Carrier already holds, whatever their status.
       for (const { issue, title, labels } of open) db.update(epics).set({ title, labels }).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).run();
     } catch (e) {
-      if (e instanceof AuthError) throw e;
+      if (endsPoll(e)) throw e;
       log.error('slice progress read failed, keeping the last values', e);
     }
   }
@@ -1257,7 +1270,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         if (slices.length > 0) tx.insert(epicSlices).values(slices.map((slice) => ({ ...slice, epicId: id, readAt, truncated }))).run();
       });
     } catch (e) {
-      if (e instanceof AuthError) throw e;
+      if (endsPoll(e)) throw e;
       log.error('slices read failed, keeping the last rows', e);
     }
   }
@@ -1275,7 +1288,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       try {
         await readEpicSlices(repo, id, issue);
       } catch (e) {
-        failed(e); // only a rejected profile gets here: it suspends the engine like in a poll
+        failed(e); // only a rejected profile or a rate limit gets here: it suspends the engine or records the error like in a poll
       }
     };
     const wait = (sliceReadAt.get(id) ?? -sliceWindowMs) + sliceWindowMs - clock.now();
@@ -1320,7 +1333,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           if (threads.length > 0) tx.insert(epicReviewThreads).values(threads.map((thread, position) => ({ ...thread, epicId: id, position, readAt, truncated }))).run();
         });
       } catch (e) {
-        if (e instanceof AuthError) throw e;
+        if (endsPoll(e)) throw e;
         log.error('pull request read failed, keeping the last block and threads', e);
       }
     }
@@ -1333,24 +1346,32 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     // What this poll read about the epics, so `stopEnded` does not ask again for it (never what the caches hold: ADR 0008).
     const seen: SeenThisPoll = { prState: new Map(), openIssues: new Map() };
     rejected.clear();
+    skipped.clear();
+    longestWait = 0;
     try {
-      // Fetch every repo before writing: a failure on any of them leaves the queue untouched.
+      // Fetch every repo before writing: a rate limit or a failing profile on any of them leaves the queue untouched.
       const found: { repo: string; issue: number; title: string; labels: string[] }[] = [];
       await recoverOnce();
       for (const { name: repo } of repos()) {
         // GitHub answering for this one repo that it cannot be read (not found, no access) is that repo's check; the others go on.
         // What is about the whole cycle (the profile, GitHub down) stops it below.
+        // GitHub unavailable for it (not a rate limit) skips it for the cycle the same way, and nothing of it is queued.
         const ok = await forRepo(repo, async () => {
-          const listed = await github.listReadyEpics(repo, settings().labels.ready);
-          await refreshProgress(repo, seen);
-          await refreshSlices(repo);
-          await refreshPullRequests(repo, seen);
-          found.push(...listed.map(({ issue, title, labels }) => ({ repo, issue, title, labels })));
+          try {
+            const listed = await github.listReadyEpics(repo, settings().labels.ready);
+            await refreshProgress(repo, seen);
+            await refreshSlices(repo);
+            await refreshPullRequests(repo, seen);
+            found.push(...listed.map(({ issue, title, labels }) => ({ repo, issue, title, labels })));
+          } catch (e) {
+            if (!(e instanceof GitHubUnavailable) || endsPoll(e)) throw e;
+            skip(repo, e);
+          }
         });
-        if (ok) checks.set(repo, { at: clock.now(), ok: true, error: null });
+        if (ok && !skipped.has(repo)) checks.set(repo, { at: clock.now(), ok: true, error: null });
         read.add(repo); // a repo that failed has its own error: the one below is not written over it
       }
-      suspended = null; // listing worked: the orchestrator's profile is back, the cycle goes on
+      if (skipped.size < repos().length || repos().length === 0) suspended = null; // a listing worked: the orchestrator's profile is back, the cycle goes on
       const queuedAt = clock.now();
       db.transaction((tx) => {
         // A reload may have removed a repo while the lists were read: nothing is queued for a repo that is not configured now.
@@ -1377,14 +1398,16 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const ended = endedToClean();
       if (ended.length > 0) await cleanUpEnded(ended);
       error = null;
-      return settings().pollIntervalMs;
+      return Math.max(settings().pollIntervalMs, longestWait);
     } catch (e) {
       log.error('poll failed', e);
       failed(e);
       // Only an expected failure gets here (`failed` rethrows the rest): the repos not read this cycle share it.
       const reason = e instanceof AuthError ? `authentication error for profile ${e.profile}` : (e as Error).message;
       for (const { name } of repos()) if (!read.has(name)) checks.set(name, { at: clock.now(), ok: false, error: reason });
-      return Math.max(settings().pollIntervalMs, (e instanceof GitHubUnavailable && e.retryAfterMs) || 0);
+      return Math.max(settings().pollIntervalMs, longestWait, (e instanceof GitHubUnavailable && e.retryAfterMs) || 0);
+    } finally {
+      skipped.clear();
     }
   }
 

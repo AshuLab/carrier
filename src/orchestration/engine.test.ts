@@ -187,18 +187,19 @@ test('GitHubUnavailable keeps queue and state, exposes the error and backs off t
   github.unavailable = new GitHubUnavailable('server_error', 'HTTP 503', 12 * MIN);
   const calls = github.calls;
   await clock.advance(5 * MIN);
-  expect(engine.error).toBe(github.unavailable);
+  expect(engine.error).toBeNull(); // every repo was skipped with its reason: the poll itself did not fail
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 10 * MIN, ok: false, error: github.unavailable.message });
   expect(ids(engine)).toEqual(['AshuLab/a#1']);
   expect(engine.queue()[0]?.status).toBe('queued');
 
   await clock.advance(12 * MIN - 1);
-  expect(github.calls).toBe(calls + 1);
+  expect(github.calls).toBe(calls + 2); // each cycle reads both repos, and both fail
   github.unavailable = new GitHubUnavailable('network', 'down'); // no retryAfter: falls back to the interval
   await clock.advance(1);
-  expect(github.calls).toBe(calls + 2);
+  expect(github.calls).toBe(calls + 4);
 
   await clock.advance(5 * MIN);
-  expect(github.calls).toBe(calls + 3);
+  expect(github.calls).toBe(calls + 6);
 
   github.unavailable = null;
   await clock.advance(5 * MIN);
@@ -206,17 +207,76 @@ test('GitHubUnavailable keeps queue and state, exposes the error and backs off t
   expect(ids(engine)).toEqual(['AshuLab/a#1', 'AshuLab/b#2']);
 });
 
-test('a failure in one repo registers nothing from the other repos in that poll', async () => {
-  github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }] };
-  const fail = new GitHubUnavailable('network', 'down');
+const unavailable = (kind: 'server_error' | 'network' | 'timeout' | 'rate_limited', retryAfterMs?: number) => new GitHubUnavailable(kind, kind === 'server_error' ? 'HTTP 502' : 'down', retryAfterMs);
+const failingRepo = (repo: string, failure: GitHubUnavailable) => {
+  const listed = github.listReadyEpics.bind(github);
+  github.listReadyEpics = async (name, label) => {
+    if (name === repo) throw failure;
+    return listed(name, label);
+  };
+};
+
+test.each(['timeout', 'server_error', 'network'] as const)('a repo whose read fails with %s is skipped with its reason; the other repo is read, queued and launched', async (kind) => {
+  github.ready = { 'AshuLab/a': ready(1), 'AshuLab/b': ready(2) };
+  const failure = unavailable(kind);
+  failingRepo('AshuLab/b', failure);
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.repo)).toEqual(['AshuLab/a']));
+  expect(rows(engine.db).map((e) => e.repo)).toEqual(['AshuLab/a']); // nothing of the skipped repo was queued
+  expect(engine.error).toBeNull();
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 5 * MIN, ok: false, error: failure.message });
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null });
+});
+
+test('a skipped repo is left out of the reserve for that cycle and read again at the next one', async () => {
+  const db = open();
+  seedEpic(db, 1, { repo: 'AshuLab/b', status: 'queued', stage: null, startedAt: null, config: null });
+  github.ready = { 'AshuLab/a': ready(2), 'AshuLab/b': ready(1) };
+  failingRepo('AshuLab/b', unavailable('network'));
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.repo)).toEqual(['AshuLab/a'])); // b's epic is older, and still waits
+  expect(engine.queue().filter((e) => e.status === 'queued').map((e) => `${e.repo}#${e.issue}`)).toEqual(['AshuLab/b#1']);
+
+  github.listReadyEpics = FakeGitHub.prototype.listReadyEpics.bind(github);
+  const calls = github.calls;
+  await clock.advance(5 * MIN);
+  expect(github.calls).toBe(calls + 2); // both repos read again
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 10 * MIN, ok: true, error: null });
+});
+
+test('the longest wait GitHub asked for among the repos that failed is the wait before the next cycle', async () => {
+  failingRepo('AshuLab/a', unavailable('server_error', 7 * MIN));
+  const listed = github.listReadyEpics.bind(github);
   github.listReadyEpics = async (repo, label) => {
-    if (repo === 'AshuLab/b') throw fail;
-    return [{ issue: 1, title: '', labels: [] }];
+    if (repo === 'AshuLab/b') throw unavailable('server_error', 12 * MIN);
+    return listed(repo, label);
   };
   const engine = await start();
   await clock.advance(5 * MIN);
-  expect(engine.queue()).toEqual([]);
-  expect(engine.error).toBe(fail);
+  expect(engine.nextPollAt).toBe(5 * MIN + 12 * MIN);
+});
+
+// A rate limit is the account's: whichever read gets it, the poll ends, the repos after it are not read and Carrier waits what GitHub asked for.
+test.each([
+  ['the listing', () => failingRepo('AshuLab/a', unavailable('rate_limited', 9 * MIN))],
+  ['the progress read', () => { github.openEpicsUnavailable = unavailable('rate_limited', 9 * MIN); }],
+  ['the slices read', () => { github.slicesUnavailable = unavailable('rate_limited', 9 * MIN); }],
+  ['the pull request read', () => { github.pullRequestUnavailable = unavailable('rate_limited', 9 * MIN); }],
+])('a rate limit in %s ends the poll and makes the engine wait what GitHub asked for', async (_name, limit) => {
+  seedEpic(open(), 1, { status: 'ready_for_test', prNumber: 50 });
+  github.ready = { 'AshuLab/b': ready(2) };
+  const engine = await start();
+  limit();
+  await clock.advance(5 * MIN);
+  expect(engine.error).toBeInstanceOf(GitHubUnavailable);
+  expect((engine.error as GitHubUnavailable).kind).toBe('rate_limited');
+  expect(engine.nextPollAt).toBe(5 * MIN + 9 * MIN);
+  expect(engine.queue().map((e) => e.repo)).toEqual([]); // nothing queued: the second repo was not read
+  expect(engine.lastCheck('AshuLab/b')).toMatchObject({ ok: false });
 });
 
 test('each repo keeps its last check: when, whether it worked and why not, from a failure to its recovery', async () => {

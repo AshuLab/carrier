@@ -34,7 +34,7 @@ import { createProject, projectFolder, type createProjects } from './projects.ts
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
 import { githubWorkOf } from './shell-effects.ts';
-import { clearWorktree, createWorktree, deleteWorktree, folderBytes, listWorktrees, previewMain, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, folderBytes, headAway, listWorktrees, previewMain, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
 import { worktreesDir } from './names.ts';
 import { checkout, FETCH_FRESH_MS, fetchFolder, inspectFolder } from './workspace.ts';
 
@@ -289,17 +289,21 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     for (const found of db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all()) {
       if (closed) return;
       if (switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id) || existsSync(found.worktreePath!) === false) continue;
-      const { lastActiveAt, live } = familyClock(found);
-      const due = (afterPrMerged && found.prState === 'merged') || (found.archived && idleFor({ state: found.state, lastActiveAt }, live, now, afterInactiveDays));
-      if (due === false || found.state !== 'idle' || live) continue;
+      /** Whether the row is still due: merged, or archived and idle, and not open. Asked again after git is read, as the person may have come back meanwhile. */
+      const dueNow = (row: typeof found) => {
+        const { lastActiveAt, live } = familyClock(row);
+        return row.state === 'idle' && live === false && ((afterPrMerged && row.prState === 'merged') || (row.archived && idleFor({ state: row.state, lastActiveAt }, live, now, afterInactiveDays)));
+      };
+      if (dueNow(found) === false) continue;
       const clear = async () => {
-        const { dirty } = await previewWorktree(git, worktreeOf(found), [found.worktreeBranch!]);
-        if (dirty > 0) {
-          log.info('kept a worktree with uncommitted work', { sessionId: found.id, dirty });
+        const [{ dirty }, away] = await Promise.all([previewWorktree(git, worktreeOf(found), [found.worktreeBranch!]), headAway(git, worktreeOf(found))]);
+        if (dirty > 0 || away) {
+          log.info(away ? 'kept a worktree whose HEAD is not on its branch' : 'kept a worktree with uncommitted work', { sessionId: found.id, dirty });
           return;
         }
-        if (familyClock(found).live || switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id)) return; // taken up while git read it
-        await clearWorktree(git, worktreeOf(found));
+        const row = db.select().from(sessions).where(eq(sessions.id, found.id)).get();
+        if (closed || row === undefined || switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id) || dueNow(row) === false) return; // the host stopped or the session was taken up while git read it
+        await clearWorktree(git, worktreeOf(row));
         log.info('removed the folder of a worktree, its branch is kept', { sessionId: found.id, branch: found.worktreeBranch });
       };
       const cleared = clear();

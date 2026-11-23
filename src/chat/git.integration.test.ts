@@ -393,6 +393,44 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
     expect(existsSync(join(path, 'build'))).toBe(false);
   });
 
+  test('the clock pass keeps the folder when the worktree HEAD is detached with a commit, mid-rebase or on another branch, and the commit is still there', async () => {
+    const base = repoAt('clock-head');
+    mkdirSync(home, { recursive: true });
+    const clock = new FakeClock();
+    const s = createSessions({ db: openChatDatabase(join(home, 'chat.db')), agents: [{ name: 'claude', account: 'claude' }], clock, runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+    const parked = async (name: string) => {
+      const { session } = await s.open({ agent: 'claude', folder: base, worktree: { from: 'main', name } });
+      await s.close({ sessionId: session.id });
+      await s.archive({ sessionId: session.id, archived: true });
+      return session.workspace as { path: string; branch: string };
+    };
+    const commit = (path: string, file: string, text: string) => {
+      writeFileSync(join(path, file), text);
+      git(path, 'add', '.');
+      git(path, 'commit', '-q', '-m', `edit ${file}`);
+      return git(path, 'rev-parse', 'HEAD').trim();
+    };
+    const detached = await parked('detached');
+    git(detached.path, 'switch', '-q', '--detach');
+    const lost = commit(detached.path, 'only-here.txt', 'x\n'); // held by no branch
+    const aside = await parked('aside');
+    git(aside.path, 'switch', '-q', '-c', 'other');
+    const onOther = commit(aside.path, 'other.txt', 'x\n');
+    const rebasing = await parked('rebasing');
+    commit(rebasing.path, 'README.md', 'mine\n');
+    commit(base, 'README.md', 'theirs\n'); // main moves on the same line
+    expect(() => git(rebasing.path, 'rebase', 'main')).toThrow(); // stops on the conflict
+    const settled = await parked('settled'); // control: on its branch, nothing to keep
+    const settings = loadChatConfig({});
+    if (settings.ok === false) throw new Error('the defaults load');
+
+    clock.time += 14 * 24 * 60 * 60_000;
+    await s.applyClock(settings.settings);
+    expect([detached, aside, rebasing, settled].map((w) => existsSync(w.path))).toEqual([true, true, true, false]);
+    expect(git(detached.path, 'rev-parse', 'HEAD').trim()).toBe(lost);
+    expect(git(aside.path, 'rev-parse', 'other').trim()).toBe(onOther);
+  });
+
   test('with the base folder removed first the files left in the worktree folder are counted, and the folder is removed directly', async () => {
     const { s, id, base, path } = await session('no-base');
     rmSync(base, { recursive: true, force: true });

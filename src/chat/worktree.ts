@@ -178,8 +178,20 @@ export async function previewMain(git: Git, folder: string, branch: string | nul
 }
 
 /**
+ * Whether the worktree's HEAD is somewhere else than its recorded branch: detached (also in the middle of a rebase) or on another branch.
+ * Commits made there are held by no branch this session kept, so the folder is not removed. A detached HEAD already contained in a branch counts too: the safe side.
+ */
+export async function headAway(git: Git, made: MadeWorktree): Promise<boolean> {
+  const head = await git.run(made.path, ['symbolic-ref', '-q', '--short', 'HEAD']);
+  if (head.ok) return head.out.trim() !== made.branch;
+  if (head.code === 1) return true; // `-q` exits 1 when HEAD is not a branch
+  log.error('git could not tell where the HEAD of a worktree is', { code: head.code, timedOut: head.timedOut === true });
+  throw new ChatRefused('Git could not read the worktree of a session');
+}
+
+/**
  * The cleanup's half of a delete: removes only the folder of a session's recorded worktree and keeps its branch, so `restoreWorktree`
- * can bring it back. The caller has checked it holds no uncommitted work; what is ignored (builds, dependencies) goes with it.
+ * can bring it back. The caller has checked it holds no uncommitted work and that its HEAD is on its branch; every file git ignores (builds, dependencies, a local `.env`) goes with it.
  */
 export async function clearWorktree(git: Git, made: MadeWorktree): Promise<void> {
   const path = recorded(made);

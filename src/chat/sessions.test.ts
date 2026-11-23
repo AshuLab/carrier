@@ -1909,6 +1909,37 @@ test('a live session is never cleaned up, and resuming one whose folder was clea
   expect(s.git.calls.at(-1)?.args).toEqual(['worktree', 'add', one.path, one.branch]);
 });
 
+test('the folder is kept when the worktree HEAD is detached or on another branch, as commits there are held by no branch', async () => {
+  const s = worktreeSetup();
+  const detached = await s.inWorktree('detached');
+  const moved = await s.inWorktree('moved');
+  const home = await s.inWorktree('home');
+  for (const w of [detached, moved, home]) prMerged(s, w.id);
+  s.git.repos.get(detached.path)!.head = null;
+  s.git.repos.get(moved.path)!.head = 'other';
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  expect([detached, moved, home].map((w) => existsSync(w.path))).toEqual([true, true, false]);
+});
+
+test('a session restored from the archive while git reads its worktree keeps the folder', async () => {
+  const s = worktreeSetup();
+  const one = await s.inWorktree('one');
+  await s.sessions.archive({ sessionId: one.id, archived: true });
+  s.clock.time = 20 * DAY;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let reached!: () => void;
+  const arrived = new Promise<void>((resolve) => (reached = resolve));
+  const run = s.git.run.bind(s.git);
+  s.git.run = async (folder, args, options) => (reached(), await held, run(folder, args, options));
+  const pass = s.sessions.applyClock(cleanup({ afterPrMerged: false, afterInactiveDays: 14 }));
+  await arrived;
+  await s.sessions.archive({ sessionId: one.id, archived: false });
+  release();
+  await pass;
+  expect(existsSync(one.path)).toBe(true);
+});
+
 test('a resume still opening when the cleanup takes the folder is refused, leaves no agent behind, and the next one brings the folder back', async () => {
   const s = worktreeSetup();
   const one = await s.inWorktree('one');

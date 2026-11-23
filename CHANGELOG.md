@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A project's "New sessions here" has "Starts with", the same panel as Settings > Sessions: provider, model, reasoning and access, where it only had the provider.
+  A project left on "Same as everywhere" follows Settings > Sessions.
 - A chat session's worktree folder is removed once its pull request is merged, or once the session is archived and untouched for 14 days.
   The whole folder goes, including every file git ignores: build output and dependencies, but also a local `.env` or config kept inside the worktree, which does not come back.
   Its branch stays, and the folder comes back when you resume the session, without its dependencies until something installs them.

@@ -397,7 +397,7 @@ The host reads it as no projects until you fix it.
 | `pinned`, `hidden` | no | Booleans. |
 | `tags` | no | A list of words, each trimmed, in lower case and listed once. |
 | `icon` | no | `color`, `mark` and `image` (a file name in the app's project-icons folder), each a non-empty string. |
-| `defaults` | no | What a new session starts with: `agent`, `workIn` (`baseFolder` or `worktree`) and `baseBranch`. Absent means the same as everywhere. |
+| `defaults` | no | What a new session starts with: `agent` with its `model`, `effort` and `access` (the provider's access options by id, as the app's picker writes them; they are read only when `agent` is named), `workIn` (`baseFolder` or `worktree`) and `baseBranch`. Absent means the same as everywhere. |
 | `actions` | no | Commands the project runs: `name` and `command` (not blank), `when` (`newWorktree` or `afterClone`), `on` (a boolean) and `onFail` (`warn` or `stop`). |
 
 The file is strict: an unknown key, a field of the wrong type, a repeated path, an empty path, a blank name or command and a tag that is not trimmed and in lower case are each refused, naming the field (`projects.1.name`).

@@ -391,6 +391,11 @@ private struct ProjectDetailView: View {
     /// The branches the project's folder has, read when the page opens; empty for a folder that is not a git repository, and while the host has not answered.
     @State private var branches: [WorkspaceInfo.Branch] = []
     private let catalog = ModelCatalog.shared
+    /// What Settings > Sessions starts a new session with, which a project left on "Same as everywhere" follows.
+    @AppStorage(AppPreferences.newSessionAgentKey) private var everywhereAgent = ""
+    @AppStorage(AppPreferences.newSessionModelKey) private var everywhereModel = ""
+    @AppStorage(AppPreferences.newSessionEffortKey) private var everywhereEffort = ""
+    @AppStorage(AppPreferences.newSessionAccessKey) private var everywhereAccess = ""
     /// Why the last change of the Carrier switch was refused, and the question asked before it goes off.
     @State private var watchFailure: String?
     @State private var confirmingStop = false
@@ -461,8 +466,8 @@ private struct ProjectDetailView: View {
                     Toggle("Show when starting a session", isOn: Binding(get: { row.hidden == false }, set: { model.setHidden($0 == false, path: row.path) }))
                         .labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Agent", detail: "What a new session here starts with; Same as everywhere is Settings > Sessions") {
-                    ChoicePopUp(label: "Agent", options: agentOptions, selection: defaultBinding(.agent, row.defaults.agent))
+                SettingsTabRow(title: "Starts with", detail: "Provider, model and reasoning; Same as everywhere is Settings > Sessions") {
+                    startPicker
                 }
                 SettingsTabRow(title: "Work in", detail: "The base folder or a new worktree; Default is Settings > Sessions") {
                     ChoicePopUp(label: "Work in", options: workInOptions, selection: defaultBinding(.workIn, row.defaults.workIn?.projectValue))
@@ -681,11 +686,56 @@ private struct ProjectDetailView: View {
         Binding(get: { value }, set: { _ = model.setDefault(key, $0, path: row.path) })
     }
 
-    /// The configured agents; one the project names that is no longer configured stays listed so the select says what the file holds.
-    private var agentOptions: [(value: String?, title: String)] {
-        var names = catalog.agents.map(\.name)
-        if let named = row.defaults.agent, names.contains(named) == false { names.append(named) }
-        return [(nil, "Same as everywhere")] + names.map { ($0, $0) }
+    /// What a new session here starts with, as the project's entry has it; no agent is the same as everywhere.
+    private var projectStart: NewSessionStart {
+        let own = row.defaults
+        return NewSessionStart(agent: own.agent ?? "", model: own.model ?? "", effort: own.effort ?? "", access: own.access)
+    }
+
+    /// The same panel as Settings > Sessions: provider, model, reasoning and access. Its first row is "Same as everywhere", which writes nothing.
+    private var startPicker: some View {
+        let own = projectStart
+        let access = NewSessionStart.json(fromAccess: own.access)
+        return ModelPickerButton(
+            provider: own.agent.isEmpty ? nil : own.agent, model: own.model.isEmpty ? nil : own.model, effort: own.effort,
+            accounts: startPickerAccounts(catalog), catalog: catalog, showsAccess: false,
+            accessScales: accessScalesOfStart(catalog: catalog, agent: own.agent.isEmpty ? everywhereAgent : own.agent, access: access),
+            chooseAccess: { option, value in
+                var start = namedStart()
+                start.access[option] = value
+                _ = model.setStart(start, path: row.path)
+            },
+            effortFallback: (label: "Same as everywhere", detail: "Follows Settings > Sessions."), inherited: PickerInherited(
+                provider: everywhereAgent.isEmpty ? nil : everywhereAgent, model: everywhereModel.isEmpty ? nil : everywhereModel,
+                effort: everywhereEffort.isEmpty ? nil : everywhereEffort, follows: "Settings > Sessions"
+            ),
+            allowsDefaultModel: true
+        ) { pick in
+            var start = projectStart
+            switch pick {
+            case .account(let agent, let model):
+                // the reasoning and access are the provider's own: another provider starts over
+                if agent != start.agent { start.effort = ""; start.access = [:] }
+                start.agent = agent
+                start.model = model ?? ""
+            case .effort(let level):
+                start = namedStart()
+                start.effort = level
+            case .inherit, .none: start = NewSessionStart()
+            }
+            _ = model.setStart(start, path: row.path)
+        }
+        .task { await catalog.load() }
+    }
+
+    /// The project's start with an agent named: one still on "Same as everywhere" takes what that is now (the first provider that can work when
+    /// Settings > Sessions names none), so a reasoning or access level can be set on it.
+    private func namedStart() -> NewSessionStart {
+        var start = projectStart
+        guard start.agent.isEmpty else { return start }
+        start.agent = everywhereAgent.isEmpty ? (catalog.agents.first { $0.found }?.name ?? "") : everywhereAgent
+        start.model = start.agent == everywhereAgent ? everywhereModel : ""
+        return start
     }
 
     private var workInOptions: [(value: String?, title: String)] {

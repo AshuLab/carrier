@@ -2106,3 +2106,15 @@ private let freshInfo = WorkspaceInfo(
     await model.choose(folder: "/work/web")
     #expect(model.agent == "codex" && model.startBranch == "main")
 }
+
+@MainActor @Test func aProjectsModelReasoningAndAccessGoWithItsAgentOverWhatSettingsSessionsSays() async throws {
+    let host = FakeChat()
+    host.offered["claude"] = accessOptions
+    let model = try await draft(defaults: #"{"agent":"claude","model":"haiku","access":{"permissionMode":"acceptEdits"}}"#, host: host)
+    await model.choose(folder: "/work/web")
+    #expect(model.agent == "claude" && model.chosenOptions == ["model": "haiku", "permissionMode": "acceptEdits"])
+    // a project that names no agent leaves the options to Settings > Sessions
+    let plain = try await draft(defaults: #"{"model":"haiku"}"#, host: host)
+    await plain.choose(folder: "/work/web")
+    #expect(plain.chosenOptions.isEmpty)
+}

@@ -33,7 +33,7 @@ export const projectEntry = z.strictObject({
   /** `image` is a file name in the app's project-icons folder. */
   icon: z.strictObject({ color: nonEmpty.optional(), mark: nonEmpty.optional(), image: nonEmpty.optional() }).optional(),
   /** Absent means the same as everywhere. */
-  defaults: z.strictObject({ agent: nonEmpty.optional(), workIn: z.enum(['baseFolder', 'worktree']).optional(), baseBranch: nonEmpty.optional() }).optional(),
+  defaults: z.strictObject({ agent: nonEmpty.optional(), model: nonEmpty.optional(), effort: nonEmpty.optional(), access: z.record(nonEmpty, nonEmpty).optional(), workIn: z.enum(['baseFolder', 'worktree']).optional(), baseBranch: nonEmpty.optional() }).optional(),
   actions: z.array(action).optional(),
 });
 export type ProjectEntry = z.infer<typeof projectEntry>;

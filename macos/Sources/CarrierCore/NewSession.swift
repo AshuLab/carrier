@@ -311,7 +311,7 @@ public struct WatchNote: Equatable {
         chosenOptions = [:]
         // what Settings > Sessions names: the model and reasoning go to the provider it names, the access to any provider that lists those options,
         // all as far as the provider lists them
-        let wanted = start()
+        let wanted = startForNewSession()
         if restoredOptions == nil {
             let own = wanted.agent == name ? ["model": wanted.model, "effort": wanted.effort].filter { $0.value.isEmpty == false } : [:]
             restoredOptions = wanted.access.merging(own) { _, own in own }
@@ -570,6 +570,17 @@ public struct WatchNote: Equatable {
         }
     }
 
+    /// What a new session starts with: the project's agent with its model, reasoning and access when it names an agent (its access over the one
+    /// of Settings > Sessions, which any provider that lists those options takes), else what Settings > Sessions says.
+    private func startForNewSession() -> NewSessionStart {
+        let global = start()
+        guard let agent = projectDefaults.agent else { return global }
+        return NewSessionStart(
+            agent: agent, model: projectDefaults.model ?? "", effort: projectDefaults.effort ?? "",
+            access: global.access.merging(projectDefaults.access) { _, project in project }
+        )
+    }
+
     /// What the chosen project sets for a new session here: its agent, where to work and its base branch. Over Settings > Sessions, and the draft shows each
     /// and lets the person change it. Empty for a folder that is not a project.
     public private(set) var projectDefaults = ProjectDefaults()
@@ -577,8 +588,10 @@ public struct WatchNote: Equatable {
     /// A draft whose folder offers a worktree opens in one when the project, else Settings > Sessions, says so; one that offers none stays on the base folder.
     /// The project's agent and base branch are filled first; an agent that cannot work, or a branch the folder does not have, is left as it was.
     private func openWhereSettingsSays() async {
-        if let wanted = projectDefaults.agent, wanted != agent, agents.contains(where: { $0.name == wanted && $0.available }) {
+        if let wanted = projectDefaults.agent, agents.contains(where: { $0.name == wanted && $0.available }) {
+            // the project's model, reasoning and access go with its agent, also when the draft is on that agent already
             agent = wanted
+            optionsAgent = nil
             await loadOptions()
         }
         if let base = projectDefaults.baseBranch, workspace?.branches.contains(where: { $0.name == base || $0.name == "origin/" + base }) == true { picked = base }

@@ -112,9 +112,11 @@ export class FakeWorkspaces implements Workspaces {
   /** Every clean-up asked for, in order; set `failCleanUp` to make the next ones throw. */
   readonly cleanedUp: { repo: string; epic: number; branch: string | null }[] = [];
   failCleanUp: Error | null = null;
+  /** What the next clean-ups keep. */
+  kept: string[] = [];
   async cleanUp(repo: string, epic: number, branch: string | null) {
     if (this.failCleanUp) throw this.failCleanUp;
     this.cleanedUp.push({ repo, epic, branch });
-    return { kept: [] };
+    return { kept: this.kept };
   }
 }

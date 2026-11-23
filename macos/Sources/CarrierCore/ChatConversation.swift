@@ -703,8 +703,11 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var canSwitchAgent = false
     public private(set) var switchTargets: [AgentChoice] = []
     public private(set) var switching = false
+    /// The agent the person picked in the panel: the session changes to it when the next message is sent (`deliver`), not when it is picked, so
+    /// choosing and changing one's mind costs nothing and the handoff goes out with the message it is for. nil is the session's own.
+    public private(set) var pendingAgent: String?
     /// The session's agent, as the summary of the host's `events` names it (its list, for a host that does not say); what the app saw last until the first answer, empty for a session that was never seen.
-    public private(set) var agent = ""
+    public private(set) var agent = "" { didSet { if pendingAgent == agent { pendingAgent = nil } } }
     /// Whether the session's agent process runs; a session that is not live shows the closed notice and resumes when a message is sent.
     public private(set) var live = true
     /// Whether the session is asleep: closed, and not on its way to another state (being archived, prepared or woken by a send). Only then the
@@ -758,6 +761,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// What the box lists: what the provider offers while the agent runs, else what it offered last with the choices made since; that too
     /// until the first answer, so the selects are there from the first frame of a session the app has seen.
     public var shownOptions: [ChatOption] {
+        // the picked agent lists its options once it has taken over, with the message
+        if pendingAgent != nil { return [] }
         if options.isEmpty == false { return options }
         return remembered.map { option in
             guard let chosen = wakeOptions[option.id] else { return option }
@@ -1036,21 +1041,23 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// says the rest in words (waiting for an approval, preparing, a child).
     public var canSwitchNow: Bool { canSwitchAgent && busy == false && switching == false && archived == false }
 
-    /// Switches the session to another agent: the host keeps its transcript and folder, and the new agent goes on from a selection of the messages
-    /// (and can read the rest). A refusal is kept in words for the panel and nothing changes here; what was chosen for the old agent is let go.
-    public func switchAgent(_ name: String) async {
-        guard name != agent, switching == false else { return }
+    /// Picks the agent the session changes to with the next message, or the session's own again: nothing is asked of the host here (what was chosen for the
+    /// old agent is let go). The host keeps the transcript and folder, and the new agent goes on from a selection of the messages and can read the rest.
+    public func chooseAgent(_ name: String) {
+        guard canSwitchNow else { return }
+        pendingAgent = name == agent ? nil : name
+        wakeOptions = [:]
+        optionRefusal = nil
+    }
+
+    /// The switch a picked agent asks for, before its message: a refusal stops the message and says why in words, and the agent stays picked.
+    private func switchToPendingAgent() async throws {
+        guard let target = pendingAgent else { return }
         switching = true
         defer { switching = false }
-        do {
-            _ = try await host.switchAgent(sessionId, to: name)
-        } catch {
-            optionRefusal = report(error, "switch the agent")
-            return
-        }
-        optionRefusal = nil
+        _ = try await host.switchAgent(sessionId, to: target)
+        pendingAgent = nil
         wakeOptions = [:]
-        await poll()
     }
 
     /// Continue on the mark of a stopped turn.
@@ -1227,6 +1234,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         // the box empties on Enter and not when the host has answered; a refusal puts the text back
         if refill, draft.trimmingCharacters(in: .whitespacesAndNewlines) == text { draft = "" }
         do {
+            try await switchToPendingAgent()
             if try await host.list(archived: false).first(where: { $0.id == sessionId })?.live != true {
                 try await host.resume(sessionId)
                 await applyWakeOptions()

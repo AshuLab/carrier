@@ -88,3 +88,8 @@ The turns' table gets columns, so there is a migration.
 The redacted transcript goes to the other provider, which the person chose by switching.
 A harness that stops accepting a per-session MCP breaks the handoff together with the rest of the chat MCP ([0024](0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)).
 A resume that finds no conversation and starts over in a session that never switched keeps today's notice and gets no handoff; in a switched session the handoff is given as at any open of that conversation.
+
+## Update 2026-11-23
+
+The macOS app asks for the switch when the person sends the next message and not when the agent is picked in the panel: a pick is only a choice kept in the app (`ConversationModel.pendingAgent`), so nothing in the session changes, no notice is written and the new conversation does not open until there is a message for it.
+The host's request and its rules above are unchanged; only the moment a client calls it moved.

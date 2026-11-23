@@ -498,20 +498,26 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (moved.relaunched || !stillRunning(epicId)) return;
     const { autoResume, autoResumeMaxHours } = settings(); // read once: a reload applies to the next stop
     const spent = fresh(epicId).autoResumes >= maxAutoResumes;
-    const back = autoResume && !spent ? resumeAtOf(await probeRanOut(fresh(epicId), execution)) : undefined;
+    // A server error says nothing about the quota: no window to probe, no promise to resume by itself.
+    const serverError = execution.failureKind === 'api_error' && /\bHTTP 5\d\d\b/.test(execution.failureDetail ?? '');
+    const back = autoResume && !spent && !serverError ? resumeAtOf(await probeRanOut(fresh(epicId), execution)) : undefined;
     if (!stillRunning(epicId)) return; // the probe took time: the epic may have ended or been parked meanwhile
     const { repo, issue } = fresh(epicId);
     const role = execution.stage === 'review' ? 'reviewer' : 'author';
     const detail = execution.failureDetail ? ` · ${execution.failureDetail}` : '';
     const scheduled = back !== undefined && back - clock.now() <= autoResumeMaxHours * 3_600_000;
     const when = back === undefined ? '' : new Date(back).toISOString();
-    const wake = !autoResume ? ''
+    const wake = !autoResume || serverError ? ''
       : spent ? ` · it already resumed by itself ${maxAutoResumes} times in a row: it will not again`
       : back === undefined ? ' · it will not resume by itself: the provider did not say when the window comes back'
       : scheduled ? ` · resumes by itself at ${when}`
       : ` · the window comes back at ${when}, more than ${autoResumeMaxHours} h away: it will not resume by itself`;
     db.transaction((tx) => {
-      toNeedsHuman(tx, epicId, 'usage_limit', `the ${execution.stage} execution ran out of usage on option ${execution.option ?? execution.harness} · carrier restart ${repo}#${issue} --${role} <option>${wake}${detail}${moved.why}`);
+      const option = execution.option ?? execution.harness;
+      const what = serverError
+        ? `the provider answered the ${execution.stage} execution on option ${option} with a server error, not a usage limit · wait and resume the epic, or carrier restart ${repo}#${issue} --${role} <option>`
+        : `the ${execution.stage} execution ran out of usage on option ${option} · carrier restart ${repo}#${issue} --${role} <option>`;
+      toNeedsHuman(tx, epicId, 'usage_limit', `${what}${wake}${detail}${moved.why}`);
       if (scheduled) {
         tx.update(epics).set({ resumeAt: back }).where(eq(epics.id, epicId)).run();
         tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'auto_resume_scheduled', data: { resumeAt: back } }).run();
@@ -688,13 +694,17 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           }
         } else if (exit === 'timed_out') {
           // Session and workspace stay as they are; a person decides how to go on.
-          if (stillRunning(epic.id)) toNeedsHuman(db, epic.id, 'timeout', `the ${stage} execution exceeded the time limit`);
+          if (stillRunning(epic.id)) toNeedsHuman(db, epic.id, 'timeout', timeoutReason(stage, endFailure.timed_out!.detail));
           await freeSlot();
         }
       }),
       epic.id,
     );
   }
+
+  // `detail` is what the execution stored, `exceeded N h`: the limit as it was when the run started.
+  const timeoutReason = (stage: string, detail: string | null) =>
+    `the ${stage} execution exceeded the time limit${detail?.startsWith('exceeded ') ? ` of ${detail.slice('exceeded '.length)}` : ''} (limits.maxExecutionHours) · session and worktree are kept: raise the limit or set it to "unlimited", then resume the epic`;
 
   // The profiles that sent one authentication signal and have had no execution end without one since. Not saved: a restart forgets it and costs one more signal.
   const authSignals = new Set<string>();
@@ -727,7 +737,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const [last, ...earlier] = failureStreak(db, epic);
       if (epic.status !== 'running' || !last) return;
       if (earlier.length >= settings().maxExecutionRetries) {
-        toNeedsHuman(db, epicId, 'retries_exhausted', `ran out of ${last.stage} retries (${earlier.length + 1} attempts): ${last.error}`);
+        const idle = last.failureDetail?.startsWith('no output for ') ? ' · limits.idleMinutes ended it: raise it or remove it' : '';
+        // A process failure's error already names its kind; an invalid result's is only the message, so it gets the same shape.
+        const failure = last.failureKind === 'invalid_result' ? `the agent ended with an invalid result (invalid_result: ${last.error})` : last.error;
+        toNeedsHuman(db, epicId, 'retries_exhausted', `ran out of ${last.stage} retries (${earlier.length + 1} attempts): ${failure}${idle}`);
         return await freeSlot();
       }
       const waiting = epic.retryAt === null ? 0 : epic.retryAt - clock.now();
@@ -855,7 +868,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       ? `the review reports head ${parsed.result.pr.headSha}, not ${execution.headSha}, the commit its checkout was made at`
       : null;
     if (!parsed.ok || wrongHead) {
-      const message = parsed.ok ? wrongHead! : parsed.message;
+      const message = parsed.ok ? wrongHead! : raw === null ? 'no result file was written' : parsed.message;
       log.warn('invalid caller result', { ...context, reason: message });
       db.update(executions).set({ status: 'invalid_result', error: message, ...failureColumns({ ...noExit, kind: 'invalid_result', detail: failureDetail(message) }) }).where(eq(executions.executionId, execution.executionId)).run();
       db.update(epics).set({ lastError: message }).where(eq(epics.id, epic.id)).run();
@@ -1003,7 +1016,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       try {
         const { kept } = await workspaces.cleanUp(epic.repo, epic.issue, epic.branch);
         if (kept.length > 0) log.warn('kept worktrees with unsaved work and local branches that are not on the remote', { repo: epic.repo, issue: epic.issue, kept });
-        db.update(epics).set({ cleanedAt: clock.now() }).where(eq(epics.id, epic.id)).run();
+        // Marked as cleaned even with something kept: the cleanup would keep it again at every poll. The event is where it shows.
+        db.transaction((tx) => {
+          tx.update(epics).set({ cleanedAt: clock.now() }).where(eq(epics.id, epic.id)).run();
+          if (kept.length > 0) tx.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'cleanup_kept', data: { kept } }).run();
+        });
       } catch (e) {
         log.warn('could not clean up an ended epic, trying again at the next poll', { repo: epic.repo, issue: epic.issue, error: (e as Error).message });
       }
@@ -1141,7 +1158,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       await launch(fresh(id), 'ship');
     } else if (last.status === 'timed_out') {
       // The run ended while the epic was parked, so its end handler did not stop it for a person: it does now, as that handler does.
-      toNeedsHuman(db, id, 'timeout', `the ${last.stage} execution exceeded the time limit`);
+      toNeedsHuman(db, id, 'timeout', timeoutReason(last.stage, last.failureDetail));
       await freeSlot();
     } else if (last.status === 'interrupted') {
       if (epic.stage !== last.stage) return false; // the epic moved on (or has no stage yet): this cut execution is not where it stands

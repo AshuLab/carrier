@@ -1117,6 +1117,25 @@ test('a killed execution stores its failure, names the kind in the epic error, a
   expect(rows(engine.db)[0]?.needsHumanReason).toContain(text);
 });
 
+test('retries exhausted on a missing result says that no result file was written, with the kind', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's' });
+  const engine = await start(1, repos, 4, 0);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted', needsHumanReason: 'ran out of ship retries (1 attempts): the agent ended with an invalid result (invalid_result: no result file was written)' });
+});
+
+test('retries exhausted on a process the idle watchdog killed names limits.idleMinutes', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const idleKill = { kind: 'killed' as const, detail: 'no output for 2700 seconds', exitCode: null, signal: 'SIGTERM', hostFreeMemMb: 1, hostLoad: 1 };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', failure: idleKill });
+  const engine = await start(1, repos, 4, 0);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe('ran out of ship retries (1 attempts): the agent process ended with an error (killed: no output for 2700 seconds) · limits.idleMinutes ended it: raise it or remove it');
+});
+
 const outOfCredits: AgentFailure = { kind: 'usage_limit', detail: "You've hit your session limit · resets 12:40pm", exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null };
 
 test('a usage limit stops the epic at once with the option that ran out and its reset time, and spends no retry', async () => {
@@ -1429,6 +1448,19 @@ test('when no option in the list is left the epic stops with usage_limit and nam
   expect(eventsOf(engine.db)).toMatchObject([{ type: 'option_switched', data: { from: 'claude', to: 'spare' } }]);
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
+});
+
+test('a stop that comes from a provider\'s 5xx says that the provider answered with a server error, and not that the epic ran out of usage', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const down: AgentFailure = { kind: 'api_error', detail: 'HTTP 503: Service unavailable', exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', failure: down });
+  const engine = await startFailover(['spare']);
+  await vi.waitFor(() => expect(rows(engine.db)[0]!.status).toBe('needs_human'));
+
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanKind: 'usage_limit' });
+  const reason = rows(engine.db)[0]!.needsHumanReason!;
+  expect(reason).toBe('the provider answered the ship execution on option spare with a server error, not a usage limit · wait and resume the epic, or carrier restart AshuLab/a#1 --author <option> · HTTP 503: Service unavailable; no step left in failover, ran out: claude opus, spare flash');
+  expect(reason).not.toContain('ran out of usage');
 });
 
 test.each([['an empty list', { author: [], reviewer: [] }], ['absent', undefined]])('with failover %s, a usage limit stops the epic on the first option as before', async (_, failover) => {
@@ -1913,7 +1945,7 @@ test('timed_out keeps the session, needs a human with the reason and launches no
   await vi.waitFor(() => expect(runner.tasks.some((t) => t.epic === 2)).toBe(true));
 
   expect(executionsOf(engine.db)[0]).toMatchObject({ epicId: 1, status: 'timed_out', sessionId: 's-1', finishedAt: 5 * MIN });
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', needsHumanReason: 'the ship execution exceeded the time limit' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', needsHumanReason: 'the ship execution exceeded the time limit of 4 h (limits.maxExecutionHours) · session and worktree are kept: raise the limit or set it to "unlimited", then resume the epic' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(eventsOf(engine.db)).toEqual([]);
   await clock.advance(10 * MIN);
@@ -2764,6 +2796,21 @@ test('a merged epic has its worktrees and branches cleaned up once, and a failed
   await clock.advance(5 * MIN);
   await engine.idle();
   expect(workspaces.cleanedUp).toHaveLength(1);
+});
+
+test('a clean-up that kept a worktree or a branch still marks the epic as cleaned, so it does not repeat, and what was kept is an event of the epic', async () => {
+  const engine = await reviewingHung();
+  workspaces.kept = ['/w/epic', 'feat/f1/001-x'];
+  pull(50, { state: 'merged' });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'merged', cleanedAt: 10 * MIN });
+  expect(eventsOf(engine.db).filter((e) => e.type === 'cleanup_kept')).toMatchObject([{ epicId: 1, at: 10 * MIN, data: { kept: ['/w/epic', 'feat/f1/001-x'] } }]);
+
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(workspaces.cleanedUp).toHaveLength(1);
+  expect(eventsOf(engine.db).filter((e) => e.type === 'cleanup_kept')).toHaveLength(1);
 });
 
 test('epics that ended before the clean-up existed are caught up, and live or parked ones are never touched', async () => {
@@ -5035,10 +5082,10 @@ test('the poll launches a stage a resume left claimed with no execution, once, t
 test('an epic whose last execution timed out while it was parked is stopped for a person by the poll', async () => {
   const engine = await start(1);
   seedEpic(engine.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA });
-  seedExecution(engine.db, 'e0', 1, { stage: 'review', status: 'timed_out' });
+  seedExecution(engine.db, 'e0', 1, { stage: 'review', status: 'timed_out', failureKind: 'timeout', failureDetail: 'exceeded 2 h' });
 
   await clock.advance(5 * MIN);
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', needsHumanReason: 'the review execution exceeded the time limit' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', needsHumanReason: 'the review execution exceeded the time limit of 2 h (limits.maxExecutionHours) · session and worktree are kept: raise the limit or set it to "unlimited", then resume the epic' });
   expect(runner.tasks).toEqual([]);
 });
 

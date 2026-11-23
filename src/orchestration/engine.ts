@@ -156,7 +156,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
     lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
-    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null,
+    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0,
   });
 
   // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` while running.
@@ -391,7 +391,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       }
       if (!unchanged(epic.id, epoch)) return; // parked (and maybe restored) since the caller read the epic: the restore launches it
       // Claim the launch first: concurrent reconciles (a result freeing a slot, the poll) never start a second author.
-      const claimed = db.update(epics).set({ stage: 'ship', stageStartedAt: clock.now(), ...(stageLabelled() && { labelPending: true }) }).where(and(eq(epics.id, epic.id), isNull(epics.stage), eq(epics.status, 'running'))).returning().get();
+      const claimed = db.update(epics).set({ stage: 'ship', stageStartedAt: clock.now(), recoveries: 0, ...(stageLabelled() && { labelPending: true }) }).where(and(eq(epics.id, epic.id), isNull(epics.stage), eq(epics.status, 'running'))).returning().get();
       if (!claimed) return;
       launching.add(epic.id);
       if (rebuild) db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'session_rebuilt', data: { stage, from: before!.option, to: optionNow, pr: rebuild.pr } }).run();
@@ -502,7 +502,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(usage && { usage }), ...(failure && { error: failure }), ...failureColumns(processFailure ?? (endFailure[exit] && { ...noExit, ...endFailure[exit] })) })
           .where(eq(executions.executionId, executionId))
           .run();
-        if (failure) db.update(epics).set({ lastError: failure }).where(eq(epics.id, epic.id)).run();
+        db.update(epics).set({ recoveries: 0, ...(failure && { lastError: failure }) }).where(eq(epics.id, epic.id)).run();
         if (exit === 'ok') await settle(db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         else if (isFailoverFailure || outOfCredits) {
           // Retrying the same option only burns the retries.
@@ -601,15 +601,21 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   };
 
   const inflight = new Set<Promise<void>>();
+  // Epics with stage work in flight (the run and what handles its end: settling, a retry, a failover), by how many: the poll's recovery leaves them alone.
+  const handling = new Map<number, number>();
   // `epicId` is the epic the work is about: an unexpected error in it stops that epic and nothing else (ADR 0046).
   const track = (work: Promise<void>, epicId?: number) => {
+    if (epicId !== undefined) handling.set(epicId, (handling.get(epicId) ?? 0) + 1);
     const tracked: Promise<void> = work
       .catch(async (e) => {
         log.error('stage work failed', e);
         if (epicId === undefined || e instanceof AuthError || e instanceof GitHubUnavailable || isDatabaseError(e)) return failed(e);
         await stopEpic(epicId, e);
       })
-      .finally(() => inflight.delete(tracked));
+      .finally(() => {
+        inflight.delete(tracked);
+        if (epicId !== undefined) handling.set(epicId, handling.get(epicId)! - 1);
+      });
     inflight.add(tracked);
   };
 
@@ -674,7 +680,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (outside(epic.id) || epochOf(epic.id) !== epoch) return; // it ended, or was parked (and maybe restored) while GitHub was asked: stays `finished` without a result, the next run imports it
     const imported = importResult(db, raw, expected, (tx, result) => {
       // A stage change reaches the issue when a stage has a label: the label follows (labelPending) like a status change does.
-      const update = (set: Partial<Epic>) => tx.update(epics).set(set.stage !== undefined && stageLabelled() ? { ...set, labelPending: true } : set).where(eq(epics.id, epic.id)).run();
+      const update = (set: Partial<Epic>) => tx.update(epics).set({ ...set, ...(set.stage !== undefined && { recoveries: 0, ...(stageLabelled() && { labelPending: true }) }) }).where(eq(epics.id, epic.id)).run();
       if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, 'agent_needs_human', result.reason);
       else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.text);
       else if (execution.stage === 'ship') update({ stage: 'review', stageStartedAt: clock.now(), round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha, workspace, branch });
@@ -907,6 +913,35 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
   }
 
+  // The poll's recovery (ADR 0046): a running epic with a stage and nothing alive or scheduled for it is continued from its real state, with the guards of a
+  // launch (stage work in flight, a launch, a retry, a reload's restore, the epoch). The count is saved with the epic: after three in a row it stops in `engine_error`.
+  const maxRecoveries = 3;
+  async function recoverStuck() {
+    if (stopping || suspended) return;
+    const stuck = db.select().from(epics).where(and(eq(epics.status, 'running'), isNotNull(epics.stage))).orderBy(asc(epics.id)).all();
+    const epochsRead = stuck.map(({ id }) => epochOf(id));
+    for (const [i, { id, repo }] of stuck.entries()) {
+      if (epochOf(id) !== epochsRead[i] || !stillRunning(id) || (handling.get(id) ?? 0) > 0 || launching.has(id) || retrying.has(id) || restoring.has(id)) continue;
+      const { recoveries, stage } = fresh(id);
+      if (recoveries >= maxRecoveries) {
+        await stopEpic(id, new Error(`the poll recovered this epic ${maxRecoveries} times in a row and it is still stuck at ${stage}`));
+        continue;
+      }
+      try {
+        if (!(await forRepo(repo, () => recoverEpic(id)))) continue; // a refusal of the repo is no recovery: tried again at the next check
+      } catch (e) {
+        if (e instanceof AuthError || e instanceof GitHubUnavailable || isDatabaseError(e)) throw e;
+        log.error('recovering an epic failed', e, { repo, epicId: id });
+        await stopEpic(id, e);
+        continue;
+      }
+      db.transaction((tx) => {
+        tx.update(epics).set({ recoveries: sql`${epics.recoveries} + 1` }).where(eq(epics.id, id)).run();
+        tx.insert(epicEvents).values({ epicId: id, at: clock.now(), type: 'recovered', data: { stage, attempt: recoveries + 1 } }).run();
+      });
+    }
+  }
+
   // Epics a reload brought back from `repo_removed`, recovered by the next poll like a restart recovers every running epic. Only these: a reload on a
   // live engine must not run the cold-start recovery, which takes an epic with a launch in flight (stage claimed, no execution yet) for one that was cut.
   const restoring = new Set<number>();
@@ -1123,6 +1158,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       await restore();
       await settlePending();
       await retryPending();
+      await recoverStuck();
       await resumeStarts();
       await reconcileLabels();
       await fillSlots();

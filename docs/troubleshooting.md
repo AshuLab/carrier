@@ -84,6 +84,14 @@ The app replaces them only when doing so loses nothing:
 
 Each release's zip is signed with the update key. If its private half is lost, the next release cannot be signed with the key the installed apps trust, so Sparkle refuses it as improperly signed; the apps keep working but stop updating, and the key cannot be rotated with an ad hoc signature ([releasing, the update key](releasing.md#4-the-update-key)). The owner makes a new pair, puts its public half in `macos/update-key.pub`, sets the repository secret `SPARKLE_PRIVATE_KEY` and cuts a release. People who already have Carrier then run `brew reinstall --cask carrier`, which brings a zip with the new public key; only those who run it are updated again, and their Carrier folder is left alone.
 
+## A running epic does not move
+
+A running epic whose agent is gone and that nothing is scheduled to move (its last execution ended and the engine lost the follow-up, or its stage was claimed and never launched) does not need a person.
+At every check the engine continues it from where it was, with the same guards as a launch: it never starts a second agent while one is alive, a launch is in flight, a retry is in flight or a reload has parked the epic.
+Each recovery is an event of the epic, `recovered`, with its stage and its number.
+After three recoveries in a row the next check stops the epic in `engine_error`: the count starts again when an execution of the epic ends or its stage changes, so an epic that makes progress never reaches it.
+Resume it from there like any stopped epic.
+
 ## An epic ends in `solve:epic:needs-human`
 
 The reason is in the panel and the logs. Carrier stops the epic and leaves everything as it was (sessions, worktrees, uncommitted work); the others keep going. Common reasons:
@@ -94,7 +102,7 @@ The reason is in the panel and the logs. Carrier stops the epic and leaves every
 | `ran out of ship retries (N attempts): ...` | The agent process failed technically N times. | Look at the execution logs. Usually auth, network or CLI trouble. |
 | `... the agent process ended with an error (killed: SIGKILL)` | `killed`: a signal from outside Carrier ended the agent's process (Carrier's own stops and timeouts are not this); the detail is the signal. Often the system killing it for memory (`Exit code 137` in the agent's own commands). | Look at the host memory and load the execution row records (`hostFreeMemMb`, `hostLoad`; on macOS free memory understates what is available), and at what else ran at that time. |
 | `the ship execution ran out of usage on option NAME: ...` | `usage_limit`: the agent ended on its usage limit (Claude's API status 429, or Codex's or Antigravity's own message); the detail is what the agent printed, with the time it resets. The epic stops in needs-human at once (kind `usage_limit`), naming the option that ran out, and no retry is spent. | Wait for the reset time in the reason, then Resume the epic, or `carrier restart` it on another option. |
-| One redacted line with the error of the engine, for example `Cannot read properties of undefined` | `engine_error`: an unexpected error of the engine itself hit this epic while it settled a result, retried or failed over. Only this epic stops, and the others keep going; the log of the engine has the stack, and an execution that was running ends failed. | Resume the epic. If it stops the same way again, the line and the engine's log are what to report. |
+| One redacted line with the error of the engine, for example `Cannot read properties of undefined` | `engine_error`: an unexpected error of the engine itself hit this epic while it settled a result, retried or failed over, or the poll recovered it three times in a row and it was still stuck. Only this epic stops, and the others keep going; the log of the engine has the stack, and an execution that was running ends failed. | Resume the epic. If it stops the same way again, the line and the engine's log are what to report. |
 | `... (api_error: HTTP N: ...)` | `api_error`: Claude ended on an API error with status N (not the 401 that is an authentication error, not the usage limit); the detail is the status and the message the agent printed. | Read the message; a 5xx is usually Anthropic's side, so Resume the epic later. |
 | `... (crashed: exit code N)` | `crashed`: the agent's process exited with a nonzero code and no signal. | Read the end of the execution's `stdout.log` for what it printed before exiting. |
 | `... (spawn_error: ...)` | `spawn_error`: the agent's binary could not start, or its command could not be built. | Check that the harness binary (`claude`, `codex` or `agy`) is installed and on the `PATH` of the machine that runs Carrier; `carrier doctor` checks the setup. |

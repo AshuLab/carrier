@@ -324,7 +324,8 @@ test('resumeEpic passes extraRounds, a positive whole number, and refuses zero, 
   expect(await c.ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"review","extraRounds":3}')).toEqual({ id: 4, ok: true });
   expect(resumeEpic).toHaveBeenLastCalledWith('AshuLab/carrier', 5, { author: undefined, reviewer: undefined, from: 'review', extraRounds: 3 });
   resumeEpic.mockClear();
-  for (const extraRounds of ['0', '-1', '1.5', '"3"', 'null', '1e400']) expect(await c.ask(`{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"review","extraRounds":${extraRounds}}`)).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  for (const extraRounds of ['0', '-1', '1.5', '"3"', 'null', '1e400']) expect(await c.ask(`{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"review","extraRounds":${extraRounds}}`)).toEqual({ id: 4, ok: false, error: 'invalid request: extraRounds takes a positive whole number' });
+  expect(await c.ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"merged"}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
   expect(resumeEpic).not.toHaveBeenCalled();
 });
 
@@ -437,7 +438,6 @@ const invalidRequests: (readonly [string, Record<string, unknown>])[] = [
       ['', 'Codex', 'a b', '1abc', '-a', 'a'.repeat(41), '../x', 7, null].map((option) => [`${cmd} with ${role} ${JSON.stringify(option)}`, invalid(cmd, { [role]: option })] as const),
     ),
   ),
-  ...[0, -1, 1.5, '3', null].map((extraRounds) => [`resumeEpic with extraRounds ${JSON.stringify(extraRounds)}`, invalid('resumeEpic', { extraRounds })] as const),
   ...['', 'merged', 'Review', 'ship ', 7, null].map((from) => [`resumeEpic with from ${JSON.stringify(from)}`, invalid('resumeEpic', { from })] as const),
   ['events with no execution id', invalid('events', { executionId: undefined })],
   ['events with no limit', invalid('events', { limit: undefined })],
@@ -470,6 +470,13 @@ test('no request takes a status, a stage or a round, and each accepts exactly th
     recoverEpic: ['issue', 'repo'],
   });
   expect(Object.values(accepted).flat().filter((field) => ['status', 'stage', 'round', 'rounds'].includes(field))).toEqual([]);
+});
+
+// a refused extraRounds names its field
+test.each([0, -1, 1.5, '3', null])('resumeEpic with extraRounds %j is refused naming extraRounds', async (extraRounds) => {
+  await open();
+  const c = await client();
+  expect(await c.ask(JSON.stringify(invalid('resumeEpic', { extraRounds })))).toEqual({ id: 3, ok: false, error: 'invalid request: extraRounds takes a positive whole number' });
 });
 
 test.each(invalidRequests)('%s is a validation error', async (_name, request) => {

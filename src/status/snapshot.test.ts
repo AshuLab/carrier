@@ -40,6 +40,12 @@ test('slots count the running epics, the queue lists the queued ones oldest firs
   expect(s.epics.map((e) => e.issue)).toEqual([6]);
 });
 
+test('an epic shows its own cap of rounds: the granted roundLimit, else the live maxReviews', () => {
+  add(1, 'running', { round: 5, roundLimit: 10 });
+  add(2, 'running', { round: 2 });
+  expect(snapshot().epics.map((e) => [e.issue, e.maxReviews])).toEqual([[1, 10], [2, 5]]);
+});
+
 test('an epic carries its stage, round, links, activity, error and the blockers of the last review that asked for changes', () => {
   const epic = add(12, 'running', {
     stage: 'fix', round: 2, prNumber: 50, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error',

@@ -30,6 +30,7 @@ const repo = z
   .refine((value) => value.split('/').every((part) => part !== '.' && part !== '..'));
 const issue = z.number().int().positive();
 const optionName = z.string().regex(optionNamePattern);
+const extraRounds = z.int().min(1);
 // An allowlist: any other command, field or type is rejected before anything acts on it.
 export const request = z.union([
   z.strictObject({ id, cmd: z.enum(['snapshot', 'pause', 'resume', 'checkNow', 'stop']) }),
@@ -41,7 +42,7 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('fileDiff'), repo, issue, section: z.string().min(1).max(100), path: z.string().min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('availableRepos'), page: z.int().min(1).max(100).optional() }),
   z.strictObject({ id, cmd: z.literal('reload') }),
-  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional(), from: z.enum(['ship', 'review', 'fix']).optional(), extraRounds: z.int().min(1).optional() }),
+  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional(), from: z.enum(['ship', 'review', 'fix']).optional(), extraRounds: extraRounds.optional() }),
   z.strictObject({ id, cmd: z.literal('recoverEpic'), repo, issue }),
 ]);
 
@@ -105,7 +106,10 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
   if (parsed.success === false) {
     // the id is echoed only when it is a valid one, so the client can match the error
     const given = typeof value === 'object' && value !== null ? id.safeParse((value as { id?: unknown }).id) : null;
-    return { id: given?.success ? given.data : null, ok: false, error: 'invalid request' };
+    // a refused extraRounds names its field, so `restart --extra-rounds` can say what to fix; other fields stay the generic refusal
+    const asked = typeof value === 'object' && value !== null ? (value as { cmd?: unknown; extraRounds?: unknown }) : {};
+    const error = asked.cmd === 'resumeEpic' && 'extraRounds' in asked && extraRounds.safeParse(asked.extraRounds).success === false ? 'invalid request: extraRounds takes a positive whole number' : 'invalid request';
+    return { id: given?.success ? given.data : null, ok: false, error };
   }
   if (parsed.data.cmd === 'snapshot') {
     try {

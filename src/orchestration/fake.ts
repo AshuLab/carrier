@@ -1,5 +1,5 @@
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type PullRequestState, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
+import { AuthError, GitHubUnavailable, defaultLabels, hasLabel, type EpicSlice, type PullRequestBlock, type PullRequestState, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
   /** What rateLimit answers. */
@@ -12,6 +12,8 @@ export class FakeGitHub implements GitHub {
   unavailable: GitHubUnavailable | null = null;
   /** The open epics with their slice progress, by repo; the title defaults to empty and the labels to the issue's. */
   openEpics: Record<string, { issue: number; title?: string; slices: Slices | null }[]> = {};
+  /** The epic label every listOpenEpics call asked for. */
+  openEpicsAsked: string[] = [];
   /** Makes listOpenEpics fail while the rest works. */
   openEpicsUnavailable: GitHubUnavailable | null = null;
   /** What readSlices answers, by `repo#issue`; an epic not listed has no slices. */
@@ -50,20 +52,21 @@ export class FakeGitHub implements GitHub {
 
   /** An issue not set up by the test is open and ready. */
   issue(repo: string, issue: number) {
-    return (this.issues[`${repo}#${issue}`] ??= { state: 'open', labels: ['solve:epic:ready'] });
+    return (this.issues[`${repo}#${issue}`] ??= { state: 'open', labels: [defaultLabels.ready] });
   }
 
-  async listReadyEpics(repo: string) {
+  async listReadyEpics(repo: string, label: string) {
     this.guard();
     this.calls++;
     if (this.unavailable) throw this.unavailable;
-    return (this.ready[repo] ?? []).filter((e) => this.issue(repo, e.issue).labels.includes('solve:epic:ready')).map((e) => ({ ...e, labels: [...this.issue(repo, e.issue).labels] })); // like GitHub: the label decides
+    return (this.ready[repo] ?? []).filter((e) => hasLabel(this.issue(repo, e.issue).labels, label)).map((e) => ({ ...e, labels: [...this.issue(repo, e.issue).labels] })); // like GitHub: the label decides
   }
 
-  async listOpenEpics(repo: string) {
+  async listOpenEpics(repo: string, label: string) {
     this.guard();
     const failure = this.unavailable ?? this.openEpicsUnavailable;
     if (failure) throw failure;
+    this.openEpicsAsked.push(label);
     return (this.openEpics[repo] ?? []).map((epic) => ({ title: '', ...epic, labels: [...(this.issues[`${repo}#${epic.issue}`]?.labels ?? [])] }));
   }
 
@@ -112,7 +115,7 @@ export class FakeGitHub implements GitHub {
     this.guard();
     if (this.setLabelsUnavailable) throw this.setLabelsUnavailable;
     const found = this.issue(repo, issue);
-    found.labels = [...new Set([...found.labels.filter((l) => !remove.includes(l)), ...add])];
+    found.labels = [...new Set([...found.labels.filter((l) => !hasLabel(remove, l)), ...add])];
   }
 
   async listLabels(repo: string) {

@@ -10,7 +10,7 @@ A running Carrier applies a changed `engine.json` or `providers.json` when it is
 
 The engine reads both files again, from the same config path and Carrier folder it started with, and checks them as a start does. A file that does not match is refused with the key named, the same lines a start would print, and Carrier goes on with the settings it had; fix the file and reload again.
 
-What follows a reload: everything the engine reads from those files, that is `pollIntervalMinutes`, `finishedWindowDays`, `logLevel`, the five `limits`, the repos with their roles, effort, persona and failover, the `profiles` and `orchestratorProfile`, and the accounts of `providers.json`.
+What follows a reload: everything the engine reads from those files, that is `pollIntervalMinutes`, `labels`, `finishedWindowDays`, `logLevel`, the five `limits`, the repos with their roles, effort, persona and failover, the `profiles` and `orchestratorProfile`, and the accounts of `providers.json`.
 A reload also re-arms the next check from now with the interval then in force and asks for one, so a shorter interval does not wait out the old one and a repo just added is seen at once.
 
 Work already running keeps what it started with, and a change reaches what starts after it:
@@ -96,6 +96,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
 | `failover` | no | none | `{ triggers?, roles? }`: for each role, a list of steps it moves through when its credits run out or service fails. See [Failover](#failover). |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
+| `labels` | no | the `solve:epic…` names below | The label of each role, the same in every repo: `{ epic, ready, running, readyForTest, needsHuman }`, each optional. A name is one line without commas, at most 50 characters, and no two roles, stages or kinds of stop may share one (GitHub ignores case, so `Solve:Epic` is `solve:epic`): a config that repeats one is refused naming the second. See [Labels](#labels). |
 | `finishedWindowDays` | no | `15` | Days a merged or cancelled epic stays in the snapshot after it ends, a whole number from 1 to 30 (30 is the retention purge). |
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |
 | `limits.maxConcurrentEpics` | no | `3` | Epics running at the same time. |
@@ -103,6 +104,30 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
+
+## Labels
+
+Carrier reads and writes five labels on an epic's issue, each named by a role in `labels`:
+
+| Role | Default | Who writes it | What it means |
+| --- | --- | --- | --- |
+| `epic` | `solve:epic` | Solve, a person | Marks an epic. Carrier reads the open ones for the slice progress and the title. |
+| `ready` | `solve:epic:ready` | Solve, a person | Queues the epic. Carrier takes it off when the epic starts and never leaves it on a stopped one, so a person puts it back to restart: pick a label that is not part of your own workflow. |
+| `running` | `solve:epic:running` | Carrier | An orchestrator is building the epic. |
+| `readyForTest` | `solve:epic:ready-for-test` | Carrier | Reviewed on the current head; a person tests and merges. |
+| `needsHuman` | `solve:epic:needs-human` | Carrier | Stopped for a person, with the reason in the app. |
+
+Two more groups are off until you name them, so a Carrier that does not name them writes exactly what it wrote before:
+
+- `labels.stages`: `{ ship, review, fix }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
+- `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid` and `usage_limit`. While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
+
+A stage label costs one more write to GitHub at each stage change, which is why it is opt-in.
+While any of these groups is named, a status change also sends one removal for each owned label the issue lacks, so the writes grow with the labels named.
+Carrier creates these labels in a repo like the three it owns (a stage in light blue, a stop in yellow), and removes them from the issue when the epic moves on or ends.
+
+The first time Carrier writes a label on a repo it creates the three it owns that the repo lacks, with their colour and description; it never creates `epic` or `ready` (Solve creates the defaults), and `carrier doctor` reports one of them missing in a repo, saying you create it when its name is not the default.
+A change applies to the next check after a reload: an epic already queued stays queued (and is cancelled at its start if its issue lost the `ready` label then in force), and an issue that carries the old name of a status label keeps it, because Carrier only removes the names it has now.
 
 ## AI providers
 

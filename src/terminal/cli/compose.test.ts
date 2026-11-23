@@ -16,6 +16,7 @@ import { connectControl } from './control-client.ts';
 import type { ControlSnapshot } from '../../status/types.ts';
 import { epics } from '../../storage/schema.ts';
 import { InstanceBusy, startCarrier, type CarrierDeps } from './compose.ts';
+import { defaultLabels } from '../../orchestration/github.ts';
 
 const MIN = 60_000;
 let root: string;
@@ -315,7 +316,7 @@ test('with a terminal on both sides the panel takes keys: r polls now, p pauses 
 test('a reload through the control socket applies the loader\'s next config, and a refused one leaves every setting as it was and carries the problem', async () => {
   const { seen, github, runner, clock, deps } = fakes();
   github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }, { issue: 2, title: '' }, { issue: 3, title: '' }] };
-  let next: () => Config = () => config({ pollIntervalMinutes: 3, logLevel: 'warn', finishedWindowDays: 9, limits: { maxConcurrentEpics: 1, maxReviews: 8, maxExecutionRetries: 1, maxExecutionHours: 6, githubCallTimeoutSeconds: 7 } });
+  let next: () => Config = () => config({ pollIntervalMinutes: 3, labels: { ...defaultLabels, ready: 'carrier:go' }, logLevel: 'warn', finishedWindowDays: 9, limits: { maxConcurrentEpics: 1, maxReviews: 8, maxExecutionRetries: 1, maxExecutionHours: 6, githubCallTimeoutSeconds: 7 } });
   const app = await startCarrier(config(), root, () => next(), deps);
   closers.push(async () => (await app.engine.shutdown(), app.close()));
   const client = await connectControl(join(root, 'engine', 'state', 'control.sock'));
@@ -325,17 +326,17 @@ test('a reload through the control socket applies the loader\'s next config, and
   app.db.insert(epics).values({ repo: 'AshuLab/b', issue: 99, status: 'merged', finishedAt: -12 * 86_400_000 }).run();
   const snapshot = async () => {
     const shown = (await client.request('snapshot')) as ControlSnapshot;
-    return { pollIntervalMs: shown.engine.pollIntervalMs, slots: shown.slots.total, maxReviews: shown.epics[0]?.maxReviews, finished: shown.finished?.length };
+    return { pollIntervalMs: shown.engine.pollIntervalMs, readyLabel: shown.labels?.ready, slots: shown.slots.total, maxReviews: shown.epics[0]?.maxReviews, finished: shown.finished?.length };
   };
 
   // a first poll takes two epics at once, with the run limit it started with
   await clock.advance(MIN);
   expect(runner.tasks.map((t) => t.timeoutMs)).toEqual([2 * 3_600_000, 2 * 3_600_000]);
-  expect(await snapshot()).toEqual({ pollIntervalMs: MIN, slots: 2, maxReviews: 4, finished: 1 });
+  expect(await snapshot()).toEqual({ pollIntervalMs: MIN, readyLabel: 'solve:epic:ready', slots: 2, maxReviews: 4, finished: 1 });
 
   await client.request('reload');
   expect(seen.levels).toEqual(['warn']);
-  expect(await snapshot()).toEqual({ pollIntervalMs: 3 * MIN, slots: 1, maxReviews: 8, finished: 0 });
+  expect(await snapshot()).toEqual({ pollIntervalMs: 3 * MIN, readyLabel: 'carrier:go', slots: 1, maxReviews: 8, finished: 0 });
   expect(runner.tasks).toHaveLength(2); // the runs launched keep their timeout, and the lowered limit starts no new epic
 
   // an invalid one: nothing changes, and the reply is the lines a start prints
@@ -344,7 +345,7 @@ test('a reload through the control socket applies the loader\'s next config, and
   };
   await expect(client.request('reload')).rejects.toThrow('Invalid config /c/engine.json:\n  limits.maxReviews: Too small');
   expect(seen.levels).toEqual(['warn']);
-  expect(await snapshot()).toEqual({ pollIntervalMs: 3 * MIN, slots: 1, maxReviews: 8, finished: 0 });
+  expect(await snapshot()).toEqual({ pollIntervalMs: 3 * MIN, readyLabel: 'carrier:go', slots: 1, maxReviews: 8, finished: 0 });
 });
 
 test('a log level that cannot be applied makes the reload change nothing and say so, instead of leaving half of it applied', async () => {

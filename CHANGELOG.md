@@ -25,6 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An agent run's raw output log is capped at 50 MB per stream; the newest part is kept, in `stdout.log` and the `.1` file beside it.
 - The app download is smaller: the release binary ships without its debug symbols, which are kept as a dSYM on each GitHub Release.
   On one measured build the binary is 29 MB smaller on disk (68.3 MB to 39.1 MB) and the zip 4 MB smaller (26.2 MB to 22.0 MB, 16 %).
+- Deleting a chat session now also removes what the app saved for it in its settings (the options, commands and agent it last showed), so those no longer grow with every deleted session.
+  Archiving keeps them, since an archived session can be restored.
 
 ## [0.18.0] - 2026-11-22
 
@@ -32,6 +34,7 @@ A Projects page, session titles written by a local model, settings for the chat'
 
 ### Added
 
+- `labels` in `engine.json` names the five labels Carrier reads and writes on an epic (`epic`, `ready`, `running`, `readyForTest`, `needsHuman`), the same in every repo and by default the `solve:epic…` ones. `labels.stages` (ship, review, fix) and `labels.reasons` (one per kind of stop) can add a label for the stage an epic runs in and for why it stopped; both are off until named. No two roles, stages or kinds of stop may share a label. A reload applies them to the next check; `carrier doctor` checks the repos have the ones Carrier reads, and the snapshot carries them for the panel and the app. Settings does not edit them yet.
 - Sessions get titles written by a local text generator after their first reply instead of keeping the first line of the first message. Choose an LM Studio or Ollama model in Settings > Providers > Text generators (`textGenerators` and `textGenerator` in `providers.json`), run "Titles of earlier sessions" there to title active and archived sessions that still have a first-line title, or use Regenerate title in a session's menu; renamed titles are kept.
 - Settings > Chat > Conversation has Message text size (11 to 20 pt), Line spacing (Tight, Normal, Loose) and Message spacing (Compact, Comfortable, Spacious), for the text of the messages and the room between them, apart from the app's Text size and Density.
 - The dictation widget has a theme, chosen in Settings > Dictation > Widget: Default (the app's accent as glass, as it was), Black, Dark glass, Clear glass (the system's glass with no tint) and Theme glow (the colours of the dictation line's glow as a gradient from one side to the other, over glass). The preview under the rows shows the one chosen.

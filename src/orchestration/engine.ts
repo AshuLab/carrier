@@ -26,7 +26,7 @@ import { latestBlockers, latestObservations } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
 import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
-import { AuthError, GitHubRejected, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub, type PullRequestState, type Slices } from './github.ts';
+import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, labelStyles, type GitHub, type LabelStyle, type Labels, type PullRequestState, type Slices } from './github.ts';
 import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak } from './retry.ts';
@@ -39,6 +39,8 @@ export type EngineSettings = {
   maxExecutionRetries: number;
   /** Reviews of the final PR before the epic goes to a person; fix turns do not count. */
   maxReviews: number;
+  /** The labels by role: `ready` queues an epic (Carrier takes it off when the epic starts and puts it back to restart a stopped one), `running`, `readyForTest` and `needsHuman` are the ones Carrier writes. */
+  labels: Labels;
 };
 
 export type EngineOptions = {
@@ -103,6 +105,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   let suspended: AuthError | null = null;
   let cancel: (() => void) | null = null;
   let stopRetention: (() => void) | null = null;
+  // By repo and the names Carrier creates there (its status labels, and the stage and reason ones named): a reload that renames one makes the repo lack a label again.
   const labelledRepos = new Set<string>();
   // Slice progress GitHub reported on the last good read, by repo and issue; not stored, so it is empty until the first poll after a start.
   const progress = new Map<string, Map<number, Slices | null>>();
@@ -116,15 +119,38 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // Creates the owned labels a repo lacks, with their colour and description; never touches existing ones nor creates `ready` (Solve's).
   // Runs right before the first label write on a repo; the repo is remembered only once every label exists, so a failure is retried by the next write.
   async function ensureLabels(repo: string) {
-    if (labelledRepos.has(repo)) return;
+    const key = [repo, ...ownedLabels()].join('\n');
+    if (labelledRepos.has(key)) return;
     const existing = await github.listLabels(repo);
-    for (const label of ownedLabels) if (!existing.includes(label)) await github.createLabel(repo, label, labelStyles[label]);
-    labelledRepos.add(repo);
+    for (const [name, style] of owned()) if (!hasLabel(existing, name)) await github.createLabel(repo, name, style);
+    labelledRepos.add(key);
   }
 
-  // The one owned label each status shows; merged and cancelled (stopped from outside) show none.
-  const labelOf = (status: Epic['status']) =>
-    ({ running: runningLabel, needs_human: needsHumanLabel, ready_for_test: readyForTestLabel })[status as 'running'] as string | undefined;
+  // Every label Carrier may write now, with the style it is created in: the three of the status, then those of the stages and of the stops, when named.
+  const owned = (): [string, LabelStyle][] => {
+    const { running, readyForTest, needsHuman, stages, reasons } = settings().labels;
+    return [
+      [running, labelStyles.running],
+      [readyForTest, labelStyles.readyForTest],
+      [needsHuman, labelStyles.needsHuman],
+      ...Object.values(stages ?? {}).map((name): [string, LabelStyle] => [name, labelStyles.stage]),
+      ...Object.values(reasons ?? {}).map((name): [string, LabelStyle] => [name, labelStyles.reason]),
+    ];
+  };
+  const ownedLabels = () => owned().map(([name]) => name);
+  // Whether a stage change has to reach the issue: only when some stage has a label.
+  const stageLabelled = () => Object.keys(settings().labels.stages ?? {}).length > 0;
+
+  // The owned labels an epic shows: its status's, and the one of its stage while it runs or of its kind of stop while it waits, when those are named.
+  const wantedLabels = ({ status, stage, needsHumanKind }: Pick<Epic, 'status' | 'stage' | 'needsHumanKind'>): string[] => {
+    const { running, readyForTest, needsHuman, stages, reasons } = settings().labels;
+    const stageLabel = stage && stages?.[stage];
+    const reasonLabel = needsHumanKind && reasons?.[needsHumanKind];
+    if (status === 'running') return stageLabel ? [running, stageLabel] : [running];
+    if (status === 'needs_human') return reasonLabel ? [needsHuman, reasonLabel] : [needsHuman];
+    if (status === 'ready_for_test') return [readyForTest];
+    return []; // merged and cancelled (stopped from outside) show none
+  };
 
   // An epic a person sent back to the queue: nothing of the previous attempt is kept, the executions stay as history.
   const restart = (queuedAt: number) => ({
@@ -133,17 +159,20 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null,
   });
 
-  // Mirrors the epic's status on its issue: its label, none of the other owned ones, and no `ready` while running.
-  const applyLabels = async ({ id, repo, issue, status }: Epic) => {
+  // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` while running.
+  const applyLabels = async (epic: Epic) => {
+    const { id, repo, issue, status } = epic;
     if (stopping || suspended || parked(id)) return; // labelPending stays true: the next run reflects it
     await ensureLabels(repo);
     if (parked(id)) return; // the repo left the configuration while its labels were read: GitHub is not touched for it
-    const wanted = labelOf(status);
+    const wanted = wantedLabels(epic);
     await github.setLabels(repo, issue, {
-      add: wanted ? [wanted] : [],
-      remove: [...ownedLabels.filter((l) => l !== wanted), ...(status === 'running' ? [readyLabel] : [])],
+      add: wanted,
+      remove: [...ownedLabels().filter((l) => !wanted.includes(l)), ...(status === 'running' ? [settings().labels.ready] : [])],
     });
-    db.update(epics).set({ labelPending: false }).where(eq(epics.id, id)).run();
+    // A stage or a stop that changed while the labels were written still has its own to write: only the state just written clears the mark.
+    const now = fresh(id);
+    if (now.status === status && now.stage === epic.stage && now.needsHumanKind === epic.needsHumanKind) db.update(epics).set({ labelPending: false }).where(eq(epics.id, id)).run();
   };
 
   const fresh = (id: number) => db.select().from(epics).where(eq(epics.id, id)).get()!;
@@ -333,7 +362,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       }
       if (!unchanged(epic.id, epoch)) return; // parked (and maybe restored) since the caller read the epic: the restore launches it
       // Claim the launch first: concurrent reconciles (a result freeing a slot, the poll) never start a second author.
-      const claimed = db.update(epics).set({ stage: 'ship', stageStartedAt: clock.now() }).where(and(eq(epics.id, epic.id), isNull(epics.stage), eq(epics.status, 'running'))).returning().get();
+      const claimed = db.update(epics).set({ stage: 'ship', stageStartedAt: clock.now(), ...(stageLabelled() && { labelPending: true }) }).where(and(eq(epics.id, epic.id), isNull(epics.stage), eq(epics.status, 'running'))).returning().get();
       if (!claimed) return;
       launching.add(epic.id);
       if (rebuild) db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'session_rebuilt', data: { stage, from: before!.option, to: optionNow, pr: rebuild.pr } }).run();
@@ -612,7 +641,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
     if (outside(epic.id) || epochOf(epic.id) !== epoch) return; // it ended, or was parked (and maybe restored) while GitHub was asked: stays `finished` without a result, the next run imports it
     const imported = importResult(db, raw, expected, (tx, result) => {
-      const update = (set: Partial<Epic>) => tx.update(epics).set(set).where(eq(epics.id, epic.id)).run();
+      // A stage change reaches the issue when a stage has a label: the label follows (labelPending) like a status change does.
+      const update = (set: Partial<Epic>) => tx.update(epics).set(set.stage !== undefined && stageLabelled() ? { ...set, labelPending: true } : set).where(eq(epics.id, epic.id)).run();
       if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, 'agent_needs_human', result.reason);
       else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.text);
       else if (execution.stage === 'ship') update({ stage: 'review', stageStartedAt: clock.now(), round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha, workspace, branch });
@@ -731,7 +761,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       }
       if (!stillRunning(epic.id)) continue; // parked while GitHub was asked: it keeps where it was
       if (issue.state === 'closed') cancelWith('closed before it started');
-      else if (!issue.labels.includes(readyLabel)) cancelWith('ready label removed');
+      else if (!hasLabel(issue.labels, settings().labels.ready)) cancelWith('ready label removed');
       else {
         // Its slices exist before it is ready: read them now so the app has the list from the first second, not after the next poll.
         // Not `forRepo`: the extra turns it adds to this await change when a run that just ended gets its result imported, which tests depend on.
@@ -853,8 +883,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     // SQLite is the authority: labels that differ on GitHub are put back.
     for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos().map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
       const { labels } = await github.getIssue(epic.repo, epic.issue);
-      const wanted = labelOf(epic.status);
-      if (ownedLabels.some((l) => labels.includes(l) !== (l === wanted)) || (epic.status === 'running' && labels.includes(readyLabel))) await applyLabels(epic);
+      const wanted = wantedLabels(epic);
+      if (ownedLabels().some((l) => hasLabel(labels, l) !== hasLabel(wanted, l)) || (epic.status === 'running' && hasLabel(labels, settings().labels.ready))) await applyLabels(epic);
     }
   }
   // One recovery at a time: a check asked while the start recovers waits for that one, never a second recoverEpic on the same epic. A failed one is
@@ -869,7 +899,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // A failed read keeps the last known values and the poll goes on: progress is only for show. A rejected profile is not "only for show".
   async function refreshProgress(repo: string, seen: SeenThisPoll) {
     try {
-      const open = await github.listOpenEpics(repo);
+      const open = await github.listOpenEpics(repo, settings().labels.epic);
       seen.openIssues.set(repo, new Set(open.map(({ issue }) => issue)));
       progress.set(repo, new Map(open.map(({ issue, slices }) => [issue, slices])));
       // The same read carries the title and labels of the epics Carrier already holds, whatever their status.
@@ -994,7 +1024,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         // GitHub answering for this one repo that it cannot be read (not found, no access) is that repo's check; the others go on.
         // What is about the whole cycle (the profile, GitHub down) stops it below.
         const ok = await forRepo(repo, async () => {
-          const listed = await github.listReadyEpics(repo);
+          const listed = await github.listReadyEpics(repo, settings().labels.ready);
           await refreshProgress(repo, seen);
           await refreshSlices(repo);
           await refreshPullRequests(repo, seen);
@@ -1157,7 +1187,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const reviewer = chosen.reviewer ?? epic.reviewerOption;
       restarts.set(epic.id, { ...(author && { author }), ...(reviewer && { reviewer }) });
       try {
-        await github.setLabels(repo, issue, { add: [readyLabel], remove: [] });
+        await github.setLabels(repo, issue, { add: [settings().labels.ready], remove: [] });
       } catch (e) {
         restarts.delete(epic.id);
         if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');

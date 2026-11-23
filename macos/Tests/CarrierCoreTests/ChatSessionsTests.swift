@@ -808,6 +808,19 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(seenKinds == [.archive, .delete, .clear, .archive, .delete, .clear])
 }
 
+@MainActor @Test func onlyADeleteTheHostAcceptedForgetsWhatIsKeptForTheSession() async {
+    let host = FakeHost()
+    let actions = SessionActions(host: host, log: { _ in })
+    var forgotten: [String] = []
+    actions.didDeleteSession = { forgotten.append($0) }
+
+    #expect(await actions.archive("a") == nil)  // archived: it can be restored with its options
+    #expect(forgotten.isEmpty)
+    #expect(await actions.delete("b") == nil)
+    #expect(await actions.clear(["c", "d"]) == nil)
+    #expect(forgotten == ["b", "c", "d"])
+}
+
 @MainActor @Test func aRefusalIsReturnedInWordsAndNothingChanges() async {
     let host = FakeHost()
     host.refuse["a"] = ControlError.remote("This session is working; interrupt or close it first, then archive it")

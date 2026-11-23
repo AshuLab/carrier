@@ -1,8 +1,10 @@
+import { defaultLabels } from '../orchestration/github.ts';
 import type { Providers } from './providers.ts';
 import { configSchema, type Config } from './schema.ts';
 
 export const defaults = {
   pollIntervalMinutes: 5,
+  labels: defaultLabels,
   finishedWindowDays: 15,
   logLevel: 'info',
   limits: {

@@ -50,24 +50,36 @@ export function summarizeLogLine(line: string): string | null {
   return null;
 }
 
-/** The last `count` meaningful lines of an execution's output, read from the end of the file (it can be megabytes). */
-export function tailExecution(logs: string, executionId: string, count: number, fileSizeLimit = 256 * 1024): string[] {
-  const path = join(logs, 'executions', executionId, 'stdout.log');
+/** The last `limit` bytes of a file as text, and whether the file went further back; null when it does not exist. */
+function readTail(path: string, limit: number): { text: string; cut: boolean } | null {
   let fd: number;
   try {
     fd = openSync(path, 'r');
   } catch {
-    return []; // nothing written yet
+    return null;
   }
   try {
     const size = statSync(path).size;
-    const start = Math.max(0, size - fileSizeLimit);
+    const start = Math.max(0, size - limit);
     const buffer = Buffer.alloc(size - start);
     readSync(fd, buffer, 0, buffer.length, start);
-    const lines = buffer.toString('utf8').split('\n');
-    if (start > 0) lines.shift(); // cut in the middle of a line
-    return lines.flatMap((l) => summarizeLogLine(l) ?? []).slice(-count);
+    return { text: buffer.toString('utf8'), cut: start > 0 };
   } finally {
     closeSync(fd);
   }
+}
+
+/**
+ * The last `count` meaningful lines of an execution's output, read from the end of the file (it can be megabytes).
+ * Right after a rotation `stdout.log` holds only a small block, so the end of `stdout.log.1` fills what is left of the window.
+ */
+export function tailExecution(logs: string, executionId: string, count: number, fileSizeLimit = 256 * 1024): string[] {
+  const path = join(logs, 'executions', executionId, 'stdout.log');
+  const current = readTail(path, fileSizeLimit);
+  if (current === null) return []; // nothing written yet
+  const room = fileSizeLimit - Buffer.byteLength(current.text);
+  const older = current.cut || room <= 0 ? null : readTail(`${path}.1`, room);
+  const lines = `${older?.text ?? ''}${current.text}`.split('\n');
+  if (older?.cut ?? current.cut) lines.shift(); // cut in the middle of a line
+  return lines.flatMap((l) => summarizeLogLine(l) ?? []).slice(-count);
 }

@@ -5058,7 +5058,6 @@ test('an epic resumed at a stage whose claim was cut before its execution starts
 test.each([
   ['the pull request is closed', { state: 'closed' as const }, 'pull request not open'],
   ['the pull request is merged', { state: 'merged' as const }, 'pull request not open'],
-  ['its head is not the stored one', { headSha: 'b'.repeat(40) }, 'pull request head changed'],
 ])('resuming at a stage is refused when %s, and nothing changes', async (_name, change, reason) => {
   const engine = await start(1);
   stoppedAt(engine.db, 'review');
@@ -5068,6 +5067,45 @@ test.each([
   expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'fix' }))).toBe(reason);
   expect(labelsOf(1)).toEqual(before);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeStage: null, round: 2 });
+  expect(runner.tasks).toEqual([]);
+});
+
+const MOVED = 'b'.repeat(40);
+
+test('resuming at review after the head moved adopts the new head: it is stored, the review starts on it and the event says from which to which', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review');
+  pull(50, { headSha: MOVED });
+  await resumeFrom(engine, 'review');
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['review']);
+  expect(runner.tasks[0]).toMatchObject({ context: { round: 2, pr: { number: 50, headSha: MOVED } } });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2, prNumber: 50, prHeadSha: MOVED, resumeStage: null });
+  expect(eventsOf(engine.db).filter((e) => e.type === 'resumed').map((e) => e.data)).toEqual([{ from: 'review', by: 'command', headAdopted: { from: SHA, to: MOVED } }]);
+});
+
+test('resuming at review keeps the stored head when GitHub fails to put the label', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review');
+  pull(50, { headSha: MOVED });
+  github.setLabelsUnavailable = new GitHubUnavailable('network', 'down');
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'review' }))).toBe('github unavailable');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', prHeadSha: SHA, resumeStage: null });
+});
+
+test('resuming at review with the head unmoved has no head adopted in its event', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review');
+  await resumeFrom(engine, 'review');
+  expect(eventsOf(engine.db).filter((e) => e.type === 'resumed').map((e) => e.data)).toEqual([{ from: 'review', by: 'command' }]);
+});
+
+test('resuming at fix is refused when the head moved, because the blockers belong to the stored head', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'fix');
+  pull(50, { headSha: MOVED });
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'fix' }))).toBe('pull request head changed');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', prHeadSha: SHA, resumeStage: null });
   expect(runner.tasks).toEqual([]);
 });
 

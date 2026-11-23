@@ -329,6 +329,17 @@ test('resumeEpic passes extraRounds, a positive whole number, and refuses zero, 
   expect(resumeEpic).not.toHaveBeenCalled();
 });
 
+test('resumeEpic passes --from review and --from fix alike, and the engine\'s refusal of a moved head at fix is that reason in the reply', async () => {
+  const resumeEpic = vi.fn(() => Promise.resolve());
+  resumeEpic.mockResolvedValueOnce().mockRejectedValueOnce(new ResumeRefused('pull request head changed'));
+  await open(undefined, { ...fakeControls().controls, resumeEpic });
+  const c = await client();
+  expect(await c.ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"review"}')).toEqual({ id: 4, ok: true });
+  expect(await c.ask('{"id":5,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"fix"}')).toEqual({ id: 5, ok: false, error: 'pull request head changed' });
+  expect(resumeEpic).toHaveBeenNthCalledWith(1, 'AshuLab/carrier', 5, { author: undefined, reviewer: undefined, from: 'review', extraRounds: undefined });
+  expect(resumeEpic).toHaveBeenNthCalledWith(2, 'AshuLab/carrier', 5, { author: undefined, reviewer: undefined, from: 'fix', extraRounds: undefined });
+});
+
 test.each(['unknown epic', 'not stopped', 'github unavailable', 'did not restart', 'unknown option', 'no pull request', 'pull request not open', 'pull request head changed', 'extra rounds need a stage', 'extra rounds need a review limit'] as const)('resumeEpic refused as "%s" is that reason in the reply', async (reason) => {
   await open(undefined, { ...fakeControls().controls, resumeEpic: () => Promise.reject(new ResumeRefused(reason)) });
   expect(await (await client()).ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: reason });

@@ -204,6 +204,13 @@
       "when": 1795444994641,
       "tag": "0028_broad_greymalkin",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1795455131029,
+      "tag": "0029_glossy_scarecrow",
+      "breakpoints": true
     }
   ]
 }

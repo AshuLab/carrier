@@ -52,6 +52,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'carrier-'));
   dbs = [];
   github = new FakeGitHub();
+  workspaces.reviewerCommit = (repo, pr) => github.pulls[`${repo}#${pr}`]?.headSha ?? SHA; // a checkout is at the PR's head as GitHub has it when it is made
   clock = new FakeClock();
   declaredProfile = () => true;
 });
@@ -1748,6 +1749,27 @@ test('after ship the reviewer runs with its own profile, a separate workspace, t
   expect(executionsOf(engine.db).map((e) => [e.stage, e.status])).toEqual([['ship', 'finished'], ['review', 'interrupted']]);
 });
 
+test('the reviewer is told the commit its checkout was made at, and a result that carries another head is invalid and retried', async () => {
+  const checkout = 'c'.repeat(40);
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50, { headSha: checkout });
+  let attempt = 0;
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { write: completed(task, { number: 50, headSha: checkout }) } : { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: ++attempt === 1 ? SHA : checkout }, verification: { ci: 'passed', evidence: 'ok' } }) };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  const reviews = runner.tasks.filter((t) => t.stage === 'review');
+  expect(reviews).toHaveLength(2);
+  for (const task of reviews) expect(task.context.pr).toEqual({ number: 50, headSha: checkout });
+  const [first, second] = executionsOf(engine.db).filter((e) => e.stage === 'review');
+  expect(first).toMatchObject({ status: 'invalid_result', failureKind: 'invalid_result', headSha: checkout });
+  expect(first!.error).toContain(`not ${checkout}`);
+  expect(second).toMatchObject({ headSha: checkout, status: 'finished' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: checkout });
+});
+
 test('a concluding review on the current head leaves the epic ready for test with the reviewed SHA and verification', async () => {
   const engine = await reviewing((task) => ({
     write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'pnpm test ok, repo without CI' } }),
@@ -2204,8 +2226,10 @@ test('a reviewer workspace that cannot be prepared leaves the epic in needs_huma
     throw new Error('checkout failed');
   };
   const engine = await reviewing(() => ({}));
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'could not prepare the workspace: checkout failed' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: 'could not prepare the workspace: checkout failed' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']); // no review run was spent
+  expect(executionsOf(engine.db).map((e) => e.stage)).toEqual(['ship']);
 });
 
 test('a ready label that did not reach GitHub is retried on the next poll', async () => {
@@ -2874,7 +2898,7 @@ test('a reload while the reviewer\'s workspace is being prepared does not launch
   pull(50);
   let open!: () => void;
   const gate = new Promise<void>((resolve) => (open = resolve));
-  workspaces.prepareReviewer = async (repo, epic, pr) => (await gate, `/work/${repo}/${epic}/reviewer-${pr}`);
+  workspaces.prepareReviewer = async (repo, epic, pr) => ({ path: (await gate, `/work/${repo}/${epic}/reviewer-${pr}`), commit: SHA });
   runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'hang' });
   const engine = await start(1);
   await clock.advance(5 * MIN);
@@ -4009,7 +4033,7 @@ test('a repo removed and added back while the reviewer\'s workspace is prepared 
   let open!: () => void;
   const gate = new Promise<void>((resolve) => (open = resolve));
   let prepared = 0;
-  workspaces.prepareReviewer = async (repo, epic, pr) => (prepared++, await gate, `/work/${repo}/${epic}/reviewer-${pr}`);
+  workspaces.prepareReviewer = async (repo, epic, pr) => (prepared++, await gate, { path: `/work/${repo}/${epic}/reviewer-${pr}`, commit: SHA });
   runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'hang' });
   const engine = await start(1);
   await clock.advance(5 * MIN);

@@ -373,7 +373,7 @@ The epic keeps that cap as its `roundLimit`; an epic with none follows the live 
 _Avoid_: restart from review, rewind.
 
 **Stage skill** - The skill a stage invokes, named in the `skills` block of the config (a repo's `skills` replaces what it names): by default Solve's `ship`, `code-review` with `code-post` to publish, and `code-resolve`.
-Planned, not built yet: this belongs to a later epic of [the engine improvements](specs/carrier-engine-improvements.md), so the config it names does not exist today.
+The prompts of ship, review and fix invoke the names the epic was saved with, so a reload does not change a running epic and a restart from ship takes the new ones.
 Only the name is configurable; Carrier keeps the prompt around it and the result contract, and the skill has to leave what the engine checks, above all a linked worktree and an open pull request that closes the epic after ship.
 See [ADR 0045](adr/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md).
 _Avoid_: command, plugin, custom prompt (the prompt is not configurable).

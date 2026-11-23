@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { parseCallerResult } from '../execution/caller-result.ts';
+import { resolveSkills, solveSkills, type ResolvedSkills } from '../config/skills.ts';
 import { buildPrompt } from './build-prompt.ts';
 import { signatureOf } from './persona.ts';
 
@@ -278,4 +279,65 @@ test.each([['ship', 'Author'], ['review', 'Reviewer'], ['fix', 'Author']] as con
   expect(buildPrompt({ ...task(stage), sharedIdentity: true }).split('\n')[1]).toMatch(/: 🤖 \w+ via Carrier$/);
   expect(buildPrompt({ ...task(stage), sharedIdentity: false, persona: { name: 'Atlas' } })).not.toContain('via Carrier');
   expect(buildPrompt({ ...task(stage), sharedIdentity: false })).toBe(buildPrompt(task(stage)));
+});
+
+// The lines a stage adds between the ground rules and the result contract.
+const stageLines = (t: AgentTask) => {
+  const lines = buildPrompt(t).split('\n').slice(3);
+  return lines.slice(0, lines.findIndex((l) => l.startsWith('Before finishing')));
+};
+const withSkills = (t: AgentTask, skills: ResolvedSkills): AgentTask => ({ ...t, skills });
+const named = resolveSkills(solveSkills, { ship: 'build', review: { review: 'my-review', publish: 'my-post' }, fix: 'my-fix' });
+
+test('a configured ship skill is invoked and only the contract sentences are said', () => {
+  expect(stageLines(withSkills(task('ship'), named))).toMatchInlineSnapshot(`
+    [
+      "Invoke /build for epic #3. The epic must live in its own git worktree, and the body of the final integration PR must close the epic (Closes #3). Leave the final integration PR open.",
+      "Never merge the final PR: a person tests it and decides the merge.",
+    ]
+  `);
+  expect(buildPrompt(withSkills(task('ship', {}, 'codex'), named))).toContain('Invoke $build for epic #3.');
+});
+
+test('a configured review skill and its publisher are invoked', () => {
+  expect(stageLines(withSkills(task('review', { round: 2 }), named)).slice(0, 2)).toMatchInlineSnapshot(`
+    [
+      "Review PR #7, round 2. First confirm the PR head is aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; if it is not, return needs_human.",
+      "Invoke /my-review against the epic's spec and tickets, checking that earlier findings were fixed and nothing regressed, then publish the findings with /my-post.",
+    ]
+  `);
+});
+
+test('a review whose publish is null does not tell the agent to publish with a second skill', () => {
+  const none = resolveSkills(solveSkills, { review: { review: 'my-review', publish: null } });
+  const prompt = buildPrompt(withSkills(task('review'), none));
+  expect(prompt).toContain("Invoke /my-review against the epic's spec and tickets, checking that earlier findings were fixed and nothing regressed.");
+  expect(prompt).not.toMatch(/publish the findings|code-post/);
+});
+
+test('a configured fix skill is invoked in both fix prompts', () => {
+  const fixing = withSkills(task('fix', { blockers: [{ title: 'x' }] }), named);
+  expect(stageLines(fixing)).toMatchInlineSnapshot(`
+    [
+      "Invoke /my-fix on PR #7, answering every finding of the last review and fixing what applies.",
+      "Never merge the final PR. Leave the blockers open: the reviewer verifies them, you do not resolve them.",
+      "Blockers of the last review:",
+      "- x",
+    ]
+  `);
+  expect(buildPrompt(withSkills(task('fix', { observations: [{ title: 'y' }] }), named))).toContain('Invoke /my-fix on PR #7, answering the observations');
+});
+
+test('the Solve-only sentences of ship are said only with the default ship skill, the contract ones for every skill', () => {
+  const solve = buildPrompt(task('ship'));
+  const other = buildPrompt(withSkills(task('ship'), named));
+  for (const sentence of ['solve.md', 'design artifacts']) {
+    expect(solve).toContain(sentence);
+    expect(other).not.toContain(sentence);
+  }
+  for (const sentence of ['own git worktree', 'Leave the final integration PR open', 'Never merge the final PR', 'Before finishing, write exactly one JSON object']) {
+    expect(solve).toContain(sentence);
+    expect(other).toContain(sentence);
+  }
+  expect(other).toContain('Closes #3');
 });

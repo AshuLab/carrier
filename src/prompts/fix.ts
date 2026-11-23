@@ -1,5 +1,5 @@
 import type { AgentTask } from '../execution/agent-runner.ts';
-import { invoke } from './invoke.ts';
+import { invoke, skillsOf } from './invoke.ts';
 
 const item = (b: { title: string; url?: string }) => `- ${b.title}${b.url ? ` (${b.url})` : ''}`;
 
@@ -8,7 +8,7 @@ export const fix = (task: AgentTask, pr: { number: number }): string[] => {
   const observations = task.context.observations ?? [];
   if (observations.length > 0) {
     return [
-      `Invoke ${invoke(task, 'code-resolve')} on PR #${pr.number}, answering the observations the last review left and fixing what applies.`,
+      `Invoke ${invoke(task, skillsOf(task).fix.name)} on PR #${pr.number}, answering the observations the last review left and fixing what applies.`,
       'Reply on each thread with your decision, whether or not it changes the code. Leave every thread open: only the reviewer can say it is satisfied, you do not resolve them.',
       'Never merge the final PR.',
       'Observations of the last review:',
@@ -16,7 +16,7 @@ export const fix = (task: AgentTask, pr: { number: number }): string[] => {
     ];
   }
   return [
-    `Invoke ${invoke(task, 'code-resolve')} on PR #${pr.number}, answering every finding of the last review and fixing what applies.`,
+    `Invoke ${invoke(task, skillsOf(task).fix.name)} on PR #${pr.number}, answering every finding of the last review and fixing what applies.`,
     'Never merge the final PR. Leave the blockers open: the reviewer verifies them, you do not resolve them.',
     'Blockers of the last review:',
     ...(task.context.blockers ?? []).map(item),

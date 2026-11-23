@@ -7,6 +7,7 @@ import type { EnginePlaces } from '../config/places.ts';
 import { runtimeOf } from '../config/providers.ts';
 import { failoverStepsFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
 import { failoverTriggers, matchesFailoverTrigger } from '../config/schema.ts';
+import { savedSkills } from '../config/skills.ts';
 import type { HarnessName } from '../harnesses/names.ts';
 import type { Skills } from '../harnesses/skills.ts';
 import type { AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
@@ -609,6 +610,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       stage,
       ...(reviewing ? epic.config!.agents.reviewer : epic.config!.agents.author),
       sharedIdentity: epic.config!.sharedIdentity === true,
+      skills: savedSkills(epic.config),
       workspace,
       resultPath,
       timeoutMs: hoursLimit === 'unlimited' ? null : hoursLimit * 3_600_000,

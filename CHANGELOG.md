@@ -37,7 +37,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A repo that GitHub answers badly (a timeout, a 5xx or a network error) is skipped for that cycle and shown with its reason, and the other repos go on.
 - `skills` in `engine.json`, globally, per repo and per role (`agents.author.skills`, `agents.reviewer.skills`), names the skill of each stage (`ship`, `review` with `publish`, `fix`).
   The defaults are Solve's (`ship`, `code-review` with `code-post`, `code-resolve`), a name is checked when the config loads, and the resolved skills are saved with an epic when it starts.
-  The prompts do not read them yet.
+- The prompts of ship, review and fix invoke the skills an epic was saved with, spelled `/name` (`$name` for Codex).
+  A review whose `publish` is `null` no longer tells the agent to publish with a second skill, and the sentences about Solve's `solve.md` and the design artifacts on the remote are said only with Solve's `ship`.
+  With the defaults the prompts are unchanged.
 
 ### Changed
 

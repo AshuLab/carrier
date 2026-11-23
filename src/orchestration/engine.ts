@@ -181,17 +181,25 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeAt: null,
   });
 
-  // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` while running.
+  // The labels a poll read of each issue (`repo#issue`), kept up to date by Carrier's own writes and emptied when the poll ends:
+  // a status change removes only what the issue has, and outside a poll (a request) it reads the issue once.
+  const polledLabels = new Map<string, string[]>();
+  const configured = (repo: string) => repos().some((r) => r.name === repo);
+
+  // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` in any status (a queued epic is not written here).
+  // Only the labels the issue has are removed, one request each.
   const applyLabels = async (epic: Epic) => {
     const { id, repo, issue, status } = epic;
-    if (stopping || suspended || parked(id)) return; // labelPending stays true: the next run reflects it
+    if (stopping || suspended || parked(id) || !configured(repo)) return; // labelPending stays true: the next run reflects it
     await ensureLabels(repo);
-    if (parked(id)) return; // the repo left the configuration while its labels were read: GitHub is not touched for it
+    if (parked(id) || !configured(repo)) return; // the repo left the configuration while its labels were read: GitHub is not touched for it
     const wanted = wantedLabels(epic);
-    await github.setLabels(repo, issue, {
-      add: wanted,
-      remove: [...ownedLabels().filter((l) => !wanted.includes(l)), ...(status === 'running' ? [settings().labels.ready] : [])],
-    });
+    const key = `${repo}#${issue}`;
+    const present = polledLabels.get(key) ?? (await github.getIssue(repo, issue)).labels;
+    if (parked(id) || !configured(repo)) return;
+    const remove = [...ownedLabels().filter((l) => !wanted.includes(l)), settings().labels.ready].filter((l) => hasLabel(present, l));
+    await github.setLabels(repo, issue, { add: wanted, remove });
+    if (polledLabels.has(key)) polledLabels.set(key, [...present.filter((l) => !hasLabel(remove, l)), ...wanted.filter((l) => !hasLabel(present, l))]);
     // A stage or a stop that changed while the labels were written still has its own to write: only the state just written clears the mark.
     const now = fresh(id);
     if (now.status === status && now.stage === epic.stage && now.needsHumanKind === epic.needsHumanKind) db.update(epics).set({ labelPending: false }).where(eq(epics.id, id)).run();
@@ -1066,6 +1074,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         throw e;
       }
       if (!stillRunning(epic.id)) continue; // parked while GitHub was asked: it keeps where it was
+      polledLabels.set(`${epic.repo}#${epic.issue}`, issue.labels); // the freshest read: the label write that follows removes only what is there
       if (issue.state === 'closed') cancelWith('closed before it started', 'issue_closed');
       else if (!hasLabel(issue.labels, settings().labels.ready)) cancelWith('ready label removed', 'ready_removed');
       else {
@@ -1269,17 +1278,13 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     return recovering;
   };
 
-  // A failed read keeps the last known values and the poll goes on: progress is only for show. A rejected profile is not "only for show".
-  async function refreshProgress(repo: string, seen: SeenThisPoll) {
-    try {
-      const open = await github.listOpenEpics(repo, settings().labels.epic);
-      seen.openIssues.set(repo, new Set(open.map(({ issue }) => issue)));
-      progress.set(repo, new Map(open.map(({ issue, slices }) => [issue, slices])));
-      // The same read carries the title and labels of the epics Carrier already holds, whatever their status.
-      for (const { issue, title, labels } of open) db.update(epics).set({ title, labels }).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).run();
-    } catch (e) {
-      if (endsPoll(e)) throw e;
-      log.error('slice progress read failed, keeping the last values', e);
+  // What the repo's one listing says: the progress of each epic, the title and labels of those Carrier already holds (whatever their status), and which issues are open.
+  function takeOpen(repo: string, open: { issue: number; title: string; labels: string[]; slices: Slices | null }[], seen: SeenThisPoll) {
+    seen.openIssues.set(repo, new Set(open.map(({ issue }) => issue)));
+    progress.set(repo, new Map(open.map(({ issue, slices }) => [issue, slices])));
+    for (const { issue, title, labels } of open) {
+      polledLabels.set(`${repo}#${issue}`, labels);
+      db.update(epics).set({ title, labels }).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).run();
     }
   }
 
@@ -1401,8 +1406,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         // GitHub unavailable for it (not a rate limit) skips it for the cycle the same way, and nothing of it is queued.
         const ok = await forRepo(repo, async () => {
           try {
-            const listed = await github.listReadyEpics(repo, settings().labels.ready);
-            await refreshProgress(repo, seen);
+            // The one listing of the repo this cycle: the epics that carry the epic label, oldest first, and `ready` is read from their labels.
+            const open = await github.listOpenEpics(repo, settings().labels.epic);
+            takeOpen(repo, open, seen);
+            const listed = open.filter(({ labels }) => hasLabel(labels, settings().labels.ready));
             await refreshSlices(repo);
             await refreshPullRequests(repo, seen);
             found.push(...listed.map(({ issue, title, labels }) => ({ repo, issue, title, labels })));
@@ -1427,7 +1434,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           tx.update(epics).set({ title: epic.title, labels: epic.labels }).where(eq(epics.id, known.id)).run();
           // Carrier never leaves `ready` on a stopped epic, so finding it on a `needs_human` one is a person saying "go on":
           // it starts again from ship, which reuses the epic's worktree and PR, or from the stage the person asked for, which keeps where it stood.
-          if (known.status === 'needs_human') {
+          // Not while Carrier's own write is pending: a removal of `ready` that failed while the epic ran left it there, and it is not a person's.
+          if (known.status === 'needs_human' && !known.labelPending) {
             const queuedAt = queuePosition(tx, clock.now());
             tx.update(epics).set(known.resumeStage ? requeueKeeping(queuedAt) : restart(queuedAt)).where(eq(epics.id, known.id)).run();
           } else if (known.status === 'cancelled' && requeueable.includes(known.cancelKind as CancelKind) && !tx.select({ id: executions.executionId }).from(executions).where(eq(executions.epicId, known.id)).get()) {
@@ -1462,6 +1470,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       return Math.max(settings().pollIntervalMs, longestWait, (e instanceof GitHubUnavailable && e.retryAfterMs) || 0);
     } finally {
       skipped.clear();
+      polledLabels.clear();
     }
   }
 
@@ -1606,14 +1615,15 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // It also takes the wake-up's time away now: a poll that probes while the label is put must not resume the epic itself over what was asked here.
       // The epic was read before GitHub was asked, so the write holds only while it is still stopped (a wake-up may have moved it meanwhile).
       const grant = chosen.extraRounds ?? (epic.needsHumanKind === 'review_limit' ? settings().maxReviews : undefined);
-      const saved = db.update(epics).set({ resumeStage: keeping, resumeAt: null, prHeadSha: adopted ?? epic.prHeadSha, roundLimit: keeping && grant !== undefined ? (epic.round ?? 0) + grant : epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).returning().get();
+      // `labelPending` goes too: the poll takes the `ready` of a stopped epic with a write still pending for Carrier's own, and this one is a person's.
+      const saved = db.update(epics).set({ labelPending: false, resumeStage: keeping, resumeAt: null, prHeadSha: adopted ?? epic.prHeadSha, roundLimit: keeping && grant !== undefined ? (epic.round ?? 0) + grant : epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).returning().get();
       if (!saved) throw new ResumeRefused('not stopped');
       restarts.set(epic.id, { ...(author && { author }), ...(reviewer && { reviewer }) });
       try {
         await github.setLabels(repo, issue, { add: [settings().labels.ready], remove: [] });
       } catch (e) {
         restarts.delete(epic.id);
-        db.update(epics).set({ resumeStage: null, resumeAt: epic.resumeAt, prHeadSha: epic.prHeadSha, roundLimit: epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).run();
+        db.update(epics).set({ labelPending: epic.labelPending, resumeStage: null, resumeAt: epic.resumeAt, prHeadSha: epic.prHeadSha, roundLimit: epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).run();
         if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
         throw e;
       }

@@ -115,7 +115,7 @@ Carrier reads and writes five labels on an epic's issue, each named by a role in
 | Role | Default | Who writes it | What it means |
 | --- | --- | --- | --- |
 | `epic` | `solve:epic` | Solve, a person | Marks an epic. Carrier reads the open ones for the slice progress and the title. |
-| `ready` | `solve:epic:ready` | Solve, a person | Queues the epic. Carrier takes it off when the epic starts and never leaves it on a stopped one, so a person puts it back to restart: pick a label that is not part of your own workflow. |
+| `ready` | `solve:epic:ready` | Solve, a person | Queues the epic. Carrier takes it off in every status except queued (running, needs human, ready for test, merged, cancelled) and never leaves it on a stopped one, so a person puts it back to restart: pick a label that is not part of your own workflow. A removal that failed is retried at the next check, and until it succeeds the `ready` on a stopped epic is not read as a restart. |
 | `running` | `solve:epic:running` | Carrier | An orchestrator is building the epic. |
 | `readyForTest` | `solve:epic:ready-for-test` | Carrier | Reviewed on the current head; a person tests and merges. |
 | `needsHuman` | `solve:epic:needs-human` | Carrier | Stopped for a person, with the reason in the app. |
@@ -127,10 +127,11 @@ Two more groups are off until you name them, so a Carrier that does not name the
   While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
 
 A stage label costs one more write to GitHub at each stage change, which is why it is opt-in.
-While any of these groups is named, a status change also sends one removal for each owned label the issue lacks, so the writes grow with the labels named.
+A status change removes only the owned labels the issue has, taken from the labels the poll read in the same check (or read once from GitHub when a request causes the change), so the writes do not grow with the labels named.
 Carrier creates these labels in a repo like the three it owns (a stage in light blue, a stop in yellow), and removes them from the issue when the epic moves on or ends.
 
 The first time Carrier writes a label on a repo it creates the three it owns that the repo lacks, with their colour and description; it never creates `epic` or `ready` (Solve creates the defaults), and `carrier doctor` reports one of them missing in a repo, saying you create it when its name is not the default.
+Carrier writes no label to a repo that is not in the configuration, whatever the status of the epic; the write waits until the repo is back.
 A change applies to the next check after a reload: an epic already queued stays queued (and is cancelled at its start if its issue lost the `ready` label then in force), and an issue that carries the old name of a status label keeps it, because Carrier only removes the names it has now.
 
 ## AI providers

@@ -155,17 +155,9 @@ export class GhGitHub implements GitHub {
     }
   }
 
-  async listReadyEpics(repo: string, label: string) {
-    const epics: { issue: number; title: string; labels: string[] }[] = [];
-    for await (const rows of this.pages(repo, 'issues', { labels: label, state: 'open', sort: 'created', direction: 'asc' }, issueRow)) {
-      for (const row of rows) if (row.pull_request === undefined) epics.push({ issue: row.number, title: row.title, labels: row.labels.map((label) => label.name) });
-    }
-    return epics;
-  }
-
   async listOpenEpics(repo: string, label: string) {
     const epics: { issue: number; title: string; labels: string[]; slices: Slices | null }[] = [];
-    for await (const rows of this.pages(repo, 'issues', { labels: label, state: 'open' }, epicRow)) {
+    for await (const rows of this.pages(repo, 'issues', { labels: label, state: 'open', sort: 'created', direction: 'asc' }, epicRow)) {
       for (const row of rows) {
         if (row.pull_request === undefined) epics.push({ issue: row.number, title: row.title, labels: row.labels.map((label) => label.name), slices: row.sub_issues_summary ? { done: row.sub_issues_summary.completed, total: row.sub_issues_summary.total } : null });
       }

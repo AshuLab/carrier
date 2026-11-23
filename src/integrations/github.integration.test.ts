@@ -40,12 +40,12 @@ describe.skipIf(!enabled)('GhGitHub against a real repo', () => {
         issue = (JSON.parse(forge(['api', '-X', 'POST', `repos/${repo}/issues`, '-f', `title=${title}`, '-f', 'body=Throwaway issue from the Carrier adapter integration test.'])) as { number: number }).number;
         await github.setLabels(repo!, issue, { add: [readyLabel], remove: [] });
         expect(await github.getIssue(repo!, issue)).toEqual({ state: 'open', labels: [readyLabel] });
-        expect(await github.listReadyEpics(repo!, readyLabel)).toContainEqual({ issue, title, labels: [readyLabel] });
+        expect(await github.listOpenEpics(repo!, readyLabel)).toContainEqual({ issue, title, labels: [readyLabel], slices: null });
 
         await github.setLabels(repo!, issue, { add: [runningLabel], remove: [readyLabel] });
         await github.setLabels(repo!, issue, { add: [runningLabel], remove: [readyLabel] });
         expect(await github.getIssue(repo!, issue)).toEqual({ state: 'open', labels: [runningLabel] });
-        expect((await github.listReadyEpics(repo!, readyLabel)).map((epic) => epic.issue)).not.toContain(issue);
+        expect((await github.listOpenEpics(repo!, readyLabel)).map((epic) => epic.issue)).not.toContain(issue);
 
         expect(await github.getPullRequest(repo!, 999_999)).toBeNull();
         expect(await github.findPullRequest(repo!, issue)).toBeNull();

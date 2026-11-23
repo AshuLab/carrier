@@ -9,7 +9,9 @@ export class FakeGitHub implements GitHub {
   rateLimit() {
     return this.limit;
   }
-  /** A ready epic's labels are the issue's, as GitHub lists them. */
+  /** The ready label the tests run with: an entry of `ready` is listed while its issue has it. */
+  readyLabel: () => string = () => defaultLabels.ready;
+  /** The epics GitHub lists as open besides `openEpics`; their labels are the issue's, as GitHub lists them, and the engine reads `ready` from them. */
   ready: Record<string, { issue: number; title: string }[]> = {};
   unavailable: GitHubUnavailable | null = null;
   /** The open epics with their slice progress, by repo; the title defaults to empty and the labels to the issue's. */
@@ -62,19 +64,19 @@ export class FakeGitHub implements GitHub {
     return (this.issues[`${repo}#${issue}`] ??= { state: 'open', labels: [defaultLabels.ready] });
   }
 
-  async listReadyEpics(repo: string, label: string) {
-    this.guard(repo);
-    this.calls++;
-    if (this.unavailable) throw this.unavailable;
-    return (this.ready[repo] ?? []).filter((e) => hasLabel(this.issue(repo, e.issue).labels, label)).map((e) => ({ ...e, labels: [...this.issue(repo, e.issue).labels] })); // like GitHub: the label decides
-  }
-
+  /** One listing of the repo: `openEpics` and the `ready` ones that still have the ready label, each with the labels of its issue; the title defaults to empty and the progress to none. */
   async listOpenEpics(repo: string, label: string) {
     this.guard(repo);
+    this.calls++;
     const failure = this.unavailable ?? this.openEpicsUnavailable;
     if (failure) throw failure;
     this.openEpicsAsked.push(label);
-    return (this.openEpics[repo] ?? []).map((epic) => ({ title: '', ...epic, labels: [...(this.issues[`${repo}#${epic.issue}`]?.labels ?? [])] }));
+    const epics = (this.openEpics[repo] ?? []).map((epic) => ({ title: '', ...epic, labels: [...(this.issues[`${repo}#${epic.issue}`]?.labels ?? [])] }));
+    for (const ready of this.ready[repo] ?? []) {
+      const { labels } = this.issue(repo, ready.issue);
+      if (hasLabel(labels, this.readyLabel()) && !epics.some((e) => e.issue === ready.issue)) epics.push({ ...ready, slices: null, labels: [...labels] });
+    }
+    return epics;
   }
 
   async readSlices(repo: string, issue: number) {

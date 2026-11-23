@@ -32,6 +32,11 @@ What was seen is kept in `sessions.seen`.
 A list the host does not answer (not started yet, being replaced) changes nothing: the lists keep the last rows and no mark is lost, and before the first list that answered nothing is pruned or stored.
 When the check of the chat host at open answers, the window's session list is read at once and not at the next tick.
 
+The title of a row (`RollingTitle`) rolls when it changes: the new words come in from below and the old ones leave above, as the words of a run's line do (a crossfade with Reduce Motion).
+"Regenerate title" in the row's menu shows it waiting while the host writes the new one (`TitleRegeneration`): the title goes quiet and shimmers for at least two seconds, even when the model answers at once, and for as long as the model takes when that is longer; then the new title rolls in.
+The title just written is held for ten seconds, until the list has caught up with it, and a refusal of the host (no generator chosen, no model answering) stops the wait, leaves the old title and is told in words.
+The window's own title in the toolbar is the system's and changes at the next read of the list, with no effect.
+
 A row of the sidebar's list has room around its lines (`Density.sessionRowPadding`: 12 points, 7 compact) and the branch in monospace.
 A session that has a pull request, or lines it changed, has a third line: one capsule (`SessionWorkPill`) with the pull request ("#412 · ✓", "#979 · CI ✕", "#412 · CI running", "#983 · Draft", "#88 · Merged"; a click opens it) and the lines it changed as "+86 −12", then the providers, which go down from the second line with it; with only one of the two, the capsule has only that one. The only colour is a dot before the pull request (green open, red failing, purple merged, a hollow grey ring for a draft or a closed one); the words are grey. The capsule is always laid out, so nothing moves: it has no fill at rest, a quiet one under the pointer and a lighter one on the selected row.
 Without either the row has two lines, as before.

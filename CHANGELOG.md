@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- "Regenerate title" shows the title waiting in the sidebar (it goes quiet and shimmers for at least two seconds, longer if the model takes longer) and then rolls the new title in; the sidebar title rolls whenever it changes.
 - A change of agent shows in the conversation as a divider with the two agents (their mark, label and color as set in `providers.json`, and their models) in a glass capsule and what carried over under it, not as a plain line of text.
 - Picking another agent in a session's panel no longer changes the session on the spot: it changes with the next message you send, with the handoff going out with it.
 - A session that changed agent shows every provider it ran on in the sidebar, not only the current one.

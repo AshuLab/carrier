@@ -64,7 +64,7 @@ private struct SessionContextMenu: ViewModifier {
         case .unpin: pinnedStored = storedPins(pinnedIds(pinnedStored).subtracting([row.id]))
         case .rename:
             if let title = askTitle(row.title) { refuse { await actions.rename(row.id, title) } }
-        case .regenerateTitle: refuse { await actions.regenerateTitle(row.id) }
+        case .regenerateTitle: refuse { await TitleRegeneration.shared.regenerate(row.id, showing: row.title) { await actions.regeneratedTitle(row.id) } }
         case .openInTerminal(let path): openInTerminal(path)
         case .filterWorkspace(let name): filterWorkspace?(name)
         case .archive: refuse { await actions.archive(row.id) }

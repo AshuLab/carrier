@@ -251,6 +251,14 @@ public enum SessionRemovalKind: Sendable {
 
     public func regenerateTitle(_ id: String) async -> String? { await run("regenerate the title", id) { _ = try await $0.regenerateTitle(id) } }
 
+    /// Writes the session's title again and answers the new one, or what the host refused in words.
+    public func regeneratedTitle(_ id: String) async -> (title: String?, refusal: String?) {
+        switch await attempt("regenerate the title", id, { try await $0.regenerateTitle(id) }) {
+        case .success(let title): (title, nil)
+        case .failure(let refusal): (nil, refusal.words)
+        }
+    }
+
     /// What an alert before a delete is: the question to ask, or what the host refused when it was asked what the deletion would discard.
     public enum Confirmation: Equatable {
         case ask(Question)
@@ -318,15 +326,21 @@ public enum SessionRemovalKind: Sendable {
     }
 
     private func run(_ doing: String, _ id: String, _ call: (ChatHost) async throws -> Void) async -> String? {
+        if case .failure(let refusal) = await attempt(doing, id, { try await call($0) }) { return refusal.words }
+        return nil
+    }
+
+    /// `run` that keeps what the call answers.
+    private func attempt<Answer>(_ doing: String, _ id: String, _ call: (ChatHost) async throws -> Answer) async -> Result<Answer, Refusal> {
         do {
-            try await call(host)
+            let answer = try await call(host)
+            changed()
+            return .success(answer)
         } catch {
             let words = ConversationModel.words(error)
             // a refusal is the host answering as it should; anything else is a failure to talk to it
             if case ControlError.remote = error {} else { log("session \(id): could not \(doing): \(words)") }
-            return words
+            return .failure(Refusal(words: words))
         }
-        changed()
-        return nil
     }
 }

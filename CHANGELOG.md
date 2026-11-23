@@ -22,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A chat session's worktree folder is removed once its pull request is merged, or once the session is archived and untouched for 14 days.
+  Its branch stays, and the folder comes back when you resume the session, without its dependencies until something installs them.
+  Set `worktreeCleanup` in `chat.json` to change it, or `"afterPrMerged": false` and `"afterInactiveDays": "never"` to keep every folder.
+- An agent run's raw output log is capped at 50 MB per stream; the newest part is kept, in `stdout.log` and the `.1` file beside it.
 - Long conversations use far less CPU while the agent writes: the chat's rows are no longer drawn again at each update, only the ones that changed.
   With a conversation of 2,100 events and the agent writing, the app went from 66 % of a core to 20 % (one measured run against the fixture host), and 5,000 events from 98 % to 27 %.
 - The sidebar's title bar shows only the logo's mark, centred, and no longer the name beside it: it reads less crowded.

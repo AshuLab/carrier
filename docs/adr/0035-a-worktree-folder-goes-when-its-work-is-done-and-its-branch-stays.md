@@ -1,6 +1,6 @@
 # 0035 - A worktree's folder goes when its work is done, and its branch stays
 
-- Status: accepted; amends [0014](0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md) (a session worktree)
+- Status: accepted; amends [0014](0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md) (a session worktree); amended by [0039](0039-a-session-worktree-folder-is-cleaned-by-default.md) (the defaults of `worktreeCleanup`)
 - Date: 2026-11-18
 
 ## Context

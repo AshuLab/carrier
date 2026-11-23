@@ -62,6 +62,11 @@ test('an epic carries its stage, round, links, activity, error and the blockers 
   ]);
 });
 
+test('an epic stopped by an engine error carries the kind and the reason', () => {
+  add(7, 'needs_human', { needsHumanKind: 'engine_error', needsHumanReason: 'boom' });
+  expect(snapshot().epics[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'boom' });
+});
+
 test('what the engine does not keep yet is empty: no title, labels, branch, kind, watched repositories, sessions or rate limit', () => {
   add(1, 'queued', { queuedAt: 500 });
   add(2, 'running');

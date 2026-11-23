@@ -219,6 +219,22 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const toNeedsHuman = (writer: Pick<Db, 'update'>, id: number, kind: (typeof needsHumanKinds)[number], reason: string) =>
     writer.update(epics).set({ status: 'needs_human', needsHumanKind: kind, needsHumanReason: reason, finishedAt: clock.now(), labelPending: true }).where(eq(epics.id, id)).run();
 
+  // What the database says when it cannot be read or written: about the whole engine, never about one epic.
+  const isDatabaseError = (e: unknown) => [e, (e as Error | undefined)?.cause].some((x) => typeof (x as NodeJS.ErrnoException | undefined)?.code === 'string' && (x as NodeJS.ErrnoException).code!.startsWith('SQLITE_'));
+
+  // An unexpected error on one epic's path (settling a result, a retry, a failover): the epic stops for a person with the error as one redacted line,
+  // the execution it left `running` ends failed, and the others go on. Safe to repeat.
+  async function stopEpic(epicId: number, e: unknown) {
+    const reason = failureDetail(e instanceof Error ? e.message : String(e)) || 'unknown error';
+    for (const { executionId } of db.select().from(executions).where(and(eq(executions.epicId, epicId), eq(executions.status, 'running'))).all()) {
+      const run = active.get(executionId);
+      if (run) await run.stop(); // its own end is recorded when it settles
+      else db.update(executions).set({ status: 'failed', finishedAt: clock.now(), error: reason }).where(eq(executions.executionId, executionId)).run();
+    }
+    if (stillRunning(epicId)) toNeedsHuman(db, epicId, 'engine_error', reason);
+    await freeSlot().catch((err) => log.error('freeing the slot of a stopped epic failed', err));
+  }
+
   // Mirrors the label, then launches the author unless the epic already has one; an epic restarted on options chosen takes them first.
   // `epoch` is the epic's when the caller read the row: a park and a restore in between made it another launch's to make.
   const begin = async (epic: Epic, epoch = epochOf(epic.id)) => {
@@ -495,6 +511,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           await freeSlot();
         }
       }),
+      epic.id,
     );
   }
 
@@ -572,11 +589,13 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   };
 
   const inflight = new Set<Promise<void>>();
-  const track = (work: Promise<void>) => {
+  // `epicId` is the epic the work is about: an unexpected error in it stops that epic and nothing else (ADR 0046).
+  const track = (work: Promise<void>, epicId?: number) => {
     const tracked: Promise<void> = work
-      .catch((e) => {
+      .catch(async (e) => {
         log.error('stage work failed', e);
-        failed(e);
+        if (epicId === undefined || e instanceof AuthError || e instanceof GitHubUnavailable || isDatabaseError(e)) return failed(e);
+        await stopEpic(epicId, e);
       })
       .finally(() => inflight.delete(tracked));
     inflight.add(tracked);

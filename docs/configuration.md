@@ -120,7 +120,7 @@ Carrier reads and writes five labels on an epic's issue, each named by a role in
 Two more groups are off until you name them, so a Carrier that does not name them writes exactly what it wrote before:
 
 - `labels.stages`: `{ ship, review, fix }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
-- `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid` and `usage_limit`. While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
+- `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid`, `usage_limit` and `engine_error`. While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
 
 A stage label costs one more write to GitHub at each stage change, which is why it is opt-in.
 While any of these groups is named, a status change also sends one removal for each owned label the issue lacks, so the writes grow with the labels named.
